@@ -26,7 +26,7 @@ SELECT
   round(avg(deals_found) FILTER (WHERE status = 'success'))             AS avg_deals,
   max(started_at)                                                       AS last_run,
   max(started_at) FILTER (WHERE status = 'success' AND deals_found > 0) AS last_ok,
-  (SELECT bool_and(NOT (r2.status = 'success' AND r2.deals_found > 0)) FROM (
+  (SELECT bool_and(NOT (r2.status = 'success' AND coalesce(r2.deals_found, 0) > 0)) FROM (
       SELECT status, deals_found FROM public.scraper_runs s2
       WHERE s2.source = s.source AND s2.status <> 'running'
       ORDER BY started_at DESC LIMIT 3
