@@ -1,0 +1,24 @@
+# fly.toml — scraper fleet on Fly.io. Each Fly MACHINE gets its own IP, so scaling across regions gives
+# you the distinct IPs the anti-bot walls require. See docs/SCRAPER-FLEET.md.
+#
+#   fly launch --no-deploy
+#   fly secrets set NEXT_PUBLIC_SUPABASE_URL=... NEXT_PUBLIC_SUPABASE_ANON_KEY=... \
+#                   SUPABASE_SERVICE_ROLE_KEY=... ENABLE_HEADED_SCRAPERS=1 SCRAPE_INTERVAL_MS=1800000
+#   fly deploy
+#   fly scale count 3 --region iad,ord,sjc   # 3 machines = 3 IPs
+
+app = "dealerhunt-scraper"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.scraper"
+
+[env]
+  ENABLE_HEADED_SCRAPERS = "1"
+  SCRAPE_INTERVAL_MS = "1800000"
+  NODE_ENV = "production"
+
+# No [http_service] — this is a background worker, not a web server. It loops scrapes on its own.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "2gb"   # headed Chrome needs headroom; bump to 4gb if you see OOM under load

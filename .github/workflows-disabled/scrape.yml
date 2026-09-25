@@ -1,0 +1,30 @@
+name: Scrape vehicle sources
+
+# $0 scraping engine: runs the orchestrator on GitHub Actions (free minutes, full
+# Chromium) instead of Vercel serverless. FlareSolverr runs as an ephemeral service
+# container to bypass Cloudflare on gated sources (Copart) — no paid proxies/APIs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Comma-separated source ids (blank = curated default set)'
+        required: false
+        default: ''
+  # schedule:
+  #   # Staggered to spread free-minute usage. Times are UTC.
+  #   # DISABLED due to GitHub Actions billing limit for this private repo
+  #   - cron: '0 */6 * * *'   # every 6h — full default set
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Note on scraper execution
+        run: |
+          echo "Scraping has been migrated to the Fly.io fleet to resolve GitHub Actions billing limits."
+          echo "Run scripts/deploy-fleet.sh to deploy or scale the workers."

@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "DealerHunt Pro — Send to DealerHunt",
+  "version": "2.0.0",
+  "description": "One click on any car listing (Copart, IAA, Facebook, Craigslist, Cars.com, AutoTrader, CarGurus, eBay, Carvana, Vroom, TrueCar, OfferUp) sends it to DealerHunt Pro and returns a GO/HOLD/PASS verdict + estimated profit + max bid.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "DealerHunt Pro"
+  },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.copart.com/*",
+        "*://*.iaai.com/*",
+        "*://*.facebook.com/marketplace/*",
+        "*://*.craigslist.org/*",
+        "*://*.cars.com/*",
+        "*://*.autotrader.com/*",
+        "*://*.cargurus.com/*",
+        "*://*.ebay.com/*",
+        "*://*.carvana.com/*",
+        "*://*.vroom.com/*",
+        "*://*.truecar.com/*",
+        "*://*.offerup.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

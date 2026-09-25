@@ -1,0 +1,34 @@
+# Dockerfile.scraper — browser-capable scrape worker for the Docker fleet.
+#
+# Built on Playwright's image: Debian + every browser system dependency + xvfb already baked in (the
+# Alpine app image can't run Chrome). We add Patchright's stealth Chromium and real Google Chrome (the
+# headed tier needs the actual Chrome channel to beat PerimeterX/Akamai), then loop scrape cycles under
+# a virtual display.
+#
+#   docker compose up --scale scraper=4
+#
+# Reputation note: scaling replicas on ONE host shares ONE IP (doesn't help anti-bot reputation). For the
+# real "unstoppable" effect, run replicas on DIFFERENT hosts/regions so each has its own IP.
+
+FROM mcr.microsoft.com/playwright:v1.48.0-jammy
+
+WORKDIR /app
+
+# Install deps incl. devDeps (tsx/patchright live there). Force dev install in case the base sets NODE_ENV.
+COPY package.json package-lock.json* ./
+COPY scripts/postinstall.js ./scripts/postinstall.js
+RUN npm install --include=dev
+
+# Browsers: Patchright's stealth Chromium (stealth tier) + real Google Chrome (headed tier). OS deps are
+# already in the base image, so no --with-deps needed.
+RUN npx patchright install chromium && npx playwright install chromium chrome
+
+COPY . .
+
+ENV NODE_ENV=production
+# Turn on the headed real-Chrome tier; xvfb-run (below) gives it the display it needs.
+ENV ENABLE_HEADED_SCRAPERS=1
+ENV SCRAPE_INTERVAL_MS=1800000
+
+# Start Xvfb in the background and run the worker directly (bypasses xvfb-run signal hang when run as PID 1)
+CMD ["sh", "-c", "Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp -ac & export DISPLAY=:99 && npx tsx workers/scrape-worker.ts"]

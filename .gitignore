@@ -1,0 +1,66 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files — never commit: every .env* holds live Supabase / AI / ingest secrets
+.env
+.env.*
+!.env.example
+
+# loose one-off scripts / debug artifacts (never commit — may contain secrets)
+/scripts/apply-migrations.js
+/fix-*
+/test-*.js
+/test-*.ts
+/inspect-*
+/cleanup-user.ts
+/restore.py
+/rewrite_*.py
+/upgrade_*.py
+/*-debug.*
+/copart-debug.html
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# supabase
+/supabase/.temp
+/supabase/config.toml
+
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# IDE
+.windsurf/plans/
+.devin/
+.vscode/
+.idea/
+
+# logs
+*.log
+
+# OS
+Thumbs.db

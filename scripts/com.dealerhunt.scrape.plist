@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Free local scrape scheduler (macOS launchd). Runs scripts/scrape-local.sh every 30 minutes,
+  rotating Craigslist shards so the whole country is covered ~every 4 hours. $0, residential IP.
+
+  Install:
+    cp scripts/com.dealerhunt.scrape.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.dealerhunt.scrape.plist
+  Check / stop:
+    launchctl list | grep dealerhunt
+    launchctl unload ~/Library/LaunchAgents/com.dealerhunt.scrape.plist
+  Logs:  /tmp/dhp-scrape.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.dealerhunt.scrape</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/shy/Developer/Autoverse/scripts/scrape-local.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/dhp-scrape-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/dhp-scrape-launchd.err</string>
+</dict>
+</plist>

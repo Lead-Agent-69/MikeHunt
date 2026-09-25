@@ -1,0 +1,28 @@
+name: Scrape (near real-time, rotating)
+
+# $0 near-real-time ingestion. Every 30 min it scrapes a rotating 1/8 slice of the country
+# from Craigslist (static HTML — no browser/proxy, ~1-2 min/run), cycling the full nation
+# every ~4 hours. New deals hit Supabase and the scan page updates live via Supabase Realtime.
+#
+# Minutes budget: GitHub Actions is UNLIMITED on public repos. On a private repo the free tier
+# is ~2,000 min/month — at ~2 min/run every 30 min (~2,880/mo) you'd exceed it, so either make
+# the repo public, raise the cron interval to hourly, or self-host the worker. The full
+# multi-source sweep stays in scrape.yml (every 6h).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 */2 * * *' # run every 2h (GitHub Actions billing fix)
+
+concurrency:
+  group: scrape-realtime
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Note on scraper execution
+        run: |
+          echo "Scraping has been migrated to the Fly.io fleet to resolve GitHub Actions billing limits."
+          echo "Run scripts/deploy-fleet.sh to deploy or scale the workers."

@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+    depends_on:
+      - redis
+      - flaresolverr
+
+  # Browser-capable scrape fleet. Runs smartFetch headed (Patchright + real Chrome under xvfb), beating
+  # Cloudflare/PerimeterX/Akamai for free. Scale with `docker compose up --scale scraper=N` — but note
+  # replicas on ONE host share ONE IP; for anti-bot reputation spread, run replicas on DIFFERENT hosts.
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    restart: unless-stopped
+    shm_size: "1gb" # Chrome needs ample /dev/shm or it crashes under load
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - ENABLE_HEADED_SCRAPERS=1
+      - SCRAPE_INTERVAL_MS=1800000
+      # Reserve tier — smartFetch falls to FlareSolverr only after static→stealth→headed all fail.
+      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
+      # - SCRAPE_SOURCES=cars_com,autotrader,truecar
+    depends_on:
+      - flaresolverr
+
+  # FlareSolverr — the RESERVE anti-bot tier for smartFetch: a separate self-hosted process with its OWN
+  # TLS/JA3 fingerprint + a Cloudflare-challenge solver, reachable at flaresolverr:8191. smartFetch only
+  # deploys it after the in-house static→stealth→headed ladder has failed for a host, so it's the last
+  # resort that can win where our Patchright path can't (e.g. some Cloudflare-gated auction/dealer sites).
+  # Free, self-hosted. NB: it solves CLOUDFLARE — it does NOT defeat DataDome/Kasada (nothing free does).
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=warning
+      - TZ=America/Chicago
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  redis_data:

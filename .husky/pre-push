@@ -1,0 +1,4 @@
+# Local CI gate — runs the same checks as GitHub CI (typecheck + lint + tests) before any push,
+# so regressions never reach main and we don't depend on GitHub Actions minutes. Kiro owns keeping
+# this green (docs/handouts/KIRO.md). Bypass in a true emergency only: `git push --no-verify`.
+npm run verify

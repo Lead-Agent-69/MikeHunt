@@ -1,0 +1,814 @@
+[
+  {
+    "url": "https://junkcarsus.com",
+    "name": "Junk Cars US",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm",
+    "lastYield": 7
+  },
+  {
+    "url": "https://texassalvage.com",
+    "name": "Texas Salvage",
+    "state": "TX",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://houstonautosalvage.com",
+    "name": "Houston Auto Salvage",
+    "state": "TX",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://rebuildablevehicles.com",
+    "name": "Rebuildable Vehicles",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://repairablecarsforsale.com",
+    "name": "Repairable Cars for Sale",
+    "state": "TX",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://savvyautobrokers.com",
+    "name": "Savvy Auto Brokers",
+    "state": "TX",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://automotiveauctions.com",
+    "name": "Automotive Auctions",
+    "state": "TX",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://surplusautos.com",
+    "name": "Surplus Autos",
+    "state": "FL",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://floridarebuildables.com",
+    "name": "Florida Rebuildables",
+    "state": "FL",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://salvagecarsauction.com",
+    "name": "Salvage Cars Auction",
+    "state": "FL",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://southernautosalvage.com",
+    "name": "Southern Auto Salvage",
+    "state": "AL",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://bamaautosalvage.com",
+    "name": "Bama Auto Salvage",
+    "state": "AL",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm",
+    "lastYield": 0
+  },
+  {
+    "url": "https://automotivejunkyard.com",
+    "name": "Automotive Junkyard",
+    "state": "AL",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://qualityautosalvage.com",
+    "name": "Quality Auto Salvage",
+    "state": "AL",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://aceautosalvage.com",
+    "name": "Ace Auto Salvage",
+    "state": "AL",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://rebuiltcar.com",
+    "name": "Rebuilt Car",
+    "state": "AL",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savvyauctions.com",
+    "name": "Savvy Auctions",
+    "state": "AL",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://northwestautosalvage.com",
+    "name": "Northwest Auto Salvage",
+    "state": "AK",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://abcautosalvage.com",
+    "name": "ABC Auto Salvage",
+    "state": "AZ",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savvyauto.com",
+    "name": "Savvy Auto",
+    "state": "AZ",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://repairablevehicles.net",
+    "name": "Repairable Vehicles Network",
+    "state": "AR",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://americancarauctions.com",
+    "name": "American Car Auctions",
+    "state": "AR",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://alliedautosalvage.com",
+    "name": "Allied Auto Salvage",
+    "state": "CA",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkyard.com",
+    "name": "Junkyard",
+    "state": "CA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://coloradosalvage.com",
+    "name": "Colorado Salvage",
+    "state": "CO",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://rockymountainsalvage.com",
+    "name": "Rocky Mountain Salvage",
+    "state": "CO",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://4wheeler.com",
+    "name": "4Wheeler Auto Salvage",
+    "state": "CO",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savvyautoparts.com",
+    "name": "Savvy Auto Parts",
+    "state": "CO",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://repairableauto.com",
+    "name": "Repairable Auto",
+    "state": "CO",
+    "type": "rebuilder_dealer",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://bobstowing.com",
+    "name": "Bob's Towing & Salvage",
+    "state": "CT",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://americanautosalvage.com",
+    "name": "American Auto Salvage",
+    "state": "CT",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://rebuiltvehicles.com",
+    "name": "Rebuilt Vehicles",
+    "state": "CT",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://bargainautoparts.com",
+    "name": "Bargain Auto Parts",
+    "state": "DE",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://autosalvage.com",
+    "name": "Auto Salvage",
+    "state": "DE",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://biddingforgood.com",
+    "name": "Bidding For Good",
+    "state": "DE",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://browardsalvage.com",
+    "name": "Broward Salvage",
+    "state": "FL",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://americansalvage.com",
+    "name": "American Salvage",
+    "state": "GA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://southauction.com",
+    "name": "South Auction",
+    "state": "GA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://aaasurplus.com",
+    "name": "AAA Surplus",
+    "state": "GA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://legacyauctions.com",
+    "name": "Legacy Auctions",
+    "state": "GA",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://hawaiisalvage.com",
+    "name": "Hawaii Salvage & Recycling",
+    "state": "HI",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://proxibid.com",
+    "name": "Proxibid",
+    "state": "ID",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://indianaautosalvage.com",
+    "name": "Indiana Auto Salvage",
+    "state": "IN",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://salvageworld.com",
+    "name": "Salvage World",
+    "state": "KS",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://salvagevehicles.com",
+    "name": "Salvage Vehicles",
+    "state": "KS",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://kcautosalvage.com",
+    "name": "KC Auto Salvage",
+    "state": "KS",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://heartlandautosalvage.com",
+    "name": "Heartland Auto Salvage",
+    "state": "KS",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkyardplanet.com",
+    "name": "Junkyard Planet",
+    "state": "LA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://allsalvage.com",
+    "name": "All Salvage",
+    "state": "ME",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkmycar.com",
+    "name": "Junk My Car",
+    "state": "MD",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://adessa.com",
+    "name": "ADESA",
+    "state": "MD",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://massautobrokers.com",
+    "name": "Mass Auto Brokers",
+    "state": "MA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://qualityautobrokers.com",
+    "name": "Quality Auto Brokers",
+    "state": "MA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://newenglandautoauction.com",
+    "name": "New England Auto Auction",
+    "state": "MA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkcarz.com",
+    "name": "Junk Carz",
+    "state": "MI",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://michiganmotorz.com",
+    "name": "Michigan Motorz",
+    "state": "MI",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://qualityautoparts.com",
+    "name": "Quality Auto Parts",
+    "state": "MI",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkcarzone.com",
+    "name": "Junk Car Zone",
+    "state": "MN",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkcarsminnesota.com",
+    "name": "Junk Cars Minnesota",
+    "state": "MN",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://brothersautoparts.com",
+    "name": "Brothers Auto Parts",
+    "state": "MN",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://aceautoparts.com",
+    "name": "Ace Auto Parts",
+    "state": "MN",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://americasautobroker.com",
+    "name": "America's Auto Broker",
+    "state": "MO",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savagesalvage.com",
+    "name": "Savage Salvage",
+    "state": "MT",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savvyauction.com",
+    "name": "Savvy Auction",
+    "state": "NE",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://renosalvage.com",
+    "name": "Reno Salvage",
+    "state": "NV",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://lasvegasautosalvage.com",
+    "name": "Las Vegas Auto Salvage",
+    "state": "NV",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://nhparts.com",
+    "name": "NH Parts",
+    "state": "NH",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkcarsforcashnj.com",
+    "name": "Junk Cars for Cash NJ",
+    "state": "NJ",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://surpluscity.com",
+    "name": "Surplus City",
+    "state": "NJ",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://brownssalvage.com",
+    "name": "Brown's Salvage",
+    "state": "NM",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://nmauctions.com",
+    "name": "New Mexico Auctions",
+    "state": "NM",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://4bids.com",
+    "name": "4Bids",
+    "state": "NM",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://autobidder.com",
+    "name": "AutoBidder",
+    "state": "NM",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://nyautosalvage.com",
+    "name": "NY Auto Salvage",
+    "state": "NY",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://abcautobrokers.com",
+    "name": "ABC Auto Brokers",
+    "state": "NY",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://rrsalvage.com",
+    "name": "RR Salvage",
+    "state": "ND",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://buckeyemotor.com",
+    "name": "Buckeye Motor",
+    "state": "OH",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://ohioauction.com",
+    "name": "Ohio Auction",
+    "state": "OH",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://oregonautosalvage.com",
+    "name": "Oregon Auto Salvage",
+    "state": "OR",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://oregonwrecking.com",
+    "name": "Oregon Wrecking",
+    "state": "OR",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://bensautosalvage.com",
+    "name": "Ben's Auto Salvage",
+    "state": "PA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://scsalvage.com",
+    "name": "SC Salvage",
+    "state": "SC",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://southcarolinaauction.com",
+    "name": "South Carolina Auction",
+    "state": "SC",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://aaasouth.com",
+    "name": "AAA South",
+    "state": "SC",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://sdsalvage.com",
+    "name": "SD Salvage",
+    "state": "SD",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://junkcarsd.com",
+    "name": "Junk Cars SD",
+    "state": "SD",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://sdautoauctions.com",
+    "name": "SD Auto Auctions",
+    "state": "SD",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://automotive-recyclers.com",
+    "name": "Automotive Recyclers",
+    "state": "TN",
+    "type": "rebuilder_dealer",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://tnautoauction.com",
+    "name": "TN Auto Auction",
+    "state": "TN",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://savemyride.com",
+    "name": "Save My Ride",
+    "state": "TX",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://utahautosalvage.com",
+    "name": "Utah Auto Salvage",
+    "state": "UT",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://vermontsalvage.com",
+    "name": "Vermont Salvage & Recycling",
+    "state": "VT",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://southendautosalvage.com",
+    "name": "South End Auto Salvage",
+    "state": "VT",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://woodstockautosalvage.com",
+    "name": "Woodstock Auto Salvage",
+    "state": "VT",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://virginiasalvage.com",
+    "name": "Virginia Salvage",
+    "state": "VA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://virginiacarparts.com",
+    "name": "Virginia Car Parts",
+    "state": "VA",
+    "type": "salvage_yard",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://nwautobrokers.com",
+    "name": "Northwest Auto Brokers",
+    "state": "WA",
+    "type": "auction_proxy",
+    "status": "live",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://premierautobrokers.com",
+    "name": "Premier Auto Brokers",
+    "state": "WA",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://wisconsinauction.com",
+    "name": "Wisconsin Auction",
+    "state": "WI",
+    "type": "auction_proxy",
+    "status": "unverified",
+    "discoveredVia": "llm"
+  },
+  {
+    "url": "https://wyomingautoparts.com",
+    "name": "Wyoming Auto Parts",
+    "state": "WY",
+    "type": "salvage_yard",
+    "status": "live",
+    "discoveredVia": "llm"
+  }
+]

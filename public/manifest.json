@@ -1,0 +1,68 @@
+{
+  "name": "DealerHunt — Underpriced Cars",
+  "short_name": "DealerHunt",
+  "description": "Underpriced cars across every auction, marketplace, and dealer lot — valued BUY / HOLD / PASS so you know exactly what to pay before you bid.",
+  "start_url": "/discover",
+  "display": "standalone",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["business", "productivity", "finance", "automotive"],
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Discover",
+      "short_name": "Discover",
+      "description": "Underpriced vehicles, valued BUY / HOLD / PASS",
+      "url": "/discover"
+    },
+    {
+      "name": "Scan the market",
+      "short_name": "Scan",
+      "description": "Search auctions and marketplaces in real time",
+      "url": "/scan"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "share_target": {
+    "action": "/save",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
