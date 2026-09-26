@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import { createClientComponentClient } from "@/lib/supabase";
@@ -21,7 +21,7 @@ export default function ChangelogPage() {
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <h1 className="text-3xl font-black text-[var(--t1)] mb-1">Changelog</h1>
-      <p className="text-[var(--t3)] mb-10">Every update to DealerHunt Pro.</p>
+      <p className="text-[var(--t3)] mb-10">Every update to MikeHunt Pro.</p>
 
       {entries.length === 0 && (
         <div className="glass-panel p-8 text-center text-[var(--t4)] text-sm">

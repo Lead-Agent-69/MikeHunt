@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -74,7 +74,7 @@ function BetaSuccessInner() {
             transition={{ delay: 0.3 }}
             className="text-4xl font-black text-[var(--t1)] mb-4"
           >
-            Welcome to DealerHunt Pro! 🎉
+            Welcome to MikeHunt Pro! 🎉
           </motion.h1>
 
           <motion.p
@@ -271,10 +271,10 @@ function BetaSuccessInner() {
             <p>
               Questions? Email us at{" "}
               <a
-                href="mailto:support@dealerhunt.pro"
+                href="mailto:support@MikeHunt.pro"
                 className="text-[var(--amber)] hover:underline"
               >
-                support@dealerhunt.pro
+                support@MikeHunt.pro
               </a>
             </p>
           </motion.div>

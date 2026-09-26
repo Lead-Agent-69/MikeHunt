@@ -1,4 +1,4 @@
-// Geographic arbitrage mapping for DealerHunt
+﻿// Geographic arbitrage mapping for MikeHunt
 
 export interface GeographicOpportunity {
   id: string;

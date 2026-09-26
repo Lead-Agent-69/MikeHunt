@@ -1,6 +1,6 @@
-const CACHE_NAME = 'dealerhunt-v2'
-const STATIC_CACHE = 'dealerhunt-static-v2'
-const DYNAMIC_CACHE = 'dealerhunt-dynamic-v2'
+﻿const CACHE_NAME = 'MikeHunt-v2'
+const STATIC_CACHE = 'MikeHunt-static-v2'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v2'
 
 const STATIC_ASSETS = [
   '/',
@@ -115,7 +115,7 @@ self.addEventListener('sync', (event) => {
 // Push notification handling
 self.addEventListener('push', (event) => {
   // Payload is JSON { title, body, url, tag }; fall back to plain text for older senders.
-  let payload = { title: 'DealerHunt', body: 'New deal matches found', url: '/feed' }
+  let payload = { title: 'MikeHunt', body: 'New deal matches found', url: '/feed' }
   try {
     if (event.data) payload = Object.assign(payload, event.data.json())
   } catch (e) {

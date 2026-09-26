@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -56,10 +56,10 @@ export async function GET(req: Request) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "DealerHunt Pro - Beta Access",
+              name: "MikeHunt Pro - Beta Access",
               description:
                 "$1 for 30 days, then $23/month (20% lifetime discount)",
-              images: ["https://dealerhunt.pro/og-image.png"],
+              images: ["https://MikeHunt.pro/og-image.png"],
             },
             recurring: {
               interval: "month",

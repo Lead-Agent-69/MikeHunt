@@ -4,6 +4,17 @@
   "outputDirectory": ".next",
   "regions": ["iad1"],
 
+  "crons": [
+    {
+      "path": "/api/alerts/process",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/embeddings/backfill",
+      "schedule": "0 */6 * * *"
+    }
+  ],
+
   "headers": [
     {
       "source": "/api/ingest",

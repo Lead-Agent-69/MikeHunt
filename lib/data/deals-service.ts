@@ -212,6 +212,7 @@ export class DealsService {
     };
     query = query.order(sortColumnMap[sortBy], {
       ascending: sortOrder === "asc",
+      nullsFirst: false,
     });
 
     return query;

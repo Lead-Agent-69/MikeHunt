@@ -1,7 +1,8 @@
-// lib/scrapers/tools/alerts.ts
+﻿// lib/scrapers/tools/alerts.ts
 // Alert service for price drops and scraper failures.
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { sendPushToUser } from "@/lib/notifications/push";
 
 export interface AlertServiceOptions {
   supabaseUrl?: string;
@@ -38,7 +39,7 @@ export class ScraperAlertService {
     }
     this.supabase = createClient(supabaseUrl, supabaseKey);
     this.options = {
-      fromEmail: "alerts@dealerhunt.com",
+      fromEmail: "alerts@MikeHunt.com",
       appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
       ...options,
     };
@@ -137,9 +138,14 @@ export class ScraperAlertService {
   }
 
   // Main processing loop
-  async processAlerts(): Promise<{ processed: number; emailsSent: number }> {
+  async processAlerts(): Promise<{
+    processed: number;
+    emailsSent: number;
+    pushesSent: number;
+  }> {
     const alerts = await this.getPendingPriceDropAlerts();
     let emailsSent = 0;
+    let pushesSent = 0;
 
     // Honor the per-user "email me on price drops" setting (user_profiles.notify_price_drops). Default ON
     // when unset. Opted-out users' alerts are still marked sent (they stay in the in-app inbox) but no email.
@@ -164,10 +170,17 @@ export class ScraperAlertService {
       if (!optedOut.has(alert.userId)) {
         const sent = await this.sendPriceDropEmail(alert);
         if (sent) emailsSent += 1;
+        // Web push rides the same opt-out as email; no-ops cleanly when VAPID isn't configured.
+        pushesSent += await sendPushToUser(this.supabase, alert.userId, {
+          title: `Price drop: ${alert.dealTitle}`,
+          body: `$${alert.oldPrice.toLocaleString()} → $${alert.newPrice.toLocaleString()} (${alert.dropPercentage.toFixed(1)}% off)`,
+          url: `/deals/${alert.dealId}`,
+          tag: `price-drop-${alert.dealId}`,
+        });
       }
       await this.markAlertSent(alert.id);
     }
 
-    return { processed: alerts.length, emailsSent };
+    return { processed: alerts.length, emailsSent, pushesSent };
   }
 }

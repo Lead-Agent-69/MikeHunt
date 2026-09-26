@@ -9,12 +9,14 @@ import React, {
 } from "react";
 import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
+import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
 
 import { LayoutGrid, Rows3, Table2 } from "lucide-react";
 import { DealTable } from "@/components/scan/DealTable";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
+import { LaneModeHUD } from "@/components/scan/LaneModeHUD";
 import { isValidVin } from "@/lib/vehicle/vin";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
@@ -30,6 +32,7 @@ import {
   carCategories,
   type CarLike,
 } from "@/lib/scoring/deal-categories";
+import { ArbitrageRadar, ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -427,6 +430,8 @@ export default function ScanPage() {
     "comfortable",
   );
   const [view, setView] = useState<"grid" | "table">("grid");
+  const [isLaneModeOpen, setIsLaneModeOpen] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const { recents, addRecent, removeRecent, clearRecents } =
     useRecentSearches();
 
@@ -1086,6 +1091,15 @@ export default function ScanPage() {
             </>
           )}
         </button>
+        <button
+          onClick={() => setIsLaneModeOpen(true)}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 font-black text-black rounded-xl py-3.5 px-6 transition-all border-none bg-[var(--amber)] shadow-[0_0_15px_rgba(255,170,0,0.3)] hover:scale-105"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+          </svg>
+          Lane Mode
+        </button>
       </div>
 
       {/* ── Status strip ── */}
@@ -1172,6 +1186,17 @@ export default function ScanPage() {
             <Ico name="filter" size={12} />
             More filters{advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSimulatorOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 text-white shadow-sm hover:scale-[1.02]"
+            style={{
+              background: "linear-gradient(135deg, var(--amber), var(--purple))",
+              borderColor: "transparent",
+            }}
+          >
+            🧮 Profit Simulator
           </button>
 
           {/* Results count + density */}
@@ -1433,6 +1458,9 @@ export default function ScanPage() {
         })}
       </div>
 
+      {/* Cross-State Arbitrage Radar */}
+      <ArbitrageRadar />
+
       {/* ── Results grid ── */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1455,13 +1483,21 @@ export default function ScanPage() {
       )}
 
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
-        <div className={gridClass}>
-          {filteredResults.map((car: ScanResult, idx: number) => (
-            <div
+        <motion.div
+          className={gridClass}
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+          }}
+          initial="hidden"
+          animate="show"
+        >
+          {filteredResults.map((car: ScanResult) => (
+            <motion.div
               key={car.id}
-              style={{
-                animation: `fadeUp 200ms cubic-bezier(.16,1,.3,1) both`,
-                animationDelay: `${Math.min(idx * 40, 400)}ms`,
+              variants={{
+                hidden: { opacity: 0, y: 20, scale: 0.97 },
+                show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring" as const, stiffness: 120, damping: 18 } },
               }}
             >
               <DealCard
@@ -1490,9 +1526,9 @@ export default function ScanPage() {
                 firstSeenAt={car.firstSeenAt}
                 onClick={() => transitionTo(`/deal/${car.id}`)}
               />
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}
@@ -1512,6 +1548,16 @@ export default function ScanPage() {
 
       {/* Toasts */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      
+      <LaneModeHUD 
+        isOpen={isLaneModeOpen} 
+        onClose={() => setIsLaneModeOpen(false)} 
+      />
+
+      <ProfitSimulatorDrawer
+        isOpen={isSimulatorOpen}
+        onClose={() => setIsSimulatorOpen(false)}
+      />
     </div>
   );
 }

@@ -45,6 +45,7 @@ const MORE_GROUPS = [
   {
     group: "Find deals",
     items: [
+      { name: "Swipe", href: "/swipe", icon: Layers },
       { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
       { name: "Map", href: "/map", icon: MapPin },
       { name: "Today", href: "/today", icon: CalendarDays },

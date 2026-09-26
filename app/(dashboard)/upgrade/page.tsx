@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -85,7 +85,7 @@ export default function UpgradePage() {
     >
       <div className="text-center mb-10">
         <h1 className="text-3xl font-black text-[var(--t1)] mb-1">
-          Upgrade DealerHunt Pro
+          Upgrade MikeHunt Pro
         </h1>
         <p className="text-[var(--t3)]">
           Every plan profits you more than it costs. Cancel anytime.

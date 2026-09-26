@@ -28,5 +28,6 @@ export interface DealCardProps {
   priceDropAmount?: number;
   priceDropDays?: number;
   firstSeenAt?: string | Date;
+  imageUrl?: string;
   onClick?: () => void;
 }

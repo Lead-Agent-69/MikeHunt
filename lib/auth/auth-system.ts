@@ -1,11 +1,11 @@
-// ⚠️ LEGACY — custom auth path, NOT the live one. The app authenticates through Supabase Auth directly
+﻿// ⚠️ LEGACY — custom auth path, NOT the live one. The app authenticates through Supabase Auth directly
 // (app/(auth)/login + register call supabase.auth.signInWithPassword; the dashboard uses getServerUser).
 // Only /api/auth/signup + /signin import this, and the UI doesn't call those routes. It reads/writes the
 // `profiles` table, whereas the CANONICAL profile/plan/billing table is `user_profiles` (used by
 // billing/webhook, checkout, lib/auth/plan, auth/provision). Do NOT add new reads against `profiles` —
 // use `user_profiles` (and Supabase auth.users for email). Kept only to avoid breaking the unused routes.
 //
-// Authentication system for DealerHunt
+// Authentication system for MikeHunt
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 

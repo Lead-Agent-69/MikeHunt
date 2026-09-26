@@ -93,7 +93,7 @@ export async function GET(
       comparables: prices.length,
       source: "deals_comparables",
       model_derived: `${year ?? ""} ${make} ${model}`.trim(),
-      note: "Estimated from average ask price of comparable deals in DealerHunt.",
+      note: "Estimated from average ask price of comparable deals in MikeHunt.",
     });
   }
 

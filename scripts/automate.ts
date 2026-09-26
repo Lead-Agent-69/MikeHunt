@@ -1,4 +1,4 @@
-// scripts/automate.ts
+﻿// scripts/automate.ts
 // Local automation daemon (running on intervals instead of BullMQ)
 
 import { scrapeIAA } from "../lib/scrapers/sources/iaa";
@@ -25,7 +25,7 @@ async function safeRun(name: string, fn: () => Promise<any>) {
 }
 
 async function loop() {
-  console.log("🤖 Starting DealerHunt Automation Daemon...");
+  console.log("🤖 Starting MikeHunt Automation Daemon...");
   console.log("Press Ctrl+C to exit.");
 
   // Run initial pass

@@ -1,4 +1,4 @@
-// background.js — DealerHunt Pro extension service worker.
+﻿// background.js — MikeHunt Pro extension service worker.
 // Owns the cross-origin POST to /api/ingest (content scripts can't set the Authorization header for
 // a different origin cleanly). Reads the configured API base + ingest secret from storage.
 

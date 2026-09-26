@@ -1,4 +1,4 @@
-// Parts sourcing and tear-down calculator for DealerHunt
+﻿// Parts sourcing and tear-down calculator for MikeHunt
 
 import { damageEffect, damageSummary, type PartStatus } from "./damage-map";
 

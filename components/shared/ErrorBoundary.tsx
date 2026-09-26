@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { Ico } from "./Ico";
@@ -127,7 +127,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-xs text-[var(--t4)]">
               If this problem persists,{" "}
               <a
-                href="mailto:support@dealerhunt.com"
+                href="mailto:support@MikeHunt.com"
                 className="text-[var(--amber)] hover:underline font-medium"
               >
                 contact support

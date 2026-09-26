@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type UserType = "dealer" | "private" | "parts";
@@ -333,7 +333,7 @@ export const useDealStore = create<DealState>()(
       },
     }),
     {
-      name: "dealerhunt-deal-store",
+      name: "MikeHunt-deal-store",
     },
   ),
 );

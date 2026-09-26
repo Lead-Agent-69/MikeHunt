@@ -107,7 +107,7 @@ export async function GET(
       const response = await fetch(`https://mcp.vin/${vin}?format=json`, {
         headers: {
           Accept: "application/json",
-          "User-Agent": "DealerHuntPro/1.0",
+          "User-Agent": "MikeHuntPro/1.0",
         },
       });
       if (response.ok) {

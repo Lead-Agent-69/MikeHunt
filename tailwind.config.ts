@@ -6,6 +6,10 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  // The app themes via <html data-theme="dark"> (ThemeToggle + the no-FOUC script in layout.tsx),
+  // not a .dark class — so dark: utilities must key off that attribute or they follow the OS
+  // instead of the user's in-app choice.
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {

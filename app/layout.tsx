@@ -14,7 +14,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
 
 export const metadata: Metadata = {
-  title: "DealerHunt - Vehicle Sourcing Intelligence",
+  title: "MikeHunt - Vehicle Sourcing Intelligence",
   description:
     "Smart vehicle sourcing platform for dealers with real-time market intelligence and profit optimization",
   manifest: "/manifest.json",
@@ -28,10 +28,10 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "DealerHunt",
+    title: "MikeHunt",
   },
   openGraph: {
-    title: "DealerHunt - Vehicle Sourcing Intelligence",
+    title: "MikeHunt - Vehicle Sourcing Intelligence",
     description: "Smart vehicle sourcing platform for dealers",
     type: "website",
   },
@@ -45,6 +45,8 @@ export const viewport = {
   viewportFit: "cover",
   themeColor: "#f25b9a",
 };
+
+import { LenisSmoothScroll } from "@/components/ui/framer-components";
 
 export default function RootLayout({
   children,
@@ -79,7 +81,7 @@ export default function RootLayout({
           sizes="32x32"
           href="/favicon-32x32.png"
         />
-        <meta name="apple-mobile-web-app-title" content="DealerHunt" />
+        <meta name="apple-mobile-web-app-title" content="MikeHunt" />
         <meta name="theme-color" content="#f25b9a" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
@@ -93,11 +95,13 @@ export default function RootLayout({
         <SWRProvider>
           <ErrorBoundary>
             <ResponsiveProvider>
-              {children}
-              <SpeedInsights />
-              <ToastProvider />
-              <PWARegister />
-              <InstallPrompt />
+              <LenisSmoothScroll>
+                {children}
+                <SpeedInsights />
+                <ToastProvider />
+                <PWARegister />
+                <InstallPrompt />
+              </LenisSmoothScroll>
             </ResponsiveProvider>
           </ErrorBoundary>
         </SWRProvider>

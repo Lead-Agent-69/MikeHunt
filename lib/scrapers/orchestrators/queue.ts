@@ -1,4 +1,4 @@
-// lib/scrapers/orchestrators/queue.ts
+﻿// lib/scrapers/orchestrators/queue.ts
 // Queue-based orchestrator using Redis for durable, distributed scraping jobs.
 
 import { BaseScraperOrchestrator, OrchestratorOptions } from './base'
@@ -47,7 +47,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
     this.registry = registry
     this.executor = new ScraperExecutor()
     this.redis = new Redis(options.redisUrl || process.env.REDIS_URL || 'redis://localhost:6379')
-    this.queueName = options.queueName || 'dealerhunt:scraper:queue'
+    this.queueName = options.queueName || 'MikeHunt:scraper:queue'
     this.workerConcurrency = options.workerConcurrency || 3
     this.retries = options.retries || 2
     this.jobTimeoutMs = options.jobTimeoutMs || 300000

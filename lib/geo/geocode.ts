@@ -1,4 +1,4 @@
-// Free, key-less geocoding with a persistent cache (geocode_cache table).
+﻿// Free, key-less geocoding with a persistent cache (geocode_cache table).
 //   - ZIP        → api.zippopotam.us/us/<zip>
 //   - city+state → Nominatim (OpenStreetMap) place search
 // Every result is cached by place key, so repeat locations (the same metros show up constantly in
@@ -29,7 +29,7 @@ type FetchLike = (
   json: () => Promise<any>;
 }>;
 
-const NOMINATIM_UA = "DealerHuntPro/1.0 (vehicle deal geocoding)";
+const NOMINATIM_UA = "MikeHuntPro/1.0 (vehicle deal geocoding)";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -1,7 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion, useSpring, useTransform } from "framer-motion";
 import { Mono } from "./Mono";
+
+function AnimatedNumber({ value }: { value: number }) {
+  const spring = useSpring(value, { mass: 0.8, stiffness: 75, damping: 15 });
+  const display = useTransform(spring, (current) =>
+    Math.round(current).toLocaleString()
+  );
+
+  useEffect(() => {
+    spring.set(value);
+  }, [spring, value]);
+
+  return <motion.span>{display}</motion.span>;
+}
 
 interface MaxBidCalculatorProps {
   deal: {
@@ -187,52 +201,63 @@ export function MaxBidCalculator({ deal }: MaxBidCalculatorProps) {
         </div>
       </div>
 
-      {/* Calculated Max Bid */}
-      <div
-        className="p-5 rounded-[var(--r3)]"
+      {/* Calculated Max Bid with Ticker */}
+      <motion.div
+        className="p-5 rounded-[var(--r3)] relative overflow-hidden"
         style={{
           background: "linear-gradient(135deg, var(--s2) 0%, var(--s1) 100%)",
-          border: "2px solid var(--amber)",
+          border: "1px solid var(--amber)",
+          boxShadow: "0 0 20px rgba(255, 170, 0, 0.15)",
         }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
       >
-        <div className="text-xs text-[var(--t3)] mb-2 font-semibold uppercase tracking-wider">
-          Your Custom Max Bid
-        </div>
-        <Mono className="text-4xl font-black text-[var(--amber)] mb-2">
-          ${maxBid.toLocaleString()}
-        </Mono>
-        <div className="text-sm text-[var(--t2)] font-medium">
-          Expected profit:{" "}
-          <Mono className="text-[var(--green)] font-bold">
-            +${expectedProfit.toLocaleString()}
-          </Mono>
-        </div>
-
-        {showDifference && (
-          <div
-            className="mt-3 pt-3 border-t"
-            style={{ borderColor: "var(--b2)" }}
-          >
-            <div className="text-xs text-[var(--t4)]">
-              {difference > 0 ? (
-                <span>
-                  <span style={{ color: "var(--amber)" }}>
-                    ↑ ${Math.abs(difference).toLocaleString()} higher
-                  </span>{" "}
-                  than platform
-                </span>
-              ) : (
-                <span>
-                  <span style={{ color: "var(--green)" }}>
-                    ↓ ${Math.abs(difference).toLocaleString()} lower
-                  </span>{" "}
-                  than platform
-                </span>
-              )}
-            </div>
+        <motion.div 
+          className="absolute inset-0 bg-[var(--amber)] opacity-5"
+          animate={{ opacity: [0.02, 0.08, 0.02] }}
+          transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+        />
+        
+        <div className="relative z-10">
+          <div className="text-xs text-[var(--t3)] mb-2 font-semibold uppercase tracking-wider">
+            Your Custom Max Bid
           </div>
-        )}
-      </div>
+          <div className="text-5xl font-black text-[var(--amber)] mb-2 font-mono tracking-tighter flex items-center drop-shadow-[0_0_10px_rgba(255,170,0,0.5)]">
+            $<AnimatedNumber value={maxBid} />
+          </div>
+          <div className="text-sm text-[var(--t2)] font-medium">
+            Expected profit:{" "}
+            <Mono className="text-[var(--green)] font-bold">
+              +${expectedProfit.toLocaleString()}
+            </Mono>
+          </div>
+
+          {showDifference && (
+            <div
+              className="mt-3 pt-3 border-t"
+              style={{ borderColor: "var(--b2)" }}
+            >
+              <div className="text-xs text-[var(--t4)]">
+                {difference > 0 ? (
+                  <span>
+                    <span style={{ color: "var(--amber)" }}>
+                      ↑ ${Math.abs(difference).toLocaleString()} higher
+                    </span>{" "}
+                    than platform
+                  </span>
+                ) : (
+                  <span>
+                    <span style={{ color: "var(--green)" }}>
+                      ↓ ${Math.abs(difference).toLocaleString()} lower
+                    </span>{" "}
+                    than platform
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
 
       {/* Cost Breakdown */}
       <div

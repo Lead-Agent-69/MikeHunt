@@ -1,4 +1,4 @@
-import "./polyfill";
+﻿import "./polyfill";
 import { Worker, Queue } from "bullmq";
 import { checkAlerts } from "../lib/alerts/alert-engine";
 import { trackPriceChanges } from "../lib/alerts/price-tracker";
@@ -142,6 +142,6 @@ worker.on("error", (err) => {
 
 scheduleJobs().then(() => {
   console.log(
-    "[DealerHunt Worker] Running (maintenance jobs). Press Ctrl+C to stop.",
+    "[MikeHunt Worker] Running (maintenance jobs). Press Ctrl+C to stop.",
   );
 });

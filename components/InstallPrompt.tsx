@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
@@ -79,7 +79,7 @@ export function InstallPrompt() {
         />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-black text-white">
-            Install DealerHunt
+            Install MikeHunt
           </div>
           <div className="truncate text-xs text-white/60">
             {isIOS

@@ -1,6 +1,6 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
- * DealerHunt scraper health check
+ * MikeHunt scraper health check
  * Queries Supabase scraper_runs to show live status of the Windows Docker worker.
  * Run: node scripts/health-check.mjs  (loads .env.local / .env automatically)
  */

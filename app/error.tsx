@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
@@ -85,7 +85,7 @@ export default function RouteError({
         <p className="text-xs text-[var(--t4)]">
           If this problem persists,{" "}
           <a
-            href="mailto:support@dealerhunt.com"
+            href="mailto:support@MikeHunt.com"
             className="text-[var(--amber)] hover:underline font-medium"
           >
             contact support

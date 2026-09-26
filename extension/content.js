@@ -1,5 +1,5 @@
-// content.js — runs on supported listing pages. Extracts the vehicle, injects a floating
-// "Send to DealerHunt" button, and shows the returned verdict. Honest extraction: never fabricates
+﻿// content.js — runs on supported listing pages. Extracts the vehicle, injects a floating
+// "Send to MikeHunt" button, and shows the returned verdict. Honest extraction: never fabricates
 // a price/title — if it can't find them, it tells you.
 
 (function () {
@@ -175,7 +175,7 @@
     btn.textContent = "Sending…";
     btn.disabled = true;
     chrome.runtime.sendMessage({ type: "INGEST", payload: data }, (res) => {
-      btn.textContent = "⚡ Send to DealerHunt";
+      btn.textContent = "⚡ Send to MikeHunt";
       btn.disabled = false;
       if (!res || !res.ok) {
         toast(`❌ ${res && res.error ? res.error : "Failed to send."}`, "#ef5b6b");
@@ -187,16 +187,16 @@
         const col = v === "GO" ? "#3fae8e" : v === "HOLD" ? "#e0a948" : "#9b8b9b";
         const profit = d.true_net_profit != null ? ` · $${Math.round(d.true_net_profit).toLocaleString()} profit` : "";
         const bid = d.recommended_max_bid != null ? `<br>Max bid: $${Math.round(d.recommended_max_bid).toLocaleString()}` : "";
-        const link = d.id && res.appBase ? `<br><a href="${res.appBase}/deal/${d.id}" target="_blank" style="color:#f25b9a">Open in DealerHunt →</a>` : "";
+        const link = d.id && res.appBase ? `<br><a href="${res.appBase}/deal/${d.id}" target="_blank" style="color:#f25b9a">Open in MikeHunt →</a>` : "";
         toast(`<b style="color:${col}">${v}</b>${profit}${bid}${link}`, col);
       } else {
-        toast("✅ Sent to DealerHunt.", "#3fae8e");
+        toast("✅ Sent to MikeHunt.", "#3fae8e");
       }
     });
   }
 
   const btn = document.createElement("button");
-  btn.textContent = "⚡ Send to DealerHunt";
+  btn.textContent = "⚡ Send to MikeHunt";
   Object.assign(btn.style, {
     position: "fixed", right: "20px", bottom: "20px", zIndex: 2147483647,
     background: "linear-gradient(135deg,#ff7a4d,#f25b9a 55%,#9b6bff)", color: "#fff",

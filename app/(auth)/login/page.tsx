@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -48,7 +48,7 @@ export default function LoginPage() {
           <Ico name="search" size={17} />
         </span>
         <span className="text-[15px] font-bold tracking-tight text-[var(--t1)]">
-          DealerHunt
+          MikeHunt
         </span>
       </Link>
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-sm text-[var(--t4)]">
-          New to DealerHunt?{" "}
+          New to MikeHunt?{" "}
           <Link
             href="/register"
             className="font-semibold text-[var(--amber-d)] hover:underline"

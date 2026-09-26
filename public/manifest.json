@@ -1,6 +1,6 @@
-{
-  "name": "DealerHunt — Underpriced Cars",
-  "short_name": "DealerHunt",
+﻿{
+  "name": "MikeHunt — Underpriced Cars",
+  "short_name": "MikeHunt",
   "description": "Underpriced cars across every auction, marketplace, and dealer lot — valued BUY / HOLD / PASS so you know exactly what to pay before you bid.",
   "start_url": "/discover",
   "display": "standalone",

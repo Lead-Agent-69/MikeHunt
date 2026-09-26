@@ -1,8 +1,9 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
 import {
@@ -57,6 +58,7 @@ const MORE_GROUPS = [
   {
     group: "Find deals",
     items: [
+      { name: "Swipe", href: "/swipe", icon: Layers },
       { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
       { name: "Map", href: "/map", icon: MapPin },
       { name: "Today", href: "/today", icon: CalendarDays },
@@ -136,6 +138,22 @@ function IconBtn({
   );
 }
 
+// One shared active-tab indicator: layoutId lets a single motion layer spring between tabs
+// (and between the primary tabs and "More") instead of each one fading in place.
+function NavPill() {
+  return (
+    <motion.span
+      layoutId="topnav-pill"
+      className="absolute inset-0 rounded-full"
+      style={{
+        background: "var(--grad)",
+        boxShadow: "0 2px 12px var(--amber-lo)",
+      }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+    />
+  );
+}
+
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -187,11 +205,6 @@ export function TopNav() {
 
   const moreActive = moreHrefs.includes(pathname);
 
-  const tabStyle = (active: boolean): React.CSSProperties =>
-    active
-      ? { background: "var(--grad)", color: "#fff" }
-      : { color: "var(--t4)" };
-
   return (
     <header
       className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6"
@@ -214,7 +227,7 @@ export function TopNav() {
             <BarChart3 className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
           <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden lg:block">
-            DealerHunt<span className="text-[var(--amber)] ml-0.5">Pro</span>
+            MikeHunt<span className="text-[var(--amber)] ml-0.5">Pro</span>
           </span>
         </Link>
       </div>
@@ -230,28 +243,18 @@ export function TopNav() {
             <Link
               key={item.name}
               href={item.href}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-all"
-              style={tabStyle(active)}
-              onMouseEnter={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "var(--s2)";
-                  (e.currentTarget as HTMLElement).style.color = "var(--t1)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "transparent";
-                  (e.currentTarget as HTMLElement).style.color = "var(--t4)";
-                }
-              }}
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
+                active
+                  ? "text-white"
+                  : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
+              }`}
             >
+              {active && <NavPill />}
               <item.icon
-                className="h-3.5 w-3.5"
+                className="relative z-10 h-3.5 w-3.5"
                 strokeWidth={active ? 2.5 : 2}
               />
-              {item.name}
+              <span className="relative z-10">{item.name}</span>
             </Link>
           );
         })}
@@ -260,76 +263,65 @@ export function TopNav() {
         <div className="relative" ref={moreRef}>
           <button
             onClick={() => setMoreOpen((o) => !o)}
-            className="flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-all"
-            style={tabStyle(moreActive)}
-            onMouseEnter={(e) => {
-              if (!moreActive) {
-                (e.currentTarget as HTMLElement).style.background = "var(--s2)";
-                (e.currentTarget as HTMLElement).style.color = "var(--t1)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!moreActive) {
-                (e.currentTarget as HTMLElement).style.background =
-                  "transparent";
-                (e.currentTarget as HTMLElement).style.color = "var(--t4)";
-              }
-            }}
+            aria-expanded={moreOpen}
+            aria-haspopup="menu"
+            className={`relative flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
+              moreActive
+                ? "text-white"
+                : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
+            }`}
           >
-            More
+            {moreActive && <NavPill />}
+            <span className="relative z-10">More</span>
             <ChevronDown
-              className="h-3 w-3 transition-transform"
+              className="relative z-10 h-3 w-3 transition-transform"
               style={{ transform: moreOpen ? "rotate(180deg)" : "none" }}
             />
           </button>
 
-          {moreOpen && (
-            <div
-              className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50"
-              style={{
-                background: "var(--s0)",
-                border: "1px solid var(--b1)",
-                boxShadow: "var(--shadow)",
-              }}
-            >
-              {moreGroups.map((g) => (
-                <div key={g.group} className="mb-1.5 last:mb-0">
-                  <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
-                    {g.group}
-                  </p>
-                  {g.items.map((item) => {
-                    const active = pathname === item.href;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors"
-                        style={{
-                          color: active ? "var(--amber)" : "var(--t2)",
-                          background: active
-                            ? "var(--amber-lo)"
-                            : "transparent",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active)
-                            (e.currentTarget as HTMLElement).style.background =
-                              "var(--s2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active)
-                            (e.currentTarget as HTMLElement).style.background =
-                              "transparent";
-                        }}
-                      >
-                        <item.icon className="h-4 w-4 text-[var(--t4)]" />
-                        {item.name}
-                      </Link>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
+          <AnimatePresence>
+            {moreOpen && (
+              <motion.div
+                role="menu"
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50 origin-top-right"
+                style={{
+                  background: "var(--s0)",
+                  border: "1px solid var(--b1)",
+                  boxShadow: "var(--shadow)",
+                }}
+              >
+                {moreGroups.map((g) => (
+                  <div key={g.group} className="mb-1.5 last:mb-0">
+                    <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
+                      {g.group}
+                    </p>
+                    {g.items.map((item) => {
+                      const active = pathname === item.href;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          role="menuitem"
+                          className={`flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
+                            active
+                              ? "bg-[var(--amber-lo)] text-[var(--amber)]"
+                              : "text-[var(--t2)] hover:bg-[var(--s2)]"
+                          }`}
+                        >
+                          <item.icon className="h-4 w-4 text-[var(--t4)]" />
+                          {item.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </nav>
 

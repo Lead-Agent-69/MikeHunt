@@ -1,4 +1,4 @@
-// Real driving distance + duration via OSRM (the OpenStreetMap routing engine) — free, key-less,
+﻿// Real driving distance + duration via OSRM (the OpenStreetMap routing engine) — free, key-less,
 // no account. This replaces the old "straight-line × 1.3" fudge used for transport cost, which is both
 // imprecise interstate (Dallas→Atlanta: fudge says 936mi, real road is 782) AND badly wrong intrastate
 // (San Diego→Sacramento read as "same state, 45mi" when it's a 504mi haul). Transport cost feeds
@@ -104,7 +104,7 @@ export async function roadRoute(
     // OSRM wants lon,lat order.
     const url = `${OSRM_BASE}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
     const res = await fetchImpl(url, {
-      headers: { "User-Agent": "DealerHuntPro/1.0 (transport routing)" },
+      headers: { "User-Agent": "MikeHuntPro/1.0 (transport routing)" },
     });
     if (res.ok) {
       const parsed = parseOsrm(await res.json());

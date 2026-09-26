@@ -36,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 <inventory>
   <dealer>
     <id>${dealerId}</id>
-    <name>DealerHunt Dealer</name>
+    <name>MikeHunt Dealer</name>
   </dealer>
   <vehicles>
     ${vehicles

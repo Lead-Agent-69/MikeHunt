@@ -1,4 +1,4 @@
-// lib/notifications/email.ts
+﻿// lib/notifications/email.ts
 // Email notification system using Resend
 
 import { Resend } from "resend";
@@ -35,7 +35,7 @@ export async function sendEmail(options: EmailOptions) {
       from:
         options.from ||
         process.env.EMAIL_FROM ||
-        "DealerHunt <onboarding@resend.dev>",
+        "MikeHunt <onboarding@resend.dev>",
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
       html: options.html,
@@ -139,7 +139,7 @@ export async function sendAlertMatchEmail(options: {
           <a href="${options.dealUrl}" class="cta">View Full Details</a>
           
           <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
-            This is an automated alert from DealerHunt. To manage your alerts, visit your dashboard.
+            This is an automated alert from MikeHunt. To manage your alerts, visit your dashboard.
           </p>
         </div>
       </body>
@@ -305,7 +305,7 @@ export async function sendPriceDropEmail(options: {
           <a href="${options.dealUrl}" class="cta">View Deal Now</a>
           
           <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
-            This is an automated alert from DealerHunt. To manage your watchlist, visit your dashboard.
+            This is an automated alert from MikeHunt. To manage your watchlist, visit your dashboard.
           </p>
         </div>
       </body>
@@ -405,7 +405,7 @@ export async function sendAuctionEndingEmail(options: {
           <a href="${options.dealUrl}" class="cta">Place Your Bid</a>
           
           <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
-            This is an automated alert from DealerHunt. To manage your watchlist, visit your dashboard.
+            This is an automated alert from MikeHunt. To manage your watchlist, visit your dashboard.
           </p>
         </div>
       </body>

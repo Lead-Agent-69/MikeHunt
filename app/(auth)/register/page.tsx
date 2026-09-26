@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -86,7 +86,7 @@ export default function RegisterPage() {
           <Ico name="search" size={17} />
         </span>
         <span className="text-[15px] font-bold tracking-tight text-[var(--t1)]">
-          DealerHunt
+          MikeHunt
         </span>
       </Link>
 

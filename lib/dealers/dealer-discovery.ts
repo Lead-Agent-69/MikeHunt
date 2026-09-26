@@ -1,4 +1,4 @@
-// Dealer discovery system across all 50 states for DealerHunt
+﻿// Dealer discovery system across all 50 states for MikeHunt
 // All dealer data is derived from the real `dealers` table in Supabase
 // (enriched by `deals` aggregates). No fictional dealers are returned.
 

@@ -1,13 +1,13 @@
-{
+﻿{
   "manifest_version": 3,
-  "name": "DealerHunt Pro — Send to DealerHunt",
+  "name": "MikeHunt Pro — Send to MikeHunt",
   "version": "2.0.0",
-  "description": "One click on any car listing (Copart, IAA, Facebook, Craigslist, Cars.com, AutoTrader, CarGurus, eBay, Carvana, Vroom, TrueCar, OfferUp) sends it to DealerHunt Pro and returns a GO/HOLD/PASS verdict + estimated profit + max bid.",
+  "description": "One click on any car listing (Copart, IAA, Facebook, Craigslist, Cars.com, AutoTrader, CarGurus, eBay, Carvana, Vroom, TrueCar, OfferUp) sends it to MikeHunt Pro and returns a GO/HOLD/PASS verdict + estimated profit + max bid.",
   "permissions": ["activeTab", "storage", "scripting"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "DealerHunt Pro"
+    "default_title": "MikeHunt Pro"
   },
   "background": { "service_worker": "background.js" },
   "content_scripts": [

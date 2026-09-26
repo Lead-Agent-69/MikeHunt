@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from "react";
 import useSWR from "swr";
@@ -48,7 +48,7 @@ export default function DeveloperPage() {
           Developer API
         </h1>
         <p className="text-[var(--t3)]">
-          Pipe DealerHunt’s GO verdicts + profit estimates into your DMS,
+          Pipe MikeHunt’s GO verdicts + profit estimates into your DMS,
           sheets, or tools.
         </p>
       </div>
@@ -153,7 +153,7 @@ export default function DeveloperPage() {
         <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`# Add to your MCP client config (HTTP transport):
 {
   "mcpServers": {
-    "dealerhunt": {
+    "MikeHunt": {
       "url": "https://your-app.vercel.app/api/mcp",
       "headers": { "x-api-key": "dhp_your_key" }
     }

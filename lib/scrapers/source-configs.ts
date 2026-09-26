@@ -1,6 +1,6 @@
-import { EnhancedScraperConfig } from './enhanced-engine'
+﻿import { EnhancedScraperConfig } from './enhanced-engine'
 
-// Comprehensive source configurations for DealerHunt
+// Comprehensive source configurations for MikeHunt
 export const SCRAPER_CONFIGS: EnhancedScraperConfig[] = [
   // Major Auction Platforms
   {

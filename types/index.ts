@@ -1,4 +1,4 @@
-// DealerHunt shared types
+﻿// MikeHunt shared types
 
 export interface Deal {
   id?: string;

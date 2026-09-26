@@ -1,7 +1,7 @@
 {
-  "name": "dealerhunt",
+  "name": "MikeHunt",
   "version": "1.0.0",
-  "description": "DealerHunt — Multi-source vehicle sourcing intelligence platform",
+  "description": "MikeHunt — Multi-source vehicle sourcing intelligence platform",
   "private": true,
   "engines": {
     "node": ">=20"
@@ -50,6 +50,7 @@
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.2",
     "@sentry/nextjs": "^10.59.0",
+    "@studio-freight/lenis": "^1.0.42",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.0",
     "@types/leaflet.markercluster": "^1.5.6",
@@ -69,6 +70,7 @@
     "ioredis": "^5.11.1",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
+    "lenis": "^1.3.26",
     "lucide-react": "^0.454.0",
     "next": "^16.2.9",
     "p-limit": "^6.1.0",

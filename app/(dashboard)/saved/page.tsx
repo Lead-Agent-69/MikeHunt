@@ -1,4 +1,4 @@
-// app/(dashboard)/saved/page.tsx
+﻿// app/(dashboard)/saved/page.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -71,7 +71,7 @@ export default function SavedCarsPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const code = `javascript:(function(){var url=window.location.href;var title=document.title;var price=(document.body.innerText.match(/\\$[\\d,]+/)||[''])[0];window.open('${window.location.origin}/save?url='+encodeURIComponent(url)+'&title='+encodeURIComponent(title)+'&price='+encodeURIComponent(price),'DealerHunt','width=420,height=600,left=200,top=100');})();`;
+      const code = `javascript:(function(){var url=window.location.href;var title=document.title;var price=(document.body.innerText.match(/\\$[\\d,]+/)||[''])[0];window.open('${window.location.origin}/save?url='+encodeURIComponent(url)+'&title='+encodeURIComponent(title)+'&price='+encodeURIComponent(price),'MikeHunt','width=420,height=600,left=200,top=100');})();`;
       setBookmarkletCode(code);
     }
   }, []);
@@ -399,7 +399,7 @@ export default function SavedCarsPage() {
                   <li>Open app in Safari (iOS) or Chrome (Android).</li>
                   <li>Tap "Share" or menu &rarr; "Add to Home Screen".</li>
                   <li>
-                    Now, tap Share on any vehicle page and choose "DealerHunt".
+                    Now, tap Share on any vehicle page and choose "MikeHunt".
                   </li>
                 </ol>
               </div>

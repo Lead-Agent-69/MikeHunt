@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-// Segment error boundary for the DealerHunt (cars) app. Catches errors within the dashboard content so
+// Segment error boundary for the MikeHunt (cars) app. Catches errors within the dashboard content so
 // the nav/shell stays intact and the user recovers IN PLACE (retry) instead of a full-page reset. Reports
 // to Sentry.
 

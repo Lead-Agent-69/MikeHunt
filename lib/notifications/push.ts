@@ -1,4 +1,4 @@
-import webpush from "web-push";
+﻿import webpush from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VAPID_PUBLIC_KEY } from "./vapid";
 
@@ -30,7 +30,7 @@ async function ensureConfigured(sb: SupabaseClient): Promise<boolean> {
   }
   try {
     webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT || "mailto:alerts@dealerhunt.app",
+      process.env.VAPID_SUBJECT || "mailto:alerts@MikeHunt.app",
       VAPID_PUBLIC_KEY,
       priv,
     );

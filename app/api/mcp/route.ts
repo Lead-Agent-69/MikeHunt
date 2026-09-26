@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+﻿export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       return reply({
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "dealerhunt-pro", version: "1.0.0" },
+        serverInfo: { name: "MikeHunt-pro", version: "1.0.0" },
       });
     case "notifications/initialized":
       return new NextResponse(null, { status: 204, headers: CORS });

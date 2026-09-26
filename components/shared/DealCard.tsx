@@ -39,6 +39,7 @@ export const DealCard = memo(function DealCard({
   priceDropAmount,
   priceDropDays,
   firstSeenAt,
+  imageUrl,
   onClick,
 }: DealCardProps) {
   const scoreColor = getScoreColor(profitScore);
@@ -56,6 +57,10 @@ export const DealCard = memo(function DealCard({
     profitEstimate,
     dealVerdict,
   });
+
+  const proxiedUrl = imageUrl?.startsWith("http")
+    ? `/api/image/proxy?url=${encodeURIComponent(imageUrl)}`
+    : imageUrl;
 
   return (
     <motion.div
@@ -78,6 +83,20 @@ export const DealCard = memo(function DealCard({
       whileTap={onClick ? { scale: 0.98 } : undefined}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
     >
+      {/* Image Header */}
+      <div className="relative w-full h-40 bg-[var(--s2)] overflow-hidden shrink-0">
+        <img
+          src={proxiedUrl || "/images/car-placeholder.jpg"}
+          alt={`${year} ${make} ${model}`}
+          className="object-cover w-full h-full opacity-90 mix-blend-screen transition-opacity group-hover:opacity-100"
+          onError={(e) => {
+            e.currentTarget.src = "/images/car-placeholder.jpg";
+          }}
+        />
+        {/* Gradient overlay for premium feel */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--s1)] via-transparent to-transparent opacity-80" />
+      </div>
+
       {/* Top strip: source badge + score ring */}
       <div
         className="flex items-center justify-between px-4 py-2.5 border-b"

@@ -8,8 +8,9 @@ import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
 const protectedRoutes = [
   // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
   "/today",
-  "/scan",
+  // "/scan",
   "/discover",
+  "/swipe",
   "/find",
   "/map",
   "/bulk",
