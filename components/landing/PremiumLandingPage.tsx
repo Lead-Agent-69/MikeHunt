@@ -665,7 +665,14 @@ export function PremiumLandingPage() {
       </div>
 
       {/* Framer Marketplace Liquid Glass Footer */}
-      <LiquidGlassFooter />
+      <LiquidGlassFooter
+        links={[
+          { label: "Terms of Service", href: "/tos" },
+          { label: "Privacy Policy", href: "/privacy" },
+          { label: "Changelog", href: "/changelog" },
+          { label: "Status", href: "/status" },
+        ]}
+      />
     </main>
   );
 }

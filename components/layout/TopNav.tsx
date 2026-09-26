@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -39,6 +39,7 @@ import {
   Gavel,
   Flame,
   ScanLine,
+  Shield,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
@@ -101,6 +102,7 @@ const MORE_GROUPS = [
 const ADMIN_GROUP = {
   group: "Admin",
   items: [
+    { name: "Admin Dashboard", href: "/admin", icon: Shield },
     { name: "System status", href: "/status", icon: Activity },
     { name: "Developer API", href: "/developer", icon: Code2 },
     { name: "Orchestrator", href: "/orchestrator", icon: Cpu },

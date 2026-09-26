@@ -45,6 +45,9 @@ import {
   SortableWidgetGrid,
   type WidgetItem,
 } from "@/components/deal/SortableWidgetGrid";
+import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
+import { AutonomousSellerNegotiator } from "@/components/deal/AutonomousSellerNegotiator";
+import { FreightAndTaxCalculator } from "@/components/deal/FreightAndTaxCalculator";
 
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -951,6 +954,32 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
+      {/* AI PHASE 2: VISION DAMAGE INSPECTOR — Gemini Vision scans listing photos for damage */}
+      {serverDeal?.images && serverDeal.images.length > 0 && (
+        <VisionDamageInspector
+          imageUrl={serverDeal.images[0]}
+          vin={serverDeal.vin ?? store.vin}
+        />
+      )}
+
+      {/* AI PHASE 2: AUTONOMOUS SELLER NEGOTIATOR — AI-drafted offer messages */}
+      {serverDeal && (
+        <AutonomousSellerNegotiator
+          vehicleTitle={`${serverDeal.year ?? store.year} ${serverDeal.make ?? store.make} ${serverDeal.model ?? store.model}`.trim()}
+          askingPrice={serverDeal.askPrice ?? store.askPrice ?? 0}
+          targetOffer={serverDeal.recommendedMaxBid ?? Math.round((serverDeal.askPrice ?? store.askPrice ?? 0) * 0.9)}
+          sellerPhone={serverDeal.contact?.phone}
+        />
+      )}
+
+      {/* AI PHASE 3: FREIGHT & DMV TAX ENGINE — cross-state logistics + title fees */}
+      {serverDeal && (
+        <FreightAndTaxCalculator
+          buyState={serverDeal.locationState ?? "TX"}
+          purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
+        />
+      )}
+
       {/* DRAGGABLE WIDGET GRID */}
       <SortableWidgetGrid
         storageKey="deal-dashboard-layout-v1"

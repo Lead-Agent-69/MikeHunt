@@ -4,8 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
 import { createServerComponentClient } from "@/lib/supabase";
 
-// POST /api/billing/webhook — Stripe events. Verifies the signature, then upgrades the user on a
-// completed checkout. No-op (503) when Stripe isn't configured.
+// POST /api/billing/webhook — Handles Stripe events:
+//   checkout.session.completed  → upgrade user to pro
+//   customer.subscription.deleted → downgrade user to free
+//   customer.subscription.updated → sync plan status
+// No-op (503) when Stripe isn't configured.
 export async function POST(req: NextRequest) {
   if (!stripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json(
@@ -34,12 +37,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const supabase = createServerComponentClient();
+
+  // ── Checkout completed → upgrade ─────────────────────────────────────────
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as any;
     const userId = session.metadata?.user_id;
     if (userId) {
       try {
-        await createServerComponentClient()
+        await supabase
           .from("user_profiles")
           .update({
             plan: "pro",
@@ -50,6 +56,45 @@ export async function POST(req: NextRequest) {
           .eq("id", userId);
       } catch (e) {
         console.warn("[stripe webhook] upgrade failed:", e);
+      }
+    }
+  }
+
+  // ── Subscription cancelled → downgrade to free ────────────────────────────
+  if (event.type === "customer.subscription.deleted") {
+    const sub = event.data.object as any;
+    const customerId = sub.customer;
+    if (customerId) {
+      try {
+        await supabase
+          .from("user_profiles")
+          .update({
+            plan: "free",
+            stripe_subscription_id: null,
+            plan_ended_at: new Date().toISOString(),
+          })
+          .eq("stripe_customer_id", customerId);
+      } catch (e) {
+        console.warn("[stripe webhook] downgrade failed:", e);
+      }
+    }
+  }
+
+  // ── Subscription updated (e.g. plan change, pause) ────────────────────────
+  if (event.type === "customer.subscription.updated") {
+    const sub = event.data.object as any;
+    const customerId = sub.customer;
+    const status = sub.status; // active, past_due, canceled, trialing, etc.
+    if (customerId) {
+      try {
+        const newPlan =
+          status === "active" || status === "trialing" ? "pro" : "free";
+        await supabase
+          .from("user_profiles")
+          .update({ plan: newPlan })
+          .eq("stripe_customer_id", customerId);
+      } catch (e) {
+        console.warn("[stripe webhook] subscription update failed:", e);
       }
     }
   }
