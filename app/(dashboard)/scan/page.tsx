@@ -33,6 +33,7 @@ import {
   type CarLike,
 } from "@/lib/scoring/deal-categories";
 import { ArbitrageRadar, ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
+import { NextBestBuyHero } from "@/components/scan/NextBestBuyHero";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1457,6 +1458,11 @@ export default function ScanPage() {
           );
         })}
       </div>
+
+      {/* #1 Highest Profit Recommendation Hero Spotlight */}
+      <NextBestBuyHero
+        onOpenSimulator={() => setIsSimulatorOpen(true)}
+      />
 
       {/* Cross-State Arbitrage Radar */}
       <ArbitrageRadar />
