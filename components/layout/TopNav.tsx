@@ -59,6 +59,7 @@ const MORE_GROUPS = [
   {
     group: "Find deals",
     items: [
+      { name: "Next Best Buy", href: "/best-buy", icon: Flame },
       { name: "Swipe", href: "/swipe", icon: Layers },
       { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
       { name: "Map", href: "/map", icon: MapPin },

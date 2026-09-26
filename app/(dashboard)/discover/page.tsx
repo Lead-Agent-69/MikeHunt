@@ -19,6 +19,7 @@ import { MarketSummary } from "@/components/discovery/MarketSummary";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { DiscoverHero } from "@/components/discovery/DiscoverHero";
+import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { EdgeBanner } from "@/components/shared/EdgeBanner";
 import type {
   DiscoverResponse,
@@ -201,6 +202,9 @@ export default function DiscoverPage() {
           </span>
         </a>
       )}
+
+      {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
+      <NextBestBuySpotlight initialState={state || undefined} />
 
       {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
       <DiscoverHero state={state || undefined} />
