@@ -49,6 +49,8 @@ import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
 import { AutonomousSellerNegotiator } from "@/components/deal/AutonomousSellerNegotiator";
 import { FreightAndTaxCalculator } from "@/components/deal/FreightAndTaxCalculator";
 import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
+import { MaxBidCalculator } from "@/components/shared/MaxBidCalculator";
+import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -986,6 +988,28 @@ export default function DealPage({
         <FreightAndTaxCalculator
           buyState={serverDeal.locationState ?? "TX"}
           purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
+        />
+      )}
+
+      {/* REAL-TIME MAX BID & TARGET ROI CALCULATOR — interactive margin solving */}
+      <MaxBidCalculator
+        deal={{
+          year: serverDeal?.year ?? store.year,
+          make: serverDeal?.make ?? store.make,
+          model: serverDeal?.model ?? store.model,
+          askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
+          sellEstimate: serverDeal?.sellEstimate ?? store.marketValue,
+          recommendedMaxBid: serverDeal?.recommendedMaxBid,
+          repairEstimate: store.repairCost,
+          transportEstimate: store.transportCost,
+        }}
+      />
+
+      {/* AI PHASE 5: FLOOR PLAN FINANCING & CARRY COST CALCULATOR */}
+      {serverDeal && (
+        <FloorPlanCalculator
+          purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
+          expectedProfit={serverDeal.trueNetProfit ?? store.netProfit ?? 0}
         />
       )}
 

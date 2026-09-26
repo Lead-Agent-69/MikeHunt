@@ -10,6 +10,7 @@ import { US_STATES, getTitleRules } from "@/lib/utils/titleRules";
 import { cn } from "@/lib/utils";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
+import { MultiCarTrailerOptimizer } from "@/components/transport/MultiCarTrailerOptimizer";
 
 interface QuoteResult {
   from: string;
@@ -352,6 +353,15 @@ function MovePageInner() {
             .
           </p>
         </div>
+      )}
+
+      {/* Multi-Car Trailer Bundle Optimizer */}
+      {result && !loading && !error && (
+        <MultiCarTrailerOptimizer
+          miles={result.miles}
+          fromState={fromState}
+          toState={toState}
+        />
       )}
 
       {/* Title Rules */}
