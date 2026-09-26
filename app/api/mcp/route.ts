@@ -1,4 +1,4 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -46,6 +46,29 @@ const TOOLS = [
     description:
       "The make/models with the most live GO deals right now, with average net profit and days-on-market.",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_next_best_buy",
+    description:
+      "Calculates the single highest-margin, highest-velocity flip opportunity across the market tailored to an exact cash capital budget.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        capital: {
+          type: "number",
+          description: "Available cash budget in dollars (e.g. 10000, 25000)",
+        },
+        state: {
+          type: "string",
+          description: "US state code filter (e.g. TX, CA, FL) or leave empty for nationwide",
+        },
+        strategy: {
+          type: "string",
+          enum: ["max_roi", "fastest_flip", "max_profit"],
+          description: "Ranking strategy: 'max_roi' for highest percentage return, 'fastest_flip' for under 14 days turn, or 'max_profit' for highest cash dollars",
+        },
+      },
+    },
   },
 ];
 
@@ -114,6 +137,49 @@ async function runTool(name: string, args: any): Promise<string> {
           `${r.make} ${r.model}: ${r.go_deals} GO deals · ~$${Math.round(Number(r.avg_profit) || 0).toLocaleString()} avg profit · ${r.avg_days}d on market`,
       )
       .join("\n");
+  }
+  if (name === "get_next_best_buy") {
+    const capital = Number(args.capital) || 0;
+    const state = args.state ? String(args.state).toUpperCase() : "";
+    const strategy = args.strategy || "max_roi";
+
+    let q = supabase
+      .from("deals")
+      .select(
+        "id, year, make, model, trim, vin, mileage, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, recommended_max_bid, location_state, source",
+      )
+      .eq("active", true)
+      .gt("true_net_profit", 0)
+      .order("true_net_profit", { ascending: false })
+      .limit(100);
+
+    if (state) q = q.eq("location_state", state);
+    if (capital > 0) q = q.lte("ask_price", capital * 1.1);
+
+    const { data } = await q;
+    if (!data?.length) return "No profitable deals found matching criteria.";
+
+    const sorted = data
+      .map((d: any) => {
+        const ask = Number(d.ask_price) || 0;
+        const profit = Number(d.true_net_profit) || 0;
+        const roi = ask > 0 ? (profit / ask) * 100 : 0;
+        return { ...d, ask, profit, roi };
+      })
+      .sort((a: any, b: any) =>
+        strategy === "max_profit" ? b.profit - a.profit : b.roi - a.roi,
+      );
+
+    const top = sorted[0];
+    const maxBid = Math.round(Number(top.recommended_max_bid) || top.ask * 0.92);
+
+    return (
+      `🔥 NEXT BEST BUY: ${top.year} ${top.make} ${top.model} ${top.trim || ""}\n` +
+      `Asking Price: $${top.ask.toLocaleString()} | Projected Net Profit: +$${Math.round(top.profit).toLocaleString()} (${top.roi.toFixed(1)}% ROI)\n` +
+      `Recommended Max Bid: $${maxBid.toLocaleString()} | Location: ${top.location_state || "N/A"}\n` +
+      `Verdict: ${(top.deal_verdict || "GO").toUpperCase()} | Source: ${top.source}\n` +
+      `Direct Link: https://mikehunt.app/deal/${top.id}`
+    );
   }
   return `Unknown tool: ${name}`;
 }

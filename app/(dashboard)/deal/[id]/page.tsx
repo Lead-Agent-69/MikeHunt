@@ -48,6 +48,7 @@ import {
 import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
 import { AutonomousSellerNegotiator } from "@/components/deal/AutonomousSellerNegotiator";
 import { FreightAndTaxCalculator } from "@/components/deal/FreightAndTaxCalculator";
+import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
 
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -959,6 +960,14 @@ export default function DealPage({
         <VisionDamageInspector
           imageUrl={serverDeal.images[0]}
           vin={serverDeal.vin ?? store.vin}
+        />
+      )}
+
+      {/* AI PHASE 2: TITLE WASH & SALVAGE FRAUD DETECTOR — checks 50-state registries & auction records */}
+      {(serverDeal?.vin || store.vin) && (
+        <TitleWashDetector
+          vin={serverDeal?.vin ?? store.vin ?? ""}
+          state={serverDeal?.locationState}
         />
       )}
 
