@@ -51,6 +51,8 @@ import { FreightAndTaxCalculator } from "@/components/deal/FreightAndTaxCalculat
 import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
 import { MaxBidCalculator } from "@/components/shared/MaxBidCalculator";
 import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
+import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
+import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -79,6 +81,7 @@ export default function DealPage({
   const router = useRouter();
   const [saving, setSaving] = React.useState(false);
   const [watching, setWatching] = React.useState(false);
+  const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
   const loadedDealIdRef = React.useRef<string | null>(null);
 
   // Use SWR for data fetching
@@ -357,21 +360,47 @@ export default function DealPage({
           )}
         </div>
 
-        {/* The 3-User Toggle */}
-        <div
-          className="flex p-1 rounded-xl"
-          style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
-        >
-          {(["dealer", "private", "parts"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => store.setUserType(t)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
-              style={store.userType === t ? { background: "var(--grad)" } : {}}
-            >
-              {t}
-            </button>
-          ))}
+        {/* Actions & The 3-User Toggle */}
+        <div className="flex flex-wrap items-center gap-3">
+          <AcquireToPipelineButton
+            deal={{
+              id,
+              vin: serverDeal?.vin || store.vin,
+              year: serverDeal?.year || store.year,
+              make: serverDeal?.make || store.make,
+              model: serverDeal?.model || store.model,
+              trim: serverDeal?.trim,
+              askPrice: serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+              sellEstimate: serverDeal?.sellEstimate || store.marketValue,
+              locationCity: serverDeal?.locationCity,
+              locationState: serverDeal?.locationState,
+            }}
+          />
+
+          <button
+            onClick={() => setShowCashOfferModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-[var(--s1)] border border-emerald-500/30 hover:border-emerald-500 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors shadow-sm"
+          >
+            <span>📜</span>
+            Cash Offer LOI
+          </button>
+
+          <div
+            className="flex p-1 rounded-xl"
+            style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
+          >
+            {(["dealer", "private", "parts"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => store.setUserType(t)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
+                style={store.userType === t ? { background: "var(--grad)" } : {}}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -976,6 +1005,10 @@ export default function DealPage({
       {/* AI PHASE 2: AUTONOMOUS SELLER NEGOTIATOR — AI-drafted offer messages */}
       {serverDeal && (
         <AutonomousSellerNegotiator
+          dealId={id}
+          vin={serverDeal?.vin ?? store.vin}
+          locationCity={serverDeal?.locationCity}
+          locationState={serverDeal?.locationState}
           vehicleTitle={`${serverDeal.year ?? store.year} ${serverDeal.make ?? store.make} ${serverDeal.model ?? store.model}`.trim()}
           askingPrice={serverDeal.askPrice ?? store.askPrice ?? 0}
           targetOffer={serverDeal.recommendedMaxBid ?? Math.round((serverDeal.askPrice ?? store.askPrice ?? 0) * 0.9)}
@@ -1080,6 +1113,25 @@ export default function DealPage({
           )}
         </div>
       </div>
+
+      <CashOfferLetterModal
+        isOpen={showCashOfferModal}
+        onClose={() => setShowCashOfferModal(false)}
+        deal={{
+          id,
+          vin: serverDeal?.vin || store.vin,
+          year: serverDeal?.year || store.year,
+          make: serverDeal?.make || store.make,
+          model: serverDeal?.model || store.model,
+          trim: serverDeal?.trim,
+          askPrice: serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+          recommendedMaxBid: serverDeal?.recommendedMaxBid,
+          targetOffer: serverDeal?.recommendedMaxBid ?? Math.round((serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice || 0) * 0.9),
+          locationCity: serverDeal?.locationCity,
+          locationState: serverDeal?.locationState,
+          sellerPhone: serverDeal?.contact?.phone,
+        }}
+      />
     </div>
   );
 }

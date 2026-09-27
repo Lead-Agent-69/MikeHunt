@@ -17,10 +17,18 @@ interface SniperAlertCandidate {
   sourceUrl: string;
 }
 
-// POST /api/alerts/profit-sniper
+// GET & POST /api/alerts/profit-sniper
 // Evaluates active deals for ultra-high margin profit anomalies (>35% ROI or >$4,000 profit)
 // and prepares/dispatches high-priority alerts to subscribed dealers.
+export async function GET(req: NextRequest) {
+  return handleSniperEvaluation(req);
+}
+
 export async function POST(req: NextRequest) {
+  return handleSniperEvaluation(req);
+}
+
+async function handleSniperEvaluation(req: NextRequest) {
   const supabase = createServerComponentClient();
 
   // Allow custom minRoi and minProfit parameters in body

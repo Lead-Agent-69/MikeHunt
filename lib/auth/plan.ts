@@ -46,8 +46,18 @@ export async function meterDealView(
   dealId: string,
   plan: Plan,
 ): Promise<MeterResult> {
-  if (isPaid(plan))
-    return { allowed: true, remaining: Infinity, limit: Infinity, plan };
+  // Free platform mode: when GATING_ENABLED is not 'true', grant unrestricted access to all dealers
+  if (process.env.GATING_ENABLED !== "true" || isPaid(plan)) {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await supabase
+        .from("deal_views")
+        .insert({ user_id: userId, deal_id: dealId, day: today });
+    } catch {
+      /* duplicate key / view logging is best-effort */
+    }
+    return { allowed: true, remaining: Infinity, limit: Infinity, plan: "pro" };
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 

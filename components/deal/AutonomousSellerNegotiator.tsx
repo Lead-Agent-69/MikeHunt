@@ -2,14 +2,23 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Send, CheckCircle, Bot, PhoneCall, ShieldCheck } from "lucide-react";
+import { MessageSquare, Send, CheckCircle, Bot, PhoneCall, ShieldCheck, FileText } from "lucide-react";
+import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 
 export function AutonomousSellerNegotiator({
+  dealId = "deal-1",
+  vin,
+  locationCity,
+  locationState,
   vehicleTitle = "2021 BMW M3 Competition",
   askingPrice = 62500,
   targetOffer = 57000,
   sellerPhone = "(214) 555-0198",
 }: {
+  dealId?: string;
+  vin?: string;
+  locationCity?: string;
+  locationState?: string;
   vehicleTitle?: string;
   askingPrice?: number;
   targetOffer?: number;
@@ -20,6 +29,7 @@ export function AutonomousSellerNegotiator({
   const [closingHours, setClosingHours] = useState(2);
   const [isSending, setIsSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [showLetterModal, setShowLetterModal] = useState(false);
 
   const [chatLog, setChatLog] = useState([
     {
@@ -112,6 +122,14 @@ export function AutonomousSellerNegotiator({
             <Send className="w-4 h-4" />
             {isSending ? "Dispatching SMS Bot..." : "Dispatch Automated Offer SMS →"}
           </button>
+
+          <button
+            onClick={() => setShowLetterModal(true)}
+            className="w-full py-2.5 px-4 rounded-2xl font-bold text-xs text-[var(--t1)] bg-[var(--s2)] border border-emerald-500/30 hover:border-emerald-500/60 shadow-lg flex items-center justify-center gap-2 transition-all"
+          >
+            <FileText className="w-4 h-4 text-emerald-400" />
+            Generate Official Cash Offer Letter (LOI / PDF)
+          </button>
         </div>
 
         {/* Live Conversation Transcript */}
@@ -144,6 +162,20 @@ export function AutonomousSellerNegotiator({
           </div>
         </div>
       </div>
+
+      <CashOfferLetterModal
+        isOpen={showLetterModal}
+        onClose={() => setShowLetterModal(false)}
+        deal={{
+          id: dealId,
+          vin,
+          askPrice: askingPrice,
+          targetOffer: offerAmount,
+          locationCity,
+          locationState,
+          sellerPhone,
+        }}
+      />
     </div>
   );
 }

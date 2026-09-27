@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
+import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 
 interface BestBuyDeal {
   id: string;
@@ -256,6 +257,22 @@ export function NextBestBuySpotlight({
                   Claim Next Best Buy
                   <ChevronRight className="h-4 w-4" />
                 </Link>
+
+                <AcquireToPipelineButton
+                  deal={{
+                    id: deal.id,
+                    vin: deal.vin,
+                    year: deal.year,
+                    make: deal.make,
+                    model: deal.model,
+                    trim: deal.trim,
+                    askPrice: deal.askPrice,
+                    trueNetProfit: deal.trueNetProfit,
+                    sellEstimate: deal.sellEstimate,
+                    locationCity: deal.locationCity,
+                    locationState: deal.locationState,
+                  }}
+                />
 
                 <Link
                   href={`/deal/${deal.id}#negotiator`}
