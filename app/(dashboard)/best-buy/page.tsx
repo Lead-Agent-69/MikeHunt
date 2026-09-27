@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
+import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
+import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 
 interface BestBuyData {
   bestBuy: any;
@@ -40,6 +42,7 @@ export default function BestBuyPage() {
   const [state, setState] = useState<string>("");
   const [data, setData] = useState<BestBuyData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [selectedLoiDeal, setSelectedLoiDeal] = useState<any | null>(null);
 
   useEffect(() => {
     async function fetchRunnerUps() {
@@ -236,17 +239,45 @@ export default function BestBuyPage() {
                   </div>
                 </div>
 
-                <div className="pt-4 mt-4 border-t border-[var(--b1)] flex items-center justify-between">
-                  <span className="text-xs font-bold text-[var(--t3)]">
-                    Offer: <Mono className="text-[var(--t1)]">${item.targetOffer.toLocaleString()}</Mono>
-                  </span>
-                  <Link
-                    href={`/deal/${item.id}`}
-                    className="flex items-center gap-1 text-xs font-bold text-emerald-400 hover:text-emerald-300"
-                  >
-                    View Deal
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Link>
+                <div className="pt-4 mt-4 border-t border-[var(--b1)] flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--t4)] font-bold">
+                      Target Offer: <Mono className="text-amber-400 font-black">${item.targetOffer?.toLocaleString() ?? "—"}</Mono>
+                    </span>
+                    <button
+                      onClick={() => setSelectedLoiDeal(item)}
+                      className="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline"
+                    >
+                      Cash Offer LOI
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <AcquireToPipelineButton
+                      deal={{
+                        id: item.id,
+                        vin: item.vin,
+                        year: item.year,
+                        make: item.make,
+                        model: item.model,
+                        trim: item.trim,
+                        askPrice: item.askPrice,
+                        trueNetProfit: item.trueNetProfit,
+                        sellEstimate: item.sellEstimate,
+                        locationCity: item.locationCity,
+                        locationState: item.locationState,
+                      }}
+                      className="w-full py-2 text-xs"
+                    />
+
+                    <Link
+                      href={`/deal/${item.id}`}
+                      className="p-2 rounded-2xl bg-[var(--s2)] border border-[var(--b2)] text-[var(--t2)] hover:text-white hover:border-emerald-500/40 transition-colors shrink-0"
+                      title="View Full Deal Dossier"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
                 </div>
               </motion.div>
             ))}
@@ -255,24 +286,95 @@ export default function BestBuyPage() {
       )}
 
       {/* Flip Compound ROI Calculator */}
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-[var(--b2)] bg-gradient-to-br from-[var(--s1)] via-[var(--s0)] to-black/60">
-        <div className="max-w-3xl space-y-3">
+      <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/20 via-[var(--s1)] to-black/80 shadow-2xl space-y-6">
+        <div className="max-w-3xl space-y-2">
           <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-400">
             <BarChart3 className="h-4 w-4" />
             Capital Velocity Compound Model
           </div>
-          <h2 className="text-2xl font-black text-[var(--t1)]">
+          <h2 className="text-2xl sm:text-3xl font-black text-[var(--t1)] tracking-tight">
             How Much Can You Grow ${capital.toLocaleString()} in 90 Days?
           </h2>
-          <p className="text-sm text-[var(--t3)] leading-relaxed">
-            By reinvesting capital every 18 days into MikeHunt Next Best Buy recommendations (averaging {data?.stats.avgRoi ?? 32}% ROI per flip), you can turn {capital.toLocaleString()} into an estimated{" "}
-            <strong className="text-emerald-400">
-              ${Math.round(capital * Math.pow(1 + (data?.stats.avgRoi ?? 32) / 100, 3)).toLocaleString()}
-            </strong>{" "}
-            across 3 flips.
+          <p className="text-xs sm:text-sm text-[var(--t3)] leading-relaxed">
+            By rolling your initial bankroll and profits every 18 days into MikeHunt Next Best Buy opportunities (averaging {data?.stats.avgRoi ?? 32}% ROI per flip), here is your projected compounding trajectory:
           </p>
         </div>
+
+        {/* 3-Stage Visual Pipeline */}
+        {(() => {
+          const roi = (data?.stats.avgRoi ?? 32) / 100;
+          const flip1 = Math.round(capital * (1 + roi));
+          const flip2 = Math.round(flip1 * (1 + roi));
+          const flip3 = Math.round(flip2 * (1 + roi));
+          const netGain = flip3 - capital;
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t4)] block">
+                  Starting Bankroll
+                </span>
+                <Mono className="text-xl font-black text-[var(--t1)] mt-1 block">
+                  ${capital.toLocaleString()}
+                </Mono>
+                <span className="text-[10px] text-[var(--t5)] mt-0.5 block">Day 0 Deployment</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
+                <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 block">
+                  After Flip #1 (Day 18)
+                </span>
+                <Mono className="text-xl font-black text-cyan-400 mt-1 block">
+                  ${flip1.toLocaleString()}
+                </Mono>
+                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">+${(flip1 - capital).toLocaleString()} net profit</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+                  After Flip #2 (Day 42)
+                </span>
+                <Mono className="text-xl font-black text-amber-400 mt-1 block">
+                  ${flip2.toLocaleString()}
+                </Mono>
+                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">+${(flip2 - flip1).toLocaleString()} net profit</span>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
+                  Final Portfolio (Day 90)
+                </span>
+                <Mono className="text-2xl font-black text-emerald-400 mt-1 block">
+                  ${flip3.toLocaleString()}
+                </Mono>
+                <span className="text-[10px] font-bold text-emerald-400/90 mt-0.5 block">
+                  +${netGain.toLocaleString()} Total Gain ({Math.round((netGain / capital) * 100)}%)
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
+
+      {selectedLoiDeal && (
+        <CashOfferLetterModal
+          isOpen={!!selectedLoiDeal}
+          onClose={() => setSelectedLoiDeal(null)}
+          deal={{
+            id: selectedLoiDeal.id,
+            vin: selectedLoiDeal.vin,
+            year: selectedLoiDeal.year,
+            make: selectedLoiDeal.make,
+            model: selectedLoiDeal.model,
+            trim: selectedLoiDeal.trim,
+            askPrice: selectedLoiDeal.askPrice,
+            targetOffer: selectedLoiDeal.targetOffer,
+            recommendedMaxBid: selectedLoiDeal.recommendedMaxBid,
+            locationCity: selectedLoiDeal.locationCity,
+            locationState: selectedLoiDeal.locationState,
+          }}
+        />
+      )}
     </div>
   );
 }

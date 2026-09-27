@@ -990,6 +990,7 @@ export default function DealPage({
       {serverDeal?.images && serverDeal.images.length > 0 && (
         <VisionDamageInspector
           imageUrl={serverDeal.images[0]}
+          images={serverDeal.images}
           vin={serverDeal.vin ?? store.vin}
         />
       )}
