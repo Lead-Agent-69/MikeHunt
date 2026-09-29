@@ -125,13 +125,16 @@ supabase db reset
 - Ensure all environment variables are set
 - Verify Node.js version (requires >= 20)
 
-## Migration Files Temporarily Disabled
+## Migration Files — security hardening RESOLVED
 
-The following migration files have been temporarily backed up due to missing functions:
-- `20260703010000_security_hardening_view_and_function_search_path.sql.bak`
-- `20260703020000_revoke_public_execute_on_definer_functions.sql.bak`
+The two migrations that were previously backed up as `.bak` (missing-function
+errors on fresh databases) have been replaced by:
 
-These can be restored once the missing functions are implemented or the references are fixed.
+- `20260929000000_security_hardening_idempotent.sql` — same advisor fixes
+  (view `security_invoker`, pinned `search_path`, targeted `REVOKE`s), rewritten
+  as data-driven, existence-guarded, idempotent DO-blocks.
+
+`supabase db push` no longer needs any manual workarounds.
 
 ## What's Been Accomplished
 

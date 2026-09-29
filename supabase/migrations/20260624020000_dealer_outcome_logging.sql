@@ -122,7 +122,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_dealer_profiles_updated_at
+CREATE OR REPLACE TRIGGER trigger_dealer_profiles_updated_at
   BEFORE UPDATE ON dealer_profiles
   FOR EACH ROW
   EXECUTE FUNCTION update_dealer_profiles_updated_at();
@@ -159,7 +159,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_dealer_deals_calculated
+CREATE OR REPLACE TRIGGER trigger_dealer_deals_calculated
   BEFORE INSERT OR UPDATE ON dealer_deals
   FOR EACH ROW
   EXECUTE FUNCTION update_dealer_deals_calculated();
@@ -301,7 +301,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_dealer_deals_calibration
+CREATE OR REPLACE TRIGGER trigger_dealer_deals_calibration
   AFTER INSERT OR UPDATE ON dealer_deals
   FOR EACH ROW
   EXECUTE FUNCTION trigger_compute_calibration();

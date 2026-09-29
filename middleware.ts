@@ -64,8 +64,19 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    // Fail CLOSED in production: without credentials we cannot verify auth, and
+    // silently letting everyone through protectedRoutes would expose the whole app.
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "Supabase credentials missing in middleware — rejecting request (fail-closed).",
+      );
+      return NextResponse.json(
+        { error: "Server misconfigured: auth unavailable" },
+        { status: 500 },
+      );
+    }
     console.warn(
-      "Supabase credentials missing in middleware. Skipping auth checks.",
+      "Supabase credentials missing in middleware. Skipping auth checks (dev only).",
     );
     return supabaseResponse;
   }
