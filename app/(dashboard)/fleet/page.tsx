@@ -10,6 +10,7 @@ import { Mono } from "@/components/shared/Mono";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { FleetKPIs } from "@/components/fleet/FleetKPIs";
+import { CapitalVelocityTracker } from "@/components/fleet/CapitalVelocityTracker";
 import { useDealerId } from "@/hooks/useDealerId";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1043,6 +1044,9 @@ export default function FleetPage() {
 
       {/* Deep KPI rollup — margin, days-to-sell, recon, live ghost cost, bottleneck (the flip loop) */}
       {!loading && !error && fleet.length > 0 && <FleetKPIs fleet={fleet} />}
+
+      {/* Capital velocity: days-in-stage, capital deployed, floor-plan burn (uses /api/inventory + /api/outcomes) */}
+      {!loading && !error && fleet.length > 0 && <CapitalVelocityTracker />}
 
       {/* Stats row */}
       {!loading && !error && fleet.length > 0 && (

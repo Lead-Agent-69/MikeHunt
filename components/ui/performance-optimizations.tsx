@@ -259,9 +259,11 @@ export function useNetworkStatus() {
     const handleOffline = () => setIsOnline(false);
 
     const connection = (navigator as any).connection;
+    const handleChange = () => {
+      if (connection) setConnectionType(connection.effectiveType);
+    };
     if (connection) {
       setConnectionType(connection.effectiveType);
-      const handleChange = () => setConnectionType(connection.effectiveType);
       connection.addEventListener("change", handleChange);
     }
 
@@ -793,7 +795,7 @@ interface PerformanceOptimizerProps {
 }
 
 export function PerformanceOptimizer({ children, className }: PerformanceOptimizerProps) {
-  const { prefersReducedMotion } = useReducedMotion();
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <div
@@ -803,7 +805,7 @@ export function PerformanceOptimizer({ children, className }: PerformanceOptimiz
           "--animation-duration": "0s",
           "--transition-duration": "0s",
         }),
-      }}
+      } as React.CSSProperties}
     >
       {children}
     </div>
