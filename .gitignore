@@ -61,6 +61,10 @@ next-env.d.ts
 
 # logs
 *.log
+deploy_log.txt
+
+# temporary migration backups (resolved, not history)
+*.sql.bak
 
 # OS
 Thumbs.db
