@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
+import { EditorialCard, type EditorialCardData } from "@/components/ui/editorial-card";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -118,6 +119,35 @@ export default function FeedPage() {
           />
         </div>
       </div>
+
+      {/* Editorial Cards — Featured deals grid */}
+      {items.length > 0 && (
+        <div className="snap-start min-h-screen bg-[var(--s1)] py-8 px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-[var(--t1)]">Featured Deals</h2>
+              <span className="text-xs text-[var(--t4)]">Editorial showcase</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {items.slice(0, 6).map((it, index) => (
+                <EditorialCard
+                  key={`editorial-${it.id}`}
+                  data={{
+                    id: it.id,
+                    image: proxiedImage(it.image),
+                    title: it.title,
+                    category: it.source || "Deal",
+                    year: it.year?.toString() || "",
+                    description: it.forYouReason || `${it.make} ${it.model} · ${it.locationCity}, ${it.locationState}`,
+                    cta: "View Deal",
+                    ctaLink: `/deal/${it.id}`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {items.map((it) => (
         <FeedCard key={it.id} it={it} />

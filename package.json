@@ -57,6 +57,7 @@
     "@upstash/qstash": "^2.11.1",
     "@vercel/speed-insights": "^2.0.0",
     "@zxing/browser": "^0.2.0",
+    "@zxing/library": "^0.22.0",
     "ai": "^6.0.208",
     "axios": "^1.18.0",
     "bull": "^4.16.3",

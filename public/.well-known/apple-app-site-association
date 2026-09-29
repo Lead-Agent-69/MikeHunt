@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.mikehunt.app",
+        "paths": ["/discover", "/feed", "/scan", "/deal/*"]
+      }
+    ]
+  }
+}

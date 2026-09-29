@@ -8,13 +8,21 @@ import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
 const protectedRoutes = [
   // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
   "/today",
-  // "/scan",
+  // "/scan", — intentionally public: it's the landing page's "Launch App" target.
   "/discover",
   "/swipe",
   "/find",
+  "/feed",
+  "/market",
+  "/best-buy",
+  "/arbitrage",
+  "/flash-deals",
+  "/auctions",
+  "/lane",
   "/map",
   "/bulk",
   "/saved",
+  "/save",
   "/move",
   "/fleet",
   "/recon",

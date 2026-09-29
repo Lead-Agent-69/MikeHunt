@@ -239,7 +239,7 @@ export function ShineBorder({
           transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
         />
       </div>
-      <div className="relative rounded-[inherit] overflow-hidden">
+      <div className="relative h-full rounded-[inherit] overflow-hidden">
         {children}
       </div>
     </div>

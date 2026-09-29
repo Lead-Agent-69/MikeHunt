@@ -6,6 +6,8 @@ import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
+import { CarTypeSelector, QuickPresets } from "@/components/shared/CarTypeSelector";
+import { PriceRangeSelector, YearRangeSelector } from "@/components/shared/PriceRangeSelector";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -48,6 +50,7 @@ type Filters = {
   states: string[];
   lanes: string[];
   makes: string[];
+  categories: string[]; // New: vehicle categories
   conditions: string[];
   verdicts: string[];
   sellerTypes: string[];
@@ -55,6 +58,7 @@ type Filters = {
   priceMin: string;
   priceMax: string;
   yearMin: string;
+  yearMax: string; // New: max year
   mileageMax: string;
   minProfit: string;
   mode: "curated" | "all";
@@ -67,6 +71,7 @@ const EMPTY: Filters = {
   states: [],
   lanes: [],
   makes: [],
+  categories: [],
   conditions: [],
   verdicts: [],
   sellerTypes: [],
@@ -74,6 +79,7 @@ const EMPTY: Filters = {
   priceMin: "",
   priceMax: "",
   yearMin: "",
+  yearMax: "",
   mileageMax: "",
   minProfit: "",
   mode: "curated",
@@ -101,6 +107,7 @@ export default function MarketPage() {
     if (f.states.length) p.set("states", f.states.join(","));
     if (f.lanes.length) p.set("lanes", f.lanes.join(","));
     if (f.makes.length) p.set("makes", f.makes.join(","));
+    if (f.categories.length) p.set("categories", f.categories.join(","));
     if (f.conditions.length) p.set("conditions", f.conditions.join(","));
     if (f.verdicts.length) p.set("verdicts", f.verdicts.join(","));
     if (f.sellerTypes.length) p.set("sellerTypes", f.sellerTypes.join(","));
@@ -108,6 +115,7 @@ export default function MarketPage() {
     if (f.priceMin) p.set("priceMin", f.priceMin);
     if (f.priceMax) p.set("priceMax", f.priceMax);
     if (f.yearMin) p.set("yearMin", f.yearMin);
+    if (f.yearMax) p.set("yearMax", f.yearMax);
     if (f.mileageMax) p.set("mileageMax", f.mileageMax);
     if (f.minProfit) p.set("minProfit", f.minProfit);
     p.set("mode", f.mode);
@@ -133,6 +141,7 @@ export default function MarketPage() {
     f.states.length +
     f.lanes.length +
     f.makes.length +
+    f.categories.length +
     f.conditions.length +
     f.verdicts.length +
     f.sellerTypes.length +
@@ -140,6 +149,7 @@ export default function MarketPage() {
     (f.priceMin ? 1 : 0) +
     (f.priceMax ? 1 : 0) +
     (f.yearMin ? 1 : 0) +
+    (f.yearMax ? 1 : 0) +
     (f.mileageMax ? 1 : 0) +
     (f.minProfit ? 1 : 0) +
     (f.q.trim() ? 1 : 0);
@@ -214,16 +224,23 @@ export default function MarketPage() {
             onClear={() => set({ states: [] })}
           />
 
+          {/* Enhanced Car Type Selector */}
+          <CarTypeSelector
+            selectedCategories={f.categories}
+            selectedMakes={f.makes}
+            onCategoryToggle={(cat) => set({ categories: toggle(f.categories, cat) })}
+            onMakeToggle={(make) => set({ makes: toggle(f.makes, make) })}
+            onClearAll={() => set({ categories: [], makes: [] })}
+          />
+
           <ChipGroup
-            title="Make"
-            options={(facets.topMakes || []).map((m: any) => ({
-              key: m.make,
-              label: m.make,
-              count: m.n,
+            title="Title / condition"
+            options={CONDITIONS.map((c) => ({
+              key: c,
+              label: c.replace(/_/g, " "),
             }))}
-            selected={f.makes}
-            onToggle={(k) => set({ makes: toggle(f.makes, k) })}
-            lowercaseMatch
+            selected={f.conditions}
+            onToggle={(k) => set({ conditions: toggle(f.conditions, k) })}
           />
 
           <ChipGroup
@@ -280,30 +297,33 @@ export default function MarketPage() {
             </div>
           </div>
 
-          {/* Numeric ranges */}
+          {/* Enhanced Price Range Selector */}
+          <PriceRangeSelector
+            minPrice={f.priceMin}
+            maxPrice={f.priceMax}
+            onMinChange={(v) => set({ priceMin: v })}
+            onMaxChange={(v) => set({ priceMax: v })}
+            onClear={() => set({ priceMin: "", priceMax: "" })}
+          />
+
+          {/* Enhanced Year Range Selector */}
+          <YearRangeSelector
+            minYear={f.yearMin}
+            maxYear={f.yearMax}
+            onMinChange={(v) => set({ yearMin: v })}
+            onMaxChange={(v) => set({ yearMax: v })}
+            onClear={() => set({ yearMin: "", yearMax: "" })}
+          />
+
+          {/* Miles and Profit - Keep existing simple inputs */}
           <div
             className="rounded-[var(--r3)] p-3"
             style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
           >
             <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-              Price / year / miles
+              Miles / profit
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <NumIn
-                ph="$ min"
-                v={f.priceMin}
-                on={(v) => set({ priceMin: v })}
-              />
-              <NumIn
-                ph="$ max"
-                v={f.priceMax}
-                on={(v) => set({ priceMax: v })}
-              />
-              <NumIn
-                ph="year ≥"
-                v={f.yearMin}
-                on={(v) => set({ yearMin: v })}
-              />
               <NumIn
                 ph="miles ≤"
                 v={f.mileageMax}
@@ -318,9 +338,31 @@ export default function MarketPage() {
             </div>
           </div>
 
+          {/* Quick Presets */}
+          <QuickPresets
+            onApplyPreset={(preset) => {
+              // Apply preset filters
+              if (preset.filters.categories) {
+                set({ categories: preset.filters.categories });
+              }
+              if (preset.filters.maxPrice) {
+                set({ priceMax: preset.filters.maxPrice });
+              }
+              if (preset.filters.minProfit) {
+                set({ minProfit: preset.filters.minProfit });
+              }
+              if (preset.filters.conditions) {
+                set({ conditions: preset.filters.conditions });
+              }
+              if (preset.filters.minYear) {
+                set({ yearMin: preset.filters.minYear });
+              }
+            }}
+          />
+
           {activeCount > 0 && (
             <button
-              onClick={() => set({ ...EMPTY, mode: f.mode })}
+              onClick={() => set({ ...EMPTY, mode: f.mode, categories: [] })}
               className="rounded-[var(--r2)] px-3 py-2 text-xs font-bold text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
               style={{ background: "var(--s1)" }}
             >

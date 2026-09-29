@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./mobile.css";
 import { ResponsiveProvider } from "@/components/ui/responsive-design-system";
+import { NetworkProvider, NetworkStatusBanner, OfflineBanner } from "@/components/ui/mobile-ux";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
@@ -91,20 +93,24 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="color-scheme" content="light dark" />
       </head>
-      <body className="h-full min-h-screen bg-[var(--s1)] text-[var(--t1)] antialiased overflow-x-hidden">
-        <SWRProvider>
-          <ErrorBoundary>
-            <ResponsiveProvider>
-              <LenisSmoothScroll>
-                {children}
-                <SpeedInsights />
-                <ToastProvider />
-                <PWARegister />
-                <InstallPrompt />
-              </LenisSmoothScroll>
-            </ResponsiveProvider>
-          </ErrorBoundary>
-        </SWRProvider>
+      <body className="h-full min-h-screen bg-[var(--s1)] text-[var(--t1)] antialiased overflow-x-clip">
+        <NetworkProvider>
+          <NetworkStatusBanner />
+          <SWRProvider>
+            <ErrorBoundary>
+              <ResponsiveProvider>
+                <LenisSmoothScroll>
+                  {children}
+                  <SpeedInsights />
+                  <ToastProvider />
+                  <PWARegister />
+                  <InstallPrompt />
+                  <OfflineBanner />
+                </LenisSmoothScroll>
+              </ResponsiveProvider>
+            </ErrorBoundary>
+          </SWRProvider>
+        </NetworkProvider>
       </body>
     </html>
   );

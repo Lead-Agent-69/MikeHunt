@@ -1,23 +1,8 @@
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-
-async function serverClient() {
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll() {},
-      },
-    },
-  );
-}
+// Re-export from canonical supabase module
+import { createServerComponentClient } from "@/lib/supabase";
 
 export async function getServerUser() {
-  const supabase = await serverClient();
+  const supabase = createServerComponentClient();
   return supabase.auth.getUser();
 }
+

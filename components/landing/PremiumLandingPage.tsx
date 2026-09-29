@@ -24,9 +24,34 @@ import {
   LiquidGlassFooter,
   SwitchOnHoverTabs,
   FilterableGallery,
+  DNACarousel,
 } from "@/components/ui/framer-components";
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+const TESTIMONIALS = [
+  {
+    name: "Michael Rodriguez",
+    role: "Owner, Rodriguez Auto Sales",
+    image: "👨‍💼",
+    text: "MikeHunt found me a 2021 BMW M3 with $8,400 profit margin that I would have missed. The AI scoring is incredibly accurate.",
+    rating: 5,
+  },
+  {
+    name: "Sarah Chen",
+    role: "Director, Premier Motors",
+    image: "👩‍💼",
+    text: "The geographic arbitrage feature alone paid for our subscription in the first week. We're now importing cars from 3 states we never considered.",
+    rating: 5,
+  },
+  {
+    name: "James Wilson",
+    role: "Independent Dealer",
+    image: "👨‍💼",
+    text: "I used to spend hours checking multiple auction sites. Now I see everything in one dashboard with accurate profit calculations.",
+    rating: 5,
+  },
+];
 
 const PROOF = [
   { icon: "🗺️", text: "All 50 states" },
@@ -91,6 +116,13 @@ const SAMPLE_DEALS = [
   { year: 2020, make: "Toyota", model: "Tacoma TRD Pro", price: "$33,200", estRetail: "$41,000", profit: "+$5,100", score: 88, source: "Copart Direct", vin: "3TMCZ5AN8LM9****", location: "Phoenix, AZ" },
   { year: 2022, make: "Ford", model: "F-150 Raptor", price: "$71,000", estRetail: "$82,500", profit: "+$6,700", score: 91, source: "FB Marketplace", vin: "1FTFW1RG4NFB****", location: "Atlanta, GA" },
   { year: 2023, make: "Dodge", model: "Challenger Hellcat", price: "$59,900", estRetail: "$70,500", profit: "+$7,200", score: 89, source: "IAAI Salvage", vin: "2C3CDZC97PH6****", location: "Miami, FL" },
+];
+
+// Extended set for the 3D helix carousel — needs 6+ cards for a full ring
+const HELIX_DEALS = [
+  ...SAMPLE_DEALS,
+  { year: 2019, make: "Chevrolet", model: "Camaro SS", price: "$38,400", estRetail: "$46,900", profit: "+$5,600", score: 84, source: "GovDeals", vin: "1G1FB1RS6K01****", location: "Columbus, OH" },
+  { year: 2021, make: "Jeep", model: "Wrangler Rubicon", price: "$41,800", estRetail: "$50,200", profit: "+$5,900", score: 86, source: "Off-Market", vin: "1C4HJXFG2MW6****", location: "Denver, CO" },
 ];
 
 // Simulated live deal feed for the hero section
@@ -281,7 +313,7 @@ function InteractiveDealShowcase() {
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-xs text-[var(--t4)]">Est Net Profit</span>
-                      <span className="text-xl font-black font-mono text-[#00ff66]">{deal.profit}</span>
+                      <span className="text-xl font-black font-mono text-[var(--green)]">{deal.profit}</span>
                     </div>
                     <p className="text-[11px] text-[var(--t5)] text-center mt-4 italic">
                       Click to flip 🔄
@@ -329,6 +361,68 @@ function InteractiveDealShowcase() {
             />
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DNADealShowcase() {
+  return (
+    <section className="relative py-24 bg-[var(--s1)] px-6 overflow-hidden">
+      <DotGridBackground />
+      <div className="relative z-10 max-w-6xl mx-auto">
+        <div className="text-center mb-12">
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-[var(--t4)] mb-3">
+            Framer DNA Carousel Component
+          </p>
+          <h2 className="text-4xl md:text-5xl font-black text-[var(--t1)] mb-4">
+            The Deal Helix
+          </h2>
+          <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
+            A continuously rotating 3D carousel of live-scored opportunities. Drag to spin, hover to pause, click any card to bring it front and center.
+          </p>
+        </div>
+
+        <DNACarousel
+          height={380}
+          radius={280}
+          cardWidth={240}
+          items={HELIX_DEALS.map((deal) => ({
+            id: deal.vin,
+            content: (
+              <div className="h-full flex flex-col justify-between p-5 text-left">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-mono font-bold text-[var(--amber-d)] bg-[var(--amber-lo)] px-2 py-0.5 rounded-full">
+                      IQ {deal.score}
+                    </span>
+                    <span className="text-[10px] text-[var(--t4)]">{deal.source}</span>
+                  </div>
+                  <h4 className="text-base font-black text-[var(--t1)] leading-tight mb-1">
+                    {deal.year} {deal.make} {deal.model}
+                  </h4>
+                  <p className="text-[11px] text-[var(--t4)]">{deal.location}</p>
+                </div>
+                <div className="space-y-1 font-mono">
+                  <div className="flex justify-between text-[11px] text-[var(--t4)]">
+                    <span>Asking</span>
+                    <span className="text-[var(--t1)] font-bold">{deal.price}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px] text-[var(--t4)]">
+                    <span>Est Retail</span>
+                    <span className="text-[var(--t2)]">{deal.estRetail}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline pt-1 border-t border-[var(--b1)]">
+                    <span className="text-[11px] text-[var(--t4)]">Net Profit</span>
+                    <span className="text-lg font-black text-[var(--green)]">{deal.profit}</span>
+                  </div>
+                </div>
+              </div>
+            ),
+          }))}
+        />
       </div>
     </section>
   );
@@ -656,6 +750,7 @@ export function PremiumLandingPage() {
       <div>
         <HeroSection />
         <InteractiveDealShowcase />
+        <DNADealShowcase />
         <FoldersAndCollectionsShowcase />
         <StatsSection />
         <ProblemSection />

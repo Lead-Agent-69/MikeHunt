@@ -41,16 +41,16 @@ CREATE INDEX IF NOT EXISTS idx_deals_profit_score
   WHERE active = true;
 
 -- Geographic search index (if PostGIS is being used)
-CREATE INDEX IF NOT EXISTS idx_deals_geography 
+CREATE INDEX IF NOT EXISTS idx_deals_geography
   ON deals USING GIST (
-    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
-  ) 
-  WHERE active = true AND latitude IS NOT NULL AND longitude IS NOT NULL;
+    ST_SetSRID(ST_MakePoint(lng, lat), 4326)
+  )
+  WHERE active = true AND lat IS NOT NULL AND lng IS NOT NULL;
 
 -- Index for user saved searches
 CREATE INDEX IF NOT EXISTS idx_user_saved_searches_user_id 
   ON user_saved_searches(user_id) 
-  WHERE active = true;
+  WHERE is_active = true;
 
 -- Index for market aggregates lookups
 CREATE INDEX IF NOT EXISTS idx_market_aggregates_lookup 

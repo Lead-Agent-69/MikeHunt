@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>MikeHunt — Offline</title>
+  <meta name="theme-color" content="#0b0b0f">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0b0b0f;
+      color: #f4eff8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #ff7a4d, #f25b9a 55%, #9b6bff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(242, 91, 154, 0.3);
+    }
+    .icon svg { width: 40px; height: 40px; }
+    h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
+    p { font-size: 15px; color: #a99fb6; line-height: 1.6; max-width: 320px; }
+    .retry {
+      margin-top: 32px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #ff7a4d, #f25b9a 55%, #9b6bff);
+      color: white;
+      font-weight: 700;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+    .retry:active { transform: scale(0.97); }
+    .status {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #635a72;
+    }
+  </style>
+</head>
+<body>
+  <div class="icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 13l2-2 4 4 6-6 4 4 2-2"/>
+    </svg>
+  </div>
+  <h1>You're Offline</h1>
+  <p>MikeHunt needs an internet connection to fetch the latest deals. Check your connection and try again.</p>
+  <button class="retry" onclick="window.location.reload()">Try Again</button>
+  <div class="status" id="status">Checking connection...</div>
+  <script>
+    function updateStatus() {
+      const el = document.getElementById('status');
+      if (navigator.onLine) {
+        el.textContent = 'Back online! Reloading...';
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        el.textContent = 'No connection detected';
+      }
+    }
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+  </script>
+</body>
+</html>

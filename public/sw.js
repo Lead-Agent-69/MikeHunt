@@ -1,45 +1,46 @@
-﻿const CACHE_NAME = 'MikeHunt-v2'
-const STATIC_CACHE = 'MikeHunt-static-v2'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v2'
+﻿const CACHE_NAME = 'MikeHunt-v3'
+const STATIC_CACHE = 'MikeHunt-static-v3'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v3'
 
 const STATIC_ASSETS = [
   '/',
-  '/find',
+  '/discover',
+  '/offline.html',
   '/manifest.json',
-  '/_next/static/css/app/layout.css',
-  '/_next/static/css/app/globals.css',
   '/icon-192x192.png',
-  '/icon-512x512.png'
+  '/icon-512x512.png',
+  '/icon.svg',
+  '/favicon.ico',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png',
+  '/apple-touch-icon.png',
+  '/apple-touch-icon-120x120.png',
+  '/apple-touch-icon-152x152.png',
+  '/apple-touch-icon-180x180.png',
+  '/safari-pinned-tab.svg',
+  '/browserconfig.xml',
+  '/images/car-placeholder.jpg',
+  '/images/car-placeholder.png'
 ]
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...')
-  
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then(cache => {
-        console.log('Service Worker: Caching static assets')
-        return cache.addAll(STATIC_ASSETS)
-      })
+      .then(cache => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   )
 })
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...')
-  
   event.waitUntil(
     caches.keys()
       .then(cacheNames => {
         return Promise.all(
-          cacheNames.map(cacheName => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-              console.log('Service Worker: Deleting old cache', cacheName)
-              return caches.delete(cacheName)
-            }
-          })
+          cacheNames
+            .filter(cacheName => cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE)
+            .map(cacheName => caches.delete(cacheName))
         )
       })
       .then(() => self.clients.claim())
@@ -49,17 +50,22 @@ self.addEventListener('activate', (event) => {
 // Fetch event - serve from cache with network fallback
 self.addEventListener('fetch', (event) => {
   const { request } = event
-  
+
   // Skip non-GET requests
   if (request.method !== 'GET') {
     return
   }
-  
+
   // Skip external requests
   if (!request.url.startsWith(self.location.origin)) {
     return
   }
-  
+
+  // Skip chrome-extension and other non-http requests
+  if (!request.url.startsWith('http')) {
+    return
+  }
+
   event.respondWith(
     caches.match(request)
       .then(response => {
@@ -67,38 +73,34 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response
         }
-        
+
         return fetch(request)
           .then(response => {
             // Don't cache non-successful responses
             if (!response || response.status !== 200 || response.type !== 'basic') {
               return response
             }
-            
+
             // Clone the response since it can only be consumed once
             const responseToCache = response.clone()
-            
+
             // Cache dynamic content
             caches.open(DYNAMIC_CACHE)
               .then(cache => {
                 cache.put(request, responseToCache)
               })
-            
+
             return response
           })
           .catch(() => {
             // Handle offline fallback for specific routes
-            if (request.url.includes('/find')) {
+            if (request.url.includes('/discover')) {
               return caches.match('/')
             }
 
             // Return offline page for navigation requests
             if (request.mode === 'navigate') {
-              return caches.match('/offline.html') ||
-                new Response('Offline - Please check your connection', {
-                  status: 503,
-                  statusText: 'Service Unavailable'
-                })
+              return caches.match('/offline.html')
             }
           })
       })
@@ -114,8 +116,7 @@ self.addEventListener('sync', (event) => {
 
 // Push notification handling
 self.addEventListener('push', (event) => {
-  // Payload is JSON { title, body, url, tag }; fall back to plain text for older senders.
-  let payload = { title: 'MikeHunt', body: 'New deal matches found', url: '/feed' }
+  let payload = { title: 'MikeHunt', body: 'New deal matches found', url: '/discover' }
   try {
     if (event.data) payload = Object.assign(payload, event.data.json())
   } catch (e) {
@@ -129,7 +130,7 @@ self.addEventListener('push', (event) => {
     vibrate: [100, 50, 100],
     tag: payload.tag,
     renotify: !!payload.tag,
-    data: { url: payload.url || '/feed' },
+    data: { url: payload.url || '/discover' },
     actions: [
       { action: 'explore', title: 'View' },
       { action: 'close', title: 'Dismiss' }
@@ -143,7 +144,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   if (event.action === 'close') return
-  const url = (event.notification.data && event.notification.data.url) || '/feed'
+  const url = (event.notification.data && event.notification.data.url) || '/discover'
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
@@ -160,9 +161,8 @@ self.addEventListener('notificationclick', (event) => {
 // Background sync function
 async function syncWatchlist() {
   try {
-    // Sync watchlist changes made while offline
     const watchlistChanges = await getOfflineWatchlistChanges()
-    
+
     for (const change of watchlistChanges) {
       await fetch('/api/watchlist', {
         method: change.method,
@@ -172,11 +172,9 @@ async function syncWatchlist() {
         body: JSON.stringify(change.data)
       })
     }
-    
-    // Clear offline changes after successful sync
+
     await clearOfflineWatchlistChanges()
-    
-    // Show notification about successful sync
+
     self.registration.showNotification('Sync Complete', {
       body: 'Your watchlist has been updated',
       icon: '/icon-192x192.png'
@@ -188,11 +186,9 @@ async function syncWatchlist() {
 
 // IndexedDB helpers for offline storage
 async function getOfflineWatchlistChanges() {
-  // This would integrate with IndexedDB to get offline changes
   return []
 }
 
 async function clearOfflineWatchlistChanges() {
-  // This would clear offline changes from IndexedDB
   return Promise.resolve()
 }

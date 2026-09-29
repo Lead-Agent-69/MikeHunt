@@ -8,6 +8,14 @@ create extension if not exists "uuid-ossp";
 create extension if not exists "pg_trgm";     -- fuzzy search
 create extension if not exists "postgis";      -- geo queries
 
+-- PostgreSQL 17 compatibility: use gen_random_uuid() instead of uuid_generate_v4()
+create or replace function public.uuid_generate_v4()
+returns uuid
+language sql
+stable
+parallel safe
+as 'select gen_random_uuid()';
+
 -- ─── ENUM TYPES ─────────────────────────────────────────────
 create type dealer_type as enum (
   'auction_reseller','salvage_rebuild','wholesale_reseller',

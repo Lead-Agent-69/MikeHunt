@@ -1,7 +1,7 @@
 // lib/scrapers/pipeline.ts
 // Persistence helpers for scraped deals.
 
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
@@ -19,12 +19,7 @@ import { withinMiles } from "@/lib/geo/distance";
 import { cleanCity } from "@/lib/data/clean-location";
 
 function getSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "";
-  return createClient(supabaseUrl, supabaseKey);
+  return getSupabaseClient();
 }
 
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {

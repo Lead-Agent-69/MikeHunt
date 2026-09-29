@@ -1,7 +1,13 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { motion, type Variants } from "framer-motion";
+import {
+  GradientText,
+  ShineBorder,
+  Spotlight,
+} from "@/components/ui/premium-visuals";
 
 // Static plan display (amounts/features). Checkout resolves price IDs server-side from the plan id.
 const PLANS = [
@@ -55,6 +61,16 @@ const PLANS = [
   },
 ];
 
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 24, scale: 0.97 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 260, damping: 26 },
+  },
+};
+
 export default function UpgradePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,18 +95,20 @@ export default function UpgradePage() {
   }
 
   return (
-    <div
-      className="max-w-5xl mx-auto px-4 py-10"
-      style={{ animation: "fadeUp 300ms ease-out" }}
-    >
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-black text-[var(--t1)] mb-1">
-          Upgrade MikeHunt Pro
+    <div className="max-w-5xl mx-auto px-4 py-10">
+      <motion.div
+        className="text-center mb-10"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <h1 className="text-4xl font-black mb-1">
+          <GradientText>Upgrade MikeHunt Pro</GradientText>
         </h1>
         <p className="text-[var(--t3)]">
           Every plan profits you more than it costs. Cancel anytime.
         </p>
-      </div>
+      </motion.div>
 
       {error && (
         <div className="glass-panel p-3 text-center text-[var(--red)] text-sm mb-6">
@@ -98,58 +116,93 @@ export default function UpgradePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {PLANS.map((p) => (
-          <div
-            key={p.id}
-            className="glass-panel p-5 flex flex-col"
-            style={
-              p.highlight
-                ? { borderColor: "var(--amber-bd)", borderWidth: 1.5 }
-                : undefined
-            }
-          >
-            {p.highlight && (
-              <span className="text-[10px] font-bold text-[var(--amber-d)] uppercase tracking-widest mb-1">
-                Most popular
-              </span>
-            )}
-            <p className="text-sm font-bold text-[var(--t1)]">{p.name}</p>
-            <p className="mt-1 mb-4">
-              <span className="text-3xl font-black text-[var(--t1)]">
-                {p.price}
-              </span>
-              <span className="text-sm text-[var(--t4)]">{p.cadence}</span>
-            </p>
-            <ul className="space-y-1.5 flex-1 mb-4">
-              {p.features.map((f) => (
-                <li key={f} className="text-xs text-[var(--t2)] flex gap-1.5">
-                  <span className="text-[var(--green)]">✓</span> {f}
-                </li>
-              ))}
-            </ul>
-            {p.id === "free" ? (
-              <button
-                disabled
-                className="w-full py-2 rounded-[var(--r3)] text-sm font-bold bg-[var(--s2)] text-[var(--t4)]"
-              >
-                {p.cta}
-              </button>
-            ) : (
-              <button
-                onClick={() => checkout(p.id)}
-                disabled={busy === p.id}
-                className="w-full py-2 rounded-[var(--r3)] text-sm font-bold text-white disabled:opacity-50"
-                style={{
-                  background: p.highlight ? "var(--grad)" : "var(--t1)",
-                }}
-              >
-                {busy === p.id ? "Starting…" : p.cta}
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
+      <motion.div
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.08 } } }}
+      >
+        {PLANS.map((p) => {
+          const card = (
+            <div
+              className="glass-panel relative h-full p-5 flex flex-col overflow-hidden"
+              style={
+                p.highlight
+                  ? { borderColor: "var(--amber-bd)", borderWidth: 1.5 }
+                  : undefined
+              }
+            >
+              {p.highlight && <Spotlight />}
+              {p.highlight && (
+                <span className="relative text-[10px] font-bold text-[var(--amber-d)] uppercase tracking-widest mb-1">
+                  Most popular
+                </span>
+              )}
+              <p className="relative text-sm font-bold text-[var(--t1)]">
+                {p.name}
+              </p>
+              <p className="relative mt-1 mb-4">
+                <span className="text-3xl font-black text-[var(--t1)]">
+                  {p.price}
+                </span>
+                <span className="text-sm text-[var(--t4)]">{p.cadence}</span>
+              </p>
+              <ul className="relative space-y-1.5 flex-1 mb-4">
+                {p.features.map((f) => (
+                  <li key={f} className="text-xs text-[var(--t2)] flex gap-1.5">
+                    <span className="text-[var(--green)]">✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              {p.id === "free" ? (
+                <button
+                  disabled
+                  className="relative w-full py-2 rounded-[var(--r3)] text-sm font-bold bg-[var(--s2)] text-[var(--t4)]"
+                >
+                  {p.cta}
+                </button>
+              ) : (
+                <motion.button
+                  onClick={() => checkout(p.id)}
+                  disabled={busy === p.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  className="relative w-full py-2 rounded-[var(--r3)] text-sm font-bold text-white disabled:opacity-50"
+                  style={{
+                    background: p.highlight ? "var(--grad)" : "var(--t1)",
+                    boxShadow: p.highlight
+                      ? "0 6px 20px var(--amber-lo)"
+                      : "var(--shadow2)",
+                  }}
+                >
+                  {busy === p.id ? "Starting…" : p.cta}
+                </motion.button>
+              )}
+            </div>
+          );
+
+          return (
+            <motion.div
+              key={p.id}
+              variants={cardVariants}
+              whileHover={{ y: -5 }}
+              transition={{ type: "spring", stiffness: 300, damping: 24 }}
+              className="h-full"
+            >
+              {p.highlight ? (
+                <ShineBorder
+                  className="h-full rounded-[var(--r4)]"
+                  color={["var(--amber)", "var(--purple)", "var(--coral)"]}
+                >
+                  {card}
+                </ShineBorder>
+              ) : (
+                card
+              )}
+            </motion.div>
+          );
+        })}
+      </motion.div>
 
       <p className="text-center text-xs text-[var(--t4)] mt-6">
         Billing activates once Stripe keys are configured. See your{" "}

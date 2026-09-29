@@ -2,9 +2,32 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import NextImage from "next/image";
+import {
+  motion,
+  animate,
+  useMotionValue,
+  useTransform,
+  AnimatePresence,
+} from "framer-motion";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
+
+// Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
+// rather than flying in from a side the user didn't ask for.
+const slideVariants = {
+  enter: (dir: number) => ({
+    x: dir === 0 ? 0 : dir > 0 ? 320 : -320,
+    opacity: 0,
+    scale: dir === 0 ? 0.94 : 0.98,
+  }),
+  center: { x: 0, opacity: 1, scale: 1 },
+  exit: (dir: number) => ({
+    x: dir === 0 ? 0 : dir > 0 ? -320 : 320,
+    opacity: 0,
+    scale: 0.94,
+  }),
+};
 
 interface ImageGalleryProps {
   images?: string[];
@@ -25,11 +48,17 @@ export function ImageGallery({
   const images = (rawImages || []).map(proxiedImage).filter(Boolean);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [direction, setDirection] = useState(0);
   const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
   const [imageError, setImageError] = useState<Record<number, boolean>>({});
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
   const lightboxRef = useRef<HTMLDivElement>(null);
+
+  // Dragging the photo down dismisses the lightbox; the backdrop fades out in step so the
+  // gesture reads as "pushing the image away" rather than a hard close.
+  const dragY = useMotionValue(0);
+  const backdropOpacity = useTransform(dragY, [0, 220], [1, 0.35]);
 
   const hasImages = images && images.length > 0;
   const currentImage = hasImages ? images[currentIndex] : null;
@@ -73,9 +102,11 @@ export function ImageGallery({
     if (Math.abs(diff) > swipeThreshold) {
       if (diff > 0) {
         // Swipe left - next image
+        setDirection(1);
         setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
       } else {
         // Swipe right - previous image
+        setDirection(-1);
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
       }
     }
@@ -87,8 +118,10 @@ export function ImageGallery({
       if (!isLightboxOpen || !hasImages) return;
 
       if (e.key === "ArrowLeft") {
+        setDirection(-1);
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
       } else if (e.key === "ArrowRight") {
+        setDirection(1);
         setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
       } else if (e.key === "Escape") {
         setIsLightboxOpen(false);
@@ -98,24 +131,36 @@ export function ImageGallery({
   );
 
   useEffect(() => {
-    if (isLightboxOpen) {
-      document.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
-    }
+    if (!isLightboxOpen) return;
+    // Restore whatever the page had before — the dashboard locks scroll elsewhere too, so
+    // hard-coding "unset" would clobber it.
+    const prevOverflow = document.body.style.overflow;
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "unset";
+      document.body.style.overflow = prevOverflow;
     };
   }, [isLightboxOpen, handleKeyDown]);
 
   const goToNext = () => {
     if (!hasImages) return;
+    setDirection(1);
     setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
   };
 
   const goToPrev = () => {
     if (!hasImages) return;
+    setDirection(-1);
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+  };
+
+  const openLightbox = (index: number) => {
+    // A drag-dismiss leaves the photo offset; clear it so the next open starts centred.
+    dragY.set(0);
+    setDirection(0);
+    setCurrentIndex(index);
+    setIsLightboxOpen(true);
   };
 
   return (
@@ -132,7 +177,7 @@ export function ImageGallery({
                   ? "md:col-span-2 md:row-span-2"
                   : "md:col-span-4 md:row-span-2 md:aspect-[16/9]",
               )}
-              onClick={() => setIsLightboxOpen(true)}
+              onClick={() => openLightbox(0)}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
@@ -193,10 +238,7 @@ export function ImageGallery({
                   <div
                     key={realIdx}
                     className="hidden md:block relative group cursor-pointer overflow-hidden"
-                    onClick={() => {
-                      setCurrentIndex(realIdx);
-                      setIsLightboxOpen(true);
-                    }}
+                    onClick={() => openLightbox(realIdx)}
                   >
                     {!imageLoaded[realIdx] && !imageError[realIdx] && (
                       <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
@@ -264,101 +306,149 @@ export function ImageGallery({
       </div>
 
       {/* LIGHTBOX MODAL */}
-      {isLightboxOpen && hasImages && (
-        <div
-          ref={lightboxRef}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(36,28,43,0.95)" }}
-          onClick={() => setIsLightboxOpen(false)}
-        >
-          {/* Close button */}
-          <button
+      <AnimatePresence>
+        {isLightboxOpen && hasImages && (
+          <motion.div
+            ref={lightboxRef}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setIsLightboxOpen(false)}
-            className="absolute top-4 right-4 w-12 h-12 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors z-10 touch-manipulation"
-            style={{ background: "rgba(255,255,255,0.1)" }}
-            aria-label="Close lightbox"
           >
-            <Ico name="close" size={24} />
-          </button>
+            {/* Backdrop sits on its own layer so the drag can fade it independently. */}
+            <motion.div
+              className="absolute inset-0"
+              style={{
+                opacity: backdropOpacity,
+                background: "rgba(36,28,43,0.95)",
+              }}
+            />
 
-          {/* Image counter */}
-          <div
-            className="absolute top-4 left-4 px-4 py-2 rounded-full text-white text-sm font-bold tracking-widest z-10"
-            style={{ background: "rgba(255,255,255,0.1)" }}
-          >
-            {currentIndex + 1} / {images.length}
-          </div>
+            {/* Close button */}
+            <button
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-4 right-4 w-12 h-12 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors z-10 touch-manipulation"
+              style={{ background: "rgba(255,255,255,0.1)" }}
+              aria-label="Close lightbox"
+            >
+              <Ico name="close" size={24} />
+            </button>
 
-          {/* Main image */}
-          <div
-            className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {!imageLoaded[currentIndex] && !imageError[currentIndex] && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-              </div>
+            {/* Image counter */}
+            <div
+              className="absolute top-4 left-4 px-4 py-2 rounded-full text-white text-sm font-bold tracking-widest z-10"
+              style={{ background: "rgba(255,255,255,0.1)" }}
+            >
+              {currentIndex + 1} / {images.length}
+            </div>
+
+            {/* Main image */}
+            <div
+              className="relative max-w-7xl max-h-[90vh] w-full h-full flex items-center justify-center z-[5]"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                <motion.div
+                  key={currentIndex}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ type: "spring", stiffness: 320, damping: 32 }}
+                  drag="y"
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  dragElastic={0.55}
+                  style={{ y: dragY }}
+                  className="flex max-h-full w-full items-center justify-center cursor-grab active:cursor-grabbing"
+                  onDragEnd={(_, info) => {
+                    if (
+                      Math.abs(info.offset.y) > 140 ||
+                      Math.abs(info.velocity.y) > 700
+                    ) {
+                      setIsLightboxOpen(false);
+                    } else {
+                      animate(dragY, 0, {
+                        type: "spring",
+                        stiffness: 380,
+                        damping: 30,
+                      });
+                    }
+                  }}
+                >
+                  {!imageLoaded[currentIndex] && !imageError[currentIndex] && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+                    </div>
+                  )}
+
+                  {imageError[currentIndex] ? (
+                    <div className="flex flex-col items-center justify-center text-white">
+                      <Ico
+                        name="alert-triangle"
+                        size={64}
+                        className="opacity-50 mb-4"
+                      />
+                      <span className="text-lg font-bold">
+                        Image Failed to Load
+                      </span>
+                    </div>
+                  ) : (
+                    <img
+                      src={currentImage!}
+                      alt={`${title} - View ${currentIndex + 1}`}
+                      className="max-w-full max-h-[85vh] object-contain"
+                      loading="eager"
+                      draggable={false}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Navigation arrows */}
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToPrev();
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors touch-manipulation z-10"
+                  style={{ background: "rgba(255,255,255,0.1)" }}
+                  aria-label="Previous image"
+                >
+                  <Ico name="arrow" className="-rotate-180" size={28} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToNext();
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors touch-manipulation z-10"
+                  style={{ background: "rgba(255,255,255,0.1)" }}
+                  aria-label="Next image"
+                >
+                  <Ico name="arrow" size={28} />
+                </button>
+              </>
             )}
 
-            {imageError[currentIndex] ? (
-              <div className="flex flex-col items-center justify-center text-white">
-                <Ico
-                  name="alert-triangle"
-                  size={64}
-                  className="opacity-50 mb-4"
-                />
-                <span className="text-lg font-bold">Image Failed to Load</span>
-              </div>
-            ) : (
-              <img
-                src={currentImage!}
-                alt={`${title} - View ${currentIndex + 1}`}
-                className="max-w-full max-h-full object-contain"
-                loading="eager"
-              />
-            )}
-          </div>
-
-          {/* Navigation arrows */}
-          {images.length > 1 && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToPrev();
-                }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors touch-manipulation"
-                style={{ background: "rgba(255,255,255,0.1)" }}
-                aria-label="Previous image"
-              >
-                <Ico name="arrow" className="-rotate-180" size={28} />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToNext();
-                }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors touch-manipulation"
-                style={{ background: "rgba(255,255,255,0.1)" }}
-                aria-label="Next image"
-              >
-                <Ico name="arrow" size={28} />
-              </button>
-            </>
-          )}
-
-          {/* Keyboard hint */}
-          <div
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-xs font-medium tracking-wide hidden md:block"
-            style={{ background: "rgba(255,255,255,0.1)" }}
-          >
-            Use arrow keys to navigate • ESC to close
-          </div>
-        </div>
-      )}
+            {/* Keyboard hint */}
+            <div
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-xs font-medium tracking-wide hidden md:block z-10"
+              style={{ background: "rgba(255,255,255,0.1)" }}
+            >
+              Arrow keys to navigate • drag down or ESC to close
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

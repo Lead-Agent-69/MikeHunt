@@ -39,76 +39,140 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
-      <Link href="/" className="flex items-center gap-2.5 mb-8">
-        <span
-          className="w-8 h-8 rounded-[10px] grid place-items-center text-white shadow-sm"
-          style={{ background: "var(--grad)" }}
-          aria-hidden
-        >
-          <Ico name="search" size={17} />
-        </span>
-        <span className="text-[15px] font-bold tracking-tight text-[var(--t1)]">
-          MikeHunt
-        </span>
-      </Link>
+      {/* Professional Header */}
+      <div className="absolute top-0 left-0 right-0 p-6">
+        <Link href="/" className="inline-flex items-center gap-2.5">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
+            style={{ background: "var(--grad)" }}
+            aria-hidden
+          >
+            <Ico name="search" size={20} />
+          </div>
+          <span className="text-xl font-bold tracking-tight text-[var(--t1)]">
+            MikeHunt
+          </span>
+        </Link>
+      </div>
 
-      <div className="glass-panel w-full max-w-sm p-8 flex flex-col gap-6">
-        <div className="text-center">
-          <h1 className="serif text-3xl font-semibold text-[var(--t1)] mb-1.5 tracking-tight">
-            Welcome back
-          </h1>
-          <p className="text-sm text-[var(--t3)]">Sign in to keep hunting.</p>
+      {/* Professional Card */}
+      <div className="w-full max-w-md">
+        <div className="glass-panel p-8 sm:p-10 flex flex-col gap-6">
+          {/* Header */}
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "var(--grad)" }}>
+              <Ico name="users" size={32} className="text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-[var(--t1)] mb-2">
+              Welcome back
+            </h1>
+            <p className="text-base text-[var(--t3)]">
+              Sign in to access your vehicle intelligence dashboard
+            </p>
+          </div>
+
+          {/* Error Display */}
+          {error && (
+            <div
+              className="p-4 rounded-xl text-sm font-medium border flex items-start gap-3"
+              style={{
+                backgroundColor: "var(--rlo)",
+                color: "var(--red)",
+                borderColor: "var(--rbd)",
+              }}
+            >
+              <Ico name="alert-triangle" size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Social Login */}
+          <GoogleButton next="/discover" />
+          <OrDivider label="or continue with email" />
+
+          {/* Form */}
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <Field
+              label="Email address"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="you@dealership.com"
+              className="text-base"
+            />
+
+            <Field
+              label="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="••••••••••"
+              className="text-base"
+            />
+
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 text-[var(--t3)] cursor-pointer">
+                <input type="checkbox" className="rounded border-[var(--b2)]" />
+                Remember me
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-[var(--amber-d)] hover:underline font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            <Btn
+              type="submit"
+              loading={loading}
+              className="w-full py-3 text-base font-semibold"
+            >
+              {loading ? "Signing in..." : "Sign in to your account"}
+            </Btn>
+          </form>
+
+          {/* Footer */}
+          <div className="text-center pt-4 border-t border-[var(--b1)]">
+            <p className="text-sm text-[var(--t4)] mb-2">
+              New to MikeHunt?{" "}
+              <Link
+                href="/register"
+                className="font-semibold text-[var(--amber-d)] hover:underline"
+              >
+                Create your free account
+              </Link>
+            </p>
+            <p className="text-xs text-[var(--t5)]">
+              By signing in, you agree to our{" "}
+              <Link href="/tos" className="text-[var(--t4)] hover:text-[var(--t1)]">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-[var(--t4)] hover:text-[var(--t1)]">
+                Privacy Policy
+              </Link>
+            </p>
+          </div>
         </div>
 
-        {error && (
-          <div
-            className="p-3 rounded-[var(--r2)] text-sm font-medium border"
-            style={{
-              backgroundColor: "var(--rlo)",
-              color: "var(--red)",
-              borderColor: "var(--rbd)",
-            }}
-          >
-            {error}
+        {/* Trust Indicators */}
+        <div className="mt-6 flex items-center justify-center gap-6 text-xs text-[var(--t4)]">
+          <div className="flex items-center gap-1.5">
+            <Ico name="shield" size={14} />
+            <span>Secure login</span>
           </div>
-        )}
-
-        <GoogleButton next="/discover" />
-        <OrDivider label="or sign in with email" />
-
-        <form onSubmit={handleLogin} className="flex flex-col gap-4">
-          <Field
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            placeholder="you@dealership.com"
-          />
-
-          <Field
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            placeholder="••••••••"
-          />
-
-          <Btn type="submit" loading={loading} className="w-full mt-2">
-            {loading ? "Signing in..." : "Sign in"}
-          </Btn>
-        </form>
-
-        <p className="text-center text-sm text-[var(--t4)]">
-          New to MikeHunt?{" "}
-          <Link
-            href="/register"
-            className="font-semibold text-[var(--amber-d)] hover:underline"
-          >
-            Create an account
-          </Link>
-        </p>
+          <div className="flex items-center gap-1.5">
+            <Ico name="check-circle" size={14} />
+            <span>Encrypted data</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Ico name="clock" size={14} />
+            <span>24/7 support</span>
+          </div>
+        </div>
       </div>
     </div>
   );

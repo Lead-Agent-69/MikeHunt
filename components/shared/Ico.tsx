@@ -43,7 +43,14 @@ type IconName =
   | "message"
   | "external"
   | "shield"
-  | "home";
+  | "home"
+  | "zap"
+  | "star"
+  | "bolt"
+  | "briefcase"
+  | "bike"
+  | "users"
+  | "dollar";
 
 interface IcoProps {
   name: IconName;
@@ -650,6 +657,113 @@ export function Ico({ name, className = "", size = 20 }: IcoProps) {
         >
           <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
           <polyline points="9 22 9 12 15 12 15 22" />
+        </svg>
+      );
+    case "zap":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      );
+    case "star":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      );
+    case "bolt":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+      );
+    case "briefcase":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        </svg>
+      );
+    case "bike":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="5.5" cy="17.5" r="3.5" />
+          <circle cx="18.5" cy="17.5" r="3.5" />
+          <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2" />
+          <path d="M13.5 14h-2.5a3.5 3.5 0 0 0-3 1.7l-1.4 2.8" />
+          <path d="M13.5 14H17l2-4H9.5l-1.7-3.4" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+    case "dollar":
+      return (
+        <svg
+          {...shared}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
         </svg>
       );
     default:

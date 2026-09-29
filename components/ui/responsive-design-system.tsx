@@ -189,11 +189,11 @@ export const SmartCard = ({
   const getVariantClasses = () => {
     switch (variant) {
       case "elevated":
-        return "bg-white shadow-lg border-0";
+        return "bg-[var(--s0)] shadow-[var(--shadow)] border-0";
       case "outlined":
-        return "bg-white border border-gray-200 shadow-sm";
+        return "bg-[var(--s0)] border border-[var(--b1)] shadow-[var(--shadow2)]";
       default:
-        return "bg-white shadow-md border border-gray-100";
+        return "bg-[var(--s0)] shadow-[var(--shadow2)] border border-[var(--b1)]";
     }
   };
 
@@ -202,7 +202,7 @@ export const SmartCard = ({
 
     if (hoverSupported && hover) {
       classes.push(
-        "hover:shadow-xl",
+        "hover:shadow-[var(--shadow)]",
         "hover:scale-[1.02]",
         "transition-all",
         "duration-200",
@@ -210,7 +210,7 @@ export const SmartCard = ({
     }
 
     if (touchSupported && press && onClick) {
-      classes.push("active:scale-[0.98]", "active:shadow-sm");
+      classes.push("active:scale-[0.98]", "active:shadow-[var(--shadow2)]");
     }
 
     if (onClick) {
@@ -291,16 +291,16 @@ export const SmartNav = ({
           onClick={item.onClick}
           className={cn(
             "relative flex flex-col items-center justify-center p-2 min-w-[60px] transition-colors",
-            "hover:bg-gray-50 active:bg-gray-100",
-            activeId === item.id && "text-blue-600",
-            activeId !== item.id && "text-gray-600",
+            "hover:bg-[var(--s2)] active:bg-[var(--s3)]",
+            activeId === item.id && "text-[var(--blue)]",
+            activeId !== item.id && "text-[var(--t3)]",
           )}
         >
           {item.icon && (
             <div className="relative">
               {item.icon}
               {item.badge && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-[var(--red)] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                   {item.badge}
                 </span>
               )}
@@ -383,7 +383,7 @@ export const SmartModal = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div
         className={cn(
-          "bg-white shadow-2xl",
+          "bg-[var(--s0)] shadow-[var(--shadow3)]",
           getSizeClasses(),
           getPositionClasses(),
           className,
@@ -439,11 +439,11 @@ export const SmartList = ({
   const getItemClasses = () => {
     switch (variant) {
       case "cards":
-        return "p-4 bg-white rounded-xl shadow-sm border border-gray-100";
+        return "p-4 bg-[var(--s0)] rounded-xl shadow-[var(--shadow2)] border border-[var(--b1)]";
       case "compact":
-        return "p-2 border-b border-gray-100";
+        return "p-2 border-b border-[var(--b1)]";
       default:
-        return "p-4 border-b border-gray-100";
+        return "p-4 border-b border-[var(--b1)]";
     }
   };
 
@@ -456,14 +456,14 @@ export const SmartList = ({
             placeholder="Search..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-[var(--b2)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
           />
         </div>
       )}
 
       <div
         className={cn(
-          variant === "cards" ? "grid gap-4" : "divide-y divide-gray-100",
+          variant === "cards" ? "grid gap-4" : "divide-y divide-[var(--b1)]",
         )}
       >
         {filteredItems.map((item) => (
@@ -473,24 +473,24 @@ export const SmartList = ({
             className={cn(
               getItemClasses(),
               item.onClick &&
-                "cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors",
+                "cursor-pointer hover:bg-[var(--s2)] active:bg-[var(--s3)] transition-colors",
             )}
           >
             <div className="flex items-center space-x-3">
               {item.icon && <div className="flex-shrink-0">{item.icon}</div>}
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900 truncate">
+                <div className="font-medium text-[var(--t1)] truncate">
                   {item.title}
                 </div>
                 {item.subtitle && (
-                  <div className="text-sm text-gray-500 truncate">
+                  <div className="text-sm text-[var(--t4)] truncate">
                     {item.subtitle}
                   </div>
                 )}
               </div>
               {item.badge && (
                 <div className="flex-shrink-0">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--blo)] text-[var(--blue)]">
                     {item.badge}
                   </span>
                 </div>
@@ -586,10 +586,10 @@ export const SmartTable = ({
           <SmartCard key={index} variant="outlined">
             {columns.map((column) => (
               <div key={column.key} className="flex justify-between py-2">
-                <span className="text-sm font-medium text-gray-600">
+                <span className="text-sm font-medium text-[var(--t3)]">
                   {column.label}
                 </span>
-                <span className="text-sm text-gray-900">{row[column.key]}</span>
+                <span className="text-sm text-[var(--t1)]">{row[column.key]}</span>
               </div>
             ))}
           </SmartCard>
@@ -600,7 +600,7 @@ export const SmartTable = ({
             <button
               onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
               disabled={currentPage === 0}
-              className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
+              className="px-3 py-1 text-sm border border-[var(--b2)] rounded disabled:opacity-50"
             >
               Previous
             </button>
@@ -612,7 +612,7 @@ export const SmartTable = ({
                 setCurrentPage(Math.min(totalPages - 1, currentPage + 1))
               }
               disabled={currentPage === totalPages - 1}
-              className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
+              className="px-3 py-1 text-sm border border-[var(--b2)] rounded disabled:opacity-50"
             >
               Next
             </button>
@@ -628,16 +628,16 @@ export const SmartTable = ({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
+            <tr className="bg-[var(--s1)] border-b border-[var(--b1)]">
               {columns.map((column) => (
                 <th
                   key={column.key}
                   onClick={() => handleSort(column.key)}
                   className={cn(
-                    "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider",
+                    "px-4 py-3 text-left text-xs font-medium text-[var(--t4)] uppercase tracking-wider",
                     sortable &&
                       column.sortable &&
-                      "cursor-pointer hover:bg-gray-100",
+                      "cursor-pointer hover:bg-[var(--s3)]",
                     column.width && `w-${column.width}`,
                   )}
                 >
@@ -659,7 +659,7 @@ export const SmartTable = ({
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className="px-4 py-3 text-sm text-gray-900"
+                    className="px-4 py-3 text-sm text-[var(--t1)]"
                   >
                     {row[column.key]}
                   </td>
@@ -675,7 +675,7 @@ export const SmartTable = ({
           <button
             onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
             disabled={currentPage === 0}
-            className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
+            className="px-3 py-1 text-sm border border-[var(--b2)] rounded disabled:opacity-50"
           >
             Previous
           </button>
@@ -687,7 +687,7 @@ export const SmartTable = ({
               setCurrentPage(Math.min(totalPages - 1, currentPage + 1))
             }
             disabled={currentPage === totalPages - 1}
-            className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50"
+            className="px-3 py-1 text-sm border border-[var(--b2)] rounded disabled:opacity-50"
           >
             Next
           </button>

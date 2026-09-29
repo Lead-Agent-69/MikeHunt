@@ -21,6 +21,8 @@ import { MarketPulse } from "@/components/home/MarketPulse";
 import { DiscoverHero } from "@/components/discovery/DiscoverHero";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { EdgeBanner } from "@/components/shared/EdgeBanner";
+import { DNACarousel, type CarouselItem } from "@/components/ui/dna-carousel";
+import { PremiumCarousel, type PremiumCarouselItem } from "@/components/ui/premium-carousel";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -170,6 +172,41 @@ export default function DiscoverPage() {
           accent="var(--amber-d)"
           onPick={(st) => setState(st)}
         />
+      )}
+
+      {/* DNA Carousel — Featured deals showcase */}
+      {data?.rails && data.rails.length > 0 && (
+        <div className="glass-panel p-4 md:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-[var(--t1)]">Featured Deals</h2>
+            <span className="text-xs text-[var(--t4)]">Drag or swipe to explore</span>
+          </div>
+          <DNACarousel
+            items={data.rails[0].deals.slice(0, 5).map((deal: any) => ({
+              id: deal.id,
+              image: deal.image_url || deal.image || "/images/car-placeholder.jpg",
+              title: `${deal.year} ${deal.make} ${deal.model}`.trim(),
+              subtitle: deal.location_state ? `${deal.location_state} · ${deal.mileage?.toLocaleString() || ""} miles` : undefined,
+              category: deal.deal_verdict?.toUpperCase() || deal.source,
+              description: deal.deal_verdict === "go" ? `Net profit: $${deal.true_net_profit?.toLocaleString()}` : undefined,
+              cta: "View Deal",
+            }))}
+            autoPlay={true}
+            autoPlaySpeed={4000}
+            depth={250}
+            curve={0.8}
+            helixSpread={0.8}
+            perspective={1200}
+            imageWidth={240}
+            imageHeight={320}
+            imageRadius={16}
+            blur={5}
+            rgbSplit={2}
+            inactiveOpacity={0.3}
+            shadow={true}
+            shadowStrength={0.2}
+          />
+        </div>
       )}
 
       {/* New listings from the salvage/rebuilder dealers you watch. */}

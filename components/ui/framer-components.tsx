@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, useScroll, useTransform, useMotionValue, AnimatePresence } from "framer-motion";
+import { motion, useScroll, useTransform, useMotionValue, useAnimationFrame, animate, AnimatePresence } from "framer-motion";
 import { X, Heart } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -922,6 +922,120 @@ export function FilterableGallery({
           ))}
         </AnimatePresence>
       </motion.div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. DNA CAROUSEL — a 3D helix ring that spins on its own, pauses on hover,
+//     drags to spin, and snaps a card to the front on click.
+//     Inspired by the Framer marketplace "DNA Carousel" component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function DNACarousel({
+  items,
+  radius = 300,
+  height = 340,
+  cardWidth = 230,
+}: {
+  items: { id: string; content: React.ReactNode }[];
+  radius?: number;
+  height?: number;
+  cardWidth?: number;
+}) {
+  const rotation = useMotionValue(0);
+  const [paused, setPaused] = useState(false);
+  const drag = useRef<{ on: boolean; x: number }>({ on: false, x: 0 });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Shrink the whole ring on narrow screens so side cards don't bleed off-canvas.
+  const [fit, setFit] = useState(1);
+  const angle = 360 / Math.max(items.length, 1);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const needed = 2 * (radius + cardWidth / 2) + 24;
+    const compute = () => setFit(Math.min(1, el.clientWidth / needed));
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [radius, cardWidth]);
+
+  useAnimationFrame((_, delta) => {
+    if (!paused && !drag.current.on) rotation.set(rotation.get() - delta * 0.012);
+  });
+
+  // Snap the clicked card to the front, spinning whichever way is shorter.
+  const focus = (i: number) => {
+    const target = -i * angle;
+    const current = rotation.get();
+    const diff = ((((target - current) % 360) + 540) % 360) - 180;
+    animate(rotation, current + diff, {
+      type: "spring",
+      stiffness: 55,
+      damping: 15,
+    });
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative mx-auto w-full max-w-4xl touch-pan-y select-none"
+      style={{ height, perspective: 1400 }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => {
+        setPaused(false);
+        drag.current.on = false;
+      }}
+      onPointerDown={(e) => {
+        drag.current = { on: true, x: e.clientX };
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current.on) return;
+        rotation.set(rotation.get() + (e.clientX - drag.current.x) * 0.4);
+        drag.current.x = e.clientX;
+      }}
+      onPointerUp={() => {
+        drag.current.on = false;
+      }}
+      onPointerCancel={() => {
+        drag.current.on = false;
+      }}
+    >
+      <motion.div
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
+        style={{ rotateY: rotation, scale: fit, transformStyle: "preserve-3d" }}
+      >
+        {items.map((item, i) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => focus(i)}
+            aria-label={`Bring card ${i + 1} to the front`}
+            className="absolute left-1/2 top-1/2"
+            style={{
+              width: cardWidth,
+              marginLeft: -cardWidth / 2,
+              marginTop: -height / 2,
+              height: height - 60,
+              transform: `rotateY(${i * angle}deg) translateZ(${radius}px) translateY(${
+                Math.sin((i * angle * Math.PI) / 180) * 22
+              }px)`,
+              backfaceVisibility: "hidden",
+            }}
+          >
+            {item.content}
+          </button>
+        ))}
+      </motion.div>
+
+      {/* Floor glow — sells the 3D stage without costing a render pass. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-[15%] bottom-0 h-10 rounded-[50%] blur-2xl"
+        style={{ background: "var(--amber-lo)" }}
+      />
     </div>
   );
 }

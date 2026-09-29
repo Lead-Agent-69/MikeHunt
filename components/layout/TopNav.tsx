@@ -7,108 +7,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
 import {
-  Search,
-  Clock,
-  Settings,
+  BarChart3,
   Bell,
   Bookmark,
-  BarChart3,
-  Compass,
-  TrendingUp,
-  FileCheck,
-  Sparkles,
-  MapPin,
-  FileText,
   ChevronDown,
-  BellRing,
-  Code2,
-  Activity,
-  Cpu,
-  SlidersHorizontal,
-  Wrench,
-  ArrowLeftRight,
-  CalendarDays,
-  Zap,
-  Columns3,
-  Truck,
-  Hammer,
-  ListPlus,
-  Layers,
-  Banknote,
-  Store,
-  Gavel,
-  Flame,
-  ScanLine,
-  Shield,
+  Settings,
 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { AccountMenu } from "@/components/home/AccountMenu";
-
-// PRIMARY = the 5 daily-driver routes (kept in sync with the mobile bottom nav). Everything else lives in
-// the grouped "More" menu so the bar stays uncluttered on desktop and mobile.
-const PRIMARY = [
-  { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Feed", href: "/feed", icon: Flame },
-  { name: "Scan", href: "/scan", icon: Search },
-  { name: "Market", href: "/market", icon: SlidersHorizontal },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-  { name: "Fleet", href: "/fleet", icon: Clock },
-];
-
-const MORE_GROUPS = [
-  {
-    group: "Find deals",
-    items: [
-      { name: "Next Best Buy", href: "/best-buy", icon: Flame },
-      { name: "Swipe", href: "/swipe", icon: Layers },
-      { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
-      { name: "Map", href: "/map", icon: MapPin },
-      { name: "Today", href: "/today", icon: CalendarDays },
-      { name: "Flash deals", href: "/flash-deals", icon: Zap },
-      { name: "Compare", href: "/compare", icon: Columns3 },
-      { name: "Dealer network", href: "/dealer-network", icon: Store },
-      { name: "Find", href: "/find", icon: Search },
-    ],
-  },
-  {
-    group: "Analyze",
-    items: [
-      { name: "Intel", href: "/insights", icon: TrendingUp },
-      { name: "Parts", href: "/parts", icon: Wrench },
-    ],
-  },
-  {
-    group: "Operations",
-    items: [
-      { name: "Lane Scanner", href: "/lane", icon: ScanLine },
-      { name: "Auctions", href: "/auctions", icon: Gavel },
-      { name: "Transport", href: "/move", icon: Truck },
-      { name: "Recon", href: "/recon", icon: Hammer },
-      { name: "List a car", href: "/list", icon: ListPlus },
-      { name: "Bulk actions", href: "/bulk", icon: Layers },
-      { name: "Finance", href: "/finance", icon: Banknote },
-    ],
-  },
-  {
-    group: "Account",
-    items: [
-      { name: "Saved searches", href: "/searches", icon: BellRing },
-      { name: "Upgrade", href: "/upgrade", icon: Sparkles },
-      { name: "What's new", href: "/changelog", icon: FileText },
-    ],
-  },
-];
-
-// Admin-only group — appended to "More" only when the single admin is signed in (server-gated too).
-const ADMIN_GROUP = {
-  group: "Admin",
-  items: [
-    { name: "Admin Dashboard", href: "/admin", icon: Shield },
-    { name: "System status", href: "/status", icon: Activity },
-    { name: "Developer API", href: "/developer", icon: Code2 },
-    { name: "Orchestrator", href: "/orchestrator", icon: Cpu },
-  ],
-};
+import { PRIMARY, MORE_GROUPS, ADMIN_GROUP } from "./nav-items";
 
 function IconBtn({
   href,
@@ -190,9 +97,22 @@ export function TopNav() {
   }, []);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    // The dashboard layout scrolls inside <body>, not the window, so window.scrollY stays 0 there
+    // and a plain listener never fires. Capture-phase catches scrolls from any element.
+    const onScroll = () => {
+      const y =
+        window.scrollY ||
+        document.documentElement.scrollTop ||
+        document.body.scrollTop;
+      setScrolled(y > 4);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, {
+      passive: true,
+      capture: true,
+    });
+    return () =>
+      window.removeEventListener("scroll", onScroll, { capture: true });
   }, []);
 
   // Close the More menu on navigation or outside click.
@@ -212,14 +132,30 @@ export function TopNav() {
     <header
       className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6"
       style={{
-        background: scrolled ? "var(--s0)" : "var(--s1)",
+        background: "var(--glass)",
+        backdropFilter: "blur(18px) saturate(180%)",
+        WebkitBackdropFilter: "blur(18px) saturate(180%)",
         borderBottom: scrolled
           ? "1px solid var(--b1)"
           : "1px solid transparent",
         boxShadow: scrolled ? "var(--shadow2)" : "none",
-        transition: "all 200ms ease",
+        transition: "box-shadow 200ms ease, border-color 200ms ease",
       }}
     >
+      {/* Gradient hairline — the "liquid" edge, revealed only once there's content scrolling
+          behind the glass. Masked at the ends so it fades instead of stopping hard. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px transition-opacity duration-300"
+        style={{
+          background: "var(--grad)",
+          opacity: scrolled ? 0.6 : 0,
+          maskImage:
+            "linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent)",
+          WebkitMaskImage:
+            "linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent)",
+        }}
+      />
       {/* LEFT: Logo */}
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link href="/discover" className="flex items-center gap-2.5 group">
@@ -290,38 +226,51 @@ export function TopNav() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.97 }}
                 transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50 origin-top-right"
+                className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50 origin-top-right overflow-hidden"
                 style={{
-                  background: "var(--s0)",
+                  background: "var(--glass)",
+                  backdropFilter: "blur(24px) saturate(180%)",
+                  WebkitBackdropFilter: "blur(24px) saturate(180%)",
                   border: "1px solid var(--b1)",
                   boxShadow: "var(--shadow)",
                 }}
               >
-                {moreGroups.map((g) => (
-                  <div key={g.group} className="mb-1.5 last:mb-0">
-                    <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
-                      {g.group}
-                    </p>
-                    {g.items.map((item) => {
-                      const active = pathname === item.href;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          role="menuitem"
-                          className={`flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
-                            active
-                              ? "bg-[var(--amber-lo)] text-[var(--amber)]"
-                              : "text-[var(--t2)] hover:bg-[var(--s2)]"
-                          }`}
-                        >
-                          <item.icon className="h-4 w-4 text-[var(--t4)]" />
-                          {item.name}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
+                {/* Top highlight — the same glass cue the landing CTAs use. */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-[10%] top-0 h-px rounded-full"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
+                  }}
+                />
+                <div className="max-h-[min(70vh,34rem)] overflow-y-auto overscroll-contain">
+                  {moreGroups.map((g) => (
+                    <div key={g.group} className="mb-1.5 last:mb-0">
+                      <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
+                        {g.group}
+                      </p>
+                      {g.items.map((item) => {
+                        const active = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            role="menuitem"
+                            className={`flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
+                              active
+                                ? "bg-[var(--amber-lo)] text-[var(--amber)]"
+                                : "text-[var(--t2)] hover:bg-[var(--s2)]"
+                            }`}
+                          >
+                            <item.icon className="h-4 w-4 text-[var(--t4)]" />
+                            {item.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
