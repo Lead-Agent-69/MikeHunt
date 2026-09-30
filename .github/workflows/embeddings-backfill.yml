@@ -1,0 +1,56 @@
+# Embeddings backfill — moved OFF Vercel cron.
+#
+# Why: vercel.json had 3 daily crons, but the Vercel Hobby plan allows a maximum of 2, so the
+# third was rejected on deploy. The two alert jobs are user-facing (price drops, profit sniper)
+# and must stay; this one is an incremental enrichment job (embed deals that lack a vector) and
+# belongs on a scheduler that isn't rate-limited.
+#
+# The endpoint is unchanged: GET /api/embeddings/backfill is gated by isAuthorizedCron, which
+# accepts `Authorization: Bearer <CRON_SECRET>` — the same header Vercel Cron sends, and the same
+# one lib/cron-auth.ts documents for GitHub Actions.
+
+name: Embeddings backfill
+
+on:
+  schedule:
+    - cron: "0 10 * * *" # same 10:00 UTC slot it had as a Vercel cron
+  workflow_dispatch: # manual re-run from the Actions tab
+    inputs:
+      limit:
+        description: "Deals to embed this run (max 200)"
+        required: false
+        default: "100"
+
+concurrency:
+  group: embeddings-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Trigger backfill
+        env:
+          # Override with a repo secret if the deployment URL ever changes.
+          BASE_URL: ${{ secrets.SITE_URL || 'https://mikehunt-otfbzp7nx-mikehunt.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          LIMIT: ${{ github.event.inputs.limit || '100' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET repo secret is not set — the endpoint fails closed with 401."
+            exit 1
+          fi
+          echo "POSTing backfill to ${BASE_URL} (limit=${LIMIT})"
+          code=$(curl -sS -o /tmp/backfill.json -w "%{http_code}" \
+            --max-time 300 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${BASE_URL}/api/embeddings/backfill?limit=${LIMIT}")
+          echo "HTTP ${code}"
+          cat /tmp/backfill.json
+          echo
+          if [ "${code}" != "200" ]; then
+            echo "::error::Backfill returned ${code}"
+            exit 1
+          fi

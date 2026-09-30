@@ -11,10 +11,6 @@
     {
       "path": "/api/alerts/process",
       "schedule": "0 9 * * *"
-    },
-    {
-      "path": "/api/embeddings/backfill",
-      "schedule": "0 10 * * *"
     }
   ],
   "headers": [

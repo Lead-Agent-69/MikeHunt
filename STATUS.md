@@ -85,29 +85,57 @@ Honest state of the app. Updated **2026-09-30** (supersedes the June docs -
 
 ## Known follow-ups
 
-### P0 blockers (OPEN - not addressed by the 2026-09-30 maintenance pass)
+### P0 blockers — 2026-09-30 pass: 3 of 4 resolved, 1 blocked on tooling
 
-- **Unauthenticated scraper-control APIs.** `/api/scrape/credentials`
-  (GET/POST/DELETE), `/api/scrape/queue` (POST/DELETE/PATCH - accepts an
-  attacker-supplied `redisUrl`), `/api/scrape/execute` and `/api/scrape/registry`
-  have **zero auth**. Copy the fail-closed shared-secret pattern already used in
-  `app/api/scrape/route.ts` (`SCRAPE_SECRET || CRON_SECRET`, reject when unset).
-- **Vercel env vars.** ~15 still unconfirmed in the dashboard (Supabase URL/
-  anon/service, `CRON_SECRET`, `INGEST_SECRET`, `SCRAPE_SECRET`, Resend, Twilio,
-  Gemini, `VAPID_*`, Stripe, Sentry) — see `DEPLOYMENT-CHECKLIST.md`. Note
-  `lib/auth/admin.ts` now **fails closed with no `ADMIN_EMAIL`**, so that one
-  must be set or `/developer`, `/status`, `/orchestrator` lock everyone out.
-- **Fly.io fleet unverified.** Needs `fly auth login` then `fly status` /
+- ~~**Unauthenticated scraper-control APIs**~~ **RESOLVED.** New
+  `lib/auth/scrape-gate.ts` is the single fail-closed implementation
+  (`SCRAPE_SECRET || CRON_SECRET`; 503 in production when unset, 401 on
+  mismatch) applied to `/api/scrape/credentials` (GET/POST/DELETE),
+  `/api/scrape/registry` (GET/POST), `/api/scrape/execute` and
+  `/api/scrape/queue` (GET/POST/DELETE/PATCH). The queue route additionally
+  **dropped client-supplied `redisUrl`** — it always reads
+  `process.env.REDIS_URL` now, closing the SSRF path (an attacker pointing Bull
+  at their own Redis) even for a caller who already holds the secret.
+  `/api/scrape/route.ts` and `/api/scrape/run/route.ts` were refactored onto the
+  same module rather than keeping their own inline copies.
+  `/api/scrape/health` deliberately stays open — both
+  `scripts/freshness-monitor.mjs` and the `/orchestrator` SWR fetch call it with
+  no `Authorization` header — but now withholds `lastError`, since
+  `scraper_runs.error_message` can carry file paths and upstream URLs, from any
+  caller without the secret or an admin session.
+- ~~**Vercel env vars**~~ **RESOLVED for everything required.** Verified with
+  `npx vercel env ls production`: `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
+  `SCRAPE_SECRET`, `INGEST_SECRET` and `NEXT_PUBLIC_APP_URL` were already set
+  (the "~15 missing" figure was stale), and **`ADMIN_EMAIL` was added** — that
+  one was mandatory, because `lib/auth/admin.ts` fails closed with no fallback
+  and would otherwise lock everyone out of `/developer`, `/status` and
+  `/orchestrator`. `DEPLOYMENT-CHECKLIST.md` now records which optional vars
+  are deliberately unset and why.
+- ~~**Cron overage**~~ **RESOLVED.** `vercel.json` now has the 2 crons Hobby
+  allows: `/api/alerts/profit-sniper` at 08:00 and `/api/alerts/process` at
+  09:00 UTC. `/api/embeddings/backfill` moved to
+  `.github/workflows/embeddings-backfill.yml` — same 10:00 UTC slot, same
+  `CRON_SECRET` gate (`isAuthorizedCron` already documented GitHub Actions as a
+  supported trigger), plus `workflow_dispatch` for manual runs. **The workflow
+  needs a `CRON_SECRET` repo secret**; without it the job fails closed with 401
+  instead of running unauthenticated.
+- **Fly.io fleet unverified — STILL OPEN, blocked on tooling.** flyctl is not
+  installed and no `FLY_API_TOKEN` is present, so this needs an interactive
+  login by a human: install flyctl, `fly auth login`, then `fly status` and
   `fly logs -a dealerhunt-scraper`.
-- **Cron overage.** `vercel.json` has 3 daily crons; Hobby allows 2.
 
 ### Maintenance / hygiene
 
 - Rotate the Supabase `service_role` key (was once hardcoded in deleted scripts).
-- Install flyctl / `fly auth login` and confirm the scraper fleet is alive.
 - Add lightweight page-level analytics before pruning routes.
 - Identity-table phase 2's remaining step: production data audit, then drop
   `profiles` (code side is done — see above).
-- ~~Enable RLS on `public.spatial_ref_sys`~~ done in
-  `20260930120000_spatial_ref_sys_rls.sql` (RLS on + permissive SELECT so
-  PostGIS SRID lookups keep working for anon/authenticated).
+- ~~Enable RLS on `public.spatial_ref_sys`~~ **attempted, then reverted.**
+  `20260930120000_spatial_ref_sys_rls.sql` failed the migration chain with
+  `SQLSTATE 42501 must be owner of table spatial_ref_sys` — the table is owned
+  by `supabase_admin` and the deploy role is not a superuser. The file was
+  deleted rather than shipped as a silent no-op, so all 61 migrations apply
+  clean from a blank DB. The advisor warning is cosmetic (PostGIS reference
+  data, readable by design); actually changing it needs the Supabase dashboard
+  or a role that owns the table.

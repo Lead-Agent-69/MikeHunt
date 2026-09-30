@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { EnhancedScrapingEngine } from "@/lib/scrapers/enhanced-engine";
 import { SCRAPER_CONFIGS } from "@/lib/scrapers/source-configs";
 import { createClient } from "@supabase/supabase-js";
+import { denyUnauthed } from "@/lib/auth/scrape-gate";
+
+// Shared-secret gate lives in lib/auth/scrape-gate.ts so every scraper-control route answers to
+// one implementation (see that file for why four siblings shipped without any auth at all).
 
 function createScrapingEngine() {
   return new EnhancedScrapingEngine(
@@ -13,27 +17,8 @@ function createScrapingEngine() {
   );
 }
 
-// Shared-secret gate. Scraping is heavy and can burn IPs / CI minutes, so this endpoint must never be
-// public. Caller sends `Authorization: Bearer <SCRAPE_SECRET|CRON_SECRET>`. Secure-by-default: with no
-// secret configured the endpoint is CLOSED in production (open only in local dev so a dev box stays
-// usable). Returns a NextResponse to short-circuit, or null when the request is allowed.
-function denyUnauthed(request: NextRequest): NextResponse | null {
-  const secret = process.env.SCRAPE_SECRET || process.env.CRON_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production")
-      return NextResponse.json(
-        { error: "Scrape endpoint disabled: set SCRAPE_SECRET or CRON_SECRET" },
-        { status: 503 },
-      );
-    return null; // local dev: allow
-  }
-  if (request.headers.get("authorization") !== `Bearer ${secret}`)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return null;
-}
-
 export async function POST(request: NextRequest) {
-  const denied = denyUnauthed(request);
+  const denied = await denyUnauthed(request);
   if (denied) return denied;
   const scrapingEngine = createScrapingEngine();
   try {
@@ -91,7 +76,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const denied = denyUnauthed(request);
+  const denied = await denyUnauthed(request);
   if (denied) return denied;
   try {
     const scrapingEngine = createScrapingEngine();
