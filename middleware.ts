@@ -107,9 +107,14 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Check if current route is protected ('/' is public — handled by the landing page)
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route),
-  );
+  // Vercel Cron has no Supabase user session. These endpoints authenticate the
+  // Authorization: Bearer CRON_SECRET header in their route handlers instead.
+  const isCronEndpoint =
+    pathname === "/api/alerts/process" ||
+    pathname === "/api/alerts/profit-sniper";
+  const isProtectedRoute =
+    !isCronEndpoint &&
+    protectedRoutes.some((route) => pathname.startsWith(route));
   // Check if current route is an auth route
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 

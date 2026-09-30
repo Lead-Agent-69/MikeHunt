@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 
 const execFileAsync = promisify(execFile);
 
@@ -98,6 +99,7 @@ export interface SoldRow {
   source: string;
   location_state?: string;
   item_id: string;
+  source_url: string;
 }
 
 /** Parse an eBay SOLD/completed SRP (.s-card structure) into real sold-price rows. */
@@ -131,7 +133,8 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       card.find("a.s-card__link").attr("href") ||
       card.find('a[href*="/itm/"]').first().attr("href") ||
       "";
-    const item_id = link.match(/\/itm\/(\d+)/)?.[1] || "";
+    const absoluteLink = link ? new URL(link, "https://www.ebay.com").toString() : "";
+    const item_id = absoluteLink.match(/\/itm\/(\d+)/)?.[1] || "";
     if (!item_id || seen.has(item_id)) return;
     seen.add(item_id);
 
@@ -170,6 +173,7 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       sold_at,
       source: "ebay_motors",
       item_id,
+      source_url: absoluteLink.split("?")[0],
     });
   });
 
@@ -214,9 +218,6 @@ async function curlGet(url: string, jar: string): Promise<string> {
   return stdout;
 }
 
-const naturalKey = (r: SoldRow): string =>
-  `${r.source}|${r.year}|${r.make}|${r.model}|${r.sold_price}|${r.sold_at || ""}`;
-
 export async function scrapeEbaySold(): Promise<number> {
   console.log("[eBay Sold] Starting real-sold-price scrape...");
   const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
@@ -255,7 +256,7 @@ export async function scrapeEbaySold(): Promise<number> {
         `&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
       const html = await curlGet(url, jar);
       const parsed = parseEbaySoldHtml(html);
-      for (const r of parsed) all.set(naturalKey(r), r);
+      for (const r of parsed) all.set(r.item_id, r);
       await new Promise((r) => setTimeout(r, 1500)); // be polite
     } catch (e) {
       console.warn(`[eBay Sold] "${q}" failed:`, (e as Error).message);
@@ -268,18 +269,10 @@ export async function scrapeEbaySold(): Promise<number> {
     return 0;
   }
 
-  // Dedupe against what's already stored (the table has no external-id column → natural key).
-  const { data: existing } = await sb
-    .from("sold_listings")
-    .select("year, make, model, sold_price, sold_at, source")
-    .eq("source", "ebay_motors")
-    .limit(20000);
-  const have = new Set(
-    (existing || []).map((e: any) =>
-      naturalKey({ ...e, item_id: "" } as SoldRow),
-    ),
-  );
-  const fresh = rows.filter((r) => !have.has(naturalKey(r)));
+  // Sold rows are immutable market observations. The mounted local cache avoids repeat Supabase
+  // writes; the unique database index remains the cross-machine source of truth.
+  const seen = await loadSoldItemCache();
+  const fresh = rows.filter((r) => !seen.has(r.item_id));
 
   if (fresh.length) {
     const insertRows = fresh.map((r) => ({
@@ -292,14 +285,33 @@ export async function scrapeEbaySold(): Promise<number> {
       sold_price: r.sold_price,
       sold_at: r.sold_at ?? null,
       source: r.source,
+      source_item_id: r.item_id,
+      source_url: r.source_url,
+      currency_code: "USD",
+      country_code: "US",
       location_state: r.location_state ?? null,
     }));
-    const { error } = await sb.from("sold_listings").insert(insertRows);
-    if (error) console.warn("[eBay Sold] insert error:", error.message);
+    const { data: inserted, error } = await sb
+      .from("sold_listings")
+      .upsert(insertRows, {
+        onConflict: "source,source_item_id",
+        ignoreDuplicates: true,
+      })
+      .select("source_item_id");
+    if (error) {
+      console.warn("[eBay Sold] insert error:", error.message);
+      return 0;
+    }
+    for (const row of fresh) seen.add(row.item_id);
+    await saveSoldItemCache(seen);
+    console.log(
+      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted?.length ?? 0} new sales`,
+    );
+    return inserted?.length ?? 0;
   }
 
   console.log(
-    `[eBay Sold] Parsed ${rows.length} sold listings, inserted ${fresh.length} new real sold prices`,
+    `[eBay Sold] parsed ${rows.length} completed listings; ${rows.length} already known locally`,
   );
-  return fresh.length;
+  return 0;
 }

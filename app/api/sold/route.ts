@@ -16,9 +16,11 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   let q = supabase
     .from("sold_listings")
-    .select("year, make, model, trim, mileage, sold_price, sold_at, source")
+    .select("year, make, model, trim, mileage, sold_price, sold_at, source, source_url, currency_code, country_code")
     .ilike("make", make)
     .ilike("model", `%${model.split(" ")[0]}%`)
+    .eq("currency_code", "USD")
+    .eq("country_code", "US")
     .gt("sold_price", 0)
     .order("sold_at", { ascending: false })
     .limit(40);
@@ -47,6 +49,11 @@ export async function GET(req: NextRequest) {
       mileage: d.mileage || null,
       soldAt: d.sold_at,
       source: d.source,
+      sourceUrl:
+        typeof d.source_url === "string" && /^https?:\/\//i.test(d.source_url)
+          ? d.source_url
+          : null,
+      currency: d.currency_code,
     })),
   });
 }

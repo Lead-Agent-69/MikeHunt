@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build:
@@ -50,12 +48,15 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - ENABLE_HEADED_SCRAPERS=1
       - SCRAPE_INTERVAL_MS=1800000
+      - LOCAL_CACHE_PATH=/app/cache
       # Reserve tier — smartFetch falls to FlareSolverr only after static→stealth→headed all fail.
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
       # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
       # - SCRAPE_SOURCES=cars_com,autotrader,truecar
     depends_on:
       - flaresolverr
+    volumes:
+      - ./cache:/app/cache
 
   # FlareSolverr — the RESERVE anti-bot tier for smartFetch: a separate self-hosted process with its OWN
   # TLS/JA3 fingerprint + a Cloudflare-challenge solver, reachable at flaresolverr:8191. smartFetch only

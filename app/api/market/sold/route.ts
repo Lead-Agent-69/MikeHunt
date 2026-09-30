@@ -25,9 +25,11 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   let q = supabase
     .from("sold_listings")
-    .select("sold_price, sold_at, mileage, source, location_state")
+    .select("sold_price, sold_at, mileage, source, source_url, location_state")
     .ilike("make", make)
     .ilike("model", `%${model.split(" ")[0]}%`)
+    .eq("currency_code", "USD")
+    .eq("country_code", "US")
     .gt("sold_price", 0)
     .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())
     .order("sold_at", { ascending: false })
@@ -50,6 +52,11 @@ export async function GET(req: NextRequest) {
         soldAt: r.sold_at,
         mileage: r.mileage,
         state: r.location_state,
+        source: r.source,
+        sourceUrl:
+          typeof r.source_url === "string" && /^https?:\/\//i.test(r.source_url)
+            ? r.source_url
+            : null,
       })),
     count: prices.length,
     avg: Math.round(prices.reduce((s, x) => s + x, 0) / prices.length),

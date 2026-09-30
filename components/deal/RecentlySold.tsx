@@ -58,8 +58,11 @@ export function RecentlySold({
 
         <div className="divide-y divide-[var(--b1)]">
           {(data.sales || []).map((s: any, i: number) => (
-            <div
+            <a
               key={i}
+              href={s.sourceUrl || undefined}
+              target={s.sourceUrl ? "_blank" : undefined}
+              rel={s.sourceUrl ? "noopener noreferrer" : undefined}
               className="flex items-center justify-between gap-3 py-2 text-sm"
             >
               <span className="truncate text-[var(--t2)]">{s.title}</span>
@@ -73,7 +76,7 @@ export function RecentlySold({
                   {money(s.price)}
                 </Mono>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </CardContent>

@@ -349,6 +349,8 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
       const { data: rows, error } = await supabase
         .from("sold_listings")
         .select("make, model, year, sold_price")
+        .eq("currency_code", "USD")
+        .eq("country_code", "US")
         .gt("sold_price", 0)
         .range(from, from + PAGE - 1);
       if (error || !rows || rows.length === 0) break;
