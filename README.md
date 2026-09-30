@@ -1,20 +1,21 @@
-# Autoverse (DealerHunt)
+# MikeHunt
 
 Multi-source vehicle-sourcing intelligence platform. Scrapes vehicle auction and
 marketplace listings (Craigslist, Copart, Cars.com, eBay Motors, independent dealers),
 scores them for profit potential, and surfaces deals, fleet management, transport
 quotes, parts/teardown estimates, and price alerts.
 
-**Stack:** Next.js 15 (App Router) · Supabase (Postgres + Auth + Realtime) ·
+**Stack:** Next.js (App Router) · Supabase (Postgres + Auth + Realtime) ·
 TypeScript · Tailwind · SWR · Playwright/patchright scrapers · Gemini (AI valuation).
 
 ## Architecture
 
 - **Web app + API** — Next.js on Vercel. Supabase for DB/Auth/Realtime/Storage.
-- **Scraping engine** — runs on **GitHub Actions** (`.github/workflows/scrape.yml`),
-  not Vercel serverless (which can't run a browser). FlareSolverr runs as a free
-  ephemeral service container to bypass Cloudflare. No paid proxies or scraping APIs.
-  See `lib/scrapers/` (sources, pipeline, orchestrators, tools).
+- **Scraping engine** — runs on the **Fly.io scraper fleet** (`fly.toml`,
+  `Dockerfile.scraper`, see `docs/SCRAPER-FLEET.md`), not Vercel serverless (which
+  can't run a browser) and no longer on GitHub Actions (private-repo minutes). Each
+  Fly machine gets its own IP; scale across regions for the distinct IPs anti-bot
+  walls require. See `lib/scrapers/` (sources, pipeline, orchestrators, tools).
 - **Pipeline** — scrape → normalize → quality-control → score → upsert to `deals`
   (dedupe by `source`+`source_deal_id` and by VIN) → record `price_history` →
   match against `user_saved_searches` → notify (Resend email / Twilio SMS).
@@ -35,8 +36,8 @@ npm run scrape:ci -- craigslist cars_com
 # or via env: SCRAPE_SOURCES="craigslist" CL_CITIES="dallas,houston" npm run scrape:ci
 ```
 
-In CI, the same entrypoint (`scripts/scrape-ci.ts`) runs on a schedule via GitHub
-Actions. Configure repo secrets: `NEXT_PUBLIC_SUPABASE_URL`,
+The same entrypoint (`scripts/scrape-ci.ts`) runs continuously on the Fly.io fleet
+(`SCRAPE_INTERVAL_MS` loop). Fleet secrets: `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally
 `GOOGLE_GENERATIVE_AI_API_KEY`, `RESEND_API_KEY`.
 
