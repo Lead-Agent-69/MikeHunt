@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 interface SniperAlertCandidate {
   dealId: string;
@@ -21,10 +22,16 @@ interface SniperAlertCandidate {
 // Evaluates active deals for ultra-high margin profit anomalies (>35% ROI or >$4,000 profit)
 // and prepares/dispatches high-priority alerts to subscribed dealers.
 export async function GET(req: NextRequest) {
+  if (!isAuthorizedCron(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return handleSniperEvaluation(req);
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthorizedCron(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   return handleSniperEvaluation(req);
 }
 

@@ -93,6 +93,7 @@ export const MORE_GROUPS: NavGroup[] = [
       { name: "Upgrade", href: "/upgrade", icon: Sparkles },
       { name: "What's new", href: "/changelog", icon: FileText },
       { name: "Showcase", href: "/showcase", icon: Sparkles },
+      { name: "Sources", href: "/sources", icon: Store },
     ],
   },
 ];

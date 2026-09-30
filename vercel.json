@@ -3,22 +3,20 @@
   "buildCommand": "next build",
   "outputDirectory": ".next",
   "regions": ["iad1"],
-
   "crons": [
     {
       "path": "/api/alerts/profit-sniper",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/alerts/process",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/embeddings/backfill",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 10 * * *"
     }
   ],
-
   "headers": [
     {
       "source": "/api/ingest",
