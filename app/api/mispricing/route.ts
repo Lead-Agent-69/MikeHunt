@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { categorize } from "@/lib/discovery/categorize";
+import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
   clusterStats,
   mispricingOf,
@@ -28,8 +29,7 @@ function mapDeal(d: any, reason: string) {
     id: d.id,
     source: d.source,
     sourceUrl: d.source_url,
-    sellerPhone: d.seller_phone,
-    sellerEmail: d.seller_email,
+    ...sellerContactFields(d),
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   let q = supabase
     .from("deals")
     .select(
-      "id, source, source_url, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
+      "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
     )
     .eq("active", true)
     .gt("ask_price", 0)

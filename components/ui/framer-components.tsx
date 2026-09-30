@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, useScroll, useTransform, useMotionValue, useAnimationFrame, animate, AnimatePresence } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  useMotionValue,
+  useAnimationFrame,
+  animate,
+  AnimatePresence,
+} from "framer-motion";
 import { X, Heart } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,11 +66,7 @@ export function TextRevealChars({
   return (
     <span className={`inline-flex flex-wrap ${className}`} aria-label={text}>
       {chars.map((char, i) => (
-        <span
-          key={i}
-          className="overflow-hidden inline-flex"
-          aria-hidden
-        >
+        <span key={i} className="overflow-hidden inline-flex" aria-hidden>
           <motion.span
             className="inline-block"
             initial={{ y: "110%", rotateX: -30 }}
@@ -186,7 +190,8 @@ export function PillDropdownNav({
       style={{
         background: "rgba(255,255,255,0.06)",
         backdropFilter: "blur(24px)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.3)",
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,0.1), 0 4px 20px rgba(0,0,0,0.3)",
       }}
     >
       {items.map((item) => (
@@ -203,7 +208,8 @@ export function PillDropdownNav({
               layoutId="pill-active"
               className="absolute inset-0 rounded-full"
               style={{
-                background: "linear-gradient(135deg, var(--amber), var(--purple))",
+                background:
+                  "linear-gradient(135deg, var(--amber), var(--purple))",
                 boxShadow: "0 0 12px rgba(242,91,154,0.4)",
               }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -262,7 +268,10 @@ export function InteractivePattern({
         for (let c = 0; c < cols; c++) {
           const x = c * gridSize;
           const y = r * gridSize;
-          const dist = Math.hypot(x - mouseRef.current.x, y - mouseRef.current.y);
+          const dist = Math.hypot(
+            x - mouseRef.current.x,
+            y - mouseRef.current.y,
+          );
           const radius = Math.max(1, 5 - dist / 30);
           const glow = Math.max(0, 1 - dist / 150);
 
@@ -290,7 +299,9 @@ export function InteractivePattern({
       const rect = canvas.getBoundingClientRect();
       mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
-    const onLeave = () => { mouseRef.current = { x: -9999, y: -9999 }; };
+    const onLeave = () => {
+      mouseRef.current = { x: -9999, y: -9999 };
+    };
     canvas.addEventListener("mousemove", onMove);
     canvas.addEventListener("mouseleave", onLeave);
 
@@ -491,7 +502,9 @@ export function LiquidGlassFooter({
             M
           </div>
           <div>
-            <div className="text-sm font-black text-[var(--t1)]">{brandName}</div>
+            <div className="text-sm font-black text-[var(--t1)]">
+              {brandName}
+            </div>
             <div className="text-xs text-[var(--t5)]">{tagline}</div>
           </div>
         </div>
@@ -534,8 +547,15 @@ export function ParallaxSection({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], [`${-speed * 80}px`, `${speed * 80}px`]);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
+  const y = useTransform(
+    scrollYProgress,
+    [0, 1],
+    [`${-speed * 80}px`, `${speed * 80}px`],
+  );
 
   return (
     <div ref={ref} className={`overflow-hidden ${className}`}>
@@ -551,21 +571,25 @@ export function ParallaxSection({
 export function LenisSmoothScroll({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let lenis: any;
-    import("@studio-freight/lenis" as any).then((mod: any) => {
-      const LenisCtor = mod.default || mod.Lenis || mod;
-      if (!LenisCtor) return;
-      lenis = new LenisCtor({
-        duration: 1.2,
-        easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        touchMultiplier: 2,
-      });
+    // `lenis` is the maintained package — @studio-freight/lenis was renamed and is deprecated.
+    // The constructor options below (duration/easing/touchMultiplier) are API-identical.
+    import("lenis" as any)
+      .then((mod: any) => {
+        const LenisCtor = mod.default || mod.Lenis || mod;
+        if (!LenisCtor) return;
+        lenis = new LenisCtor({
+          duration: 1.2,
+          easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+          touchMultiplier: 2,
+        });
 
-      function raf(time: number) {
-        lenis?.raf(time);
+        function raf(time: number) {
+          lenis?.raf(time);
+          requestAnimationFrame(raf);
+        }
         requestAnimationFrame(raf);
-      }
-      requestAnimationFrame(raf);
-    }).catch(() => {});
+      })
+      .catch(() => {});
 
     return () => {
       if (lenis?.destroy) lenis.destroy();
@@ -576,7 +600,7 @@ export function LenisSmoothScroll({ children }: { children: React.ReactNode }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. DRAGGABLE DEAL CARD STACK — drag and stack deal cards like the "Real Folder" / 
+// 10. DRAGGABLE DEAL CARD STACK — drag and stack deal cards like the "Real Folder" /
 //     "Draggable Masonry" concept — swipe right=save, left=pass
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -794,7 +818,8 @@ export function LiquidMetalButton({
       style={{
         background: `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 60%), linear-gradient(135deg, #2a2a32 0%, #121217 50%, #000000 100%)`,
         border: "1px solid rgba(255, 255, 255, 0.25)",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4)",
+        boxShadow:
+          "0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4)",
       }}
       onMouseMove={handleMouseMove}
     >
@@ -802,7 +827,8 @@ export function LiquidMetalButton({
       <motion.div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
         }}
         animate={{ x: ["-100%", "200%"] }}
         transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
@@ -820,7 +846,12 @@ export function LiquidMetalButton({
   }
 
   return (
-    <button ref={btnRef as any} onClick={onClick} type="button" className="inline-block">
+    <button
+      ref={btnRef as any}
+      onClick={onClick}
+      type="button"
+      className="inline-block"
+    >
       {content}
     </button>
   );
@@ -866,7 +897,9 @@ export function SwitchOnHoverTabs({
             {tab.count !== undefined && (
               <span
                 className={`relative z-10 text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
-                  active ? "bg-white/20 text-white" : "bg-[var(--s2)] text-[var(--t4)]"
+                  active
+                    ? "bg-white/20 text-white"
+                    : "bg-[var(--s2)] text-[var(--t4)]"
                 }`}
               >
                 {tab.count}
@@ -892,7 +925,8 @@ export function FilterableGallery({
 }) {
   const [activeCat, setActiveCat] = useState("all");
 
-  const filtered = activeCat === "all" ? items : items.filter((i) => i.category === activeCat);
+  const filtered =
+    activeCat === "all" ? items : items.filter((i) => i.category === activeCat);
 
   return (
     <div className="space-y-6">
@@ -906,7 +940,10 @@ export function FilterableGallery({
       </div>
 
       {/* Grid with Layout animation */}
-      <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <motion.div
+        layout
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+      >
         <AnimatePresence>
           {filtered.map((item) => (
             <motion.div
@@ -963,7 +1000,8 @@ export function DNACarousel({
   }, [radius, cardWidth]);
 
   useAnimationFrame((_, delta) => {
-    if (!paused && !drag.current.on) rotation.set(rotation.get() - delta * 0.012);
+    if (!paused && !drag.current.on)
+      rotation.set(rotation.get() - delta * 0.012);
   });
 
   // Snap the clicked card to the front, spinning whichever way is shorter.
@@ -1039,4 +1077,3 @@ export function DNACarousel({
     </div>
   );
 }
-

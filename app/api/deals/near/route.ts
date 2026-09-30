@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { categorize } from "@/lib/discovery/categorize";
+import { sellerContactFields } from "@/lib/data/deal-contact";
 import { haversineMiles, boundingBox } from "@/lib/geo/distance";
 import { geocodeZip } from "@/lib/geo/geocode";
 
@@ -17,8 +18,7 @@ function mapDeal(d: any, distanceMiles: number) {
     id: d.id,
     source: d.source,
     sourceUrl: d.source_url,
-    sellerPhone: d.seller_phone,
-    sellerEmail: d.seller_email,
+    ...sellerContactFields(d),
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
   let q = supabase
     .from("deals")
     .select(
-      "id, source, source_url, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
+      "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
     )
     .eq("active", true)
     .gt("ask_price", 0)

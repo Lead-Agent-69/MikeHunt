@@ -13,11 +13,20 @@ import {
   type SourceCategory,
   type SourceType,
 } from "@/lib/scrapers/sources-registry";
+import { hasScraper, scraperCoverage } from "@/lib/scrapers/source-index";
 import { cn } from "@/lib/utils";
+
+// Computed once at module scope: how much of the researched catalog is actually wired into the
+// live scraper runner. Safe here — scraperCoverage() only reads the two static registries.
+const COVERAGE = scraperCoverage();
 
 // ── Source Card ──
 function SourceCard({ source }: { source: SourceConfig }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  // `status` describes the SITE (reachable / in-progress / dead). It does NOT mean we can scrape
+  // it — that's `hasScraper()`, which checks the live runner registry. Showing both stops the
+  // dashboard from implying 50 working scrapers when the pipeline actually runs a subset.
+  const scraped = hasScraper(source.id);
 
   const priorityColors = {
     P0: "bg-[var(--red)]",
@@ -58,18 +67,53 @@ function SourceCard({ source }: { source: SourceConfig }) {
           <div className="text-2xl">{typeIcons[source.type]}</div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-bold text-[var(--t1)] truncate">{source.name}</h3>
-              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold text-white", priorityColors[source.priority])}>
+              <h3 className="text-sm font-bold text-[var(--t1)] truncate">
+                {source.name}
+              </h3>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[10px] font-bold text-white",
+                  priorityColors[source.priority],
+                )}
+              >
                 {source.priority}
               </span>
-              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold text-white", statusColors[source.status])}>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[10px] font-bold text-white",
+                  statusColors[source.status],
+                )}
+              >
                 {source.status}
               </span>
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[10px] font-bold border",
+                  scraped
+                    ? "bg-[var(--green)]/15 border-[var(--green)]/40 text-[var(--green)]"
+                    : "bg-[var(--s3)] border-[var(--b1)] text-[var(--t5)]",
+                )}
+                title={
+                  scraped
+                    ? "A scraper for this source is registered in the live runner."
+                    : "Catalogued only — no scraper is wired into the runner yet."
+                }
+              >
+                {scraped ? "SCRAPING" : "NO SCRAPER"}
+              </span>
             </div>
-            <p className="text-xs text-[var(--t4)] truncate">{source.description}</p>
+            <p className="text-xs text-[var(--t4)] truncate">
+              {source.description}
+            </p>
             <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--t5)]">
               <span className="flex items-center gap-1">
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  className="w-3 h-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
                   <circle cx="12" cy="10" r="3" />
                 </svg>
@@ -77,7 +121,13 @@ function SourceCard({ source }: { source: SourceConfig }) {
               </span>
               {source.inventorySize && (
                 <span className="flex items-center gap-1">
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
                   </svg>
                   {source.inventorySize}
@@ -85,7 +135,13 @@ function SourceCard({ source }: { source: SourceConfig }) {
               )}
               {source.updateFrequency && (
                 <span className="flex items-center gap-1">
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    className="w-3 h-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 6v6l4 2" />
                   </svg>
@@ -95,7 +151,10 @@ function SourceCard({ source }: { source: SourceConfig }) {
             </div>
           </div>
           <svg
-            className={cn("w-4 h-4 text-[var(--t4)] transition-transform", isExpanded && "rotate-180")}
+            className={cn(
+              "w-4 h-4 text-[var(--t4)] transition-transform",
+              isExpanded && "rotate-180",
+            )}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -129,27 +188,36 @@ function SourceCard({ source }: { source: SourceConfig }) {
                 </div>
                 <div>
                   <span className="text-[var(--t5)]">Type</span>
-                  <span className="block text-[var(--t2)] capitalize">{source.type}</span>
+                  <span className="block text-[var(--t2)] capitalize">
+                    {source.type}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[var(--t5)]">Category</span>
-                  <span className="block text-[var(--t2)] capitalize">{source.category.replace('-', ' ')}</span>
+                  <span className="block text-[var(--t2)] capitalize">
+                    {source.category.replace("-", " ")}
+                  </span>
                 </div>
                 <div>
                   <span className="text-[var(--t5)]">Auth Required</span>
-                  <span className="block text-[var(--t2)] capitalize">{source.authRequired.replace('-', ' ')}</span>
+                  <span className="block text-[var(--t2)] capitalize">
+                    {source.authRequired.replace("-", " ")}
+                  </span>
                 </div>
                 {source.rateLimit && (
                   <div>
                     <span className="text-[var(--t5)]">Rate Limit</span>
                     <span className="block text-[var(--t2)]">
-                      {source.rateLimit.requests} req / {source.rateLimit.perMs / 1000}s
+                      {source.rateLimit.requests} req /{" "}
+                      {source.rateLimit.perMs / 1000}s
                     </span>
                   </div>
                 )}
                 <div>
                   <span className="text-[var(--t5)]">FlareSolverr</span>
-                  <span className="block text-[var(--t2)]">{source.requiresFlareSolverr ? "Yes" : "No"}</span>
+                  <span className="block text-[var(--t2)]">
+                    {source.requiresFlareSolverr ? "Yes" : "No"}
+                  </span>
                 </div>
               </div>
               {source.notes && (
@@ -179,7 +247,15 @@ function SourceCard({ source }: { source: SourceConfig }) {
 }
 
 // ── Stats Card ──
-function StatsCard({ label, value, icon }: { label: string; value: number | string; icon: string }) {
+function StatsCard({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value: number | string;
+  icon: string;
+}) {
   return (
     <div className="glass-panel p-4 text-center">
       <div className="text-2xl mb-1">{icon}</div>
@@ -192,7 +268,9 @@ function StatsCard({ label, value, icon }: { label: string; value: number | stri
 // ── Main Page ──
 export default function SourcesPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<SourceCategory | "all">("all");
+  const [selectedCategory, setSelectedCategory] = useState<
+    SourceCategory | "all"
+  >("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
 
@@ -201,10 +279,15 @@ export default function SourcesPage() {
       const matchesSearch =
         source.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         source.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === "all" || source.category === selectedCategory;
-      const matchesPriority = selectedPriority === "all" || source.priority === selectedPriority;
-      const matchesStatus = selectedStatus === "all" || source.status === selectedStatus;
-      return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
+      const matchesCategory =
+        selectedCategory === "all" || source.category === selectedCategory;
+      const matchesPriority =
+        selectedPriority === "all" || source.priority === selectedPriority;
+      const matchesStatus =
+        selectedStatus === "all" || source.status === selectedStatus;
+      return (
+        matchesSearch && matchesCategory && matchesPriority && matchesStatus
+      );
     });
   }, [searchQuery, selectedCategory, selectedPriority, selectedStatus]);
 
@@ -226,9 +309,13 @@ export default function SourcesPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-black text-[var(--t1)]">Source Registry</h1>
+              <h1 className="text-2xl font-black text-[var(--t1)]">
+                Source Registry
+              </h1>
               <p className="text-sm text-[var(--t4)]">
-                {SOURCE_STATS.total} sources • {SOURCE_STATS.active} active • {SOURCE_STATS.planned} planned
+                {SOURCE_STATS.total} sources • {SOURCE_STATS.active} active •{" "}
+                {SOURCE_STATS.planned} planned • {COVERAGE.implemented} with a
+                live scraper
               </p>
             </div>
             <Link
@@ -270,7 +357,7 @@ export default function SourcesPage() {
                   "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   selectedCategory === cat.id
                     ? "bg-[var(--grad-amber)] text-[#0A0A0F]"
-                    : "bg-[var(--s0)] text-[var(--t3)] border border-[var(--b1)] hover:border-[var(--amber)]"
+                    : "bg-[var(--s0)] text-[var(--t3)] border border-[var(--b1)] hover:border-[var(--amber)]",
                 )}
               >
                 {cat.label}
@@ -297,9 +384,46 @@ export default function SourcesPage() {
           {Object.entries(SOURCE_STATS.byCategory).map(([category, count]) => (
             <div key={category} className="glass-panel p-3 text-center">
               <div className="text-lg font-bold text-[var(--t1)]">{count}</div>
-              <div className="text-[10px] text-[var(--t4)] capitalize">{category.replace('-', ' ')}</div>
+              <div className="text-[10px] text-[var(--t4)] capitalize">
+                {category.replace("-", " ")}
+              </div>
             </div>
           ))}
+        </div>
+
+        {/* Scraper coverage: catalogued vs actually wired into the runner */}
+        <div className="glass-panel p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h2 className="text-sm font-bold text-[var(--t1)]">
+                Scraper Coverage
+              </h2>
+              <p className="text-xs text-[var(--t4)]">
+                {COVERAGE.implemented} of {COVERAGE.catalogued} catalogued sites
+                have a scraper registered in the runner • {COVERAGE.runnerOnly}{" "}
+                runner-only meta-sources
+              </p>
+            </div>
+            <span className="text-lg font-black text-[var(--amber)]">
+              {Math.round(COVERAGE.ratio * 100)}%
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-[var(--s3)] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--grad-amber)] transition-[width] duration-700"
+              style={{
+                width: `${Math.max(2, Math.round(COVERAGE.ratio * 100))}%`,
+              }}
+            />
+          </div>
+          <p className="text-[10px] text-[var(--t5)] mt-2">
+            Sites marked <span className="text-[var(--t3)]">NO SCRAPER</span>{" "}
+            are research records only — they are not being fetched. Build queue:{" "}
+            {COVERAGE.missing.slice(0, 6).join(", ")}
+            {COVERAGE.missing.length > 6
+              ? `, +${COVERAGE.missing.length - 6} more`
+              : ""}
+          </p>
         </div>
 
         {/* Sources Grid */}

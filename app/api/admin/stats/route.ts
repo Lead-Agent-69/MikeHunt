@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { isAdminEmail } from "@/lib/auth/admin";
 
 // GET /api/admin/stats — Platform health metrics for the admin dashboard.
 // Requires admin role or INGEST_SECRET auth header.
@@ -26,7 +27,10 @@ export async function GET(req: NextRequest) {
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role !== "admin") {
+    // Two admin paths: the DB role (user_profiles.role) and the single-admin email
+    // (lib/auth/admin.ts). Either is sufficient — the email path keeps ops access working even
+    // when the role column hasn't been populated for the owner account.
+    if (profile?.role !== "admin" && !isAdminEmail(user.email)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
@@ -52,9 +56,11 @@ export async function GET(req: NextRequest) {
         .eq("active", true)
         .then(({ data }) => {
           // Group by source manually
-          const map: Record<string, { count: number; last_scraped: string }> = {};
+          const map: Record<string, { count: number; last_scraped: string }> =
+            {};
           for (const row of data ?? []) {
-            if (!map[row.source]) map[row.source] = { count: 0, last_scraped: "" };
+            if (!map[row.source])
+              map[row.source] = { count: 0, last_scraped: "" };
             map[row.source].count++;
           }
           return Object.entries(map)
@@ -96,20 +102,18 @@ export async function GET(req: NextRequest) {
       usersRes.status === "fulfilled" ? (usersRes.value.data ?? []) : [];
     const totalUsers = usersData.length;
     const proUsers = usersData.filter((u: any) =>
-      ["pro", "elite"].includes(u.plan)
+      ["pro", "elite"].includes(u.plan),
     ).length;
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const sevenDaysAgo = new Date(
+      Date.now() - 7 * 24 * 3600 * 1000,
+    ).toISOString();
     const recentSignups = usersData.filter(
-      (u: any) => u.created_at > sevenDaysAgo
+      (u: any) => u.created_at > sevenDaysAgo,
     ).length;
     const outcomeCount =
-      outcomeRes.status === "fulfilled"
-        ? (outcomeRes.value.count ?? 0)
-        : 0;
+      outcomeRes.status === "fulfilled" ? (outcomeRes.value.count ?? 0) : 0;
     const topDeals =
-      topDealsRes.status === "fulfilled"
-        ? (topDealsRes.value.data ?? [])
-        : [];
+      topDealsRes.status === "fulfilled" ? (topDealsRes.value.data ?? []) : [];
     const scoredData =
       scoredRes.status === "fulfilled" ? (scoredRes.value.data ?? []) : [];
     const avgProfitScore =
@@ -117,12 +121,12 @@ export async function GET(req: NextRequest) {
         ? Math.round(
             scoredData.reduce(
               (sum: number, d: any) => sum + Number(d.profit_score ?? 0),
-              0
-            ) / scoredData.length
+              0,
+            ) / scoredData.length,
           )
         : 0;
     const goDealsCount = scoredData.filter(
-      (d: any) => d.deal_verdict === "go"
+      (d: any) => d.deal_verdict === "go",
     ).length;
 
     return NextResponse.json({
@@ -141,7 +145,7 @@ export async function GET(req: NextRequest) {
     console.error("[admin/stats] error:", e);
     return NextResponse.json(
       { error: "Internal error", details: e.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

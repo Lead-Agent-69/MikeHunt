@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./mobile.css";
 import { ResponsiveProvider } from "@/components/ui/responsive-design-system";
-import { NetworkProvider, NetworkStatusBanner, OfflineBanner } from "@/components/ui/mobile-ux";
+import {
+  NetworkProvider,
+  NetworkStatusBanner,
+  OfflineBanner,
+} from "@/components/ui/mobile-ux";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SWRProvider } from "@/components/providers/SWRProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
@@ -11,6 +15,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { Inter, Fraunces } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
@@ -102,6 +107,7 @@ export default function RootLayout({
                 <LenisSmoothScroll>
                   {children}
                   <SpeedInsights />
+                  <PageViewTracker />
                   <ToastProvider />
                   <PWARegister />
                   <InstallPrompt />

@@ -1,0 +1,30 @@
+# Build output & caches
+.next/
+out/
+build/
+dist/
+node_modules/
+coverage/
+logs/
+cache/
+.cache/
+playwright/.cache/
+
+# Generated — never hand-format (npm run db:generate rewrites this)
+types/supabase.ts
+package-lock.json
+skills-lock.json
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Generated / vendored public assets
+public/sw.js
+public/workbox-*.js
+public/*.map
+
+# CI-generated
+deploy_log.txt
+
+# Docs that predate the formatter (historical records — leave byte-identical)
+.agents/
+.qodo/

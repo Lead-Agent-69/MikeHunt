@@ -8,9 +8,31 @@ import { createBrowserClient } from "@supabase/ssr";
 const PLACEHOLDER_URL = "https://placeholder.supabase.co";
 const PLACEHOLDER_KEY = "placeholder";
 
+let warnedInvalidUrl = false;
+
 function resolvedUrl(): string {
-  const u = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return u && !u.includes("YOUR_PROJECT_ID") ? u : PLACEHOLDER_URL;
+  const u = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!u) return PLACEHOLDER_URL;
+
+  // Previous guard was a case-sensitive `!u.includes("YOUR_PROJECT_ID")`, which let `.env.local`'s
+  // lowercase `your_supabase_project_url` through. createBrowserClient then THREW "Invalid
+  // supabaseUrl: Must be a valid HTTP or HTTPS URL" while prerendering /login and /lane, killing
+  // the entire `next build` — exactly the deploy-freezing failure this placeholder exists to
+  // prevent. Validate properly instead of pattern-matching one known template.
+  try {
+    const parsed = new URL(u);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return u;
+  } catch {
+    // not a parseable absolute URL
+  }
+
+  if (!warnedInvalidUrl) {
+    warnedInvalidUrl = true;
+    console.error(
+      `[supabase] NEXT_PUBLIC_SUPABASE_URL is not a valid http(s) URL (value length ${u.length}); falling back to the placeholder client so the build can proceed.`,
+    );
+  }
+  return PLACEHOLDER_URL;
 }
 
 export function getSupabaseClient(): SupabaseClient {

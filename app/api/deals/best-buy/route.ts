@@ -2,17 +2,36 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { sellerContact } from "@/lib/data/deal-contact";
 
 // High-velocity liquidity models (turn in under 18 days on average)
 const HIGH_VELOCITY_MODELS = [
-  "civic", "accord", "camry", "corolla", "cr-v", "rav4", "tacoma", "tundra",
-  "f-150", "silverado", "sierra", "wrangler", "outback", "forester", "cx-5", "prius"
+  "civic",
+  "accord",
+  "camry",
+  "corolla",
+  "cr-v",
+  "rav4",
+  "tacoma",
+  "tundra",
+  "f-150",
+  "silverado",
+  "sierra",
+  "wrangler",
+  "outback",
+  "forester",
+  "cx-5",
+  "prius",
 ];
 
-function calculateLiquidityScore(make?: string, model?: string, mileage?: number): { score: number; daysToTurn: number } {
+function calculateLiquidityScore(
+  make?: string,
+  model?: string,
+  mileage?: number,
+): { score: number; daysToTurn: number } {
   const normModel = (model || "").toLowerCase();
   const normMake = (make || "").toLowerCase();
-  
+
   let baseScore = 75;
   let daysToTurn = 28;
 
@@ -25,7 +44,9 @@ function calculateLiquidityScore(make?: string, model?: string, mileage?: number
   } else if (["ford", "chevrolet", "gmc", "ram", "jeep"].includes(normMake)) {
     baseScore = 85;
     daysToTurn = 19;
-  } else if (["bmw", "mercedes-benz", "audi", "lexus", "porsche"].includes(normMake)) {
+  } else if (
+    ["bmw", "mercedes-benz", "audi", "lexus", "porsche"].includes(normMake)
+  ) {
     baseScore = 72;
     daysToTurn = 34;
   }
@@ -55,12 +76,14 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("deals")
-    .select(`
+    .select(
+      `
       id, year, make, model, trim, vin, mileage, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, recommended_max_bid,
-      location_city, location_state, images, source, source_url, seller_phone,
+      location_city, location_state, images, source, source_url, options,
       condition, deal_analysis
-    `)
+    `,
+    )
     .eq("active", true)
     .gt("true_net_profit", 0)
     .order("true_net_profit", { ascending: false })
@@ -85,10 +108,16 @@ export async function GET(req: NextRequest) {
     .map((deal) => {
       const ask = Number(deal.ask_price) || 0;
       const profit = Number(deal.true_net_profit) || 0;
-      const sellEst = Number(deal.sell_estimate) || (ask + profit);
-      const maxBid = Number(deal.recommended_max_bid) || (ask > 0 ? Math.round(ask * 0.92) : 0);
+      const sellEst = Number(deal.sell_estimate) || ask + profit;
+      const maxBid =
+        Number(deal.recommended_max_bid) ||
+        (ask > 0 ? Math.round(ask * 0.92) : 0);
       const roi = ask > 0 ? (profit / ask) * 100 : 0;
-      const { score: liquidityScore, daysToTurn } = calculateLiquidityScore(deal.make, deal.model, deal.mileage);
+      const { score: liquidityScore, daysToTurn } = calculateLiquidityScore(
+        deal.make,
+        deal.model,
+        deal.mileage,
+      );
 
       // Strategy composite ranking
       let rankScore = 0;
@@ -98,7 +127,7 @@ export async function GET(req: NextRequest) {
         rankScore = liquidityScore * 50 + roi * 25 + (profit / 100) * 25;
       } else {
         // max_roi default
-        rankScore = roi * 50 + (profit / 50) + liquidityScore * 15;
+        rankScore = roi * 50 + profit / 50 + liquidityScore * 15;
       }
 
       // Safety buffer: how much can market drop before breaking even
@@ -111,7 +140,8 @@ export async function GET(req: NextRequest) {
         make: deal.make,
         model: deal.model,
         trim: deal.trim,
-        title: `${deal.year || ""} ${deal.make || ""} ${deal.model || ""} ${deal.trim || ""}`.trim(),
+        title:
+          `${deal.year || ""} ${deal.make || ""} ${deal.model || ""} ${deal.trim || ""}`.trim(),
         vin: deal.vin,
         mileage: deal.mileage,
         askPrice: ask,
@@ -127,7 +157,7 @@ export async function GET(req: NextRequest) {
         images: deal.images || [],
         source: deal.source,
         sourceUrl: deal.source_url,
-        sellerPhone: deal.seller_phone,
+        sellerPhone: sellerContact(deal).phone,
         liquidityScore,
         daysToTurn,
         downsideBuffer: Math.round(downsideBuffer),
@@ -164,9 +194,15 @@ export async function GET(req: NextRequest) {
   };
 
   // Group runner-ups by budget tiers
-  const budgetTier = scoredDeals.find((d) => d.id !== best.id && d.askPrice <= 8000);
-  const midTier = scoredDeals.find((d) => d.id !== best.id && d.askPrice > 8000 && d.askPrice <= 18000);
-  const highTier = scoredDeals.find((d) => d.id !== best.id && d.askPrice > 18000);
+  const budgetTier = scoredDeals.find(
+    (d) => d.id !== best.id && d.askPrice <= 8000,
+  );
+  const midTier = scoredDeals.find(
+    (d) => d.id !== best.id && d.askPrice > 8000 && d.askPrice <= 18000,
+  );
+  const highTier = scoredDeals.find(
+    (d) => d.id !== best.id && d.askPrice > 18000,
+  );
 
   const runnerUps = [budgetTier, midTier, highTier].filter(Boolean);
 

@@ -1,28 +1,57 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerUser } from "@/lib/server-supabase";
+import { isAdminEmail, isAdminConfigured } from "@/lib/auth/admin";
 
-// /api/admin/system
-// System health check for uptime monitoring
+// /api/admin/system — health endpoint.
+//
+// Two tiers, deliberately:
+//   * PUBLIC: `status` + `timestamp`. Uptime monitors (Datadog, Pingdom, Vercel cron probes) only
+//     need to know the process is alive, and gating the whole response would page someone on every
+//     check.
+//   * ADMIN: `uptime`, `memory`, `adminConfigured`. Process internals describe the host and the
+//     deployment's auth posture — reconnaissance value for an attacker, none for a monitor.
+//
+// Authorization accepts either the machine path (Bearer INGEST_SECRET, for CI/cron/monitoring that
+// has no user session) or a signed-in admin session.
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+async function isAuthorized(req: NextRequest): Promise<boolean> {
+  const secret = process.env.INGEST_SECRET;
+  const header = req.headers.get("authorization");
+  if (secret && header === `Bearer ${secret}`) return true;
+
   try {
     const {
       data: { user },
     } = await getServerUser();
+    return isAdminEmail(user?.email);
+  } catch {
+    return false;
+  }
+}
 
-    // In a real app, you might restrict this to admin users only.
-    // However, basic health checks are often public for monitoring services (e.g., Datadog, Pingdom).
-    // So we just return the basic health status.
+export async function GET(req: NextRequest) {
+  try {
+    const authorized = await isAuthorized(req);
 
-    return NextResponse.json({
+    const body: Record<string, unknown> = {
       status: "ok",
       timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-    });
-  } catch (error: any) {
+    };
+
+    if (authorized) {
+      body.uptime = process.uptime();
+      body.memory = process.memoryUsage();
+      body.node = process.version;
+      body.adminConfigured = isAdminConfigured();
+    }
+
+    return NextResponse.json(body);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { status: "error", error: error.message },
+      { status: "error", error: message },
       { status: 500 },
     );
   }

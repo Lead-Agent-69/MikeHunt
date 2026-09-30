@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { categorize } from "@/lib/discovery/categorize";
+import { sellerContactFields } from "@/lib/data/deal-contact";
 
 // /api/flash-deals — the Booking.com "urgency" feed: deals fresh to market (< 24h), engine-verdict
 // GO, and at least 10% below the resale estimate. Backed by the flash_deals SQL view (computed on
@@ -13,8 +14,7 @@ function mapFlashDeal(d: any) {
     id: d.id,
     source: d.source,
     sourceUrl: d.source_url,
-    sellerPhone: d.seller_phone,
-    sellerEmail: d.seller_email,
+    ...sellerContactFields(d),
     title: d.title || `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
     year: d.year,
     make: d.make,

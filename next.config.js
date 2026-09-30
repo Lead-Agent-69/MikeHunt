@@ -100,4 +100,26 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Sentry Next.js wrapper. This was imported at the top of the file but NEVER applied, so the
+// plugin's Next-specific work (release injection, source-map resolution, SDK config wiring) was
+// silently skipped while sentry.server/edge/instrumentation files did load. Applying it here
+// matches what @sentry/nextjs expects.
+//
+// Source-map upload only happens when SENTRY_AUTH_TOKEN + SENTRY_ORG + SENTRY_PROJECT are set;
+// without them the plugin is a no-op for uploads and the build still succeeds — so CI and local
+// builds keep working with zero Sentry env configured.
+const sentryOptions = {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Don't spam build logs when Sentry isn't configured (the common local/CI case).
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  telemetry: false,
+  widenClientFileUpload: true,
+  hideSourceMaps: true,
+  disableLogger: true,
+  // NOTE: deliberately no `bundler` override — webpack is the bundler withSentryConfig targets,
+  // and Next 16 builds with Turbopack, which ignores this wrapper entirely.
+}
+
+module.exports = withSentryConfig(nextConfig, sentryOptions)
