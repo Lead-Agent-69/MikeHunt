@@ -810,7 +810,7 @@ export function MobilePagination({ currentPage, totalPages, onPageChange }: Pagi
   const pages = [];
   const maxVisible = 5;
   let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages, start + maxVisible - 1);
+  const end = Math.min(totalPages, start + maxVisible - 1);
   start = Math.max(1, end - maxVisible + 1);
   for (let i = start; i <= end; i++) pages.push(i);
 

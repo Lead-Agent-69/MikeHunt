@@ -30,7 +30,7 @@ BEGIN
 
   -- 2) Mirror on insert: keep profiles provisioned for every new signup.
   CREATE OR REPLACE FUNCTION public.mirror_user_profile_to_profiles()
-  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
+  RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $function$
   BEGIN
     INSERT INTO public.profiles (id, email, full_name)
     SELECT NEW.id, u.email, NEW.name
@@ -38,7 +38,7 @@ BEGIN
     ON CONFLICT (id) DO UPDATE
       SET full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name);
     RETURN NEW;
-  END $$;
+  END $function$;
 
   DROP TRIGGER IF EXISTS trg_mirror_user_profile_to_profiles ON public.user_profiles;
   CREATE TRIGGER trg_mirror_user_profile_to_profiles
