@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        shell: bash
+        shell: cmd
 
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
