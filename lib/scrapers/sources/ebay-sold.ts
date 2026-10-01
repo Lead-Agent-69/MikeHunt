@@ -13,6 +13,7 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
+import { getLocalWriteContext } from "../local-write-context";
 
 const execFileAsync = promisify(execFile);
 
@@ -133,7 +134,9 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       card.find("a.s-card__link").attr("href") ||
       card.find('a[href*="/itm/"]').first().attr("href") ||
       "";
-    const absoluteLink = link ? new URL(link, "https://www.ebay.com").toString() : "";
+    const absoluteLink = link
+      ? new URL(link, "https://www.ebay.com").toString()
+      : "";
     const item_id = absoluteLink.match(/\/itm\/(\d+)/)?.[1] || "";
     if (!item_id || seen.has(item_id)) return;
     seen.add(item_id);
@@ -192,7 +195,10 @@ function admin(): SupabaseClient {
 // eBay bot-walls the sold SRP and fingerprints the HTTP client — Node's fetch (undici) and even a
 // stealth browser get challenged, but the system `curl` passes (and it's present in CI). So we fetch
 // via curl with a shared cookie jar seeded from the homepage.
-async function curlGet(url: string, jar: string): Promise<string> {
+async function curlGet(
+  url: string,
+  jar: string,
+): Promise<{ html: string; status: number }> {
   const { stdout } = await execFileAsync(
     "curl",
     [
@@ -211,11 +217,19 @@ async function curlGet(url: string, jar: string): Promise<string> {
       "Accept-Language: en-US,en;q=0.9",
       "-H",
       "Referer: https://www.ebay.com/",
+      "-w",
+      "\n__HTTP_STATUS__:%{http_code}",
       url,
     ],
     { maxBuffer: 64 * 1024 * 1024 },
   );
-  return stdout;
+  const marker = stdout.lastIndexOf("\n__HTTP_STATUS__:");
+  if (marker < 0) return { html: stdout, status: 0 };
+  return {
+    html: stdout.slice(0, marker),
+    status:
+      Number(stdout.slice(marker + "\n__HTTP_STATUS__:".length).trim()) || 0,
+  };
 }
 
 export async function scrapeEbaySold(): Promise<number> {
@@ -254,7 +268,27 @@ export async function scrapeEbaySold(): Promise<number> {
       const url =
         `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}` +
         `&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
-      const html = await curlGet(url, jar);
+      const { html, status } = await curlGet(url, jar);
+      const blocked =
+        status === 403 ||
+        status === 429 ||
+        /captcha|robot check|just a moment|verify you(?:'| a)re human|access denied/i.test(
+          html.slice(0, 20_000),
+        );
+      if (blocked) {
+        const context = getLocalWriteContext();
+        if (context?.respectAccessBlocks) {
+          context.onAccessBarrier?.({
+            host: "www.ebay.com",
+            status,
+            reason: status ? `HTTP ${status}` : "access barrier detected",
+          });
+          console.warn(
+            "[eBay Sold] access barrier detected; stopping this source for the cycle",
+          );
+          break;
+        }
+      }
       const parsed = parseEbaySoldHtml(html);
       for (const r of parsed) all.set(r.item_id, r);
       await new Promise((r) => setTimeout(r, 1500)); // be polite
@@ -273,6 +307,21 @@ export async function scrapeEbaySold(): Promise<number> {
   // writes; the unique database index remains the cross-machine source of truth.
   const seen = await loadSoldItemCache();
   const fresh = rows.filter((r) => !seen.has(r.item_id));
+
+  const localContext = getLocalWriteContext();
+  if (localContext?.cacheOnly) {
+    await localContext.cache.rememberOnly(
+      "ebay_sold",
+      fresh.map((row) => ({
+        id: row.item_id,
+        value: row as unknown as Record<string, unknown>,
+      })),
+    );
+    console.log(
+      `[eBay Sold] cache-only mode saved ${fresh.length} local observations; no Supabase writes`,
+    );
+    return 0;
+  }
 
   if (fresh.length) {
     const insertRows = fresh.map((r) => ({

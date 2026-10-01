@@ -12,3 +12,5 @@ yarn-error.log*
 .vercel
 cache
 .cache
+profiles
+logs

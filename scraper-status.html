@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scraper Status</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #111; color: #0f0; }
+        .card { border: 1px solid #333; padding: 15px; margin-bottom: 10px; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warning { color: #ff0; }
+    </style>
+</head>
+<body>
+    <h1>DealerHunt Local Scraper Status</h1>
+    <div id="status">Loading...</div>
+    <script>
+        async function fetchStatus() {
+            try {
+                const res = await fetch('scraper-status.json');
+                const data = await res.json();
+                document.getElementById('status').innerHTML = `
+                    <div class="card">
+                        <p><strong>Last Run:</strong> ${new Date(data.lastRun).toLocaleString()}</p>
+                        <p><strong>Total Deals Scraped:</strong> ${data.totalScraped}</p>
+                        <p><strong>Status:</strong> <span class="${data.status === 'Running' ? 'success' : 'warning'}">${data.status}</span></p>
+                    </div>
+                `;
+            } catch (e) {
+                document.getElementById('status').innerHTML = `<p class="error">Error loading status: ${e.message}</p>`;
+            }
+        }
+        setInterval(fetchStatus, 5000);
+        fetchStatus();
+    </script>
+</body>
+</html>

@@ -28,6 +28,7 @@ export interface OrchestratorOptions {
   costGuardOptions?: CostGuardOptions;
   circuitBreaker?: CircuitBreakerRegistry;
   circuitBreakerOptions?: CircuitBreakerOptions;
+  skipSupabaseRunTracking?: boolean;
 }
 
 export interface OrchestratorProgress {
@@ -94,7 +95,8 @@ export abstract class BaseScraperOrchestrator {
   }
 
   protected async logScrapeStart(source: string): Promise<string> {
-    if (this.options.dryRun) return `dry-run-${source}-${Date.now()}`;
+    if (this.options.dryRun || this.options.skipSupabaseRunTracking)
+      return `untracked-${source}-${Date.now()}`;
 
     const { data, error } = await this.supabase
       .from("scraper_runs")
@@ -128,6 +130,7 @@ export abstract class BaseScraperOrchestrator {
     duration: number,
     status: "success" | "error" = "success",
   ) {
+    if (this.options.skipSupabaseRunTracking) return;
     this.log(
       `${source}: ${status} in ${duration}ms, found ${dealsFound}, saved ${dealsSaved}`,
     );
@@ -160,7 +163,7 @@ export abstract class BaseScraperOrchestrator {
     const message = error instanceof Error ? error.message : "Unknown error";
     this.log(`Run failed: ${message}`, "error");
 
-    if (this.options.dryRun) return;
+    if (this.options.dryRun || this.options.skipSupabaseRunTracking) return;
     if (runId.startsWith("untracked-")) return;
 
     const { error: updateError } = await this.supabase

@@ -11,6 +11,8 @@
 /build
 /cache/
 /.cache/
+/profiles/
+/logs/
 
 # misc
 .DS_Store
@@ -25,6 +27,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!.env.local.scraper.example
 
 # loose one-off scripts / debug artifacts (never commit — may contain secrets)
 /scripts/apply-migrations.js

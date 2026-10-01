@@ -1,0 +1,81 @@
+services:
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    command: ["sh", "scripts/start-scraper-local.sh"]
+    init: true
+    restart: unless-stopped
+    shm_size: 1gb
+    cpus: 3.0
+    mem_limit: 4g
+    env_file:
+      - path: .env.local.scraper
+        required: false
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      FLARESOLVERR_URL: http://flaresolverr:8191/v1
+      LOCAL_CACHE_PATH: /app/cache
+      BROWSER_PROFILE_DIR: /app/profiles
+      STATUS_PATH: /app/logs/status.json
+      SCRAPER_LOG_PATH: /app/logs/scraper.log
+      STATUS_PORT: 8787
+      ENABLE_HEADED_SCRAPERS: "1"
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./cache:/app/cache
+      - ./profiles:/app/profiles
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      flaresolverr:
+        condition: service_healthy
+    networks:
+      - scraper-local
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/status.json').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+    cpus: 1.5
+    mem_limit: 2g
+    environment:
+      LOG_LEVEL: warning
+      TZ: America/Chicago
+    networks:
+      - scraper-local
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8191/', timeout=3)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-local-data:/data
+    networks:
+      - scraper-local
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  scraper-local:
+    driver: bridge
+
+volumes:
+  redis-local-data:

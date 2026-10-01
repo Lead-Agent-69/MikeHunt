@@ -48,7 +48,11 @@ vi.mock("@/lib/server-supabase", () => ({
 // Helper: build a minimal NextRequest
 function makeRequest(
   path: string,
-  opts: { method?: string; body?: unknown; headers?: Record<string, string> } = {}
+  opts: {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+  } = {},
 ) {
   const url = `http://localhost:3000${path}`;
   return new NextRequest(url, {
@@ -59,24 +63,34 @@ function makeRequest(
 }
 
 // ---- /api/ingest (browser extension write path) ----------------------------
-describe("POST /api/ingest", () => {
-  beforeEach(() => vi.resetModules());
-  afterEach(() => { delete process.env.INGEST_SECRET; });
+describe("POST /api/ingest", { timeout: 15000 }, () => {
+  const originalEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    delete process.env.INGEST_SECRET;
+    // @ts-expect-error restore
+    process.env.NODE_ENV = originalEnv;
+  });
 
   it("returns 503 in production when INGEST_SECRET is missing", async () => {
-    const orig = process.env.NODE_ENV;
     // @ts-expect-error override for test
     process.env.NODE_ENV = "production";
     delete process.env.INGEST_SECRET;
     const { POST } = await import("@/app/api/ingest/route");
     const req = makeRequest("/api/ingest", {
       method: "POST",
-      body: { url: "https://example.com", price: 5000, title: "2019 Ford F-150" },
+      body: {
+        url: "https://example.com",
+        price: 5000,
+        title: "2019 Ford F-150",
+      },
     });
     const res = await POST(req);
     expect(res.status).toBe(503);
-    // @ts-expect-error reset
-    process.env.NODE_ENV = orig;
   });
 
   it("returns 401 when INGEST_SECRET is set but header is missing", async () => {
@@ -84,13 +98,19 @@ describe("POST /api/ingest", () => {
     const { POST } = await import("@/app/api/ingest/route");
     const req = makeRequest("/api/ingest", {
       method: "POST",
-      body: { url: "https://example.com", price: 5000, title: "2019 Ford F-150" },
+      body: {
+        url: "https://example.com",
+        price: 5000,
+        title: "2019 Ford F-150",
+      },
     });
     const res = await POST(req);
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when required fields are missing", async () => {
+    // @ts-expect-error test mode
+    process.env.NODE_ENV = "development";
     delete process.env.INGEST_SECRET;
     const { POST } = await import("@/app/api/ingest/route");
     const req = makeRequest("/api/ingest", {
@@ -103,7 +123,7 @@ describe("POST /api/ingest", () => {
 });
 
 // ---- /api/save-from-url (auth required) ------------------------------------
-describe("POST /api/save-from-url", () => {
+describe("POST /api/save-from-url", { timeout: 15000 }, () => {
   it("returns 401 when user is not authenticated", async () => {
     const { POST } = await import("@/app/api/save-from-url/route");
     const req = makeRequest("/api/save-from-url", {

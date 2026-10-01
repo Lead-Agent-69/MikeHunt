@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MikeHunt Local Scraper</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b1018;--panel:#131c28;--line:#263447;--text:#e7eef8;--muted:#91a2b9;--accent:#61d5b0;--warn:#ffca70;--bad:#ff7c8d}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 85% 0,#183348 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+    main{max-width:1040px;margin:0 auto;padding:32px 20px 56px}header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px}h1{font-size:clamp(24px,4vw,36px);margin:0;letter-spacing:-.04em}.sub,.muted{color:var(--muted)}.pill{border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-weight:700;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.running{color:var(--accent)}.paused,.quota_paused{color:var(--warn)}.error{color:var(--bad)}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{background:color-mix(in srgb,var(--panel) 94%,transparent);border:1px solid var(--line);border-radius:14px;padding:17px}.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.value{font-size:24px;font-weight:700;margin-top:5px}.section{margin-top:16px}.section h2{font-size:17px;margin:0 0 12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.btn{border:1px solid var(--line);background:#1a2838;color:var(--text);padding:9px 14px;border-radius:9px;font:inherit;cursor:pointer}.btn:hover{border-color:var(--accent)}.btn.stop{color:var(--bad)}.progress{height:8px;background:#263447;border-radius:9px;overflow:hidden;margin-top:12px}.bar{height:100%;width:0;background:linear-gradient(90deg,#38bd9b,#96f1c7);transition:width .4s}.list{margin:0;padding:0;list-style:none}.list li{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}.ok{color:var(--accent)}.fail{color:var(--bad)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0c131d;border:1px solid var(--line);border-radius:10px;padding:12px;color:#c7d5e7;max-height:260px;overflow:auto}.footer{margin-top:18px;color:var(--muted);font-size:12px}
+    @media(max-width:740px){.grid{grid-template-columns:repeat(2,1fr)}header{align-items:flex-start;flex-direction:column}}@media(max-width:420px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header><div><h1>MikeHunt Local Scraper</h1><div class="sub">Docker worker · local cache · Supabase quota guard</div></div><div id="state" class="pill">Connecting</div></header>
+  <div class="grid">
+    <section class="card"><div class="label">Progress</div><div id="progress" class="value">—</div><div class="progress"><div id="bar" class="bar"></div></div></section>
+    <section class="card"><div class="label">Deals inserts today</div><div id="inserts" class="value">—</div></section>
+    <section class="card"><div class="label">Deals updates today</div><div id="updates" class="value">—</div></section>
+    <section class="card"><div class="label">Mode</div><div id="mode" class="value">—</div></section>
+  </div>
+  <section class="card section"><div class="row"><button class="btn" onclick="control('pause')">Pause</button><button class="btn" onclick="control('resume')">Resume</button><button class="btn stop" onclick="control('stop')">Stop after active sources</button><span id="updated" class="muted"></span></div></section>
+  <section class="card section"><h2>Sources</h2><div id="current" class="muted">Waiting for status…</div><ul id="results" class="list"></ul></section>
+  <section class="card section"><h2>Access barriers / errors</h2><pre id="barriers">None recorded</pre><pre id="error" style="display:none"></pre></section>
+  <div class="footer">Dashboard is exposed only on localhost. Pause takes effect between source jobs and before the next write batch.</div>
+</main>
+<script>
+  const el=(id)=>document.getElementById(id);
+  async function control(command){try{await fetch('/control/'+command,{method:'POST'});await refresh()}catch(e){el('error').textContent=String(e)}}
+  async function refresh(){try{const r=await fetch('/status.json',{cache:'no-store'});const s=await r.json();const q=s.quota||{};el('state').textContent=s.state;el('state').className='pill '+s.state;el('progress').textContent=`${s.progress||0}%`;el('bar').style.width=`${s.progress||0}%`;el('inserts').textContent=`${q.inserts||0} / ${q.maxInserts||0}`;el('updates').textContent=`${q.updates||0} / ${q.maxUpdates||0}`;el('mode').textContent=s.cacheOnly?'Cache only':'Supabase enabled';el('updated').textContent='Updated '+new Date(s.updatedAt).toLocaleTimeString();el('current').textContent=s.currentSources?.length?'Running: '+s.currentSources.join(', '):'No source is currently active';el('results').innerHTML=(s.results||[]).slice().reverse().map(x=>`<li><span>${esc(x.source)}</span><span class="${x.success?'ok':'fail'}">${x.success?'OK':'Failed'} · ${x.dealsFound||0} found${x.error?' · '+esc(x.error):''}</span></li>`).join('')||'<li class="muted">No completed sources this cycle</li>';const barriers=(s.accessBarriers||[]).map(x=>`${x.at} — ${x.host}: ${x.reason} (HTTP ${x.status})`);el('barriers').textContent=barriers.join('\n')||'None recorded';el('error').style.display=s.lastError?'block':'none';el('error').textContent=s.lastError||''}catch(e){el('state').textContent='Unavailable';el('state').className='pill error';el('error').style.display='block';el('error').textContent=String(e)}}
+  function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  refresh();setInterval(refresh,2500);
+</script></body></html>

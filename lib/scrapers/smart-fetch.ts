@@ -20,8 +20,12 @@
 
 import { chromium } from "patchright";
 import type { BrowserContext, Page } from "patchright";
+import { createHash } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { recommendedTier, type AntiBotVendor } from "./platform-detector";
 import { FlareSolverrClient } from "./tools/flaresolverr";
+import { getLocalWriteContext } from "./local-write-context";
 
 export type FetchTier = "static" | "stealth" | "headed" | "flaresolverr";
 
@@ -212,7 +216,11 @@ const fpByHost = new Map<string, Fingerprint>();
 function fingerprintFor(host: string): Fingerprint {
   let fp = fpByHost.get(host);
   if (!fp) {
-    fp = FINGERPRINTS[Math.floor(Math.random() * FINGERPRINTS.length)];
+    const slot = process.env.BROWSER_PROFILE_DIR
+      ? createHash("sha256").update(host).digest().readUInt32BE(0) %
+        FINGERPRINTS.length
+      : Math.floor(Math.random() * FINGERPRINTS.length);
+    fp = FINGERPRINTS[slot];
     fpByHost.set(host, fp);
   }
   return fp;
@@ -230,7 +238,15 @@ async function browserPageFor(
   const existing = browserByKey.get(key);
   if (existing && !existing.page.isClosed()) return existing.page;
   const fp = fingerprintFor(host);
-  const ctx = await chromium.launchPersistentContext("", {
+  const profileRoot = process.env.BROWSER_PROFILE_DIR;
+  const profilePath = profileRoot
+    ? path.join(
+        profileRoot,
+        createHash("sha256").update(key).digest("hex").slice(0, 24),
+      )
+    : "";
+  if (profilePath) mkdirSync(profilePath, { recursive: true });
+  const ctx = await chromium.launchPersistentContext(profilePath, {
     headless: tier === "stealth",
     channel: tier === "headed" ? "chrome" : undefined,
     viewport: fp.viewport,
@@ -367,6 +383,21 @@ export async function smartFetch(
         // Identify the wall and act on it — the chameleon's situational awareness.
         const { vendor, tier: bypass } = recommendedTier(html, status, headers);
         if (vendor !== "none") hostAntiBot.set(host, vendor);
+        const localContext = getLocalWriteContext();
+        if (localContext?.respectAccessBlocks) {
+          hostCooldownUntil.set(host, Date.now() + COOLDOWN_MS);
+          const reason =
+            status === 403 || status === 429
+              ? `HTTP ${status}`
+              : vendor !== "none"
+                ? `${vendor} challenge`
+                : "access barrier detected";
+          localContext.onAccessBarrier?.({ host, status, reason });
+          console.warn(
+            `[smartFetch] ${host} → ${reason}; local mode stops this host and cools it down`,
+          );
+          break;
+        }
         // Walls with NO free bypass (DataDome, Kasada): stop here — climbing only burns the IP, and even
         // FlareSolverr can't solve them. Drop the reserve too, cool down, let an aggregator carry it.
         if (vendor === "datadome" || vendor === "kasada") {

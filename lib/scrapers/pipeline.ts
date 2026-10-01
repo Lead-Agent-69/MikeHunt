@@ -17,25 +17,31 @@ import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
 import { withinMiles } from "@/lib/geo/distance";
 import { cleanCity } from "@/lib/data/clean-location";
+import { getLocalWriteContext } from "./local-write-context";
+import { stableListingId } from "./local-cache";
 
 function getSupabase() {
-  return getSupabaseClient();
+  return getLocalWriteContext()?.supabase || getSupabaseClient();
 }
 
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!deals.length) return 0;
 
+  const localContext = getLocalWriteContext();
+
   const now = new Date().toISOString();
   const quality = new QualityController();
 
   // Load the $0 market-comps index (cached) so the analyzer can value deals from real data.
-  await loadMarketIndex(getSupabase());
+  if (!localContext?.cacheOnly) await loadMarketIndex(getSupabase());
 
   const source = deals[0]?.source || "unknown";
   const normalized = normalizeDeals(deals);
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
   // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
-  const vinApplied = await enrichVins(getSupabase(), normalized);
+  const vinApplied = localContext?.cacheOnly
+    ? 0
+    : await enrichVins(getSupabase(), normalized);
   if (vinApplied)
     console.log(`[Pipeline] VIN-decoded make/model on ${vinApplied} deals`);
   const report = quality.validateBatch(source, normalized);
@@ -55,10 +61,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     )
     .map((deal) => {
       const analysis = analyzeDeal(deal);
-      const source_deal_id =
-        deal.source_deal_id ||
-        deal.id ||
-        `${deal.source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const source_deal_id = localContext
+        ? stableListingId(deal as Record<string, unknown>)
+        : deal.source_deal_id ||
+          deal.id ||
+          `${deal.source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
       // Smart intelligence: extract hidden contact info/VINs from free text
       const extractedContact = extractContactInfo(
@@ -186,25 +193,29 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   // Best-effort: any failure leaves lat/lng null and the upsert proceeds unchanged. A DB trigger
   // derives the PostGIS `location` column from lat/lng.
   try {
-    const coords = await resolvePlaces(
-      getSupabase(),
-      rows.map((r) => ({
-        zip: r.location_zip,
-        city: r.location_city,
-        state: r.location_state,
-      })),
-    );
-    if (coords.size > 0) {
-      for (const r of rows as any[]) {
-        const key = r.location_zip
-          ? `zip:${String(r.location_zip).match(/\b(\d{5})\b/)?.[1] || ""}`
-          : r.location_city && r.location_state
-            ? `cs:${String(r.location_city).trim().toLowerCase().replace(/\s+/g, " ")}|${String(r.location_state).trim().toLowerCase()}`
-            : "";
-        const c = key ? coords.get(key) : undefined;
-        if (c) {
-          r.lat = c.lat;
-          r.lng = c.lng;
+    if (localContext?.cacheOnly) {
+      // Cache-only runs deliberately avoid both geocoding lookups and cache-table writes.
+    } else {
+      const coords = await resolvePlaces(
+        getSupabase(),
+        rows.map((r) => ({
+          zip: r.location_zip,
+          city: r.location_city,
+          state: r.location_state,
+        })),
+      );
+      if (coords.size > 0) {
+        for (const r of rows as any[]) {
+          const key = r.location_zip
+            ? `zip:${String(r.location_zip).match(/\b(\d{5})\b/)?.[1] || ""}`
+            : r.location_city && r.location_state
+              ? `cs:${String(r.location_city).trim().toLowerCase().replace(/\s+/g, " ")}|${String(r.location_state).trim().toLowerCase()}`
+              : "";
+          const c = key ? coords.get(key) : undefined;
+          if (c) {
+            r.lat = c.lat;
+            r.lng = c.lng;
+          }
         }
       }
     }
@@ -213,15 +224,34 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
 
   const SELECT_COLS =
-    "id, source, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng";
+    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng";
   const sb = getSupabase();
-  let { data: upsertedRows, error } = await sb
-    .from("deals")
-    .upsert(rows, {
-      onConflict: "source,source_deal_id",
-      ignoreDuplicates: false,
-    })
-    .select(SELECT_COLS);
+  let upsertedRows: any[] | null = null;
+  let error: { message: string } | null = null;
+  let localPriceChangedKeys: Set<string> | null = null;
+  if (localContext) {
+    const result = await localContext.cache.persistRows(
+      rows as any[],
+      sb,
+      SELECT_COLS,
+    );
+    upsertedRows = result.rows;
+    localPriceChangedKeys = result.priceChangedKeys;
+    if (result.paused)
+      console.warn(
+        "[LocalCache] daily write threshold reached; new source jobs will pause",
+      );
+  } else {
+    const response = await sb
+      .from("deals")
+      .upsert(rows, {
+        onConflict: "source,source_deal_id",
+        ignoreDuplicates: false,
+      })
+      .select(SELECT_COLS);
+    upsertedRows = response.data;
+    error = response.error;
+  }
 
   // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
   // below would then drop EVERY row (they all carry it) — that exact bug once killed all ingestion. So
@@ -283,6 +313,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   // Insert price history for deals that have a price
   const priceHistoryRows = returnedRows
+    .filter(
+      (r) =>
+        !localPriceChangedKeys ||
+        localPriceChangedKeys.has(`${r.source}|${r.source_deal_id}`),
+    )
     .filter((r) => typeof r.ask_price === "number")
     .map((r) => ({
       deal_id: r.id,

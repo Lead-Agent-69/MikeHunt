@@ -1,0 +1,199 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { LocalScraperCache, listingHash } from "./local-cache";
+
+const tempDirs: string[] = [];
+afterEach(async () => {
+  vi.useRealTimers();
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+  );
+});
+
+async function makeCache(
+  options: ConstructorParameters<typeof LocalScraperCache>[0] = {},
+) {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "mikehunt-local-cache-"));
+  tempDirs.push(dir);
+  const cache = new LocalScraperCache({ path: dir, ...options });
+  await cache.load();
+  return { cache, dir };
+}
+
+function fakeSupabase(initial: Record<string, any>[] = []) {
+  const rows = new Map(
+    initial.map((row) => [`${row.source}|${row.source_deal_id}`, { ...row }]),
+  );
+  const writes: Record<string, any>[][] = [];
+  return {
+    rows,
+    writes,
+    client: {
+      from: () => ({
+        select: () => {
+          let source = "";
+          return {
+            eq: (_column: string, value: string) => {
+              source = value;
+              return {
+                in: async (_idColumn: string, ids: string[]) => ({
+                  data: ids
+                    .map((id) => rows.get(`${source}|${id}`))
+                    .filter(Boolean),
+                  error: null,
+                }),
+              };
+            },
+          };
+        },
+        upsert: (batch: Record<string, any>[]) => ({
+          select: async () => {
+            writes.push(batch);
+            const result = batch.map((row) => {
+              const persisted = {
+                ...row,
+                id: row.id || `${row.source}-${row.source_deal_id}`,
+              };
+              rows.set(`${row.source}|${row.source_deal_id}`, persisted);
+              return {
+                ...persisted,
+                updated_at: row.updated_at || new Date().toISOString(),
+              };
+            });
+            return { data: result, error: null };
+          },
+        }),
+      }),
+    } as any,
+  };
+}
+
+const row = (id: string, ask_price = 10000) => ({
+  source: "test",
+  source_deal_id: id,
+  ask_price,
+  year: 2020,
+  make: "Honda",
+  model: "Civic",
+  mileage: 50000,
+  active: true,
+  options: { fuel: "gas" },
+});
+
+describe("LocalScraperCache", () => {
+  it("hashes listing changes and skips unchanged rows while tracking price changes", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    const first = await cache.persistRows(
+      [row("a")],
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(first.inserts).toBe(1);
+    expect(first.rows).toHaveLength(1);
+
+    const same = await cache.persistRows(
+      [row("a")],
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(same.saved).toBe(0);
+    expect(db.writes).toHaveLength(1);
+
+    const priceChange = await cache.persistRows(
+      [row("a", 9500)],
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(priceChange.updates).toBe(1);
+    expect(priceChange.priceChangedKeys.has("test|a")).toBe(true);
+
+    const dataChange = await cache.persistRows(
+      [{ ...row("a", 9500), mileage: 51000 }],
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(dataChange.updates).toBe(1);
+    expect(dataChange.priceChangedKeys.size).toBe(0);
+    expect(listingHash(row("a"))).not.toBe(listingHash(row("a", 9500)));
+  });
+
+  it("writes in batches of at most 50 with a persisted local cache", async () => {
+    const { cache, dir } = await makeCache({ batchSize: 50 });
+    const db = fakeSupabase();
+    const listings = Array.from({ length: 51 }, (_, index) =>
+      row(`id-${index}`),
+    );
+    const result = await cache.persistRows(
+      listings,
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(result.saved).toBe(51);
+    expect(db.writes.map((batch) => batch.length)).toEqual([50, 1]);
+    const state = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(Object.keys(state.entries)).toHaveLength(51);
+    expect(state.quota.inserts).toBe(51);
+  });
+
+  it("keeps cache-only records locally without making Supabase calls", async () => {
+    const { cache, dir } = await makeCache({ cacheOnly: true });
+    const client = {
+      from: vi.fn(() => {
+        throw new Error("Supabase must not be called");
+      }),
+    } as any;
+    const result = await cache.persistRows([row("offline")], client, "*");
+    expect(result.saved).toBe(0);
+    const state = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(state.entries["test|offline"].synced).toBe(false);
+    expect(state.entries["test|offline"].data.ask_price).toBe(10000);
+    expect(client.from).not.toHaveBeenCalled();
+  });
+
+  it("serializes parallel writes and stops at 80% of the configured daily insert limit", async () => {
+    const { cache } = await makeCache({ maxDailyInserts: 5, batchSize: 50 });
+    const db = fakeSupabase();
+    const [left, right] = await Promise.all([
+      cache.persistRows(
+        [row("1"), row("2"), row("3")],
+        db.client,
+        "id, source, source_deal_id, ask_price, updated_at",
+      ),
+      cache.persistRows(
+        [row("4"), row("5"), row("6")],
+        db.client,
+        "id, source, source_deal_id, ask_price, updated_at",
+      ),
+    ]);
+    expect(left.saved + right.saved).toBe(4);
+    expect(cache.getQuota().inserts).toBe(4);
+    expect(left.paused || right.paused).toBe(true);
+    expect(db.rows.size).toBe(4);
+  });
+
+  it("resets the daily quota at the UTC date boundary", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-30T23:59:00.000Z"));
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    await cache.persistRows(
+      [row("utc")],
+      db.client,
+      "id, source, source_deal_id, ask_price, updated_at",
+    );
+    expect(cache.getQuota().inserts).toBe(1);
+    vi.setSystemTime(new Date("2026-10-01T00:01:00.000Z"));
+    expect(cache.getQuota()).toMatchObject({
+      day: "2026-10-01",
+      inserts: 0,
+      updates: 0,
+    });
+  });
+});
