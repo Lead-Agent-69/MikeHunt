@@ -9,6 +9,9 @@ jobs:
   accuracy:
     runs-on: self-hosted
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
 
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
