@@ -138,6 +138,13 @@ async function fetchCopartPage(
   return res.json();
 }
 
+export async function previewCopartLots(
+  pageSize = 24,
+): Promise<Partial<Deal>[]> {
+  const json = await fetchCopartPage(0, pageSize);
+  return json ? parseCopartLots(json).slice(0, pageSize) : [];
+}
+
 // The default sort returns the same lots each run, and the API caps deep pagination, so each run
 // samples a random window of the reachable pages to build coverage across yards/sale dates over time.
 export async function scrapeCopart(

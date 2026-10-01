@@ -1,10 +1,8 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v3'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v3'
+const STATIC_CACHE = 'MikeHunt-static-v4'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v4'
 
 const STATIC_ASSETS = [
-  '/',
-  '/discover',
   '/offline.html',
   '/manifest.json',
   '/icon-192x192.png',
@@ -50,6 +48,7 @@ self.addEventListener('activate', (event) => {
 // Fetch event - serve from cache with network fallback
 self.addEventListener('fetch', (event) => {
   const { request } = event
+  const url = new URL(request.url)
 
   // Skip non-GET requests
   if (request.method !== 'GET') {
@@ -63,6 +62,26 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome-extension and other non-http requests
   if (!request.url.startsWith('http')) {
+    return
+  }
+
+  // HTML routes and API responses are session-aware; always prefer the network
+  // so login state and fresh server-rendered pages do not get stale cached HTML.
+  if (request.mode === 'navigate' || url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request).catch(() => {
+        if (request.mode === 'navigate') return caches.match('/offline.html')
+      })
+    )
+    return
+  }
+
+  const isStaticAsset =
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/images/') ||
+    STATIC_ASSETS.includes(url.pathname)
+
+  if (!isStaticAsset) {
     return
   }
 

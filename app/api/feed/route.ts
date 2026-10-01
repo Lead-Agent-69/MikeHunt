@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
@@ -42,6 +45,17 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
   const limit = Math.min(Math.max(Number(sp.get("limit")) || 12, 1), 30);
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      items: [],
+      nextOffset: offset,
+      personalized: false,
+      message: "Supabase is not configured, so the live feed is unavailable.",
+    });
+  }
+
   // Multi-state scope: `?states=MO,IL` (the user's chosen states) or a single `?state=MO`. Empty = all.
   const scopeStates = (sp.get("states")?.split(",") ?? [sp.get("state")])
     .map((s) => s?.trim().toUpperCase())

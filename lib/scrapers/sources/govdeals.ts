@@ -8,6 +8,7 @@ import type { Deal } from "@/types";
 import {
   scrapeMaestro,
   maestroAssetToDeal,
+  fetchMaestroAssets,
   type MaestroAsset,
 } from "./lqdt-maestro";
 
@@ -27,6 +28,20 @@ const GOVDEALS_OPTS = {
 /** Map one GovDeals asset to a Deal (thin wrapper over the shared maestro mapper; used by tests). */
 export function govDealsAssetToDeal(a: MaestroAsset): Partial<Deal> | null {
   return maestroAssetToDeal(a, GOVDEALS_OPTS);
+}
+
+export async function previewGovDeals(maxPages = 1): Promise<Partial<Deal>[]> {
+  const assets = await fetchMaestroAssets(
+    GOVDEALS_OPTS.businessId,
+    GOVDEALS_OPTS.categoryCodes,
+    { maxPages, label: GOVDEALS_OPTS.label },
+  );
+  const byId = new Map<string, Partial<Deal>>();
+  for (const asset of assets) {
+    const deal = govDealsAssetToDeal(asset);
+    if (deal?.source_deal_id) byId.set(deal.source_deal_id, deal);
+  }
+  return Array.from(byId.values());
 }
 
 export async function scrapeGovDeals(): Promise<number> {

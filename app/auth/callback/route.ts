@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
 // a session (writing the auth cookies) and forward to `next` (the deal feed by default). Public
@@ -11,6 +12,12 @@ export async function GET(request: Request) {
   const nextParam = searchParams.get("next") || "/discover";
   // Only allow relative in-app redirects (no open redirect to arbitrary hosts).
   const next = nextParam.startsWith("/") ? nextParam : "/discover";
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.redirect(
+      `${origin}/login?error=supabase_not_configured`,
+    );
+  }
 
   if (code) {
     const cookieStore = await cookies();

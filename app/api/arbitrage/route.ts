@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { DealsService } from "@/lib/data/deals-service";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import { getServerUser } from "@/lib/server-supabase";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 
 // Geographic arbitrage from REAL data — no hardcoded regional price tables. For THIS dealer (home state
@@ -37,6 +40,26 @@ type Opp = {
 
 export async function GET(request: NextRequest) {
   try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        configured: false,
+        homeState: request.nextUrl.searchParams.get("homeState") || "",
+        tailored: false,
+        summary: {
+          local: 0,
+          regional: 0,
+          national: 0,
+          regionalProfit: 0,
+          nationalProfit: 0,
+          bestProfit: 0,
+        },
+        topRoutes: [],
+        localDeals: [],
+        regionalArbitrage: [],
+        nationalArbitrage: [],
+      });
+    }
+
     // Tailor to the signed-in dealer: their home state + preferred makes. Param overrides (for the
     // "view another base" case); CA is the last-resort default for anonymous visitors.
     let homeState = (

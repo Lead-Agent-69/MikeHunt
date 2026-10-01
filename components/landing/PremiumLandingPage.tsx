@@ -34,7 +34,7 @@ const TESTIMONIALS = [
     name: "Michael Rodriguez",
     role: "Owner, Rodriguez Auto Sales",
     image: "👨‍💼",
-    text: "MikeHunt found me a 2021 BMW M3 with $8,400 profit margin that I would have missed. The AI scoring is incredibly accurate.",
+    text: "The workflow is built for one job: turn scattered listings into a clean buy, hold, or pass decision once live data is connected.",
     rating: 5,
   },
   {
@@ -112,34 +112,129 @@ const EDGE = [
 ];
 
 const SAMPLE_DEALS = [
-  { year: 2021, make: "BMW", model: "M3 Competition", price: "$62,500", estRetail: "$74,800", profit: "+$8,400", score: 94, source: "Manheim Auction", vin: "WBS83AY05M12****", location: "Dallas, TX" },
-  { year: 2020, make: "Toyota", model: "Tacoma TRD Pro", price: "$33,200", estRetail: "$41,000", profit: "+$5,100", score: 88, source: "Copart Direct", vin: "3TMCZ5AN8LM9****", location: "Phoenix, AZ" },
-  { year: 2022, make: "Ford", model: "F-150 Raptor", price: "$71,000", estRetail: "$82,500", profit: "+$6,700", score: 91, source: "FB Marketplace", vin: "1FTFW1RG4NFB****", location: "Atlanta, GA" },
-  { year: 2023, make: "Dodge", model: "Challenger Hellcat", price: "$59,900", estRetail: "$70,500", profit: "+$7,200", score: 89, source: "IAAI Salvage", vin: "2C3CDZC97PH6****", location: "Miami, FL" },
+  {
+    year: 0,
+    make: "Live",
+    model: "Auction Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "live-auction-feed",
+    location: "Real source required",
+  },
+  {
+    year: 0,
+    make: "Dealer",
+    model: "Wholesale Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "dealer-wholesale-feed",
+    location: "Real source required",
+  },
+  {
+    year: 0,
+    make: "Salvage",
+    model: "Repairable Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "salvage-repairable-feed",
+    location: "Real source required",
+  },
+  {
+    year: 0,
+    make: "Private",
+    model: "Marketplace Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "private-marketplace-feed",
+    location: "Real source required",
+  },
 ];
 
 // Extended set for the 3D helix carousel — needs 6+ cards for a full ring
 const HELIX_DEALS = [
   ...SAMPLE_DEALS,
-  { year: 2019, make: "Chevrolet", model: "Camaro SS", price: "$38,400", estRetail: "$46,900", profit: "+$5,600", score: 84, source: "GovDeals", vin: "1G1FB1RS6K01****", location: "Columbus, OH" },
-  { year: 2021, make: "Jeep", model: "Wrangler Rubicon", price: "$41,800", estRetail: "$50,200", profit: "+$5,900", score: 86, source: "Off-Market", vin: "1C4HJXFG2MW6****", location: "Denver, CO" },
+  {
+    year: 0,
+    make: "Fleet",
+    model: "Liquidation Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "fleet-liquidation-feed",
+    location: "Real source required",
+  },
+  {
+    year: 0,
+    make: "Sold",
+    model: "Comp Feed",
+    price: "Connect",
+    estRetail: "Data",
+    profit: "Pending",
+    score: 0,
+    source: "Not configured",
+    vin: "sold-comp-feed",
+    location: "Real source required",
+  },
 ];
 
 // Simulated live deal feed for the hero section
 const LIVE_DEALS = [
-  { year: 2020, make: "BMW", model: "M3", profit: "+$8,400", verdict: "GO", score: 94 },
-  { year: 2019, make: "Toyota", model: "Tacoma", profit: "+$5,100", verdict: "GO", score: 88 },
-  { year: 2022, make: "Ford", model: "F-150", profit: "+$6,700", verdict: "GO", score: 91 },
-  { year: 2021, make: "Honda", model: "CR-V", profit: "+$3,200", verdict: "GO", score: 76 },
-  { year: 2018, make: "Chevrolet", model: "Tahoe", profit: "+$4,800", verdict: "GO", score: 83 },
-  { year: 2023, make: "Dodge", model: "Challenger", profit: "+$7,200", verdict: "GO", score: 89 },
+  {
+    year: 0,
+    make: "Auction",
+    model: "Feed",
+    profit: "Pending",
+    verdict: "SETUP",
+    score: 0,
+  },
+  {
+    year: 0,
+    make: "Salvage",
+    model: "Feed",
+    profit: "Pending",
+    verdict: "SETUP",
+    score: 0,
+  },
+  {
+    year: 0,
+    make: "Wholesale",
+    model: "Feed",
+    profit: "Pending",
+    verdict: "SETUP",
+    score: 0,
+  },
+  {
+    year: 0,
+    make: "Private",
+    model: "Feed",
+    profit: "Pending",
+    verdict: "SETUP",
+    score: 0,
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HeroSection() {
   const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  });
   const y = useTransform(scrollYProgress, [0, 1], [0, 120]);
   const opacity = useTransform(scrollYProgress, [0, 0.7], [1, 0]);
 
@@ -149,7 +244,11 @@ function HeroSection() {
   };
   const item = {
     hidden: { opacity: 0, y: 30 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 100, damping: 15 } },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { type: "spring" as const, stiffness: 100, damping: 15 },
+    },
   };
 
   return (
@@ -166,12 +265,18 @@ function HeroSection() {
       {/* Glowing orbs */}
       <div
         className="pointer-events-none absolute top-1/3 left-1/4 w-96 h-96 rounded-full blur-[120px] opacity-30"
-        style={{ background: "radial-gradient(circle, var(--amber) 0%, transparent 70%)" }}
+        style={{
+          background:
+            "radial-gradient(circle, var(--amber) 0%, transparent 70%)",
+        }}
         aria-hidden
       />
       <div
         className="pointer-events-none absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full blur-[100px] opacity-20"
-        style={{ background: "radial-gradient(circle, var(--purple) 0%, transparent 70%)" }}
+        style={{
+          background:
+            "radial-gradient(circle, var(--purple) 0%, transparent 70%)",
+        }}
         aria-hidden
       />
 
@@ -187,7 +292,12 @@ function HeroSection() {
           <div className="relative inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[var(--amber-bd)] bg-[var(--amber-lo)] text-sm font-bold text-[var(--amber-d)]">
             <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
             MikeHunt Auto Flip Intelligence · Live Now
-            <BorderBeam duration={6} size={80} colorFrom="var(--amber)" colorTo="var(--purple)" />
+            <BorderBeam
+              duration={6}
+              size={80}
+              colorFrom="var(--amber)"
+              colorTo="var(--purple)"
+            />
           </div>
         </motion.div>
 
@@ -210,11 +320,15 @@ function HeroSection() {
         >
           MikeHunt scans every auction, marketplace & dealer lot — priced
           against live sold comps — and tells you the true profit{" "}
-          <span className="text-[var(--t1)] font-semibold">before you bid</span>.
+          <span className="text-[var(--t1)] font-semibold">before you bid</span>
+          .
         </motion.p>
 
         {/* Liquid Glass & Liquid Metal CTAs */}
-        <motion.div variants={item} className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+        <motion.div
+          variants={item}
+          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
+        >
           <LiquidMetalButton href="/register">
             <span>⚡ Start Free Trial</span>
           </LiquidMetalButton>
@@ -256,10 +370,15 @@ function HeroSection() {
                 {d.verdict}
               </span>
               <span className="text-sm font-bold text-[var(--t1)]">
-                {d.year} {d.make} {d.model}
+                {d.year ? `${d.year} ` : ""}
+                {d.make} {d.model}
               </span>
-              <span className="font-mono text-sm font-black text-[#00ff66]">{d.profit}</span>
-              <span className="text-xs font-bold text-[var(--t4)] font-mono">IQ {d.score}</span>
+              <span className="font-mono text-sm font-black text-[#00ff66]">
+                {d.profit}
+              </span>
+              <span className="text-xs font-bold text-[var(--t4)] font-mono">
+                IQ {d.score}
+              </span>
             </div>
           ))}
         </div>
@@ -283,7 +402,9 @@ function InteractiveDealShowcase() {
             Click to Flip & Inspect Deals
           </h2>
           <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
-            Experience our 3D Flipping Book component. Click any card below to turn it over and inspect hidden margin details, VIN comps, and market spread.
+            Experience our 3D Flipping Book component. Click any card below to
+            turn it over and inspect hidden margin details, VIN comps, and
+            market spread.
           </p>
         </div>
 
@@ -299,21 +420,32 @@ function InteractiveDealShowcase() {
                       <span className="text-xs font-mono font-bold text-[var(--amber-d)] bg-[var(--amber-lo)] px-2 py-0.5 rounded-full">
                         IQ {deal.score}
                       </span>
-                      <span className="text-xs text-[var(--t4)]">{deal.source}</span>
+                      <span className="text-xs text-[var(--t4)]">
+                        {deal.source}
+                      </span>
                     </div>
                     <h4 className="text-lg font-black text-[var(--t1)] mb-1">
-                      {deal.year} {deal.make} {deal.model}
+                      {deal.year ? `${deal.year} ` : ""}
+                      {deal.make} {deal.model}
                     </h4>
-                    <p className="text-xs text-[var(--t4)] mb-4">{deal.location}</p>
+                    <p className="text-xs text-[var(--t4)] mb-4">
+                      {deal.location}
+                    </p>
                   </div>
                   <div>
                     <div className="flex justify-between items-baseline mb-1">
                       <span className="text-xs text-[var(--t4)]">Asking</span>
-                      <span className="text-lg font-bold font-mono text-[var(--t1)]">{deal.price}</span>
+                      <span className="text-lg font-bold font-mono text-[var(--t1)]">
+                        {deal.price}
+                      </span>
                     </div>
                     <div className="flex justify-between items-baseline">
-                      <span className="text-xs text-[var(--t4)]">Est Net Profit</span>
-                      <span className="text-xl font-black font-mono text-[var(--green)]">{deal.profit}</span>
+                      <span className="text-xs text-[var(--t4)]">
+                        Est Net Profit
+                      </span>
+                      <span className="text-xl font-black font-mono text-[var(--green)]">
+                        {deal.profit}
+                      </span>
                     </div>
                     <p className="text-[11px] text-[var(--t5)] text-center mt-4 italic">
                       Click to flip 🔄
@@ -328,12 +460,15 @@ function InteractiveDealShowcase() {
                       Intelligence Audit
                     </span>
                     <h5 className="text-sm font-bold text-[var(--t1)] mt-1 mb-3">
-                      {deal.year} {deal.make} {deal.model}
+                      {deal.year ? `${deal.year} ` : ""}
+                      {deal.make} {deal.model}
                     </h5>
                     <div className="space-y-2 text-xs font-mono">
                       <div className="flex justify-between text-[var(--t3)]">
                         <span>Est. Retail:</span>
-                        <span className="text-[var(--t1)]">{deal.estRetail}</span>
+                        <span className="text-[var(--t1)]">
+                          {deal.estRetail}
+                        </span>
                       </div>
                       <div className="flex justify-between text-[var(--t3)]">
                         <span>VIN:</span>
@@ -381,7 +516,9 @@ function DNADealShowcase() {
             The Deal Helix
           </h2>
           <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
-            A continuously rotating 3D carousel of live-scored opportunities. Drag to spin, hover to pause, click any card to bring it front and center.
+            A continuously rotating 3D carousel of live-scored opportunities.
+            Drag to spin, hover to pause, click any card to bring it front and
+            center.
           </p>
         </div>
 
@@ -398,25 +535,36 @@ function DNADealShowcase() {
                     <span className="text-xs font-mono font-bold text-[var(--amber-d)] bg-[var(--amber-lo)] px-2 py-0.5 rounded-full">
                       IQ {deal.score}
                     </span>
-                    <span className="text-[10px] text-[var(--t4)]">{deal.source}</span>
+                    <span className="text-[10px] text-[var(--t4)]">
+                      {deal.source}
+                    </span>
                   </div>
                   <h4 className="text-base font-black text-[var(--t1)] leading-tight mb-1">
-                    {deal.year} {deal.make} {deal.model}
+                    {deal.year ? `${deal.year} ` : ""}
+                    {deal.make} {deal.model}
                   </h4>
-                  <p className="text-[11px] text-[var(--t4)]">{deal.location}</p>
+                  <p className="text-[11px] text-[var(--t4)]">
+                    {deal.location}
+                  </p>
                 </div>
                 <div className="space-y-1 font-mono">
                   <div className="flex justify-between text-[11px] text-[var(--t4)]">
                     <span>Asking</span>
-                    <span className="text-[var(--t1)] font-bold">{deal.price}</span>
+                    <span className="text-[var(--t1)] font-bold">
+                      {deal.price}
+                    </span>
                   </div>
                   <div className="flex justify-between text-[11px] text-[var(--t4)]">
                     <span>Est Retail</span>
                     <span className="text-[var(--t2)]">{deal.estRetail}</span>
                   </div>
                   <div className="flex justify-between items-baseline pt-1 border-t border-[var(--b1)]">
-                    <span className="text-[11px] text-[var(--t4)]">Net Profit</span>
-                    <span className="text-lg font-black text-[var(--green)]">{deal.profit}</span>
+                    <span className="text-[11px] text-[var(--t4)]">
+                      Net Profit
+                    </span>
+                    <span className="text-lg font-black text-[var(--green)]">
+                      {deal.profit}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -443,32 +591,59 @@ function FoldersAndCollectionsShowcase() {
             Interactive Deal Workspaces
           </h2>
           <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
-            Hover over any deal folder below to see real-time stacked documents expand with interactive 3D motion.
+            Hover over any deal folder below to see real-time stacked documents
+            expand with interactive 3D motion.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <RealFolder label="High Margin Sports Cars" count={14} color="var(--amber)">
+          <RealFolder
+            label="High Margin Sports Cars"
+            count={14}
+            color="var(--amber)"
+          >
             <div className="space-y-2 text-xs font-mono">
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2021 BMW M3 Comp — +$8,400</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2023 Dodge Hellcat — +$7,200</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2020 Porsche 911 — +$12,100</div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Live sports feed — pending connection
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Sold comps — pending connection
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Profit model — pending data
+              </div>
             </div>
           </RealFolder>
 
-          <RealFolder label="Trucks & Heavy Utility" count={28} color="var(--purple)">
+          <RealFolder
+            label="Trucks & Heavy Utility"
+            count={28}
+            color="var(--purple)"
+          >
             <div className="space-y-2 text-xs font-mono">
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2022 Ford F-150 Raptor — +$6,700</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2020 Toyota Tacoma — +$5,100</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2019 Chevy Silverado — +$4,900</div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Wholesale truck feed — pending connection
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Regional demand — pending data
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Transport model — pending setup
+              </div>
             </div>
           </RealFolder>
 
           <RealFolder label="Fast Flip Commuters" count={42} color="#00ff66">
             <div className="space-y-2 text-xs font-mono">
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2021 Honda Civic EX — +$3,400</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2020 Toyota Camry SE — +$3,800</div>
-              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">2019 Hyundai Elantra — +$2,900</div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Retail commuter feed — pending connection
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Turn-speed model — pending data
+              </div>
+              <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
+                Buyer demand — pending setup
+              </div>
             </div>
           </RealFolder>
         </div>
@@ -550,7 +725,11 @@ function HowItWorks() {
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              transition={{ delay: i * 0.15, type: "spring" as const, stiffness: 80 }}
+              transition={{
+                delay: i * 0.15,
+                type: "spring" as const,
+                stiffness: 80,
+              }}
             >
               <BentoCard glowColor={s.color} className="h-full">
                 <div className="flex items-center gap-3 mb-5">
@@ -562,12 +741,18 @@ function HowItWorks() {
                     {s.num}
                   </span>
                 </div>
-                <h3 className="text-xl font-black text-[var(--t1)] mb-3">{s.title}</h3>
-                <p className="text-sm text-[var(--t3)] leading-relaxed">{s.body}</p>
+                <h3 className="text-xl font-black text-[var(--t1)] mb-3">
+                  {s.title}
+                </h3>
+                <p className="text-sm text-[var(--t3)] leading-relaxed">
+                  {s.body}
+                </p>
 
                 <div
                   className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                  style={{ background: `linear-gradient(90deg, transparent, ${s.color}88, transparent)` }}
+                  style={{
+                    background: `linear-gradient(90deg, transparent, ${s.color}88, transparent)`,
+                  }}
                 />
               </BentoCard>
             </motion.div>
@@ -611,7 +796,8 @@ function ProblemSection() {
           className="text-lg text-[var(--t3)] leading-relaxed"
         >
           Winners don't search harder — they see the whole market at once and
-          know the number instantly. That's the entire job MikeHunt does for you.
+          know the number instantly. That's the entire job MikeHunt does for
+          you.
         </motion.p>
       </div>
     </section>
@@ -656,8 +842,12 @@ function EdgeSection() {
                 >
                   {e.icon}
                 </div>
-                <h3 className="text-base font-black text-[var(--t1)] mb-2">{e.title}</h3>
-                <p className="text-sm text-[var(--t3)] leading-relaxed">{e.body}</p>
+                <h3 className="text-base font-black text-[var(--t1)] mb-2">
+                  {e.title}
+                </h3>
+                <p className="text-sm text-[var(--t3)] leading-relaxed">
+                  {e.body}
+                </p>
               </BentoCard>
             </motion.div>
           ))}
@@ -678,7 +868,8 @@ function CTASection() {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(242,91,154,0.1), transparent)",
+          background:
+            "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(242,91,154,0.1), transparent)",
         }}
         aria-hidden
       />
@@ -690,12 +881,11 @@ function CTASection() {
         className="relative z-10 max-w-3xl mx-auto text-center"
       >
         <h2 className="text-4xl md:text-5xl font-black text-[var(--t1)] leading-tight mb-6">
-          See the deal before{" "}
-          <GradientText>everyone else does.</GradientText>
+          See the deal before <GradientText>everyone else does.</GradientText>
         </h2>
         <p className="text-xl text-[var(--t3)] max-w-xl mx-auto leading-relaxed mb-12">
-          Free to start. No credit card, no paid data brokers — just the
-          whole market, scored, on one login.
+          Free to start. No credit card, no paid data brokers — just the whole
+          market, scored, on one login.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
@@ -718,14 +908,18 @@ function CTASection() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function PremiumLandingPage() {
-  const [activeTab, setActiveTab] = useRef<string>("feed").current ? ["feed", () => {}] as const : [ "feed", (k: string) => {} ];
+  const [activeTab, setActiveTab] = useRef<string>("feed").current
+    ? (["feed", () => {}] as const)
+    : ["feed", (k: string) => {}];
 
   return (
     <main className="min-h-screen flex flex-col bg-[var(--s1)] pb-safe overflow-hidden">
       {/* Framer Marketplace Pill Dropdown Navigation Bar */}
       <header className="fixed top-4 left-0 right-0 z-50 flex items-center justify-between px-6 pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-black/40 backdrop-blur-xl">
-          <span className="text-sm font-black tracking-tight text-white">🔍 MikeHunt</span>
+          <span className="text-sm font-black tracking-tight text-white">
+            🔍 MikeHunt
+          </span>
         </div>
 
         <div className="pointer-events-auto hidden sm:block">
@@ -771,4 +965,3 @@ export function PremiumLandingPage() {
     </main>
   );
 }
-

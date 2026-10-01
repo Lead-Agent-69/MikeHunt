@@ -4,9 +4,11 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 import { proxiedImage } from "@/lib/image-url";
+import { CURATED_SITES, SITE_TYPE_META } from "@/lib/scrapers/curated-sites";
 
 // The payoff of the dealer watchlist: newest listings across every shop you watch, so you catch their fresh
-// cars the moment they post — with the accurate title status + our resale, right here. Hides when empty.
+// cars the moment they post — with the accurate title status + our resale, right here. When empty, it still
+// confirms exactly which shops are being watched and what has to happen next.
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const money = (n?: number | null) =>
@@ -45,6 +47,28 @@ export function WatchedDealerFeed() {
   const { data } = useSWR(key, fetcher, { revalidateOnFocus: false });
 
   if (!watch.hosts.length) return null;
+  const watchedSites = watch.hosts.map((host) => {
+    const normalized = host.replace(/^www\./, "");
+    const matchesHost = (candidate: string) =>
+      candidate === normalized ||
+      candidate.endsWith(`.${normalized}`) ||
+      normalized.endsWith(`.${candidate}`);
+    const site = CURATED_SITES.find((row) => {
+      try {
+        const rowHost = new URL(row.url).hostname.replace(/^www\./, "");
+        const inventoryHost = row.inventoryUrl
+          ? new URL(row.inventoryUrl).hostname.replace(/^www\./, "")
+          : "";
+        return (
+          matchesHost(rowHost) ||
+          (inventoryHost ? matchesHost(inventoryHost) : false)
+        );
+      } catch {
+        return false;
+      }
+    });
+    return { host, site };
+  });
   const cars = ((data?.vehicles || []) as any[])
     .slice()
     .sort(
@@ -53,64 +77,127 @@ export function WatchedDealerFeed() {
         new Date(a.firstSeenAt || 0).getTime(),
     )
     .slice(0, 20);
-  if (!cars.length) return null;
 
   return (
     <section className="min-w-0">
-      <h2 className="text-sm font-black text-[var(--t1)] mb-2">
-        ⭐ New from your watched dealers{" "}
-        <span className="text-[var(--t4)] font-bold">
-          · {watch.hosts.length} shop{watch.hosts.length > 1 ? "s" : ""}
-        </span>
-      </h2>
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
-        {cars.map((c) => {
-          const img =
-            Array.isArray(c.images) && c.images[0]?.startsWith?.("http")
-              ? proxiedImage(c.images[0])
-              : null;
-          return (
-            <Link
-              key={c.id}
-              href={`/deal/${c.id}`}
-              className="shrink-0 w-44 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--amber-bd)] transition-colors"
-            >
-              <div className="relative h-24 bg-[var(--s2)] grid place-items-center">
-                {img ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={img}
-                    alt=""
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span className="opacity-30">🚗</span>
-                )}
-                {c.condition && TITLE_LABEL[c.condition] && (
-                  <span
-                    className="absolute bottom-1 left-1 text-[9px] font-black px-1 py-0.5 rounded text-white"
-                    style={{ background: TITLE_COLOR[c.condition] }}
-                  >
-                    {TITLE_LABEL[c.condition]}
-                  </span>
-                )}
-              </div>
-              <div className="p-2">
-                <div className="text-[12px] font-bold text-[var(--t1)] truncate">
-                  {[c.year, c.make, c.model].filter(Boolean).join(" ")}
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+            Dealer watch
+          </p>
+          <h2 className="text-sm font-black text-[var(--t1)]">
+            New from your watched dealers{" "}
+            <span className="text-[var(--t4)] font-bold">
+              · {watch.hosts.length} shop{watch.hosts.length > 1 ? "s" : ""}
+            </span>
+          </h2>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            href={`/scan?dealers=${encodeURIComponent(watch.hosts.join(","))}&sort=newest`}
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-bold text-[var(--t2)]"
+          >
+            Open watch scan
+          </Link>
+          <Link
+            href="/sources"
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-bold text-[var(--t2)]"
+          >
+            Source proof
+          </Link>
+        </div>
+      </div>
+
+      {!cars.length && (
+        <div className="glass-panel p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-bold text-[var(--t1)]">
+                Watchlist saved. No imported rows from these shops yet.
+              </p>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
+                These dealers are in the curated small-shop network. They will
+                show cars here once the database is connected and the curated
+                dealer runner imports matching inventory.
+              </p>
+            </div>
+            <span className="rounded-full border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-1 text-[10px] font-black text-[var(--amber-d)]">
+              awaiting import
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {watchedSites.map(({ host, site }) => (
+              <a
+                key={host}
+                href={site?.inventoryUrl || site?.url || `https://${host}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 transition-colors hover:border-[var(--amber-bd)]"
+              >
+                <div className="truncate text-xs font-black text-[var(--t1)]">
+                  {site?.name || host}
                 </div>
-                <div className="text-[11px] text-[var(--t4)]">
-                  {money(c.askPrice)}
-                  {c.sellEstimate != null && (
-                    <span> · resale ~{money(c.sellEstimate)}</span>
+                <div className="mt-0.5 truncate text-[10px] text-[var(--t5)]">
+                  {site
+                    ? `${site.state || "multi-state"} · ${SITE_TYPE_META[site.type].label}`
+                    : "custom dealer"}
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!!cars.length && (
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide -mx-1 px-1 pb-1">
+          {cars.map((c) => {
+            const img =
+              Array.isArray(c.images) && c.images[0]?.startsWith?.("http")
+                ? proxiedImage(c.images[0])
+                : null;
+            return (
+              <Link
+                key={c.id}
+                href={`/deal/${c.id}`}
+                className="shrink-0 w-44 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] overflow-hidden hover:border-[var(--amber-bd)] transition-colors"
+              >
+                <div className="relative h-24 bg-[var(--s2)] grid place-items-center">
+                  {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={img}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="opacity-30">🚗</span>
+                  )}
+                  {c.condition && TITLE_LABEL[c.condition] && (
+                    <span
+                      className="absolute bottom-1 left-1 text-[9px] font-black px-1 py-0.5 rounded text-white"
+                      style={{ background: TITLE_COLOR[c.condition] }}
+                    >
+                      {TITLE_LABEL[c.condition]}
+                    </span>
                   )}
                 </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+                <div className="p-2">
+                  <div className="text-[12px] font-bold text-[var(--t1)] truncate">
+                    {[c.year, c.make, c.model].filter(Boolean).join(" ")}
+                  </div>
+                  <div className="text-[11px] text-[var(--t4)]">
+                    {money(c.askPrice)}
+                    {c.sellEstimate != null && (
+                      <span> · resale ~{money(c.sellEstimate)}</span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

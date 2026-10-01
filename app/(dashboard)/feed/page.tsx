@@ -6,7 +6,11 @@ import { toast } from "sonner";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { EditorialCard, type EditorialCardData } from "@/components/ui/editorial-card";
+import {
+  EditorialCard,
+  type EditorialCardData,
+} from "@/components/ui/editorial-card";
+import { DataSetupState } from "@/components/shared/DataSetupState";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -47,6 +51,7 @@ export default function FeedPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [configured, setConfigured] = useState<boolean | null>(null);
   // The state scope drives what the feed shows. Seeded from saved prefs; the picker updates it live.
   const [scope, setScope] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
@@ -60,6 +65,13 @@ export default function FeedPage() {
       const qs = scope && scope.length ? `&states=${scope.join(",")}` : "";
       const res = await fetch(`/api/feed?offset=${offset}&limit=12${qs}`);
       const data = await res.json();
+      if (data.configured === false) {
+        setConfigured(false);
+        setDone(true);
+        setItems([]);
+        return;
+      }
+      setConfigured(true);
       const next: FeedItem[] = data.items || [];
       setItems((prev) => {
         const seen = new Set(prev.map((p) => p.id));
@@ -109,9 +121,9 @@ export default function FeedPage() {
   }, [loadMore]);
 
   return (
-    <div className="fixed inset-0 top-14 overflow-y-scroll snap-y snap-mandatory bg-black scrollbar-hide">
+    <div className="relative left-1/2 min-h-[calc(100vh-56px)] w-screen -translate-x-1/2 snap-y snap-mandatory bg-black scrollbar-hide">
       {/* Floating "My States" chip — curate the feed to the states you care about. */}
-      <div className="pointer-events-none fixed right-3 top-16 z-50">
+      <div className="pointer-events-none sticky top-3 z-40 flex justify-end px-3 pt-3">
         <div className="pointer-events-auto">
           <MyStatesButton
             onChange={rescope}
@@ -125,8 +137,12 @@ export default function FeedPage() {
         <div className="snap-start min-h-screen bg-[var(--s1)] py-8 px-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[var(--t1)]">Featured Deals</h2>
-              <span className="text-xs text-[var(--t4)]">Editorial showcase</span>
+              <h2 className="text-xl font-bold text-[var(--t1)]">
+                Featured Deals
+              </h2>
+              <span className="text-xs text-[var(--t4)]">
+                Editorial showcase
+              </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {items.slice(0, 6).map((it, index) => (
@@ -138,7 +154,9 @@ export default function FeedPage() {
                     title: it.title,
                     category: it.source || "Deal",
                     year: it.year?.toString() || "",
-                    description: it.forYouReason || `${it.make} ${it.model} · ${it.locationCity}, ${it.locationState}`,
+                    description:
+                      it.forYouReason ||
+                      `${it.make} ${it.model} · ${it.locationCity}, ${it.locationState}`,
                     cta: "View Deal",
                     ctaLink: `/deal/${it.id}`,
                   }}
@@ -153,22 +171,49 @@ export default function FeedPage() {
         <FeedCard key={it.id} it={it} />
       ))}
       <div ref={sentinel} className="h-2" />
-      {items.length === 0 && loading && (
+      {items.length === 0 && loading && configured !== false && (
         <div className="grid h-full place-items-center text-white/50">
           Loading the feed…
         </div>
       )}
-      {done && items.length === 0 && (
-        <div className="grid h-full place-items-center px-8 text-center text-white/60">
-          <div>
-            <div className="mb-2 text-4xl">📍</div>
-            <p className="font-bold text-white/80">
-              No cars in your selected states yet
-            </p>
-            <p className="mt-1 text-sm">
-              Tap “{scope?.length ? scope.join(", ") : "states"}” up top to add
-              more.
-            </p>
+      {done && items.length === 0 && configured === false && (
+        <div className="min-h-[calc(100vh-56px)] bg-[var(--s1)] p-4 pt-8 md:p-8">
+          <div className="mx-auto max-w-5xl space-y-5">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+                Live feed
+              </p>
+              <h1 className="mt-1 text-2xl font-black text-[var(--t1)]">
+                Build the feed from the buyer’s intent
+              </h1>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+                The feed should not scrape everything. It should show vehicles
+                that match the selected market, buying lane, vehicle type, and
+                source quality.
+              </p>
+            </div>
+            <DataSetupState
+              title="Connect one source lane before the feed goes live"
+              message="Start with a scoped lane like Texas government trucks or salvage SUVs. Once rows import, this feed becomes a fast, photo-first review queue."
+              primaryHref="/discover"
+              primaryLabel="Choose buyer scope"
+              secondaryHref="/sources"
+              secondaryLabel="Open source setup"
+            />
+          </div>
+        </div>
+      )}
+      {done && items.length === 0 && configured !== false && (
+        <div className="min-h-[calc(100vh-56px)] bg-[var(--s1)] p-4 pt-8 md:p-8">
+          <div className="mx-auto max-w-3xl">
+            <DataSetupState
+              title="No matching feed items yet"
+              message={`No photo-ready vehicles match ${scope?.length ? scope.join(", ") : "the current market"} yet. Broaden the states or run a smart source search from Discover.`}
+              primaryHref="/discover"
+              primaryLabel="Adjust buyer scope"
+              secondaryHref="/scan"
+              secondaryLabel="Open scanner"
+            />
           </div>
         </div>
       )}
@@ -204,7 +249,7 @@ function FeedCard({ it }: { it: FeedItem }) {
   };
 
   return (
-    <section className="relative h-full min-h-full w-full snap-start snap-always overflow-hidden bg-black">
+    <section className="relative min-h-[calc(100vh-56px)] w-full snap-start snap-always overflow-hidden bg-black">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={proxiedImage(it.image)}

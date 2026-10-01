@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface CarouselItem {
@@ -93,17 +99,21 @@ export function DNACarousel({
     if (animationRef.current) cancelAnimationFrame(animationRef.current);
   }, []);
 
-  const handleDrag = useCallback((_: any, info: { delta: { x: number } }) => {
-    dragX.set(dragX.get() + info.delta.x * dragSensitivity);
-    velocity.current = info.delta.x * dragSensitivity;
-  }, [dragSensitivity, dragX]);
+  const handleDrag = useCallback(
+    (_: any, info: { delta: { x: number } }) => {
+      dragX.set(dragX.get() + info.delta.x * dragSensitivity);
+      velocity.current = info.delta.x * dragSensitivity;
+    },
+    [dragSensitivity, dragX],
+  );
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
     const currentX = dragX.get();
     const itemWidth = imageWidth + gap;
     const indexShift = Math.round(-currentX / itemWidth);
-    const newIndex = ((activeIndex + indexShift) % itemCount + itemCount) % itemCount;
+    const newIndex =
+      (((activeIndex + indexShift) % itemCount) + itemCount) % itemCount;
 
     // Animate to snap position
     animate(dragX, -newIndex * itemWidth, {
@@ -116,18 +126,23 @@ export function DNACarousel({
   }, [activeIndex, itemCount, imageWidth, gap, dragX]);
 
   // Wheel handling
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY + e.deltaX;
-    const itemWidth = imageWidth + gap;
-    const newIndex = ((activeIndex + (delta > 0 ? 1 : -1)) % itemCount + itemCount) % itemCount;
-    setActiveIndex(newIndex);
-    animate(dragX, -newIndex * itemWidth, {
-      type: "spring",
-      stiffness: 300,
-      damping: 30,
-    });
-  }, [activeIndex, itemCount, imageWidth, gap, dragX]);
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY + e.deltaX;
+      const itemWidth = imageWidth + gap;
+      const newIndex =
+        (((activeIndex + (delta > 0 ? 1 : -1)) % itemCount) + itemCount) %
+        itemCount;
+      setActiveIndex(newIndex);
+      animate(dragX, -newIndex * itemWidth, {
+        type: "spring",
+        stiffness: 300,
+        damping: 30,
+      });
+    },
+    [activeIndex, itemCount, imageWidth, gap, dragX],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -140,13 +155,22 @@ export function DNACarousel({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        const newIndex = ((activeIndex - 1) % itemCount + itemCount) % itemCount;
+        const newIndex =
+          (((activeIndex - 1) % itemCount) + itemCount) % itemCount;
         setActiveIndex(newIndex);
-        animate(dragX, -newIndex * (imageWidth + gap), { type: "spring", stiffness: 300, damping: 30 });
+        animate(dragX, -newIndex * (imageWidth + gap), {
+          type: "spring",
+          stiffness: 300,
+          damping: 30,
+        });
       } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         const newIndex = (activeIndex + 1) % itemCount;
         setActiveIndex(newIndex);
-        animate(dragX, -newIndex * (imageWidth + gap), { type: "spring", stiffness: 300, damping: 30 });
+        animate(dragX, -newIndex * (imageWidth + gap), {
+          type: "spring",
+          stiffness: 300,
+          damping: 30,
+        });
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -155,15 +179,20 @@ export function DNACarousel({
 
   // Calculate 3D transforms for each item
   const getItemStyle = (index: number) => {
-    const relativeIndex = ((index - activeIndex) % itemCount + itemCount) % itemCount;
-    const normalizedIndex = relativeIndex > itemCount / 2 ? relativeIndex - itemCount : relativeIndex;
+    const relativeIndex =
+      (((index - activeIndex) % itemCount) + itemCount) % itemCount;
+    const normalizedIndex =
+      relativeIndex > itemCount / 2 ? relativeIndex - itemCount : relativeIndex;
 
     const z = -Math.abs(normalizedIndex) * depth * 0.3;
     const x = normalizedIndex * (imageWidth + gap) * 0.5 * helixSpread;
     const rotateY = normalizedIndex * 15 * curve;
     const rotateX = tilt;
     const scale = 1 - Math.abs(normalizedIndex) * 0.08;
-    const opacity = Math.max(inactiveOpacity, 1 - Math.abs(normalizedIndex) * 0.2);
+    const opacity = Math.max(
+      inactiveOpacity,
+      1 - Math.abs(normalizedIndex) * 0.2,
+    );
     const blurAmount = Math.abs(normalizedIndex) * blur * 0.5;
     const rgbOffset = Math.abs(normalizedIndex) * rgbSplit;
 
@@ -311,7 +340,23 @@ export function DNACarousel({
                         {item.description}
                       </p>
                     )}
-                    {item.cta && (
+                    {item.cta && item.ctaLink && (
+                      <a
+                        href={item.ctaLink}
+                        target={
+                          item.ctaLink.startsWith("http") ? "_blank" : undefined
+                        }
+                        rel={
+                          item.ctaLink.startsWith("http")
+                            ? "noopener noreferrer"
+                            : undefined
+                        }
+                        className="mt-3 inline-flex px-4 py-2 text-xs font-bold text-white bg-white/10 rounded-full backdrop-blur-sm hover:bg-white/20 transition-colors"
+                      >
+                        {item.cta}
+                      </a>
+                    )}
+                    {item.cta && !item.ctaLink && (
                       <button className="mt-3 px-4 py-2 text-xs font-bold text-white bg-white/10 rounded-full backdrop-blur-sm hover:bg-white/20 transition-colors">
                         {item.cta}
                       </button>
@@ -331,13 +376,17 @@ export function DNACarousel({
             key={index}
             onClick={() => {
               setActiveIndex(index);
-              animate(dragX, -index * (imageWidth + gap), { type: "spring", stiffness: 300, damping: 30 });
+              animate(dragX, -index * (imageWidth + gap), {
+                type: "spring",
+                stiffness: 300,
+                damping: 30,
+              });
             }}
             className={cn(
               "w-2 h-2 rounded-full transition-all duration-300",
               index === activeIndex
                 ? "w-6 bg-[var(--amber)]"
-                : "bg-[var(--s4)] hover:bg-[var(--s5)]"
+                : "bg-[var(--s4)] hover:bg-[var(--s5)]",
             )}
             aria-label={`Go to slide ${index + 1}`}
           />
@@ -348,10 +397,16 @@ export function DNACarousel({
       <svg className="absolute w-0 h-0">
         <defs>
           <filter id="red-channel">
-            <feColorMatrix type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" />
+            <feColorMatrix
+              type="matrix"
+              values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0"
+            />
           </filter>
           <filter id="blue-channel">
-            <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" />
+            <feColorMatrix
+              type="matrix"
+              values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0"
+            />
           </filter>
         </defs>
       </svg>

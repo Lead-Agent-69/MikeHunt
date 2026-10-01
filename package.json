@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-standalone.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "db:generate": "supabase gen types typescript --local > types/supabase.ts",

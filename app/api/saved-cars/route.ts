@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filter = searchParams.get("filter") || "all";
 
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json([]);
+    }
+
     let query = supabase.from("saved_cars").select("*").eq("user_id", userId);
 
     if (filter === "active") {
@@ -70,6 +74,14 @@ export async function POST(request: NextRequest) {
         { error: "dealId is required" },
         { status: 400 },
       );
+    }
+
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        success: true,
+        id: `demo-save-${dealId}`,
+        demo: true,
+      });
     }
 
     // Retrieve the deal details

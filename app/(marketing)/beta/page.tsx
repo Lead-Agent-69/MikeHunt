@@ -111,8 +111,8 @@ export default function BetaAccessPage() {
           </h1>
 
           <p className="text-xl text-[var(--t3)] mb-6 max-w-2xl mx-auto">
-            Join 347 dealers already making an average of $8,400/month profit
-            using our AI-powered deal finder
+            Connect real inventory, valuation, and AI providers to turn
+            scattered vehicle listings into ranked acquisition decisions.
           </p>
 
           {/* Social Proof - Avatars */}

@@ -11,6 +11,8 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { useDealerId } from "@/hooks/useDealerId";
 import { fetcher } from "@/lib/swr-config";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 import { Tag } from "@/components/shared/Tag";
 
@@ -88,6 +90,7 @@ export default function PartsPage() {
   const [selectedDamage, setSelectedDamage] = useState<string>(
     DAMAGE_TYPES[0].type,
   );
+  const configured = isSupabaseConfigured();
 
   const { dealerId, loading: authLoading } = useDealerId();
 
@@ -96,7 +99,7 @@ export default function PartsPage() {
     error: invError,
     isLoading: invLoading,
   } = useSWR(
-    dealerId && !authLoading
+    configured && dealerId && !authLoading
       ? `/api/inventory?dealerId=${dealerId}&limit=100`
       : null,
     fetcher,
@@ -106,7 +109,10 @@ export default function PartsPage() {
     error: partsError,
     isLoading: partsLoading,
     mutate: mutateEstimates,
-  } = useSWR(dealerId && !authLoading ? "/api/parts" : null, fetcher);
+  } = useSWR(
+    configured && dealerId && !authLoading ? "/api/parts" : null,
+    fetcher,
+  );
 
   const inventory = ((invData?.items || []) as InventoryItem[]).filter((i) =>
     ["parts_only", "salvage_title"].includes(i.condition),
@@ -114,14 +120,16 @@ export default function PartsPage() {
   const savedEstimates =
     !partsError && Array.isArray(partsData) ? partsData : [];
 
-  const loading = authLoading || invLoading || partsLoading;
-  const error = dealerId
-    ? invError?.message ||
-      invData?.error ||
-      partsError?.message ||
-      partsData?.error ||
-      null
-    : "Not authenticated";
+  const loading = configured && (authLoading || invLoading || partsLoading);
+  const error = !configured
+    ? null
+    : dealerId
+      ? invError?.message ||
+        invData?.error ||
+        partsError?.message ||
+        partsData?.error ||
+        null
+      : "Not authenticated";
 
   useEffect(() => {
     if (inventory.length > 0 && !selectedVehicle) {
@@ -236,7 +244,18 @@ export default function PartsPage() {
         />
       )}
 
-      {!loading && !error && (
+      {!configured && !loading && (
+        <div className="glass-panel" style={{ padding: 0 }}>
+          <EmptyState
+            icon="settings"
+            title="Connect inventory to unlock Parts & Repair"
+            message="Parts ROI, repair estimates, and saved teardown records need the Supabase inventory tables before they can use real vehicles."
+            action={{ label: "Open data sources", href: "/sources" }}
+          />
+        </div>
+      )}
+
+      {configured && !loading && !error && (
         <div className="space-y-4 md:space-y-6">
           {activeTab === "teardown" && (
             <>

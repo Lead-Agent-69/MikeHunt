@@ -10,13 +10,13 @@ import { getServerUser } from "@/lib/server-supabase";
 
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json(
-      {
-        error:
-          "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL to .env.local",
-      },
-      { status: 503 },
-    );
+    return NextResponse.json({
+      configured: false,
+      items: [],
+      total: 0,
+      message:
+        "Supabase is not configured, so inventory tracking is unavailable.",
+    });
   }
 
   try {
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {
-        error:
-          "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL to .env.local",
+        configured: false,
+        error: "Supabase is not configured, so inventory cannot be created.",
       },
-      { status: 503 },
+      { status: 400 },
     );
   }
 

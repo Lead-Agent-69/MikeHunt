@@ -1,13 +1,26 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 // GET /api/discover/hero?state= — the one-glance money headline for the home hero: how many live GO
 // deals, the total profit on the table, and the single best flip right now. Makes the value the
 // FIRST thing a dealer feels, not something they have to dig for.
 export async function GET(req: NextRequest) {
   const state = new URL(req.url).searchParams.get("state") || "";
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      goCount: 0,
+      totalProfit: 0,
+      shown: 0,
+      top: null,
+      configured: false,
+    });
+  }
+
   const supabase = createServerComponentClient();
 
   let q = supabase

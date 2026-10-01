@@ -1,4 +1,7 @@
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 export type Deal = {
   id: string;
@@ -26,6 +29,7 @@ export type Deal = {
   lastSeenAt: string | Date;
   sourceUrl: string;
   auctionEndAt?: Date;
+  bidCount?: number;
   damageType?: string;
   seller?: string;
   sellerType?: "dealer" | "auction" | "private";
@@ -117,6 +121,7 @@ export class DealsService {
       auctionEndAt: row.auction_end_at
         ? new Date(row.auction_end_at)
         : undefined,
+      bidCount: row.bid_count != null ? Number(row.bid_count) : undefined,
       damageType: row.damage_type,
       seller: row.seller,
       sellerType: row.seller_type,
@@ -223,6 +228,10 @@ export class DealsService {
     total: number;
     hasMore: boolean;
   }> {
+    if (!isSupabaseConfigured()) {
+      return { deals: [], total: 0, hasMore: false };
+    }
+
     let query = this.buildQuery(filters);
 
     if (filters.limit) {
@@ -259,6 +268,10 @@ export class DealsService {
     total: number;
     hasMore: boolean;
   }> {
+    if (!isSupabaseConfigured()) {
+      return { deals: [], total: 0, hasMore: false };
+    }
+
     let query = this.supabase
       .from("deals")
       .select("*", { count: "exact" })
@@ -298,6 +311,10 @@ export class DealsService {
   }
 
   async getHotDeals(limit = 10): Promise<Deal[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
     const { data, error } = await this.supabase
       .from("deals")
       .select("*")
@@ -314,6 +331,10 @@ export class DealsService {
   }
 
   async getDealById(id: string): Promise<Deal | null> {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
     const { data, error } = await this.supabase
       .from("deals")
       .select("*")
@@ -358,10 +379,18 @@ export class DealsService {
   }
 
   async getAvailableSources(): Promise<string[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
     return this.collectDistinctColumn("source");
   }
 
   async getAvailableMakes(): Promise<string[]> {
+    if (!isSupabaseConfigured()) {
+      return [];
+    }
+
     return this.collectDistinctColumn("make");
   }
 }

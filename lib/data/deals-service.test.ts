@@ -12,6 +12,7 @@ const chain = {
 };
 vi.mock("@/lib/supabase", () => ({
   createServerComponentClient: () => ({ from: vi.fn(() => chain) }),
+  isSupabaseConfigured: () => true,
 }));
 
 import { DealsService } from "./deals-service";

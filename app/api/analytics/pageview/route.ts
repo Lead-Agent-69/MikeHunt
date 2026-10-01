@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 // POST /api/analytics/pageview — fire-and-forget page telemetry.
 //
@@ -54,6 +57,10 @@ export async function POST(request: NextRequest) {
     typeof payload.device === "string" && ALLOWED_DEVICES.has(payload.device)
       ? payload.device
       : "unknown";
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ ok: false, skipped: true }, { status: 202 });
+  }
 
   try {
     const supabase = createServerComponentClient();

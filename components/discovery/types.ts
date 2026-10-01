@@ -76,4 +76,5 @@ export interface DiscoverResponse {
   mergedDuplicates: number;
   state: string;
   personalized?: boolean;
+  configured?: boolean;
 }

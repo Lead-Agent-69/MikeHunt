@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 
 // LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
 // without the runtime env, and createClient("","") throws on an empty URL → that top-level call was
@@ -76,10 +78,11 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     firstSeenAt: r.first_seen_at ? new Date(r.first_seen_at) : new Date(),
     lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at) : new Date(),
     sourceUrl: r.source_url || r.sourceUrl || "",
-    auctionEndAt: auctionEndAt ? new Date(auctionEndAt) : undefined,
-    damageType,
     seller,
     sellerType: r.seller_type || undefined,
+    auctionEndAt: auctionEndAt ? new Date(auctionEndAt) : undefined,
+    bidCount: r.bid_count != null ? Number(r.bid_count) : undefined,
+    damageType,
     repair_estimate: repairEst || undefined,
     transport_cost: r.transport_cost ?? undefined,
     is_arbitrage_opportunity: r.is_arbitrage_opportunity ?? undefined,
@@ -94,7 +97,6 @@ export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "scan", limit: 90, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
-  const supabase = db();
   const { searchParams } = new URL(req.url);
   // Sanitize free-text search before it's interpolated into the PostgREST .or() filter — strip
   // anything that isn't a normal vehicle/VIN character so commas/parens can't inject extra filters.
@@ -146,6 +148,23 @@ export async function GET(req: NextRequest) {
     Math.max(12, parseInt(searchParams.get("pageSize") || "48")),
   );
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      vehicles: [],
+      total: 0,
+      state: state || "nationwide",
+      page,
+      pageSize,
+      hasMore: false,
+      isLive: false,
+      message:
+        "Supabase is not configured, so live scan inventory is unavailable.",
+    });
+  }
+
+  const supabase = db();
+
   let query = supabase
     .from("deals")
     .select("*", { count: "exact" })
@@ -163,6 +182,12 @@ export async function GET(req: NextRequest) {
 
   if (states.length) {
     query = query.in("location_state", states);
+  } else if (
+    state &&
+    state.toLowerCase() !== "all" &&
+    state.toLowerCase() !== "nationwide"
+  ) {
+    query = query.eq("location_state", state.toUpperCase());
   }
 
   if (availability) {
@@ -197,7 +222,7 @@ export async function GET(req: NextRequest) {
   if (minMileage > 0) query = query.gte("mileage", minMileage);
   if (maxMileage > 0) query = query.lte("mileage", maxMileage);
 
-  if (source) {
+  if (source && source.toLowerCase() !== "all") {
     query = query.eq("source", source.toLowerCase());
   }
   // Filter to a single curated dealer by its site host (source_url contains it) — powers the per-dealer
@@ -240,7 +265,16 @@ export async function GET(req: NextRequest) {
       "facebook_marketplace",
       "offerup",
       "independent_dealer",
+      "curated_dealers",
     ];
+    const GOVERNMENT = [
+      "publicsurplus",
+      "govdeals",
+      "allsurplus",
+      "municibid",
+      "gsa_auctions",
+    ];
+    const PARTS = ["carparts_com"];
     if (lane === "auction") query = query.in("source", AUCTION);
     else if (lane === "damaged")
       // Salvage + repairable + branded — every fixable/damaged car, any source (incl. auction lots).
@@ -249,6 +283,8 @@ export async function GET(req: NextRequest) {
       );
     else if (lane === "clean-retail") query = query.in("source", RETAIL);
     else if (lane === "private") query = query.in("source", PRIVATE);
+    else if (lane === "government") query = query.in("source", GOVERNMENT);
+    else if (lane === "parts") query = query.in("source", PARTS);
   }
 
   if (category && !source && !titleType) {
@@ -314,18 +350,21 @@ export async function GET(req: NextRequest) {
 // live results come from the deals table via the GET endpoint above.
 export async function POST(req: NextRequest) {
   try {
-    const { searchTerm } = await req.json();
+    const body = await req.json();
+    const searchTerm = body.searchTerm || body.q;
+    const plan = planScrapeForBuyerScope(body.scope || body);
 
     if (!searchTerm) {
       return NextResponse.json(
-        { error: "searchTerm is required" },
+        { error: "searchTerm or q is required" },
         { status: 400 },
       );
     }
 
     return NextResponse.json({
       ok: true,
-      message: `Live scanner is active. Results for "${searchTerm}" stream in automatically as the pipeline finds new deals.`,
+      plan,
+      message: `Smart scan planned for "${searchTerm}". It is limited to ${plan.sourceIds.length} relevant source${plan.sourceIds.length === 1 ? "" : "s"} instead of the whole catalog.`,
     });
   } catch (error: any) {
     console.error("Scan trigger error:", error);

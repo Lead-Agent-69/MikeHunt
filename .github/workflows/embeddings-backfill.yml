@@ -27,10 +27,11 @@ concurrency:
 
 jobs:
   backfill:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 6
     steps:
       - name: Trigger backfill
+        shell: bash
         env:
           # Override with a repo secret if the deployment URL ever changes.
           BASE_URL: ${{ secrets.SITE_URL || 'https://mikehunt-otfbzp7nx-mikehunt.vercel.app' }}

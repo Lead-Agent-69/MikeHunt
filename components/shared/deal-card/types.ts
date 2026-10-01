@@ -27,7 +27,19 @@ export interface DealCardProps {
   /** Price drop information */
   priceDropAmount?: number;
   priceDropDays?: number;
+  auctionEndAt?: string | Date;
+  bidCount?: number;
   firstSeenAt?: string | Date;
+  lastSeenAt?: string | Date;
   imageUrl?: string;
+  vin?: string;
+  sourceUrl?: string;
+  seller?: string;
+  sellerType?: string;
+  dataQuality?: {
+    score: number;
+    label: "Excellent" | "Good" | "Thin" | "Sparse";
+    missing: string[];
+  };
   onClick?: () => void;
 }

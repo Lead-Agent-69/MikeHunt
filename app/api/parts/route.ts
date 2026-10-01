@@ -9,10 +9,12 @@ import { getServerUser } from "@/lib/server-supabase";
 
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 503 },
-    );
+    return NextResponse.json({
+      configured: false,
+      items: [],
+      message:
+        "Supabase is not configured, so saved parts estimates are unavailable.",
+    });
   }
 
   try {
@@ -54,8 +56,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 503 },
+      {
+        configured: false,
+        error:
+          "Supabase is not configured, so parts estimates cannot be saved.",
+      },
+      { status: 400 },
     );
   }
 

@@ -86,6 +86,33 @@ export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
   return items;
 }
 
+export async function previewPublicSurplus(
+  maxPagesPerCat = 1,
+): Promise<Partial<Deal>[]> {
+  const all: Partial<Deal>[] = [];
+  for (const cat of VEHICLE_CATS) {
+    let prevFirst = "";
+    for (let page = 1; page <= maxPagesPerCat; page++) {
+      const res = await fetch(`${BASE}?catid=${cat}&page=${page}`, {
+        headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+      });
+      if (!res.ok) break;
+      const items = parsePublicSurplusHtml(await res.text());
+      if (!items.length) break;
+      const first = items[0].source_deal_id || "";
+      if (first === prevFirst) break;
+      prevFirst = first;
+      all.push(...items);
+    }
+  }
+
+  const byId = new Map<string, Partial<Deal>>();
+  for (const d of all) {
+    if (d.source_deal_id) byId.set(d.source_deal_id, d);
+  }
+  return Array.from(byId.values());
+}
+
 export async function scrapePublicSurplus(maxPagesPerCat = 4): Promise<number> {
   console.log("[PublicSurplus] Starting scrape...");
   const all: Partial<Deal>[] = [];

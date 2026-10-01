@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { categorize } from "@/lib/discovery/categorize";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
@@ -60,6 +63,10 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl);
 
   const state = new URL(req.url).searchParams.get("state")?.toUpperCase();
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ deals: [], count: 0, configured: false });
+  }
+
   const supabase = createServerComponentClient();
 
   let q = supabase

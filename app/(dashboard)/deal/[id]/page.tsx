@@ -370,7 +370,8 @@ export default function DealPage({
               make: serverDeal?.make || store.make,
               model: serverDeal?.model || store.model,
               trim: serverDeal?.trim,
-              askPrice: serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              askPrice:
+                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
               trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
               sellEstimate: serverDeal?.sellEstimate || store.marketValue,
               locationCity: serverDeal?.locationCity,
@@ -395,7 +396,9 @@ export default function DealPage({
                 key={t}
                 onClick={() => store.setUserType(t)}
                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
-                style={store.userType === t ? { background: "var(--grad)" } : {}}
+                style={
+                  store.userType === t ? { background: "var(--grad)" } : {}
+                }
               >
                 {t}
               </button>
@@ -1012,7 +1015,10 @@ export default function DealPage({
           locationState={serverDeal?.locationState}
           vehicleTitle={`${serverDeal.year ?? store.year} ${serverDeal.make ?? store.make} ${serverDeal.model ?? store.model}`.trim()}
           askingPrice={serverDeal.askPrice ?? store.askPrice ?? 0}
-          targetOffer={serverDeal.recommendedMaxBid ?? Math.round((serverDeal.askPrice ?? store.askPrice ?? 0) * 0.9)}
+          targetOffer={
+            serverDeal.recommendedMaxBid ??
+            Math.round((serverDeal.askPrice ?? store.askPrice ?? 0) * 0.9)
+          }
           sellerPhone={serverDeal.contact?.phone}
         />
       )}
@@ -1024,20 +1030,6 @@ export default function DealPage({
           purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
         />
       )}
-
-      {/* REAL-TIME MAX BID & TARGET ROI CALCULATOR — interactive margin solving */}
-      <MaxBidCalculator
-        deal={{
-          year: serverDeal?.year ?? store.year,
-          make: serverDeal?.make ?? store.make,
-          model: serverDeal?.model ?? store.model,
-          askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
-          sellEstimate: serverDeal?.sellEstimate ?? store.marketValue,
-          recommendedMaxBid: serverDeal?.recommendedMaxBid,
-          repairEstimate: store.repairCost,
-          transportEstimate: store.transportCost,
-        }}
-      />
 
       {/* AI PHASE 5: FLOOR PLAN FINANCING & CARRY COST CALCULATOR */}
       {serverDeal && (
@@ -1060,6 +1052,43 @@ export default function DealPage({
           { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
           { id: "ai-brief", content: <AIBrief dealId={id} /> },
           { id: "similar-deals", content: <SimilarDeals dealId={id} /> },
+          {
+            id: "max-bid-calc",
+            content: (
+              <MaxBidCalculator
+                deal={{
+                  year: serverDeal?.year ?? store.year,
+                  make: serverDeal?.make ?? store.make,
+                  model: serverDeal?.model ?? store.model,
+                  askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
+                  sellEstimate: serverDeal?.sellEstimate ?? store.marketValue,
+                  recommendedMaxBid: serverDeal?.recommendedMaxBid,
+                  repairEstimate: store.repairCost,
+                  transportEstimate: store.transportCost,
+                }}
+              />
+            ),
+          },
+          {
+            id: "log-outcome",
+            content: (
+              <LogOutcome
+                dealId={id}
+                year={serverDeal?.year ?? store.year}
+                make={serverDeal?.make ?? store.make}
+                model={serverDeal?.model ?? store.model}
+                defaultPurchase={
+                  serverDeal?.recommendedMaxBid ??
+                  serverDeal?.askPrice ??
+                  store.askPrice
+                }
+                predictedProfit={serverDeal?.trueNetProfit ?? store.netProfit}
+                predictedSell={serverDeal?.sellEstimate ?? store.marketValue}
+                predictedTransport={store.transportCost}
+                predictedRecon={store.reconCost}
+              />
+            ),
+          },
         ]}
       />
 
@@ -1125,9 +1154,17 @@ export default function DealPage({
           make: serverDeal?.make || store.make,
           model: serverDeal?.model || store.model,
           trim: serverDeal?.trim,
-          askPrice: serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+          askPrice:
+            serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
           recommendedMaxBid: serverDeal?.recommendedMaxBid,
-          targetOffer: serverDeal?.recommendedMaxBid ?? Math.round((serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice || 0) * 0.9),
+          targetOffer:
+            serverDeal?.recommendedMaxBid ??
+            Math.round(
+              (serverDeal?.ask_price ||
+                serverDeal?.askPrice ||
+                store.askPrice ||
+                0) * 0.9,
+            ),
           locationCity: serverDeal?.locationCity,
           locationState: serverDeal?.locationState,
           sellerPhone: serverDeal?.contact?.phone,

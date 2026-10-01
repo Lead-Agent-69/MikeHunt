@@ -38,8 +38,15 @@ export const DealCard = memo(function DealCard({
   sellEstimate,
   priceDropAmount,
   priceDropDays,
+  auctionEndAt,
+  bidCount,
   firstSeenAt,
+  lastSeenAt,
   imageUrl,
+  sourceUrl,
+  seller,
+  sellerType,
+  dataQuality,
   onClick,
 }: DealCardProps) {
   const scoreColor = getScoreColor(profitScore);
@@ -48,6 +55,29 @@ export const DealCard = memo(function DealCard({
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
+  const isLivePreview = id.startsWith("live-");
+  const primaryHref = isLivePreview && sourceUrl ? sourceUrl : `/deal/${id}`;
+  const primaryTarget = isLivePreview && sourceUrl ? "_blank" : undefined;
+  const primaryRel = isLivePreview && sourceUrl ? "noreferrer" : undefined;
+  const lastSeenText = lastSeenAt
+    ? new Date(lastSeenAt).toLocaleDateString()
+    : null;
+  const auctionEndText = auctionEndAt
+    ? new Date(auctionEndAt).toLocaleDateString()
+    : null;
+  const actionDetails = [
+    auctionEndText ? `Ends ${auctionEndText}` : null,
+    bidCount != null ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : null,
+    seller ? seller : sellerType ? `${sellerType} seller` : null,
+  ].filter(Boolean);
+  const whyShown = [
+    profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
+    profitScore ? `${profitScore}/100 score` : null,
+    recommendedMaxBid != null
+      ? `$${recommendedMaxBid.toLocaleString()} max bid`
+      : null,
+    sellEstimate != null ? `$${sellEstimate.toLocaleString()} resale` : null,
+  ].filter(Boolean);
   // Zero-cost Deal IQ from fields already on the card. Pass the verdict so the chip can't
   // contradict the GO/PASS pill (a rejected deal never shows a high IQ).
   const iq = liteDealIQ({
@@ -125,6 +155,24 @@ export const DealCard = memo(function DealCard({
               title={`Deal IQ ${iq.score}/100 (${iq.tier})`}
             >
               IQ {iq.score}
+            </span>
+          )}
+          {dataQuality && (
+            <span
+              className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"
+              style={{
+                background:
+                  dataQuality.score >= 68 ? "var(--glo)" : "var(--amber-lo)",
+                color:
+                  dataQuality.score >= 68 ? "var(--green)" : "var(--amber-d)",
+              }}
+              title={
+                dataQuality.missing.length
+                  ? `Missing ${dataQuality.missing.slice(0, 4).join(", ")}`
+                  : "All core listing details are present"
+              }
+            >
+              Data {dataQuality.score}
             </span>
           )}
         </div>
@@ -231,6 +279,48 @@ export const DealCard = memo(function DealCard({
           ) : null}
         </div>
 
+        {dataQuality && dataQuality.missing.length > 0 && (
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                Completeness
+              </span>
+              <span className="text-[10px] font-bold text-[var(--t3)]">
+                {dataQuality.label}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+              Missing {dataQuality.missing.slice(0, 3).join(", ")}
+              {dataQuality.missing.length > 3
+                ? `, +${dataQuality.missing.length - 3}`
+                : ""}
+            </p>
+          </div>
+        )}
+
+        {whyShown.length > 0 && (
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+              Why shown
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+              {whyShown.join(" · ")}
+              {lastSeenText ? ` · seen ${lastSeenText}` : ""}
+            </p>
+          </div>
+        )}
+
+        {actionDetails.length > 0 && (
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+              Listing details
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+              {actionDetails.join(" · ")}
+            </p>
+          </div>
+        )}
+
         {/* Price grid */}
         <div
           className="rounded-[var(--r2)] grid grid-cols-2 gap-3 px-3 py-2.5"
@@ -299,8 +389,21 @@ export const DealCard = memo(function DealCard({
         <span className="text-[11px] text-[var(--t4)] font-medium font-mono truncate">
           #{id.slice(0, 8).toUpperCase()}
         </span>
+        {sourceUrl && (
+          <a
+            href={sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="hidden min-w-0 truncate text-[11px] font-bold text-[var(--t4)] hover:text-[var(--t1)] sm:block"
+          >
+            Source
+          </a>
+        )}
         <motion.a
-          href={`/deal/${id}`}
+          href={primaryHref}
+          target={primaryTarget}
+          rel={primaryRel}
           onClick={(e) => e.stopPropagation()}
           className="flex items-center gap-1.5 text-xs font-bold text-white rounded-[var(--r2)] px-3 py-1.5 shrink-0 border-none"
           style={{
@@ -310,7 +413,7 @@ export const DealCard = memo(function DealCard({
           whileTap={{ scale: 0.95 }}
           transition={{ type: "spring", stiffness: 400, damping: 25 }}
         >
-          View Deal
+          {isLivePreview ? "Open Source" : "View Deal"}
           <svg
             width="10"
             height="10"

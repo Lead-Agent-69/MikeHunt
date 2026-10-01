@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import {
   categorize,
@@ -12,6 +15,8 @@ import {
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
+import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
+import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -83,6 +88,52 @@ function mapDeal(
   };
 }
 
+async function publicPreviewDeals(state?: string, maxPrice?: number) {
+  const [govDeals, publicSurplus] = await Promise.allSettled([
+    previewGovDeals(1),
+    previewPublicSurplus(1),
+  ]);
+  const rows = [
+    ...(govDeals.status === "fulfilled" ? govDeals.value : []),
+    ...(publicSurplus.status === "fulfilled" ? publicSurplus.value : []),
+  ].filter((row: any) => {
+    if (state && row.location_state !== state) return false;
+    if (maxPrice && Number(row.ask_price || 0) > maxPrice) return false;
+    return true;
+  });
+
+  return rows.slice(0, 60).map((row: any) =>
+    mapDeal(
+      {
+        id: `live-discover-${row.source}-${row.source_deal_id || row.source_url}`,
+        source: row.source,
+        source_url: row.source_url,
+        title: row.title,
+        year: row.year,
+        make: row.make,
+        model: row.model,
+        vin: row.vin,
+        mileage: row.mileage,
+        condition: row.condition,
+        damage_type: row.damage_type,
+        ask_price: row.ask_price,
+        location_city: row.location_city,
+        location_state: row.location_state,
+        images: row.images || [],
+        first_seen_at: row.scraped_at || new Date().toISOString(),
+        last_seen_at: row.scraped_at || new Date().toISOString(),
+        auction_end_at: row.auction_end || row.auction_end_at,
+        profit_score: 50,
+        deal_analysis: {
+          sellBasis: "public-preview",
+          soldAnchored: false,
+        },
+      },
+      [],
+    ),
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const rl = rateLimit(request, {
@@ -99,6 +150,34 @@ export async function GET(request: NextRequest) {
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
+
+    if (!isSupabaseConfigured()) {
+      const previewDeals = await cached(
+        `discover:public-preview:${state || "all"}:${maxPrice || 0}`,
+        60_000,
+        () => publicPreviewDeals(state, maxPrice || undefined),
+      );
+      return NextResponse.json({
+        rails: previewDeals.length
+          ? [
+              {
+                key: "public-preview",
+                title: "Live Public Preview",
+                subtitle:
+                  "Real GovDeals and PublicSurplus rows while Supabase import is pending",
+                deals: previewDeals,
+              },
+            ]
+          : [],
+        totalListings: previewDeals.length,
+        uniqueVehicles: previewDeals.length,
+        mergedDuplicates: 0,
+        state: state || "nationwide",
+        personalized: false,
+        configured: false,
+        previewMode: true,
+      });
+    }
 
     // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt

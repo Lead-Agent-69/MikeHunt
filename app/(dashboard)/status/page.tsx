@@ -66,6 +66,7 @@ export default function StatusPage() {
   const breakdown: any[] = data?.sourceBreakdown ?? [];
   const kb = data?.knowledgeBase;
   const acc = data?.valuationAccuracy;
+  const readiness = data?.readiness;
 
   return (
     <div
@@ -88,6 +89,104 @@ export default function StatusPage() {
         </div>
       ) : (
         <>
+          {readiness && (
+            <div className="glass-panel p-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
+                    Real data readiness
+                  </p>
+                  <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+                    {readiness.ready
+                      ? "Core providers are configured."
+                      : "Some production providers still need setup."}
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+                    This is the checklist behind live inventory, Google login,
+                    scraper imports, AI briefs, and source proof.
+                  </p>
+                </div>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-black"
+                  style={{
+                    background: readiness.ready
+                      ? "var(--glo)"
+                      : "var(--amber-lo)",
+                    color: readiness.ready ? "var(--green)" : "var(--amber-d)",
+                  }}
+                >
+                  {readiness.ready ? "READY" : "ACTION NEEDED"}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {readiness.items?.map((item: any) => {
+                  const tone =
+                    item.status === "ready"
+                      ? "var(--green)"
+                      : item.status === "partial"
+                        ? "var(--amber)"
+                        : "var(--red)";
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-black text-[var(--t1)]">
+                          {item.label}
+                        </div>
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase"
+                          style={{ color: tone, border: `1px solid ${tone}55` }}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
+                        {item.detail}
+                      </p>
+                      <p className="mt-2 text-xs font-semibold text-[var(--t2)]">
+                        {item.nextStep}
+                      </p>
+                      {Array.isArray(item.envKeys) &&
+                        item.envKeys.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {item.envKeys.map((key: string) => (
+                              <code
+                                key={key}
+                                className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s0)] px-2 py-1 text-[10px] font-bold text-[var(--t3)]"
+                              >
+                                {key}
+                              </code>
+                            ))}
+                          </div>
+                        )}
+                      {item.unlocks && (
+                        <p className="mt-3 rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2 text-xs leading-relaxed text-[var(--t4)]">
+                          <span className="font-black text-[var(--t2)]">
+                            Unlocks:
+                          </span>{" "}
+                          {item.unlocks}
+                        </p>
+                      )}
+                      {item.setupUrl && item.status !== "ready" && (
+                        <a
+                          href={item.setupUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-3 inline-flex text-xs font-bold text-[var(--amber-d)] hover:underline"
+                        >
+                          Open provider setup
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Freshness */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Stat

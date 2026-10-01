@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
@@ -28,6 +31,10 @@ export async function GET(req: NextRequest) {
     2000,
     Math.max(1, parseInt(sp.get("limit") || "1000", 10) || 1000),
   );
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ points: [], count: 0, configured: false });
+  }
 
   const supabase = createServerComponentClient();
   // Page past the PostgREST 1000-row cap so the map reflects ALL located inventory up to `limit`

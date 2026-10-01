@@ -6,7 +6,10 @@ import React, {
   useRef,
   useMemo,
   useCallback,
+  Suspense,
 } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,7 +27,10 @@ import { sourceMeta, tint } from "@/lib/sources/source-meta";
 import { cn } from "@/lib/utils";
 import { Deal } from "@/lib/data/deals-service";
 import { US_STATES } from "@/lib/utils/titleRules";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { useDealerId } from "@/hooks/useDealerId";
 import { fetcher } from "@/lib/swr-config";
 import {
@@ -32,8 +38,9 @@ import {
   carCategories,
   type CarLike,
 } from "@/lib/scoring/deal-categories";
-import { ArbitrageRadar, ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
-import { NextBestBuyHero } from "@/components/scan/NextBestBuyHero";
+import { ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
+import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
+import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,10 +69,67 @@ interface ScanResult {
   auctionEnds: string;
   priceDropAmount?: number;
   priceDropDays?: number;
+  auctionEndAt?: string | Date;
+  bidCount?: number;
   firstSeenAt?: string | Date;
+  lastSeenAt?: string | Date;
+  imageUrl?: string;
+  vin?: string;
+  sourceUrl?: string;
+  seller?: string;
+  sellerType?: string;
+  dataQuality?: {
+    score: number;
+    label: "Excellent" | "Good" | "Thin" | "Sparse";
+    missing: string[];
+  };
 }
 
+type PreviewProofItem = {
+  id: string;
+  label: string;
+  status: "working" | "no_rows" | "blocked";
+  rows: number;
+  matchedRows: number;
+  detail?: string;
+};
+
+type ImportRunItem = {
+  source: string;
+  success: boolean;
+  dealsFound: number;
+  duration: number;
+  error?: string;
+};
+
+type ReadinessItem = {
+  id: string;
+  label: string;
+  status: "ready" | "missing" | "partial";
+  detail: string;
+  nextStep: string;
+};
+
 function mapDealToResult(deal: Deal): ScanResult {
+  const images = Array.isArray(deal.images) ? deal.images : [];
+  const existingQuality = (deal as any).dataQuality;
+  const quality =
+    existingQuality ||
+    gradeDataQuality({
+      images,
+      imageUrl: images[0],
+      vin: deal.vin,
+      condition: deal.condition,
+      damageType: deal.damageType,
+      mileage: deal.mileage,
+      locationCity: deal.locationCity,
+      locationState: deal.locationState,
+      askPrice: deal.askPrice,
+      seller: deal.seller,
+      sellerType: deal.sellerType,
+      sourceUrl: deal.sourceUrl,
+    });
+
   return {
     id: deal.id,
     source: deal.source,
@@ -93,7 +157,24 @@ function mapDealToResult(deal: Deal): ScanResult {
       : "Active",
     priceDropAmount: deal.priceDropAmount,
     priceDropDays: deal.priceDropDays,
+    auctionEndAt: deal.auctionEndAt,
+    bidCount: (deal as any).bidCount,
     firstSeenAt: deal.firstSeenAt,
+    lastSeenAt: deal.lastSeenAt,
+    imageUrl: images[0],
+    vin: deal.vin,
+    sourceUrl: deal.sourceUrl,
+    seller: deal.seller,
+    sellerType: deal.sellerType,
+    dataQuality: {
+      score: quality.score,
+      label: quality.label,
+      missing: quality.missing.map((field: any) =>
+        typeof field === "string" && field.includes(" ")
+          ? field
+          : fieldLabel(field),
+      ),
+    },
   };
 }
 
@@ -277,21 +358,21 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
         <span
           className="absolute inset-0 rounded-full border-2"
           style={{
-            borderColor: "rgba(255,56,92,0.20)",
+            borderColor: "rgba(37,99,111,0.14)",
             animation: "pulse-ring 2s ease-out infinite",
           }}
         />
         <span
           className="absolute inset-0 rounded-full border-2 scale-75"
           style={{
-            borderColor: "rgba(255,56,92,0.30)",
+            borderColor: "rgba(37,99,111,0.20)",
             animation: "pulse-ring 2s ease-out infinite 0.5s",
           }}
         />
         <span
           className="absolute inset-0 rounded-full border-2 scale-50"
           style={{
-            borderColor: "rgba(255,56,92,0.40)",
+            borderColor: "rgba(37,99,111,0.26)",
             animation: "pulse-ring 2s ease-out infinite 1s",
           }}
         />
@@ -363,6 +444,356 @@ function ErrorState({
   );
 }
 
+function SmartDataPlanCard({
+  configured,
+  total,
+  plan,
+  onPreview,
+  onRun,
+  onLivePreview,
+  previewing,
+  running,
+  livePreviewing,
+  showingPreview,
+  proof,
+  importRun,
+  readinessItems,
+  message,
+}: {
+  configured: boolean;
+  total: number;
+  plan: ReturnType<typeof planScrapeForBuyerScope>;
+  onPreview: () => void;
+  onRun: () => void;
+  onLivePreview: () => void;
+  previewing: boolean;
+  running: boolean;
+  livePreviewing: boolean;
+  showingPreview: boolean;
+  proof: PreviewProofItem[];
+  importRun: ImportRunItem[];
+  readinessItems: ReadinessItem[];
+  message: string | null;
+}) {
+  const ready = configured && total > 0;
+  const importReadiness = readinessItems.filter((item) =>
+    ["supabase", "service-role", "scrape-control", "google-login"].includes(
+      item.id,
+    ),
+  );
+  const proofStyles: Record<PreviewProofItem["status"], string> = {
+    working: "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]",
+    no_rows: "border-[var(--b2)] bg-[var(--s0)] text-[var(--t3)]",
+    blocked:
+      "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+  };
+  const proofLabel: Record<PreviewProofItem["status"], string> = {
+    working: "Working",
+    no_rows: "No rows",
+    blocked: "Blocked",
+  };
+  const importedRows = importRun.reduce(
+    (sum, item) => sum + (item.dealsFound || 0),
+    0,
+  );
+  const importSuccesses = importRun.filter((item) => item.success).length;
+
+  return (
+    <section className="glass-panel p-4 md:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+            Smart data plan
+          </p>
+          <h2 className="text-lg font-black text-[var(--t1)]">
+            {ready
+              ? "Live inventory is being filtered by your buying intent."
+              : showingPreview
+                ? "Showing real public preview rows while setup is pending."
+                : configured
+                  ? "Connected, but this search has no matching live rows yet."
+                  : "Real data is waiting on provider setup."}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+            This view will fetch only the relevant source lane, then normalize
+            photos, VIN, mileage, title, state, price, seller, and source URL
+            into the deal cards.
+          </p>
+          {!configured && (
+            <Link
+              href="/status"
+              className="mt-2 inline-flex text-xs font-bold text-[var(--amber-d)] hover:underline"
+            >
+              Open readiness checklist
+            </Link>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={onPreview}
+            disabled={previewing || running}
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)] transition-transform active:scale-[0.98] disabled:opacity-60"
+          >
+            <Ico name="scan" size={15} />
+            {previewing ? "Planning..." : "Preview source plan"}
+          </button>
+          {!configured && (
+            <button
+              type="button"
+              onClick={onLivePreview}
+              disabled={previewing || running || livePreviewing}
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)] transition-transform active:scale-[0.98] disabled:opacity-60"
+            >
+              <Ico name="search" size={15} />
+              {livePreviewing ? "Fetching..." : "Live public preview"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onRun}
+            disabled={!configured || previewing || running}
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] px-4 py-2.5 text-sm font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
+            style={{ background: "var(--grad)" }}
+            title={
+              configured
+                ? "Run only the selected source lane."
+                : "Connect Supabase and auth before importing live inventory."
+            }
+          >
+            <Ico name="refresh" size={15} />
+            {running ? "Running..." : "Run matching sources"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+            Sources
+          </div>
+          <div className="mt-1 text-base font-black text-[var(--t1)]">
+            {plan.sourceIds.length} selected
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+            {plan.sourceIds.join(", ")}
+          </p>
+        </div>
+        <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+            Scope
+          </div>
+          <div className="mt-1 text-base font-black text-[var(--t1)]">
+            {plan.scope.lane}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+            {plan.filters.state || "Nationwide"} ·{" "}
+            {plan.filters.q || "all vehicles"}
+          </p>
+        </div>
+        <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+            Status
+          </div>
+          <div className="mt-1 text-base font-black text-[var(--t1)]">
+            {configured
+              ? `${total.toLocaleString()} rows`
+              : showingPreview
+                ? `${total.toLocaleString()} preview rows`
+                : "setup needed"}
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+            {configured
+              ? "Scan is querying the live deals table."
+              : showingPreview
+                ? "Preview rows are fetched live and are not saved yet."
+                : "Add real Supabase/Auth keys and run an ingestion job."}
+          </p>
+        </div>
+      </div>
+
+      {message && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-4 py-3 text-sm font-semibold text-[var(--t2)]">
+          {message}
+        </div>
+      )}
+
+      {!configured && importReadiness.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Import readiness
+              </div>
+              <p className="text-xs text-[var(--t4)]">
+                These gates control saved inventory, Google sign-in, and
+                protected scraper runs.
+              </p>
+            </div>
+            <Link
+              href="/status"
+              className="text-xs font-bold text-[var(--accent)] hover:underline"
+            >
+              Setup
+            </Link>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {importReadiness.map((item) => {
+              const ok = item.status === "ready";
+              const partial = item.status === "partial";
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "rounded-[var(--r2)] border px-3 py-2",
+                    ok
+                      ? "border-[var(--gbd)] bg-[var(--glo)]"
+                      : partial
+                        ? "border-[var(--amber-bd)] bg-[var(--amber-lo)]"
+                        : "border-[var(--b2)] bg-[var(--s0)]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-[var(--t1)]">
+                      {item.label}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-wider",
+                        ok
+                          ? "text-[var(--green)]"
+                          : partial
+                            ? "text-[var(--amber-d)]"
+                            : "text-[var(--t5)]",
+                      )}
+                    >
+                      {ok ? "Ready" : partial ? "Needs provider" : "Missing"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+                    {item.nextStep}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {proof.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Source proof
+              </div>
+              <p className="text-xs text-[var(--t4)]">
+                Live preview attempts from this network, before anything is
+                saved.
+              </p>
+            </div>
+            <Link
+              href="/sources"
+              className="text-xs font-bold text-[var(--accent)] hover:underline"
+            >
+              All sources
+            </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {proof.map((item) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "rounded-[var(--r2)] border px-3 py-2 text-xs",
+                  proofStyles[item.status],
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-black text-[var(--t1)]">
+                    {item.label}
+                  </span>
+                  <span className="font-black">{proofLabel[item.status]}</span>
+                </div>
+                <div className="mt-1 font-semibold text-[var(--t3)]">
+                  {item.matchedRows.toLocaleString()} matched ·{" "}
+                  {item.rows.toLocaleString()} read
+                </div>
+                {item.detail && (
+                  <div className="mt-1 line-clamp-2 text-[var(--t4)]">
+                    {item.detail}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {importRun.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Last import run
+              </div>
+              <p className="text-xs text-[var(--t4)]">
+                {importSuccesses}/{importRun.length} sources succeeded ·{" "}
+                {importedRows.toLocaleString()} rows found
+              </p>
+            </div>
+            <Link
+              href="/status"
+              className="text-xs font-bold text-[var(--accent)] hover:underline"
+            >
+              Run health
+            </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {importRun.map((item) => {
+              const ok = item.success;
+              return (
+                <div
+                  key={`${item.source}-${item.duration}`}
+                  className={cn(
+                    "rounded-[var(--r2)] border px-3 py-2 text-xs",
+                    ok
+                      ? "border-[var(--gbd)] bg-[var(--glo)]"
+                      : "border-[var(--amber-bd)] bg-[var(--amber-lo)]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-black text-[var(--t1)]">
+                      {item.source}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-black",
+                        ok ? "text-[var(--green)]" : "text-[var(--amber-d)]",
+                      )}
+                    >
+                      {ok ? "Ready" : "Failed"}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-semibold text-[var(--t3)]">
+                    {(item.dealsFound || 0).toLocaleString()} rows ·{" "}
+                    {Math.round((item.duration || 0) / 1000)}s
+                  </div>
+                  {item.error && (
+                    <div className="mt-1 line-clamp-2 text-[var(--t4)]">
+                      {item.error}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── Filter select ─────────────────────────────────────────────────────────────
 
 function FilterSelect({
@@ -419,7 +850,8 @@ function FilterGroup({
 
 let _toastId = 0;
 
-export default function ScanPage() {
+function ScanPageInner() {
+  const urlParams = useSearchParams();
   const { transitionTo } = useViewTransition();
   const { dealerId, loading: dealerLoading } = useDealerId();
 
@@ -532,6 +964,38 @@ export default function ScanPage() {
   const [minPrice, setMinPrice] = useState("any");
   const [maxYear, setMaxYear] = useState("any");
   const [showMore, setShowMore] = useState(false);
+  const [planPreviewing, setPlanPreviewing] = useState(false);
+  const [runImporting, setRunImporting] = useState(false);
+  const [livePreviewing, setLivePreviewing] = useState(false);
+  const [livePreviewRows, setLivePreviewRows] = useState<any[]>([]);
+  const [livePreviewProof, setLivePreviewProof] = useState<PreviewProofItem[]>(
+    [],
+  );
+  const [importRunProof, setImportRunProof] = useState<ImportRunItem[]>([]);
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = urlParams.get("q");
+    const source = urlParams.get("source");
+    const title = urlParams.get("titleType");
+    const laneParam = urlParams.get("lane");
+    const stateParam = urlParams.get("state");
+    const makeParam = urlParams.get("make");
+    const modelParam = urlParams.get("model");
+    const sortParam = urlParams.get("sort");
+
+    if (q) {
+      setSearchInput(q);
+      setSearch(q);
+    }
+    if (source) setSourceFilter(source);
+    if (title) setTitleType(title);
+    if (laneParam) setLane(laneParam);
+    if (stateParam) setState(stateParam.toUpperCase());
+    if (makeParam) setMake(makeParam);
+    if (modelParam) setModel(modelParam);
+    if (sortParam) setSort(sortParam);
+  }, [urlParams]);
 
   // How many advanced filters are active (shown on the "More filters" button).
   const advancedCount = useMemo(() => {
@@ -573,6 +1037,123 @@ export default function ScanPage() {
     setMadeInUsa(false);
     setDrivetrain("all");
   }, []);
+
+  const searchSummary = useMemo(() => {
+    const laneLabel: Record<string, string> = {
+      all: "all buying lanes",
+      auction: "auction / wholesale",
+      damaged: "salvage & repairable",
+      "clean-retail": "clean retail",
+      private: "private marketplace",
+    };
+    const parts = [
+      search || "all vehicles",
+      laneLabel[lane] || lane,
+      state !== "all" ? state : "nationwide",
+      titleType !== "all" ? `${titleType} title` : null,
+      make !== "all" ? make : null,
+      model !== "all" ? model : null,
+      maxPrice !== "any" ? `under $${maxPrice.replace("k", ",000")}` : null,
+    ].filter(Boolean);
+    return `Searching ${parts.join(" · ")} · sorted by ${sort}`;
+  }, [search, lane, state, titleType, make, model, maxPrice, sort]);
+
+  const smartPlan = useMemo(
+    () =>
+      planScrapeForBuyerScope({
+        q: search,
+        vehicleType:
+          make !== "all"
+            ? [make, model !== "all" ? model : ""].join(" ").trim()
+            : undefined,
+        lane,
+        state: state !== "all" ? state : undefined,
+        make: make !== "all" ? make : undefined,
+        model: model !== "all" ? model : undefined,
+        titleType: titleType !== "all" ? titleType : undefined,
+        maxPrice:
+          maxPrice !== "any" ? Number(maxPrice.replace("k", "000")) : undefined,
+        minYear: minYear !== "any" ? Number(minYear) : undefined,
+        maxMileage:
+          maxMileage !== "any"
+            ? Number(maxMileage.replace("k", "000"))
+            : undefined,
+      }),
+    [
+      search,
+      lane,
+      state,
+      make,
+      model,
+      titleType,
+      maxPrice,
+      minYear,
+      maxMileage,
+    ],
+  );
+
+  const previewSourcePlan = useCallback(async () => {
+    setPlanPreviewing(true);
+    setPlanMessage(null);
+    try {
+      const q =
+        search ||
+        [make !== "all" ? make : "", model !== "all" ? model : ""]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        "all vehicles";
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          q,
+          scope: smartPlan.scope,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data?.error || "Could not preview source plan.");
+      setPlanMessage(data?.message || "Smart source plan is ready.");
+    } catch (error) {
+      setPlanMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not preview source plan.",
+      );
+    } finally {
+      setPlanPreviewing(false);
+    }
+  }, [search, make, model, smartPlan.scope]);
+
+  const fetchLivePreview = useCallback(async () => {
+    setLivePreviewing(true);
+    setPlanMessage(null);
+    try {
+      const params = new URLSearchParams();
+      if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
+      if (smartPlan.scope.lane)
+        params.set("lane", String(smartPlan.scope.lane));
+      if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
+      const res = await fetch(`/api/scan/live-preview?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok)
+        throw new Error(data?.error || "Could not fetch live preview.");
+      setLivePreviewRows(data.vehicles || []);
+      setLivePreviewProof(data.proof || []);
+      setPlanMessage(data.message || "Live public preview loaded.");
+    } catch (error) {
+      setPlanMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not fetch live preview.",
+      );
+    } finally {
+      setLivePreviewing(false);
+    }
+  }, [smartPlan.scope]);
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
   const { data: facets } = useSWR(
@@ -698,23 +1279,111 @@ export default function ScanPage() {
     },
   });
 
+  const { data: systemStatus } = useSWR("/api/system/status", fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 30000,
+  });
+
+  const runMatchingSources = useCallback(async () => {
+    setRunImporting(true);
+    setPlanMessage(null);
+    setImportRunProof([]);
+    try {
+      const res = await fetch("/api/scrape/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: smartPlan.scope,
+          concurrency: Math.min(2, Math.max(1, smartPlan.sourceIds.length)),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error(
+            "Only an admin session or scrape secret can run imports.",
+          );
+        }
+        if (res.status === 503) {
+          throw new Error(data?.error || "Scraper control is not configured.");
+        }
+        throw new Error(data?.error || "Could not run matching sources.");
+      }
+      const runResults = Array.isArray(data.results) ? data.results : [];
+      setImportRunProof(
+        runResults.map((item: any) => ({
+          source: String(item.source || "unknown"),
+          success: Boolean(item.success),
+          dealsFound: Number(item.dealsFound || 0),
+          duration: Number(item.duration || 0),
+          error: item.error ? String(item.error) : undefined,
+        })),
+      );
+      setPlanMessage(
+        `Import finished: ${data.successful || 0}/${data.total || 0} sources succeeded, ${data.totalDeals || 0} rows found.`,
+      );
+      mutate();
+    } catch (error) {
+      setPlanMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not run matching sources.",
+      );
+    } finally {
+      setRunImporting(false);
+    }
+  }, [smartPlan.scope, smartPlan.sourceIds.length, mutate]);
+
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
   const [extra, setExtra] = useState<any[]>([]);
   const [morePage, setMorePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const autoPreviewKeyRef = useRef<string | null>(null);
   useEffect(() => {
     setExtra([]);
     setMorePage(0);
+    setLivePreviewRows([]);
+    setLivePreviewProof([]);
+    setImportRunProof([]);
+    autoPreviewKeyRef.current = null;
   }, [swrKey]);
 
   // Derive state from SWR + the appended pages.
   const results = useMemo(
-    () => [...(swrData?.vehicles || []), ...extra].map(mapDealToResult),
-    [swrData, extra],
+    () =>
+      [...(swrData?.vehicles || []), ...livePreviewRows, ...extra].map(
+        mapDealToResult,
+      ),
+    [swrData, livePreviewRows, extra],
   );
-  const total = swrData?.total || 0;
+  const total = (swrData?.total || 0) + livePreviewRows.length;
   const loading = dealerLoading || swrLoading;
+  const scanConfigured =
+    swrData?.configured === false ? false : isSupabaseConfigured();
+
+  useEffect(() => {
+    if (
+      scanConfigured ||
+      swrLoading ||
+      livePreviewing ||
+      livePreviewRows.length
+    )
+      return;
+    if (!smartPlan.sourceIds.includes("copart")) return;
+    const key = JSON.stringify(smartPlan.scope);
+    if (autoPreviewKeyRef.current === key) return;
+    autoPreviewKeyRef.current = key;
+    fetchLivePreview();
+  }, [
+    scanConfigured,
+    swrLoading,
+    livePreviewing,
+    livePreviewRows.length,
+    smartPlan.sourceIds,
+    smartPlan.scope,
+    fetchLivePreview,
+  ]);
   const hasMore = !loading && !!swrKey && results.length < total;
   const loadMore = useCallback(async () => {
     if (!swrKey || loadingMore || !hasMore) return;
@@ -789,6 +1458,8 @@ export default function ScanPage() {
 
   // Realtime subscription
   useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
     const supabase = createClientComponentClient();
     const channel = supabase
       .channel("scan-realtime")
@@ -1094,9 +1765,23 @@ export default function ScanPage() {
         </button>
         <button
           onClick={() => setIsLaneModeOpen(true)}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 font-black text-black rounded-xl py-3.5 px-6 transition-all border-none bg-[var(--amber)] shadow-[0_0_15px_rgba(255,170,0,0.3)] hover:scale-105"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold rounded-xl py-3.5 px-6 transition-all border hover:-translate-y-0.5"
+          style={{
+            background: "var(--s0)",
+            color: "var(--t2)",
+            borderColor: "var(--b2)",
+            boxShadow: "var(--shadow2)",
+          }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          >
             <path d="M4 7V4h16v3M9 20h6M12 4v16" />
           </svg>
           Lane Mode
@@ -1110,6 +1795,27 @@ export default function ScanPage() {
         total={total}
         results={results}
         lastScan={lastScan}
+      />
+
+      <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-2.5 text-xs font-semibold text-[var(--t3)]">
+        {searchSummary}
+      </div>
+
+      <SmartDataPlanCard
+        configured={scanConfigured}
+        total={total}
+        plan={smartPlan}
+        onPreview={previewSourcePlan}
+        onRun={runMatchingSources}
+        onLivePreview={fetchLivePreview}
+        previewing={planPreviewing}
+        running={runImporting}
+        livePreviewing={livePreviewing}
+        showingPreview={!scanConfigured && livePreviewRows.length > 0}
+        proof={livePreviewProof}
+        importRun={importRunProof}
+        readinessItems={systemStatus?.readiness?.items || []}
+        message={planMessage}
       />
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
@@ -1191,13 +1897,14 @@ export default function ScanPage() {
           <button
             type="button"
             onClick={() => setIsSimulatorOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 text-white shadow-sm hover:scale-[1.02]"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
             style={{
-              background: "linear-gradient(135deg, var(--amber), var(--purple))",
-              borderColor: "transparent",
+              background: "var(--s0)",
+              color: "var(--t2)",
+              borderColor: "var(--b2)",
             }}
           >
-            🧮 Profit Simulator
+            Profit Simulator
           </button>
 
           {/* Results count + density */}
@@ -1459,14 +2166,6 @@ export default function ScanPage() {
         })}
       </div>
 
-      {/* #1 Highest Profit Recommendation Hero Spotlight */}
-      <NextBestBuyHero
-        onOpenSimulator={() => setIsSimulatorOpen(true)}
-      />
-
-      {/* Cross-State Arbitrage Radar */}
-      <ArbitrageRadar />
-
       {/* ── Results grid ── */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1493,7 +2192,9 @@ export default function ScanPage() {
           className={gridClass}
           variants={{
             hidden: {},
-            show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+            show: {
+              transition: { staggerChildren: 0.06, delayChildren: 0.05 },
+            },
           }}
           initial="hidden"
           animate="show"
@@ -1503,7 +2204,16 @@ export default function ScanPage() {
               key={car.id}
               variants={{
                 hidden: { opacity: 0, y: 20, scale: 0.97 },
-                show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring" as const, stiffness: 120, damping: 18 } },
+                show: {
+                  opacity: 1,
+                  y: 0,
+                  scale: 1,
+                  transition: {
+                    type: "spring" as const,
+                    stiffness: 120,
+                    damping: 18,
+                  },
+                },
               }}
             >
               <DealCard
@@ -1529,8 +2239,23 @@ export default function ScanPage() {
                 sellEstimate={car.sellEstimate}
                 priceDropAmount={car.priceDropAmount}
                 priceDropDays={car.priceDropDays}
+                auctionEndAt={car.auctionEndAt}
+                bidCount={car.bidCount}
                 firstSeenAt={car.firstSeenAt}
-                onClick={() => transitionTo(`/deal/${car.id}`)}
+                lastSeenAt={car.lastSeenAt}
+                imageUrl={car.imageUrl}
+                vin={car.vin}
+                sourceUrl={car.sourceUrl}
+                seller={car.seller}
+                sellerType={car.sellerType}
+                dataQuality={car.dataQuality}
+                onClick={() => {
+                  if (car.id.startsWith("live-") && car.sourceUrl) {
+                    window.open(car.sourceUrl, "_blank", "noopener,noreferrer");
+                    return;
+                  }
+                  transitionTo(`/deal/${car.id}`);
+                }}
               />
             </motion.div>
           ))}
@@ -1554,10 +2279,10 @@ export default function ScanPage() {
 
       {/* Toasts */}
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
-      
-      <LaneModeHUD 
-        isOpen={isLaneModeOpen} 
-        onClose={() => setIsLaneModeOpen(false)} 
+
+      <LaneModeHUD
+        isOpen={isLaneModeOpen}
+        onClose={() => setIsLaneModeOpen(false)}
       />
 
       <ProfitSimulatorDrawer
@@ -1565,5 +2290,19 @@ export default function ScanPage() {
         onClose={() => setIsSimulatorOpen(false)}
       />
     </div>
+  );
+}
+
+export default function ScanPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="glass-panel p-6 text-sm text-[var(--t3)]">
+          Loading scanner…
+        </div>
+      }
+    >
+      <ScanPageInner />
+    </Suspense>
   );
 }

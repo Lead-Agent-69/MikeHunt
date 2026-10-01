@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 // "Continue with Google" — kicks off Supabase OAuth (PKCE). On success the browser is redirected to
 // Google, then back to /auth/callback?next=…, which exchanges the code and lands on the deal feed.
@@ -15,8 +18,15 @@ export function GoogleButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClientComponentClient();
+  const configured = isSupabaseConfigured();
 
   const onClick = async () => {
+    if (!configured) {
+      setError(
+        "Google sign-in needs real Supabase URL, anon key, and Google OAuth provider setup.",
+      );
+      return;
+    }
     setLoading(true);
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({
@@ -38,11 +48,15 @@ export function GoogleButton({
       <button
         type="button"
         onClick={onClick}
-        disabled={loading}
+        disabled={loading || !configured}
         className="w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <GoogleG />
-        {loading ? "Connecting…" : label}
+        {loading
+          ? "Connecting…"
+          : configured
+            ? label
+            : "Google sign-in not configured"}
       </button>
       {error && (
         <p className="text-xs text-center text-[var(--red)]">{error}</p>

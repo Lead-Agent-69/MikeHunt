@@ -2,7 +2,15 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Send, CheckCircle, Bot, PhoneCall, ShieldCheck, FileText } from "lucide-react";
+import {
+  MessageSquare,
+  Send,
+  CheckCircle,
+  Bot,
+  PhoneCall,
+  ShieldCheck,
+  FileText,
+} from "lucide-react";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 
 export function AutonomousSellerNegotiator({
@@ -10,10 +18,10 @@ export function AutonomousSellerNegotiator({
   vin,
   locationCity,
   locationState,
-  vehicleTitle = "2021 BMW M3 Competition",
-  askingPrice = 62500,
-  targetOffer = 57000,
-  sellerPhone = "(214) 555-0198",
+  vehicleTitle = "this vehicle",
+  askingPrice = 0,
+  targetOffer = 0,
+  sellerPhone = "",
 }: {
   dealId?: string;
   vin?: string;
@@ -35,7 +43,7 @@ export function AutonomousSellerNegotiator({
     {
       id: "1",
       sender: "bot",
-      text: `Hi! I saw your ${vehicleTitle} listed for $${askingPrice.toLocaleString()}. I'm a verified buyer ready to fund $${offerAmount.toLocaleString()} cash today with $${depositAmount.toLocaleString()} instant wire deposit. Can close within ${closingHours} hours.`,
+      text: `Draft only: Hi, I saw your ${vehicleTitle}${askingPrice ? ` listed for $${askingPrice.toLocaleString()}` : ""}. I'm a verified buyer ready to fund ${offerAmount ? `$${offerAmount.toLocaleString()}` : "a market-based cash offer"} today with ${depositAmount ? `$${depositAmount.toLocaleString()}` : "a"} deposit. Can close within ${closingHours} hours.`,
       time: "10:14 AM",
     },
   ]);
@@ -49,9 +57,12 @@ export function AutonomousSellerNegotiator({
         ...prev,
         {
           id: Date.now().toString(),
-          sender: "seller",
-          text: `Hey! Thanks for the offer. Could you do $58,500 if we close before 3 PM today?`,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          sender: "bot",
+          text: "Draft saved locally. Real SMS/Messenger sending and seller replies require a connected messaging provider.",
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         },
       ]);
     }, 1200);
@@ -65,9 +76,12 @@ export function AutonomousSellerNegotiator({
             <Bot className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-black text-[var(--t1)]">Autonomous Seller Negotiator</h3>
+            <h3 className="text-lg font-black text-[var(--t1)]">
+              Autonomous Seller Negotiator
+            </h3>
             <p className="text-xs text-[var(--t4)]">
-              AI-driven SMS & Messenger cash outreach bot with parameter constraints
+              AI-driven SMS & Messenger cash outreach bot with parameter
+              constraints
             </p>
           </div>
         </div>
@@ -83,7 +97,9 @@ export function AutonomousSellerNegotiator({
         <div className="lg:col-span-5 space-y-4">
           <div className="p-4 rounded-2xl border border-[var(--b2)] bg-[var(--s1)] space-y-3 font-mono text-xs">
             <div>
-              <label className="text-[var(--t4)] block mb-1">Target Opening Cash Offer ($)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Target Opening Cash Offer ($)
+              </label>
               <input
                 type="number"
                 value={offerAmount}
@@ -93,7 +109,9 @@ export function AutonomousSellerNegotiator({
             </div>
 
             <div>
-              <label className="text-[var(--t4)] block mb-1">Immediate Wire Deposit ($)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Immediate Wire Deposit ($)
+              </label>
               <input
                 type="number"
                 value={depositAmount}
@@ -103,7 +121,9 @@ export function AutonomousSellerNegotiator({
             </div>
 
             <div>
-              <label className="text-[var(--t4)] block mb-1">Guaranteed Closing Time (Hours)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Guaranteed Closing Time (Hours)
+              </label>
               <input
                 type="number"
                 value={closingHours}
@@ -120,7 +140,9 @@ export function AutonomousSellerNegotiator({
             style={{ background: "var(--grad)" }}
           >
             <Send className="w-4 h-4" />
-            {isSending ? "Dispatching SMS Bot..." : "Dispatch Automated Offer SMS →"}
+            {isSending
+              ? "Dispatching SMS Bot..."
+              : "Dispatch Automated Offer SMS →"}
           </button>
 
           <button
@@ -149,14 +171,17 @@ export function AutonomousSellerNegotiator({
                 >
                   <p className="leading-relaxed">{msg.text}</p>
                 </div>
-                <span className="text-[10px] text-[var(--t5)] mt-1 font-mono">{msg.time}</span>
+                <span className="text-[10px] text-[var(--t5)] mt-1 font-mono">
+                  {msg.time}
+                </span>
               </div>
             ))}
           </div>
 
           <div className="pt-3 border-t border-[var(--b2)] flex items-center justify-between text-[11px] font-mono text-[var(--t4)]">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#00ff66]" /> Verified Buyer Protocol Active
+              <ShieldCheck className="w-3.5 h-3.5 text-[#00ff66]" /> Verified
+              Buyer Protocol Active
             </span>
             <span>SMS Transport: Twilio Cloud</span>
           </div>

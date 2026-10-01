@@ -1,8 +1,11 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
@@ -13,14 +16,42 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [readiness, setReadiness] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    if (isSupabaseConfigured()) return;
+    fetch("/api/system/status")
+      .then((res) => res.json())
+      .then((data) => setReadiness(data?.readiness || null))
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    if (!isSupabaseConfigured()) {
+      const res = await fetch("/api/auth/demo-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || "Failed to start a local demo session.");
+        setLoading(false);
+        return;
+      }
+
+      router.push("/discover");
+      router.refresh();
+      return;
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -60,7 +91,10 @@ export default function LoginPage() {
         <div className="glass-panel p-8 sm:p-10 flex flex-col gap-6">
           {/* Header */}
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "var(--grad)" }}>
+            <div
+              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+              style={{ background: "var(--grad)" }}
+            >
               <Ico name="users" size={32} className="text-white" />
             </div>
             <h1 className="text-3xl font-bold text-[var(--t1)] mb-2">
@@ -88,6 +122,40 @@ export default function LoginPage() {
 
           {/* Social Login */}
           <GoogleButton next="/discover" />
+          {readiness && !readiness.ready && (
+            <div className="rounded-[var(--r3)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4">
+              <div className="text-sm font-black text-[var(--t1)]">
+                Real data setup needed
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+                Google login and live inventory are waiting on production
+                provider setup.
+              </p>
+              <div className="mt-3 space-y-2">
+                {readiness.items
+                  ?.filter((item: any) => item.status !== "ready")
+                  .slice(0, 3)
+                  .map((item: any) => (
+                    <div
+                      key={item.id}
+                      className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-bold text-[var(--t2)]">
+                          {item.label}
+                        </span>
+                        <span className="text-[10px] font-black uppercase text-[var(--amber-d)]">
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+                        {item.nextStep}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
           <OrDivider label="or continue with email" />
 
           {/* Form */}
@@ -107,7 +175,7 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
+              required={isSupabaseConfigured()}
               placeholder="••••••••••"
               className="text-base"
             />
@@ -147,11 +215,17 @@ export default function LoginPage() {
             </p>
             <p className="text-xs text-[var(--t5)]">
               By signing in, you agree to our{" "}
-              <Link href="/tos" className="text-[var(--t4)] hover:text-[var(--t1)]">
+              <Link
+                href="/tos"
+                className="text-[var(--t4)] hover:text-[var(--t1)]"
+              >
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="/privacy" className="text-[var(--t4)] hover:text-[var(--t1)]">
+              <Link
+                href="/privacy"
+                className="text-[var(--t4)] hover:text-[var(--t1)]"
+              >
                 Privacy Policy
               </Link>
             </p>

@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 // The account menu present on every app surface — jump to settings and LOG OUT. `floating` (default) pins
 // it top-right; pass floating={false} to drop it inline into a nav bar's right side.
@@ -22,7 +25,12 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
 
   async function logout() {
     try {
-      await createClientComponentClient().auth.signOut();
+      if (isSupabaseConfigured()) {
+        await createClientComponentClient().auth.signOut();
+      } else {
+        window.location.assign("/api/auth/demo-logout?next=/login");
+        return;
+      }
     } catch {
       /* best-effort */
     }

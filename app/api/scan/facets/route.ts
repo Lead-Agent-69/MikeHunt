@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // GET /api/scan/facets?state=TX          → all makes (+ states/years) that have live inventory
@@ -14,6 +17,15 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const state = searchParams.get("state")?.toUpperCase();
   const make = searchParams.get("make")?.trim();
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      makes: [],
+      states: [],
+      years: [],
+      models: make && make !== "all" ? [] : undefined,
+    });
+  }
   const supabase = createServerComponentClient();
 
   // ── CASCADE: models for one make ──────────────────────────────────────────

@@ -40,35 +40,37 @@ export type NavGroup = { group: string; items: NavItem[] };
 
 /** The daily-driver routes. Desktop shows all of them; mobile shows the first MOBILE_TAB_COUNT. */
 export const PRIMARY: NavItem[] = [
-  { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Feed", href: "/feed", icon: Flame },
-  { name: "Scan", href: "/scan", icon: Search },
-  { name: "Market", href: "/market", icon: SlidersHorizontal },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-  { name: "Fleet", href: "/fleet", icon: Clock },
+  { name: "Find", href: "/discover", icon: Compass },
+  { name: "Analyze", href: "/scan", icon: Search },
+  { name: "Watch", href: "/saved", icon: BellRing },
+  { name: "Operate", href: "/fleet", icon: Clock },
 ];
 
 /** How many PRIMARY tabs the mobile bottom bar can fit before the "More" button. */
-export const MOBILE_TAB_COUNT = 5;
+export const MOBILE_TAB_COUNT = 4;
 
 export const MORE_GROUPS: NavGroup[] = [
   {
-    group: "Find deals",
+    group: "Source",
     items: [
-      { name: "Next Best Buy", href: "/best-buy", icon: Flame },
+      { name: "Sources", href: "/sources", icon: Store },
+      { name: "Feed", href: "/feed", icon: Flame },
       { name: "Swipe", href: "/swipe", icon: Layers },
-      { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
       { name: "Map", href: "/map", icon: MapPin },
-      { name: "Today", href: "/today", icon: CalendarDays },
       { name: "Flash deals", href: "/flash-deals", icon: Zap },
-      { name: "Compare", href: "/compare", icon: Columns3 },
       { name: "Dealer network", href: "/dealer-network", icon: Store },
       { name: "Find", href: "/find", icon: Search },
     ],
   },
   {
-    group: "Analyze",
+    group: "Decide",
     items: [
+      { name: "Next Best Buy", href: "/best-buy", icon: Flame },
+      { name: "Deal Check", href: "/deal-check", icon: FileCheck },
+      { name: "Market", href: "/market", icon: SlidersHorizontal },
+      { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
+      { name: "Compare", href: "/compare", icon: Columns3 },
+      { name: "Today", href: "/today", icon: CalendarDays },
       { name: "Intel", href: "/insights", icon: TrendingUp },
       { name: "Parts", href: "/parts", icon: Wrench },
     ],
@@ -92,8 +94,6 @@ export const MORE_GROUPS: NavGroup[] = [
       { name: "Settings", href: "/settings", icon: Settings },
       { name: "Upgrade", href: "/upgrade", icon: Sparkles },
       { name: "What's new", href: "/changelog", icon: FileText },
-      { name: "Showcase", href: "/showcase", icon: Sparkles },
-      { name: "Sources", href: "/sources", icon: Store },
     ],
   },
 ];

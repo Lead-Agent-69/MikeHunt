@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
 
 // High-velocity liquidity models (turn in under 18 days on average)
@@ -71,6 +74,15 @@ export async function GET(req: NextRequest) {
   const state = searchParams.get("state")?.trim().toUpperCase() || "";
   const minMargin = parseFloat(searchParams.get("minMargin") || "10");
   const strategy = searchParams.get("strategy") || "max_roi"; // 'max_roi' | 'max_profit' | 'fastest_flip'
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      bestBuy: null,
+      runnerUps: [],
+      stats: { totalConsidered: 0, avgRoi: 0, maxProfit: 0 },
+      configured: false,
+    });
+  }
 
   const supabase = createServerComponentClient();
 

@@ -1,7 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { categorize } from "@/lib/discovery/categorize";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 
@@ -54,6 +57,15 @@ export async function GET(request: NextRequest) {
       Math.max(parseInt(searchParams.get("limit") || "24", 10) || 24, 1),
       100,
     );
+
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({
+        deals: [],
+        count: 0,
+        state: state || "nationwide",
+        configured: false,
+      });
+    }
 
     const supabase = createServerComponentClient();
     let q = supabase.from("flash_deals").select("*").limit(limit);

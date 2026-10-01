@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -13,12 +14,516 @@ import {
   type SourceCategory,
   type SourceType,
 } from "@/lib/scrapers/sources-registry";
-import { hasScraper, scraperCoverage } from "@/lib/scrapers/source-index";
+import {
+  hasScraper,
+  normalizeSourceId,
+  scraperCoverage,
+} from "@/lib/scrapers/source-index";
+import {
+  CURATED_SITES,
+  SITE_TYPE_META,
+  type CuratedSiteType,
+} from "@/lib/scrapers/curated-sites";
 import { cn } from "@/lib/utils";
+
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to load source health");
+    return res.json();
+  });
 
 // Computed once at module scope: how much of the researched catalog is actually wired into the
 // live scraper runner. Safe here — scraperCoverage() only reads the two static registries.
 const COVERAGE = scraperCoverage();
+
+const SETUP_LANES = [
+  {
+    label: "Salvage / repairable",
+    category: "salvage",
+    sources: ["copart", "iaa", "curated_dealers"],
+    purpose:
+      "Damaged, rebuildable, insurance-total vehicles, and small dealer lots.",
+  },
+  {
+    label: "Wholesale dealer auctions",
+    category: "dealer-auction",
+    sources: ["manheim", "adesa", "acv"],
+    purpose: "Dealer-only lanes and wholesale pricing.",
+  },
+  {
+    label: "Private marketplace",
+    category: "online-marketplace",
+    sources: ["craigslist", "facebook-marketplace", "offerup", "ebay-motors"],
+    purpose: "Owner and marketplace arbitrage.",
+  },
+  {
+    label: "Retail dealer listings",
+    category: "retail",
+    sources: ["cars-com", "cargurus", "autotrader", "truecar"],
+    purpose: "Retail comps and clean-title inventory.",
+  },
+  {
+    label: "Repo / government",
+    category: "government-surplus",
+    sources: [
+      "gsa-auctions",
+      "publicsurplus",
+      "govdeals",
+      "allsurplus",
+      "municibid",
+    ],
+    purpose: "Fleet, municipal, seized, and surplus supply.",
+  },
+  {
+    label: "Parts / teardown",
+    category: "parts",
+    sources: ["carparts-com", "car-parts-com"],
+    purpose: "Part-out values and recon cost signals.",
+  },
+] as const;
+
+const FEATURED_SMALL_DEALERS = [
+  "A&E of Miami",
+  "Damage.com",
+  "D & G Auto",
+  "ReCar",
+  "St. James Auto & Truck (Rebuilders)",
+] as const;
+
+const curatedByType = CURATED_SITES.reduce(
+  (acc, site) => {
+    acc[site.type] = (acc[site.type] || 0) + 1;
+    return acc;
+  },
+  {} as Record<CuratedSiteType, number>,
+);
+
+const curatedStateCount = new Set(
+  CURATED_SITES.map((site) => site.state).filter(Boolean),
+).size;
+const featuredDealerRows = FEATURED_SMALL_DEALERS.map((name) =>
+  CURATED_SITES.find((site) => site.name === name),
+).filter(Boolean);
+
+function readinessLabel(value: string | undefined) {
+  const labels: Record<string, string> = {
+    ready: "Ready",
+    no_rows: "No rows",
+    blocked: "Blocked",
+    needs_run: "Needs run",
+    needs_login: "Needs login",
+    disabled: "Disabled",
+    not_configured: "Needs database",
+  };
+  return labels[value || ""] || "Unknown";
+}
+
+function SetupOverview({ health }: { health: any }) {
+  const healthById = new Map(
+    (health?.sources || []).map((s: any) => [normalizeSourceId(s.id), s]),
+  );
+  const configured = health?.configured !== false;
+
+  return (
+    <section className="space-y-4 mb-6">
+      <div className="glass-panel p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+              Data setup
+            </p>
+            <h2 className="text-xl font-black text-[var(--t1)]">
+              Connect one lane, import rows, then Scan becomes useful.
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+              Adoption depends on trust: users need to see which sources are
+              connected, when they last ran, and why inventory is empty. Start
+              with one low-friction lane, then expand.
+            </p>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3 text-sm">
+            <div className="font-bold text-[var(--t1)]">
+              {configured ? "Database connected" : "Database not connected"}
+            </div>
+            <div className="text-xs text-[var(--t4)]">
+              {health?.enabled || 0} enabled runner sources ·{" "}
+              {health?.healthy || 0} healthy
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+              Step 1
+            </div>
+            <div className="mt-1 font-bold text-[var(--t1)]">Pick a lane</div>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              Choose salvage, wholesale, private, retail, repo, or parts.
+            </p>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+              Step 2
+            </div>
+            <div className="mt-1 font-bold text-[var(--t1)]">
+              Configure credentials
+            </div>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              Add required account, dealer license, proxy, or API settings.
+            </p>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-[var(--t5)]">
+              Step 3
+            </div>
+            <div className="mt-1 font-bold text-[var(--t1)]">
+              Run and verify
+            </div>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              Rows imported should appear in Scan with source, price, state, and
+              VIN where available.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {SETUP_LANES.map((lane) => {
+          const catalog = ALL_SOURCES.filter(
+            (source) => source.category === lane.category,
+          );
+          const live = lane.sources.filter((id) => hasScraper(id));
+          const lastRuns = lane.sources
+            .map((id) => healthById.get(normalizeSourceId(id)) as any)
+            .filter(Boolean);
+          const activeRows = lastRuns.reduce(
+            (sum, row: any) => sum + (row.activeRows || 0),
+            0,
+          );
+          const photoRows = lastRuns.reduce(
+            (sum, row: any) => sum + (row.rowsWithPhotos || 0),
+            0,
+          );
+          const qualityRows = lastRuns.filter(
+            (row: any) => row.averageQuality > 0,
+          );
+          const avgQuality = qualityRows.length
+            ? Math.round(
+                qualityRows.reduce(
+                  (sum: number, row: any) => sum + row.averageQuality,
+                  0,
+                ) / qualityRows.length,
+              )
+            : 0;
+          const laneReadiness = !configured
+            ? "not_configured"
+            : lastRuns.some((row: any) => row.readiness === "ready")
+              ? "ready"
+              : lastRuns.some((row: any) => row.readiness === "blocked")
+                ? "blocked"
+                : lastRuns.some((row: any) => row.readiness === "needs_login")
+                  ? "needs_login"
+                  : lastRuns.some((row: any) => row.readiness === "no_rows")
+                    ? "no_rows"
+                    : lastRuns.some((row: any) => row.readiness === "needs_run")
+                      ? "needs_run"
+                      : undefined;
+          const hasCredentials = catalog.some(
+            (source) => source.authRequired !== "none",
+          );
+          const status = !configured
+            ? "Needs database"
+            : live.length
+              ? readinessLabel(laneReadiness)
+              : "Needs scraper";
+
+          return (
+            <div key={lane.label} className="glass-panel p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-black text-[var(--t1)]">
+                    {lane.label}
+                  </h3>
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+                    {lane.purpose}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-1 text-[10px] font-bold text-[var(--t3)]">
+                  {status}
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="rounded-[var(--r2)] bg-[var(--s1)] p-2">
+                  <div className="font-black text-[var(--t1)]">
+                    {catalog.length}
+                  </div>
+                  <div className="text-[var(--t5)]">catalogued</div>
+                </div>
+                <div className="rounded-[var(--r2)] bg-[var(--s1)] p-2">
+                  <div className="font-black text-[var(--t1)]">
+                    {live.length}
+                  </div>
+                  <div className="text-[var(--t5)]">runners</div>
+                </div>
+                <div className="rounded-[var(--r2)] bg-[var(--s1)] p-2">
+                  <div className="font-black text-[var(--t1)]">
+                    {activeRows}
+                  </div>
+                  <div className="text-[var(--t5)]">live rows</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] p-2">
+                  <div className="font-black text-[var(--t1)]">{photoRows}</div>
+                  <div className="text-[var(--t5)]">with photos</div>
+                </div>
+                <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] p-2">
+                  <div className="font-black text-[var(--t1)]">
+                    {avgQuality || "—"}
+                  </div>
+                  <div className="text-[var(--t5)]">avg quality</div>
+                </div>
+              </div>
+              <div className="text-xs text-[var(--t4)]">
+                {hasCredentials
+                  ? "Credentials or account access may be required."
+                  : "Can start with public/no-auth sources where runners exist."}
+              </div>
+              <button
+                onClick={() => {
+                  const first = catalog[0]?.category || "all";
+                  window.dispatchEvent(
+                    new CustomEvent("mh-source-category", { detail: first }),
+                  );
+                }}
+                className="w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-bold text-[var(--t2)]"
+              >
+                View lane sources
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function IndependentDealerCoverage() {
+  return (
+    <section className="glass-panel mb-6 overflow-hidden">
+      <div className="border-b border-[var(--b1)] p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+              Independent dealer network
+            </p>
+            <h2 className="text-xl font-black text-[var(--t1)]">
+              Small shops are covered through one smart fan-out runner.
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+              AE of Miami, Damage.com, D&G Auto, ReCar, and St. James are
+              present in the curated dealer catalog. They run through{" "}
+              <span className="font-bold text-[var(--t2)]">
+                curated_dealers
+              </span>
+              , not as five separate runner IDs, so buyer intent can include the
+              whole small-dealer lane without overloading the database.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
+              <div className="text-lg font-black text-[var(--t1)]">
+                {CURATED_SITES.length}
+              </div>
+              <div className="text-[var(--t5)]">sites</div>
+            </div>
+            <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
+              <div className="text-lg font-black text-[var(--t1)]">
+                {curatedStateCount}
+              </div>
+              <div className="text-[var(--t5)]">states</div>
+            </div>
+            <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
+              <div className="text-lg font-black text-[var(--t1)]">1</div>
+              <div className="text-[var(--t5)]">runner</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 p-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            Object.entries(SITE_TYPE_META) as Array<
+              [CuratedSiteType, (typeof SITE_TYPE_META)[CuratedSiteType]]
+            >
+          ).map(([type, meta]) => (
+            <div
+              key={type}
+              className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black text-[var(--t1)]">
+                  {meta.label}
+                </div>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-black text-[#050507]"
+                  style={{ background: meta.accent }}
+                >
+                  {curatedByType[type] || 0}
+                </span>
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+                {meta.blurb}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-black text-[var(--t1)]">
+              Requested shops
+            </div>
+            <span className="rounded-full border border-[var(--green)]/40 bg-[var(--green)]/10 px-2 py-0.5 text-[10px] font-black text-[var(--green)]">
+              cataloged
+            </span>
+          </div>
+          <div className="space-y-2">
+            {featuredDealerRows.map((site) => (
+              <div
+                key={site!.url}
+                className="flex items-center justify-between gap-3 rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-bold text-[var(--t2)]">
+                    {site!.name}
+                  </div>
+                  <div className="truncate text-[10px] text-[var(--t5)]">
+                    {site!.state || "multi-state"} ·{" "}
+                    {SITE_TYPE_META[site!.type].label}
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full border border-[var(--b1)] px-2 py-0.5 text-[10px] font-bold text-[var(--t4)]">
+                  curated_dealers
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SourceProofPanel({ health }: { health: any }) {
+  const sources = (health?.sources || []) as any[];
+  const summary = {
+    ready: sources.filter((s) => s.readiness === "ready").length,
+    blocked: sources.filter((s) => s.readiness === "blocked").length,
+    noRows: sources.filter((s) => s.readiness === "no_rows").length,
+    needsRun: sources.filter((s) => s.readiness === "needs_run").length,
+    needsLogin: sources.filter((s) => s.readiness === "needs_login").length,
+  };
+  const visible = [...sources]
+    .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))
+    .slice(0, 10);
+
+  return (
+    <section className="glass-panel mb-6 p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+            Source proof
+          </p>
+          <h2 className="text-xl font-black text-[var(--t1)]">
+            Working, blocked, empty, and fresh sources are separated.
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+            Each source reports operational health plus inventory proof: rows,
+            photos, average detail quality, and the newest listing seen.
+          </p>
+        </div>
+        <div className="grid grid-cols-5 gap-2 text-center text-xs">
+          <div className="rounded-[var(--r3)] border border-[var(--green)]/30 bg-[var(--green)]/10 px-3 py-2">
+            <div className="font-black text-[var(--green)]">
+              {summary.ready}
+            </div>
+            <div className="text-[var(--t5)]">ready</div>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--red)]/25 bg-[var(--red)]/10 px-3 py-2">
+            <div className="font-black text-[var(--red)]">
+              {summary.blocked}
+            </div>
+            <div className="text-[var(--t5)]">blocked</div>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">{summary.noRows}</div>
+            <div className="text-[var(--t5)]">no rows</div>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">
+              {summary.needsRun}
+            </div>
+            <div className="text-[var(--t5)]">needs run</div>
+          </div>
+          <div className="rounded-[var(--r3)] border border-[var(--amber)]/30 bg-[var(--amber)]/10 px-3 py-2">
+            <div className="font-black text-[var(--amber-d)]">
+              {summary.needsLogin}
+            </div>
+            <div className="text-[var(--t5)]">login</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[760px] divide-y divide-[var(--b1)] rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)]">
+          <div className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr_0.8fr_1fr] gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+            <div>Source</div>
+            <div>Status</div>
+            <div>Rows</div>
+            <div>Photos</div>
+            <div>Quality</div>
+            <div>Newest seen</div>
+          </div>
+          {visible.map((source) => (
+            <div
+              key={source.id}
+              className="grid grid-cols-[1.4fr_0.8fr_0.7fr_0.7fr_0.8fr_1fr] gap-3 px-3 py-2 text-xs"
+            >
+              <div className="min-w-0">
+                <div className="truncate font-bold text-[var(--t1)]">
+                  {source.name}
+                </div>
+                <div className="truncate text-[10px] text-[var(--t5)]">
+                  {source.id}
+                </div>
+              </div>
+              <div className="font-bold text-[var(--t3)]">
+                {readinessLabel(source.readiness)}
+              </div>
+              <div className="font-mono text-[var(--t2)]">
+                {source.activeRows || 0}
+              </div>
+              <div className="font-mono text-[var(--t2)]">
+                {source.rowsWithPhotos || 0}
+              </div>
+              <div className="font-mono text-[var(--t2)]">
+                {source.averageQuality || "—"}
+              </div>
+              <div className="text-[var(--t4)]">
+                {source.lastSeenAt
+                  ? new Date(source.lastSeenAt).toLocaleDateString()
+                  : "never"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 // ── Source Card ──
 function SourceCard({ source }: { source: SourceConfig }) {
@@ -267,12 +772,27 @@ function StatsCard({
 
 // ── Main Page ──
 export default function SourcesPage() {
+  const { data: health } = useSWR("/api/scrape/health", fetcher, {
+    revalidateOnFocus: false,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
     SourceCategory | "all"
   >("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+
+  React.useEffect(() => {
+    const onCategory = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail) {
+        setSelectedCategory(detail as SourceCategory);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener("mh-source-category", onCategory);
+    return () => window.removeEventListener("mh-source-category", onCategory);
+  }, []);
 
   const filteredSources = useMemo(() => {
     return ALL_SOURCES.filter((source) => {
@@ -368,6 +888,10 @@ export default function SourcesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
+        <SetupOverview health={health} />
+        <IndependentDealerCoverage />
+        <SourceProofPanel health={health} />
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
           <StatsCard label="Total" value={SOURCE_STATS.total} icon="📊" />

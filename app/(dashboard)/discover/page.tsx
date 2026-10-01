@@ -19,10 +19,15 @@ import { MarketSummary } from "@/components/discovery/MarketSummary";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { DiscoverHero } from "@/components/discovery/DiscoverHero";
+import { BuyerScopeBuilder } from "@/components/discovery/BuyerScopeBuilder";
+import { SetupStatusPanel } from "@/components/discovery/SetupStatusPanel";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { EdgeBanner } from "@/components/shared/EdgeBanner";
 import { DNACarousel, type CarouselItem } from "@/components/ui/dna-carousel";
-import { PremiumCarousel, type PremiumCarouselItem } from "@/components/ui/premium-carousel";
+import {
+  PremiumCarousel,
+  type PremiumCarouselItem,
+} from "@/components/ui/premium-carousel";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -122,11 +127,12 @@ export default function DiscoverPage() {
   const statLine = data
     ? `${data.totalListings.toLocaleString()} listings · ${data.uniqueVehicles.toLocaleString()} unique vehicles · merged ${data.mergedDuplicates.toLocaleString()} duplicates`
     : null;
+  const hasLiveListings = Boolean(data && data.totalListings > 0);
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
       {/* Your edge today — the live opportunity on the board right now. */}
-      <EdgeBanner />
+      {hasLiveListings && <EdgeBanner />}
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -168,28 +174,56 @@ export default function DiscoverPage() {
 
       {/* Guided first-run: no market chosen yet → pick it here and the feed personalizes instantly. */}
       {!state && (
-        <MarketPicker
-          accent="var(--amber-d)"
-          onPick={(st) => setState(st)}
-        />
+        <MarketPicker accent="var(--amber-d)" onPick={(st) => setState(st)} />
       )}
+
+      <BuyerScopeBuilder />
 
       {/* DNA Carousel — Featured deals showcase */}
       {data?.rails && data.rails.length > 0 && (
         <div className="glass-panel p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[var(--t1)]">Featured Deals</h2>
-            <span className="text-xs text-[var(--t4)]">Drag or swipe to explore</span>
+            <h2 className="text-lg font-bold text-[var(--t1)]">
+              Featured Deals
+            </h2>
+            <span className="text-xs text-[var(--t4)]">
+              Drag or swipe to explore
+            </span>
           </div>
           <DNACarousel
             items={data.rails[0].deals.slice(0, 5).map((deal: any) => ({
               id: deal.id,
-              image: deal.image_url || deal.image || "/images/car-placeholder.jpg",
-              title: `${deal.year} ${deal.make} ${deal.model}`.trim(),
-              subtitle: deal.location_state ? `${deal.location_state} · ${deal.mileage?.toLocaleString() || ""} miles` : undefined,
-              category: deal.deal_verdict?.toUpperCase() || deal.source,
-              description: deal.deal_verdict === "go" ? `Net profit: $${deal.true_net_profit?.toLocaleString()}` : undefined,
+              image:
+                deal.images?.[0] ||
+                deal.image_url ||
+                deal.image ||
+                "/images/car-placeholder.jpg",
+              title:
+                deal.title ||
+                `${deal.year || ""} ${deal.make || ""} ${deal.model || ""}`.trim(),
+              subtitle:
+                deal.locationState || deal.mileage
+                  ? [
+                      deal.locationState,
+                      deal.mileage
+                        ? `${deal.mileage.toLocaleString()} miles`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : undefined,
+              category: deal.dealVerdict?.toUpperCase() || deal.source,
+              description:
+                deal.trueNetProfit && deal.trueNetProfit > 0
+                  ? `Net profit: $${deal.trueNetProfit.toLocaleString()}`
+                  : deal.askPrice
+                    ? `Current bid: $${deal.askPrice.toLocaleString()}`
+                    : undefined,
               cta: "View Deal",
+              ctaLink:
+                deal.id?.startsWith?.("live-") && deal.sourceUrl
+                  ? deal.sourceUrl
+                  : `/deal/${deal.id}`,
             }))}
             autoPlay={true}
             autoPlaySpeed={4000}
@@ -209,14 +243,25 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* New listings from the salvage/rebuilder dealers you watch. */}
+      <SetupStatusPanel
+        configured={data?.configured}
+        previewMode={(data as any)?.previewMode}
+        previewCount={data?.totalListings || 0}
+      />
+
+      {/* Always show the saved dealer intent. Even before database import is live, this confirms the
+          shops being watched and gives the user a direct path to source proof. */}
       <WatchedDealerFeed />
 
-      {/* Jump back to deals you just looked at. */}
-      <RecentlyViewed kind="car" accent="var(--amber-d)" />
+      {hasLiveListings && (
+        <>
+          {/* Jump back to deals you just looked at. */}
+          <RecentlyViewed kind="car" accent="var(--amber-d)" />
 
-      {/* Deals near you — personalized to the saved home market + surrounding states. */}
-      <NearbyDeals />
+          {/* Deals near you — personalized to the saved home market + surrounding states. */}
+          <NearbyDeals />
+        </>
+      )}
 
       {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
       {data && !data.personalized && (
@@ -240,40 +285,48 @@ export default function DiscoverPage() {
         </a>
       )}
 
-      {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
-      <NextBestBuySpotlight initialState={state || undefined} />
+      {hasLiveListings && (
+        <>
+          {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
+          <NextBestBuySpotlight initialState={state || undefined} />
 
-      {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
-      <DiscoverHero state={state || undefined} />
+          {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
+          <DiscoverHero state={state || undefined} />
 
-      {/* Live ticker (Visor marquee) */}
-      <DealTicker />
+          {/* Live ticker (Visor marquee) */}
+          <DealTicker />
 
-      {/* Market summary — at-a-glance intelligence (hides when empty) */}
-      <MarketSummary />
+          {/* Market summary — at-a-glance intelligence (hides when empty) */}
+          <MarketSummary />
 
-      {/* What the market's doing — top GO make/models */}
-      <MarketPulse />
+          {/* What the market's doing — top GO make/models */}
+          <MarketPulse />
+        </>
+      )}
 
-      {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
-      <FlashRail state={state || undefined} />
+      {hasLiveListings && (
+        <>
+          {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
+          <FlashRail state={state || undefined} />
 
-      {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
-      <IntelRail
-        endpoint="/api/recommendations"
-        title="🏆 Deals like your winners"
-        subtitle="Matched to the make/models you've actually profited on"
-      />
-      <IntelRail
-        endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
-        title="📉 Underpriced vs peers"
-        subtitle="Statistical outliers priced well under their cluster"
-      />
-      <IntelRail
-        endpoint="/api/deals/near"
-        title="📍 Near you"
-        subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
-      />
+          {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
+          <IntelRail
+            endpoint="/api/recommendations"
+            title="Deals like your winners"
+            subtitle="Matched to the make/models you've actually profited on"
+          />
+          <IntelRail
+            endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
+            title="Underpriced vs peers"
+            subtitle="Statistical outliers priced well under their cluster"
+          />
+          <IntelRail
+            endpoint="/api/deals/near"
+            title="Near you"
+            subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
+          />
+        </>
+      )}
 
       {/* Body */}
       {isLoading ? (
@@ -296,11 +349,19 @@ export default function DiscoverPage() {
             icon="search"
             title="Nothing to discover yet"
             message={
-              state
-                ? `No active deals in ${state} right now. Try nationwide or run the scanner.`
-                : "No active deals to browse yet. Run the scanner to populate the feed."
+              data?.configured === false
+                ? "Connect Supabase inventory and source ingestion to populate real salvage, wholesale, private, retail, repo, and specialty deals."
+                : state
+                  ? `No active deals in ${state} right now. Try nationwide or adjust your search.`
+                  : "No active deals to browse yet. Adjust your search or connect source ingestion."
             }
-            action={{ label: "Open scanner", href: "/scan" }}
+            action={{
+              label:
+                data?.configured === false
+                  ? "Open data sources"
+                  : "Open scanner",
+              href: data?.configured === false ? "/sources" : "/scan",
+            }}
           />
         </div>
       ) : (

@@ -55,6 +55,27 @@ const protectedRoutes = [
 // Auth routes
 const authRoutes = ["/login", "/register"];
 
+function isTemplateValue(value: string | undefined): boolean {
+  if (!value) return true;
+  const v = value.trim().toLowerCase();
+  return (
+    !v ||
+    v.includes("your-project") ||
+    v.includes("your_project") ||
+    v.includes("your-supabase") ||
+    v.includes("replace-with") ||
+    v === "placeholder" ||
+    v === "https://placeholder.supabase.co"
+  );
+}
+
+function isSupabaseConfigured(): boolean {
+  return (
+    !isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+    !isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  );
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -63,22 +84,45 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    // Fail CLOSED in production: without credentials we cannot verify auth, and
-    // silently letting everyone through protectedRoutes would expose the whole app.
-    if (process.env.NODE_ENV === "production") {
-      console.error(
-        "Supabase credentials missing in middleware — rejecting request (fail-closed).",
-      );
-      return NextResponse.json(
-        { error: "Server misconfigured: auth unavailable" },
-        { status: 500 },
-      );
+  const { pathname } = request.nextUrl;
+  const isCronEndpoint =
+    pathname === "/api/alerts/process" ||
+    pathname === "/api/alerts/profit-sniper";
+  const isProtectedRoute =
+    !isCronEndpoint &&
+    protectedRoutes.some((route) => pathname.startsWith(route));
+  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
+  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (!isSupabaseConfigured()) {
+    const demoUser = request.cookies.get("mh_demo_user")?.value;
+
+    if (isProtectedRoute && !demoUser) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
     }
-    console.warn(
-      "Supabase credentials missing in middleware. Skipping auth checks (dev only).",
-    );
+
+    if (isAdminRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = demoUser ? "/discover" : "/login";
+      return NextResponse.redirect(url);
+    }
+
+    if (isAuthRoute && demoUser) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/discover";
+      return NextResponse.redirect(url);
+    }
+
     return supabaseResponse;
+  }
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      { error: "Server misconfigured: auth unavailable" },
+      { status: 500 },
+    );
   }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
@@ -104,19 +148,9 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   // Check if current route is protected ('/' is public — handled by the landing page)
   // Vercel Cron has no Supabase user session. These endpoints authenticate the
   // Authorization: Bearer CRON_SECRET header in their route handlers instead.
-  const isCronEndpoint =
-    pathname === "/api/alerts/process" ||
-    pathname === "/api/alerts/profit-sniper";
-  const isProtectedRoute =
-    !isCronEndpoint &&
-    protectedRoutes.some((route) => pathname.startsWith(route));
-  // Check if current route is an auth route
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
 
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
@@ -126,7 +160,6 @@ export async function middleware(request: NextRequest) {
 
   // ADMIN GATE: dev/ops surfaces are for the single admin only. Anyone else (incl. logged-in
   // dealers) is bounced — they never reach the developer API, system status, or the orchestrator.
-  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
   if (isAdminRoute && !isAdminEmail(user?.email)) {
     const url = request.nextUrl.clone();
     url.pathname = user ? "/discover" : "/login";

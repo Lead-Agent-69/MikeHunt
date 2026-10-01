@@ -1,10 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import { cached } from "@/lib/cache";
 import { computeValuationAccuracy } from "@/lib/scoring/accuracy";
+import { systemReadiness } from "@/lib/system-readiness";
 
 const KNOWN_SOURCES = [
   "copart",
@@ -27,6 +31,43 @@ const KNOWN_SOURCES = [
 // self-heal flags), and data-quality coverage. Read-only; powers the status surface and lets the
 // system (and the dealer) see whether it's running itself.
 export async function GET() {
+  const readiness = systemReadiness();
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      readiness,
+      sourceBreakdown: [],
+      valuationAccuracy: null,
+      knowledgeBase: {
+        marketValueBacked: 0,
+        marketValuePct: 0,
+        soldComps: 0,
+        aggregateGroups: 0,
+      },
+      learning: {
+        outcomesLogged: 0,
+        prioritizedMakes: [],
+      },
+      freshness: {
+        activeDeals: 0,
+        newLast24h: 0,
+        newLast7d: 0,
+        updatedLast24h: 0,
+        newestAgeHours: null,
+        stale: true,
+      },
+      quality: {
+        goDeals: 0,
+        vinPct: 0,
+        imagePct: 0,
+        geocodedPct: 0,
+        cityPct: 0,
+      },
+      sources: [],
+      recentRuns: [],
+    });
+  }
+
   const sb = createServerComponentClient();
   const since24 = new Date(Date.now() - 86400_000).toISOString();
   const since7 = new Date(Date.now() - 7 * 86400_000).toISOString();
@@ -176,6 +217,8 @@ export async function GET() {
   );
 
   return NextResponse.json({
+    configured: true,
+    readiness,
     sourceBreakdown,
     valuationAccuracy,
     knowledgeBase: {

@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
@@ -47,6 +50,12 @@ export default function RegisterPage() {
             : JSON.stringify(errorMessage),
         );
         setLoading(false);
+        return;
+      }
+
+      if (!isSupabaseConfigured()) {
+        router.push("/onboarding");
+        router.refresh();
         return;
       }
 
@@ -98,14 +107,18 @@ export default function RegisterPage() {
         <div className="glass-panel p-8 sm:p-10 flex flex-col gap-6">
           {/* Header */}
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4" style={{ background: "var(--grad)" }}>
+            <div
+              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
+              style={{ background: "var(--grad)" }}
+            >
               <Ico name="plus" size={32} className="text-white" />
             </div>
             <h1 className="text-3xl font-bold text-[var(--t1)] mb-2">
               Create your account
             </h1>
             <p className="text-base text-[var(--t3)]">
-              Start finding underpriced vehicles with AI-powered market intelligence
+              Start finding underpriced vehicles with AI-powered market
+              intelligence
             </p>
           </div>
 
@@ -165,11 +178,17 @@ export default function RegisterPage() {
               <Ico name="check-circle" size={14} className="shrink-0 mt-0.5" />
               <span>
                 By creating an account, you agree to our{" "}
-                <Link href="/tos" className="text-[var(--amber-d)] hover:underline">
+                <Link
+                  href="/tos"
+                  className="text-[var(--amber-d)] hover:underline"
+                >
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="text-[var(--amber-d)] hover:underline">
+                <Link
+                  href="/privacy"
+                  className="text-[var(--amber-d)] hover:underline"
+                >
                   Privacy Policy
                 </Link>
               </span>

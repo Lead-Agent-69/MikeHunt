@@ -12,6 +12,7 @@ import { InventoryItem } from "@/lib/data/inventory-service";
 import { FleetKPIs } from "@/components/fleet/FleetKPIs";
 import { CapitalVelocityTracker } from "@/components/fleet/CapitalVelocityTracker";
 import { useDealerId } from "@/hooks/useDealerId";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DAILY_FLOOR_RATE = 35;
@@ -938,6 +939,7 @@ function EmptyFleet() {
 export default function FleetPage() {
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState<"all" | Stage>("all");
+  const configured = isSupabaseConfigured();
 
   const { dealerId, loading: dealerLoading } = useDealerId();
 
@@ -947,17 +949,19 @@ export default function FleetPage() {
     isLoading,
     mutate,
   } = useSWR(
-    dealerId && !dealerLoading
+    configured && dealerId && !dealerLoading
       ? `/api/inventory?dealerId=${dealerId}&limit=100`
       : null,
     fetcher,
   );
 
   const fleet = (data?.items || []) as InventoryItem[];
-  const error = dealerId
-    ? fetchError?.message || data?.error || null
-    : "Please sign in to view your fleet.";
-  const loading = dealerLoading || isLoading;
+  const error = !configured
+    ? null
+    : dealerId
+      ? fetchError?.message || data?.error || null
+      : "Please sign in to view your fleet.";
+  const loading = configured && (dealerLoading || isLoading);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
@@ -1162,8 +1166,19 @@ export default function FleetPage() {
         />
       )}
 
+      {!configured && !loading && (
+        <Panel padding="none">
+          <EmptyState
+            icon="fleet"
+            title="Connect inventory to unlock Fleet"
+            message="Fleet needs the Supabase inventory tables before it can track acquired units, carrying costs, recon stages, and sale outcomes."
+            action={{ label: "Open data sources", href: "/sources" }}
+          />
+        </Panel>
+      )}
+
       {/* Empty */}
-      {!loading && !error && fleet.length === 0 && <EmptyFleet />}
+      {configured && !loading && !error && fleet.length === 0 && <EmptyFleet />}
 
       {/* Unit grid */}
       {!loading && !error && filteredFleet.length > 0 && (

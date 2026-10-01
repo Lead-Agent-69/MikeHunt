@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 /**
  * Returns the current authenticated user's id to be used as dealerId.
@@ -14,6 +17,27 @@ export function useDealerId() {
 
   useEffect(() => {
     let mounted = true;
+
+    if (!isSupabaseConfigured()) {
+      fetch("/api/auth/whoami")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!mounted) return;
+          setDealerId(data?.id ?? null);
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (!mounted) return;
+          setError(err instanceof Error ? err.message : "Failed to load user");
+          setDealerId(null);
+          setLoading(false);
+        });
+
+      return () => {
+        mounted = false;
+      };
+    }
+
     const supabase = createClientComponentClient();
 
     // Initial fetch

@@ -28,8 +28,11 @@ export function MikeHuntCopilotDrawer() {
     {
       id: "1",
       sender: "ai",
-      text: "👋 Hey! I'm **MikeHunt AI**, your real-time vehicle sourcing & arbitrage co-pilot. How can I help you maximize flip profit today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      text: "MikeHunt AI is installed in the interface, but the live AI provider and inventory feed are not connected in this environment yet. Once OpenAI and Supabase are configured, I can answer from real market data.",
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
@@ -44,10 +47,10 @@ export function MikeHuntCopilotDrawer() {
   }, [messages, isOpen, isTyping]);
 
   const QUICK_PROMPTS = [
-    "🔥 Show top 3 highest profit deals right now",
-    "🚚 What's average transport cost from TX to CA?",
-    "💬 Draft seller negotiation script for BMW M3",
-    "🛡️ How do I verify salvage vs rebuilt title history?",
+    "What data sources are connected?",
+    "Why is inventory empty?",
+    "What do I need to enable AI?",
+    "How should salvage titles be verified?",
   ];
 
   const handleSend = (userText: string) => {
@@ -57,7 +60,10 @@ export function MikeHuntCopilotDrawer() {
       id: Date.now().toString(),
       sender: "user",
       text: userText,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -65,40 +71,27 @@ export function MikeHuntCopilotDrawer() {
     setIsTyping(true);
 
     setTimeout(() => {
-      let responseText = "";
-      let suggestion = undefined;
-
       const lower = userText.toLowerCase();
-
-      if (lower.includes("top 3") || lower.includes("highest profit") || lower.includes("deals")) {
-        responseText = "Here are the top 3 highest margin vehicles currently active across Manheim & IAAI:";
-        suggestion = {
-          title: "2021 BMW M3 Competition",
-          profit: "+$8,400 Net Profit",
-          score: 94,
-          vin: "WBS83AY05M12****",
-        };
-      } else if (lower.includes("transport") || lower.includes("tx to ca") || lower.includes("shipping")) {
-        responseText = "Based on 30-day Central Dispatch data, enclosed transport from Dallas, TX to Los Angeles, CA averages **$1,150–$1,350** (3-4 days lead time). Open car haulers average **$850–$950**.";
-      } else if (lower.includes("script") || lower.includes("negotiation") || lower.includes("seller")) {
-        responseText = "Here's a battle-tested seller outreach script:\n\n*\"Hi [Name], I saw your 2021 M3 listed. I'm a serious cash buyer ready to fund today. Based on recent Manheim sold comps and upcoming recon costs, I can offer $58,500 firm with zero hassle. Can close within 2 hours. Let me know if that works for you!\"*";
-      } else if (lower.includes("salvage") || lower.includes("title") || lower.includes("rebuilt")) {
-        responseText = "Salvage titles mean the vehicle was declared a total loss by insurance. Rebuilt titles mean it was inspected by the state DOT and passed safety standards. Always deduct 20-30% from clean MMR values for rebuilt titles!";
-      } else {
-        responseText = `I analyzed your query regarding "${userText}". Market comps indicate strong liquidity in this segment with average turn time of 18 days and target net margin of 14.2%.`;
-      }
+      const responseText =
+        lower.includes("salvage") ||
+        lower.includes("title") ||
+        lower.includes("rebuilt")
+          ? "Title guidance can be shown without fabricating a deal: verify salvage/rebuilt status through the state title record, NMVTIS-style history, seller disclosure, frame/airbag inspection, and post-repair receipts. The app should discount branded-title vehicles only after real comps and inspection data are available."
+          : "I cannot answer from live market data yet because this environment does not have a configured AI provider or populated Supabase inventory. Connect the real keys/data pipeline first, then this drawer should call the backend AI endpoint instead of using canned responses.";
 
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "ai",
         text: responseText,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        dealSuggestion: suggestion,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       };
 
       setMessages((prev) => [...prev, aiMsg]);
       setIsTyping(false);
-    }, 1000);
+    }, 400);
   };
 
   return (
@@ -108,21 +101,22 @@ export function MikeHuntCopilotDrawer() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-full border border-white/20 text-white font-bold text-sm shadow-2xl backdrop-blur-2xl"
+        className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-3 z-40 flex max-w-[calc(100vw-24px)] items-center gap-2 rounded-full border px-3.5 py-2.5 text-xs font-bold shadow-2xl md:bottom-6 md:right-6 md:z-50 md:gap-3 md:px-5 md:py-3.5 md:text-sm"
         style={{
-          background: "linear-gradient(135deg, rgba(242,91,154,0.9), rgba(155,107,255,0.9))",
-          boxShadow: "0 0 30px rgba(242,91,154,0.5), inset 0 1px 0 rgba(255,255,255,0.3)",
+          background: "var(--s0)",
+          color: "var(--t1)",
+          borderColor: "var(--b2)",
+          boxShadow: "var(--shadow)",
         }}
       >
-        <span className="w-2.5 h-2.5 rounded-full bg-[#00ff66] animate-pulse" />
-        <span className="text-base">🤖</span>
-        <span>MikeHunt AI Copilot</span>
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--amber)]" />
+        <span className="truncate">AI not connected</span>
       </motion.button>
 
       {/* Drawer overlay */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="fixed inset-0 z-[70] flex justify-end">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -136,7 +130,7 @@ export function MikeHuntCopilotDrawer() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative w-full max-w-md h-full bg-[var(--s0)] border-l border-[var(--b2)] flex flex-col shadow-2xl z-10"
+              className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--b2)] bg-[var(--s0)] shadow-2xl sm:m-3 sm:h-[calc(100%-24px)] sm:rounded-[var(--r4)] sm:border"
             >
               {/* Drawer Header */}
               <div className="flex items-center justify-between p-5 border-b border-[var(--b2)] bg-[var(--s1)]/80 backdrop-blur-xl">
@@ -145,11 +139,15 @@ export function MikeHuntCopilotDrawer() {
                     className="w-9 h-9 rounded-xl grid place-items-center text-white font-bold"
                     style={{ background: "var(--grad)" }}
                   >
-                    🤖
+                    AI
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-[var(--t1)]">MikeHunt AI Co-pilot</h3>
-                    <p className="text-xs text-[var(--t4)]">Real-time Sourcing Intelligence</p>
+                    <h3 className="text-base font-black text-[var(--t1)]">
+                      MikeHunt AI Co-pilot
+                    </h3>
+                    <p className="text-xs text-[var(--t4)]">
+                      Provider not connected
+                    </p>
                   </div>
                 </div>
 
@@ -175,7 +173,9 @@ export function MikeHuntCopilotDrawer() {
                           : "bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] rounded-bl-none"
                       }`}
                     >
-                      <p className="leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                      <p className="leading-relaxed whitespace-pre-wrap">
+                        {m.text}
+                      </p>
 
                       {m.dealSuggestion && (
                         <div className="mt-3 p-3 rounded-xl border border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--t1)]">
@@ -187,14 +187,18 @@ export function MikeHuntCopilotDrawer() {
                               {m.dealSuggestion.profit}
                             </span>
                           </div>
-                          <p className="font-bold text-sm">{m.dealSuggestion.title}</p>
+                          <p className="font-bold text-sm">
+                            {m.dealSuggestion.title}
+                          </p>
                           <p className="text-[11px] text-[var(--t4)] font-mono">
                             VIN: {m.dealSuggestion.vin}
                           </p>
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] text-[var(--t5)] mt-1 px-1">{m.timestamp}</span>
+                    <span className="text-[10px] text-[var(--t5)] mt-1 px-1">
+                      {m.timestamp}
+                    </span>
                   </div>
                 ))}
 
@@ -222,7 +226,7 @@ export function MikeHuntCopilotDrawer() {
               </div>
 
               {/* Input Bar */}
-              <div className="p-4 border-t border-[var(--b2)] bg-[var(--s1)]">
+              <div className="border-t border-[var(--b2)] bg-[var(--s1)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:p-4">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -235,11 +239,11 @@ export function MikeHuntCopilotDrawer() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask MikeHunt AI anything..."
-                    className="flex-1 px-4 py-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s0)] text-sm text-[var(--t1)] placeholder-[var(--t5)] focus:outline-none focus:border-[var(--amber)]"
+                    className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2.5 rounded-xl font-bold text-white text-sm"
+                    className="shrink-0 rounded-xl px-3 py-2.5 text-sm font-bold text-white sm:px-4"
                     style={{ background: "var(--grad)" }}
                   >
                     Send
@@ -276,7 +280,8 @@ export function ProfitSimulatorDrawer({
   const [targetRetail, setTargetRetail] = useState(initialRetail);
   const [holdDays, setHoldDays] = useState(21);
 
-  const totalCost = purchasePrice + buyerFee + transportCost + reconBudget + holdDays * 15;
+  const totalCost =
+    purchasePrice + buyerFee + transportCost + reconBudget + holdDays * 15;
   const netProfit = targetRetail - totalCost;
   const roi = ((netProfit / totalCost) * 100).toFixed(1);
   const marginPct = ((netProfit / targetRetail) * 100).toFixed(1);
@@ -303,8 +308,12 @@ export function ProfitSimulatorDrawer({
           <div className="flex items-center gap-3">
             <span className="text-2xl">🧮</span>
             <div>
-              <h3 className="text-xl font-black text-[var(--t1)]">Profit Simulator Lab</h3>
-              <p className="text-xs text-[var(--t4)]">Interactive Deal Math & Margin Stress Test</p>
+              <h3 className="text-xl font-black text-[var(--t1)]">
+                Profit Simulator Lab
+              </h3>
+              <p className="text-xs text-[var(--t4)]">
+                Interactive Deal Math & Margin Stress Test
+              </p>
             </div>
           </div>
           <button
@@ -334,7 +343,9 @@ export function ProfitSimulatorDrawer({
                 netProfit >= 0 ? "text-[#00ff66]" : "text-red-400"
               }`}
             >
-              {netProfit >= 0 ? `+$${netProfit.toLocaleString()}` : `-$${Math.abs(netProfit).toLocaleString()}`}
+              {netProfit >= 0
+                ? `+$${netProfit.toLocaleString()}`
+                : `-$${Math.abs(netProfit).toLocaleString()}`}
             </div>
           </div>
 
@@ -343,7 +354,8 @@ export function ProfitSimulatorDrawer({
               ROI: <span className="font-bold text-[var(--t1)]">{roi}%</span>
             </div>
             <div className="text-sm text-[var(--t3)]">
-              Margin: <span className="font-bold text-[var(--t1)]">{marginPct}%</span>
+              Margin:{" "}
+              <span className="font-bold text-[var(--t1)]">{marginPct}%</span>
             </div>
           </div>
         </div>
@@ -353,7 +365,9 @@ export function ProfitSimulatorDrawer({
           <div>
             <div className="flex justify-between text-[var(--t2)] mb-1">
               <span>Auction / Buy Price:</span>
-              <span className="font-mono text-sm text-[var(--t1)]">${purchasePrice.toLocaleString()}</span>
+              <span className="font-mono text-sm text-[var(--t1)]">
+                ${purchasePrice.toLocaleString()}
+              </span>
             </div>
             <input
               type="range"
@@ -369,7 +383,9 @@ export function ProfitSimulatorDrawer({
           <div>
             <div className="flex justify-between text-[var(--t2)] mb-1">
               <span>Target Retail Price:</span>
-              <span className="font-mono text-sm text-[var(--t1)]">${targetRetail.toLocaleString()}</span>
+              <span className="font-mono text-sm text-[var(--t1)]">
+                ${targetRetail.toLocaleString()}
+              </span>
             </div>
             <input
               type="range"
@@ -384,7 +400,9 @@ export function ProfitSimulatorDrawer({
 
           <div className="grid grid-cols-2 gap-4 pt-2">
             <div>
-              <label className="text-[var(--t4)] block mb-1">Buyer / Auction Fee ($)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Buyer / Auction Fee ($)
+              </label>
               <input
                 type="number"
                 value={buyerFee}
@@ -394,7 +412,9 @@ export function ProfitSimulatorDrawer({
             </div>
 
             <div>
-              <label className="text-[var(--t4)] block mb-1">Transport / Shipping ($)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Transport / Shipping ($)
+              </label>
               <input
                 type="number"
                 value={transportCost}
@@ -404,7 +424,9 @@ export function ProfitSimulatorDrawer({
             </div>
 
             <div>
-              <label className="text-[var(--t4)] block mb-1">Recon / Repair Budget ($)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Recon / Repair Budget ($)
+              </label>
               <input
                 type="number"
                 value={reconBudget}
@@ -414,7 +436,9 @@ export function ProfitSimulatorDrawer({
             </div>
 
             <div>
-              <label className="text-[var(--t4)] block mb-1">Est. Hold Time (Days)</label>
+              <label className="text-[var(--t4)] block mb-1">
+                Est. Hold Time (Days)
+              </label>
               <input
                 type="number"
                 value={holdDays}
@@ -444,11 +468,33 @@ export function ProfitSimulatorDrawer({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ArbitrageRadar() {
-  const SPREADS = [
-    { from: "Dallas, TX", to: "Los Angeles, CA", vehicle: "2021 BMW M3", buyPrice: "$58,000", sellPrice: "$68,500", netSpread: "+$7,800" },
-    { from: "Atlanta, GA", to: "Miami, FL", vehicle: "2020 Toyota Tacoma", buyPrice: "$31,000", sellPrice: "$38,200", netSpread: "+$5,400" },
-    { from: "Chicago, IL", to: "Phoenix, AZ", vehicle: "2022 Ford F-150", buyPrice: "$68,000", sellPrice: "$78,000", netSpread: "+$6,900" },
-  ];
+  const [spreads, setSpreads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/arbitrage", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        const rows = [
+          ...(data?.regionalArbitrage || []),
+          ...(data?.nationalArbitrage || []),
+        ].slice(0, 3);
+        setSpreads(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setSpreads([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!loading && spreads.length === 0) return null;
 
   return (
     <div className="p-6 rounded-3xl border border-[var(--b2)] bg-[var(--s0)] relative overflow-hidden">
@@ -457,42 +503,68 @@ export function ArbitrageRadar() {
           <span className="text-xs font-bold uppercase tracking-wider text-[var(--amber-d)] bg-[var(--amber-lo)] px-2.5 py-1 rounded-full">
             Cross-State Arbitrage Radar
           </span>
-          <h3 className="text-xl font-black text-[var(--t1)] mt-2">Regional Spread Opportunities</h3>
+          <h3 className="text-xl font-black text-[var(--t1)] mt-2">
+            Regional Spread Opportunities
+          </h3>
         </div>
-        <span className="text-sm font-mono text-[#00ff66] animate-pulse">● Live Stream</span>
+        <span className="text-sm font-mono text-[var(--green)]">
+          {loading ? "Loading" : "Live data"}
+        </span>
       </div>
 
       <div className="space-y-3">
-        {SPREADS.map((s, i) => (
-          <div
-            key={i}
-            className="p-4 rounded-2xl border border-[var(--b2)] bg-[var(--s1)] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-[var(--amber-bd)] transition-colors"
-          >
-            <div>
-              <span className="text-xs font-bold text-[var(--t4)] font-mono">{s.vehicle}</span>
-              <div className="flex items-center gap-2 text-sm font-bold text-[var(--t1)] mt-0.5">
-                <span>{s.from}</span>
-                <span className="text-[var(--amber)]">➔</span>
-                <span>{s.to}</span>
+        {(loading ? Array.from({ length: 3 }) : spreads).map((s: any, i) => {
+          const arb = s?.arbitrage?.arbitrage || {};
+          const from =
+            s?.arbitrage?.sourceState || s?.deal?.locationState || "Source";
+          const to = s?.arbitrage?.targetRegion?.state || "Target";
+          const vehicle = s?.deal
+            ? `${s.deal.year || ""} ${s.deal.make || ""} ${s.deal.model || ""}`.trim()
+            : "Loading opportunity";
+          const buyPrice = s?.deal?.askPrice;
+          const sellPrice = arb?.targetMarketPrice;
+          const netSpread = arb?.potentialProfit;
+          return (
+            <div
+              key={i}
+              className="p-4 rounded-2xl border border-[var(--b2)] bg-[var(--s1)] flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-[var(--amber-bd)] transition-colors"
+            >
+              <div>
+                <span className="text-xs font-bold text-[var(--t4)] font-mono">
+                  {vehicle}
+                </span>
+                <div className="flex items-center gap-2 text-sm font-bold text-[var(--t1)] mt-0.5">
+                  <span>{from}</span>
+                  <span className="text-[var(--amber)]">➔</span>
+                  <span>{to}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-6 font-mono text-xs">
-              <div>
-                <span className="text-[var(--t4)] block">Buy Comp</span>
-                <span className="text-[var(--t1)] font-bold text-sm">{s.buyPrice}</span>
-              </div>
-              <div>
-                <span className="text-[var(--t4)] block">Sell Retail</span>
-                <span className="text-[var(--t1)] font-bold text-sm">{s.sellPrice}</span>
-              </div>
-              <div>
-                <span className="text-[var(--t4)] block">Arbitrage</span>
-                <span className="text-[#00ff66] font-black text-sm">{s.netSpread}</span>
+              <div className="flex items-center gap-6 font-mono text-xs">
+                <div>
+                  <span className="text-[var(--t4)] block">Buy Comp</span>
+                  <span className="text-[var(--t1)] font-bold text-sm">
+                    {buyPrice ? `$${Number(buyPrice).toLocaleString()}` : "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[var(--t4)] block">Sell Retail</span>
+                  <span className="text-[var(--t1)] font-bold text-sm">
+                    {sellPrice ? `$${Number(sellPrice).toLocaleString()}` : "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[var(--t4)] block">Arbitrage</span>
+                  <span className="text-[var(--green)] font-black text-sm">
+                    {netSpread
+                      ? `+$${Number(netSpread).toLocaleString()}`
+                      : "-"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

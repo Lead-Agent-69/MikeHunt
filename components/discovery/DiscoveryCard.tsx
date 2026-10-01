@@ -86,6 +86,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const terms = buyTerms(deal.source);
   // Operability read — "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
   const cond = readCondition(deal.condition, deal.damageType);
+  const href =
+    deal.id.startsWith("live-") && deal.sourceUrl
+      ? deal.sourceUrl
+      : `/deal/${deal.id}`;
+  const external = href.startsWith("http");
 
   return (
     <motion.div
@@ -102,7 +107,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       }}
     >
       <Link
-        href={`/deal/${deal.id}`}
+        href={href}
+        target={external ? "_blank" : undefined}
+        rel={external ? "noopener noreferrer" : undefined}
         className="deal-card glass-panel group flex flex-col overflow-hidden select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
         style={{ padding: 0, height: "100%", transition: "border-color 0.2s" }}
       >
