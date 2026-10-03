@@ -349,16 +349,15 @@ function IndependentDealerCoverage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-              Independent dealer network
+              Independent dealer coverage
             </p>
             <h2 className="text-xl font-black text-[var(--t1)]">
-              Small shops are covered through one smart fan-out runner.
+              Small dealers are included when they match your selected market.
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               AE of Miami, Damage.com, D&G Auto, ReCar, and St. James are
-              present in the dealer network. One shared dealer import checks
-              only the shops selected by the buyer, keeping the database focused
-              on inventory people actually asked for.
+              available here. Select the shops you care about and focus your
+              search on their current inventory.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -366,17 +365,17 @@ function IndependentDealerCoverage() {
               <div className="text-lg font-black text-[var(--t1)]">
                 {CURATED_SITES.length}
               </div>
-              <div className="text-[var(--t5)]">sites</div>
+              <div className="text-[var(--t5)]">dealer sites</div>
             </div>
             <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
               <div className="text-lg font-black text-[var(--t1)]">
                 {curatedStateCount}
               </div>
-              <div className="text-[var(--t5)]">states</div>
+              <div className="text-[var(--t5)]">states covered</div>
             </div>
             <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
               <div className="text-lg font-black text-[var(--t1)]">1</div>
-              <div className="text-[var(--t5)]">runner</div>
+              <div className="text-[var(--t5)]">search coverage</div>
             </div>
           </div>
         </div>
@@ -436,7 +435,7 @@ function IndependentDealerCoverage() {
                   </div>
                 </div>
                 <span className="shrink-0 rounded-full border border-[var(--b1)] px-2 py-0.5 text-[10px] font-bold text-[var(--t4)]">
-                  Shared import
+                  Included
                 </span>
               </div>
             ))}
@@ -1289,7 +1288,7 @@ function sourceCardProof(source: SourceConfig, health?: SourceHealthRow) {
   }
   if (scraped) {
     return {
-      label: "Availability checking",
+      label: "Checking listings",
       tone: "border-[var(--b1)] bg-[var(--s1)] text-[var(--t3)]",
       title:
         "This market is configured, but it has not returned matching current listings yet.",
@@ -1297,14 +1296,14 @@ function sourceCardProof(source: SourceConfig, health?: SourceHealthRow) {
   }
   if (sharedImported) {
     return {
-      label: "Selectable market",
+      label: "Search this market",
       tone: "border-[var(--abd)] bg-[var(--alo)] text-[var(--amber)]",
       title:
         "Add this dealer to your scope and we will look for matching current listings.",
     };
   }
   return {
-    label: "Not available yet",
+    label: "Coming soon",
     tone: "border-[var(--b1)] bg-[var(--s3)] text-[var(--t5)]",
     title: "We do not have verified inventory from this market yet.",
   };
@@ -1324,20 +1323,6 @@ function SourceCard({
   const scraped = hasScraper(source.id);
   const sharedImported = !scraped && hasSharedImporter(source);
   const proof = sourceCardProof(source, health);
-
-  const priorityColors = {
-    P0: "bg-[var(--red)]",
-    P1: "bg-[var(--orange)]",
-    P2: "bg-[var(--blue)]",
-    P3: "bg-[var(--s5)]",
-  };
-
-  const statusColors = {
-    active: "bg-[var(--green)]",
-    planned: "bg-[var(--blue)]",
-    testing: "bg-[var(--orange)]",
-    disabled: "bg-[var(--s5)]",
-  };
 
   const typeIcons: Record<SourceType, string> = {
     auction: "🔨",
@@ -1367,22 +1352,6 @@ function SourceCard({
               <h3 className="text-sm font-bold text-[var(--t1)] truncate">
                 {source.name}
               </h3>
-              <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[10px] font-bold text-white",
-                  priorityColors[source.priority],
-                )}
-              >
-                {source.priority}
-              </span>
-              <span
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[10px] font-bold text-white",
-                  statusColors[source.status],
-                )}
-              >
-                {source.status}
-              </span>
               <span
                 className={cn(
                   "px-1.5 py-0.5 rounded text-[10px] font-bold border",
@@ -2153,7 +2122,6 @@ export default function SourcesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <SetupOverview health={health} />
         <IndependentDealerCoverage />
         <SourceProofPanel
           health={health}

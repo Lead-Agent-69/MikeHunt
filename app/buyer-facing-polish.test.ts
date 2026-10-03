@@ -61,10 +61,15 @@ describe("buyer-facing polish", () => {
     );
     expect(source).toContain("Live coverage available");
     expect(source).toContain("Available market coverage");
+    expect(source).toContain("Independent dealer coverage");
     expect(source).not.toContain(
       "Connect one lane, import rows, then Scan becomes useful.",
     );
     expect(source).not.toContain("Configure credentials");
     expect(source).not.toContain("Scraper Coverage");
+    expect(source).not.toContain("smart fan-out runner");
+    expect(source).not.toContain("shared dealer import");
+    expect(source).toContain('label: "Checking listings"');
+    expect(source).toContain('label: "Search this market"');
   });
 });
