@@ -3,10 +3,7 @@
 import React, { memo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { DealGradeBadge } from "./DealGradeBadge";
 import type { DiscoveryDeal } from "./types";
-import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
-import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
 import { CONFIDENCE_META } from "@/lib/valuation/confidence";
@@ -19,7 +16,7 @@ import {
   useLocalSavedVehicles,
 } from "@/hooks/useLocalSavedVehicles";
 import { qualityFieldLabel } from "@/lib/data-quality";
-import { Clock3, Flame, Link2, MapPin, Zap } from "lucide-react";
+import { Clock3, Flame, Link2, Zap } from "lucide-react";
 
 const TITLE_STYLES: Record<
   string,
@@ -148,6 +145,24 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     ...(deal.dataQuality?.missing.slice(0, 2).map(qualityFieldLabel) || []),
   ].filter(Boolean);
   const visibleWarnings = (deal.warnings || []).filter(Boolean).slice(0, 2);
+  const decision =
+    deal.vinFlagSeverity === "high" || confidenceGaps.length >= 3
+      ? {
+          label: "Needs evidence",
+          background: "rgba(35, 43, 55, .88)",
+          color: "#ffffff",
+        }
+      : deal.trueNetProfit && deal.trueNetProfit > 0 && deal.recommendedMaxBid
+        ? {
+            label: "Worth a look",
+            background: "rgba(15, 118, 75, .9)",
+            color: "#ffffff",
+          }
+        : {
+            label: "Consider",
+            background: "rgba(161, 98, 7, .9)",
+            color: "#ffffff",
+          };
 
   return (
     <motion.div
@@ -155,18 +170,12 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-20px" }}
-      whileHover={{ y: -4, scale: 1.01 }}
+      whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      style={{
-        width: 280,
-        flex: "0 0 auto",
-        scrollSnapAlign: "start",
-      }}
+      className="w-[calc(100vw-2.5rem)] max-w-[358px] shrink-0 sm:w-[300px]"
+      style={{ scrollSnapAlign: "start" }}
     >
-      <Link
-        href={href}
-        target={external ? "_blank" : undefined}
-        rel={external ? "noopener noreferrer" : undefined}
+      <div
         className="deal-card glass-panel interactive-surface group flex flex-col overflow-hidden select-none premium-focus"
         style={{ padding: 0, height: "100%" }}
       >
@@ -188,88 +197,12 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             <Placeholder />
           )}
 
-          {/* Gradient overlay for better text contrast */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[rgba(0,0,0,0.9)] via-[rgba(0,0,0,0.2)] to-transparent pointer-events-none" />
-
-          {/* Grade badge — floating top-left */}
-          {deal.grade !== "unknown" && (
-            <div className="absolute left-2.5 top-2.5">
-              <div style={{ backdropFilter: "blur(8px)" }}>
-                <DealGradeBadge
-                  grade={deal.grade}
-                  gradeLabel={deal.gradeLabel}
-                  discountPct={deal.discountPct}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Deal IQ chip — floating bottom-left (zero-cost, from card fields) */}
-          {(() => {
-            const iq = liteDealIQ({
-              askPrice: deal.askPrice,
-              sellEstimate: deal.sellEstimate,
-              trueNetProfit: deal.trueNetProfit,
-              distressed: (deal as any).distressed,
-              dealVerdict: (deal as any).dealVerdict ?? (deal as any).verdict,
-            });
-            if (!iq) return null;
-            return (
-              <span
-                className="absolute left-2.5 bottom-2.5 inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black text-white"
-                style={{
-                  background: "rgba(20,10,20,.72)",
-                  backdropFilter: "blur(8px)",
-                }}
-                title={`Deal IQ ${iq.score}/100 (${iq.tier})`}
-              >
-                <span style={{ color: IQ_TIER_COLOR[iq.tier] }}>
-                  IQ&nbsp;{iq.score}
-                </span>
-              </span>
-            );
-          })()}
-
-          {/* Source chip — floating top-left: instant "where's this from", brand-colored */}
-          {(() => {
-            const m = sourceMeta(deal.source);
-            return (
-              <span
-                className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold"
-                style={{
-                  background: "rgba(20,10,20,.72)",
-                  backdropFilter: "blur(8px)",
-                  color: m.color,
-                }}
-                title={`${m.label} · ${terms.channelTag}`}
-              >
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ background: m.color }}
-                />
-                {m.label}
-              </span>
-            );
-          })()}
-
-          {/* Days-on-market chip — floating bottom-right (negotiating signal) */}
-          {(() => {
-            const dom = daysOnMarket(deal.firstSeenAt);
-            if (dom == null) return null;
-            const tier = domTier(dom);
-            return (
-              <span
-                className="absolute right-2.5 bottom-2.5 inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold text-white"
-                style={{
-                  background: "rgba(20,10,20,.72)",
-                  backdropFilter: "blur(8px)",
-                }}
-                title={`${dom} days on market — ${tier.label}`}
-              >
-                <span style={{ color: tier.color }}>{dom}d</span>
-              </span>
-            );
-          })()}
+          <span
+            className="absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+            style={{ background: decision.background, color: decision.color }}
+          >
+            {decision.label}
+          </span>
 
           {/* Multi-source chip — floating top-right (the Kayak signal) */}
           {multi && (
@@ -331,11 +264,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         </div>
 
         {/* Body */}
-        <div className="flex flex-1 flex-col gap-2 p-3.5">
+        <div className="flex flex-1 flex-col gap-3 p-4">
           <div className="flex justify-between items-start gap-2">
-            <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]">
+            <Link
+              href={href}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noopener noreferrer" : undefined}
+              className="truncate text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]"
+            >
               {title}
-            </h3>
+            </Link>
             {deal.vin && (
               <span className="font-mono text-[10px] text-[var(--t4)] shrink-0 group-hover:text-[var(--t2)] transition-colors">
                 {deal.vin.slice(-6)}
@@ -699,7 +637,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </button>
           </div>
 
-          {/* Price + Est Profit grid */}
+          {/* Price and practical ceiling stay adjacent so the acquisition decision is readable. */}
           <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
@@ -712,11 +650,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
             <div className="text-right">
               <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                Est. Net Profit
+                {terms.maxLabel}
               </p>
-              {deal.trueNetProfit && deal.trueNetProfit > 0 ? (
+              {deal.recommendedMaxBid ? (
                 <span className="font-mono text-[17px] font-black leading-none text-[var(--green)]">
-                  +${deal.trueNetProfit.toLocaleString()}
+                  ${Math.round(deal.recommendedMaxBid).toLocaleString()}
                 </span>
               ) : (
                 <span className="font-mono text-[17px] font-bold leading-none text-[var(--t3)]">
@@ -770,6 +708,15 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               </div>
             </div>
           )}
+
+          <Link
+            href={href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
+            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-[var(--r2)] bg-[var(--blue)] px-3 text-sm font-black text-white transition-opacity hover:opacity-90"
+          >
+            See the analysis
+          </Link>
 
           {(deal.repairEstimate || deal.transportEstimate) && (
             <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
@@ -866,7 +813,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           )}
         </div>
-      </Link>
+      </div>
     </motion.div>
   );
 });

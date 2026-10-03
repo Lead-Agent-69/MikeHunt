@@ -717,12 +717,17 @@ export function BuyerScopeBuilder({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Could not preview run");
-      setPreviewMessage(data?.message || "Source check ready.");
+      if (!res.ok)
+        throw new Error(
+          data?.message || "We couldn't check matching sources right now.",
+        );
+      setPreviewMessage(data?.message || "Matching source check is ready.");
       setPreviewPlan(data);
     } catch (error) {
       setPreviewMessage(
-        error instanceof Error ? error.message : "Could not preview smart run.",
+        error instanceof Error
+          ? error.message
+          : "We couldn't check matching sources right now.",
       );
     } finally {
       setPreviewing(false);
@@ -773,7 +778,7 @@ export function BuyerScopeBuilder({
       if (!res.ok) {
         setPreviewPlan(data?.sources ? data : previewPlan);
         throw new Error(
-          data?.message || data?.error || "Import could not start.",
+          data?.message || "We couldn't start this source check.",
         );
       }
       const imported = Number(data?.totalDeals || 0);
@@ -839,14 +844,14 @@ export function BuyerScopeBuilder({
           data?.nextActions?.verifySources || data?.links?.sourceSetupHref,
       });
       setPreviewMessage(
-        `Imported ${imported.toLocaleString()} matching row${imported === 1 ? "" : "s"} from ${successful} source${successful === 1 ? "" : "s"}. Review proof-ranked results first, then inspect source health for any weak fields.`,
+        `Found ${imported.toLocaleString()} matching listing${imported === 1 ? "" : "s"} from ${successful} source${successful === 1 ? "" : "s"}. Review the newest results first, then check any missing photos or details.`,
       );
       setPreviewPlan(null);
     } catch (error) {
       setPreviewMessage(
         error instanceof Error
           ? error.message
-          : "Could not run the matching sources.",
+          : "We couldn't start this source check.",
       );
     } finally {
       setRunning(false);
@@ -925,7 +930,7 @@ export function BuyerScopeBuilder({
                   scrapePlan.sourceIds.length === 1 ? "" : "s"
                 }: ${
                   hasNoMatchingSources
-                    ? "change lane or seller type to find a safe source match"
+                    ? "change the lane or seller type to find a matching source"
                     : formatSourceList(scrapePlan.sourceIds, 4)
                 }`}
             {dealerWatch.count
@@ -956,14 +961,14 @@ export function BuyerScopeBuilder({
             {running
               ? "Searching..."
               : hasScopeNoMatch
-                ? "No matching sources"
-                : "Search selected sources"}
+                ? "Choose a matching source"
+                : "Search matching sources"}
           </button>
           <Link
             href={sourceSetupHref}
             className="inline-flex items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)]"
           >
-            Source setup
+            Source coverage
           </Link>
           <Link
             href={href}
@@ -1019,16 +1024,16 @@ export function BuyerScopeBuilder({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Import verification
+                Source-check results
               </p>
               <h3 className="mt-1 text-base font-black text-[var(--t1)]">
                 {runProof.successful}/{runProof.total} sources succeeded ·{" "}
                 {runProof.imported.toLocaleString()} rows found
               </h3>
               <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--t4)]">
-                Review fresh vehicles in proof-ranked Scan, then check Source
-                Proof for rows, photos, quality, freshness, and any blocked
-                sources.
+                Review the newest matching vehicles first, then check source
+                coverage for photos, listing details, freshness, and any source
+                that needs attention.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -1036,13 +1041,13 @@ export function BuyerScopeBuilder({
                 href={runProof.proofRankedHref || proofRankedHref}
                 className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--green)]"
               >
-                Review proof-ranked rows
+                Review newest listings
               </Link>
               <Link
                 href={runProof.sourceSetupHref || sourceSetupHref}
                 className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
               >
-                Verify source proof
+                View source coverage
               </Link>
             </div>
           </div>
@@ -1064,7 +1069,7 @@ export function BuyerScopeBuilder({
                           : "bg-[var(--rlo)] text-[var(--red)]"
                       }`}
                     >
-                      {result.success ? "success" : "failed"}
+                      {result.success ? "checked" : "needs attention"}
                     </span>
                   </div>
                   <div className="mt-1 text-[11px] font-semibold text-[var(--t4)]">
@@ -1083,7 +1088,7 @@ export function BuyerScopeBuilder({
           {runProof.sourceHealth?.length ? (
             <div className="mt-3">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Fresh source proof
+                Source coverage
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {runProof.sourceHealth.map((source) => (
@@ -1111,7 +1116,7 @@ export function BuyerScopeBuilder({
                         </div>
                       </div>
                       <span className="shrink-0 rounded-full bg-[var(--glo)] px-2 py-0.5 text-[10px] font-black text-[var(--green)]">
-                        proof
+                        checked
                       </span>
                     </div>
                     <div className="mt-2 grid grid-cols-3 gap-2 text-center">
@@ -1153,10 +1158,10 @@ export function BuyerScopeBuilder({
           {runProof.contract && (
             <div className="mt-3 rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--s0)] px-3 py-2">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Contract honored
+                Your search limits
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
-                {runProof.contract.summary} Proof review expects{" "}
+                {runProof.contract.summary} Listing review includes{" "}
                 {runProof.contract.proofFields
                   .map((field) => contractProofLabels[field] || field)
                   .slice(0, 6)
@@ -1176,11 +1181,11 @@ export function BuyerScopeBuilder({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-                Smart import plan
+                Matching source plan
               </p>
               <h3 className="mt-1 text-base font-black text-[var(--t1)]">
                 {previewPlan.summary.runnable} ready ·{" "}
-                {previewPlan.summary.heldBack} need setup
+                {previewPlan.summary.heldBack} unavailable for this search
               </h3>
               {previewPlan.summary.firstBlocker && (
                 <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--t4)]">
@@ -1188,14 +1193,13 @@ export function BuyerScopeBuilder({
                 </p>
               )}
               <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--t5)]">
-                Scope contract: only sources that match{" "}
-                {lane.label.toLowerCase()}
+                Only sources that match {lane.label.toLowerCase()}
                 {state !== "Nationwide" ? ` in ${state}` : ""} are allowed to
                 run.
                 {dealerWatch.count
                   ? ` Watched dealers are hard-targeted: ${dealerWatch.hosts.join(", ")}.`
                   : ""}{" "}
-                Anything outside that buyer lane is held back before import.
+                Anything outside your search is held back before checking.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
@@ -1209,13 +1213,15 @@ export function BuyerScopeBuilder({
                 <div className="text-sm font-black text-[var(--green)]">
                   {previewPlan.summary.runnable}
                 </div>
-                <div className="text-[10px] text-[var(--t5)]">runnable</div>
+                <div className="text-[10px] text-[var(--t5)]">ready</div>
               </div>
               <div className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2">
                 <div className="text-sm font-black text-[var(--t1)]">
                   {previewPlan.summary.estimatedDealsPerRun.toLocaleString()}
                 </div>
-                <div className="text-[10px] text-[var(--t5)]">est rows</div>
+                <div className="text-[10px] text-[var(--t5)]">
+                  est. listings
+                </div>
               </div>
             </div>
           </div>
@@ -1235,25 +1241,25 @@ export function BuyerScopeBuilder({
             </div>
             <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
               <div className="text-xs font-black text-[var(--t2)]">
-                Run gate
+                Ready to search
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
                 {previewPlan.canImport
-                  ? "Authorized imports are ready for this scope."
+                  ? "Matching sources are ready for this search."
                   : missingGates[0]?.nextStep ||
                     (previewPlan.scraperControlReady
                       ? "Source setup is still required before import."
-                      : "Scraper control is locked until the import secret is configured.")}
+                      : "This source check is not ready yet. Choose another matching source or try again later.")}
               </p>
             </div>
             <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
               <div className="text-xs font-black text-[var(--t2)]">
-                Expected output
+                What to expect
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
                 {readyPreviewSources?.length || 0} runnable now,{" "}
                 {previewPlan.summary.estimatedDealsPerRun.toLocaleString()}{" "}
-                estimated rows when imports are unlocked.
+                estimated listings when source checks are available.
               </p>
             </div>
           </div>
@@ -1263,14 +1269,14 @@ export function BuyerScopeBuilder({
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-                    Protected import contract
+                    Protected search limits
                   </p>
                   <h4 className="mt-1 text-sm font-black text-[var(--t1)]">
                     {previewPlan.contract.summary}
                   </h4>
                   <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[var(--t4)]">
-                    MikeHunt will preserve this buyer scope instead of running a
-                    broad fallback:{" "}
+                    MikeHunt preserves these choices instead of running a broad
+                    fallback:{" "}
                     {[
                       previewPlan.contract.allowedFilters.state || "nationwide",
                       previewPlan.contract.allowedFilters.q || "all vehicles",
@@ -1296,7 +1302,7 @@ export function BuyerScopeBuilder({
                     <div className="font-black text-[var(--green)]">
                       {previewPlan.contract.runnableCount}
                     </div>
-                    <div className="text-[var(--t5)]">will run</div>
+                    <div className="text-[var(--t5)]">will check</div>
                   </div>
                   <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
                     <div className="font-black text-[var(--amber-d)]">

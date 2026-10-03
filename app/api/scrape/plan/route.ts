@@ -217,13 +217,13 @@ export async function POST(request: NextRequest) {
             : "No matching source is runnable yet. Check held-back source actions.",
     });
   } catch (error) {
+    console.error("Could not create scoped source plan:", error);
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Could not create scraper plan.",
+        code: "SOURCE_PLAN_UNAVAILABLE",
+        message:
+          "We couldn't check matching sources right now. Your buying criteria are still saved; please try again shortly.",
       },
       { status: 500 },
     );

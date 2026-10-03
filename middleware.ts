@@ -130,7 +130,7 @@ export async function middleware(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
-        cookiesToSet.forEach(({ name, value, options }) =>
+        cookiesToSet.forEach(({ name, value, options: _options }) =>
           request.cookies.set(name, value),
         );
         supabaseResponse = NextResponse.next({
@@ -143,9 +143,21 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claimsResult } = await supabase.auth.getClaims();
+  const claims = claimsResult?.claims;
+  const user = claims
+    ? { email: typeof claims.email === "string" ? claims.email : null }
+    : null;
+
+  // getClaims() can refresh an expiring browser session. Preserve those cookies when a
+  // route redirects, otherwise a successful sign-in can appear to disappear on the next page.
+  const redirectWithAuthCookies = (url: URL) => {
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies
+      .getAll()
+      .forEach((cookie) => response.cookies.set(cookie));
+    return response;
+  };
 
   // Check if current route is protected ('/' is public — handled by the landing page)
   // Vercel Cron has no Supabase user session. These endpoints authenticate the
@@ -154,7 +166,7 @@ export async function middleware(request: NextRequest) {
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return redirectWithAuthCookies(url);
   }
 
   // ADMIN GATE: dev/ops surfaces are for the single admin only. Anyone else (incl. logged-in
@@ -162,14 +174,14 @@ export async function middleware(request: NextRequest) {
   if (isAdminRoute && !isAdminEmail(user?.email)) {
     const url = request.nextUrl.clone();
     url.pathname = user ? "/discover" : "/login";
-    return NextResponse.redirect(url);
+    return redirectWithAuthCookies(url);
   }
 
   // Logged-in users shouldn't see the auth pages — send them to the deal feed.
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
     url.pathname = "/discover";
-    return NextResponse.redirect(url);
+    return redirectWithAuthCookies(url);
   }
 
   return supabaseResponse;

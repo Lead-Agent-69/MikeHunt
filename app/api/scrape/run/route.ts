@@ -516,7 +516,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Scraper run failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Scraper run failed" },
+      {
+        code: "SOURCE_SEARCH_UNAVAILABLE",
+        message:
+          "We couldn't start this source check. No broad search was started; please try again shortly.",
+      },
       { status: 500 },
     );
   }

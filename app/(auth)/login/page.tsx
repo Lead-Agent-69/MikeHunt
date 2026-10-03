@@ -139,11 +139,11 @@ export default function LoginPage() {
               className="text-base"
             />
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 text-[var(--t3)] cursor-pointer">
-                <input type="checkbox" className="rounded border-[var(--b2)]" />
-                Remember me
-              </label>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-[var(--t3)]">
+                <Ico name="shield" size={14} />
+                Stay signed in on this device
+              </span>
               <Link
                 href="/forgot-password"
                 className="text-[var(--amber-d)] hover:underline font-medium"

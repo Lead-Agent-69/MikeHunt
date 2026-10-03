@@ -17,4 +17,11 @@ describe("account creation security", () => {
     expect(bootstrap).toContain("getServerUser");
     expect(bootstrap).toContain("status: 401");
   });
+
+  it("preserves refreshed session cookies while middleware redirects", () => {
+    const middleware = readFileSync("middleware.ts", "utf8");
+    expect(middleware).toContain("supabase.auth.getClaims");
+    expect(middleware).toContain("redirectWithAuthCookies");
+    expect(middleware).toContain("supabaseResponse.cookies\n      .getAll()");
+  });
 });
