@@ -50,21 +50,23 @@ function resolvedUrl(): string {
   return PLACEHOLDER_URL;
 }
 
+function resolvedPublicAnonKey(): string {
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  return key && !isTemplateValue(key) ? key : PLACEHOLDER_KEY;
+}
+
 export function getSupabaseClient(): SupabaseClient {
   const isNode = typeof process !== "undefined" && process.versions?.node;
   const ws = isNode ? eval("require")("ws") : undefined;
   return createClient(
     resolvedUrl(),
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
+    resolvedPublicAnonKey(),
     ws ? { realtime: { transport: ws } } : undefined,
   );
 }
 
 export function createClientComponentClient(): SupabaseClient {
-  return createBrowserClient(
-    resolvedUrl(),
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || PLACEHOLDER_KEY,
-  );
+  return createBrowserClient(resolvedUrl(), resolvedPublicAnonKey());
 }
 
 export function createServerComponentClient(): SupabaseClient {
@@ -72,7 +74,7 @@ export function createServerComponentClient(): SupabaseClient {
   const ws = isNode ? eval("require")("ws") : undefined;
   return createClient(
     resolvedUrl(),
-    process.env.SUPABASE_SERVICE_ROLE_KEY || PLACEHOLDER_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || PLACEHOLDER_KEY,
     {
       auth: {
         autoRefreshToken: false,
