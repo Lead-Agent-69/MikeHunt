@@ -1,5 +1,5 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v4'
+const STATIC_CACHE = 'MikeHunt-static-v5'
 const DYNAMIC_CACHE = 'MikeHunt-dynamic-v4'
 
 const STATIC_ASSETS = [
@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/icon.svg',
+  '/brand/MIKEHUNT-M.svg',
   '/favicon.ico',
   '/favicon-16x16.png',
   '/favicon-32x32.png',

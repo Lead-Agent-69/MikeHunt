@@ -15,6 +15,7 @@ import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
+import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 
 import {
   ArrowUpRight,
@@ -1491,7 +1492,15 @@ function SmartDataPlanCard({
                   : "Show the exact data setup path for this scope."
             }
           >
-            <Ico name="refresh" size={15} />
+            {running ? (
+              <MikeHuntLoader
+                state="loading"
+                size={20}
+                label="Searching selected sources"
+              />
+            ) : (
+              <Ico name="refresh" size={15} />
+            )}
             {running
               ? "Running..."
               : hasNoMatchingSources
@@ -2504,6 +2513,8 @@ function ScanPageInner() {
   const [showMore, setShowMore] = useState(false);
   const [planPreviewing, setPlanPreviewing] = useState(false);
   const [runImporting, setRunImporting] = useState(false);
+  const sourceRunId = useRef(0);
+  const sourceRunController = useRef<AbortController | null>(null);
   const [livePreviewing, setLivePreviewing] = useState(false);
   const [livePreviewRows, setLivePreviewRows] = useState<any[]>([]);
   const [livePreviewProof, setLivePreviewProof] = useState<PreviewProofItem[]>(
@@ -3216,7 +3227,13 @@ function ScanPageInner() {
     [smartPlan, selectedSourceIds],
   );
 
+  useEffect(() => () => sourceRunController.current?.abort(), []);
+
   const runMatchingSources = useCallback(async () => {
+    const runId = ++sourceRunId.current;
+    sourceRunController.current?.abort();
+    const controller = new AbortController();
+    sourceRunController.current = controller;
     setRunImporting(true);
     setPlanMessage(null);
     setImportRunProof([]);
@@ -3229,8 +3246,10 @@ function ScanPageInner() {
           sourceIds: selectedSourceIds,
           concurrency: Math.min(2, Math.max(1, selectedSourceIds.length)),
         }),
+        signal: controller.signal,
       });
       const data = await res.json();
+      if (runId !== sourceRunId.current) return;
       if (!res.ok) {
         if (res.status === 424 && data?.code === "IMPORTS_LOCKED") {
           setImportPlanProof((current) => ({
@@ -3340,8 +3359,11 @@ function ScanPageInner() {
         const deadline = Date.now() + 10 * 60 * 1000;
         while (Date.now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, 2500));
+          if (runId !== sourceRunId.current || controller.signal.aborted)
+            return;
           const statusRes = await fetch(`/api/scrape/jobs/${data.job.id}`, {
             cache: "no-store",
+            signal: controller.signal,
           });
           const statusData = await statusRes.json();
           if (!statusRes.ok)
@@ -3377,6 +3399,7 @@ function ScanPageInner() {
           return;
         }
       }
+      if (runId !== sourceRunId.current) return;
       const runResults = Array.isArray(completedData.results)
         ? completedData.results
         : [];
@@ -3395,13 +3418,15 @@ function ScanPageInner() {
       mutate();
       mutateScrapeHealth();
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (runId !== sourceRunId.current) return;
       setPlanMessage(
         error instanceof Error
           ? error.message
           : "Could not run matching sources.",
       );
     } finally {
-      setRunImporting(false);
+      if (runId === sourceRunId.current) setRunImporting(false);
     }
   }, [smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
 

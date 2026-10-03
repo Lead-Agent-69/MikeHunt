@@ -154,7 +154,11 @@ export function TopNav() {
       />
       {/* LEFT: Logo */}
       <div className="flex flex-1 items-center gap-2 min-w-0">
-        <Link href="/discover" className="flex items-center gap-2.5 group">
+        <Link
+          href="/discover"
+          aria-label="MIKEHUNT home"
+          className="flex items-center gap-2.5 group"
+        >
           <MikeHuntLogo
             size="sm"
             className="transition-transform group-hover:scale-[1.02]"

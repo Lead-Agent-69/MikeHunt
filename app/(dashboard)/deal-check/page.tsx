@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
+import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
+import { useDelayedLoading } from "@/hooks/useDelayedLoading";
 
 const money = (v: any) =>
   v == null
@@ -19,18 +21,32 @@ export default function DealCheckPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const controller = useRef<AbortController | null>(null);
+  const lastPayload = useRef<{ image?: string; text?: string } | null>(null);
+  const showLoader = useDelayedLoading(loading);
+
+  useEffect(() => () => controller.current?.abort(), []);
+
+  function beginRequest() {
+    requestId.current += 1;
+    controller.current?.abort();
+    return requestId.current;
+  }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const id = beginRequest();
     setError(null);
     setResult(null);
     setTextInput("");
     const reader = new FileReader();
     reader.onload = () => {
+      if (id !== requestId.current) return;
       const dataUrl = reader.result as string;
       setPreview(dataUrl);
-      analyze({ image: dataUrl });
+      analyze({ image: dataUrl }, id);
     };
     reader.readAsDataURL(file);
   }
@@ -38,28 +54,45 @@ export default function DealCheckPage() {
   function handleTextSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!textInput.trim()) return;
+    const id = beginRequest();
     setError(null);
     setResult(null);
     setPreview(null);
-    analyze({ text: textInput });
+    analyze({ text: textInput }, id);
   }
 
-  async function analyze(payload: { image?: string; text?: string }) {
+  async function analyze(
+    payload: { image?: string; text?: string },
+    id = beginRequest(),
+  ) {
+    const abortController = new AbortController();
+    controller.current = abortController;
+    lastPayload.current = payload;
     setLoading(true);
     try {
       const res = await fetch("/api/deal-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: abortController.signal,
       });
       const json = await res.json();
+      if (id !== requestId.current) return;
       if (!res.ok) setError(json.error || "Failed to read the document.");
       else setResult(json);
     } catch (e: any) {
-      setError(e.message);
+      if (e.name !== "AbortError" && id === requestId.current)
+        setError(e.message || "Could not analyze this deal.");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
+  }
+
+  function retry() {
+    if (!lastPayload.current) return;
+    const id = beginRequest();
+    setError(null);
+    analyze(lastPayload.current, id);
   }
 
   const x = result?.extracted;
@@ -122,18 +155,39 @@ export default function DealCheckPage() {
       )}
 
       {loading && (
-        <div className="text-center py-6 text-[var(--t3)]">
-          Reading the document…
+        <div className="flex flex-col items-center gap-3 py-6 text-center text-[var(--t3)]">
+          {showLoader && (
+            <MikeHuntLoader
+              state="loading"
+              size={64}
+              label="Analyzing deal details"
+            />
+          )}
+          <span>Reading the document and checking market evidence…</span>
         </div>
       )}
       {error && (
-        <div className="glass-panel p-4 text-center text-[var(--red)] text-sm">
-          {error}
+        <div className="glass-panel flex flex-col items-center gap-3 p-4 text-center text-[var(--red)] text-sm">
+          <MikeHuntLoader state="error" size={40} label="Deal check" />
+          <p>{error}</p>
+          {lastPayload.current && (
+            <button
+              type="button"
+              onClick={retry}
+              className="rounded-lg border border-[var(--rbd)] px-3 py-1.5 font-bold text-[var(--red)]"
+            >
+              Try again
+            </button>
+          )}
         </div>
       )}
 
       {x && (
         <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-[var(--green)]">
+            <MikeHuntLoader state="complete" size={28} label="Deal analysis" />
+            Analysis ready
+          </div>
           {/* Market comparison */}
           {mc && (
             <div className="glass-panel p-5">
@@ -178,7 +232,9 @@ export default function DealCheckPage() {
                             {comp.year} {comp.make} {comp.model}
                           </span>
                           <span className="text-xs text-[var(--t4)]">
-                            {comp.mileage ? `${comp.mileage.toLocaleString()} mi` : "Mileage unlisted"}
+                            {comp.mileage
+                              ? `${comp.mileage.toLocaleString()} mi`
+                              : "Mileage unlisted"}
                           </span>
                         </div>
                         <Mono className="text-sm font-bold text-[var(--t2)]">

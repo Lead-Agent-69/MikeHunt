@@ -91,7 +91,6 @@ export default function RootLayout({
           sizes="32x32"
           href="/favicon-32x32.png"
         />
-        <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#075BE8" />
         <meta name="apple-mobile-web-app-title" content="MikeHunt" />
         <meta name="theme-color" content="#075BE8" />
         <meta name="msapplication-TileColor" content="#075BE8" />

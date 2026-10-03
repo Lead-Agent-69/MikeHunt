@@ -1,11 +1,12 @@
 // app/(dashboard)/save/page.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
+import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 
 export default function SavePage({
   searchParams,
@@ -21,6 +22,8 @@ export default function SavePage({
   );
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [sharedUrl, setSharedUrl] = useState<string>("");
+  const requestId = useRef(0);
+  const controller = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (dealerLoading) return;
@@ -59,15 +62,21 @@ export default function SavePage({
     }
 
     setSharedUrl(targetUrl);
-    handleSaveUrl(targetUrl);
+    const id = ++requestId.current;
+    controller.current?.abort();
+    handleSaveUrl(targetUrl, id);
+    return () => controller.current?.abort();
   }, [resolvedSearchParams, dealerId, dealerLoading]);
 
-  const handleSaveUrl = async (urlToSave: string) => {
+  const handleSaveUrl = async (urlToSave: string, id: number) => {
+    const abortController = new AbortController();
+    controller.current = abortController;
     try {
       const response = await fetch("/api/save-from-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlToSave }),
+        signal: abortController.signal,
       });
 
       const data = await response.json();
@@ -76,13 +85,11 @@ export default function SavePage({
         throw new Error(data.error || "Failed to analyze this listing.");
       }
 
+      if (id !== requestId.current) return;
       setStatus("success");
-
-      // Auto-redirect to the deal page after 1.5 seconds
-      setTimeout(() => {
-        router.push(`/deal/${data.dealId}`);
-      }, 1500);
+      router.replace(`/deal/${data.dealId}`);
     } catch (err: any) {
+      if (err.name === "AbortError" || id !== requestId.current) return;
       console.error("[SAVE-PAGE] Error:", err);
       setStatus("error");
       setErrorMessage(
@@ -97,16 +104,11 @@ export default function SavePage({
         <CardContent className="p-8 flex flex-col items-center text-center space-y-6">
           {status === "analyzing" && (
             <>
-              <div className="relative flex items-center justify-center">
-                <div
-                  className="w-16 h-16 rounded-full border-4 border-t-[var(--amber)] animate-spin"
-                  style={{
-                    borderColor: "var(--amber-lo)",
-                    borderTopColor: "var(--amber)",
-                  }}
-                ></div>
-                <Loader2 className="absolute text-[var(--amber)] animate-pulse w-6 h-6" />
-              </div>
+              <MikeHuntLoader
+                state="loading"
+                size={72}
+                label="Analyzing shared vehicle"
+              />
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)]">
                   Analyzing shared vehicle...
@@ -126,15 +128,11 @@ export default function SavePage({
 
           {status === "success" && (
             <>
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center text-[var(--green)]"
-                style={{
-                  background: "var(--glo)",
-                  border: "1px solid var(--gbd)",
-                }}
-              >
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
+              <MikeHuntLoader
+                state="complete"
+                size={72}
+                label="Shared vehicle analysis"
+              />
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)]">
                   Deal Analyzed!
@@ -148,14 +146,13 @@ export default function SavePage({
 
           {status === "error" && (
             <>
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center text-[var(--red)]"
-                style={{
-                  background: "rgba(239,91,107,0.12)",
-                  border: "1px solid var(--rbd)",
-                }}
-              >
-                <AlertCircle className="w-8 h-8" />
+              <div className="flex items-center gap-3">
+                <MikeHuntLoader
+                  state="error"
+                  size={48}
+                  label="Shared vehicle analysis"
+                />
+                <AlertCircle className="w-7 h-7 text-[var(--red)]" />
               </div>
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)] font-bold">

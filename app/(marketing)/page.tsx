@@ -514,7 +514,11 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 frosted border-b border-[var(--b1)]">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link
+            href="/"
+            aria-label="MIKEHUNT home"
+            className="flex items-center gap-2"
+          >
             <MikeHuntLogo size="sm" />
           </Link>
           <div className="flex items-center gap-1">

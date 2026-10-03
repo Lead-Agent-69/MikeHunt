@@ -7,13 +7,15 @@ const read = (file: string) =>
   readFileSync(path.join(root, file), "utf8").replace(/^\uFEFF/, "");
 
 describe("MikeHunt brand assets", () => {
-  it("uses the aviator identity in app chrome instead of the old generic mark", () => {
+  it("uses the supplied M identity in app chrome", () => {
     const topNav = read("components/layout/TopNav.tsx");
     const logo = read("components/brand/MikeHuntLogo.tsx");
 
     expect(topNav).toContain("MikeHuntLogo");
     expect(topNav).not.toContain("BarChart3");
-    expect(logo).toContain("MikeHunt aviator mark");
+    expect(logo).toContain("/brand/MIKEHUNT-M.svg");
+    expect(logo).not.toContain("aviator");
+    expect(topNav).toContain('aria-label="MIKEHUNT home"');
   });
 
   it("ships a matching blue PWA icon and theme color", () => {
@@ -32,8 +34,9 @@ describe("MikeHunt brand assets", () => {
     expect(manifest.icons.some((entry) => entry.src === "/icon.svg")).toBe(
       true,
     );
-    expect(icon).toContain("MikeHunt aviator app icon");
-    expect(icon).toContain("#075BE8");
-    expect(icon).not.toContain("#f25b9a");
+    expect(icon).toContain('aria-label="MIKEHUNT"');
+    expect(read("public/brand/MIKEHUNT-M.svg")).toContain(
+      "data:image/png;base64",
+    );
   });
 });

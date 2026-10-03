@@ -51,7 +51,11 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-24 sm:p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
       <div className="absolute top-0 left-0 right-0 z-10 p-6">
-        <Link href="/" className="inline-flex items-center gap-2.5">
+        <Link
+          href="/"
+          aria-label="MIKEHUNT home"
+          className="inline-flex items-center gap-2.5"
+        >
           <MikeHuntLogo size="md" />
         </Link>
       </div>
