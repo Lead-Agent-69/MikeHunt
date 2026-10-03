@@ -1,4 +1,13 @@
 import type { Prediction } from "@/lib/intelligence/predict";
+import {
+  Binoculars,
+  Clock3,
+  Flame,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
 // The PREDICTIVE card — the engine's forward-looking read on a deal: how fast it'll move, whether the
 // seller's likely to cut, whether to act now, and the return at the actionable price. All derived, all
@@ -6,11 +15,11 @@ import type { Prediction } from "@/lib/intelligence/predict";
 
 const URGENCY: Record<
   string,
-  { label: string; color: string; icon: string } | null
+  { label: string; color: string; Icon: LucideIcon } | null
 > = {
-  act_now: { label: "ACT NOW", color: "var(--red)", icon: "🔥" },
-  soon: { label: "MOVE SOON", color: "var(--amber)", icon: "⚡" },
-  watch: { label: "WATCH", color: "var(--t3)", icon: "👀" },
+  act_now: { label: "ACT NOW", color: "var(--red)", Icon: Flame },
+  soon: { label: "MOVE SOON", color: "var(--amber)", Icon: Zap },
+  watch: { label: "WATCH", color: "var(--t3)", Icon: Binoculars },
   none: null,
 };
 
@@ -22,12 +31,12 @@ const VELOCITY: Record<string, { label: string; color: string }> = {
 };
 
 function Stat({
-  icon,
+  Icon,
   value,
   label,
   color,
 }: {
-  icon: string;
+  Icon: LucideIcon;
   value: string;
   label: string;
   color?: string;
@@ -35,10 +44,11 @@ function Stat({
   return (
     <div className="flex flex-col gap-1 rounded-xl border border-white/10 bg-black/30 p-3">
       <div
-        className="text-lg font-bold"
+        className="flex items-center gap-2 text-lg font-bold"
         style={{ color: color ?? "var(--t1)" }}
       >
-        {icon} {value}
+        <Icon className="h-4 w-4" aria-hidden="true" />
+        {value}
       </div>
       <div className="text-[11px] uppercase tracking-wide text-[var(--t4)]">
         {label}
@@ -64,31 +74,32 @@ export function ForecastPanel({
     <section className="rounded-2xl border border-white/10 bg-black/40 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold tracking-wide text-[var(--t2)]">
-          🔮 Forecast
+          Forecast
         </h3>
         {u && (
           <span
-            className="rounded-full px-3 py-1 text-xs font-bold"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
             style={{
               color: u.color,
               background: "color-mix(in srgb, var(--bg) 60%, transparent)",
               border: `1px solid ${u.color}`,
             }}
           >
-            {u.icon} {u.label}
+            <u.Icon className="h-3.5 w-3.5" aria-hidden="true" />
+            {u.label}
           </span>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Stat
-          icon="⏱"
+          Icon={Clock3}
           value={daysToSell != null ? `~${daysToSell}d` : "—"}
           label={vel.label}
           color={vel.color}
         />
         <Stat
-          icon="📉"
+          Icon={TrendingDown}
           value={dropPct != null ? `${dropPct}%` : "—"}
           label="price-drop odds (2wk)"
           color={
@@ -96,7 +107,7 @@ export function ForecastPanel({
           }
         />
         <Stat
-          icon="📈"
+          Icon={TrendingUp}
           value={projectedRoiPct != null ? `${projectedRoiPct}%` : "—"}
           label="projected ROI"
           color={

@@ -13,29 +13,35 @@ export function SetupStatusPanel({
   previewCount?: number;
 }) {
   if (configured) return null;
+  const hasPreviewRows = previewMode && previewCount > 0;
 
   const items = [
     {
       icon: Database,
       label: "Inventory database",
       status: "Not connected",
-      detail: previewMode
+      detail: hasPreviewRows
         ? `${previewCount.toLocaleString()} real public preview rows are showing, but they are not saved yet.`
-        : "Supabase is missing or has no live rows.",
+        : previewMode
+          ? "Public preview sources are reachable, but this exact scope has no matching rows yet."
+          : "Supabase is missing or has no live rows.",
     },
     {
       icon: RadioTower,
       label: "Source ingestion",
       status: previewMode ? "Preview feed active" : "No active feed",
-      detail: previewMode
+      detail: hasPreviewRows
         ? "GovDeals/PublicSurplus are live-previewed now; protected imports still need Supabase."
-        : "Salvage, wholesale, private, retail, repo, and specialty sources need credentials or jobs.",
+        : previewMode
+          ? "GovDeals/PublicSurplus responded. Broaden the state, lane, budget, or vehicle type to see matches."
+          : "Salvage, wholesale, private, retail, repo, and specialty sources need credentials or jobs.",
     },
     {
       icon: KeyRound,
       label: "AI provider",
-      status: "Not connected",
-      detail: "Copilot and AI deal briefs need a valid provider key.",
+      status: "Deterministic mode",
+      detail:
+        "Deal math, decision briefs, and market pulse can run from app data; generated AI needs a provider key.",
     },
   ];
 
@@ -47,14 +53,18 @@ export function SetupStatusPanel({
             Setup required
           </p>
           <h2 className="text-lg font-black text-[var(--t1)]">
-            {previewMode
+            {hasPreviewRows
               ? "Real preview inventory is live. Saved inventory is not connected yet."
-              : "Searches are ready. Real inventory is not connected yet."}
+              : previewMode
+                ? "Preview sources are reachable. This scope has no matching rows yet."
+                : "Searches are ready. Real inventory is not connected yet."}
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-            {previewMode
+            {hasPreviewRows
               ? "Users can browse public live listings now. Connect Supabase to save rows, run imports, personalize feeds, and track freshness over time."
-              : "The app can organize and filter deals now, but results will stay empty until live vehicle data is feeding the database."}
+              : previewMode
+                ? "The app is checking real public sources and keeping the result honest. Connect Supabase and gated sources to expand coverage beyond the public preview."
+                : "The app can organize and filter deals now, but results will stay empty until live vehicle data is feeding the database."}
           </p>
         </div>
         <Link

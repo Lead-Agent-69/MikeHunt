@@ -1,9 +1,18 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { Ico } from "@/components/shared/Ico";
 import { createClientComponentClient } from "@/lib/supabase";
 import { parseSearchQuery } from "@/lib/nlp/parse-search";
+import {
+  readLocalSavedSearches,
+  saveLocalSavedSearch,
+  scanHrefForSavedSearch,
+  sourceProofHrefForSavedSearch,
+  toggleLocalSavedSearch,
+  writeLocalSavedSearches,
+} from "@/hooks/useLocalSavedSearches";
 
 export default function SearchesPage() {
   const supabase = createClientComponentClient();
@@ -15,6 +24,10 @@ export default function SearchesPage() {
   const [formName, setFormName] = useState("");
   const [formMake, setFormMake] = useState("");
   const [formModel, setFormModel] = useState("");
+  const [formState, setFormState] = useState("");
+  const [formLane, setFormLane] = useState("all");
+  const [formSellerType, setFormSellerType] = useState("all");
+  const [formTitleType, setFormTitleType] = useState("all");
   const [formMinYear, setFormMinYear] = useState("");
   const [formMaxYear, setFormMaxYear] = useState("");
   const [formMaxPrice, setFormMaxPrice] = useState("");
@@ -29,6 +42,7 @@ export default function SearchesPage() {
     const p = parseSearchQuery(nlQuery);
     if (p.make) setFormMake(p.make);
     if (p.model) setFormModel(p.model);
+    if ((p as any).state) setFormState((p as any).state);
     if (p.min_year) setFormMinYear(String(p.min_year));
     if (p.max_year) setFormMaxYear(String(p.max_year));
     if (p.max_price) setFormMaxPrice(String(p.max_price));
@@ -45,7 +59,10 @@ export default function SearchesPage() {
   async function fetchSearches() {
     setLoading(true);
     const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return setLoading(false);
+    if (!user.user) {
+      setSearches(readLocalSavedSearches());
+      return setLoading(false);
+    }
 
     try {
       const { data } = await supabase
@@ -54,9 +71,11 @@ export default function SearchesPage() {
         .eq("user_id", user.user.id)
         .order("created_at", { ascending: false });
 
-      if (data) setSearches(data);
+      const local = readLocalSavedSearches();
+      if (data) setSearches([...local, ...data]);
     } catch (err) {
       console.warn("Table might not exist yet");
+      setSearches(readLocalSavedSearches());
     }
     setLoading(false);
   }
@@ -66,6 +85,10 @@ export default function SearchesPage() {
     setFormName("");
     setFormMake("");
     setFormModel("");
+    setFormState("");
+    setFormLane("all");
+    setFormSellerType("all");
+    setFormTitleType("all");
     setFormMinYear("");
     setFormMaxYear("");
     setFormMaxPrice("");
@@ -78,21 +101,39 @@ export default function SearchesPage() {
   async function handleSaveSearch(e: React.FormEvent) {
     e.preventDefault();
     const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
-
-    await supabase.from("user_saved_searches").insert({
-      user_id: user.user.id,
+    const payload = {
       name: formName || `${formMake} ${formModel}`.trim() || "My search",
       make: formMake || null,
       model: formModel || null,
+      state: formState || null,
+      lane: formLane !== "all" ? formLane : null,
+      seller_type: formSellerType !== "all" ? formSellerType : null,
+      title_type: formTitleType !== "all" ? formTitleType : null,
       min_year: formMinYear ? Number(formMinYear) : null,
       max_year: formMaxYear ? Number(formMaxYear) : null,
       max_price: formMaxPrice ? Number(formMaxPrice) : null,
       target_profit: formTargetProfit ? Number(formTargetProfit) : null,
       require_go: formRequireGo,
-      notify_email: formNotifyEmail,
-      notify_sms: formNotifySms,
+      notify_email: Boolean(user.user) && formNotifyEmail,
+      notify_sms: false,
       is_active: true,
+    };
+
+    if (!user.user) {
+      const localSearch = saveLocalSavedSearch(payload);
+      setSearches([
+        localSearch,
+        ...readLocalSavedSearches().filter(
+          (item) => item.id !== localSearch.id,
+        ),
+      ]);
+      resetForm();
+      return;
+    }
+
+    await supabase.from("user_saved_searches").insert({
+      user_id: user.user.id,
+      ...payload,
     });
 
     resetForm();
@@ -100,11 +141,28 @@ export default function SearchesPage() {
   }
 
   async function handleDelete(id: string) {
+    if (id.startsWith("local-")) {
+      const list = readLocalSavedSearches().filter(
+        (item: any) => item.id !== id,
+      );
+      writeLocalSavedSearches(list);
+      setSearches((current) => current.filter((item) => item.id !== id));
+      return;
+    }
     await supabase.from("user_saved_searches").delete().eq("id", id);
     fetchSearches();
   }
 
   async function toggleActive(id: string, current: boolean) {
+    if (id.startsWith("local-")) {
+      toggleLocalSavedSearch(id, current);
+      setSearches((items) =>
+        items.map((item) =>
+          item.id === id ? { ...item, is_active: !current } : item,
+        ),
+      );
+      return;
+    }
     await supabase
       .from("user_saved_searches")
       .update({ is_active: !current })
@@ -199,6 +257,66 @@ export default function SearchesPage() {
                 placeholder="e.g. F-150"
                 className={inputClass}
               />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--t2)] mb-1">
+                State / market
+              </label>
+              <input
+                value={formState}
+                onChange={(e) =>
+                  setFormState(e.target.value.toUpperCase().slice(0, 2))
+                }
+                placeholder="e.g. FL"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--t2)] mb-1">
+                Buying lane
+              </label>
+              <select
+                value={formLane}
+                onChange={(e) => setFormLane(e.target.value)}
+                className={inputClass}
+              >
+                <option value="all">All lanes</option>
+                <option value="damaged">Salvage & repairable</option>
+                <option value="auction">Wholesale auctions</option>
+                <option value="government">Government / repo</option>
+                <option value="clean-retail">Clean retail</option>
+                <option value="private">Private / dealer</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--t2)] mb-1">
+                Seller type
+              </label>
+              <select
+                value={formSellerType}
+                onChange={(e) => setFormSellerType(e.target.value)}
+                className={inputClass}
+              >
+                <option value="all">Any seller</option>
+                <option value="dealer">Dealer</option>
+                <option value="auction">Auction</option>
+                <option value="private">Private</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-[var(--t2)] mb-1">
+                Title type
+              </label>
+              <select
+                value={formTitleType}
+                onChange={(e) => setFormTitleType(e.target.value)}
+                className={inputClass}
+              >
+                <option value="all">Any title</option>
+                <option value="clean">Clean</option>
+                <option value="salvage">Salvage</option>
+                <option value="rebuilt">Rebuilt</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm text-[var(--t2)] mb-1">
@@ -340,10 +458,30 @@ export default function SearchesPage() {
                       BUY only
                     </span>
                   )}
+                  {search.local && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded border border-[var(--b2)] text-[var(--t4)]">
+                      local
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-[var(--t3)] flex flex-wrap items-center gap-x-3 gap-y-1">
                   {search.make && <span>Make: {search.make}</span>}
+                  {search.makes?.length ? (
+                    <span>Makes: {search.makes.join(", ")}</span>
+                  ) : null}
                   {search.model && <span>Model: {search.model}</span>}
+                  {search.q && <span>Search: {search.q}</span>}
+                  {search.state && <span>State: {search.state}</span>}
+                  {search.lane && (
+                    <span>Lane: {String(search.lane).replace(/-/g, " ")}</span>
+                  )}
+                  {search.seller_type && (
+                    <span>Seller: {search.seller_type}</span>
+                  )}
+                  {search.title_type && <span>Title: {search.title_type}</span>}
+                  {search.dealer_source_ids?.length ? (
+                    <span>Dealers: {search.dealer_source_ids.join(", ")}</span>
+                  ) : null}
                   {(search.min_year || search.max_year) && (
                     <span>
                       Year: {search.min_year || "…"}–{search.max_year || "…"}
@@ -354,6 +492,11 @@ export default function SearchesPage() {
                       Max: ${Number(search.max_price).toLocaleString()}
                     </span>
                   )}
+                  {search.min_price && (
+                    <span>
+                      Min: ${Number(search.min_price).toLocaleString()}
+                    </span>
+                  )}
                   {search.target_profit && (
                     <span>
                       Min profit: $
@@ -362,7 +505,12 @@ export default function SearchesPage() {
                   )}
                 </div>
                 <div className="text-xs text-[var(--t4)] mt-1.5 flex items-center gap-2">
-                  {search.notify_email && <span>✉ Email</span>}
+                  {search.local ? (
+                    <span>
+                      Stored on this device. Sign in later to sync alerts.
+                    </span>
+                  ) : null}
+                  {search.notify_email && <span>Email</span>}
                   {search.notify_sms && <span>✆ SMS</span>}
                   {search.last_run_at && (
                     <span>
@@ -372,7 +520,19 @@ export default function SearchesPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <Link
+                  href={scanHrefForSavedSearch(search)}
+                  className="px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
+                >
+                  Open Scan
+                </Link>
+                <Link
+                  href={sourceProofHrefForSavedSearch(search)}
+                  className="px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
+                >
+                  Source proof
+                </Link>
                 <button
                   onClick={() => toggleActive(search.id, search.is_active)}
                   className="px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"

@@ -9,6 +9,23 @@ import useSWR from "swr";
 export interface Prefs {
   carsState?: string; // default state to view
   carsStates?: string[]; // multi-state "hunt list" for cars
+  buyerScope?: {
+    buyerMode?: "personal" | "diy" | "reseller" | "dealer";
+    vehicle?: string;
+    lane?: string;
+    laneValue?: string;
+    state?: string;
+    titleType?: string;
+    sellerType?: string;
+    maxPrice?: number;
+    targetProfit?: number;
+    preferredMakes?: string[];
+    makes?: string[];
+    watchedDealers?: string[];
+    watchedDealerSourceIds?: string[];
+  };
+  watchedDealerHosts?: string[];
+  watchedDealerSourceIds?: string[];
 }
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());

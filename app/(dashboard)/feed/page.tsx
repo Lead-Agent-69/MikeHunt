@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { BarChart3, ExternalLink, Flame, Heart, MapPin } from "lucide-react";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
@@ -172,8 +173,20 @@ export default function FeedPage() {
       ))}
       <div ref={sentinel} className="h-2" />
       {items.length === 0 && loading && configured !== false && (
-        <div className="grid h-full place-items-center text-white/50">
-          Loading the feed…
+        <div className="grid min-h-[calc(100vh-56px)] place-items-center bg-[var(--s1)] px-4">
+          <div className="glass-panel w-full max-w-md p-5 text-center">
+            <div className="mx-auto h-10 w-10 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shimmer" />
+            <p className="mt-4 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+              Feed
+            </p>
+            <h1 className="mt-1 text-lg font-black text-[var(--t1)]">
+              Building your review queue
+            </h1>
+            <p className="mt-1 text-sm leading-relaxed text-[var(--t4)]">
+              Loading photo-backed rows from the buyer scope and saved market
+              preferences.
+            </p>
+          </div>
         </div>
       )}
       {done && items.length === 0 && configured === false && (
@@ -184,17 +197,17 @@ export default function FeedPage() {
                 Live feed
               </p>
               <h1 className="mt-1 text-2xl font-black text-[var(--t1)]">
-                Build the feed from the buyer’s intent
+                Build the feed from buyer intent
               </h1>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                The feed should not scrape everything. It should show vehicles
-                that match the selected market, buying lane, vehicle type, and
-                source quality.
+                Feed is the fast review lane after sources produce real,
+                photo-backed rows. It stays empty until the app knows what
+                market, lane, vehicle type, and source quality to trust.
               </p>
             </div>
             <DataSetupState
-              title="Connect one source lane before the feed goes live"
-              message="Start with a scoped lane like Texas government trucks or salvage SUVs. Once rows import, this feed becomes a fast, photo-first review queue."
+              title="Connect one source lane before Feed goes live"
+              message="Start with a scoped lane like Texas government trucks, Florida dealer SUVs, or salvage imports. Once matching rows are saved, Feed becomes a fast, photo-first review queue."
               primaryHref="/discover"
               primaryLabel="Choose buyer scope"
               secondaryHref="/sources"
@@ -207,19 +220,19 @@ export default function FeedPage() {
         <div className="min-h-[calc(100vh-56px)] bg-[var(--s1)] p-4 pt-8 md:p-8">
           <div className="mx-auto max-w-3xl">
             <DataSetupState
-              title="No matching feed items yet"
-              message={`No photo-ready vehicles match ${scope?.length ? scope.join(", ") : "the current market"} yet. Broaden the states or run a smart source search from Discover.`}
+              title="No photo-ready feed items yet"
+              message={`No vehicles match ${scope?.length ? scope.join(", ") : "the current market"} with enough photo proof for Feed. Broaden the market or run a smart source search from Discover.`}
               primaryHref="/discover"
               primaryLabel="Adjust buyer scope"
-              secondaryHref="/scan"
-              secondaryLabel="Open scanner"
+              secondaryHref="/scan?sort=profit"
+              secondaryLabel="Open ranked scan"
             />
           </div>
         </div>
       )}
       {done && items.length > 0 && (
         <div className="flex h-[40vh] snap-start items-center justify-center text-white/40">
-          You’re all caught up 🏁
+          You are all caught up
         </div>
       )}
     </div>
@@ -271,7 +284,7 @@ function FeedCard({ it }: { it: FeedItem }) {
         <div className="flex items-center gap-2">
           {it.verdict === "go" ? (
             <span className="rounded-full bg-[var(--green)] px-3 py-1 text-sm font-black text-black shadow-lg">
-              🔥 BUY
+              BUY
             </span>
           ) : it.score != null ? (
             <span className="rounded-full bg-black/55 px-3 py-1 text-sm font-black text-white backdrop-blur">
@@ -284,7 +297,7 @@ function FeedCard({ it }: { it: FeedItem }) {
             className="rounded-full px-2.5 py-1 text-xs font-black text-black shadow"
             style={{ background: "var(--home, #2dd4bf)" }}
           >
-            ✨ {it.forYouReason}
+            {it.forYouReason}
           </span>
         )}
       </div>
@@ -300,7 +313,10 @@ function FeedCard({ it }: { it: FeedItem }) {
             className="grid h-12 w-12 place-items-center rounded-full bg-black/45 text-2xl backdrop-blur transition-transform active:scale-90"
             style={{ color: saved ? "var(--red)" : "#fff" }}
           >
-            {saved ? "❤️" : "🤍"}
+            <Heart
+              className={saved ? "h-5 w-5 fill-current" : "h-5 w-5"}
+              strokeWidth={2.4}
+            />
           </span>
           <span className="text-[11px] font-bold text-white/90">Save</span>
         </button>
@@ -309,7 +325,7 @@ function FeedCard({ it }: { it: FeedItem }) {
           className="flex flex-col items-center gap-1"
         >
           <span className="grid h-12 w-12 place-items-center rounded-full bg-black/45 text-xl text-white backdrop-blur">
-            📊
+            <BarChart3 className="h-5 w-5" strokeWidth={2.4} />
           </span>
           <span className="text-[11px] font-bold text-white/90">Details</span>
         </Link>
@@ -321,7 +337,7 @@ function FeedCard({ it }: { it: FeedItem }) {
             className="flex flex-col items-center gap-1"
           >
             <span className="grid h-12 w-12 place-items-center rounded-full bg-black/45 text-xl text-white backdrop-blur">
-              🔗
+              <ExternalLink className="h-5 w-5" strokeWidth={2.4} />
             </span>
             <span className="text-[11px] font-bold text-white/90">Listing</span>
           </a>
@@ -345,14 +361,18 @@ function FeedCard({ it }: { it: FeedItem }) {
         </div>
         <div className="mt-0.5 text-sm text-white/75">
           {it.mileage ? `${it.mileage.toLocaleString()} mi · ` : ""}
-          📍{" "}
+          <MapPin
+            className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
+            strokeWidth={2.4}
+          />
           {[it.locationCity, it.locationState].filter(Boolean).join(", ") ||
             it.locationState ||
             "—"}
         </div>
         {actNow && (
-          <span className="mt-2 inline-flex items-center rounded-full bg-[var(--red)] px-2.5 py-1 text-xs font-black text-white">
-            🔥 Act now
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--red)] px-2.5 py-1 text-xs font-black text-white">
+            <Flame className="h-3.5 w-3.5" strokeWidth={2.4} />
+            Act now
             {it.prediction?.daysToSell
               ? ` · ~${it.prediction.daysToSell}d`
               : ""}

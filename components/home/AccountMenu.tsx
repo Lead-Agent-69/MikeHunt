@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogOut, Settings } from "lucide-react";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
@@ -65,14 +66,16 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       {open && (
         <div className="absolute top-11 right-0 w-52 p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur-md shadow-[var(--shadow)]">
           <button onClick={() => router.push("/settings")} className={item}>
-            ⚙ Settings
+            <Settings className="h-4 w-4" aria-hidden="true" />
+            Settings
           </button>
           <div className="my-1 border-t border-[var(--b1)]" />
           <button
             onClick={logout}
             className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
           >
-            ⎋ Log out
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Log out
           </button>
         </div>
       )}

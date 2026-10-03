@@ -7,11 +7,14 @@
 // Several feed routes were doing exactly that (`sellerPhone: d.seller_phone`), so the contact
 // rail on DiscoveryCard was always empty. Read through this helper instead: it prefers the
 // canonical `options.contact`, falls back to a top-level column if a view/projection happens
-// to expose one, and always returns a normalized { phone, email } pair.
+// to expose one, and always returns a normalized { phone, email, url } contact object.
+
+import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 
 export interface SellerContact {
   phone: string | null;
   email: string | null;
+  url: string | null;
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -28,6 +31,25 @@ function asNonEmptyString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function directSellerLink(record: UnknownRecord): string | null {
+  const url =
+    asNonEmptyString(record.source_url) ??
+    asNonEmptyString(record.sourceUrl) ??
+    null;
+  if (!url) return null;
+  const source =
+    sourceFromUrl(url) ??
+    asNonEmptyString(record.source) ??
+    asNonEmptyString(record.source_id);
+  const channel = sourceMeta(source).channel;
+  return channel === "dealer" ||
+    channel === "retail" ||
+    channel === "marketplace" ||
+    channel === "private"
+    ? url
+    : null;
+}
+
 /**
  * Extract seller phone/email from a deals row (or flash_deals view row).
  *
@@ -36,7 +58,7 @@ function asNonEmptyString(value: unknown): string | null {
  */
 export function sellerContact(row: unknown): SellerContact {
   const record = asRecord(row);
-  if (!record) return { phone: null, email: null };
+  if (!record) return { phone: null, email: null, url: null };
 
   // 1. Canonical location: options.contact.{phone,email}
   const options = asRecord(record.options);
@@ -47,8 +69,13 @@ export function sellerContact(row: unknown): SellerContact {
     asNonEmptyString(contact?.phone) ?? asNonEmptyString(record.seller_phone);
   const email =
     asNonEmptyString(contact?.email) ?? asNonEmptyString(record.seller_email);
+  const url =
+    asNonEmptyString(contact?.url) ??
+    asNonEmptyString(record.seller_contact_url) ??
+    asNonEmptyString(record.contact_url) ??
+    directSellerLink(record);
 
-  return { phone, email };
+  return { phone, email, url };
 }
 
 /** Convenience: just the phone, for routes that only render a call button. */
@@ -74,7 +101,8 @@ export function sellerEmail(row: unknown): string | null {
 export function sellerContactFields(row: unknown): {
   sellerPhone: string | null;
   sellerEmail: string | null;
+  sellerContactUrl: string | null;
 } {
-  const { phone, email } = sellerContact(row);
-  return { sellerPhone: phone, sellerEmail: email };
+  const { phone, email, url } = sellerContact(row);
+  return { sellerPhone: phone, sellerEmail: email, sellerContactUrl: url };
 }

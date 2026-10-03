@@ -4,15 +4,16 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/swr-config";
 import { Panel } from "@/components/shared/Panel";
-import { EmptyState } from "@/components/shared/EmptyState";
 import { Tag } from "@/components/shared/Tag";
 import { Mono } from "@/components/shared/Mono";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { DataSetupState } from "@/components/shared/DataSetupState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { FleetKPIs } from "@/components/fleet/FleetKPIs";
 import { CapitalVelocityTracker } from "@/components/fleet/CapitalVelocityTracker";
 import { useDealerId } from "@/hooks/useDealerId";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { Clock3 } from "lucide-react";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DAILY_FLOOR_RATE = 35;
@@ -793,10 +794,12 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
                 className="flex items-center justify-between"
               >
                 <span
-                  className="text-xs"
+                  className="inline-flex items-center gap-1 text-xs"
                   style={{ color: row.warn ? "var(--amber)" : "var(--t4)" }}
                 >
-                  {row.warn ? "⏱ " : ""}
+                  {row.warn ? (
+                    <Clock3 className="h-3 w-3" aria-hidden="true" />
+                  ) : null}
                   {row.label}
                 </span>
                 <Mono
@@ -924,14 +927,111 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
 // ─── Empty State ──────────────────────────────────────────────────────────────
 function EmptyFleet() {
   return (
-    <Panel padding="none">
-      <EmptyState
-        icon="fleet"
-        title="No vehicles yet"
-        message="Deals you buy will appear here — scan the market and add one to your fleet."
-        action={{ label: "Find Deals", href: "/scan" }}
-      />
+    <DataSetupState
+      title="Fleet starts when a deal becomes yours"
+      message="Saved and watched vehicles help you shortlist. Fleet is for the next step: units you bought, transport, recon, floor cost, listed price, offers, and final outcome."
+      primaryHref="/scan?sort=profit"
+      primaryLabel="Find a vehicle to buy"
+      secondaryHref="/saved"
+      secondaryLabel="Review saved candidates"
+      compact
+    />
+  );
+}
+
+function FleetSetupState({ signedIn }: { signedIn: boolean }) {
+  return (
+    <DataSetupState
+      title={
+        signedIn
+          ? "Connect inventory to unlock Fleet"
+          : "Sign in to track acquired units"
+      }
+      message={
+        signedIn
+          ? "Fleet needs the inventory tables and saved acquisition events before it can track carrying costs, recon stages, listed price, offers, and sale outcomes."
+          : "Fleet is personal operating data. Sign in first, then add a vehicle from Scan or Saved when you purchase it."
+      }
+      primaryHref={signedIn ? "/sources" : "/login"}
+      primaryLabel={signedIn ? "Open data sources" : "Sign in"}
+      secondaryHref="/scan?sort=profit"
+      secondaryLabel="Open scanner"
+      compact
+    />
+  );
+}
+
+function EmptyFleetFilter({ label }: { label: string }) {
+  return (
+    <Panel className="overflow-hidden p-0">
+      <div className="p-5 md:p-6">
+        <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+          Stage empty
+        </p>
+        <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+          No units in {label}
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+          This stage will fill as acquired units move through transport, recon,
+          listed, offer, and sold. Use All to see the whole pipeline.
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          {["Acquired", "Recon", "Sold"].map((step) => (
+            <div
+              key={step}
+              className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2"
+            >
+              <div className="text-xs font-black text-[var(--t1)]">{step}</div>
+              <div className="mt-0.5 text-[11px] text-[var(--t5)]">
+                Track cost, status, and outcome.
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </Panel>
+  );
+}
+
+function FleetPageHeader({ count }: { count: number }) {
+  return (
+    <div className="glass-panel overflow-hidden p-4 md:p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+            Fleet
+          </p>
+          <h1 className="mt-1 text-xl font-black text-[var(--t1)] md:text-2xl">
+            Bought units, costs, recon, and outcomes
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+            This is the operating board after a vehicle moves from candidate to
+            owned unit. It keeps acquisition cost, floor cost, recon, listing
+            status, offers, and final sale in one timeline.
+          </p>
+        </div>
+        {count > 0 && (
+          <span className="w-fit rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t3)]">
+            {count} unit{count !== 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        {[
+          ["Acquire", "Save the winning deal"],
+          ["Operate", "Track transport and recon"],
+          ["Learn", "Log sale outcomes"],
+        ].map(([label, detail]) => (
+          <div
+            key={label}
+            className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2"
+          >
+            <div className="text-xs font-black text-[var(--t1)]">{label}</div>
+            <div className="mt-0.5 text-[11px] text-[var(--t5)]">{detail}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -956,11 +1056,12 @@ export default function FleetPage() {
   );
 
   const fleet = (data?.items || []) as InventoryItem[];
+  const needsSignIn = configured && !dealerLoading && !dealerId;
   const error = !configured
     ? null
     : dealerId
       ? fetchError?.message || data?.error || null
-      : "Please sign in to view your fleet.";
+      : null;
   const loading = configured && (dealerLoading || isLoading);
 
   useEffect(() => {
@@ -1026,25 +1127,7 @@ export default function FleetPage() {
 
   return (
     <div className="space-y-5 pb-24">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-black" style={{ color: "var(--t1)" }}>
-            Fleet Dashboard
-          </h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--t4)" }}>
-            Live carrying cost tracking for every unit on your lot
-          </p>
-        </div>
-        {!loading && !error && fleet.length > 0 && (
-          <span
-            className="text-xs font-mono px-2 py-1 rounded-[var(--r2)]"
-            style={{ background: "var(--s3)", color: "var(--t4)" }}
-          >
-            {fleet.length} unit{fleet.length !== 1 ? "s" : ""}
-          </span>
-        )}
-      </div>
+      <FleetPageHeader count={!loading && !error ? fleet.length : 0} />
 
       {/* Deep KPI rollup — margin, days-to-sell, recon, live ghost cost, bottleneck (the flip loop) */}
       {!loading && !error && fleet.length > 0 && <FleetKPIs fleet={fleet} />}
@@ -1160,25 +1243,21 @@ export default function FleetPage() {
       {/* Error */}
       {error && !loading && (
         <ErrorState
-          title="Failed to load fleet"
+          title="Fleet data is unavailable"
           message={error}
           onRetry={() => mutate()}
         />
       )}
 
-      {!configured && !loading && (
-        <Panel padding="none">
-          <EmptyState
-            icon="fleet"
-            title="Connect inventory to unlock Fleet"
-            message="Fleet needs the Supabase inventory tables before it can track acquired units, carrying costs, recon stages, and sale outcomes."
-            action={{ label: "Open data sources", href: "/sources" }}
-          />
-        </Panel>
-      )}
+      {!configured && !loading && <FleetSetupState signedIn />}
+      {needsSignIn && !loading && <FleetSetupState signedIn={false} />}
 
       {/* Empty */}
-      {configured && !loading && !error && fleet.length === 0 && <EmptyFleet />}
+      {configured &&
+        !needsSignIn &&
+        !loading &&
+        !error &&
+        fleet.length === 0 && <EmptyFleet />}
 
       {/* Unit grid */}
       {!loading && !error && filteredFleet.length > 0 && (
@@ -1196,11 +1275,7 @@ export default function FleetPage() {
 
       {/* Empty filtered state */}
       {!loading && !error && fleet.length > 0 && filteredFleet.length === 0 && (
-        <Panel className="text-center py-10">
-          <p className="text-sm" style={{ color: "var(--t4)" }}>
-            No units in {STAGE_LABELS[filter] ?? filter} stage
-          </p>
-        </Panel>
+        <EmptyFleetFilter label={STAGE_LABELS[filter] ?? filter} />
       )}
     </div>
   );

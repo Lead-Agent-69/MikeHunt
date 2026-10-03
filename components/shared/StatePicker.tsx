@@ -9,6 +9,7 @@ import {
   nearbyStates,
 } from "@/lib/geo/us-states";
 import { usePreferences } from "@/hooks/usePreferences";
+import { Check, MapPin, Plus, X } from "lucide-react";
 
 // "My States" — the location-aware, multi-state curation control. Apple-clean sheet with a spring entrance,
 // a drag handle, selected-state tokens, a "Suggested" quick-add row (your location + nearby + most stock),
@@ -182,7 +183,7 @@ export function StatePicker({
                 style={{ background: accent }}
                 title="Remove"
               >
-                {code} <span className="opacity-70">✕</span>
+                {code} <X className="h-3 w-3 opacity-70" aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -194,7 +195,11 @@ export function StatePicker({
             onClick={detect}
             className="shrink-0 rounded-full border border-[var(--b1)] px-3.5 py-2 text-sm font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
           >
-            📍 Location
+            <MapPin
+              className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]"
+              aria-hidden="true"
+            />
+            Location
           </button>
           <input
             value={query}
@@ -217,7 +222,17 @@ export function StatePicker({
                   onClick={() => add(code)}
                   className="shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-3 py-1.5 text-xs font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
                 >
-                  {detected === code ? "📍 " : "+ "}
+                  {detected === code ? (
+                    <MapPin
+                      className="mr-1 inline h-3 w-3 align-[-2px]"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Plus
+                      className="mr-1 inline h-3 w-3 align-[-2px]"
+                      aria-hidden="true"
+                    />
+                  )}
                   {stateName(code)}
                   {counts[code] ? (
                     <span className="ml-1 text-[var(--t4)]">
@@ -263,7 +278,10 @@ export function StatePicker({
                         {stateName(code)}
                       </span>
                       {detected === code && (
-                        <span className="text-[10px]">📍</span>
+                        <MapPin
+                          className="h-3 w-3 shrink-0"
+                          aria-hidden="true"
+                        />
                       )}
                     </span>
                     <span
@@ -275,7 +293,9 @@ export function StatePicker({
                       {n > 0 ? `${n.toLocaleString()} ${noun}` : "—"}
                     </span>
                   </span>
-                  {on && <span className="shrink-0 text-sm">✓</span>}
+                  {on && (
+                    <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  )}
                 </button>
               );
             })}

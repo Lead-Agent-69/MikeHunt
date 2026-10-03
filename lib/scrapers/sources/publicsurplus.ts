@@ -24,6 +24,73 @@ const decode = (t: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+function imageForAuction(html: string, auc: string) {
+  const block = html.match(
+    new RegExp(
+      `auction\\/view\\?auc=${auc}[\\s\\S]{0,1800}?auction-item-state`,
+      "i",
+    ),
+  )?.[0];
+  const src = block?.match(/\bsrc="([^"]+)"/i)?.[1];
+  return src?.startsWith("http") ? src.replace(/&amp;/g, "&") : undefined;
+}
+
+function auctionEndForAuction(html: string, auc: string) {
+  const match = html.match(
+    new RegExp(
+      `updateTimeLeftSpan\\(timeLeftInfoMap,\\s*${auc},\\s*"${auc}catGrid",\\s*\\d+,\\s*(\\d{10,}),`,
+      "i",
+    ),
+  );
+  const ts = match ? Number(match[1]) : 0;
+  if (!Number.isFinite(ts) || ts <= 0) return undefined;
+  const date = new Date(ts);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
+}
+
+function parseMileageValue(raw: string | undefined) {
+  if (!raw) return undefined;
+  const lower = raw.toLowerCase();
+  if (/unknown|not\s+verified|exempt|n\/a|not\s+available/.test(lower)) {
+    return undefined;
+  }
+  const match = raw.match(/\b(\d{1,3}(?:,\d{3})+|\d{4,6})\b/);
+  if (!match) return undefined;
+  const miles = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(miles) && miles >= 500 && miles <= 500000
+    ? miles
+    : undefined;
+}
+
+export function parsePublicSurplusDetailHtml(html: string): Partial<Deal> {
+  const flat = html.replace(/\s+/g, " ");
+  const field = (label: string) => {
+    const match = flat.match(
+      new RegExp(
+        `<span class="auctitle">\\s*${label}:\\s*<\\/span>\\s*<span>\\s*([^<]+?)\\s*<\\/span>`,
+        "i",
+      ),
+    );
+    return match ? decode(match[1]) : undefined;
+  };
+  const mileage = parseMileageValue(field("Mileage"));
+  const vin = field("VIN");
+  return {
+    ...(mileage ? { mileage } : {}),
+    ...(vin ? { vin } : {}),
+  };
+}
+
+export async function enrichPublicSurplusDetail(
+  sourceUrl: string,
+): Promise<Partial<Deal>> {
+  const res = await fetch(sourceUrl, {
+    headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+  });
+  if (!res.ok) return {};
+  return parsePublicSurplusDetailHtml(await res.text());
+}
+
 /** Parse a PublicSurplus category browse page into vehicle auction rows. */
 export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
   const items: Partial<Deal>[] = [];
@@ -56,6 +123,8 @@ export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
       ),
     );
     const state = sm ? sm[1] : undefined;
+    const image = imageForAuction(html, auc);
+    const auctionEnd = auctionEndForAuction(html, auc);
 
     // Rough year MAKE MODEL; normalizeDeal re-derives authoritatively + gates unknown makes.
     const after = title
@@ -75,10 +144,11 @@ export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
       model,
       ask_price: price,
       condition: "run_drive", // gov surplus, condition varies; treat as running unless noted
-      images: [],
-      seller_type: "dealer",
+      images: image ? [image] : [],
+      seller_type: "auction",
       seller: "PublicSurplus (gov surplus)",
       location_state: state,
+      auction_end: auctionEnd,
       metadata: { auction: true, channel: "gov_surplus" },
       scraped_at: new Date().toISOString(),
     });
@@ -146,7 +216,29 @@ export async function scrapePublicSurplus(maxPagesPerCat = 4): Promise<number> {
   for (const d of all) byId.set(d.source_deal_id!, d);
   const deals = Array.from(byId.values());
 
+  const detailLimit = Math.max(
+    0,
+    Math.min(200, Number(process.env.PUBLICSURPLUS_DETAIL_LIMIT || 60) || 0),
+  );
+  let enriched = 0;
+  for (const deal of deals.slice(0, detailLimit)) {
+    if (!deal.source_url || (deal.mileage && deal.vin)) continue;
+    try {
+      const detail = await enrichPublicSurplusDetail(deal.source_url);
+      if (detail.mileage && !deal.mileage) deal.mileage = detail.mileage;
+      if (detail.vin && !deal.vin) deal.vin = detail.vin;
+      if (detail.mileage || detail.vin) enriched++;
+    } catch {
+      // Detail pages are best-effort; the browse rows remain usable without them.
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  if (enriched) {
+    console.log(
+      `[PublicSurplus] Enriched ${enriched}/${Math.min(detailLimit, deals.length)} detail pages (VIN/mileage)`,
+    );
+  }
+
   console.log(`[PublicSurplus] Found ${deals.length} vehicle auctions`);
-  if (deals.length > 0) await upsertDeals(deals);
-  return deals.length;
+  return deals.length > 0 ? upsertDeals(deals) : 0;
 }

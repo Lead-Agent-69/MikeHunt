@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Layers } from "lucide-react";
+import { CarFront, Layers } from "lucide-react";
 import { SwipeCardStack } from "@/components/ui/framer-components";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { proxiedImage } from "@/lib/image-url";
@@ -44,7 +44,7 @@ type SwipeDeal = {
 };
 
 const VERDICT: Record<string, { label: string; bg: string; fg: string }> = {
-  go: { label: "🔥 BUY", bg: "var(--glo)", fg: "var(--green)" },
+  go: { label: "BUY", bg: "var(--glo)", fg: "var(--green)" },
   hold: { label: "HOLD", bg: "var(--amber-lo)", fg: "var(--amber-d)" },
   pass: { label: "PASS", bg: "var(--rlo)", fg: "var(--red)" },
 };
@@ -81,7 +81,7 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
           />
         ) : (
           <div className="absolute inset-0 grid place-items-center text-2xl opacity-40">
-            🚗
+            <CarFront className="h-8 w-8" aria-hidden="true" />
           </div>
         )}
         <div
@@ -141,7 +141,9 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
               {deal.mileage.toLocaleString()} mi
             </span>
           ) : null}
-          {deal.condition && <span className="capitalize">{deal.condition}</span>}
+          {deal.condition && (
+            <span className="capitalize">{deal.condition}</span>
+          )}
           {location && <span className="truncate">{location}</span>}
         </div>
 

@@ -20,6 +20,7 @@ import {
   getSourceById,
   type SourceConfig,
 } from "./sources-registry";
+import { CURATED_SITES } from "./curated-sites";
 
 /**
  * Sources registered in `createScraperRegistry()` (lib/scrapers/runner.ts) — i.e. ones with a
@@ -82,9 +83,34 @@ export function normalizeSourceId(id: string): string {
 
 const implemented = new Set(IMPLEMENTED_SCRAPER_IDS.map(normalizeSourceId));
 
+function hostname(value: string): string {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+const sharedImporterHosts = CURATED_SITES.map((site) =>
+  hostname(site.url),
+).filter(Boolean);
+
 /** True when a working scraper is wired into the runner for this source id. */
 export function hasScraper(id: string): boolean {
   return implemented.has(normalizeSourceId(id));
+}
+
+/** True when a catalog site can be selected through the targeted curated-dealer importer. */
+export function hasSharedImporter(source: Pick<SourceConfig, "url">): boolean {
+  const sourceHost = hostname(source.url);
+  if (!sourceHost) return false;
+
+  return sharedImporterHosts.some(
+    (curatedHost) =>
+      curatedHost === sourceHost ||
+      curatedHost.endsWith(`.${sourceHost}`) ||
+      sourceHost.endsWith(`.${curatedHost}`),
+  );
 }
 
 /** Look up catalog metadata for a runner source id (handles underscore/hyphen mismatch). */
@@ -107,13 +133,17 @@ export interface ScraperCoverage {
   catalogued: number;
   /** Catalogued sites that also have a working scraper. */
   implemented: number;
-  /** Catalogued sites with metadata only (no scraper yet). */
+  /** Catalogued sites targetable through the curated-dealer importer, without a dedicated runner. */
+  sharedImported: number;
+  /** Catalogued sites with metadata only (no direct or shared importer yet). */
+  catalogOnly: number;
+  /** Backwards-compatible alias for catalogOnly. */
   planned: number;
   /** Runner sources that aren't a single website (meta-sources). */
   runnerOnly: number;
-  /** Coverage as 0-1. */
+  /** Selectable coverage (dedicated + shared importer) as 0-1. */
   ratio: number;
-  /** Catalogued source ids that have NO scraper — the build queue. */
+  /** Catalogued source ids that have no direct or shared importer — the build queue. */
   missing: string[];
 }
 
@@ -124,17 +154,23 @@ export interface ScraperCoverage {
 export function scraperCoverage(): ScraperCoverage {
   const catalogued = ALL_SOURCES;
   const missing = catalogued
-    .filter((s) => !hasScraper(s.id))
+    .filter((s) => !hasScraper(s.id) && !hasSharedImporter(s))
     .map((s) => s.id)
     .sort();
-  const implementedCount = catalogued.length - missing.length;
+  const implementedCount = catalogued.filter((s) => hasScraper(s.id)).length;
+  const sharedImported = catalogued.filter(
+    (s) => !hasScraper(s.id) && hasSharedImporter(s),
+  ).length;
+  const selectableCount = implementedCount + sharedImported;
 
   return {
     catalogued: catalogued.length,
     implemented: implementedCount,
+    sharedImported,
+    catalogOnly: missing.length,
     planned: missing.length,
     runnerOnly: RUNNER_ONLY_META_SOURCES.length,
-    ratio: catalogued.length ? implementedCount / catalogued.length : 0,
+    ratio: catalogued.length ? selectableCount / catalogued.length : 0,
     missing,
   };
 }

@@ -39,6 +39,33 @@ export interface ScrapeGateOptions {
    * queue) have no UI, so they stay bearer-only: strictly stronger, nothing to thread through.
    */
   allowAdminSession?: boolean;
+  /** Accept any signed-in user. Use only for bounded, buyer-scoped queue submission. */
+  allowAuthenticatedSession?: boolean;
+  /**
+   * Allows the browser UI to trigger scraper runs in the local Supabase stack without exposing
+   * SCRAPE_SECRET to client JavaScript. This is intentionally narrower than "dev mode": both the
+   * configured Supabase URL and the request host must be localhost/127.0.0.1.
+   */
+  allowLocalhostUi?: boolean;
+}
+
+function isLocalhostUiRequest(request: NextRequest): boolean {
+  const supabaseUrl = String(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  ).toLowerCase();
+  const localSupabase =
+    supabaseUrl.includes("127.0.0.1") || supabaseUrl.includes("localhost");
+  if (!localSupabase) return false;
+  const host = request.headers.get("host")?.toLowerCase() || "";
+  const origin = request.headers.get("origin")?.toLowerCase() || "";
+  const forwardedHost =
+    request.headers.get("x-forwarded-host")?.toLowerCase() || "";
+  return [host, origin, forwardedHost].some(
+    (value) =>
+      value.includes("localhost") ||
+      value.includes("127.0.0.1") ||
+      value.includes("[::1]"),
+  );
 }
 
 /**
@@ -50,6 +77,7 @@ export async function denyUnauthed(
   options: ScrapeGateOptions = {},
 ): Promise<NextResponse | null> {
   if (hasScrapeSecret(request)) return null;
+  if (options.allowLocalhostUi && isLocalhostUiRequest(request)) return null;
 
   const secret = scrapeSecret();
   if (!secret) {
@@ -67,8 +95,22 @@ export async function denyUnauthed(
   }
 
   if (options.allowAdminSession && (await isAdminSession(request))) return null;
+  if (options.allowAuthenticatedSession && (await hasUserSession()))
+    return null;
 
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+async function hasUserSession(): Promise<boolean> {
+  try {
+    const { getServerUser } = await import("@/lib/server-supabase");
+    const {
+      data: { user },
+    } = await getServerUser();
+    return Boolean(user?.id);
+  } catch {
+    return false;
+  }
 }
 
 /**

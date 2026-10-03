@@ -82,6 +82,8 @@ describe("analyzeDeal reality gate", () => {
       source: "carvana",
     } as any);
     expect(a.sellEstimate).toBeLessThanOrEqual(Math.round(5000 * 1.15));
+    expect(a.valuation?.source).toBe("asking_price");
+    expect(a.valuation?.confidence).toBe("none");
   });
 
   it("does not UNDER-value a retail listing far below its ask on a crude baseline (symmetric anchor)", () => {
@@ -98,6 +100,7 @@ describe("analyzeDeal reality gate", () => {
       source: "cargurus",
     } as any);
     expect(a.sellEstimate).toBeGreaterThanOrEqual(Math.round(8000 * 0.9) - 1);
+    expect(a.valuation?.source).toBe("asking_price");
   });
 
   it("does NOT ask-anchor an AUCTION listing — retail sell above the bid is real arbitrage", () => {

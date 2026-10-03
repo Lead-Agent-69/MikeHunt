@@ -25,6 +25,67 @@ const fmt = (v: any) =>
         maximumFractionDigits: 0,
       }).format(Number(v));
 
+export function buildBriefModeMetadata({
+  hasProvider,
+  provider,
+  cached = false,
+}: {
+  hasProvider: boolean;
+  provider: string;
+  cached?: boolean;
+}) {
+  return {
+    deterministic: !hasProvider,
+    provider,
+    mode: hasProvider ? "provider" : "deterministic",
+    reason: cached
+      ? hasProvider
+        ? "Cached provider brief."
+        : "Cached brief shown while no AI provider key is configured."
+      : undefined,
+  };
+}
+
+export function buildDeterministicDealBrief(d: any) {
+  const costs = d.deal_analysis?.costs || {};
+  const verdict = String(d.deal_verdict || "hold").toUpperCase();
+  const profit = Number(d.true_net_profit || 0);
+  const ask = Number(d.ask_price || 0);
+  const resale = Number(d.sell_estimate ?? d.mmr_value ?? 0);
+  const repair = Number(costs.repair || 0);
+  const transport = Number(costs.transport || 0);
+  const selling = Number(costs.selling || 0);
+  const title = d.condition
+    ? String(d.condition).replace(/_/g, " ")
+    : "unknown title";
+  const damage = d.damage_type
+    ? `${d.damage_type} damage`
+    : "damage not specified";
+  const spread = resale > 0 && ask > 0 ? resale - ask : profit;
+  const marginLine =
+    profit > 0
+      ? `The engine says ${verdict} because the deal shows ${fmt(profit)} estimated net profit after known costs, with ${fmt(spread)} gross spread before repair/transport/selling drag.`
+      : `The engine says ${verdict} because the current ask leaves ${fmt(profit)} estimated net profit after known costs, so holding and resale risk can eat the deal.`;
+  const riskLines = [
+    `- ${title} / ${damage}; verify branding, repair scope, and state resale rules before bidding.`,
+    repair || transport || selling
+      ? `- Cost stack includes repair ${fmt(repair)}, transport ${fmt(transport)}, and selling ${fmt(selling)}; stale or low quotes can flip the math.`
+      : "- Repair, transport, or selling costs are thin; treat profit as unproven until those quotes are real.",
+    d.mileage
+      ? `- Mileage is ${Number(d.mileage).toLocaleString()} mi; compare against same-trim comps, not clean-title averages.`
+      : "- Mileage is missing; resale estimate and max bid need verification before action.",
+  ];
+  const verifyLines = [
+    d.recommended_max_bid
+      ? `- Keep buy-in at or below ${fmt(d.recommended_max_bid)} unless new comps justify more.`
+      : "- Set a hard max bid after verifying fees, title, and transport.",
+    "- Open the original source listing and confirm VIN, mileage, title status, seller path, and photo consistency.",
+    "- Re-run resale comps against the target market before committing cash.",
+  ];
+
+  return `${marginLine}\n\nRisks:\n${riskLines.join("\n")}\n\nVerify:\n${verifyLines.join("\n")}`;
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -53,18 +114,36 @@ export async function GET(
   // Serve cache unless refresh requested.
   const cached = d.deal_analysis?.aiBrief;
   if (cached && !refresh) {
-    return NextResponse.json({ brief: cached, cached: true });
+    return NextResponse.json({
+      brief: cached,
+      cached: true,
+      ...buildBriefModeMetadata({
+        hasProvider: hasTextModel(),
+        provider: activeProvider(),
+        cached: true,
+      }),
+    });
   }
 
   // Plain view with no cache yet: tell the client a brief is available to generate (no tokens spent).
   if (!wantGenerate) {
-    return NextResponse.json({ brief: null, canGenerate: hasTextModel() });
+    return NextResponse.json({
+      brief: null,
+      canGenerate: true,
+      ...buildBriefModeMetadata({
+        hasProvider: hasTextModel(),
+        provider: activeProvider(),
+      }),
+    });
   }
 
   if (!hasTextModel()) {
     return NextResponse.json({
-      brief: null,
-      reason: "No AI provider key configured.",
+      brief: buildDeterministicDealBrief(d),
+      cached: false,
+      ...buildBriefModeMetadata({ hasProvider: false, provider: "none" }),
+      reason:
+        "No AI provider key configured. This brief is deterministic and uses only saved deal math.",
     });
   }
 
@@ -133,7 +212,10 @@ Keep it under 110 words. Be direct, financial, and practical.`;
     return NextResponse.json({
       brief,
       cached: false,
-      provider: activeProvider(),
+      ...buildBriefModeMetadata({
+        hasProvider: true,
+        provider: activeProvider(),
+      }),
     });
   } catch (e: any) {
     return NextResponse.json(

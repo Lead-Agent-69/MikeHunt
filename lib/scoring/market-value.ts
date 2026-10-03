@@ -75,6 +75,7 @@ let computed: Map<string, MarketComps> | null = null;
 // Trim-level index (make|model|year|trim) — the sharper PRIMARY tier; `computed` is the fallback.
 let computedTrim: Map<string, MarketComps> | null = null;
 let loadedAt = 0;
+let loadingPromise: Promise<void> | null = null;
 
 // Real demand proxy: how many active listings exist nationally for a make|model right now. Built
 // from the same loaded deals (no extra query), keyed make|model across all years. Feeds the
@@ -99,6 +100,17 @@ const modelKey = (make?: string | null, model?: string | null) =>
 // can still be valued from accumulated history — the "gets smarter as data grows" path. Kept
 // SEPARATE from the retail comps map so retail semantics stay clean; consumed as a fallback tier.
 let aggregates: Map<string, { value: number; n: number }> | null = null;
+
+export function __resetMarketIndexForTest() {
+  computed = null;
+  computedTrim = null;
+  supplyByModel = null;
+  retailByModel = null;
+  soldIndex = null;
+  aggregates = null;
+  loadedAt = 0;
+  loadingPromise = null;
+}
 
 /** Normalize a model string so 'f-150', 'f150', 'F 150' all collapse to one token. */
 function normalizeModel(model?: string | null): string {
@@ -206,6 +218,22 @@ function median(prices: number[]): number | null {
  * run only pays for it once. Call before scoring a batch.
  */
 export async function loadMarketIndex(
+  supabase: SupabaseClient,
+  force = false,
+): Promise<void> {
+  if (computed && !force && Date.now() - loadedAt < TTL_MS) return;
+  if (loadingPromise && !force) {
+    await loadingPromise;
+    return;
+  }
+
+  loadingPromise = loadMarketIndexUnlocked(supabase, force).finally(() => {
+    loadingPromise = null;
+  });
+  await loadingPromise;
+}
+
+async function loadMarketIndexUnlocked(
   supabase: SupabaseClient,
   force = false,
 ): Promise<void> {

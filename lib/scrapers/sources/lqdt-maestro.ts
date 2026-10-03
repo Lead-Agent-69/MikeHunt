@@ -32,10 +32,16 @@ const HEADERS: Record<string, string> = {
 export interface MaestroAsset {
   assetId?: number;
   accountId?: number;
+  auctionId?: number;
   assetShortDescription?: string;
+  assetLongDescription?: string | null;
   makebrand?: string;
   model?: string;
   modelYear?: string;
+  vinserial?: string;
+  meter?: string;
+  meterCount?: number;
+  meterAccurate?: string;
   currentBid?: number;
   assetBidPrice?: number;
   bidCount?: number;
@@ -57,6 +63,10 @@ export interface MaestroAsset {
   assetCategory?: string;
   categoryDescription?: string;
   isSoldAuction?: boolean;
+  assetAttributeGroups?: Array<{
+    name?: string;
+    assetAttributes?: Array<{ label?: string; value?: string }>;
+  }>;
 }
 
 export interface MaestroSourceOpts {
@@ -144,6 +154,68 @@ function isUS(a: MaestroAsset): boolean {
   return US_STATE.has((a.locationState || "").toUpperCase());
 }
 
+function attrValue(a: MaestroAsset, label: RegExp): string | undefined {
+  for (const group of a.assetAttributeGroups || []) {
+    for (const attr of group.assetAttributes || []) {
+      if (label.test(String(attr.label || ""))) return attr.value;
+    }
+  }
+  return undefined;
+}
+
+function parseMileage(raw: unknown): number | undefined {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw >= 500 && raw <= 500000 ? Math.round(raw) : undefined;
+  }
+  const text = String(raw || "");
+  if (/unknown|exempt|not\s+actual|not\s+available|n\/a/i.test(text)) {
+    return undefined;
+  }
+  const match = text.match(/\b(\d{1,3}(?:,\d{3})+|\d{4,6})\b/);
+  if (!match) return undefined;
+  const miles = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(miles) && miles >= 500 && miles <= 500000
+    ? miles
+    : undefined;
+}
+
+function detailMileage(a: MaestroAsset): number | undefined {
+  if (/mile/i.test(String(a.meter || ""))) {
+    const fromMeter = parseMileage(a.meterCount);
+    if (fromMeter) return fromMeter;
+  }
+  return parseMileage(attrValue(a, /odometer|mileage|miles/i));
+}
+
+function detailVin(a: MaestroAsset): string | undefined {
+  return (
+    String(a.vinserial || attrValue(a, /^vin$/i) || "")
+      .trim()
+      .toUpperCase() || undefined
+  );
+}
+
+function detailTitleType(a: MaestroAsset): string | undefined {
+  return attrValue(a, /title/i);
+}
+
+async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
+  if (a.assetId == null || a.accountId == null) return null;
+  const res = await fetch(
+    `${API.replace("/search/list", "")}/assets/${a.assetId}/${a.accountId}/false`,
+    {
+      method: "POST",
+      headers: {
+        ...HEADERS,
+        "x-api-correlation-id": correlationId(Number(a.assetId) + 1000),
+      },
+      body: JSON.stringify({ businessId, siteId: "2" }),
+    },
+  );
+  if (!res.ok) return null;
+  return (await res.json()) as MaestroAsset;
+}
+
 /** Map one maestro asset to a Deal. Returns null for non-vehicles / sold / (optionally) non-US rows. */
 export function maestroAssetToDeal(
   a: MaestroAsset,
@@ -188,6 +260,9 @@ export function maestroAssetToDeal(
     location_zip: a.locationZip?.trim() || undefined,
     seller_type: "auction",
     seller: (a.companyName || a.displaySellerName || opts.defaultSeller).trim(),
+    vin: detailVin(a),
+    mileage: detailMileage(a),
+    trim: attrValue(a, /^trim$/i),
     bid_count: typeof a.bidCount === "number" ? a.bidCount : undefined,
     auction_end: a.assetAuctionEndDateUtc || a.assetAuctionEndDate || undefined,
     images,
@@ -196,6 +271,8 @@ export function maestroAssetToDeal(
       channel: "gov_surplus",
       marketplace: opts.idPrefix === "as" ? "allsurplus" : "govdeals",
       lotNumber: a.lotNumber,
+      ...(detailTitleType(a) ? { titleType: detailTitleType(a) } : {}),
+      ...(a.meterAccurate ? { meterAccurate: a.meterAccurate } : {}),
     },
     scraped_at: new Date().toISOString(),
   };
@@ -284,12 +361,35 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     label: opts.label,
   });
   const byId = new Map<string, Partial<Deal>>();
-  for (const r of assets) {
-    const deal = maestroAssetToDeal(r, opts);
+  const detailLimit = Math.max(
+    0,
+    Math.min(200, Number(process.env.MAESTRO_DETAIL_LIMIT || 60) || 0),
+  );
+  let enriched = 0;
+  for (let index = 0; index < assets.length; index++) {
+    const r = assets[index];
+    let row = r;
+    if (index < detailLimit) {
+      try {
+        const detail = await fetchMaestroDetail(r, opts.businessId);
+        if (detail) {
+          row = { ...r, ...detail };
+          enriched++;
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+      } catch {
+        // Detail enrichment is best-effort; the search row remains usable.
+      }
+    }
+    const deal = maestroAssetToDeal(row, opts);
     if (deal) byId.set(deal.source_deal_id!, deal);
+  }
+  if (enriched) {
+    console.log(
+      `[${opts.label}] Enriched ${enriched}/${Math.min(detailLimit, assets.length)} detail assets (VIN/mileage/title)`,
+    );
   }
   const deals = Array.from(byId.values());
   console.log(`[${opts.label}] Found ${deals.length} vehicle auctions`);
-  if (deals.length > 0) await upsertDeals(deals);
-  return deals.length;
+  return deals.length > 0 ? upsertDeals(deals) : 0;
 }

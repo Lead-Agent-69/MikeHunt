@@ -3,6 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
+import { previewCopartLots } from "@/lib/scrapers/sources/copart";
+import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
+import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
+import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
+import { gradeDataQuality } from "@/lib/data-quality";
+import { LocalScraperCache } from "@/lib/scrapers/local-cache";
+import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
+import { sellerContact } from "@/lib/data/deal-contact";
+import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
+import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 
 // LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
 // without the runtime env, and createClient("","") throws on an empty URL → that top-level call was
@@ -22,6 +32,267 @@ function toNum(v: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function rowOptions(row: any) {
+  return row && typeof row.options === "object" && row.options
+    ? row.options
+    : {};
+}
+
+function inferredSeller(row: any) {
+  const options = rowOptions(row);
+  const directSeller = String(row.seller || options.seller || "").trim();
+  const directSellerType = String(
+    row.seller_type || row.sellerType || options.sellerType || "",
+  ).trim();
+  const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
+  const meta = sourceMeta(sourceKey);
+  const contact = sellerContact(row);
+  return {
+    seller:
+      directSeller ||
+      contact.phone ||
+      contact.email ||
+      (row.source_url || row.sourceUrl ? meta.label : undefined),
+    sellerType:
+      directSellerType ||
+      (meta.channel === "gov" ||
+      meta.channel === "auction" ||
+      meta.channel === "salvage" ||
+      meta.channel === "wholesale"
+        ? "auction"
+        : meta.channel === "dealer" || meta.channel === "retail"
+          ? "dealer"
+          : meta.channel === "private"
+            ? "private"
+            : undefined),
+  };
+}
+
+function rowBidCount(row: any) {
+  const options = rowOptions(row);
+  const bidCount = row.bid_count ?? row.bidCount ?? options.auction?.bidCount;
+  return bidCount != null && Number.isFinite(Number(bidCount))
+    ? Number(bidCount)
+    : undefined;
+}
+
+function inferredTitleType(row: any) {
+  const explicit =
+    row.title_type || row.titleType || row.title_status || row.titleStatus;
+  if (explicit) return explicit;
+  const condition = String(row.condition || "").toLowerCase();
+  if (condition.includes("salvage")) return "salvage";
+  if (condition.includes("rebuilt")) return "rebuilt";
+  if (condition.includes("clean")) return "clean";
+  if (condition.includes("parts")) return "parts only";
+  return undefined;
+}
+
+type ScanMatchFilters = {
+  q?: string;
+  lane?: string;
+  state?: string;
+  states?: string[];
+  make?: string;
+  makes?: string[];
+  model?: string;
+  titleType?: string;
+  sellerType?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  source?: string;
+  dealer?: string;
+  dealers?: string[];
+  dealerSourceIds?: string[];
+};
+
+function labelList(values: string[] | undefined, max = 2) {
+  const clean = (values || []).filter(Boolean);
+  if (!clean.length) return "";
+  const shown = clean.slice(0, max).join("/");
+  return clean.length > max ? `${shown} +${clean.length - max}` : shown;
+}
+
+function freshnessReason(value: unknown) {
+  if (!value) return null;
+  const time = new Date(value as any).getTime();
+  if (!Number.isFinite(time)) return null;
+  const hours = Math.max(0, Math.round((Date.now() - time) / 3_600_000));
+  if (hours < 1) return "seen this hour";
+  if (hours < 24) return `${hours}h fresh`;
+  return `${Math.round(hours / 24)}d fresh`;
+}
+
+export function buildScanMatchExplanation(
+  row: any,
+  filters: ScanMatchFilters = {},
+) {
+  const reasons: string[] = [];
+  const stateFilter =
+    filters.state &&
+    !["all", "nationwide"].includes(filters.state.toLowerCase())
+      ? filters.state.toUpperCase()
+      : filters.states?.length
+        ? labelList(
+            filters.states.map((state) => state.toUpperCase()),
+            3,
+          )
+        : "";
+  if (stateFilter && row?.locationState) {
+    reasons.push(`${row.locationState} matches selected market`);
+  }
+  if (filters.lane && filters.lane !== "all") {
+    reasons.push(`${filters.lane.replace(/-/g, " ")} lane`);
+  }
+  const makeFocus = filters.makes?.length
+    ? labelList(filters.makes, 3)
+    : filters.make || "";
+  if (makeFocus && row?.make) {
+    reasons.push(`${row.make} matches make focus`);
+  }
+  if (filters.model && row?.model) {
+    reasons.push(`${row.model} matches model focus`);
+  }
+  if (filters.titleType && filters.titleType !== "all" && row?.titleType) {
+    reasons.push(`${String(row.titleType).replace(/_/g, " ")} title match`);
+  }
+  if (filters.sellerType && filters.sellerType !== "all") {
+    reasons.push(`${filters.sellerType} seller scope`);
+  }
+  if (filters.minPrice && row?.askPrice && row.askPrice >= filters.minPrice) {
+    reasons.push(`over $${Number(filters.minPrice).toLocaleString()} budget`);
+  }
+  if (filters.maxPrice && row?.askPrice && row.askPrice <= filters.maxPrice) {
+    reasons.push(`under $${Number(filters.maxPrice).toLocaleString()} budget`);
+  }
+  if (filters.q) {
+    reasons.push(`matches "${filters.q}" search`);
+  }
+  if (filters.dealerSourceIds?.length) {
+    reasons.push(
+      `${labelList(
+        filters.dealerSourceIds.map((id) => sourceMeta(id).label),
+        2,
+      )} dealer target`,
+    );
+  } else if (filters.dealer || filters.dealers?.length) {
+    reasons.push("watched dealer target");
+  } else if (filters.source && filters.source !== "all") {
+    reasons.push(`${sourceMeta(filters.source).label} source`);
+  }
+  return reasons.slice(0, 7);
+}
+
+export function buildTrustExplanation(
+  row: any,
+  filters: ScanMatchFilters = {},
+) {
+  const qualityScore = Number(row?.dataQuality?.score || 0);
+  const profit = Number(row?.profitEstimate ?? row?.true_net_profit ?? 0);
+  const profitScore = Number(row?.profitScore || 0);
+  const repairEstimate = Number(
+    row?.repairEstimate ?? row?.repair_estimate ?? 0,
+  );
+  const transportEstimate = Number(
+    row?.transportEstimate ?? row?.transport_cost ?? 0,
+  );
+  const valuation =
+    row?.valuation ||
+    row?.dealAnalysis?.valuation ||
+    row?.deal_analysis?.valuation;
+  const compCount = Number(valuation?.compCount || 0);
+  const soldCount = Number(valuation?.soldCount || 0);
+  const recommendedMaxBid = Number(
+    row?.recommendedMaxBid ?? row?.recommended_max_bid ?? 0,
+  );
+  const verdict = String(
+    row?.dealVerdict || row?.deal_verdict || "",
+  ).toLowerCase();
+  const matchReasons = buildScanMatchExplanation(row, filters);
+  const reasons = [
+    ...matchReasons,
+    verdict === "go"
+      ? "BUY verdict from profit and proof scoring"
+      : verdict === "hold" || verdict === "watch"
+        ? "Watch verdict until proof or price improves"
+        : verdict === "pass"
+          ? "Pass verdict unless assumptions change"
+          : null,
+    recommendedMaxBid > 0
+      ? `$${Math.round(recommendedMaxBid).toLocaleString()} recommended max buy`
+      : null,
+    compCount > 0 || soldCount > 0
+      ? `${compCount + soldCount} valuation comp${compCount + soldCount === 1 ? "" : "s"}`
+      : null,
+    valuation?.source === "comparables" || valuation?.basis === "comps"
+      ? "Resale estimate is comp-backed"
+      : valuation?.source === "third_party"
+        ? "Resale estimate uses a third-party market anchor"
+        : valuation?.source === "historical_estimate"
+          ? "Resale estimate uses active-listing history, not sold comps"
+          : valuation?.source === "asking_price"
+            ? "Resale estimate is anchored to the seller asking price"
+            : valuation?.basis === "market"
+              ? "Resale estimate uses a market signal that still needs comp verification"
+              : valuation?.basis === "baseline"
+                ? "Resale estimate uses a modeled baseline"
+                : null,
+    row?.sourceUrl ? "Original source link is present" : null,
+    repairEstimate > 0
+      ? `$${Math.round(repairEstimate).toLocaleString()} repair estimate`
+      : null,
+    transportEstimate > 0
+      ? `$${Math.round(transportEstimate).toLocaleString()} transport estimate`
+      : null,
+    row?.vin ? "VIN captured" : null,
+    row?.mileage ? "Mileage captured" : null,
+    freshnessReason(row?.lastSeenAt || row?.firstSeenAt),
+    row?.images?.length
+      ? `${row.images.length} photo${row.images.length === 1 ? "" : "s"}`
+      : null,
+    row?.auctionEndAt ? "Auction end is known" : null,
+    row?.seller || row?.sellerType ? "Seller/source is identified" : null,
+    profit > 0
+      ? `$${Math.round(profit).toLocaleString()} estimated spread`
+      : null,
+  ].filter(Boolean) as string[];
+  const missing = (row?.dataQuality?.missing || []).slice(0, 4);
+  const nextChecks = [
+    row?.vin ? null : "verify VIN",
+    row?.mileage ? null : "verify mileage",
+    repairEstimate > 0 ? null : "verify repair estimate",
+    transportEstimate > 0 ? null : "confirm transport quote",
+    compCount || soldCount ? null : "verify comparable resale comps",
+    row?.titleType ? null : "confirm title type",
+    row?.sellerPhone || row?.sellerEmail || row?.sellerContactUrl
+      ? null
+      : "find seller contact path",
+    row?.auctionEndAt ? null : "confirm auction timing",
+    profitScore || profit ? null : "validate resale and fee math",
+    recommendedMaxBid > 0 ? null : "set max bid before contacting seller",
+  ].filter(Boolean) as string[];
+  // Complete listing fields are useful, but they are not the same as a verified
+  // resale basis. Do not present an asking-price estimate as a high-confidence buy.
+  const hasIndependentValuation =
+    compCount > 0 || soldCount > 0 || valuation?.source === "third_party";
+  const confidence =
+    qualityScore >= 80 && reasons.length >= 5 && hasIndependentValuation
+      ? "high"
+      : qualityScore >= 60 && reasons.length >= 3
+        ? "medium"
+        : "low";
+  return {
+    confidence,
+    score: scanTrustScore(row),
+    reasons: reasons.slice(0, 10),
+    missing,
+    nextChecks: nextChecks.slice(0, 5),
+    summary: reasons.length
+      ? reasons.slice(0, 3).join(" · ")
+      : "Thin proof: verify original listing details before acting.",
+  };
+}
+
 function normalizeRow(r: any, table: "deals" | "vehicles") {
   // Map both deals and vehicles rows into a Deal-like shape used by scan UI mapper
   const id = r.id;
@@ -36,14 +307,36 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   const profitScore = r.profit_score ?? r.profitScore ?? undefined;
   const condition = r.condition || "";
   const damageType = r.damage_type || r.damageType || undefined;
+  const titleType = inferredTitleType(r);
   const locationCity = r.location_city || r.locationCity || undefined;
   const locationState = r.location_state || r.locationState || undefined;
-  const seller = r.seller || undefined;
+  const sellerProof = inferredSeller(r);
+  const seller = sellerProof.seller || undefined;
+  const contact = sellerContact(r);
   const auctionEndAt =
     r.auction_end || r.auction_end_at || r.auctionEndAt || undefined;
   const repairEst = toNum(r.repair_estimate ?? r.repairEst ?? 0);
   const images = Array.isArray(r.images) ? r.images : r.images || [];
-  return {
+  const quality = gradeDataQuality({
+    images,
+    imageUrl: images[0],
+    vin: r.vin,
+    titleType,
+    condition,
+    damageType,
+    mileage,
+    locationCity,
+    locationState,
+    askPrice,
+    seller,
+    sellerType: sellerProof.sellerType,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
+    auctionEndAt,
+    sourceUrl: r.source_url || r.sourceUrl,
+  });
+  const normalized = {
     id,
     source,
     title: r.title || `${year || ""} ${make} ${model}`.trim(),
@@ -57,6 +350,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     vin: r.vin,
     mileage,
     condition,
+    titleType,
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
     mmrValue,
@@ -70,6 +364,25 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     sellEstimate: r.sell_estimate != null ? Number(r.sell_estimate) : undefined,
     true_net_profit:
       r.true_net_profit != null ? Number(r.true_net_profit) : undefined,
+    dealAnalysis: r.deal_analysis || r.dealAnalysis || undefined,
+    sellBasis:
+      r.sell_basis ||
+      r.sellBasis ||
+      r.deal_analysis?.sellBasis ||
+      r.dealAnalysis?.sellBasis ||
+      r.deal_analysis?.valuation?.basis ||
+      r.dealAnalysis?.valuation?.basis ||
+      undefined,
+    valuation:
+      r.valuation ||
+      r.deal_analysis?.valuation ||
+      r.dealAnalysis?.valuation ||
+      undefined,
+    soldAnchored:
+      r.sold_anchored ??
+      r.soldAnchored ??
+      r.deal_analysis?.soldAnchored ??
+      r.dealAnalysis?.soldAnchored,
     images,
     locationCity,
     locationState,
@@ -79,18 +392,498 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at) : new Date(),
     sourceUrl: r.source_url || r.sourceUrl || "",
     seller,
-    sellerType: r.seller_type || undefined,
+    sellerType: sellerProof.sellerType || undefined,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
     auctionEndAt: auctionEndAt ? new Date(auctionEndAt) : undefined,
-    bidCount: r.bid_count != null ? Number(r.bid_count) : undefined,
+    bidCount: rowBidCount(r),
     damageType,
     repair_estimate: repairEst || undefined,
     transport_cost: r.transport_cost ?? undefined,
     is_arbitrage_opportunity: r.is_arbitrage_opportunity ?? undefined,
+    dataQuality: {
+      score: quality.score,
+      label: quality.label,
+      missing: quality.missing,
+    },
+  };
+  return {
+    ...normalized,
+    trustExplanation: buildTrustExplanation(normalized),
   };
 }
 
 function dedupeKey(r: any) {
   return `${(r.source || "unknown").toLowerCase()}::${r.source_deal_id || r.id || r.vin || ""}`;
+}
+
+export function dbSourceValues(sourceId: string) {
+  const id = sourceId.toLowerCase();
+  const mapped: Record<string, string[]> = {
+    publicsurplus: ["gov_auction"],
+    govdeals: ["gov_auction"],
+    allsurplus: ["gov_auction"],
+    municibid: ["gov_auction"],
+    gsa_auctions: ["gov_auction"],
+    curated_dealers: ["independent_dealer"],
+    "ae-of-miami": ["independent_dealer"],
+    "damage-com": ["independent_dealer"],
+    "dg-auto": ["independent_dealer"],
+    recar: ["independent_dealer"],
+    "stjames-auto": ["independent_dealer"],
+    "cas-miami": ["independent_dealer"],
+    salvagezone: ["independent_dealer"],
+    "rebuilt-auto": ["independent_dealer"],
+    "alpine-auto": ["independent_dealer"],
+    "replica-auto": ["independent_dealer"],
+    carparts_com: ["independent_dealer"],
+  };
+  return mapped[id] || [id];
+}
+
+export function uniqueDbSources(sourceIds: string[]) {
+  return Array.from(new Set(sourceIds.flatMap(dbSourceValues)));
+}
+
+export function sellerTypeSourceValues(sellerType: string) {
+  const type = sellerType.toLowerCase();
+  if (type === "auction") {
+    return ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"];
+  }
+  if (type === "dealer") {
+    return [
+      "independent_dealer",
+      "cars_com",
+      "cargurus",
+      "autotrader",
+      "truecar",
+      "ebay_motors",
+      "carvana",
+      "vroom",
+    ];
+  }
+  if (type === "private") {
+    return [
+      "craigslist",
+      "craigslist_dealer",
+      "facebook_marketplace",
+      "offerup",
+    ];
+  }
+  return [];
+}
+
+export function sourceUrlNeedles(sourceId: string) {
+  const id = sourceId.toLowerCase();
+  const mapped: Record<string, string[]> = {
+    publicsurplus: ["publicsurplus.com"],
+    govdeals: ["govdeals.com"],
+    allsurplus: ["allsurplus.com", "liquidityservices.com"],
+    municibid: ["municibid.com"],
+    gsa_auctions: ["gsaauctions.gov", "gsa.gov"],
+    "ae-of-miami": ["aeofmiami.com"],
+    "damage-com": ["damage.com"],
+    "dg-auto": ["dgautollc.com"],
+    recar: ["recar.com"],
+    "stjames-auto": ["stjamesauto.com", "stjamesautoparts.com"],
+    "cas-miami": ["casmiami.com"],
+    salvagezone: ["salvagezone.com"],
+    "rebuilt-auto": ["rebuiltauto.com"],
+    "alpine-auto": ["alpineautogallery.com"],
+    "replica-auto": ["replicaauto.com"],
+  };
+  return mapped[id] || [];
+}
+
+export function damagedLaneFilter() {
+  return [
+    "condition.in.(salvage_title,rebuilt_title,parts_only,fire,flood,hail,repairable)",
+    "damage_type.ilike.%repairable%",
+    "damage_type.ilike.%damage%",
+    "damage_type.ilike.%collision%",
+  ].join(",");
+}
+
+export function normalizePageSize(value: string | null) {
+  const parsed = parseInt(value || "48", 10);
+  if (!Number.isFinite(parsed)) return 48;
+  return Math.min(100, Math.max(1, parsed));
+}
+
+export type ScanSort = "profit" | "score" | "price";
+
+export function normalizeScanSort(value: string | null): ScanSort {
+  if (value === "score" || value === "price") return value;
+  return "profit";
+}
+
+export function scanSortOrder(sort: ScanSort) {
+  if (sort === "price") {
+    return { column: "ask_price", ascending: true, nullsFirst: false };
+  }
+  if (sort === "score") {
+    return { column: "last_seen_at", ascending: false, nullsFirst: false };
+  }
+  return { column: "true_net_profit", ascending: false, nullsFirst: false };
+}
+
+export function scanTrustScore(row: any) {
+  const qualityScore = Number(row?.dataQuality?.score || 0);
+  const profitScore = Number(row?.profitScore || 0);
+  const proofScore =
+    (row?.vin ? 14 : 0) +
+    (row?.mileage ? 12 : 0) +
+    (row?.images?.length ? 12 : 0) +
+    (row?.sourceUrl ? 10 : 0) +
+    (row?.auctionEndAt ? 8 : 0) +
+    (row?.seller ? 6 : 0) +
+    (row?.sellerContactUrl || row?.sellerPhone || row?.sellerEmail ? 5 : 0);
+  return qualityScore * 0.55 + profitScore * 0.25 + proofScore * 0.2;
+}
+
+export function sortScanRows(rows: any[], sort: ScanSort, state?: string) {
+  const stateCode = state?.toUpperCase();
+  const sorted = [...rows].sort((a, b) => {
+    if (stateCode) {
+      const aState = (a.locationState || "").toUpperCase() === stateCode;
+      const bState = (b.locationState || "").toUpperCase() === stateCode;
+      if (aState !== bState) return aState ? -1 : 1;
+    }
+
+    if (sort === "score") return scanTrustScore(b) - scanTrustScore(a);
+    return 0;
+  });
+  return sorted;
+}
+
+export function isWatchCandidateVerdict(value: string | null) {
+  return (value || "").toLowerCase() === "watch";
+}
+
+function applySourceUrlNeedles(query: any, sourceId: string) {
+  const needles = sourceUrlNeedles(sourceId);
+  if (!needles.length) return query;
+  return needles.length === 1
+    ? query.ilike("source_url", `%${needles[0]}%`)
+    : query.or(
+        needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
+      );
+}
+
+export function sourceUrlNeedleFilter(sourceIds: string[]) {
+  const needles = Array.from(
+    new Set(sourceIds.flatMap((sourceId) => sourceUrlNeedles(sourceId))),
+  );
+  return needles.map((needle) => `source_url.ilike.%${needle}%`).join(",");
+}
+
+function matchesPublicScope(
+  row: any,
+  filters: {
+    q: string;
+    state: string;
+    maxPrice: number;
+    minPrice: number;
+    source: string;
+  },
+) {
+  if (
+    filters.source &&
+    filters.source !== "all" &&
+    row.source !== filters.source
+  )
+    return false;
+  if (
+    filters.state &&
+    filters.state.toLowerCase() !== "all" &&
+    filters.state.toLowerCase() !== "nationwide" &&
+    String(row.location_state || "").toUpperCase() !==
+      filters.state.toUpperCase()
+  )
+    return false;
+  const price = toNum(row.ask_price ?? row.askPrice);
+  if (filters.maxPrice > 0 && price > filters.maxPrice) return false;
+  if (filters.minPrice > 0 && price < filters.minPrice) return false;
+  if (filters.q) {
+    if (!matchesVehicleQuery(row, filters.q)) return false;
+  }
+  return true;
+}
+
+function matchesVehicleScope(
+  vehicle: any,
+  filters: {
+    q: string;
+    state: string;
+    maxPrice: number;
+    minPrice: number;
+    source: string;
+    allowedSources?: string[];
+  },
+) {
+  if (
+    filters.allowedSources?.length &&
+    !filters.allowedSources.includes(String(vehicle.source || ""))
+  )
+    return false;
+  return matchesPublicScope(
+    {
+      source: vehicle.source,
+      title: vehicle.title,
+      make: vehicle.make,
+      model: vehicle.model,
+      location_state: vehicle.locationState,
+      ask_price: vehicle.askPrice,
+    },
+    filters,
+  );
+}
+
+function publicRowToVehicle(row: any, sourceId?: string) {
+  const canonicalSource = sourceId || row.source;
+  const sellerProof = inferredSeller({
+    ...row,
+    source: canonicalSource,
+  });
+  const contact = sellerContact(row);
+  const analysis = analyzeDeal({
+    title: row.title,
+    year: row.year,
+    make: row.make,
+    model: row.model,
+    trim: row.trim,
+    vin: row.vin,
+    mileage: row.mileage,
+    condition: row.condition,
+    damage_type: row.damage_type,
+    ask_price: toNum(row.ask_price),
+    mmr_value: row.metadata?.acv_estimate || undefined,
+    source: canonicalSource,
+    location_state: row.location_state,
+    first_seen_at: row.scraped_at,
+  } as any);
+  const quality = gradeDataQuality({
+    images: row.images,
+    vin: row.vin,
+    titleType:
+      row.title_type ||
+      row.titleType ||
+      row.title_status ||
+      row.titleStatus ||
+      String(row.title || "").match(
+        /salvage|rebuilt|clean title|parts/i,
+      )?.[0] ||
+      null,
+    condition: row.condition,
+    damageType: row.damage_type,
+    mileage: row.mileage,
+    locationCity: row.location_city,
+    locationState: row.location_state,
+    askPrice: row.ask_price,
+    seller: sellerProof.seller,
+    sellerType: sellerProof.sellerType,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
+    auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
+    sourceUrl: row.source_url,
+  });
+  const mapped = {
+    id: `live-${canonicalSource}-${row.source_deal_id || row.id || row.vin || Math.random().toString(36).slice(2)}`,
+    source: canonicalSource,
+    title: row.title,
+    year: row.year,
+    make: row.make,
+    model: row.model,
+    vin: row.vin,
+    mileage: row.mileage,
+    condition: row.condition,
+    damageType: row.damage_type,
+    askPrice: toNum(row.ask_price),
+    mmrValue: analysis.mmrValue || 0,
+    profitEstimate: analysis.profit,
+    profitScore: analysis.score,
+    dealVerdict: analysis.verdict,
+    recommendedMaxBid: analysis.recommendedMaxBid,
+    sellEstimate: analysis.sellEstimate,
+    true_net_profit: analysis.profit,
+    repair_estimate: analysis.repairCost,
+    transport_cost: analysis.transportCost,
+    warnings: analysis.warnings,
+    images: row.images || [],
+    locationCity: row.location_city,
+    locationState: row.location_state,
+    sourceUrl: row.source_url,
+    seller: sellerProof.seller,
+    sellerType: sellerProof.sellerType,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
+    auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
+    bidCount: rowBidCount(row),
+    firstSeenAt: row.scraped_at || new Date().toISOString(),
+    lastSeenAt: row.scraped_at || new Date().toISOString(),
+    dataQuality: {
+      score: quality.score,
+      label: quality.label,
+      missing: quality.missing,
+    },
+    dealAnalysis: {
+      sellBasis: analysis.sellBasis,
+      valuation: analysis.valuation,
+      costs: {
+        repair: analysis.repairCost,
+        transport: analysis.transportCost,
+        selling: analysis.sellingCost,
+      },
+      warnings: analysis.warnings,
+      prediction: analysis.prediction,
+    },
+  };
+  return {
+    ...mapped,
+    trustExplanation: buildTrustExplanation(mapped),
+  };
+}
+
+async function publicPreviewFallback(args: {
+  lane: string;
+  q: string;
+  state: string;
+  source: string;
+  maxPrice: number;
+  minPrice: number;
+  page: number;
+  pageSize: number;
+}) {
+  const plan = planScrapeForBuyerScope({
+    lane: args.lane || "all",
+    q: args.q,
+    state: args.state || "Nationwide",
+  });
+  const sources = [
+    { id: "copart", fetchRows: () => previewCopartLots(36) },
+    { id: "govdeals", fetchRows: () => previewGovDeals(1) },
+    { id: "publicsurplus", fetchRows: () => previewPublicSurplus(1) },
+    { id: "municibid", fetchRows: () => previewMunicibid(1) },
+  ].filter((source) => {
+    if (!plan.sourceIds.includes(source.id)) return false;
+    if (args.source && args.source !== "all") return source.id === args.source;
+    return true;
+  });
+
+  if (sources.length === 0) {
+    return {
+      configured: false,
+      vehicles: [],
+      total: 0,
+      state: args.state || "nationwide",
+      page: args.page,
+      pageSize: args.pageSize,
+      hasMore: false,
+      isLive: false,
+      isLivePreview: false,
+      isLocalPreviewCache: false,
+      previewProof: [
+        {
+          id:
+            args.source && args.source !== "all"
+              ? args.source
+              : args.lane || "all",
+          status: "no_rows",
+          rows: 0,
+          matchedRows: 0,
+          detail:
+            "No no-login public preview source is available for this lane/source combination.",
+        },
+      ],
+      message:
+        "No no-login public preview source is available for this lane/source combination.",
+    };
+  }
+
+  const proof: any[] = [];
+  const rows: any[] = [];
+  for (const source of sources) {
+    try {
+      const raw = await source.fetchRows();
+      const tagged = raw.map((row) => ({ ...row, source: source.id }));
+      const matched = tagged.filter((row) =>
+        matchesPublicScope(row, {
+          q: args.q,
+          state: args.state,
+          maxPrice: args.maxPrice,
+          minPrice: args.minPrice,
+          source: args.source,
+        }),
+      );
+      proof.push({
+        id: source.id,
+        status: matched.length ? "working" : "no_rows",
+        rows: raw.length,
+        matchedRows: matched.length,
+      });
+      rows.push(...matched.map((row) => publicRowToVehicle(row, source.id)));
+    } catch (error) {
+      proof.push({
+        id: source.id,
+        status: "blocked",
+        rows: 0,
+        matchedRows: 0,
+        detail: error instanceof Error ? error.message : "Preview failed",
+      });
+    }
+  }
+
+  const unique = Array.from(
+    new Map(rows.map((row) => [dedupeKey(row), row])).values(),
+  );
+  const cache = new LocalScraperCache({ cacheOnly: true });
+  if (unique.length > 0) {
+    await cache.load();
+    await cache.rememberOnly(
+      "scan-preview",
+      unique.map((vehicle) => ({
+        id: `${vehicle.source}|${vehicle.id}`,
+        value: vehicle,
+      })),
+    );
+  }
+  const cachedRows =
+    unique.length > 0
+      ? []
+      : ((await cache.records("scan-preview")) as any[]).filter((vehicle) =>
+          matchesVehicleScope(vehicle, {
+            q: args.q,
+            state: args.state,
+            maxPrice: args.maxPrice,
+            minPrice: args.minPrice,
+            source: args.source,
+            allowedSources: plan.sourceIds,
+          }),
+        );
+  const effectiveRows = unique.length > 0 ? unique : cachedRows;
+  const start = args.page * args.pageSize;
+  const pageRows = effectiveRows.slice(start, start + args.pageSize);
+  return {
+    configured: false,
+    vehicles: pageRows,
+    total: effectiveRows.length,
+    state: args.state || "nationwide",
+    page: args.page,
+    pageSize: args.pageSize,
+    hasMore: effectiveRows.length > start + args.pageSize,
+    isLive: false,
+    isLivePreview: unique.length > 0,
+    isLocalPreviewCache: unique.length === 0 && cachedRows.length > 0,
+    previewProof: proof,
+    message: unique.length
+      ? "Showing real public preview rows because Supabase is not configured. These rows are not saved yet."
+      : cachedRows.length
+        ? "Showing locally cached public preview rows because no live rows matched right now."
+        : "Supabase is not configured and no public preview rows matched this scope.",
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -112,6 +905,16 @@ export async function GET(req: NextRequest) {
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
   const make = searchParams.get("make") || "";
+  const makes = (searchParams.get("makes") || "")
+    .split(",")
+    .map((s) =>
+      s
+        .replace(/[^a-zA-Z0-9\s-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .slice(0, 12);
   const model = searchParams.get("model") || "";
   const source = searchParams.get("source") || "";
   // Per-dealer inventory filter (site host). Host-safe chars only.
@@ -125,8 +928,15 @@ export async function GET(req: NextRequest) {
     .map((s) => s.replace(/[^a-z0-9.-]/g, ""))
     .filter(Boolean)
     .slice(0, 25);
+  const dealerSourceIds = (searchParams.get("dealerSourceIds") || "")
+    .toLowerCase()
+    .split(",")
+    .map((s) => s.replace(/[^a-z0-9_-]/g, ""))
+    .filter(Boolean)
+    .slice(0, 25);
   const titleType = searchParams.get("titleType") || "";
   const lane = (searchParams.get("lane") || "").toLowerCase();
+  const sellerType = (searchParams.get("sellerType") || "").toLowerCase();
   const category = searchParams.get("cat") || "";
   const minProfit = parseInt(searchParams.get("minProfit") || "0");
   // Range filters — remove the "borders" so any buyer can scope by era, budget, and odometer.
@@ -140,27 +950,24 @@ export async function GET(req: NextRequest) {
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   const drivetrain = searchParams.get("drivetrain") || "";
+  const sort = normalizeScanSort(searchParams.get("sort"));
   const page = parseInt(searchParams.get("page") || "0");
   // Bigger page + client-driven infinite scroll (append) so the grid surfaces ALL matching inventory,
   // not just the first screen. Capped to keep any single payload reasonable.
-  const pageSize = Math.min(
-    100,
-    Math.max(12, parseInt(searchParams.get("pageSize") || "48")),
-  );
+  const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({
-      configured: false,
-      vehicles: [],
-      total: 0,
-      state: state || "nationwide",
+    const preview = await publicPreviewFallback({
+      lane,
+      q,
+      state,
+      source: source.toLowerCase(),
+      maxPrice,
+      minPrice,
       page,
       pageSize,
-      hasMore: false,
-      isLive: false,
-      message:
-        "Supabase is not configured, so live scan inventory is unavailable.",
     });
+    return NextResponse.json(preview);
   }
 
   const supabase = db();
@@ -174,6 +981,9 @@ export async function GET(req: NextRequest) {
 
   if (make) {
     query = query.ilike("make", make);
+  }
+  if (makes.length) {
+    query = query.in("make", makes);
   }
 
   if (model) {
@@ -212,7 +1022,17 @@ export async function GET(req: NextRequest) {
     query = query.eq("options->>drivetrain", drivetrain);
   }
 
-  if (verdict && verdict !== "all") query = query.eq("deal_verdict", verdict);
+  if (verdict && verdict !== "all") {
+    if (isWatchCandidateVerdict(verdict)) {
+      query = query
+        .gte("ask_price", 3000)
+        .gt("sell_estimate", 0)
+        .not("true_net_profit", "is", null)
+        .lt("true_net_profit", 0);
+    } else {
+      query = query.eq("deal_verdict", verdict);
+    }
+  }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
   if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
@@ -223,7 +1043,12 @@ export async function GET(req: NextRequest) {
   if (maxMileage > 0) query = query.lte("mileage", maxMileage);
 
   if (source && source.toLowerCase() !== "all") {
-    query = query.eq("source", source.toLowerCase());
+    const sourceValues = uniqueDbSources([source]);
+    query =
+      sourceValues.length === 1
+        ? query.eq("source", sourceValues[0])
+        : query.in("source", sourceValues);
+    query = applySourceUrlNeedles(query, source);
   }
   // Filter to a single curated dealer by its site host (source_url contains it) — powers the per-dealer
   // in-app inventory view. Sanitized to host-safe chars before interpolation.
@@ -232,6 +1057,22 @@ export async function GET(req: NextRequest) {
   }
   if (dealers.length) {
     query = query.or(dealers.map((h) => `source_url.ilike.%${h}%`).join(","));
+  }
+  if (dealerSourceIds.length) {
+    const sourceValues = uniqueDbSources(dealerSourceIds);
+    if (sourceValues.length) {
+      query =
+        sourceValues.length === 1
+          ? query.eq("source", sourceValues[0])
+          : query.in("source", sourceValues);
+    }
+    const needleFilter = sourceUrlNeedleFilter(dealerSourceIds);
+    if (needleFilter) query = query.or(needleFilter);
+  }
+
+  if (sellerType && sellerType !== "all") {
+    const sellerSources = sellerTypeSourceValues(sellerType);
+    if (sellerSources.length) query = query.in("source", sellerSources);
   }
 
   if (titleType && titleType !== "all") {
@@ -265,22 +1106,13 @@ export async function GET(req: NextRequest) {
       "facebook_marketplace",
       "offerup",
       "independent_dealer",
-      "curated_dealers",
     ];
-    const GOVERNMENT = [
-      "publicsurplus",
-      "govdeals",
-      "allsurplus",
-      "municibid",
-      "gsa_auctions",
-    ];
-    const PARTS = ["carparts_com"];
+    const GOVERNMENT = ["gov_auction"];
+    const PARTS = ["independent_dealer"];
     if (lane === "auction") query = query.in("source", AUCTION);
     else if (lane === "damaged")
       // Salvage + repairable + branded — every fixable/damaged car, any source (incl. auction lots).
-      query = query.or(
-        "condition.ilike.%salvage%,condition.ilike.%parts%,condition.ilike.%flood%,condition.ilike.%fire%,condition.ilike.%junk%,condition.ilike.%rebuilt%,condition.ilike.%repairable%,condition.ilike.%hail%",
-      );
+      query = query.or(damagedLaneFilter());
     else if (lane === "clean-retail") query = query.in("source", RETAIL);
     else if (lane === "private") query = query.in("source", PRIVATE);
     else if (lane === "government") query = query.in("source", GOVERNMENT);
@@ -303,12 +1135,22 @@ export async function GET(req: NextRequest) {
   }
 
   if (minProfit > 0) {
-    query = query.gte("profit_estimate", minProfit);
+    query = query.gte("true_net_profit", minProfit);
   }
 
+  const sortOrder = scanSortOrder(sort);
+  const trustRanked = sort === "score";
+  const poolSize = trustRanked
+    ? Math.min(500, Math.max(pageSize * 5, 120))
+    : pageSize;
+  const from = trustRanked ? 0 : page * pageSize;
+  const to = trustRanked ? poolSize - 1 : (page + 1) * pageSize - 1;
   query = query
-    .order("profit_score", { ascending: false, nullsFirst: false })
-    .range(page * pageSize, (page + 1) * pageSize - 1);
+    .order(sortOrder.column, {
+      ascending: sortOrder.ascending,
+      nullsFirst: sortOrder.nullsFirst,
+    })
+    .range(from, to);
 
   const { data, count, error } = await query;
   if (error) {
@@ -316,21 +1158,35 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const dRows = (data || []).map((r: any) => normalizeRow(r, "deals"));
-
-  // State boost: sort state-match results first
-  const sorted = state
-    ? [
-        ...dRows.filter(
-          (v: any) =>
-            (v.locationState || "").toUpperCase() === state.toUpperCase(),
-        ),
-        ...dRows.filter(
-          (v: any) =>
-            (v.locationState || "").toUpperCase() !== state.toUpperCase(),
-        ),
-      ]
-    : dRows;
+  const scanFilters: ScanMatchFilters = {
+    q,
+    lane,
+    state,
+    states,
+    make,
+    makes,
+    model,
+    titleType,
+    sellerType,
+    minPrice,
+    maxPrice,
+    source,
+    dealer,
+    dealers,
+    dealerSourceIds,
+  };
+  const dRows = (data || []).map((r: any) => {
+    const normalized = normalizeRow(r, "deals");
+    return {
+      ...normalized,
+      trustExplanation: buildTrustExplanation(normalized, scanFilters),
+    };
+  });
+  const ranked =
+    trustRanked || state ? sortScanRows(dRows, sort, state) : dRows;
+  const sorted = trustRanked
+    ? ranked.slice(page * pageSize, (page + 1) * pageSize)
+    : ranked;
 
   return NextResponse.json({
     vehicles: sorted,
@@ -340,6 +1196,7 @@ export async function GET(req: NextRequest) {
     pageSize,
     hasMore: (count || 0) > (page + 1) * pageSize,
     isLive: true,
+    sort,
   });
 }
 

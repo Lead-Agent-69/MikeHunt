@@ -26,7 +26,7 @@ export function Panel({
 
   return (
     <div
-      className={`panel ${paddingClasses[padding]} ${hover ? "hover:border-[rgba(255,255,255,.10)]" : ""} ${className}`}
+      className={`panel ${paddingClasses[padding]} ${hover ? "interactive-surface" : ""} ${className}`}
       style={style}
     >
       {children}

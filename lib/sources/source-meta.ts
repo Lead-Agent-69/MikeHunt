@@ -43,6 +43,36 @@ const META: Record<string, SourceMeta> = {
     color: "#5b7083",
     channel: "gov",
   },
+  govdeals: {
+    label: "GovDeals",
+    short: "GovDeals",
+    color: "#2f6f88",
+    channel: "gov",
+  },
+  publicsurplus: {
+    label: "PublicSurplus",
+    short: "Public",
+    color: "#566b9f",
+    channel: "gov",
+  },
+  allsurplus: {
+    label: "AllSurplus",
+    short: "AllSurplus",
+    color: "#47637f",
+    channel: "gov",
+  },
+  municibid: {
+    label: "Municibid",
+    short: "Municibid",
+    color: "#4b7f52",
+    channel: "gov",
+  },
+  gsa_auctions: {
+    label: "GSA Auctions",
+    short: "GSA",
+    color: "#6b5f42",
+    channel: "gov",
+  },
   manheim: {
     label: "Manheim",
     short: "Manheim",
@@ -107,6 +137,66 @@ const META: Record<string, SourceMeta> = {
     color: "#0f766e",
     channel: "dealer",
   },
+  ae_of_miami: {
+    label: "AE of Miami",
+    short: "AE Miami",
+    color: "#0b7285",
+    channel: "dealer",
+  },
+  damage_com: {
+    label: "Damage.com",
+    short: "Damage",
+    color: "#9a3412",
+    channel: "dealer",
+  },
+  dg_auto: {
+    label: "D&G Auto",
+    short: "D&G",
+    color: "#047857",
+    channel: "dealer",
+  },
+  recar: {
+    label: "ReCar",
+    short: "ReCar",
+    color: "#6d28d9",
+    channel: "dealer",
+  },
+  stjames_auto: {
+    label: "St. James Auto",
+    short: "St. James",
+    color: "#7c3aed",
+    channel: "dealer",
+  },
+  cas_miami: {
+    label: "CAS Miami",
+    short: "CAS",
+    color: "#0369a1",
+    channel: "dealer",
+  },
+  salvagezone: {
+    label: "SalvageZone",
+    short: "SalvageZone",
+    color: "#b45309",
+    channel: "dealer",
+  },
+  rebuilt_auto: {
+    label: "Rebuilt Auto",
+    short: "Rebuilt",
+    color: "#0f766e",
+    channel: "dealer",
+  },
+  alpine_auto: {
+    label: "Alpine Auto",
+    short: "Alpine",
+    color: "#2563eb",
+    channel: "dealer",
+  },
+  replica_auto: {
+    label: "Replica Auto",
+    short: "Replica",
+    color: "#7c2d12",
+    channel: "dealer",
+  },
   craigslist_dealer: {
     label: "Craigslist Dealer",
     short: "CL Dealer",
@@ -148,6 +238,53 @@ const FALLBACK: SourceMeta = {
   channel: "marketplace",
 };
 
+export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
+  "ae-of-miami": ["aeofmiami.com"],
+  "damage-com": ["damage.com"],
+  "dg-auto": ["dgautollc.com"],
+  recar: ["recar.com"],
+  "stjames-auto": ["stjamesauto.com", "stjamesautoparts.com"],
+  "cas-miami": ["casmiami.com"],
+  salvagezone: ["salvagezone.com"],
+  "rebuilt-auto": ["rebuiltauto.com"],
+  "alpine-auto": ["alpineautogallery.com"],
+  "replica-auto": ["replicaauto.com"],
+};
+
+export function dealerSourceIdFromUrl(
+  sourceUrl?: string | null,
+  allowedSourceIds?: string[],
+) {
+  const url = String(sourceUrl || "").toLowerCase();
+  if (!url) return null;
+  const allowed = allowedSourceIds?.length
+    ? new Set(allowedSourceIds.map((id) => id.toLowerCase()))
+    : null;
+  return (
+    Object.entries(DEALER_SOURCE_DOMAINS).find(
+      ([sourceId, domains]) =>
+        (!allowed || allowed.has(sourceId)) &&
+        domains.some((domain) => url.includes(domain)),
+    )?.[0] || null
+  );
+}
+
+export function dealerSourceIdForHost(host?: string | null) {
+  const cleanHost = String(host || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .split("/")[0];
+  if (!cleanHost) return null;
+  return (
+    Object.entries(DEALER_SOURCE_DOMAINS).find(([, domains]) =>
+      domains.some(
+        (domain) => cleanHost === domain || cleanHost.endsWith(`.${domain}`),
+      ),
+    )?.[0] || null
+  );
+}
+
 /** Normalize a raw source value to its canonical key (handles casing/spacing/aliases). */
 export function canonicalSource(source?: string | null): string {
   const k = (source || "")
@@ -168,6 +305,29 @@ export function canonicalSource(source?: string | null): string {
   if (k.includes("dealer") || k.includes("curated"))
     return "independent_dealer";
   return k;
+}
+
+export function sourceFromUrl(sourceUrl?: string | null): string | null {
+  const url = String(sourceUrl || "").toLowerCase();
+  if (!url) return null;
+  if (url.includes("govdeals.com")) return "govdeals";
+  if (url.includes("publicsurplus.com")) return "publicsurplus";
+  if (url.includes("allsurplus.com") || url.includes("liquidityservices.com"))
+    return "allsurplus";
+  if (url.includes("municibid.com")) return "municibid";
+  if (url.includes("gsaauctions.gov") || url.includes("gsa.gov"))
+    return "gsa_auctions";
+  const dealerSourceId = dealerSourceIdFromUrl(url);
+  if (dealerSourceId) return dealerSourceId.replace(/-/g, "_");
+  return null;
+}
+
+export function displaySource(
+  source?: string | null,
+  sourceUrl?: string | null,
+): string {
+  const fromUrl = sourceFromUrl(sourceUrl);
+  return fromUrl || canonicalSource(source);
 }
 
 export function sourceMeta(source?: string | null): SourceMeta {

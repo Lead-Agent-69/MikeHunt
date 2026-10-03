@@ -6,15 +6,15 @@ import { createClientComponentClient } from "@/lib/supabase";
 const FALLBACK_CHANGELOG = [
   {
     id: "v2.5.0",
-    title: "v2.5.0 — The Next Best Buy AI Capital Sniper & Operations Overhaul",
+    title: "v2.5.0 - Buyer Command Center & Operations Overhaul",
     published_at: "2026-09-26T00:00:00Z",
     is_major: true,
-    body: "Major enterprise release introducing capital-optimized deal sniping, multi-modal Gemini Vision damage inspection, autonomous seller negotiations, real-time freight and DMV tax calculations, and a complete admin operations center.",
+    body: "Major release focused on buyer decision flow: capital-aware deal ranking, photo recon estimates, cash-offer drafting, transport and tax planning, and the operations center.",
     features: [
-      "AI Next Best Buy Sniper (/best-buy): Instantly calculates the #1 highest-margin flip for your exact available cash with days-to-turn velocity scoring.",
-      "Gemini Vision Damage Inspector: Neural network scans listing photos for hidden collision damage, airbag deployment, rust, and panel gaps.",
-      "Autonomous Seller Negotiator: Dynamic cash-offer scripts and automated SMS outreach based on dealer-set margin boundaries.",
-      "Interstate Freight & DMV Tax Engine: Live Central Dispatch hauling rates and 50-state DMV title and sales tax calculations.",
+      "Next Best Buy (/best-buy): Ranks live opportunities by available cash, margin, proof quality, and days-to-turn velocity.",
+      "Photo Recon Estimate: Listing-photo checklist for damage cues, recon budgeting, and inspection priorities.",
+      "Cash Offer Draft: Margin-aware seller outreach draft and official cash offer letter workflow.",
+      "Transport & Tax Estimate: Local landed-cost planning before a live freight quote is confirmed.",
       "Admin Operations Command Center (/admin): Live deal inventory, scraper telemetry, user analytics, and one-click bulk rescore runner.",
       "Stripe Webhook Cancellation Handling: Automated tier downgrades on subscription deletion and real-time plan status synchronization.",
       "Legal Compliance Suite: Full Terms of Service (/tos) and CCPA/GDPR Privacy Policy (/privacy).",
@@ -22,7 +22,7 @@ const FALLBACK_CHANGELOG = [
   },
   {
     id: "v2.4.0",
-    title: "v2.4.0 — High-Contrast Lane Mode & Mobile Barcode Scanner",
+    title: "v2.4.0 - High-Contrast Lane Mode & Mobile Barcode Scanner",
     published_at: "2026-09-25T00:00:00Z",
     is_major: true,
     body: "Designed for live in-person dealer auctions with sub-200ms door jamb barcode scanning and audio HUD alerts in direct sunlight.",
@@ -34,7 +34,7 @@ const FALLBACK_CHANGELOG = [
   },
   {
     id: "v2.3.0",
-    title: "v2.3.0 — Liquid Glass UI & Framer Marketplace Components",
+    title: "v2.3.0 - Liquid Glass UI & Framer Marketplace Components",
     published_at: "2026-09-24T00:00:00Z",
     is_major: false,
     body: "Complete aesthetic redesign utilizing frosted glassmorphism, 3D card tilts, liquid buttons, and responsive micro-animations.",

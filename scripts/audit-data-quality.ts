@@ -123,19 +123,28 @@ async function checkMissingFields(report: AuditReport) {
 
 async function checkInvalidYears(report: AuditReport) {
   const currentYear = new Date().getFullYear();
-  const { data: invalid } = await supabase
+  const invalidQuery = supabase
     .from("deals")
     .select("id, source, title, year")
     .eq("active", true)
-    .or(`year.lt.1990,year.gt.${currentYear + 2}`)
-    .limit(5);
+    // Classic and collector vehicles are valid inventory. Only reject years before the
+    // production automobile era or implausibly far-future model years.
+    .or(`year.lt.1900,year.gt.${currentYear + 2}`);
+  const [{ data: invalid }, { count }] = await Promise.all([
+    invalidQuery.limit(5),
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("active", true)
+      .or(`year.lt.1900,year.gt.${currentYear + 2}`),
+  ]);
 
-  if (invalid && invalid.length > 0) {
+  if (invalid && (count || 0) > 0) {
     report.issues.push({
       category: "Invalid Years",
       severity: "critical",
-      count: invalid.length,
-      percentage: (invalid.length / report.activeDeals) * 100,
+      count: count || 0,
+      percentage: ((count || 0) / report.activeDeals) * 100,
       examples: invalid,
     });
   }
@@ -161,20 +170,29 @@ async function checkInvalidPrices(report: AuditReport) {
 }
 
 async function checkInvalidMileage(report: AuditReport) {
-  const { data: invalid } = await supabase
-    .from("deals")
-    .select("id, source, title, mileage")
-    .eq("active", true)
-    .not("mileage", "is", null)
-    .or("mileage.lt.100,mileage.gt.500000")
-    .limit(5);
+  const invalidFilter = "mileage.lt.0,mileage.gt.500000";
+  const [{ data: invalid }, { count }] = await Promise.all([
+    supabase
+      .from("deals")
+      .select("id, source, title, mileage")
+      .eq("active", true)
+      .not("mileage", "is", null)
+      .or(invalidFilter)
+      .limit(5),
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .eq("active", true)
+      .not("mileage", "is", null)
+      .or(invalidFilter),
+  ]);
 
-  if (invalid && invalid.length > 0) {
+  if (invalid && (count || 0) > 0) {
     report.issues.push({
       category: "Invalid Mileage",
       severity: "warning",
-      count: invalid.length,
-      percentage: (invalid.length / report.activeDeals) * 100,
+      count: count || 0,
+      percentage: ((count || 0) / report.activeDeals) * 100,
       examples: invalid,
     });
   }

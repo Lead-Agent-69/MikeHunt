@@ -10,6 +10,8 @@ services:
     cpus: 3.0
     mem_limit: 4g
     env_file:
+      - path: .env.local
+        required: false
       - path: .env.local.scraper
         required: false
     environment:
@@ -22,6 +24,9 @@ services:
       SCRAPER_LOG_PATH: /app/logs/scraper.log
       STATUS_PORT: 8787
       ENABLE_HEADED_SCRAPERS: "1"
+      SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-queue}"
+      CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-false}"
+      REMOTE_QUEUE_POLL_MS: "${REMOTE_QUEUE_POLL_MS:-5000}"
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
@@ -36,7 +41,13 @@ services:
     networks:
       - scraper-local
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/status.json').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/status.json').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -53,7 +64,11 @@ services:
     networks:
       - scraper-local
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8191/', timeout=3)\""]
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8191/'', timeout=3)"',
+        ]
       interval: 30s
       timeout: 5s
       retries: 5

@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion } from "framer-motion";
-import { Truck, Calculator, MapPin, DollarSign, Route, ShieldCheck } from "lucide-react";
+import { Truck, MapPin, Route } from "lucide-react";
 
 export function FreightAndTaxCalculator({
   buyState = "TX",
@@ -24,7 +23,8 @@ export function FreightAndTaxCalculator({
   const finalFreight = Math.round(rawFreight * (1 - bundleDiscount));
 
   // DMV & Tax Math (e.g. CA sales tax ~7.25% + $450 title/reg)
-  const salesTaxRate = sellState === "CA" ? 0.0725 : sellState === "TX" ? 0.0625 : 0.06;
+  const salesTaxRate =
+    sellState === "CA" ? 0.0725 : sellState === "TX" ? 0.0625 : 0.06;
   const salesTax = Math.round(purchasePrice * salesTaxRate);
   const titleRegFee = 385;
   const totalLandedCost = purchasePrice + finalFreight + salesTax + titleRegFee;
@@ -37,15 +37,18 @@ export function FreightAndTaxCalculator({
             <Truck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-black text-[var(--t1)]">Freight & 50-State DMV Tax Engine</h3>
+            <h3 className="text-lg font-black text-[var(--t1)]">
+              Transport & Tax Estimate
+            </h3>
             <p className="text-xs text-[var(--t4)]">
-              Central Dispatch API integration & state sales tax calculator
+              Local mileage and tax planning estimate. Confirm live quotes
+              before bidding.
             </p>
           </div>
         </div>
 
-        <span className="text-xs font-mono text-[#00ff66] bg-[#00ff66]/15 px-3 py-1 rounded-full border border-[#00ff66]/30 font-bold">
-          Central Dispatch Live API
+        <span className="text-xs font-mono text-[var(--amber-d)] bg-[var(--amber-lo)] px-3 py-1 rounded-full border border-[var(--amber-bd)] font-bold">
+          Estimate mode
         </span>
       </div>
 
@@ -57,18 +60,24 @@ export function FreightAndTaxCalculator({
             <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--s0)] border border-[var(--b2)]">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[var(--amber)]" />
-                <span className="font-bold text-[var(--t1)]">{buyState} (Auction)</span>
+                <span className="font-bold text-[var(--t1)]">
+                  {buyState} buy state
+                </span>
               </div>
               <Route className="w-4 h-4 text-[var(--t4)]" />
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[#00ff66]" />
-                <span className="font-bold text-[var(--t1)]">{sellState} (Retail)</span>
+                <span className="font-bold text-[var(--t1)]">
+                  {sellState} sell state
+                </span>
               </div>
             </div>
 
             {/* Carrier selector */}
             <div>
-              <label className="text-[var(--t4)] block mb-1.5">Hauler Transport Type</label>
+              <label className="text-[var(--t4)] block mb-1.5">
+                Hauler Transport Type
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -104,8 +113,12 @@ export function FreightAndTaxCalculator({
                 className="w-4 h-4 accent-[var(--amber)]"
               />
               <div>
-                <span className="font-bold text-[var(--t1)] block">Multi-Car Trailer Bundle (-25%)</span>
-                <span className="text-[10px] text-[var(--t4)]">Combine 3+ cars along Dallas ➔ LA corridor</span>
+                <span className="font-bold text-[var(--t1)] block">
+                  Multi-Car Trailer Bundle (-25%)
+                </span>
+                <span className="text-[10px] text-[var(--t4)]">
+                  Use only when your hauler confirms a shared route
+                </span>
               </div>
             </label>
           </div>
@@ -115,32 +128,50 @@ export function FreightAndTaxCalculator({
         <div className="lg:col-span-7 p-5 rounded-2xl border border-[var(--b2)] bg-[var(--s1)] flex flex-col justify-between">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--t4)] font-mono block mb-3">
-              True Landed Acquisition Cost
+              Estimated Landed Acquisition Cost
             </span>
 
             <div className="space-y-2.5 font-mono text-xs">
               <div className="flex justify-between py-1.5 border-b border-[var(--b2)] text-[var(--t3)]">
                 <span>Vehicle Purchase Price:</span>
-                <span className="font-bold text-[var(--t1)]">${purchasePrice.toLocaleString()}</span>
+                <span className="font-bold text-[var(--t1)]">
+                  ${purchasePrice.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--b2)] text-[var(--t3)]">
-                <span>Est. Shipping ({distanceMiles} mi @ ${(finalFreight / distanceMiles).toFixed(2)}/mi):</span>
-                <span className="font-bold text-[#00ff66]">${finalFreight.toLocaleString()}</span>
+                <span>
+                  Est. Shipping ({distanceMiles} mi @ $
+                  {(finalFreight / distanceMiles).toFixed(2)}/mi):
+                </span>
+                <span className="font-bold text-[#00ff66]">
+                  ${finalFreight.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--b2)] text-[var(--t3)]">
-                <span>{sellState} State Sales Tax ({(salesTaxRate * 100).toFixed(2)}%):</span>
-                <span className="font-bold text-[var(--t1)]">${salesTax.toLocaleString()}</span>
+                <span>
+                  {sellState} State Sales Tax ({(salesTaxRate * 100).toFixed(2)}
+                  %):
+                </span>
+                <span className="font-bold text-[var(--t1)]">
+                  ${salesTax.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-[var(--b2)] text-[var(--t3)]">
                 <span>DMV Title & Registration Fee:</span>
-                <span className="font-bold text-[var(--t1)]">${titleRegFee.toLocaleString()}</span>
+                <span className="font-bold text-[var(--t1)]">
+                  ${titleRegFee.toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
 
           <div className="pt-4 border-t border-[var(--b2)] flex items-center justify-between">
-            <span className="text-xs font-mono font-bold text-[var(--t4)]">Total Landed Cost:</span>
-            <span className="text-2xl font-black font-mono text-[var(--t1)]">${totalLandedCost.toLocaleString()}</span>
+            <span className="text-xs font-mono font-bold text-[var(--t4)]">
+              Total Landed Cost:
+            </span>
+            <span className="text-2xl font-black font-mono text-[var(--t1)]">
+              ${totalLandedCost.toLocaleString()}
+            </span>
           </div>
         </div>
       </div>

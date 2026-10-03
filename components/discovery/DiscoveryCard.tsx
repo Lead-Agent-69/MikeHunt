@@ -14,6 +14,12 @@ import {
   readCondition,
   CONDITION_TIER_COLOR,
 } from "@/lib/intelligence/condition";
+import {
+  toLocalSavedVehicle,
+  useLocalSavedVehicles,
+} from "@/hooks/useLocalSavedVehicles";
+import { qualityFieldLabel } from "@/lib/data-quality";
+import { Clock3, Flame, Link2, MapPin, Zap } from "lucide-react";
 
 const TITLE_STYLES: Record<
   string,
@@ -59,6 +65,16 @@ function Placeholder() {
   );
 }
 
+function relativeFreshness(value?: string | null) {
+  if (!value) return "Freshness unknown";
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return "Freshness unknown";
+  const hours = Math.max(0, Math.round(ms / 3_600_000));
+  if (hours < 1) return "Seen just now";
+  if (hours < 24) return `Seen ${hours}h ago`;
+  return `Seen ${Math.round(hours / 24)}d ago`;
+}
+
 /**
  * Compact, tappable discovery card — CarGurus/Kayak feel. Image-forward, with a
  * market deal-grade badge, prominent ask price, the key Kayak "found on N sites"
@@ -70,6 +86,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   deal: DiscoveryDeal;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const localSaves = useLocalSavedVehicles();
   const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
   const title =
@@ -91,6 +108,46 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       ? deal.sourceUrl
       : `/deal/${deal.id}`;
   const external = href.startsWith("http");
+  const isSaved = localSaves.has(deal.id);
+  const trustSignals = [
+    deal.sourceUrl ? "source" : null,
+    deal.images?.length ? "photo" : null,
+    deal.lastSeenAt ? "freshness" : null,
+    deal.vin ? "VIN" : null,
+    deal.mileage ? "mileage" : null,
+    deal.sellerPhone || deal.sellerEmail || deal.sellerContactUrl
+      ? "seller contact"
+      : null,
+  ].filter(Boolean);
+  const resaleBasis = deal.sellEstimate || 0;
+  const confidenceScore =
+    (deal.dataQuality?.score || 0) +
+    (resaleBasis ? 12 : 0) +
+    (deal.trueNetProfit && deal.trueNetProfit > 0 ? 8 : 0) +
+    (deal.recommendedMaxBid ? 6 : 0);
+  const buyConfidence =
+    confidenceScore >= 88 ? "High" : confidenceScore >= 68 ? "Medium" : "Low";
+  const buyConfidenceTone =
+    buyConfidence === "High"
+      ? { bg: "var(--glo)", color: "var(--green)" }
+      : buyConfidence === "Medium"
+        ? { bg: "var(--amber-lo)", color: "var(--amber-d)" }
+        : { bg: "var(--rlo)", color: "var(--red)" };
+  const profitReadiness = deal.trueNetProfit
+    ? `spread ${deal.trueNetProfit > 0 ? "+" : "-"}$${Math.abs(
+        deal.trueNetProfit,
+      ).toLocaleString()}`
+    : "profit not proven";
+  const bidReadiness = deal.recommendedMaxBid
+    ? `max bid $${Math.round(deal.recommendedMaxBid).toLocaleString()}`
+    : "max bid unknown";
+  const confidenceGaps = [
+    !resaleBasis ? "resale comps" : null,
+    !deal.recommendedMaxBid ? "max bid" : null,
+    !deal.trueNetProfit ? "fees/transport/repair" : null,
+    ...(deal.dataQuality?.missing.slice(0, 2).map(qualityFieldLabel) || []),
+  ].filter(Boolean);
+  const visibleWarnings = (deal.warnings || []).filter(Boolean).slice(0, 2);
 
   return (
     <motion.div
@@ -110,8 +167,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         href={href}
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
-        className="deal-card glass-panel group flex flex-col overflow-hidden select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
-        style={{ padding: 0, height: "100%", transition: "border-color 0.2s" }}
+        className="deal-card glass-panel interactive-surface group flex flex-col overflow-hidden select-none premium-focus"
+        style={{ padding: 0, height: "100%" }}
       >
         {/* Image */}
         <div
@@ -217,7 +274,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           {/* Multi-source chip — floating top-right (the Kayak signal) */}
           {multi && (
             <span
-              className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
+              className="absolute right-2.5 top-12 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
               style={{
                 background: "rgba(36,28,43,.72)",
                 backdropFilter: "blur(8px)",
@@ -241,6 +298,36 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               {deal.listingCount} sites
             </span>
           )}
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isSaved) localSaves.remove(deal.id);
+              else localSaves.save(toLocalSavedVehicle(deal));
+            }}
+            className="absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
+            style={{
+              background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
+              backdropFilter: "blur(8px)",
+            }}
+            title={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
+            aria-label={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill={isSaved ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+          </button>
         </div>
 
         {/* Body */}
@@ -295,11 +382,18 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 }
                 title="Forecast: how fast this market clears + whether to act now"
               >
+                {deal.prediction.urgency === "act_now" ? (
+                  <Flame className="h-3 w-3" aria-hidden="true" />
+                ) : deal.prediction.velocity === "fast" ? (
+                  <Zap className="h-3 w-3" aria-hidden="true" />
+                ) : (
+                  <Clock3 className="h-3 w-3" aria-hidden="true" />
+                )}
                 {deal.prediction.urgency === "act_now"
-                  ? "🔥 Act now"
+                  ? "Act now"
                   : deal.prediction.velocity === "fast"
-                    ? "⚡ Fast market"
-                    : "⏱ Move soon"}
+                    ? "Fast market"
+                    : "Move soon"}
                 {deal.prediction.daysToSell != null
                   ? ` · ~${deal.prediction.daysToSell}d`
                   : ""}
@@ -390,6 +484,145 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
+          {deal.matchReasons && deal.matchReasons.length > 0 && (
+            <div
+              className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
+              style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-black uppercase tracking-wide text-[var(--t4)]">
+                  Why shown
+                </span>
+                <span className="font-bold text-[var(--t3)]">
+                  {deal.matchReasons.length} match
+                  {deal.matchReasons.length === 1 ? "" : "es"}
+                </span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {deal.matchReasons.slice(0, 4).map((reason) => (
+                  <span
+                    key={reason}
+                    className="rounded-full bg-[var(--s2)] px-1.5 py-0.5 font-bold text-[var(--t3)]"
+                  >
+                    {reason}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {deal.dataQuality && (
+            <div
+              className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
+              style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
+              title={
+                deal.dataQuality.missing.length
+                  ? `Missing ${deal.dataQuality.missing
+                      .map(qualityFieldLabel)
+                      .join(", ")}`
+                  : "All key listing fields present"
+              }
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-black uppercase tracking-wide text-[var(--t4)]">
+                  Completeness
+                </span>
+                <span className="font-mono font-black text-[var(--t2)]">
+                  {deal.dataQuality.score}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--s3)]">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(4, deal.dataQuality.score)}%`,
+                    background:
+                      deal.dataQuality.score >= 88
+                        ? "var(--green)"
+                        : deal.dataQuality.score >= 68
+                          ? "var(--amber)"
+                          : "var(--red)",
+                  }}
+                />
+              </div>
+              {deal.dataQuality.missing.length > 0 && (
+                <div className="mt-1 truncate font-semibold text-[var(--t4)]">
+                  Missing{" "}
+                  {deal.dataQuality.missing
+                    .slice(0, 2)
+                    .map(qualityFieldLabel)
+                    .join(", ")}
+                  {deal.dataQuality.missing.length > 2 ? "…" : ""}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div
+            className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
+            style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-black uppercase tracking-wide text-[var(--t4)]">
+                Buy confidence
+              </span>
+              <span
+                className="rounded-full px-2 py-0.5 font-black uppercase"
+                style={buyConfidenceTone}
+              >
+                {buyConfidence}
+              </span>
+            </div>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              <span className="rounded-[var(--r1)] bg-[var(--s2)] px-1.5 py-1 font-bold text-[var(--t3)]">
+                {profitReadiness}
+              </span>
+              <span className="rounded-[var(--r1)] bg-[var(--s2)] px-1.5 py-1 font-bold text-[var(--t3)]">
+                {bidReadiness}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-semibold text-[var(--t4)]">
+              {confidenceGaps.length
+                ? `Needs ${confidenceGaps.slice(0, 3).join(", ")}`
+                : "Core math and proof are present"}
+            </div>
+            {visibleWarnings.length > 0 && (
+              <div className="mt-2 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-2 py-1.5">
+                <div className="font-black uppercase tracking-wide text-[var(--amber-d)]">
+                  Analyzer warning
+                </div>
+                <div className="mt-0.5 max-h-[2.5rem] overflow-hidden font-semibold leading-snug text-[var(--amber-d)]">
+                  {visibleWarnings.join(" ")}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div
+            className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
+            style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-black uppercase tracking-wide text-[var(--t4)]">
+                Trust proof
+              </span>
+              <span className="font-bold text-[var(--t3)]">
+                {relativeFreshness(deal.lastSeenAt)}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-semibold text-[var(--t4)]">
+              {deal.sourceUrl ? "Direct source" : "No source link"} ·{" "}
+              {deal.sellerType ? `${deal.sellerType} seller · ` : ""}
+              {trustSignals.length}/6 signals
+              {deal.dataQuality?.missing.length
+                ? ` · missing ${deal.dataQuality.missing
+                    .slice(0, 2)
+                    .map(qualityFieldLabel)
+                    .join(", ")}`
+                : ""}
+            </div>
+          </div>
+
           {/* Quick Actions (Contact, Copy, Share) */}
           <div className="flex flex-wrap gap-2 mt-1 z-10 relative">
             {deal.vin && (
@@ -404,7 +637,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               </button>
             )}
 
-            {(deal.sellerPhone || deal.sellerEmail) && (
+            {(deal.sellerPhone ||
+              deal.sellerEmail ||
+              deal.sellerContactUrl) && (
               <div className="inline-flex items-center gap-1">
                 {deal.sellerPhone && (
                   <>
@@ -433,6 +668,17 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                     ✉️ Email
                   </a>
                 )}
+                {deal.sellerContactUrl && (
+                  <a
+                    href={deal.sellerContactUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] transition-colors border border-[var(--b1)]"
+                  >
+                    Contact
+                  </a>
+                )}
               </div>
             )}
 
@@ -448,7 +694,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               }}
               className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
             >
-              🔗 Share
+              <Link2 className="h-3 w-3" aria-hidden="true" />
+              Share
             </button>
           </div>
 
@@ -518,6 +765,35 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 <span className="font-mono font-bold text-[var(--green)]">
                   {deal.recommendedMaxBid
                     ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
+                    : "—"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {(deal.repairEstimate || deal.transportEstimate) && (
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
+              <div
+                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                style={{ background: "var(--s1)" }}
+              >
+                <span className="font-semibold text-[var(--t4)]">Repair</span>
+                <span className="font-mono font-bold text-[var(--t2)]">
+                  {deal.repairEstimate
+                    ? `$${Math.round(deal.repairEstimate).toLocaleString()}`
+                    : "—"}
+                </span>
+              </div>
+              <div
+                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                style={{ background: "var(--s1)" }}
+              >
+                <span className="font-semibold text-[var(--t4)]">
+                  Transport
+                </span>
+                <span className="font-mono font-bold text-[var(--t2)]">
+                  {deal.transportEstimate
+                    ? `$${Math.round(deal.transportEstimate).toLocaleString()}`
                     : "—"}
                 </span>
               </div>

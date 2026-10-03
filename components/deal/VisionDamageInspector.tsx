@@ -3,18 +3,11 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Eye,
-  ShieldAlert,
-  CheckCircle2,
-  AlertTriangle,
   Sparkles,
   RefreshCw,
-  Layers,
   Wrench,
-  DollarSign,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
   Camera,
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
@@ -22,7 +15,14 @@ import { Mono } from "@/components/shared/Mono";
 export interface VisionFinding {
   id: string;
   imageIndex: number;
-  category: "frame" | "airbag" | "paint" | "tires" | "panel" | "glass" | "mechanical";
+  category:
+    | "frame"
+    | "airbag"
+    | "paint"
+    | "tires"
+    | "panel"
+    | "glass"
+    | "mechanical";
   severity: "low" | "medium" | "high";
   title: string;
   description: string;
@@ -55,77 +55,89 @@ export function VisionDamageInspector({
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeDefectIds, setActiveDefectIds] = useState<Set<string>>(
-    new Set(["f1", "f2", "f3", "f4"])
+    new Set(["f1", "f2", "f3", "f4"]),
   );
-  const [selectedFinding, setSelectedFinding] = useState<VisionFinding | null>(null);
+  const [selectedFinding, setSelectedFinding] = useState<VisionFinding | null>(
+    null,
+  );
 
-  const findingsList: VisionFinding[] = useMemo(() => [
-    {
-      id: "f1",
-      imageIndex: 0,
-      category: "panel",
-      severity: "medium",
-      title: "Front Bumper & Fender Gap Misalignment",
-      description: "Neural scan detected 4.2mm uneven gap variance between left fender and hood — typical indicator of front-end collision repair or aftermarket clips.",
-      confidence: 94,
-      location: "Front Left Quarter Panel",
-      estimatedCost: 350,
-      pin: { top: "42%", left: "28%" },
-    },
-    {
-      id: "f2",
-      imageIndex: 0,
-      category: "paint",
-      severity: "low",
-      title: "Clear Coat Over-spray & Orange Peel",
-      description: "Specular reflection analysis shows micro-texture variance on passenger door panel indicative of partial spot blending.",
-      confidence: 88,
-      location: "Passenger Side Door",
-      estimatedCost: 450,
-      pin: { top: "58%", left: "62%" },
-    },
-    {
-      id: "f3",
-      imageIndex: 0,
-      category: "frame",
-      severity: "high",
-      title: "Subframe Mounting Stress Fracture",
-      description: "Shadow curvature vector indicates potential metal fatigue near subframe mount — recommended in-person rack inspection before placing bid.",
-      confidence: 91,
-      location: "Underbody Front Subframe",
-      estimatedCost: 1200,
-      pin: { top: "72%", left: "46%" },
-    },
-    {
-      id: "f4",
-      imageIndex: Math.min(1, photoList.length - 1),
-      category: "glass",
-      severity: "low",
-      title: "Bullseye Windshield Star Crack",
-      description: "Sub-1cm radial fracture located in driver line of sight. Requires resin fill or replacement for state safety inspection.",
-      confidence: 96,
-      location: "Front Windshield Upper Driver Side",
-      estimatedCost: 250,
-      pin: { top: "30%", left: "48%" },
-    },
-    {
-      id: "f5",
-      imageIndex: Math.min(2, photoList.length - 1),
-      category: "tires",
-      severity: "medium",
-      title: "Uneven Inner Shoulder Tread Wear",
-      description: "Camber wear detected on front steering axle (<3/32 tread remaining on inner rim), indicating required 4-wheel alignment.",
-      confidence: 89,
-      location: "Front Left Wheel Assembly",
-      estimatedCost: 400,
-      pin: { top: "78%", left: "24%" },
-    },
-  ], [photoList.length]);
+  const findingsList: VisionFinding[] = useMemo(
+    () => [
+      {
+        id: "f1",
+        imageIndex: 0,
+        category: "panel",
+        severity: "medium",
+        title: "Front Bumper & Fender Gap Misalignment",
+        description:
+          "Photo review flags uneven spacing between the left fender and hood. Treat it as a front-end repair cue until verified in person.",
+        confidence: 94,
+        location: "Front Left Quarter Panel",
+        estimatedCost: 350,
+        pin: { top: "42%", left: "28%" },
+      },
+      {
+        id: "f2",
+        imageIndex: 0,
+        category: "paint",
+        severity: "low",
+        title: "Clear Coat Over-spray & Orange Peel",
+        description:
+          "Visible finish texture looks inconsistent on the passenger door panel, which may indicate partial spot blending.",
+        confidence: 88,
+        location: "Passenger Side Door",
+        estimatedCost: 450,
+        pin: { top: "58%", left: "62%" },
+      },
+      {
+        id: "f3",
+        imageIndex: 0,
+        category: "frame",
+        severity: "high",
+        title: "Subframe Mounting Stress Fracture",
+        description:
+          "Photo shadowing suggests a possible stress area near the subframe mount. Require rack inspection before placing a serious bid.",
+        confidence: 91,
+        location: "Underbody Front Subframe",
+        estimatedCost: 1200,
+        pin: { top: "72%", left: "46%" },
+      },
+      {
+        id: "f4",
+        imageIndex: Math.min(1, photoList.length - 1),
+        category: "glass",
+        severity: "low",
+        title: "Bullseye Windshield Star Crack",
+        description:
+          "Small radial crack appears near the driver sight line. Budget resin fill or replacement for safety inspection.",
+        confidence: 96,
+        location: "Front Windshield Upper Driver Side",
+        estimatedCost: 250,
+        pin: { top: "30%", left: "48%" },
+      },
+      {
+        id: "f5",
+        imageIndex: Math.min(2, photoList.length - 1),
+        category: "tires",
+        severity: "medium",
+        title: "Uneven Inner Shoulder Tread Wear",
+        description:
+          "Visible inner-shoulder tread wear on the front axle points to alignment and tire budget risk.",
+        confidence: 89,
+        location: "Front Left Wheel Assembly",
+        estimatedCost: 400,
+        pin: { top: "78%", left: "24%" },
+      },
+    ],
+    [photoList.length],
+  );
 
   const currentPhotoFindings = useMemo(() => {
     return findingsList.filter((f) => {
-      const matchImage = f.imageIndex === activeImageIdx || photoList.length === 1;
-      const matchCategory = selectedCategory === "all" || f.category === selectedCategory;
+      const matchImage =
+        f.imageIndex === activeImageIdx || photoList.length === 1;
+      const matchCategory =
+        selectedCategory === "all" || f.category === selectedCategory;
       return matchImage && matchCategory;
     });
   }, [findingsList, activeImageIdx, photoList.length, selectedCategory]);
@@ -153,7 +165,7 @@ export function VisionDamageInspector({
   }
 
   const categories = [
-    { id: "all", label: "All Defects" },
+    { id: "all", label: "All Cues" },
     { id: "frame", label: "Frame / Structural" },
     { id: "panel", label: "Body Panels" },
     { id: "paint", label: "Paint & Finish" },
@@ -162,7 +174,7 @@ export function VisionDamageInspector({
   ];
 
   return (
-    <div className="rounded-3xl border border-emerald-500/20 bg-[var(--s0)]/90 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl relative overflow-hidden">
+    <div className="rounded-3xl border border-[var(--b2)] bg-[var(--s0)]/90 backdrop-blur-2xl p-6 sm:p-7 shadow-2xl relative overflow-hidden interactive-surface">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
@@ -172,14 +184,15 @@ export function VisionDamageInspector({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-black text-[var(--t1)]">
-                Gemini 2.5 Multi-Modal Vision Inspector
+                Photo Recon Estimate
               </h3>
               <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                Neural Scan v2.5
+                Estimate mode
               </span>
             </div>
             <p className="text-xs text-[var(--t4)] font-medium mt-0.5">
-              Sub-pixel reflection analysis, panel gap telemetry & repair budgeting
+              Visual checklist from listing photos. Confirm with inspection
+              before bidding.
             </p>
           </div>
         </div>
@@ -199,8 +212,10 @@ export function VisionDamageInspector({
             disabled={analyzing}
             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold border border-[var(--b2)] bg-[var(--s1)] text-[var(--t2)] hover:text-white hover:border-emerald-500/40 transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${analyzing ? "animate-spin text-emerald-400" : ""}`} />
-            {analyzing ? "Scanning..." : "Re-Scan Photos"}
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${analyzing ? "animate-spin text-emerald-400" : ""}`}
+            />
+            {analyzing ? "Reviewing..." : "Re-check photos"}
           </button>
         </div>
       </div>
@@ -242,7 +257,7 @@ export function VisionDamageInspector({
                 <div className="absolute inset-0 bg-emerald-500/5 animate-pulse" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xs font-mono font-black text-black bg-emerald-400 px-4 py-2 rounded-2xl shadow-xl shadow-emerald-500/30">
-                    Extracting 16-point body contour mesh...
+                    Reviewing visible photo cues...
                   </span>
                 </div>
               </div>
@@ -266,8 +281,8 @@ export function VisionDamageInspector({
                         finding.severity === "high"
                           ? "bg-red-500 border-white text-white shadow-lg shadow-red-500/50"
                           : finding.severity === "medium"
-                          ? "bg-amber-500 border-white text-white shadow-lg shadow-amber-500/50"
-                          : "bg-cyan-500 border-white text-white shadow-lg shadow-cyan-500/50"
+                            ? "bg-amber-500 border-white text-white shadow-lg shadow-amber-500/50"
+                            : "bg-cyan-500 border-white text-white shadow-lg shadow-cyan-500/50"
                       } ${isSelected ? "ring-4 ring-emerald-400 scale-125" : ""} ${
                         !isIncluded ? "opacity-40 grayscale" : ""
                       }`}
@@ -294,7 +309,9 @@ export function VisionDamageInspector({
               <>
                 <button
                   onClick={() =>
-                    setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : photoList.length - 1))
+                    setActiveImageIdx((prev) =>
+                      prev > 0 ? prev - 1 : photoList.length - 1,
+                    )
                   }
                   className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-2xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/10 transition-all opacity-80 hover:opacity-100"
                 >
@@ -302,7 +319,9 @@ export function VisionDamageInspector({
                 </button>
                 <button
                   onClick={() =>
-                    setActiveImageIdx((prev) => (prev < photoList.length - 1 ? prev + 1 : 0))
+                    setActiveImageIdx((prev) =>
+                      prev < photoList.length - 1 ? prev + 1 : 0,
+                    )
                   }
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-2xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-md border border-white/10 transition-all opacity-80 hover:opacity-100"
                 >
@@ -317,7 +336,9 @@ export function VisionDamageInspector({
                 <Camera className="w-3.5 h-3.5 text-emerald-400" />
                 Photo {activeImageIdx + 1} of {photoList.length}
               </span>
-              <span>{currentPhotoFindings.length} Active Hotspots On Angle</span>
+              <span>
+                {currentPhotoFindings.length} Active Hotspots On Angle
+              </span>
             </div>
           </div>
 
@@ -334,7 +355,11 @@ export function VisionDamageInspector({
                       : "border-transparent opacity-60 hover:opacity-100"
                   }`}
                 >
-                  <img src={img} alt={`Thumb ${idx + 1}`} className="w-full h-full object-cover" />
+                  <img
+                    src={img}
+                    alt={`Thumb ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
                 </button>
               ))}
             </div>
@@ -346,7 +371,7 @@ export function VisionDamageInspector({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-black uppercase tracking-wider text-[var(--t3)] font-mono">
-                Detected Telemetry Findings ({findingsList.length})
+                Photo Recon Findings ({findingsList.length})
               </span>
               <span className="text-[10px] font-bold text-emerald-400">
                 Click box to toggle in recon total
@@ -364,7 +389,10 @@ export function VisionDamageInspector({
                     whileHover={{ scale: 1.01 }}
                     onClick={() => {
                       setSelectedFinding(f);
-                      if (photoList.length > 1 && f.imageIndex < photoList.length) {
+                      if (
+                        photoList.length > 1 &&
+                        f.imageIndex < photoList.length
+                      ) {
                         setActiveImageIdx(f.imageIndex);
                       }
                     }}
@@ -392,8 +420,8 @@ export function VisionDamageInspector({
                                 f.severity === "high"
                                   ? "bg-red-500"
                                   : f.severity === "medium"
-                                  ? "bg-amber-500"
-                                  : "bg-cyan-500"
+                                    ? "bg-amber-500"
+                                    : "bg-cyan-500"
                               }`}
                             />
                             <h4 className="text-xs font-black text-[var(--t1)] leading-tight">

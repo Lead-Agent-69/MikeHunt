@@ -1,11 +1,11 @@
-﻿{
+{
   "name": "MikeHunt — Underpriced Cars",
   "short_name": "MikeHunt",
   "description": "Underpriced cars across every auction, marketplace, and dealer lot — valued BUY / HOLD / PASS so you know exactly what to pay before you bid.",
   "start_url": "/discover",
   "display": "standalone",
-  "background_color": "#0b0b0f",
-  "theme_color": "#0b0b0f",
+  "background_color": "#F6F8FB",
+  "theme_color": "#075BE8",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
@@ -73,28 +73,48 @@
       "short_name": "Discover",
       "description": "Underpriced vehicles, valued BUY / HOLD / PASS",
       "url": "/discover",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Scan the market",
       "short_name": "Scan",
       "description": "Search auctions and marketplaces in real time",
       "url": "/scan",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Deal Check",
       "short_name": "Deal Check",
       "description": "Check a deal's profit potential instantly",
       "url": "/deal-check",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     },
     {
       "name": "Next Best Buy",
       "short_name": "Best Buy",
       "description": "AI-powered highest profit deal recommendation",
       "url": "/best-buy",
-      "icons": [{ "src": "/icon-192x192.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
   "related_applications": [],

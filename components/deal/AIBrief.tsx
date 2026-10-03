@@ -18,7 +18,7 @@ export function AIBrief({ dealId }: { dealId: string }) {
   });
   const [generating, setGenerating] = useState(false);
 
-  // Nothing to show and no provider configured → hide entirely.
+  // Nothing to show and no brief path configured → hide entirely.
   if (data && !data.brief && data.canGenerate === false && !data.reason)
     return null;
 
@@ -35,6 +35,17 @@ export function AIBrief({ dealId }: { dealId: string }) {
   }
 
   const brief: string | null = data?.brief ?? null;
+  const deterministic = Boolean(
+    data?.mode === "deterministic" ||
+    data?.deterministic ||
+    data?.provider === "none",
+  );
+  const providerLabel = deterministic
+    ? "Math fallback"
+    : data?.provider
+      ? `${String(data.provider).toUpperCase()} AI`
+      : "Provider AI";
+  const title = deterministic ? "Decision Brief" : "AI Brief";
 
   return (
     <motion.div
@@ -49,17 +60,29 @@ export function AIBrief({ dealId }: { dealId: string }) {
         <div className="flex items-center gap-2">
           <Ico name="bot" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            AI Brief
+            {title}
           </p>
         </div>
         {brief && (
-          <button
-            onClick={generate}
-            disabled={generating}
-            className="text-[11px] font-semibold text-[var(--t4)] hover:text-[var(--amber)] disabled:opacity-50"
-          >
-            {generating ? "Refreshing…" : "Refresh"}
-          </button>
+          <div className="flex items-center gap-2">
+            <span
+              className="rounded-full border px-2 py-0.5 text-[10px] font-black uppercase"
+              style={{
+                borderColor: deterministic ? "var(--amber-bd)" : "var(--gbd)",
+                background: deterministic ? "var(--amber-lo)" : "var(--glo)",
+                color: deterministic ? "var(--amber-d)" : "var(--green)",
+              }}
+            >
+              {providerLabel}
+            </span>
+            <button
+              onClick={generate}
+              disabled={generating}
+              className="text-[11px] font-semibold text-[var(--t4)] hover:text-[var(--amber)] disabled:opacity-50"
+            >
+              {generating ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -92,8 +115,9 @@ export function AIBrief({ dealId }: { dealId: string }) {
             className="flex items-center justify-between gap-3 relative"
           >
             <p className="text-sm text-[var(--t4)]">
-              Get a plain-English read on the verdict, the real risks, and what
-              to verify before bidding.
+              {deterministic
+                ? "Generate a deterministic read from this deal’s saved buyer math, risks, and verification checklist. Connect an AI provider to upgrade this to generated analysis."
+                : "Get a plain-English read on the verdict, the real risks, and what to verify before bidding."}
             </p>
             <button
               onClick={generate}

@@ -2,10 +2,14 @@ import { cpSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import nextEnv from "@next/env";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const standaloneDir = join(root, ".next", "standalone");
 const server = join(standaloneDir, "server.js");
+
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(root, process.env.NODE_ENV !== "production");
 
 if (!existsSync(server)) {
   console.error("Standalone build not found. Run `npm run build` first.");

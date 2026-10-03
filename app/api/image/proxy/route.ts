@@ -2,6 +2,46 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 
+const ALLOWED_IMAGE_DOMAINS = [
+  "craigslist.org",
+  "fbcdn.net",
+  "facebook.com",
+  "cargurus.com",
+  "cars.com",
+  "autotrader.com",
+  "ebay.com",
+  "ebayimg.com",
+  "copart.com",
+  "iaai.com",
+  // Verified hosts used by the currently imported government/dealer inventory.
+  "lqdt1.com",
+  "recar.com",
+  "stjamesautoparts.com",
+  "dgautollc.com",
+  "dealerzone.com",
+] as const;
+
+const ALLOWED_IMAGE_HOSTS = new Set([
+  "d37qv0n5b4mbzm.cloudfront.net",
+  "gsa-prod-ppms-attachments-prod.s3.amazonaws.com",
+]);
+
+export function isAllowedImageUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    return (
+      ALLOWED_IMAGE_HOSTS.has(hostname) ||
+      ALLOWED_IMAGE_DOMAINS.some(
+        (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * GET /api/image/proxy?url=...
  * Proxy external images that block hotlinks (Craigslist, Facebook, etc.)
@@ -16,28 +56,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Validate URL to prevent SSRF
+    // Validate URL to prevent SSRF. Keep this tied to verified listing-photo hosts.
     const parsed = new URL(url);
-    const allowedDomains = [
-      "craigslist.org",
-      "fbcdn.net",
-      "facebook.com",
-      "cargurus.com",
-      "cars.com",
-      "autotrader.com",
-      "ebay.com",
-      "ebayimg.com",
-      "copart.com",
-      "iaai.com",
-    ];
-    
-    const isAllowed = allowedDomains.some(
-      (domain) =>
-        parsed.hostname === domain ||
-        parsed.hostname.endsWith(`.${domain}`)
-    );
-
-    if (!isAllowed) {
+    if (!isAllowedImageUrl(url)) {
       return new NextResponse("Domain not allowed", { status: 403 });
     }
 
@@ -46,7 +67,8 @@ export async function GET(req: Request) {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        Accept:
+          "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         Referer: parsed.origin + "/",
       },
@@ -62,7 +84,7 @@ export async function GET(req: Request) {
 
     // Stream the image back
     const contentType = response.headers.get("content-type") || "image/jpeg";
-    
+
     return new NextResponse(response.body, {
       headers: {
         "Content-Type": contentType,

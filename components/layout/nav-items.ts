@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   Banknote,
   BellRing,
+  Bookmark,
   CalendarDays,
   Clock,
   Code2,
@@ -17,7 +18,6 @@ import {
   Layers,
   ListPlus,
   MapPin,
-  ScanLine,
   Search,
   Settings,
   Shield,
@@ -31,80 +31,367 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavItem = { name: string; href: string; icon: LucideIcon };
+export type NavItem = {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  description?: string;
+};
 export type NavGroup = { group: string; items: NavItem[] };
+export type PrimaryJob =
+  | "Discover"
+  | "Deal Check"
+  | "Auction Lane"
+  | "Pipeline"
+  | "Saved";
 
 // Single source of truth for navigation. TopNav (desktop) and BottomNav (mobile) both read this,
 // so a route added here is reachable on both form factors — previously each file kept its own copy
 // and they drifted, leaving /best-buy, /dealer-network, /lane and /feed unreachable on mobile.
 
-/** The daily-driver routes. Desktop shows all of them; mobile shows the first MOBILE_TAB_COUNT. */
+/** The desktop daily-driver routes from the acquisition workflow. */
 export const PRIMARY: NavItem[] = [
-  { name: "Find", href: "/discover", icon: Compass },
-  { name: "Analyze", href: "/scan", icon: Search },
-  { name: "Watch", href: "/saved", icon: BellRing },
-  { name: "Operate", href: "/fleet", icon: Clock },
+  { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
+  { name: "Auction Lane", href: "/lane", icon: Gavel },
+  { name: "Pipeline", href: "/fleet", icon: Clock },
+  { name: "Saved", href: "/saved", icon: Bookmark },
 ];
 
-/** How many PRIMARY tabs the mobile bottom bar can fit before the "More" button. */
+/** The mobile bottom bar carries four acquisition destinations. */
 export const MOBILE_TAB_COUNT = 4;
+
+/** Mobile uses the acquisition board's four bottom destinations. */
+export const MOBILE_PRIMARY: NavItem[] = [
+  { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Saved", href: "/saved", icon: Bookmark },
+  { name: "Lane", href: "/lane", icon: Gavel },
+  { name: "Pipeline", href: "/fleet", icon: Clock },
+];
 
 export const MORE_GROUPS: NavGroup[] = [
   {
-    group: "Source",
+    group: "Discover",
     items: [
-      { name: "Sources", href: "/sources", icon: Store },
-      { name: "Feed", href: "/feed", icon: Flame },
-      { name: "Swipe", href: "/swipe", icon: Layers },
-      { name: "Map", href: "/map", icon: MapPin },
-      { name: "Flash deals", href: "/flash-deals", icon: Zap },
-      { name: "Dealer network", href: "/dealer-network", icon: Store },
-      { name: "Find", href: "/find", icon: Search },
+      {
+        name: "Today",
+        href: "/today",
+        icon: CalendarDays,
+        description: "Daily shortlist and time-sensitive tasks.",
+      },
+      {
+        name: "Search",
+        href: "/find",
+        icon: Search,
+        description: "Direct search for a make, model, VIN, or buyer goal.",
+      },
+      {
+        name: "Live feed",
+        href: "/feed",
+        icon: Flame,
+        description: "Fresh rows from active public/source feeds.",
+      },
+      {
+        name: "Swipe deals",
+        href: "/swipe",
+        icon: Layers,
+        description: "Fast yes/no review for today’s candidates.",
+      },
+      {
+        name: "Map search",
+        href: "/map",
+        icon: MapPin,
+        description: "Browse opportunities by state and distance.",
+      },
+      {
+        name: "Flash deals",
+        href: "/flash-deals",
+        icon: Zap,
+        description: "Urgent listings and auctions ending soon.",
+      },
     ],
   },
   {
-    group: "Decide",
+    group: "Discover collections",
     items: [
-      { name: "Next Best Buy", href: "/best-buy", icon: Flame },
-      { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-      { name: "Market", href: "/market", icon: SlidersHorizontal },
-      { name: "Arbitrage", href: "/arbitrage", icon: ArrowLeftRight },
-      { name: "Compare", href: "/compare", icon: Columns3 },
-      { name: "Today", href: "/today", icon: CalendarDays },
-      { name: "Intel", href: "/insights", icon: TrendingUp },
-      { name: "Parts", href: "/parts", icon: Wrench },
+      {
+        name: "Scan inventory",
+        href: "/scan",
+        icon: Search,
+        description: "Run the full search workflow against matching sources.",
+      },
+      {
+        name: "Next Best Buy",
+        href: "/best-buy",
+        icon: Flame,
+        description: "Single best candidate after profit/risk scoring.",
+      },
     ],
   },
   {
-    group: "Operations",
+    group: "Market",
     items: [
-      { name: "Lane Scanner", href: "/lane", icon: ScanLine },
-      { name: "Auctions", href: "/auctions", icon: Gavel },
-      { name: "Transport", href: "/move", icon: Truck },
-      { name: "Recon", href: "/recon", icon: Hammer },
-      { name: "List a car", href: "/list", icon: ListPlus },
-      { name: "Bulk actions", href: "/bulk", icon: Layers },
-      { name: "Finance", href: "/finance", icon: Banknote },
+      {
+        name: "Market",
+        href: "/market",
+        icon: SlidersHorizontal,
+        description: "Pricing, demand, timing, and market signals.",
+      },
+      {
+        name: "Arbitrage",
+        href: "/arbitrage",
+        icon: ArrowLeftRight,
+        description: "Compare local buy prices against resale markets.",
+      },
+      {
+        name: "Compare",
+        href: "/compare",
+        icon: Columns3,
+        description: "Side-by-side vehicle and deal comparison.",
+      },
+      {
+        name: "Intel",
+        href: "/insights",
+        icon: TrendingUp,
+        description: "Source ROI and portfolio-level buying signals.",
+      },
+      {
+        name: "Parts",
+        href: "/parts",
+        icon: Wrench,
+        description: "Part-out and teardown value checks.",
+      },
+    ],
+  },
+  {
+    group: "Saved",
+    items: [
+      {
+        name: "Saved searches",
+        href: "/searches",
+        icon: BellRing,
+        description: "Reusable filters for repeat sourcing.",
+      },
+      {
+        name: "Alerts",
+        href: "/alerts",
+        icon: BellRing,
+        description: "Price drops, watchlist changes, and local saves.",
+      },
+      {
+        name: "Dealer network",
+        href: "/dealer-network",
+        icon: Store,
+        description: "Small shops, watched dealers, and catalog proof.",
+      },
+    ],
+  },
+  {
+    group: "Auction Lane",
+    items: [
+      {
+        name: "Auctions",
+        href: "/auctions",
+        icon: Gavel,
+        description: "Auction calendar, bids, and ending lots.",
+      },
+    ],
+  },
+  {
+    group: "Pipeline",
+    items: [
+      {
+        name: "Transport",
+        href: "/move",
+        icon: Truck,
+        description: "Estimate shipping before committing capital.",
+      },
+      {
+        name: "Recon",
+        href: "/recon",
+        icon: Hammer,
+        description: "Repair/reconditioning assumptions and costs.",
+      },
+      {
+        name: "List a car",
+        href: "/list",
+        icon: ListPlus,
+        description: "Prepare a vehicle for resale.",
+      },
+      {
+        name: "Bulk actions",
+        href: "/bulk",
+        icon: Layers,
+        description: "Batch review, import, and cleanup workflows.",
+      },
+      {
+        name: "Finance",
+        href: "/finance",
+        icon: Banknote,
+        description: "Capital, floorplan, and lender tools.",
+      },
+    ],
+  },
+  {
+    group: "Sources",
+    items: [
+      {
+        name: "Sources",
+        href: "/sources",
+        icon: Store,
+        description: "Coverage, freshness, status, and recovery actions.",
+      },
+      {
+        name: "System status",
+        href: "/status",
+        icon: Activity,
+        description: "Supabase, Google, AI, and importer readiness.",
+      },
     ],
   },
   {
     group: "Account",
     items: [
-      { name: "Saved searches", href: "/searches", icon: BellRing },
-      { name: "Settings", href: "/settings", icon: Settings },
-      { name: "Upgrade", href: "/upgrade", icon: Sparkles },
-      { name: "What's new", href: "/changelog", icon: FileText },
+      {
+        name: "Settings",
+        href: "/settings",
+        icon: Settings,
+        description: "Markets, budgets, alerts, and account defaults.",
+      },
+      {
+        name: "Upgrade",
+        href: "/upgrade",
+        icon: Sparkles,
+        description: "Plan limits and premium sourcing tools.",
+      },
+      {
+        name: "What's new",
+        href: "/changelog",
+        icon: FileText,
+        description: "Recent changes and shipped improvements.",
+      },
     ],
   },
 ];
+
+export function navItemMatchesPath(item: NavItem, pathname: string) {
+  const normalized = pathname === "/" ? "/discover" : pathname;
+  return normalized === item.href || normalized.startsWith(`${item.href}/`);
+}
+
+export function primaryJobForPath(pathname: string): PrimaryJob | null {
+  const normalized = pathname === "/" ? "/discover" : pathname;
+  const primary = PRIMARY.find((item) => navItemMatchesPath(item, normalized));
+  if (primary) return primary.name as PrimaryJob;
+
+  for (const group of MORE_GROUPS) {
+    if (
+      ![
+        "Discover",
+        "Discover collections",
+        "Deal Check",
+        "Auction Lane",
+        "Pipeline",
+        "Saved",
+      ].includes(group.group)
+    ) {
+      continue;
+    }
+    if (group.items.some((item) => navItemMatchesPath(item, normalized))) {
+      if (group.group === "Discover collections") return "Discover";
+      return group.group as PrimaryJob;
+    }
+  }
+
+  if (normalized.startsWith("/deal/")) return "Discover";
+  if (normalized.startsWith("/dealer-network")) return "Saved";
+  if (
+    normalized.startsWith("/save") ||
+    normalized.startsWith("/searches") ||
+    normalized.startsWith("/alerts")
+  ) {
+    return "Saved";
+  }
+  if (
+    normalized.startsWith("/scan") ||
+    normalized.startsWith("/best-buy") ||
+    normalized.startsWith("/feed") ||
+    normalized.startsWith("/flash-deals") ||
+    normalized.startsWith("/map") ||
+    normalized.startsWith("/swipe") ||
+    normalized.startsWith("/today") ||
+    normalized.startsWith("/find")
+  ) {
+    return "Discover";
+  }
+  if (normalized.startsWith("/deal-check")) return "Deal Check";
+  if (normalized.startsWith("/lane") || normalized.startsWith("/auctions")) {
+    return "Auction Lane";
+  }
+  if (
+    normalized.startsWith("/fleet") ||
+    normalized.startsWith("/move") ||
+    normalized.startsWith("/recon") ||
+    normalized.startsWith("/list") ||
+    normalized.startsWith("/bulk") ||
+    normalized.startsWith("/finance")
+  ) {
+    return "Pipeline";
+  }
+  if (
+    normalized.startsWith("/market") ||
+    normalized.startsWith("/arbitrage") ||
+    normalized.startsWith("/overview") ||
+    normalized.startsWith("/compare") ||
+    normalized.startsWith("/insights") ||
+    normalized.startsWith("/parts")
+  ) {
+    return "Discover";
+  }
+  return null;
+}
+
+export function navJobCoverage() {
+  const covered = new Map<PrimaryJob, NavItem[]>(
+    PRIMARY.map((item) => [item.name as PrimaryJob, [item]]),
+  );
+  for (const group of MORE_GROUPS) {
+    if (
+      ![
+        "Discover",
+        "Discover collections",
+        "Auction Lane",
+        "Pipeline",
+        "Saved",
+      ].includes(group.group)
+    ) {
+      continue;
+    }
+    const key =
+      group.group === "Discover collections"
+        ? "Discover"
+        : (group.group as PrimaryJob);
+    covered.set(key, [...(covered.get(key) || []), ...group.items]);
+  }
+  return covered;
+}
 
 /** Appended to "More" only for the single admin — the routes are server-gated too. */
 export const ADMIN_GROUP: NavGroup = {
   group: "Admin",
   items: [
     { name: "Admin Dashboard", href: "/admin", icon: Shield },
-    { name: "System status", href: "/status", icon: Activity },
-    { name: "Developer API", href: "/developer", icon: Code2 },
-    { name: "Orchestrator", href: "/orchestrator", icon: Cpu },
+    {
+      name: "Developer API",
+      href: "/developer",
+      icon: Code2,
+      description: "Public API docs and integration details.",
+    },
+    {
+      name: "Orchestrator",
+      href: "/orchestrator",
+      icon: Cpu,
+      description: "Scraper jobs, queues, and source execution.",
+    },
   ],
 };

@@ -9,6 +9,7 @@ import {
 import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
+import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -48,19 +49,10 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
-      <div className="absolute top-0 left-0 right-0 p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-24 sm:p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
+      <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link href="/" className="inline-flex items-center gap-2.5">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
-            style={{ background: "var(--grad)" }}
-            aria-hidden
-          >
-            <Ico name="search" size={20} />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-[var(--t1)]">
-            MikeHunt
-          </span>
+          <MikeHuntLogo size="md" />
         </Link>
       </div>
 

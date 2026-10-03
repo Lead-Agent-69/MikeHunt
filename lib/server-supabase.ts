@@ -1,9 +1,7 @@
 // Re-export from canonical supabase module
+import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import {
-  createServerComponentClient,
-  isSupabaseConfigured,
-} from "@/lib/supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 function readDemoUser(cookieValue: string | undefined) {
   if (!cookieValue) return null;
@@ -22,12 +20,32 @@ function readDemoUser(cookieValue: string | undefined) {
 }
 
 export async function getServerUser() {
+  const store = await cookies();
+
   if (!isSupabaseConfigured()) {
-    const store = await cookies();
     const user = readDemoUser(store.get("mh_demo_user")?.value);
     return { data: { user }, error: null };
   }
 
-  const supabase = createServerComponentClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return {
+      data: { user: null },
+      error: new Error("Supabase auth unavailable"),
+    };
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return store.getAll();
+      },
+      setAll() {
+        // Route handlers that only need getUser() do not have to refresh cookies here.
+      },
+    },
+  });
   return supabase.auth.getUser();
 }

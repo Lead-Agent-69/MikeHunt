@@ -10,7 +10,7 @@ import {
   animate,
   AnimatePresence,
 } from "framer-motion";
-import { X, Heart } from "lucide-react";
+import { CheckCircle2, X, Heart } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. TEXT REVEAL — Characters slide up into view on scroll, like Framer's
@@ -743,7 +743,10 @@ export function SwipeCardStack({
 
         {!top && !leaving && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-[var(--r4)] border border-dashed border-[var(--b2)] text-center">
-            <span className="text-3xl">✅</span>
+            <CheckCircle2
+              className="h-8 w-8 text-[var(--green)]"
+              aria-hidden="true"
+            />
             <p className="text-sm font-bold text-[var(--t2)]">All caught up</p>
             <p className="px-6 text-xs text-[var(--t4)]">
               Every deal in this batch has a decision.

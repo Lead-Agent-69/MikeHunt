@@ -14,7 +14,9 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 interface Dealer {
   name: string;
   url: string;
+  inventoryUrl?: string;
   host: string;
+  inventoryHost?: string;
   state: string | null;
   type: string;
   typeLabel: string;
@@ -69,9 +71,12 @@ function TitleMix({ d }: { d: Dealer }) {
 
 export default function DealerNetworkPage() {
   const { data } = useSWR<{
+    configured?: boolean;
     dealers: Dealer[];
     totalDealers: number;
     liveDealers: number;
+    catalogedDealers?: number;
+    message?: string;
   }>("/api/dealer-network", fetcher, { revalidateOnFocus: false });
   const watch = useDealerWatch();
 
@@ -114,10 +119,15 @@ export default function DealerNetworkPage() {
         </h1>
         <p className="mt-1 text-xs md:text-sm text-[var(--t4)]">
           {data
-            ? `${data.totalDealers} independent salvage / rebuilder shops · ${data.liveDealers} with live inventory`
+            ? `${data.totalDealers} independent salvage / rebuilder shops · ${data.liveDealers} with imported inventory`
             : "Loading the salvage & rebuilder network…"}
           {watch.count > 0 && ` · ⭐ ${watch.count} watched`}
         </p>
+        {data?.message && (
+          <p className="mt-2 max-w-3xl text-xs leading-relaxed text-[var(--t4)]">
+            {data.message}
+          </p>
+        )}
       </div>
 
       <WatchedDealerFeed />
@@ -237,10 +247,17 @@ export default function DealerNetworkPage() {
                       </span>
                     ) : (
                       <span className="text-[var(--t4)]">
-                        No live inventory synced yet
+                        Cataloged, not imported yet
                       </span>
                     )}
                   </div>
+                  {d.total === 0 && (
+                    <p className="text-[11px] leading-relaxed text-[var(--t4)]">
+                      Covered in the small-shop network. Connect Supabase and
+                      run the curated dealer importer to prove fresh rows,
+                      photos, VINs, and last-seen freshness.
+                    </p>
+                  )}
                   <TitleMix d={d} />
 
                   <div className="mt-auto flex items-center gap-3">
@@ -253,12 +270,12 @@ export default function DealerNetworkPage() {
                       </Link>
                     )}
                     <a
-                      href={d.url}
+                      href={d.inventoryUrl || d.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs font-semibold text-[var(--t4)] hover:text-[var(--t2)]"
                     >
-                      Visit site ↗
+                      Visit inventory ↗
                     </a>
                   </div>
                 </div>

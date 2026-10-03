@@ -48,8 +48,8 @@ export default function DeveloperPage() {
           Developer API
         </h1>
         <p className="text-[var(--t3)]">
-          Pipe MikeHunt’s GO verdicts + profit estimates into your DMS,
-          sheets, or tools.
+          Connect MikeHunt deal intelligence to your DMS, spreadsheets,
+          automation tools, or AI clients.
         </p>
       </div>
 
@@ -128,12 +128,17 @@ export default function DeveloperPage() {
       {/* Docs */}
       <div className="glass-panel p-5">
         <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
-          Quickstart
+          API quickstart
         </p>
-        <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`curl "https://your-app.vercel.app/api/public/v1/deals?state=TX&minProfit=2000" \\
+        <p className="mb-3 text-sm leading-relaxed text-[var(--t3)]">
+          Use the public deals endpoint when another system needs structured
+          rows: verdict, estimated profit, max buy, vehicle fields, and source
+          proof.
+        </p>
+        <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`curl "https://mikehunt-69.vercel.app/api/public/v1/deals?state=TX&minProfit=2000" \\
   -H "x-api-key: dhp_your_key"
 
-# Returns GO deals with estimated_net_profit + recommended_max_bid.
+# Returns buy-ready deals with estimated_net_profit + recommended_max_bid.
 # Filters: state, make, minProfit, verdict (go|hold|all), limit (≤200).`}</pre>
       </div>
 
@@ -142,25 +147,26 @@ export default function DeveloperPage() {
         <div className="flex items-center gap-2 mb-2">
           <Ico name="bot" size={14} className="text-[var(--amber)]" />
           <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
-            AI / MCP server
+            MCP server
           </p>
         </div>
         <p className="text-sm text-[var(--t3)] mb-3">
-          Connect Claude, Cursor, or any MCP client and ask the market in plain
-          English — “find GO deals on F-150s in Texas under a $15k max bid.” The
-          server returns profit verdicts, not just listings.
+          Connect Claude, Cursor, or any MCP-capable client to ask the market in
+          plain English. It returns MikeHunt’s deal math and source proof, not
+          raw listings.
         </p>
         <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`# Add to your MCP client config (HTTP transport):
 {
   "mcpServers": {
     "MikeHunt": {
-      "url": "https://your-app.vercel.app/api/mcp",
+      "url": "https://mikehunt-69.vercel.app/api/mcp",
       "headers": { "x-api-key": "dhp_your_key" }
     }
   }
 }
 
-# Tools: search_deals, market_pulse`}</pre>
+# Tools: search_deals, market_pulse
+# Example: find F-150 deals in Texas under a $15k max buy.`}</pre>
       </div>
     </div>
   );

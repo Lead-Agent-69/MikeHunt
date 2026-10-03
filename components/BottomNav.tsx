@@ -1,171 +1,117 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
-import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { motion } from "framer-motion";
+import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
+import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import {
-  PRIMARY,
-  MORE_GROUPS,
-  ADMIN_GROUP,
-  MOBILE_TAB_COUNT,
-  type NavGroup,
+  MOBILE_PRIMARY,
+  navItemMatchesPath,
+  primaryJobForPath,
 } from "@/components/layout/nav-items";
-
-// The bottom bar only has room for MOBILE_TAB_COUNT tabs, so the rest of PRIMARY folds into the
-// first "More" group rather than becoming unreachable on mobile.
-function withOverflow(groups: NavGroup[]): NavGroup[] {
-  const overflow = PRIMARY.slice(MOBILE_TAB_COUNT);
-  if (overflow.length === 0) return groups;
-  return groups.map((g, i) =>
-    i === 0 ? { ...g, items: [...overflow, ...g.items] } : g,
-  );
-}
-
-const MOBILE_GROUPS = withOverflow(MORE_GROUPS);
-const NAV_ITEMS = PRIMARY.slice(0, MOBILE_TAB_COUNT);
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { isAdmin } = useIsAdmin();
-  const [moreOpen, setMoreOpen] = useState(false);
-  const moreGroups = isAdmin ? [...MOBILE_GROUPS, ADMIN_GROUP] : MOBILE_GROUPS;
+  const localSaved = useLocalSavedVehicles();
+  const localSearches = useLocalSavedSearches();
+  const activeJob = primaryJobForPath(pathname);
+  const watchScopeCount = localSaved.count + localSearches.count;
 
-  // Close the sheet on navigation.
-  useEffect(() => setMoreOpen(false), [pathname]);
-  // Lock body scroll while the sheet is open.
-  useEffect(() => {
-    if (!moreOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [moreOpen]);
-
-  const tabStyle = (active: boolean) => ({
-    color: active ? "var(--amber)" : "var(--t4)",
-  });
-  const iconStyle = (active: boolean) => ({
-    width: 22,
-    height: 22,
-    strokeWidth: active ? 2.5 : 1.75,
-    transition: "all 150ms ease",
-    transform: active ? "translateY(-1px)" : "none",
-  });
-  const labelStyle = (active: boolean) => ({
-    fontSize: 10.5,
-    fontWeight: active ? 700 : 600,
-    letterSpacing: "0.02em",
-  });
+  const tapFeedback = () => {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate?.(8);
+    }
+  };
 
   return (
-    <>
-      {/* Slide-up "More" sheet — grouped access to every secondary section on mobile. */}
-      <AnimatePresence>
-        {moreOpen && (
-          <div className="md:hidden fixed inset-0 z-[60]">
-            <motion.button
-              aria-label="Close menu"
-              onClick={() => setMoreOpen(false)}
-              className="absolute inset-0"
-              style={{ background: "rgba(0,0,0,.45)" }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            />
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 rounded-t-2xl max-h-[80vh] overflow-y-auto p-4 pb-[calc(16px+env(safe-area-inset-bottom))]"
-              style={{
-                background: "var(--glass)",
-                backdropFilter: "blur(24px) saturate(180%)",
-                WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                borderTop: "1px solid var(--b1)",
-                boxShadow: "0 -8px 30px rgba(0,0,0,.25)",
+    <nav
+      aria-label="Primary mobile navigation"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-4"
+      style={{
+        background: "var(--glass)",
+        backdropFilter: "blur(18px) saturate(180%)",
+        WebkitBackdropFilter: "blur(18px) saturate(180%)",
+        borderTop: "1px solid var(--b1)",
+        boxShadow: "0 -4px 20px rgba(60,30,60,.07)",
+        height: "calc(58px + env(safe-area-inset-bottom))",
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
+    >
+      {MOBILE_PRIMARY.map((item) => {
+        const isActive =
+          navItemMatchesPath(item, pathname) ||
+          (item.name === "Discover" && pathname === "/") ||
+          (item.name === "Lane" && activeJob === "Auction Lane") ||
+          activeJob === item.name;
+        return (
+          <Link
+            key={item.name}
+            href={item.href}
+            aria-current={isActive ? "page" : undefined}
+            onClick={tapFeedback}
+            className="group relative flex flex-col items-center justify-center gap-1 overflow-hidden transition-colors"
+            style={{
+              color: isActive ? "var(--accent)" : "var(--t4)",
+              WebkitTapHighlightColor: "transparent",
+            }}
+            title={
+              item.name === "Saved" && watchScopeCount
+                ? `${watchScopeCount} active watch scope${
+                    watchScopeCount === 1 ? "" : "s"
+                  }`
+                : item.name
+            }
+          >
+            {isActive && (
+              <motion.span
+                layoutId="bottom-nav-active-pill"
+                className="absolute inset-x-3 top-1.5 bottom-1.5 rounded-[22px]"
+                style={{ background: "var(--accent-surface)" }}
+                transition={{ type: "spring", stiffness: 430, damping: 34 }}
+                aria-hidden="true"
+              />
+            )}
+            <motion.span
+              className="relative z-10 grid h-6 w-8 place-items-center"
+              animate={{
+                y: isActive ? -1 : 0,
+                scale: isActive ? 1.08 : 1,
               }}
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 380, damping: 36 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 520, damping: 32 }}
+              aria-hidden="true"
             >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-black text-[var(--t2)]">More</span>
-                <button
-                  onClick={() => setMoreOpen(false)}
-                  aria-label="Close"
-                  className="h-8 w-8 grid place-items-center rounded-lg text-[var(--t4)]"
-                >
-                  <X style={{ width: 18, height: 18 }} />
-                </button>
-              </div>
-              {moreGroups.map((g) => (
-                <div key={g.group} className="mb-4">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-[var(--t4)] mb-2">
-                    {g.group}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {g.items.map((it) => (
-                      <Link
-                        key={it.name}
-                        href={it.href}
-                        className="flex items-center gap-2.5 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 py-2.5 text-[var(--t2)] active:bg-[var(--s2)]"
-                      >
-                        <it.icon style={{ width: 17, height: 17 }} />
-                        <span className="text-[13px] font-semibold">
-                          {it.name}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-stretch"
-        style={{
-          background: "var(--glass)",
-          backdropFilter: "blur(18px) saturate(180%)",
-          WebkitBackdropFilter: "blur(18px) saturate(180%)",
-          borderTop: "1px solid var(--b1)",
-          boxShadow: "0 -4px 20px rgba(60,30,60,.07)",
-          height: "calc(56px + env(safe-area-inset-bottom))",
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
-      >
-        {NAV_ITEMS.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href === "/discover" && pathname === "/");
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className="flex flex-1 flex-col items-center justify-center gap-1 transition-all"
-              style={tabStyle(isActive)}
+              <item.icon
+                style={{
+                  width: 22,
+                  height: 22,
+                  strokeWidth: isActive ? 2.5 : 1.8,
+                }}
+              />
+            </motion.span>
+            {item.name === "Saved" && watchScopeCount > 0 && (
+              <span
+                className="absolute top-1.5 left-1/2 ml-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white"
+                style={{ background: "var(--accent)", lineHeight: 1 }}
+              >
+                {watchScopeCount > 99 ? "99+" : watchScopeCount}
+              </span>
+            )}
+            <span
+              className="relative z-10"
+              style={{
+                fontSize: 10.5,
+                fontWeight: isActive ? 760 : 620,
+                letterSpacing: "0.01em",
+              }}
             >
-              <item.icon style={iconStyle(isActive)} />
-              <span style={labelStyle(isActive)}>{item.name}</span>
-            </Link>
-          );
-        })}
-        {/* More — opens the grouped sheet so every section is reachable on mobile. */}
-        <button
-          onClick={() => setMoreOpen((o) => !o)}
-          className="flex flex-1 flex-col items-center justify-center gap-1 transition-all"
-          style={tabStyle(moreOpen)}
-          aria-label="More"
-        >
-          <Menu style={iconStyle(moreOpen)} />
-          <span style={labelStyle(moreOpen)}>More</span>
-        </button>
-      </nav>
-    </>
+              {item.name}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 }

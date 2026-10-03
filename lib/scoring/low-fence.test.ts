@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { lowFence } from "./market-value";
+import {
+  __resetMarketIndexForTest,
+  loadMarketIndex,
+  lowFence,
+} from "./market-value";
 
 describe("lowFence (Tukey q1−1.5·IQR — adaptive per-market outlier floor)", () => {
   it("catches a below-market listing in a TIGHT bucket the fixed 45% ratio would miss", () => {
@@ -21,5 +25,46 @@ describe("lowFence (Tukey q1−1.5·IQR — adaptive per-market outlier floor)",
 
   it("returns null when there are too few comps to trust a spread", () => {
     expect(lowFence([18000, 18500, 19000])).toBeNull();
+  });
+
+  it("shares one in-flight market index load across concurrent callers", async () => {
+    __resetMarketIndexForTest();
+    const calls: Record<string, number> = {};
+    const fakeSupabase = {
+      from(table: string) {
+        const query = {
+          select() {
+            return query;
+          },
+          eq() {
+            return query;
+          },
+          gt() {
+            return query;
+          },
+          lt() {
+            return query;
+          },
+          async range() {
+            calls[table] = (calls[table] || 0) + 1;
+            if (table === "deals") {
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            }
+            return { data: [], error: null };
+          },
+        };
+        return query;
+      },
+    };
+
+    await Promise.all([
+      loadMarketIndex(fakeSupabase as any),
+      loadMarketIndex(fakeSupabase as any),
+      loadMarketIndex(fakeSupabase as any),
+    ]);
+
+    expect(calls.deals).toBe(1);
+    expect(calls.sold_listings).toBe(1);
+    expect(calls.market_aggregates).toBe(1);
   });
 });

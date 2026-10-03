@@ -3,12 +3,18 @@
 import React from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import {
+  buildBuyerIntentQuery,
+  buyerIntentLabel,
+  useBuyerIntent,
+} from "@/hooks/useBuyerIntent";
 import { Mono } from "@/components/shared/Mono";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
 import { CalibrationNudge } from "@/components/deal/CalibrationNudge";
+import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -21,27 +27,36 @@ function SystemPulse() {
   const q = data?.quality;
   const l = data?.learning;
   if (!data) return null;
+  const hasBuyDeals = (q?.goDeals ?? 0) > 0;
 
   const cells = [
     {
       label: "live deals",
       value: (f?.activeDeals ?? 0).toLocaleString(),
       tone: "var(--t1)",
+      href: "/scan?sort=profit",
     },
     {
-      label: "BUY now",
-      value: (q?.goDeals ?? 0).toLocaleString(),
-      tone: "var(--green)",
+      label: hasBuyDeals ? "BUY now" : "watch now",
+      value: hasBuyDeals
+        ? (q?.goDeals ?? 0).toLocaleString()
+        : (q?.watchCandidates ?? 0).toLocaleString(),
+      tone: hasBuyDeals ? "var(--green)" : "var(--amber)",
+      href: hasBuyDeals
+        ? "/scan?verdict=go&sort=profit"
+        : "/scan?verdict=watch&sort=profit",
     },
     {
       label: "new today",
       value: (f?.newLast24h ?? 0).toLocaleString(),
       tone: "var(--amber)",
+      href: "/scan?sort=profit",
     },
     {
       label: f?.stale ? "data stale" : "data fresh",
       value: f?.stale ? "•" : "LIVE",
       tone: f?.stale ? "var(--red)" : "var(--green)",
+      href: "/status",
     },
   ];
 
@@ -60,7 +75,11 @@ function SystemPulse() {
       </div>
       <div className="grid grid-cols-4 gap-3">
         {cells.map((c) => (
-          <div key={c.label}>
+          <Link
+            key={c.label}
+            href={c.href}
+            className="rounded-[var(--r2)] border border-transparent p-2 -m-2 transition-colors hover:border-[var(--b1)] hover:bg-[var(--s1)]"
+          >
             <Mono
               className="text-xl md:text-2xl font-black"
               style={{ fontFamily: "var(--fm)", color: c.tone }}
@@ -70,7 +89,7 @@ function SystemPulse() {
             <p className="text-[10px] text-[var(--t4)] font-semibold mt-0.5">
               {c.label}
             </p>
-          </div>
+          </Link>
         ))}
       </div>
       {l?.prioritizedMakes?.length > 0 && (
@@ -82,6 +101,174 @@ function SystemPulse() {
           .
         </p>
       )}
+    </div>
+  );
+}
+
+function BuyerIntentToday() {
+  const { intent } = useBuyerIntent();
+  const params = buildBuyerIntentQuery(intent);
+  const query = params.toString();
+  const label = buyerIntentLabel(intent);
+  const scanHref = `/scan?${query ? `${query}&` : ""}sort=profit`;
+  const sourcesHref = `/sources${query ? `?${query}` : ""}`;
+  const { data, isLoading } = useSWR(
+    `/api/scrape/health${query ? `?${query}` : ""}`,
+    fetcher,
+    { refreshInterval: 300_000, revalidateOnFocus: false },
+  );
+
+  const sources = Array.isArray(data?.sources) ? data.sources : [];
+  const ready = sources.filter((source: any) => source.readiness === "ready");
+  const action = sources.filter((source: any) =>
+    ["needs_login", "blocked", "needs_run", "no_rows"].includes(
+      source.readiness,
+    ),
+  );
+  const rows = ready.reduce(
+    (sum: number, source: any) => sum + (Number(source.activeRows) || 0),
+    0,
+  );
+  const photos = ready.reduce(
+    (sum: number, source: any) => sum + (Number(source.rowsWithPhotos) || 0),
+    0,
+  );
+  const quality = ready.length
+    ? Math.round(
+        ready.reduce(
+          (sum: number, source: any) =>
+            sum + (Number(source.averageQuality) || 0),
+          0,
+        ) / ready.length,
+      )
+    : 0;
+  const weakFields = [
+    {
+      label: "VIN",
+      value: ready.length
+        ? Math.round(
+            ready.reduce(
+              (sum: number, source: any) =>
+                sum + (Number(source.completeness?.vinPct) || 0),
+              0,
+            ) / ready.length,
+          )
+        : 0,
+    },
+    {
+      label: "Mileage",
+      value: ready.length
+        ? Math.round(
+            ready.reduce(
+              (sum: number, source: any) =>
+                sum + (Number(source.completeness?.mileagePct) || 0),
+              0,
+            ) / ready.length,
+          )
+        : 0,
+    },
+    {
+      label: "Contact",
+      value: ready.length
+        ? Math.round(
+            ready.reduce(
+              (sum: number, source: any) =>
+                sum + (Number(source.completeness?.sellerContactPct) || 0),
+              0,
+            ) / ready.length,
+          )
+        : 0,
+    },
+  ]
+    .filter((item) => item.value < 70)
+    .slice(0, 2);
+
+  return (
+    <div className="glass-panel p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+            Today for your buyer intent
+          </p>
+          <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
+            {intent ? label : "Set a buyer intent to make Today personal."}
+          </h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+            {isLoading
+              ? "Checking matching source proof..."
+              : ready.length
+                ? `${ready.length} source${
+                    ready.length === 1 ? "" : "s"
+                  } can return matching cars now: ${rows.toLocaleString()} row${
+                    rows === 1 ? "" : "s"
+                  }, ${photos.toLocaleString()} photo-backed, ${quality}/100 average detail quality.`
+                : action.length
+                  ? `${action.length} matching source${
+                      action.length === 1 ? "" : "s"
+                    } need setup, a run, login, or broader filters before Today can recommend from this exact scope.`
+                  : "No scoped source proof has returned yet. Start from Discover or Source Proof to pick a lane, state, budget, seller type, and watched dealers."}
+            {weakFields.length
+              ? ` Verify before bidding: ${weakFields
+                  .map((item) => `${item.label.toLowerCase()} ${item.value}%`)
+                  .join(", ")}.`
+              : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={scanHref}
+            className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+          >
+            Open today&apos;s matches
+          </Link>
+          <Link
+            href={sourcesHref}
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+          >
+            Source proof
+          </Link>
+          <Link
+            href="/discover"
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+          >
+            Edit intent
+          </Link>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+        <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+          <div className="text-lg font-black text-[var(--green)]">
+            {ready.length}
+          </div>
+          <div className="text-[10px] font-black uppercase text-[var(--t5)]">
+            ready
+          </div>
+        </div>
+        <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+          <div className="text-lg font-black text-[var(--t1)]">
+            {rows.toLocaleString()}
+          </div>
+          <div className="text-[10px] font-black uppercase text-[var(--t5)]">
+            rows
+          </div>
+        </div>
+        <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+          <div className="text-lg font-black text-[var(--t1)]">
+            {photos.toLocaleString()}
+          </div>
+          <div className="text-[10px] font-black uppercase text-[var(--t5)]">
+            photos
+          </div>
+        </div>
+        <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+          <div className="text-lg font-black text-[var(--amber-d)]">
+            {action.length}
+          </div>
+          <div className="text-[10px] font-black uppercase text-[var(--t5)]">
+            action
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -101,7 +288,9 @@ export default function TodayPage() {
       </div>
 
       <DealTicker />
+      <BuyerIntentToday />
       <SystemPulse />
+      <NextBestBuySpotlight />
       <CalibrationNudge />
       <MarketPulse />
 
@@ -119,7 +308,7 @@ export default function TodayPage() {
       />
       <IntelRail
         endpoint="/api/mispricing"
-        title="📉 Underpriced vs peers"
+        title="Underpriced vs peers"
         subtitle="Statistical outliers priced well under their cluster"
       />
 

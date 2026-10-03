@@ -8,7 +8,42 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { geocodePlace } from "@/lib/geo/geocode";
 
-export async function GET() {
+const GUEST_PROFILE_COOKIE = "mh_guest_profile";
+
+function readGuestProfile(req: NextRequest) {
+  const raw = req.cookies.get(GUEST_PROFILE_COOKIE)?.value;
+  if (!raw) return {};
+  try {
+    return JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function guestProfileResponse(profile: Record<string, unknown>) {
+  const res = NextResponse.json({ profile, authed: false, local: true });
+  res.cookies.set(
+    GUEST_PROFILE_COOKIE,
+    Buffer.from(JSON.stringify(profile), "utf8").toString("base64url"),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 180,
+    },
+  );
+  return res;
+}
+
+export async function GET(req: NextRequest) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      profile: readGuestProfile(req),
+      authed: false,
+      local: true,
+    });
+  }
+
   const supabase = createServerComponentClient();
   const {
     data: { user },
@@ -16,7 +51,11 @@ export async function GET() {
   } = await getServerUser();
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({
+      profile: readGuestProfile(req),
+      authed: false,
+      local: true,
+    });
   }
 
   const { data: profile, error } = await supabase
@@ -34,6 +73,21 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!isSupabaseConfigured()) {
+    return guestProfileResponse({
+      ...readGuestProfile(req),
+      ...body,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   const supabase = createServerComponentClient();
   const {
     data: { user },
@@ -41,14 +95,11 @@ export async function POST(req: NextRequest) {
   } = await getServerUser();
 
   if (authError || !user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  let body: any;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return guestProfileResponse({
+      ...readGuestProfile(req),
+      ...body,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   // Use the fields provided, don't overwrite with nulls if omitted

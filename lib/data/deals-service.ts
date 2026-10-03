@@ -2,6 +2,7 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { sellerContact } from "@/lib/data/deal-contact";
 
 export type Deal = {
   id: string;
@@ -35,7 +36,12 @@ export type Deal = {
   sellerType?: "dealer" | "auction" | "private";
   // Seller contact extracted at scrape time (options.contact). Powers in-app Call/Text/Email so the
   // dealer doesn't have to leave for the original site to reach out.
-  contact?: { phone?: string; email?: string; listingUrl?: string };
+  contact?: {
+    phone?: string;
+    email?: string;
+    url?: string;
+    listingUrl?: string;
+  };
   repair_estimate?: number;
   transport_cost?: number;
   is_arbitrage_opportunity?: boolean;
@@ -93,7 +99,16 @@ export type DealFilters = {
 export class DealsService {
   private supabase = createServerComponentClient();
 
+  private rowOptions(row: any) {
+    return row && typeof row.options === "object" && row.options
+      ? row.options
+      : {};
+  }
+
   private mapDbToDeal(row: any): Deal {
+    const contact = sellerContact(row);
+    const options = this.rowOptions(row);
+    const bidCount = row.bid_count ?? options.auction?.bidCount;
     return {
       id: row.id,
       source: row.source,
@@ -121,15 +136,19 @@ export class DealsService {
       auctionEndAt: row.auction_end_at
         ? new Date(row.auction_end_at)
         : undefined,
-      bidCount: row.bid_count != null ? Number(row.bid_count) : undefined,
+      bidCount:
+        bidCount != null && Number.isFinite(Number(bidCount))
+          ? Number(bidCount)
+          : undefined,
       damageType: row.damage_type,
-      seller: row.seller,
-      sellerType: row.seller_type,
+      seller: row.seller || options.seller,
+      sellerType: row.seller_type || options.sellerType,
       contact:
-        row.options?.contact?.phone || row.options?.contact?.email
+        contact.phone || contact.email || contact.url
           ? {
-              phone: row.options.contact.phone || undefined,
-              email: row.options.contact.email || undefined,
+              phone: contact.phone || undefined,
+              email: contact.email || undefined,
+              url: contact.url || undefined,
               listingUrl: row.source_url || undefined,
             }
           : undefined,

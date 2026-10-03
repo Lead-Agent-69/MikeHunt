@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { parsePublicSurplusHtml } from "./publicsurplus";
+import {
+  parsePublicSurplusDetailHtml,
+  parsePublicSurplusHtml,
+} from "./publicsurplus";
 
 // Mirrors the real PublicSurplus card markup (img block with state badge + h6 title anchor + price).
 const card = (auc: string, title: string, price: string, state = "VA") => `
 <div class="auction-item-img">
-  <a href="/sms/auction/view?auc=${auc}"><img class="lazy-img-loading" /></a>
+  <a href="/sms/auction/view?auc=${auc}">
+    <img class="lazy-img-loading" src="https://d37qv0n5b4mbzm.cloudfront.net/sms/docviewer/cdnmainaucdoc/thumb-b/${auc}/photo1" />
+  </a>
   <span class="auction-item-state"> ${state} </span>
 </div>
 <div class="auction-item-body px-0">
@@ -12,6 +17,9 @@ const card = (auc: string, title: string, price: string, state = "VA") => `
     <a href="/sms/auction/view?auc=${auc}" title="#${auc} - ${title}">#${auc} - ${title}</a>
   </h6>
   <div class="ps-card__body--children">Price: <b id="val_${auc}catGrid"> ${price} </b></div>
+  <script>
+    updateTimeLeftSpan(timeLeftInfoMap, ${auc}, "${auc}catGrid", 1790937230893, 1791082800000, 1790886603816, 0, "", "", "catList", timeLeftCallback);
+  </script>
 </div>`;
 
 describe("parsePublicSurplusHtml", () => {
@@ -27,9 +35,14 @@ describe("parsePublicSurplusHtml", () => {
     expect(d.make).toBe("Ford");
     expect(d.ask_price).toBe(3250);
     expect(d.location_state).toBe("FL");
+    expect(d.seller_type).toBe("auction");
     expect(d.source_url).toBe(
       "https://www.publicsurplus.com/sms/auction/view?auc=4021503",
     );
+    expect(d.auction_end).toBe("2026-10-04T03:00:00.000Z");
+    expect(d.images).toEqual([
+      "https://d37qv0n5b4mbzm.cloudfront.net/sms/docviewer/cdnmainaucdoc/thumb-b/4021503/photo1",
+    ]);
   });
 
   it("skips listings with no model year and no bid value", () => {
@@ -51,5 +64,38 @@ describe("parsePublicSurplusHtml", () => {
     expect(parsePublicSurplusHtml(dup)).toHaveLength(1);
     expect(parsePublicSurplusHtml("<html>nope</html>")).toEqual([]);
     expect(parsePublicSurplusHtml("")).toEqual([]);
+  });
+});
+
+describe("parsePublicSurplusDetailHtml", () => {
+  it("extracts numeric mileage and VIN from the detail page fields", () => {
+    const detail = parsePublicSurplusDetailHtml(`
+      <div><span class="auctitle"> VIN: </span><span> 1FTNF20516EC67638 </span></div>
+      <div><span class="auctitle"> Mileage: </span><span> 166277 </span></div>
+    `);
+
+    expect(detail.vin).toBe("1FTNF20516EC67638");
+    expect(detail.mileage).toBe(166277);
+  });
+
+  it("ignores unknown or unverified mileage text", () => {
+    expect(
+      parsePublicSurplusDetailHtml(`
+        <div><span class="auctitle"> Mileage: </span><span> unknown </span></div>
+      `).mileage,
+    ).toBeUndefined();
+    expect(
+      parsePublicSurplusDetailHtml(`
+        <div><span class="auctitle"> Mileage: </span><span> MILEAGE IS UNKNOWN AND HAS NOT BEEN VERIFIED. </span></div>
+      `).mileage,
+    ).toBeUndefined();
+  });
+
+  it("extracts the numeric odometer from notes like only on this motor", () => {
+    expect(
+      parsePublicSurplusDetailHtml(`
+        <span class="auctitle"> Mileage: </span><span> 66290 (only on this motor) </span>
+      `).mileage,
+    ).toBe(66290);
   });
 });

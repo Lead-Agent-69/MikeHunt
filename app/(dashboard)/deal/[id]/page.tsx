@@ -2,10 +2,20 @@
 
 import React, { useEffect } from "react";
 import { recordRecent } from "@/hooks/useRecentlyViewed";
+import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import {
+  ArrowUpRight,
+  BadgeDollarSign,
+  FileText,
+  Gauge,
+  ShieldCheck,
+  TrendingUp,
+} from "lucide-react";
 import { useDealStore } from "@/lib/store/dealStore";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
@@ -53,6 +63,295 @@ import { MaxBidCalculator } from "@/components/shared/MaxBidCalculator";
 import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
+import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+
+type SourceHealthItem = {
+  id: string;
+  readiness?: string;
+  userStatus?: string;
+  activeRows?: number;
+  rowsWithPhotos?: number;
+  photoCoveragePct?: number;
+  averageQuality?: number;
+  qualityLabel?: string | null;
+  freshnessHours?: number | null;
+  lastSeenAt?: string | null;
+  nextAction?: string | null;
+};
+
+function hostFromUrl(value?: string | null) {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function sourceHealthIdForDeal(deal: any, sources: SourceHealthItem[]) {
+  const source = String(deal?.source || "");
+  const url = String(deal?.sourceUrl || "").toLowerCase();
+  const ids = new Set(sources.map((item) => item.id));
+  if (ids.has(source)) return source;
+  if (source === "gov_auction") {
+    if (url.includes("govdeals.com") && ids.has("govdeals")) return "govdeals";
+    if (url.includes("publicsurplus") && ids.has("publicsurplus"))
+      return "publicsurplus";
+    if (url.includes("municibid") && ids.has("municibid")) return "municibid";
+    if (url.includes("gsa") && ids.has("gsa_auctions")) return "gsa_auctions";
+  }
+  if (source === "independent_dealer") {
+    if (url.includes("aeofmiami.com") && ids.has("ae-of-miami"))
+      return "ae-of-miami";
+    if (
+      (url.includes("stjamesauto.com") ||
+        url.includes("stjamesautoparts.com")) &&
+      ids.has("stjames-auto")
+    )
+      return "stjames-auto";
+    if (url.includes("dgautollc.com") && ids.has("dg-auto")) return "dg-auto";
+    if (url.includes("recar.com") && ids.has("recar")) return "recar";
+    if (url.includes("damage.com") && ids.has("damage-com"))
+      return "damage-com";
+    if (url.includes("casmiami.com") && ids.has("cas-miami"))
+      return "cas-miami";
+    if (url.includes("salvagezone.com") && ids.has("salvagezone"))
+      return "salvagezone";
+    if (url.includes("rebuiltauto.com") && ids.has("rebuilt-auto"))
+      return "rebuilt-auto";
+    if (url.includes("alpineautogallery.com") && ids.has("alpine-auto"))
+      return "alpine-auto";
+    if (url.includes("replicaauto.com") && ids.has("replica-auto"))
+      return "replica-auto";
+    if (ids.has("curated_dealers")) return "curated_dealers";
+  }
+  return "";
+}
+
+function relativeFreshness(value?: string | Date | null) {
+  if (!value) return "freshness unknown";
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return "freshness unknown";
+  const hours = Math.max(0, Math.round(ms / 3_600_000));
+  if (hours < 1) return "seen just now";
+  if (hours < 24) return `seen ${hours}h ago`;
+  return `seen ${Math.round(hours / 24)}d ago`;
+}
+
+function money(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function DecisionCommandPanel({
+  deal,
+  engineVerdict,
+  engineNetProfit,
+  engineScore,
+  engineRoi,
+  detailQualityScore,
+  detailMathConfidence,
+  sourceHealth,
+  proofLinks,
+  onCashOffer,
+}: {
+  deal: any;
+  engineVerdict: "GO" | "HOLD" | "PASS";
+  engineNetProfit: number;
+  engineScore: number;
+  engineRoi: number;
+  detailQualityScore?: number;
+  detailMathConfidence: string;
+  sourceHealth?: SourceHealthItem;
+  proofLinks: { scan: string; sources: string };
+  onCashOffer: () => void;
+}) {
+  const verdictTone =
+    engineVerdict === "GO"
+      ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
+      : engineVerdict === "HOLD"
+        ? "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]"
+        : "border-[var(--rbd)] bg-[var(--rlo)] text-[var(--red)]";
+  const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
+  const maxBid = Number(deal?.recommendedMaxBid || deal?.askPrice || 0);
+  const sourceReady = sourceHealth?.readiness === "ready";
+
+  return (
+    <section className="glass-panel motion-enter overflow-hidden p-0">
+      <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="p-4 md:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+                Decision command
+              </p>
+              <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
+                {engineVerdict === "GO"
+                  ? "Bid only if the proof checks out"
+                  : engineVerdict === "HOLD"
+                    ? "Watch this one until the math improves"
+                    : "Pass unless the seller moves hard"}
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+                {title || "This vehicle"} is scored with the current source
+                proof, listing completeness, cost model, and resale estimate.
+                Verify the original listing before any money moves.
+              </p>
+            </div>
+            <span
+              className={`w-fit rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] ${verdictTone}`}
+            >
+              {engineVerdict}
+            </span>
+          </div>
+
+          <div className="stagger-children mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                label: "Max bid",
+                value: money(maxBid),
+                detail: "do not exceed",
+                Icon: BadgeDollarSign,
+              },
+              {
+                label: "Net profit",
+                value: money(engineNetProfit),
+                detail: `${Number(engineRoi || 0).toFixed(1)}% ROI`,
+                Icon: TrendingUp,
+              },
+              {
+                label: "Deal score",
+                value: `${Math.round(engineScore || 0)}`,
+                detail: "engine rank",
+                Icon: Gauge,
+              },
+              {
+                label: "Proof",
+                value: `${detailQualityScore || 0}/100`,
+                detail: `${detailMathConfidence} confidence`,
+                Icon: ShieldCheck,
+              },
+            ].map(({ label, value, detail, Icon }) => (
+              <div
+                key={label}
+                className="interactive-surface rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
+                    {label}
+                  </span>
+                  <Icon
+                    className="h-3.5 w-3.5 text-[var(--t4)]"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="mt-2 text-base font-black text-[var(--t1)]">
+                  {value}
+                </div>
+                <div className="text-[11px] font-semibold text-[var(--t5)]">
+                  {detail}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <AcquireToPipelineButton
+              deal={{
+                id: deal.id,
+                vin: deal.vin,
+                year: deal.year,
+                make: deal.make,
+                model: deal.model,
+                trim: deal.trim,
+                askPrice: deal.askPrice,
+                trueNetProfit: deal.true_net_profit || deal.trueNetProfit,
+                sellEstimate: deal.sellEstimate,
+                locationCity: deal.locationCity,
+                locationState: deal.locationState,
+              }}
+            />
+            <button
+              onClick={onCashOffer}
+              className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
+            >
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Cash offer LOI
+            </button>
+            {deal.sourceUrl && (
+              <a
+                href={deal.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
+              >
+                Original listing
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--b1)] bg-[var(--s1)] p-4 md:p-5 lg:border-l lg:border-t-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+            Proof before action
+          </p>
+          <div className="mt-3 space-y-2">
+            {[
+              [
+                sourceReady ? "Ready" : "Check",
+                sourceReady
+                  ? `${Number(sourceHealth?.activeRows || 0).toLocaleString()} source rows · ${Number(sourceHealth?.rowsWithPhotos || 0).toLocaleString()} photos`
+                  : sourceHealth?.nextAction ||
+                    "Source proof is still loading.",
+              ],
+              [
+                "Inspect",
+                "Confirm VIN, mileage, title, damage, seller contact, and auction timing.",
+              ],
+              [
+                "Act",
+                engineVerdict === "GO"
+                  ? "Bid or call only under max bid."
+                  : "Save/watch unless the seller moves.",
+              ],
+            ].map(([label, detail]) => (
+              <div
+                key={label}
+                className="rounded-[var(--r2)] bg-[var(--s0)] p-2.5"
+              >
+                <div className="text-xs font-black text-[var(--t1)]">
+                  {label}
+                </div>
+                <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--t4)]">
+                  {detail}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Link
+              href={proofLinks.scan}
+              className="interactive-surface premium-focus rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-center text-xs font-black text-[var(--t2)]"
+            >
+              Matching Scan
+            </Link>
+            <Link
+              href={proofLinks.sources}
+              className="interactive-surface premium-focus rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-center text-xs font-black text-[var(--t2)]"
+            >
+              Source proof
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
@@ -83,6 +382,8 @@ export default function DealPage({
   const [watching, setWatching] = React.useState(false);
   const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
   const loadedDealIdRef = React.useRef<string | null>(null);
+  const localSaved = useLocalSavedVehicles();
+  const isLocallyWatched = localSaved.has(id);
 
   // Use SWR for data fetching
   const {
@@ -152,6 +453,28 @@ export default function DealPage({
   };
 
   const handleWatchPrice = async () => {
+    const syncSavedCar = async () => {
+      try {
+        const savedRes = await fetch("/api/saved-cars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dealId: id }),
+        });
+        if (savedRes.ok || savedRes.status === 409) return true;
+        return false;
+      } catch {
+        return false;
+      }
+    };
+
+    if (isLocallyWatched) {
+      void syncSavedCar();
+      toast.success("Already watching this deal", {
+        action: { label: "View Saved", onClick: () => router.push("/saved") },
+      });
+      return;
+    }
+
     setWatching(true);
     try {
       const res = await fetch("/api/watchlist", {
@@ -161,11 +484,43 @@ export default function DealPage({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          saveDealLocally();
+          toast.success("Saved locally", {
+            description: "Sign in later to sync price alerts.",
+            action: {
+              label: "View Saved",
+              onClick: () => router.push("/saved"),
+            },
+          });
+          return;
+        }
+        if (res.status === 409) {
+          saveDealLocally();
+          void syncSavedCar();
+          toast.success("Already watching this deal", {
+            action: {
+              label: "View Saved",
+              onClick: () => router.push("/saved"),
+            },
+          });
+          return;
+        }
         throw new Error(data.error || "Failed to add to watchlist");
       }
-      toast.success("Watching this deal for price changes");
+      await syncSavedCar();
+      saveDealLocally();
+      toast.success("Watching this deal for price changes", {
+        action: { label: "View Saved", onClick: () => router.push("/saved") },
+      });
     } catch (e: any) {
-      toast.error(e.message || "Failed to watch deal");
+      saveDealLocally();
+      toast.success("Saved locally", {
+        description:
+          e?.message ||
+          "Server watchlist was not available, but this vehicle is saved.",
+        action: { label: "View Saved", onClick: () => router.push("/saved") },
+      });
     } finally {
       setWatching(false);
     }
@@ -232,6 +587,148 @@ export default function DealPage({
       ? Number(serverDeal.dealAnalysis.roi)
       : store.roi;
   // The client store recompute is reframed as a "what-if" adjusted estimate (see ledger).
+
+  const sourceHealthKey = React.useMemo(() => {
+    if (!serverDeal) return null;
+    const params = new URLSearchParams();
+    const host = hostFromUrl(serverDeal.sourceUrl);
+    if (serverDeal.source === "independent_dealer" && host) {
+      params.set("dealers", host);
+    }
+    return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
+  }, [serverDeal]);
+  const { data: sourceHealthData } = useSWR(sourceHealthKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
+  const sourceHealth: SourceHealthItem | undefined = React.useMemo(() => {
+    const sources = (sourceHealthData?.sources || []) as SourceHealthItem[];
+    const healthId = sourceHealthIdForDeal(serverDeal, sources);
+    return sources.find((source) => source.id === healthId);
+  }, [serverDeal, sourceHealthData?.sources]);
+  const proofLinks = React.useMemo(() => {
+    if (!serverDeal) return { scan: "/scan", sources: "/sources" };
+    const params = new URLSearchParams();
+    if (serverDeal.make || serverDeal.model) {
+      params.set(
+        "q",
+        [serverDeal.make, serverDeal.model].filter(Boolean).join(" ").trim(),
+      );
+    }
+    if (serverDeal.locationState) params.set("state", serverDeal.locationState);
+    const host = hostFromUrl(serverDeal.sourceUrl);
+    if (serverDeal.source === "independent_dealer" && host) {
+      params.set("sellerType", "dealer");
+      params.set("dealers", host);
+    } else if (serverDeal.source === "gov_auction") {
+      params.set("sellerType", "auction");
+      params.set("lane", "government");
+    } else if (isAuctionSource(serverDeal.source)) {
+      params.set("sellerType", "auction");
+      params.set("lane", "auction");
+    }
+    if (sourceHealth?.id) params.set("source", sourceHealth.id);
+    params.set("sort", "profit");
+    const query = params.toString();
+    return {
+      scan: `/scan${query ? `?${query}` : ""}`,
+      sources: `/sources${query ? `?${query}` : ""}`,
+    };
+  }, [serverDeal, sourceHealth?.id]);
+  const detailQuality = React.useMemo(() => {
+    if (!serverDeal) return null;
+    return gradeDataQuality({
+      images: serverDeal.images,
+      imageUrl: serverDeal.images?.[0],
+      vin: serverDeal.vin,
+      titleType:
+        serverDeal.titleType ||
+        serverDeal.title_type ||
+        serverDeal.titleStatus ||
+        serverDeal.title_status ||
+        serverDeal.condition,
+      condition: serverDeal.condition,
+      damageType: serverDeal.damageType || serverDeal.damage_type,
+      mileage: serverDeal.mileage,
+      locationCity: serverDeal.locationCity,
+      locationState: serverDeal.locationState,
+      askPrice: serverDeal.askPrice,
+      seller: serverDeal.seller,
+      sellerType: serverDeal.sellerType,
+      sellerPhone: serverDeal.contact?.phone,
+      sellerEmail: serverDeal.contact?.email,
+      auctionEndAt: serverDeal.auctionEndAt,
+      sourceUrl: serverDeal.sourceUrl,
+    });
+  }, [serverDeal]);
+  const resaleBasis = Number(
+    serverDeal?.sellEstimate || serverDeal?.mmrValue || 0,
+  );
+  const detailCosts = serverDeal?.dealAnalysis?.costs;
+  const detailMathConfidence =
+    (detailQuality?.score || 0) >= 78 && resaleBasis > 0
+      ? "High"
+      : (detailQuality?.score || 0) >= 58 || resaleBasis > 0
+        ? "Medium"
+        : "Low";
+  const detailMathGaps = [
+    !resaleBasis ? "market value" : null,
+    !detailCosts?.repair ? "repair estimate" : null,
+    !detailCosts?.transport ? "transport" : null,
+    ...(detailQuality?.missing.slice(0, 2).map(fieldLabel) || []),
+  ].filter(Boolean);
+
+  const saveDealLocally = React.useCallback(() => {
+    const title =
+      serverDeal?.title ||
+      `${serverDeal?.year ?? store.year ?? ""} ${serverDeal?.make ?? store.make ?? ""} ${serverDeal?.model ?? store.model ?? ""}`.trim() ||
+      "Saved vehicle";
+
+    localSaved.save({
+      id,
+      title,
+      year: serverDeal?.year ?? store.year,
+      make: serverDeal?.make ?? store.make,
+      model: serverDeal?.model ?? store.model,
+      vin: serverDeal?.vin ?? store.vin,
+      mileage: serverDeal?.mileage ?? store.miles,
+      askPrice: Number(
+        serverDeal?.ask_price ?? serverDeal?.askPrice ?? store.askPrice ?? 0,
+      ),
+      estimatedProfit: Number(
+        serverDeal?.true_net_profit ??
+          serverDeal?.trueNetProfit ??
+          store.netProfit ??
+          0,
+      ),
+      source: serverDeal?.source ?? dealData?.deal?.source ?? "unknown",
+      sourceUrl: serverDeal?.sourceUrl,
+      image: serverDeal?.images?.[0],
+      locationCity: serverDeal?.locationCity,
+      locationState: serverDeal?.locationState,
+      dataQuality: detailQuality
+        ? {
+            score: detailQuality.score,
+            label: detailQuality.label,
+            missing: detailQuality.missing.map(fieldLabel),
+          }
+        : undefined,
+      savedAt: new Date().toISOString(),
+    });
+  }, [
+    dealData?.deal?.source,
+    detailQuality,
+    id,
+    localSaved,
+    serverDeal,
+    store.askPrice,
+    store.make,
+    store.miles,
+    store.model,
+    store.netProfit,
+    store.vin,
+    store.year,
+  ]);
 
   if (loading) {
     return (
@@ -321,6 +818,7 @@ export default function DealPage({
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <SourceBadge
               source={dealData?.deal?.source}
+              sourceUrl={dealData?.deal?.sourceUrl}
               size="lg"
               showChannel
             />
@@ -360,33 +858,8 @@ export default function DealPage({
           )}
         </div>
 
-        {/* Actions & The 3-User Toggle */}
+        {/* Buyer mode toggle */}
         <div className="flex flex-wrap items-center gap-3">
-          <AcquireToPipelineButton
-            deal={{
-              id,
-              vin: serverDeal?.vin || store.vin,
-              year: serverDeal?.year || store.year,
-              make: serverDeal?.make || store.make,
-              model: serverDeal?.model || store.model,
-              trim: serverDeal?.trim,
-              askPrice:
-                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
-              trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
-              sellEstimate: serverDeal?.sellEstimate || store.marketValue,
-              locationCity: serverDeal?.locationCity,
-              locationState: serverDeal?.locationState,
-            }}
-          />
-
-          <button
-            onClick={() => setShowCashOfferModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-[var(--s1)] border border-emerald-500/30 hover:border-emerald-500 text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors shadow-sm"
-          >
-            <span>📜</span>
-            Cash Offer LOI
-          </button>
-
           <div
             className="flex p-1 rounded-xl"
             style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
@@ -407,6 +880,28 @@ export default function DealPage({
         </div>
       </div>
 
+      {serverDeal && (
+        <DecisionCommandPanel
+          deal={{
+            ...serverDeal,
+            id,
+            askPrice:
+              serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+            vin: serverDeal?.vin || store.vin,
+            trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+          }}
+          engineVerdict={engineVerdict}
+          engineNetProfit={engineNetProfit}
+          engineScore={engineScore}
+          engineRoi={engineRoi}
+          detailQualityScore={detailQuality?.score}
+          detailMathConfidence={detailMathConfidence}
+          sourceHealth={sourceHealth}
+          proofLinks={proofLinks}
+          onCashOffer={() => setShowCashOfferModal(true)}
+        />
+      )}
+
       {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
       {serverDeal?.images && serverDeal.images.length > 0 && (
         <ImageGallery
@@ -414,6 +909,223 @@ export default function DealPage({
           title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
           sourceUrl={serverDeal.sourceUrl}
         />
+      )}
+
+      {serverDeal && detailQuality && (
+        <Card
+          className="border-none overflow-hidden"
+          style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-base font-black text-[var(--t1)]">
+                  Decision readiness
+                </CardTitle>
+                <p className="mt-1 text-xs text-[var(--t4)]">
+                  Listing proof, source health, and buyer math before you bid.
+                </p>
+              </div>
+              <Badge
+                className="w-fit border-none uppercase tracking-wider"
+                style={{
+                  background:
+                    detailMathConfidence === "High"
+                      ? "var(--glo)"
+                      : detailMathConfidence === "Medium"
+                        ? "var(--amber-lo)"
+                        : "rgba(239,68,68,0.12)",
+                  color:
+                    detailMathConfidence === "High"
+                      ? "var(--green)"
+                      : detailMathConfidence === "Medium"
+                        ? "var(--amber-d)"
+                        : "var(--red)",
+                }}
+              >
+                {detailMathConfidence} confidence
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Completeness
+                </span>
+                <span className="text-xs font-black text-[var(--t1)]">
+                  {detailQuality.score}
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-bold text-[var(--t3)]">
+                {detailQuality.label} listing data
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {detailQuality.present.slice(0, 6).map((field) => (
+                  <span
+                    key={field}
+                    className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--glo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--green)]"
+                  >
+                    {fieldLabel(field)}
+                  </span>
+                ))}
+              </div>
+              {detailQuality.missing.length > 0 && (
+                <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
+                  Missing{" "}
+                  {detailQuality.missing.slice(0, 4).map(fieldLabel).join(", ")}
+                  {detailQuality.missing.length > 4
+                    ? `, +${detailQuality.missing.length - 4}`
+                    : ""}
+                </p>
+              )}
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                {[
+                  "photo",
+                  "vin",
+                  "title",
+                  "mileage",
+                  "damage",
+                  "sellerContact",
+                  "auction",
+                  "price",
+                  "source",
+                ].map((field) => {
+                  const present = detailQuality.present.includes(field as any);
+                  return (
+                    <span
+                      key={field}
+                      className="flex items-center justify-between gap-2 rounded-[var(--r1)] border px-2 py-1 text-[10px] font-black uppercase"
+                      style={{
+                        borderColor: present ? "var(--gbd)" : "var(--amber-bd)",
+                        background: present ? "var(--glo)" : "var(--amber-lo)",
+                        color: present ? "var(--green)" : "var(--amber-d)",
+                      }}
+                    >
+                      <span>{fieldLabel(field as any)}</span>
+                      <span>{present ? "yes" : "check"}</span>
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
+                Use this checklist before bidding. Missing VIN, mileage, seller
+                contact, or auction timing means verify from the original
+                listing before money moves.
+              </p>
+            </div>
+
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Source proof
+                </span>
+                <span
+                  className="text-[10px] font-black uppercase"
+                  style={{
+                    color:
+                      sourceHealth?.readiness === "ready"
+                        ? "var(--green)"
+                        : sourceHealth?.readiness === "blocked" ||
+                            sourceHealth?.readiness === "needs_login"
+                          ? "var(--red)"
+                          : "var(--amber-d)",
+                  }}
+                >
+                  {sourceHealth?.userStatus ||
+                    sourceHealth?.readiness?.replace(/_/g, " ") ||
+                    "pending"}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-[var(--t3)]">
+                {sourceHealth
+                  ? `${Number(sourceHealth.activeRows || 0).toLocaleString()} scoped rows · ${Number(
+                      sourceHealth.rowsWithPhotos || 0,
+                    ).toLocaleString()} photos`
+                  : "Source health is loading for this listing."}
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
+                {sourceHealth
+                  ? `${Number(sourceHealth.photoCoveragePct || 0)}% photo coverage · ${
+                      typeof sourceHealth.freshnessHours === "number"
+                        ? sourceHealth.freshnessHours < 24
+                          ? `${sourceHealth.freshnessHours}h fresh`
+                          : `${Math.round(sourceHealth.freshnessHours / 24)}d fresh`
+                        : relativeFreshness(sourceHealth.lastSeenAt)
+                    }`
+                  : "The page will show row count, photo count, and freshness once returned."}
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t5)]">
+                {sourceHealth?.nextAction ||
+                  (serverDeal.sourceUrl
+                    ? "Direct source link is available for verification."
+                    : "No direct source link was saved for this listing.")}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href={proofLinks.scan}
+                  className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
+                >
+                  Matching Scan
+                </Link>
+                <Link
+                  href={proofLinks.sources}
+                  className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
+                >
+                  Source proof
+                </Link>
+                {serverDeal.sourceUrl && (
+                  <a
+                    href={serverDeal.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-[var(--r1)] bg-[var(--t1)] px-2.5 py-1.5 text-[11px] font-black text-[var(--s0)]"
+                  >
+                    Original listing
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Buyer math
+                </span>
+                <span className="text-[10px] font-black uppercase text-[var(--t3)]">
+                  {serverDeal.dealVerdict || "review"}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                <span className="text-[var(--t4)]">Ask</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {formatMoney(Number(serverDeal.askPrice || 0))}
+                </Mono>
+                <span className="text-[var(--t4)]">Resale</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {resaleBasis ? formatMoney(resaleBasis) : "Unknown"}
+                </Mono>
+                <span className="text-[var(--t4)]">Repair</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {detailCosts?.repair
+                    ? formatMoney(detailCosts.repair)
+                    : "Needed"}
+                </Mono>
+                <span className="text-[var(--t4)]">Transport</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {detailCosts?.transport
+                    ? formatMoney(detailCosts.transport)
+                    : "Needed"}
+                </Mono>
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
+                {detailMathGaps.length
+                  ? `Tighten before bidding: ${detailMathGaps.slice(0, 4).join(", ")}.`
+                  : "Core math inputs are present for a bid decision."}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
@@ -989,7 +1701,7 @@ export default function DealPage({
           </CardContent>
         </Card>
       </div>
-      {/* AI PHASE 2: VISION DAMAGE INSPECTOR — Gemini Vision scans listing photos for damage */}
+      {/* Buyer proof module: local photo recon checklist until provider vision is connected */}
       {serverDeal?.images && serverDeal.images.length > 0 && (
         <VisionDamageInspector
           imageUrl={serverDeal.images[0]}
@@ -1006,7 +1718,7 @@ export default function DealPage({
         />
       )}
 
-      {/* AI PHASE 2: AUTONOMOUS SELLER NEGOTIATOR — AI-drafted offer messages */}
+      {/* Buyer proof module: cash-offer draft and letter workflow */}
       {serverDeal && (
         <AutonomousSellerNegotiator
           dealId={id}
@@ -1023,7 +1735,7 @@ export default function DealPage({
         />
       )}
 
-      {/* AI PHASE 3: FREIGHT & DMV TAX ENGINE — cross-state logistics + title fees */}
+      {/* Buyer proof module: transport and tax planning estimate */}
       {serverDeal && (
         <FreightAndTaxCalculator
           buyState={serverDeal.locationState ?? "TX"}
@@ -1110,7 +1822,11 @@ export default function DealPage({
               disabled={watching}
               className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
             >
-              {watching ? "Adding…" : "Watch Price"}
+              {watching
+                ? "Adding…"
+                : isLocallyWatched
+                  ? "Watching"
+                  : "Watch Price"}
             </Button>
           </motion.div>
 

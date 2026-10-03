@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
@@ -11,19 +12,61 @@ import {
 export function GoogleButton({
   next = "/discover",
   label = "Continue with Google",
+  setupHref = "/status",
+  previewHref = "/scan?sort=score",
 }: {
   next?: string;
   label?: string;
+  setupHref?: string;
+  previewHref?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
+  const canUseGoogle = configured && googleReady !== false;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/system/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (
+          data?.authProviders?.reachable === true &&
+          typeof data.authProviders.google === "boolean"
+        ) {
+          setGoogleReady(data.authProviders.google);
+          return;
+        }
+        const item = data?.readiness?.items?.find(
+          (row: any) => row.id === "google-login",
+        );
+        if (!item) {
+          setGoogleReady(null);
+          return;
+        }
+        setGoogleReady(item.status === "ready");
+      })
+      .catch(() => {
+        if (!cancelled) setGoogleReady(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onClick = async () => {
     if (!configured) {
       setError(
-        "Google sign-in needs real Supabase URL, anon key, and Google OAuth provider setup.",
+        "Google sign-in is not available in this local preview. Continue with email instead.",
+      );
+      return;
+    }
+    if (googleReady === false) {
+      setError(
+        "Google sign-in is still being verified. Continue with email for now.",
       );
       return;
     }
@@ -48,18 +91,47 @@ export function GoogleButton({
       <button
         type="button"
         onClick={onClick}
-        disabled={loading || !configured}
+        disabled={loading || !canUseGoogle}
         className="w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <GoogleG />
         {loading
           ? "Connecting…"
-          : configured
-            ? label
-            : "Google sign-in not configured"}
+          : googleReady === false
+            ? "Google sign-in being verified"
+            : canUseGoogle
+              ? label
+              : "Google sign-in not configured"}
       </button>
       {error && (
         <p className="text-xs text-center text-[var(--red)]">{error}</p>
+      )}
+      {(!configured || googleReady === false) && (
+        <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">
+          <p className="text-xs font-bold text-[var(--t2)]">
+            {configured
+              ? "Google sign-in is almost ready"
+              : "Account sync is in preview mode"}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+            {configured
+              ? "Email sign-in still works. The team is finishing Google account verification for synced searches and watchlists."
+              : "Local preview still works with email below."}
+          </p>
+          <Link
+            href={setupHref}
+            className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
+          >
+            View system status
+          </Link>
+          <span className="mx-2 text-xs text-[var(--t5)]">·</span>
+          <Link
+            href={previewHref}
+            className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
+          >
+            Preview live Scan
+          </Link>
+        </div>
       )}
     </div>
   );

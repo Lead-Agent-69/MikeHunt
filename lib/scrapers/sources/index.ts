@@ -21,6 +21,7 @@ import {
   CURATED_SITES,
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
+import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import pLimit from "p-limit";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
@@ -63,6 +64,28 @@ export function mileageFromTitle(title?: string | null): number | undefined {
     if (v >= 1000 && v <= 400000) return v;
   }
   return undefined;
+}
+
+export function mileageFromDealerText(
+  text?: string | null,
+): number | undefined {
+  if (!text) return undefined;
+  const normalized = textClean(text).toLowerCase();
+  if (
+    /\b(unknown|exempt|not actual|na|n\/a|tm[au]?|true mileage unknown)\b/.test(
+      normalized,
+    )
+  ) {
+    return undefined;
+  }
+  const explicit = extractMileage(normalized);
+  if (explicit && explicit >= 1000 && explicit <= 400000) return explicit;
+  const match = normalized.match(
+    /\b(\d{1,3}(?:,\d{3})|\d{4,6})\s*(?:actual|act|odo|odometer)\b|\b(\d{1,3},\d{3})\b/,
+  );
+  if (!match) return undefined;
+  const value = Number((match[1] || match[2]).replace(/,/g, ""));
+  return value >= 1000 && value <= 400000 ? value : undefined;
 }
 
 export async function enrichCraigslistDetail(
@@ -729,9 +752,36 @@ export {
 export async function scrapeCuratedSites(
   maxSites = CURATED_SITES.length,
 ): Promise<number> {
-  const sites = CURATED_SITES.slice(0, maxSites);
+  const scope = getScrapeRunScope();
+  const requestedDealers = new Set(scope?.dealerSourceIds || []);
+  const dealerNeedles: Record<string, string[]> = {
+    "ae-of-miami": ["aeofmiami.com"],
+    "damage-com": ["damage.com"],
+    "dg-auto": ["dgautollc.com"],
+    recar: ["recar.com"],
+    "stjames-auto": ["stjamesautoparts.com", "stjamesauto.com"],
+    "cas-miami": ["casmiami.com"],
+    salvagezone: ["salvagezone.com"],
+    "rebuilt-auto": ["rebuiltauto.com"],
+    "alpine-auto": ["alpinerebuildablecars.com", "alpineautogallery.com"],
+    "replica-auto": ["replicaautosales.net", "replicaauto.com"],
+  };
+  const matchesRequestedDealer = (site: (typeof CURATED_SITES)[number]) => {
+    if (!requestedDealers.size) return true;
+    const haystack = `${site.url} ${site.inventoryUrl || ""}`.toLowerCase();
+    return Array.from(requestedDealers).some((id) =>
+      (dealerNeedles[id] || [id]).some((needle) =>
+        haystack.includes(needle.toLowerCase()),
+      ),
+    );
+  };
+  const sites = CURATED_SITES.filter(matchesRequestedDealer).slice(0, maxSites);
   console.log(
-    `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites...`,
+    `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites${
+      requestedDealers.size
+        ? ` for ${Array.from(requestedDealers).join(", ")}`
+        : ""
+    }...`,
   );
   let total = 0;
   const yields: { name: string; state?: string; type: string; n: number }[] =
@@ -739,15 +789,20 @@ export async function scrapeCuratedSites(
   for (const site of sites) {
     const d = SITE_TYPE_DEFAULTS[site.type];
     try {
-      const n = await autoDiscoverAndCrawl(site.url, {
-        name: site.name,
-        city: site.city,
-        state: site.state,
-        conditionDefault: d.condition,
-        damageDefault: d.damage_type,
-        sellerDefault: d.seller_type,
-        inventoryUrl: site.inventoryUrl,
-      });
+      const cdgDealer = cdgDealerForSite(site.url);
+      const n = site.url.toLowerCase().includes("aeofmiami.com")
+        ? await scrapeAeOfMiami(scope)
+        : cdgDealer
+          ? await scrapeCdgDealer(cdgDealer)
+          : await autoDiscoverAndCrawl(site.url, {
+              name: site.name,
+              city: site.city,
+              state: site.state,
+              conditionDefault: d.condition,
+              damageDefault: d.damage_type,
+              sellerDefault: d.seller_type,
+              inventoryUrl: site.inventoryUrl,
+            });
       console.log(
         `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
       );
@@ -774,6 +829,556 @@ export async function scrapeCuratedSites(
   if (dead.length)
     console.log(`[CuratedSites] no yield (check/prune): ${dead.join(", ")}`);
   return total;
+}
+
+function aeTitleStatusToCondition(value?: string | null) {
+  const status = String(value || "").toLowerCase();
+  if (status.includes("salvage")) return "salvage_title";
+  if (status.includes("clean")) return "clean_title";
+  if (status.includes("junk")) return "parts_only";
+  if (status.includes("rebuilt") || status.includes("reconstruct"))
+    return "rebuilt_title";
+  return undefined;
+}
+
+function aeLocationToState(value?: string | null) {
+  const location = String(value || "").toLowerCase();
+  if (location.includes("florida") || location.includes("miami")) return "FL";
+  if (location.includes("colorado") || location.includes("denver")) return "CO";
+  return undefined;
+}
+
+function textClean(value?: string | null) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
+function titleParts(title: string) {
+  const tokens = textClean(title).split(/\s+/).filter(Boolean);
+  const year = extractYear(title);
+  const offset = year && tokens[0] === String(year) ? 1 : 0;
+  return {
+    year,
+    make: tokens[offset] || "",
+    model: tokens.slice(offset + 1, offset + 3).join(" "),
+  };
+}
+
+async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
+  const category = String(scope?.q || scope?.vehicleType || "").toLowerCase();
+  const params = new URLSearchParams();
+  if (category.includes("suv")) params.append("category[]", "suv");
+  else if (category.includes("truck")) params.append("category[]", "truck");
+  else if (category.includes("car") || category.includes("sedan"))
+    params.append("category[]", "car");
+  if (scope?.state === "FL") params.set("location", "florida");
+  if (scope?.state === "CO") params.set("location", "colorado");
+  if (scope?.maxPrice) params.set("price[max]", String(scope.maxPrice));
+
+  const allDeals: Partial<Deal>[] = [];
+  for (let page = 1; page <= 5; page += 1) {
+    params.set("page", String(page));
+    const url = `https://aeofmiami.com/api/vehicle/listed?${params.toString()}`;
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (!res.ok) throw new Error(`AE of Miami API ${res.status}`);
+    const body: any = await res.json();
+    const rows = Array.isArray(body.data) ? body.data : [];
+    for (const row of rows) {
+      const price = extractPrice(String(row.price || ""));
+      if (!price || price < 100) continue;
+      const location = row.location?.name || row.location?.slug || "";
+      const title = [row.name, row.body].filter(Boolean).join(" ");
+      allDeals.push({
+        source: "independent_dealer",
+        source_deal_id: `ae-of-miami-${row.id || row.stock_number || row.slug}`,
+        source_url: row.url || `https://aeofmiami.com/product/${row.slug}`,
+        title:
+          title || [row.year, row.make, row.model].filter(Boolean).join(" "),
+        year: Number(row.year) || extractYear(row.name),
+        make: row.make || "",
+        model: row.model || "",
+        trim: row.trim || undefined,
+        ask_price: price,
+        mileage: mileageFromDealerText(row.mileage),
+        condition:
+          aeTitleStatusToCondition(row.title_status || row.condition) ||
+          "run_drive",
+        damage_type: row.condition || row.damage_type || undefined,
+        seller_type: "dealer",
+        location_city: row.location?.city || undefined,
+        location_state: aeLocationToState(location),
+        images: [
+          row.main_image?.large,
+          row.main_image?.medium,
+          row.main_image?.small,
+        ].filter(Boolean),
+      });
+    }
+    const lastPage = Number(body.meta?.last_page || 1);
+    if (!rows.length || page >= lastPage) break;
+  }
+  const targetedDealerRun = scope?.dealerSourceIds?.includes("ae-of-miami");
+  const enrichLimit = Number(
+    process.env.AE_DETAIL_LIMIT || (targetedDealerRun ? allDeals.length : 24),
+  );
+  const detailTargets = allDeals.slice(0, Math.max(0, enrichLimit));
+  if (detailTargets.length) {
+    const limit = pLimit(Number(process.env.AE_DETAIL_CONCURRENCY || 4));
+    const enriched = await Promise.all(
+      detailTargets.map((deal) => limit(() => enrichAeOfMiamiDetail(deal))),
+    );
+    for (let i = 0; i < enriched.length; i += 1) {
+      allDeals[i] = enriched[i];
+    }
+  }
+  const saved = allDeals.length ? await upsertDeals(allDeals) : 0;
+  const vinCount = allDeals.filter((deal) => deal.vin).length;
+  console.log(
+    `[CuratedSites] AE of Miami API: ${allDeals.length} fetched, ${saved} scoped rows saved (${vinCount} VIN-enriched)`,
+  );
+  return saved;
+}
+
+type CdgDealerConfig = {
+  sourceId: string;
+  name: string;
+  baseUrl: string;
+  inventoryUrl: string;
+  city: string;
+  state: string;
+  defaultCondition: string;
+  defaultDamage?: string;
+  cardSelector: string;
+  titleSelector: string;
+  priceSelector: string;
+  imageSelector: string;
+  linkSelector: string;
+  mileageSelector?: string;
+  conditionSelector?: string;
+  stockSelector?: string;
+  titleFromCard: ($: any, card: any) => string;
+};
+
+const CDG_DEALERS: CdgDealerConfig[] = [
+  {
+    sourceId: "dg-auto",
+    name: "D&G Auto LLC",
+    baseUrl: "https://www.dgautollc.com",
+    inventoryUrl: "https://www.dgautollc.com/vehicles.php",
+    city: "Poplar Bluff",
+    state: "MO",
+    defaultCondition: "salvage_title",
+    defaultDamage: "repairable",
+    cardSelector: ".product-item",
+    titleSelector: ".title a",
+    priceSelector: ".price",
+    imageSelector: ".product-item__thumb img",
+    linkSelector: ".product-item__thumb a, .title a",
+    mileageSelector: ".cdg-miles",
+    conditionSelector: ".cdg-title",
+    stockSelector: ".cdg-stock",
+    titleFromCard: ($, card) => {
+      const year = textClean(
+        card.find(".product-item__sale .sale-txt").first().text(),
+      );
+      const name = textClean(card.find(".title a").first().text());
+      return [year, name].filter(Boolean).join(" ");
+    },
+  },
+  {
+    sourceId: "stjames-auto",
+    name: "St. James Auto & Truck Parts",
+    baseUrl: "https://rebuilders.stjamesautoparts.com",
+    inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php",
+    city: "Saint James",
+    state: "MO",
+    defaultCondition: "salvage_title",
+    defaultDamage: "repairable",
+    cardSelector: ".dlab-feed-list",
+    titleSelector: ".dlab-title a",
+    priceSelector: ".price",
+    imageSelector: ".cdg-photo img",
+    linkSelector: ".cdg-photo a, .dlab-title a",
+    titleFromCard: ($, card) =>
+      textClean(card.find(".dlab-title a").first().text()),
+  },
+  {
+    sourceId: "recar",
+    name: "ReCar",
+    baseUrl: "https://www.recar.com",
+    inventoryUrl: "https://www.recar.com/vehicles/",
+    city: "Benton",
+    state: "MO",
+    defaultCondition: "rebuilt_title",
+    defaultDamage: "repairable",
+    cardSelector: ".car-list-box",
+    titleSelector: ".title a",
+    priceSelector: ".badge",
+    imageSelector: ".media-box img",
+    linkSelector: ".media-box a, .title a",
+    mileageSelector: ".feature-list .value",
+    conditionSelector: ".feature-list .value",
+    stockSelector: ".feature-list .value",
+    titleFromCard: ($, card) => {
+      const heading = textClean(card.find(".title a").first().text());
+      const variant = textClean(card.find(".car-type").first().text());
+      return [heading, variant].filter(Boolean).join(" ");
+    },
+  },
+];
+
+function cdgDealerForSite(siteUrl: string) {
+  const url = siteUrl.toLowerCase();
+  return CDG_DEALERS.find((dealer) =>
+    url.includes(new URL(dealer.baseUrl).host),
+  );
+}
+
+function conditionFromDealerText(text: string, fallback: string) {
+  return conditionFromTitle(text) || fallback;
+}
+
+function parseJsonLdCars($: any) {
+  const cars: any[] = [];
+  $('script[type="application/ld+json"]').each((_: number, el: any) => {
+    const raw = $(el).text();
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const nodes = Array.isArray(parsed) ? parsed : [parsed];
+      for (const node of nodes) {
+        if (node?.["@type"] === "Car") cars.push(node);
+        if (Array.isArray(node?.["@graph"])) {
+          cars.push(
+            ...node["@graph"].filter(
+              (entry: any) => entry?.["@type"] === "Car",
+            ),
+          );
+        }
+      }
+    } catch {
+      // Ignore malformed marketing JSON-LD; visible HTML parsing still runs.
+    }
+  });
+  return cars;
+}
+
+function detailValueByLabel($: any, labelPattern: RegExp) {
+  let value = "";
+  $(".leftview, .config-label, th, dt").each((_: number, el: any) => {
+    if (value) return;
+    const label = textClean($(el).text());
+    if (!labelPattern.test(label)) return;
+    const sibling = $(el).next();
+    const parentValue = $(el).parent().find(".rightview, td, dd").last();
+    value = textClean(sibling.text()) || textClean(parentValue.text());
+  });
+  if (value) return value;
+  $("tr, .row, .product-config tr, .leftview").each((_: number, el: any) => {
+    if (value) return;
+    const text = textClean($(el).text());
+    if (!labelPattern.test(text)) return;
+    const withoutLabel = text.replace(labelPattern, "").replace(/^[:\s]+/, "");
+    if (withoutLabel) value = withoutLabel;
+    const next = $(el).next();
+    if (!value && next.length) value = textClean(next.text());
+  });
+  return value;
+}
+
+function parseDetailMileage(value: string) {
+  const fromText = extractMileage(value);
+  if (fromText) return fromText;
+  const digits = value.replace(/[^0-9]/g, "");
+  const n = Number(digits);
+  return n >= 1 && n <= 500000 ? n : undefined;
+}
+
+export function extractAeOfMiamiVinFromHtml(html: string) {
+  const rawCandidates = html.match(/[A-HJ-NPR-Z0-9]{17}/gi) || [];
+  for (const candidate of rawCandidates) {
+    if (isValidVin(candidate)) return normalizeVin(candidate);
+  }
+  const visibleText = textClean(html.replace(/<[^>]+>/g, " "));
+  const vinNearVehicleDetails = visibleText.match(
+    /Vehicle Details[\s\S]{0,800}?([A-HJ-NPR-Z0-9]{17})/i,
+  )?.[1];
+  const vinNearTitle = visibleText.match(
+    /\b(?:19|20)\d{2}\s+[A-Z0-9][A-Z0-9\s-]{4,100}?\s+-\s+([A-HJ-NPR-Z0-9]{17})\b/i,
+  )?.[1];
+  return (
+    extractVin(vinNearVehicleDetails || "") ||
+    extractVin(vinNearTitle || "") ||
+    extractVin(visibleText)
+  );
+}
+
+function firstValidVin(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const vin =
+      extractVin(value) || (value && isValidVin(value) ? value : null);
+    if (vin) return normalizeVin(vin);
+  }
+  return null;
+}
+
+function imagesFromDetail($: any, baseUrl: string) {
+  const images = new Set<string>();
+  const add = (value?: string) => {
+    if (!value) return;
+    if (!/\.(jpe?g|png|webp)(\?|$)/i.test(value)) return;
+    images.add(normalizeUrl(value, baseUrl));
+  };
+  $('meta[property="og:image"]').each((_: number, el: any) =>
+    add($(el).attr("content")),
+  );
+  $("img").each((_: number, el: any) => {
+    const src = $(el).attr("src");
+    if (!src) return;
+    if (/logo|icon|creditcard|carfax|banner|facebook|instagram/i.test(src))
+      return;
+    if (!/cmsAdmin\/uploads/i.test(src)) return;
+    add(src.replace("/thumb/", "/").replace("/thumb4/", "/"));
+  });
+  $("[data-src], [data-mfp-src], [data-exthumbimage]").each(
+    (_: number, el: any) => {
+      add($(el).attr("data-src"));
+      add($(el).attr("data-mfp-src"));
+      add($(el).attr("data-exthumbimage"));
+    },
+  );
+  return Array.from(images).slice(0, 20);
+}
+
+async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
+  const sourceUrl = deal.source_url;
+  if (!sourceUrl) return deal;
+  try {
+    const res = await fetch(sourceUrl, {
+      headers: {
+        Accept: "text/html",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (!res.ok) return deal;
+    const html = await res.text();
+    const rawVin = extractAeOfMiamiVinFromHtml(html);
+    let cheerio: typeof import("cheerio");
+    try {
+      cheerio = await import("cheerio");
+    } catch {
+      return {
+        ...deal,
+        vin: rawVin && isValidVin(rawVin) ? normalizeVin(rawVin) : deal.vin,
+      };
+    }
+    const $ = cheerio.load(html);
+    const car = parseJsonLdCars($)[0] || {};
+    const text = textClean($.root().text());
+    const vin = firstValidVin(
+      car.vehicleIdentificationNumber || undefined,
+      detailValueByLabel($, /VIN:?/i),
+      text,
+      rawVin,
+    );
+    const mileage =
+      Number(car.mileageFromOdometer?.value) ||
+      parseDetailMileage(detailValueByLabel($, /Mileage|Odometer:?/i));
+    const description =
+      textClean(car.description) ||
+      textClean($("#ActionCard").first().text()) ||
+      textClean($("meta[name='description']").attr("content"));
+    const images = imagesFromDetail($, "https://aeofmiami.com");
+    return {
+      ...deal,
+      vin: vin || deal.vin,
+      mileage: mileage || deal.mileage,
+      images: images.length ? images : deal.images,
+      description: description || deal.description,
+    };
+  } catch {
+    return deal;
+  }
+}
+
+async function enrichCdgDetail(deal: Partial<Deal>, config: CdgDealerConfig) {
+  const sourceUrl = deal.source_url;
+  if (!sourceUrl) return deal;
+  try {
+    const res = await fetch(sourceUrl, {
+      headers: {
+        Accept: "text/html",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (!res.ok) return deal;
+    const cheerio = await import("cheerio");
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const text = textClean($.root().text());
+    const car = parseJsonLdCars($)[0] || {};
+    const vin =
+      car.vehicleIdentificationNumber ||
+      text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
+      undefined;
+    const mileage =
+      Number(car.mileageFromOdometer?.value) ||
+      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
+      extractMileage(text);
+    const titleText =
+      car.additionalProperty?.find?.((entry: any) =>
+        /title/i.test(String(entry?.name || "")),
+      )?.value ||
+      detailValueByLabel($, /Title:?/i) ||
+      $("title").first().text();
+    const images = imagesFromDetail($, config.baseUrl);
+    const description =
+      textClean(car.description) ||
+      textClean($(".vehicle-description, .icon-bx-wraper").first().text());
+    return {
+      ...deal,
+      vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
+      mileage: mileage || deal.mileage,
+      condition: conditionFromDealerText(
+        titleText,
+        deal.condition || config.defaultCondition,
+      ),
+      images: images.length ? images : deal.images,
+      description: description || deal.description,
+    };
+  } catch {
+    return deal;
+  }
+}
+
+async function scrapeCdgDealer(config: CdgDealerConfig) {
+  const cheerio = await import("cheerio");
+  const scope = getScrapeRunScope();
+  const allDeals: Partial<Deal>[] = [];
+  for (let page = 1; page <= 5; page += 1) {
+    const url = new URL(config.inventoryUrl);
+    if (page > 1) url.searchParams.set("page", String(page));
+    const res = await fetch(url.toString(), {
+      headers: {
+        Accept: "text/html",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      },
+    });
+    if (!res.ok) throw new Error(`${config.name} inventory ${res.status}`);
+    const $ = cheerio.load(await res.text());
+    const rows: Partial<Deal>[] = [];
+    $(config.cardSelector).each((_, el) => {
+      const card = $(el);
+      const title = config.titleFromCard($, card);
+      const price = extractPrice(
+        textClean(card.find(config.priceSelector).first().text()),
+      );
+      if (!title || !price || price < 100) return;
+      const href = card.find(config.linkSelector).first().attr("href") || "";
+      const sourceUrl = href
+        ? normalizeUrl(href, config.baseUrl)
+        : config.inventoryUrl;
+      const urlVin = extractVin(sourceUrl);
+      const img = card.find(config.imageSelector).first().attr("src") || "";
+      const conditionText = config.conditionSelector
+        ? textClean(card.find(config.conditionSelector).first().text())
+        : "";
+      const mileageText = config.mileageSelector
+        ? textClean(
+            card
+              .find(config.mileageSelector)
+              .filter((_, node) => /mi|mile/i.test($(node).text()))
+              .first()
+              .text() || card.find(config.mileageSelector).first().text(),
+          )
+        : "";
+      const stockText = config.stockSelector
+        ? textClean(
+            card
+              .find(config.stockSelector)
+              .filter((_, node) => /#/.test($(node).text()))
+              .first()
+              .text(),
+          )
+        : "";
+      const stock =
+        stockText
+          .replace(/^#:\s*/i, "")
+          .replace(/^#\s*/i, "")
+          .trim() ||
+        sourceUrl.split("/").filter(Boolean).pop() ||
+        title.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      const parts = titleParts(title);
+      rows.push({
+        source: "independent_dealer",
+        source_deal_id: `${config.sourceId}-${stock}`,
+        source_url: sourceUrl,
+        title,
+        year: parts.year,
+        make: parts.make,
+        model: parts.model,
+        vin: urlVin || undefined,
+        ask_price: price,
+        mileage: extractMileage(mileageText) || mileageFromTitle(title),
+        condition: conditionFromDealerText(
+          conditionText || title,
+          config.defaultCondition,
+        ),
+        damage_type: config.defaultDamage,
+        seller_type: "dealer",
+        location_city: config.city,
+        location_state: config.state,
+        images: img ? [normalizeUrl(img, config.baseUrl)] : [],
+      });
+    });
+    allDeals.push(...rows);
+    const hasNext =
+      $('a[rel="next"], .pagination .next, a.page-link.next').length > 0;
+    if (!rows.length || !hasNext) break;
+  }
+  const targetedDealerRun = scope?.dealerSourceIds?.includes(config.sourceId);
+  const enrichLimit = Number(
+    process.env.CDG_DETAIL_LIMIT || (targetedDealerRun ? allDeals.length : 24),
+  );
+  if (enrichLimit > 0 && allDeals.length) {
+    const limit = pLimit(4);
+    let enriched = 0;
+    const targets = allDeals.slice(0, enrichLimit);
+    const detailed = await Promise.all(
+      targets.map((deal) =>
+        limit(async () => {
+          const next = await enrichCdgDetail(deal, config);
+          if (
+            next.vin ||
+            (next.images?.length || 0) > (deal.images?.length || 0)
+          )
+            enriched += 1;
+          return next;
+        }),
+      ),
+    );
+    allDeals.splice(0, targets.length, ...detailed);
+    console.log(
+      `[CuratedSites] ${config.name} detail enriched ${enriched}/${targets.length}`,
+    );
+  }
+  if (allDeals.length) await upsertDeals(allDeals);
+  console.log(
+    `[CuratedSites] ${config.name} CDG parser: ${allDeals.length} listings`,
+  );
+  return allDeals.length;
 }
 
 // Re-export other source modules

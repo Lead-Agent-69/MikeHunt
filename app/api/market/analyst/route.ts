@@ -17,6 +17,137 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 let cache: { text: string; at: number; provider: string } | null = null;
 const TTL_MS = 12 * 60 * 60 * 1000;
 
+const money = (value: unknown) =>
+  `$${Math.round(Number(value) || 0).toLocaleString()}`;
+
+export function buildDeterministicMarketPulse({
+  timing = [],
+  aggs = [],
+}: {
+  timing?: any[];
+  aggs?: any[];
+}) {
+  const buyNow = timing
+    .filter((row) => String(row.signal || "").toUpperCase() === "BUY_NOW")
+    .slice(0, 2);
+  const wait = timing
+    .filter((row) => String(row.signal || "").toUpperCase() === "WAIT")
+    .slice(0, 2);
+  const topProfit = [...aggs]
+    .filter((row) => Number.isFinite(Number(row.avg_profit)))
+    .sort((a, b) => Number(b.avg_profit || 0) - Number(a.avg_profit || 0))
+    .slice(0, 2);
+  const topVolume = [...aggs]
+    .sort((a, b) => Number(b.unit_count || 0) - Number(a.unit_count || 0))
+    .slice(0, 2);
+  const firstMove = [...timing].sort(
+    (a, b) =>
+      Math.abs(Number(b.pct_change || 0)) - Math.abs(Number(a.pct_change || 0)),
+  )[0];
+  const movement = firstMove
+    ? `${firstMove.make} ${firstMove.model} has the sharpest tracked move at ${
+        Number(firstMove.pct_change || 0) > 0 ? "+" : ""
+      }${Number(firstMove.pct_change || 0)}% over 30 days.`
+    : "Market timing signals are still thin, so lean harder on source proof and deal-level economics.";
+  const buyText = buyNow.length
+    ? `Buy-now watchlist: ${buyNow
+        .map(
+          (row) =>
+            `${row.make} ${row.model} (${row.pct_change > 0 ? "+" : ""}${row.pct_change}%, n=${row.data_points})`,
+        )
+        .join("; ")}.`
+    : "No buy-now timing cluster has enough signal yet.";
+  const waitText = wait.length
+    ? `Wait/caution list: ${wait
+        .map(
+          (row) =>
+            `${row.make} ${row.model} (${row.pct_change > 0 ? "+" : ""}${row.pct_change}%, n=${row.data_points})`,
+        )
+        .join("; ")}.`
+    : "No wait cluster is currently dominating the timing table.";
+  const profitText = topProfit.length
+    ? `Highest tracked profit clusters: ${topProfit
+        .map(
+          (row) =>
+            `${row.year} ${row.make} ${row.model} in ${row.state || "US"} at ${money(row.avg_profit)} avg profit`,
+        )
+        .join("; ")}.`
+    : "Profit clusters are not mature enough yet.";
+  const volumeText = topVolume.length
+    ? `High-volume supply is concentrated in ${topVolume
+        .map(
+          (row) =>
+            `${row.year} ${row.make} ${row.model} (${row.unit_count} units)`,
+        )
+        .join(" and ")}.`
+    : "Volume data is still accumulating.";
+
+  return `${movement} ${buyText} ${waitText} ${profitText} ${volumeText} Source only the segments that also pass live listing proof: photos, source link, title detail, mileage/VIN where available, and verified transport/repair cost.`;
+}
+
+export function aggregateLiveDealsForMarketPulse(rows: any[]) {
+  const groups = new Map<
+    string,
+    {
+      year: number | null;
+      make: string;
+      model: string;
+      state: string | null;
+      unit_count: number;
+      marketValues: number[];
+      profits: number[];
+    }
+  >();
+
+  for (const row of rows) {
+    const make = String(row.make || "").trim();
+    const model = String(row.model || "").trim();
+    if (!make || !model) continue;
+    const year = Number(row.year || 0) || null;
+    const state =
+      String(row.location_state || row.state || "US").trim() || "US";
+    const key = `${year || "unknown"}|${make.toLowerCase()}|${model.toLowerCase()}|${state.toUpperCase()}`;
+    const group = groups.get(key) || {
+      year,
+      make,
+      model,
+      state,
+      unit_count: 0,
+      marketValues: [],
+      profits: [],
+    };
+    group.unit_count += 1;
+    const marketValue = Number(row.sell_estimate ?? row.mmr_value ?? 0);
+    const profit = Number(row.true_net_profit ?? row.profit_estimate ?? 0);
+    if (marketValue > 0) group.marketValues.push(marketValue);
+    if (Number.isFinite(profit)) group.profits.push(profit);
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      year: group.year,
+      make: group.make,
+      model: group.model,
+      state: group.state,
+      unit_count: group.unit_count,
+      avg_market_value: group.marketValues.length
+        ? Math.round(
+            group.marketValues.reduce((sum, value) => sum + value, 0) /
+              group.marketValues.length,
+          )
+        : 0,
+      avg_profit: group.profits.length
+        ? Math.round(
+            group.profits.reduce((sum, value) => sum + value, 0) /
+              group.profits.length,
+          )
+        : 0,
+    }))
+    .sort((a, b) => b.unit_count - a.unit_count)
+    .slice(0, 20);
+}
+
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "analyst", limit: 15, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl);
@@ -33,12 +164,11 @@ export async function GET(req: NextRequest) {
     });
   }
   if (!wantGenerate) {
-    return NextResponse.json({ report: null, canGenerate: hasTextModel() });
-  }
-  if (!hasTextModel()) {
     return NextResponse.json({
       report: null,
-      reason: "No AI provider key configured.",
+      canGenerate: true,
+      deterministic: !hasTextModel(),
+      provider: activeProvider(),
     });
   }
 
@@ -59,10 +189,38 @@ export async function GET(req: NextRequest) {
     .order("unit_count", { ascending: false })
     .limit(20);
 
-  if ((!timing || timing.length === 0) && (!aggs || aggs.length === 0)) {
+  let marketAggs = aggs || [];
+  if ((!timing || timing.length === 0) && marketAggs.length === 0) {
+    const { data: liveDeals } = await supabase
+      .from("deals")
+      .select(
+        "year, make, model, sell_estimate, mmr_value, true_net_profit, profit_estimate, location_state",
+      )
+      .eq("active", true)
+      .limit(1000);
+    marketAggs = aggregateLiveDealsForMarketPulse(liveDeals || []);
+  }
+
+  if ((!timing || timing.length === 0) && marketAggs.length === 0) {
     return NextResponse.json({
       report: null,
       reason: "Not enough market data accumulated yet.",
+    });
+  }
+
+  if (!hasTextModel()) {
+    const report = buildDeterministicMarketPulse({
+      timing: timing || [],
+      aggs: marketAggs,
+    });
+    cache = { text: report, at: Date.now(), provider: "none" };
+    return NextResponse.json({
+      report,
+      cached: false,
+      deterministic: true,
+      provider: "none",
+      reason:
+        "No AI provider key configured. This market pulse is deterministic and uses only timing, aggregate, or live deal data.",
     });
   }
 
@@ -72,7 +230,7 @@ export async function GET(req: NextRequest) {
         `${t.make} ${t.model}: ${t.signal} (${t.pct_change > 0 ? "+" : ""}${t.pct_change}% / 30d, avg $${Math.round(Number(t.current_avg) || 0).toLocaleString()}, n=${t.data_points})`,
     )
     .join("\n");
-  const aggLines = (aggs || [])
+  const aggLines = marketAggs
     .map(
       (a) =>
         `${a.year} ${a.make} ${a.model} [${a.state || "US"}]: mkt $${Math.round(Number(a.avg_market_value) || 0).toLocaleString()}, avg profit $${Math.round(Number(a.avg_profit) || 0).toLocaleString()} (n=${a.unit_count})`,

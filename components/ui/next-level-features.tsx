@@ -3,9 +3,44 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LiquidGlassButton } from "@/components/ui/framer-components";
+import { ArrowRight, Bot, Calculator, Send, X } from "lucide-react";
+
+type SourceHealthSummary = {
+  configured?: boolean;
+  total?: number;
+  enabled?: number;
+  healthy?: number;
+  sources?: Array<{
+    id: string;
+    name: string;
+    readiness?: string;
+    activeRows?: number;
+    rowsWithPhotos?: number;
+    averageQuality?: number;
+    lastStatus?: string;
+    lastSeenAt?: string | null;
+    requiresAuth?: boolean;
+  }>;
+};
+
+type SystemStatusSummary = {
+  readiness?: {
+    counts?: {
+      ready?: number;
+      partial?: number;
+      missing?: number;
+    };
+    items?: Array<{
+      label: string;
+      status: string;
+      userImpact?: string;
+      detail?: string;
+    }>;
+  };
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. MIKEHUNT AI DEAL COPILOT DRAWER — Conversational Intelligence Assistant
+// 1. MIKEHUNT DEAL COPILOT DRAWER — Conversational Readiness Assistant
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -24,11 +59,17 @@ interface ChatMessage {
 export function MikeHuntCopilotDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [sourceHealth, setSourceHealth] = useState<SourceHealthSummary | null>(
+    null,
+  );
+  const [systemStatus, setSystemStatus] = useState<SystemStatusSummary | null>(
+    null,
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
       sender: "ai",
-      text: "MikeHunt AI is installed in the interface, but the live AI provider and inventory feed are not connected in this environment yet. Once OpenAI and Supabase are configured, I can answer from real market data.",
+      text: "Deal Copilot can read live readiness, source health, and inventory proof now. Deterministic deal and market reads work today; provider-generated AI upgrades when a key is connected.",
       timestamp: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -37,6 +78,42 @@ export function MikeHuntCopilotDrawer() {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const openCopilot = () => setIsOpen(true);
+    window.addEventListener("open-mikehunt-copilot", openCopilot);
+    return () =>
+      window.removeEventListener("open-mikehunt-copilot", openCopilot);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    async function loadReadiness() {
+      try {
+        const [healthRes, statusRes] = await Promise.all([
+          fetch("/api/scrape/health"),
+          fetch("/api/system/status"),
+        ]);
+        const [healthJson, statusJson] = await Promise.all([
+          healthRes.ok ? healthRes.json() : null,
+          statusRes.ok ? statusRes.json() : null,
+        ]);
+        if (!alive) return;
+        setSourceHealth(healthJson);
+        setSystemStatus(statusJson);
+      } catch {
+        if (!alive) return;
+        setSourceHealth(null);
+        setSystemStatus(null);
+      }
+    }
+    loadReadiness();
+    const interval = window.setInterval(loadReadiness, 60000);
+    return () => {
+      alive = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -50,8 +127,36 @@ export function MikeHuntCopilotDrawer() {
     "What data sources are connected?",
     "Why is inventory empty?",
     "What do I need to enable AI?",
+    "What should I fix next?",
     "How should salvage titles be verified?",
   ];
+  const aiProviderReady = Boolean(
+    systemStatus?.readiness?.items?.find((item) => item.label === "AI provider")
+      ?.status === "ready",
+  );
+  const supabaseReady = Boolean(
+    systemStatus?.readiness?.items?.find(
+      (item) => item.label === "Supabase data API",
+    )?.status === "ready",
+  );
+  const visibleRows =
+    sourceHealth?.sources?.reduce(
+      (sum, source) => sum + (source.activeRows || 0),
+      0,
+    ) || 0;
+  const readySourceCount =
+    sourceHealth?.sources?.filter((source) => source.readiness === "ready")
+      .length || 0;
+  const launcherLabel = aiProviderReady
+    ? "AI connected"
+    : supabaseReady || visibleRows > 0
+      ? "Inventory live · briefs ready"
+      : "AI setup needed";
+  const headerStatus = aiProviderReady
+    ? "Provider connected"
+    : supabaseReady || visibleRows > 0
+      ? `${visibleRows.toLocaleString()} live rows · ${readySourceCount} ready sources · deterministic briefs`
+      : "Provider not connected";
 
   const handleSend = (userText: string) => {
     if (!userText.trim()) return;
@@ -72,12 +177,85 @@ export function MikeHuntCopilotDrawer() {
 
     setTimeout(() => {
       const lower = userText.toLowerCase();
-      const responseText =
+      const sources = sourceHealth?.sources || [];
+      const readySources = sources.filter((s) => s.readiness === "ready");
+      const authSources = sources.filter((s) => s.readiness === "needs_login");
+      const noRowSources = sources.filter((s) => s.readiness === "no_rows");
+      const totalRows = sources.reduce(
+        (sum, s) => sum + (s.activeRows || 0),
+        0,
+      );
+      const totalPhotos = sources.reduce(
+        (sum, s) => sum + (s.rowsWithPhotos || 0),
+        0,
+      );
+      const missingReadiness =
+        systemStatus?.readiness?.items
+          ?.filter((item) => item.status === "missing")
+          .map((item) => item.label)
+          .slice(0, 4) || [];
+      const partialReadiness =
+        systemStatus?.readiness?.items
+          ?.filter((item) => item.status === "partial")
+          .map((item) => item.label)
+          .slice(0, 4) || [];
+
+      let responseText =
+        "I can answer from this app's live readiness checks and deterministic deal logic now. Connect an AI provider key to upgrade the same evidence into generated co-pilot answers.";
+
+      if (
+        lower.includes("source") ||
+        lower.includes("connected") ||
+        lower.includes("working")
+      ) {
+        responseText = readySources.length
+          ? `Ready sources right now: ${readySources
+              .map(
+                (s) =>
+                  `${s.name} (${s.activeRows || 0} rows, ${
+                    s.rowsWithPhotos || 0
+                  } with photos, ${s.averageQuality || 0}% quality)`,
+              )
+              .join("; ")}. Needs login: ${authSources.length}. No rows: ${
+              noRowSources.length
+            }. Total visible rows from public proof: ${totalRows}, with ${totalPhotos} photo-backed rows.`
+          : "No source has proven ready rows yet. Open Sources to see whether each one needs login, scraper setup, or a fresh run.";
+      } else if (
+        lower.includes("empty") ||
+        lower.includes("inventory") ||
+        lower.includes("data")
+      ) {
+        responseText = sourceHealth?.configured
+          ? `Inventory is connected, but source proof currently shows ${totalRows} active rows from ${readySources.length} ready sources. If a search looks empty, narrow less or run the matching sources.`
+          : `The app is in public preview mode because Supabase is not connected in this environment. It can show public source proof (${totalRows} rows, ${totalPhotos} photo-backed), but saved inventory and user-specific imports need real Supabase keys.`;
+      } else if (
+        lower.includes("ai") ||
+        lower.includes("enable") ||
+        lower.includes("key")
+      ) {
+        responseText = `Inventory and source-health checks are ${sourceHealth?.configured || totalRows > 0 ? "live" : "not fully connected"}; deterministic briefs are available from saved deal math; provider-generated AI is ${aiProviderReady ? "connected" : "offline"}. To enable the full copilot, connect an approved AI provider key on the server and keep import controls protected. Missing now: ${
+          missingReadiness.length
+            ? missingReadiness.join(", ")
+            : "none reported"
+        }. Partial: ${
+          partialReadiness.length
+            ? partialReadiness.join(", ")
+            : "none reported"
+        }.`;
+      } else if (
+        lower.includes("next") ||
+        lower.includes("fix") ||
+        lower.includes("upgrade")
+      ) {
+        responseText = `Best next fixes: finish account sync, raise VIN/mileage/contact coverage, connect provider AI for richer generated answers, then add credentials or approved access handling for gated auction sources. Product-wise, keep the user flow tight: pick vehicle, state, title, budget, lane; run only matching sources; show quality and source proof on every result.`;
+      } else if (
         lower.includes("salvage") ||
         lower.includes("title") ||
         lower.includes("rebuilt")
-          ? "Title guidance can be shown without fabricating a deal: verify salvage/rebuilt status through the state title record, NMVTIS-style history, seller disclosure, frame/airbag inspection, and post-repair receipts. The app should discount branded-title vehicles only after real comps and inspection data are available."
-          : "I cannot answer from live market data yet because this environment does not have a configured AI provider or populated Supabase inventory. Connect the real keys/data pipeline first, then this drawer should call the backend AI endpoint instead of using canned responses.";
+      ) {
+        responseText =
+          "Title guidance can be shown without fabricating a deal: verify salvage/rebuilt status through the state title record, NMVTIS-style history, seller disclosure, frame/airbag inspection, and post-repair receipts. The app should discount branded-title vehicles only after real comps and inspection data are available.";
+      }
 
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -101,7 +279,8 @@ export function MikeHuntCopilotDrawer() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-[calc(72px+env(safe-area-inset-bottom))] right-3 z-40 flex max-w-[calc(100vw-24px)] items-center gap-2 rounded-full border px-3.5 py-2.5 text-xs font-bold shadow-2xl md:bottom-6 md:right-6 md:z-50 md:gap-3 md:px-5 md:py-3.5 md:text-sm"
+        aria-label="Open deal readiness copilot"
+        className="fixed right-4 top-20 z-40 hidden max-w-[calc(100vw-24px)] items-center gap-3 rounded-full border px-4 py-3 text-sm font-bold shadow-2xl md:flex lg:right-6 lg:top-auto lg:bottom-6 lg:z-50 lg:px-5 lg:py-3.5"
         style={{
           background: "var(--s0)",
           color: "var(--t1)",
@@ -109,14 +288,17 @@ export function MikeHuntCopilotDrawer() {
           boxShadow: "var(--shadow)",
         }}
       >
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--amber)]" />
-        <span className="truncate">AI not connected</span>
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--amber-lo)] text-[11px] font-black text-[var(--amber-d)]">
+          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span className="hidden truncate md:inline">{launcherLabel}</span>
+        <span className="sr-only">{launcherLabel}</span>
       </motion.button>
 
       {/* Drawer overlay */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[70] flex justify-end">
+          <div className="fixed inset-0 z-[70] flex justify-end pb-[env(safe-area-inset-bottom)]">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -130,7 +312,7 @@ export function MikeHuntCopilotDrawer() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--b2)] bg-[var(--s0)] shadow-2xl sm:m-3 sm:h-[calc(100%-24px)] sm:rounded-[var(--r4)] sm:border"
+              className="relative z-10 flex h-[calc(100%-env(safe-area-inset-bottom))] w-full max-w-md flex-col border-l border-[var(--b2)] bg-[var(--s0)] shadow-2xl sm:m-3 sm:h-[calc(100%-24px)] sm:rounded-[var(--r4)] sm:border"
             >
               {/* Drawer Header */}
               <div className="flex items-center justify-between p-5 border-b border-[var(--b2)] bg-[var(--s1)]/80 backdrop-blur-xl">
@@ -139,23 +321,22 @@ export function MikeHuntCopilotDrawer() {
                     className="w-9 h-9 rounded-xl grid place-items-center text-white font-bold"
                     style={{ background: "var(--grad)" }}
                   >
-                    AI
+                    <Bot className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-base font-black text-[var(--t1)]">
-                      MikeHunt AI Co-pilot
+                      Deal Readiness Copilot
                     </h3>
-                    <p className="text-xs text-[var(--t4)]">
-                      Provider not connected
-                    </p>
+                    <p className="text-xs text-[var(--t4)]">{headerStatus}</p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setIsOpen(false)}
                   className="w-8 h-8 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
+                  aria-label="Close deal copilot"
                 >
-                  ✕
+                  <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
 
@@ -238,15 +419,16 @@ export function MikeHuntCopilotDrawer() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask MikeHunt AI anything..."
-                    className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
+                    placeholder="Ask about sources, setup, or deal proof..."
+                    className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
                   />
                   <button
                     type="submit"
                     className="shrink-0 rounded-xl px-3 py-2.5 text-sm font-bold text-white sm:px-4"
                     style={{ background: "var(--grad)" }}
                   >
-                    Send
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                    <span className="sr-only sm:not-sr-only">Send</span>
                   </button>
                 </form>
               </div>
@@ -306,7 +488,9 @@ export function ProfitSimulatorDrawer({
       >
         <div className="flex items-center justify-between border-b border-[var(--b2)] pb-4 mb-6">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🧮</span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--amber-lo)] text-[var(--amber-d)]">
+              <Calculator className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
             <div>
               <h3 className="text-xl font-black text-[var(--t1)]">
                 Profit Simulator Lab
@@ -320,7 +504,7 @@ export function ProfitSimulatorDrawer({
             onClick={onClose}
             className="w-8 h-8 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)]"
           >
-            ✕
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -455,7 +639,8 @@ export function ProfitSimulatorDrawer({
             className="px-6 py-2.5 rounded-xl font-bold text-white text-sm"
             style={{ background: "var(--grad)" }}
           >
-            Apply Deal Parameters →
+            Apply Deal Parameters
+            <ArrowRight className="ml-2 inline h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </motion.div>

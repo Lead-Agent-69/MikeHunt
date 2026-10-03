@@ -6,16 +6,19 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import {
-  BarChart3,
-  Bell,
-  Bookmark,
-  ChevronDown,
-  Settings,
-} from "lucide-react";
+import { Bell, Bookmark, ChevronDown, Settings } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
+import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { AccountMenu } from "@/components/home/AccountMenu";
-import { PRIMARY, MORE_GROUPS, ADMIN_GROUP } from "./nav-items";
+import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
+import {
+  PRIMARY,
+  MORE_GROUPS,
+  ADMIN_GROUP,
+  primaryJobForPath,
+  navItemMatchesPath,
+} from "./nav-items";
 
 function IconBtn({
   href,
@@ -70,11 +73,30 @@ export function TopNav() {
   const { isAdmin } = useIsAdmin();
   // The admin sees everything — their "More" gains the Admin group with the dev/ops surfaces.
   const moreGroups = isAdmin ? [...MORE_GROUPS, ADMIN_GROUP] : MORE_GROUPS;
-  const moreHrefs = moreGroups.flatMap((g) => g.items.map((i) => i.href));
+  const moreItems = moreGroups.flatMap((g) => g.items);
+  const activeJob = primaryJobForPath(pathname);
+  const localSaved = useLocalSavedVehicles();
+  const localSearches = useLocalSavedSearches();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [scopedStates, setScopedStates] = useState<string[] | undefined>();
   const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const statesParam = params.get("states");
+    const stateParam = params.get("state");
+    const nextStates = statesParam
+      ? statesParam
+          .split(",")
+          .map((state) => state.trim().toUpperCase())
+          .filter(Boolean)
+      : stateParam
+        ? [stateParam.trim().toUpperCase()]
+        : undefined;
+    setScopedStates(nextStates?.length ? nextStates : undefined);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,7 +148,11 @@ export function TopNav() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const moreActive = moreHrefs.includes(pathname);
+  const moreActive = moreItems.some((item) =>
+    navItemMatchesPath(item, pathname),
+  );
+  const watchScopeCount = localSaved.count + localSearches.count;
+  const totalAlertCount = alertCount + localSearches.count;
 
   return (
     <header
@@ -159,16 +185,17 @@ export function TopNav() {
       {/* LEFT: Logo */}
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link href="/discover" className="flex items-center gap-2.5 group">
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
-            style={{ background: "var(--grad)" }}
-          >
-            <BarChart3 className="w-4 h-4 text-white" strokeWidth={2.5} />
-          </div>
-          <span className="text-[15px] font-bold tracking-tight text-[var(--t1)] hidden lg:block">
-            MikeHunt<span className="text-[var(--amber)] ml-0.5">Pro</span>
-          </span>
+          <MikeHuntLogo
+            size="sm"
+            className="transition-transform group-hover:scale-[1.02]"
+            wordmarkClassName="block md:hidden lg:block"
+          />
         </Link>
+        {activeJob && (
+          <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex md:hidden">
+            {activeJob}
+          </span>
+        )}
       </div>
 
       {/* CENTER: Primary nav + More (desktop) — in the flow so it centers between the flex-1 sides and can't
@@ -177,7 +204,8 @@ export function TopNav() {
         {PRIMARY.map((item) => {
           const active =
             pathname === item.href ||
-            (item.href === "/discover" && pathname === "/");
+            (item.href === "/discover" && pathname === "/") ||
+            (!moreActive && activeJob === item.name);
           return (
             <Link
               key={item.name}
@@ -226,7 +254,7 @@ export function TopNav() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.97 }}
                 transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute right-0 mt-2 w-60 p-2 rounded-[var(--r3)] z-50 origin-top-right overflow-hidden"
+                className="absolute right-0 mt-2 w-[22rem] p-2 rounded-[var(--r3)] z-50 origin-top-right overflow-hidden"
                 style={{
                   background: "var(--glass)",
                   backdropFilter: "blur(24px) saturate(180%)",
@@ -251,20 +279,29 @@ export function TopNav() {
                         {g.group}
                       </p>
                       {g.items.map((item) => {
-                        const active = pathname === item.href;
+                        const active = navItemMatchesPath(item, pathname);
                         return (
                           <Link
                             key={item.href}
                             href={item.href}
                             role="menuitem"
-                            className={`flex items-center gap-2.5 px-2 py-1.5 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
+                            className={`flex items-start gap-2.5 px-2 py-2 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
                               active
                                 ? "bg-[var(--amber-lo)] text-[var(--amber)]"
                                 : "text-[var(--t2)] hover:bg-[var(--s2)]"
                             }`}
                           >
-                            <item.icon className="h-4 w-4 text-[var(--t4)]" />
-                            {item.name}
+                            <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t4)]" />
+                            <span className="min-w-0">
+                              <span className="block font-bold leading-tight">
+                                {item.name}
+                              </span>
+                              {item.description && (
+                                <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[var(--t5)]">
+                                  {item.description}
+                                </span>
+                              )}
+                            </span>
                           </Link>
                         );
                       })}
@@ -279,22 +316,55 @@ export function TopNav() {
 
       {/* RIGHT: Actions */}
       <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
-        <MyStatesButton
-          onChange={() => router.refresh()}
-          className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
-        />
-        <ThemeToggle />
-        <IconBtn href="/saved" title="Saved">
-          <Bookmark style={{ width: 17, height: 17 }} />
-        </IconBtn>
-        <IconBtn href="/alerts" title="Alerts" badge={alertCount}>
-          <Bell style={{ width: 17, height: 17 }} />
-        </IconBtn>
-        <IconBtn href="/settings" title="Settings">
-          <Settings style={{ width: 17, height: 17 }} />
-        </IconBtn>
-        {/* Account menu + logout (inline so it doesn't float over the nav). */}
-        <AccountMenu floating={false} />
+        <div className="hidden items-center justify-end gap-2 md:flex">
+          <MyStatesButton
+            onChange={() => router.refresh()}
+            statesOverride={scopedStates}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+          />
+          <ThemeToggle />
+          <IconBtn
+            href="/saved"
+            title={
+              watchScopeCount
+                ? `${watchScopeCount} active watch scope${
+                    watchScopeCount === 1 ? "" : "s"
+                  } across saved vehicles and searches`
+                : "Saved"
+            }
+            badge={watchScopeCount}
+          >
+            <Bookmark style={{ width: 17, height: 17 }} />
+          </IconBtn>
+          <IconBtn
+            href="/alerts"
+            title={
+              totalAlertCount
+                ? `${totalAlertCount} alert source${
+                    totalAlertCount === 1 ? "" : "s"
+                  }: ${alertCount} unread, ${localSearches.count} saved search${
+                    localSearches.count === 1 ? "" : "es"
+                  }`
+                : "Alerts"
+            }
+            badge={totalAlertCount}
+          >
+            <Bell style={{ width: 17, height: 17 }} />
+          </IconBtn>
+          <IconBtn href="/settings" title="Settings">
+            <Settings style={{ width: 17, height: 17 }} />
+          </IconBtn>
+          <AccountMenu floating={false} />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 md:hidden">
+          <MyStatesButton
+            onChange={() => router.refresh()}
+            statesOverride={scopedStates}
+            className="inline-flex max-w-[88px] items-center gap-1.5 truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]"
+          />
+          <AccountMenu floating={false} />
+        </div>
       </div>
     </header>
   );

@@ -187,6 +187,14 @@ function estimateSellValue(
 
 export interface ValuationBreakdown {
   basis: "comps" | "market" | "baseline";
+  source:
+    | "comparables"
+    | "third_party"
+    | "historical_estimate"
+    | "asking_price"
+    | "baseline";
+  confidence: "high" | "medium" | "low" | "none";
+  sampleCount: number;
   compCount: number;
   compConfidence: "high" | "medium" | "low" | "none";
   cleanComp: number | null;
@@ -334,6 +342,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
 
   let sellEstimate: number;
   let sellBasis: "comps" | "market" | "baseline";
+  let valuationSource: ValuationBreakdown["source"] = "baseline";
   let soldAnchored = false;
   if (compAdj && compAccept) {
     // Confidence-blend: deep buckets trust the comps; thin/mixed-trim buckets get pulled toward the
@@ -349,14 +358,17 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
         ? Math.round(compAdj.sell * w + baseline * (1 - w))
         : compAdj.sell;
     sellBasis = "comps";
+    valuationSource = "comparables";
     soldAnchored = compAdj.soldAnchored;
   } else if (mmrAdj && sane(mmrAdj.sell)) {
     sellEstimate = mmrAdj.sell;
     sellBasis = "market";
+    valuationSource = "third_party";
     soldAnchored = mmrAdj.soldAnchored;
   } else if (aggAdj && sane(aggAdj.sell)) {
     sellEstimate = aggAdj.sell;
     sellBasis = "market";
+    valuationSource = "historical_estimate";
     soldAnchored = aggAdj.soldAnchored;
   } else if (baseline > 0) {
     // No trustworthy comp → realistic depreciation estimate (already title/mileage-adjusted).
@@ -385,6 +397,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     if (sellEstimate > askCeiling) {
       sellEstimate = askCeiling;
       sellBasis = "market"; // ask-anchored (retail listing's own price is the market read)
+      valuationSource = "asking_price";
     }
     // SYMMETRIC floor: without trustworthy comps, a crude baseline can under-value a retail car far below
     // its ask (a false "overpriced/pass" — the opposite error, just as inaccurate). The ask is the market
@@ -395,6 +408,7 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
       if (sellEstimate < askFloor) {
         sellEstimate = askFloor;
         sellBasis = "market";
+        valuationSource = "asking_price";
       }
     }
   }
@@ -582,6 +596,25 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     // This is the moat made transparent: real comps, KBB, sold prices, and the exact title/mileage cuts.
     valuation: {
       basis: sellBasis,
+      source: valuationSource,
+      confidence:
+        valuationSource === "comparables"
+          ? (comps?.confidence ?? "none")
+          : valuationSource === "third_party"
+            ? "low"
+            : valuationSource === "historical_estimate" &&
+                Number(aggregate?.n || 0) >= 6
+              ? "low"
+              : "none",
+      sampleCount:
+        valuationSource === "comparables"
+          ? Number(comps?.nRetail || 0)
+          : valuationSource === "historical_estimate"
+            ? Number(aggregate?.n || 0)
+            : valuationSource === "third_party" ||
+                valuationSource === "asking_price"
+              ? 1
+              : 0,
       compCount: comps?.nRetail ?? 0,
       compConfidence: comps?.confidence ?? "none",
       cleanComp: comps?.retail ?? null,

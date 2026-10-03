@@ -28,6 +28,25 @@ const BASE: MaestroAsset = {
   isSoldAuction: false,
 };
 
+const DETAIL: MaestroAsset = {
+  ...BASE,
+  vinserial: "JN1AR5EF5EM270025",
+  meter: "Miles",
+  meterCount: 65000,
+  meterAccurate: "Yes",
+  assetAttributeGroups: [
+    {
+      name: "Details",
+      assetAttributes: [
+        { label: "VIN", value: "JN1AR5EF5EM270025" },
+        { label: "Odometer", value: "65,000 Miles (Accurate)" },
+        { label: "Title Restriction", value: "Clean Title" },
+        { label: "Trim", value: "Premium" },
+      ],
+    },
+  ],
+};
+
 describe("maestroAssetToDeal — images (A7)", () => {
   it("builds the full image URL and strips the cache-buster", () => {
     const d = maestroAssetToDeal(BASE, GD)!;
@@ -55,6 +74,40 @@ describe("maestroAssetToDeal — idPrefix + marketplace", () => {
     expect((ad.metadata as Record<string, unknown>).marketplace).toBe(
       "allsurplus",
     );
+  });
+});
+
+describe("maestroAssetToDeal — detail fields", () => {
+  it("maps VIN, mileage, trim, title proof, and meter accuracy from detail payloads", () => {
+    const d = maestroAssetToDeal(DETAIL, GD)!;
+
+    expect(d.vin).toBe("JN1AR5EF5EM270025");
+    expect(d.mileage).toBe(65000);
+    expect(d.trim).toBe("Premium");
+    expect(d.metadata).toMatchObject({
+      titleType: "Clean Title",
+      meterAccurate: "Yes",
+    });
+  });
+
+  it("rejects unknown/non-actual mileage text instead of storing fake odometer proof", () => {
+    const d = maestroAssetToDeal(
+      {
+        ...DETAIL,
+        meterCount: undefined,
+        assetAttributeGroups: [
+          {
+            name: "Details",
+            assetAttributes: [
+              { label: "Odometer", value: "Not Actual / Exempt" },
+            ],
+          },
+        ],
+      },
+      GD,
+    )!;
+
+    expect(d.mileage).toBeUndefined();
   });
 });
 

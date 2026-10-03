@@ -137,8 +137,13 @@ export class LocalScraperCache {
   private lock: Promise<void> = Promise.resolve();
 
   constructor(options: LocalCacheOptions = {}) {
+    const cwd = path.normalize(process.cwd());
+    const standaloneSuffix = path.normalize(path.join(".next", "standalone"));
+    const defaultPath = cwd.endsWith(standaloneSuffix)
+      ? path.resolve(process.cwd(), "..", "..", ".cache")
+      : ".cache";
     this.filePath = path.resolve(
-      options.path || process.env.LOCAL_CACHE_PATH || ".cache",
+      options.path || process.env.LOCAL_CACHE_PATH || defaultPath,
       "local-scraper-cache.json",
     );
     this.batchSize = Math.min(50, Math.max(1, options.batchSize || 50));
@@ -187,6 +192,19 @@ export class LocalScraperCache {
       }
       await this.save();
     });
+  }
+
+  async records(namespace: string): Promise<Record<string, unknown>[]> {
+    await this.load();
+    const prefix = `${namespace}|`;
+    return Object.entries(this.state.entries)
+      .filter(([key]) => key.startsWith(prefix))
+      .sort(([, a], [, b]) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+      .map(([, entry]) => ({
+        ...(entry.data || {}),
+        cachedAt: entry.lastSeenAt,
+        cacheSynced: entry.synced,
+      }));
   }
 
   getQuota() {

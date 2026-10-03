@@ -2,13 +2,27 @@
 
 import React, { useState, useEffect } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import { createClientComponentClient } from "@/lib/supabase";
 import { Ico } from "@/components/shared/Ico";
 import { DealCard } from "@/components/shared/DealCard";
+import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import {
+  scanHrefForSavedSearch,
+  sourceProofHrefForSavedSearch,
+  useLocalSavedSearches,
+} from "@/hooks/useLocalSavedSearches";
+import {
+  SavedCarCard,
+  type SavedCarStatus,
+} from "@/components/saved/SavedCarCard";
+import { qualityFieldLabel } from "@/lib/data-quality";
 
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
   const [userId, setUserId] = useState<string | null>(null);
+  const localSaved = useLocalSavedVehicles();
+  const localSearches = useLocalSavedSearches();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -48,6 +62,24 @@ export default function AlertsPage() {
   } = useSWR(userId ? ["alerts", userId] : null, ([, uid]) =>
     fetchAlerts(uid as string),
   );
+  const {
+    data: savedCars = [],
+    isLoading: savedLoading,
+    mutate: mutateSavedCars,
+  } = useSWR<any[]>(
+    userId ? ["saved-cars-alerts", userId] : null,
+    async () => {
+      const res = await fetch("/api/saved-cars?filter=all");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    { revalidateOnFocus: false },
+  );
+  const hasAnyWatchItem =
+    alerts.length > 0 ||
+    savedCars.length > 0 ||
+    localSaved.count > 0 ||
+    localSearches.count > 0;
 
   async function markAllRead() {
     await fetch("/api/alerts/unread", { method: "POST" });
@@ -59,6 +91,29 @@ export default function AlertsPage() {
       alerts.filter((a: any) => a.id !== id),
       false,
     );
+  }
+
+  async function deleteSavedCar(id: string) {
+    await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
+    mutateSavedCars(
+      savedCars.filter((item: any) => item.id !== id),
+      false,
+    );
+  }
+
+  async function updateSavedCarStatus(id: string, status: SavedCarStatus) {
+    mutateSavedCars(
+      savedCars.map((item: any) =>
+        item.id === id ? { ...item, status } : item,
+      ),
+      false,
+    );
+    await fetch(`/api/saved-cars/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    mutateSavedCars();
   }
 
   return (
@@ -74,11 +129,11 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      {loading ? (
+      {loading || savedLoading ? (
         <div className="text-center py-12 text-[var(--t3)]">
           Loading your inbox...
         </div>
-      ) : alerts.length === 0 ? (
+      ) : !hasAnyWatchItem ? (
         <div className="text-center py-16 glass-panel">
           <Ico
             name="alert-triangle"
@@ -89,50 +144,432 @@ export default function AlertsPage() {
             Inbox Empty
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            You don't have any new matches. Set up automated searches in the
-            Automations tab to get alerts here.
+            You don't have any new matches yet. Save a search scope and open
+            matching Scan or Source Proof from here while account sync is being
+            configured.
           </p>
+          <Link
+            href="/searches"
+            className="mt-4 inline-flex rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+          >
+            Create saved search
+          </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {alerts.map((alert: any) => {
-            const deal = alert.deals;
-            if (!deal) return null;
-            return (
-              <div key={alert.id} className="relative group">
-                {alert.status === "unread" && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--amber)] rounded-full shadow-[0_0_8px_var(--amber)] z-10" />
-                )}
-                <div className="absolute -top-3 -right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => dismissAlert(alert.id)}
-                    className="p-1.5 bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--red)] hover:text-white rounded-full shadow-lg border border-[var(--b2)]"
-                    title="Dismiss alert"
-                  >
-                    <Ico name="x" size={14} />
-                  </button>
-                </div>
-                <DealCard
-                  id={deal.id}
-                  source={deal.source}
-                  year={deal.year}
-                  make={deal.make}
-                  model={deal.model}
-                  askPrice={deal.ask_price}
-                  mmrValue={deal.mmr_value}
-                  profitEstimate={deal.profit_estimate}
-                  profitScore={deal.profit_score}
-                  locationCity={deal.location_city}
-                  locationState={deal.location_state}
-                  mileage={deal.mileage}
-                  condition={deal.condition}
-                  damageType={deal.damage_type}
-                />
-              </div>
-            );
-          })}
+        <div className="space-y-6">
+          {alerts.length > 0 && (
+            <ServerAlertGrid alerts={alerts} onDismiss={dismissAlert} />
+          )}
+          {savedCars.length > 0 && (
+            <ServerWatchInbox
+              items={savedCars}
+              onDelete={deleteSavedCar}
+              onUpdateStatus={updateSavedCarStatus}
+            />
+          )}
+          {localSaved.count > 0 && (
+            <LocalWatchInbox
+              items={localSaved.items}
+              onRemove={localSaved.remove}
+            />
+          )}
+          {localSearches.count > 0 && (
+            <LocalSearchInbox searches={localSearches.items} />
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ServerAlertGrid({
+  alerts,
+  onDismiss,
+}: {
+  alerts: any[];
+  onDismiss: (id: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+              New matches
+            </p>
+            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+              {alerts.length} fresh alert{alerts.length === 1 ? "" : "s"} ready.
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+              These came from server-side matching. Review source proof and
+              buyer math before acting.
+            </p>
+          </div>
+          <Link
+            href="/scan?sort=profit"
+            className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+          >
+            Open Scan
+          </Link>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {alerts.map((alert: any) => {
+          const deal = alert.deals;
+          if (!deal) return null;
+          return (
+            <div key={alert.id} className="relative group">
+              {alert.status === "unread" && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--amber)] rounded-full shadow-[0_0_8px_var(--amber)] z-10" />
+              )}
+              <div className="absolute -top-3 -right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => onDismiss(alert.id)}
+                  className="p-1.5 bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--red)] hover:text-white rounded-full shadow-lg border border-[var(--b2)]"
+                  title="Dismiss alert"
+                >
+                  <Ico name="x" size={14} />
+                </button>
+              </div>
+              <DealCard
+                id={deal.id}
+                source={deal.source}
+                year={deal.year}
+                make={deal.make}
+                model={deal.model}
+                askPrice={deal.ask_price}
+                mmrValue={deal.mmr_value}
+                profitEstimate={deal.profit_estimate}
+                profitScore={deal.profit_score}
+                locationCity={deal.location_city}
+                locationState={deal.location_state}
+                mileage={deal.mileage}
+                condition={deal.condition}
+                damageType={deal.damage_type}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function LocalSearchInbox({ searches }: { searches: any[] }) {
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+              Local alert scopes
+            </p>
+            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+              {searches.length} saved search{searches.length === 1 ? "" : "es"}{" "}
+              on this device.
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+              These scopes are ready to use now. Open matching Scan for live
+              vehicles, or inspect Source Proof to confirm which sources can
+              return rows for the saved intent.
+            </p>
+          </div>
+          <Link
+            href="/searches"
+            className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+          >
+            Manage searches
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {searches.map((search) => (
+          <div key={search.id} className="glass-panel p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      search.is_active ? "bg-[var(--green)]" : "bg-[var(--t4)]"
+                    }`}
+                  />
+                  <h3 className="font-black text-[var(--t1)]">
+                    {search.name || "Saved search"}
+                  </h3>
+                  <span className="rounded border border-[var(--b2)] px-1.5 py-0.5 text-[10px] font-black uppercase text-[var(--t4)]">
+                    local
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[var(--t3)]">
+                  {search.make && <span>Make: {search.make}</span>}
+                  {search.makes?.length ? (
+                    <span>Makes: {search.makes.join(", ")}</span>
+                  ) : null}
+                  {search.model && <span>Model: {search.model}</span>}
+                  {search.q && <span>Search: {search.q}</span>}
+                  {search.state && <span>State: {search.state}</span>}
+                  {search.lane && (
+                    <span>Lane: {String(search.lane).replace(/-/g, " ")}</span>
+                  )}
+                  {search.seller_type && (
+                    <span>Seller: {search.seller_type}</span>
+                  )}
+                  {search.title_type && <span>Title: {search.title_type}</span>}
+                  {search.dealer_source_ids?.length ? (
+                    <span>Dealers: {search.dealer_source_ids.join(", ")}</span>
+                  ) : null}
+                  {search.max_price && (
+                    <span>
+                      Max: ${Number(search.max_price).toLocaleString()}
+                    </span>
+                  )}
+                  {search.min_price && (
+                    <span>
+                      Min: ${Number(search.min_price).toLocaleString()}
+                    </span>
+                  )}
+                  {search.target_profit && (
+                    <span>
+                      Min profit: $
+                      {Number(search.target_profit).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
+                  Stored locally. Sign in later to sync server alerts and
+                  background matching.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={scanHrefForSavedSearch(search)}
+                  className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+                >
+                  Open Scan
+                </Link>
+                <Link
+                  href={sourceProofHrefForSavedSearch(search)}
+                  className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+                >
+                  Source proof
+                </Link>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ServerWatchInbox({
+  items,
+  onDelete,
+  onUpdateStatus,
+}: {
+  items: any[];
+  onDelete: (id: string) => void;
+  onUpdateStatus: (id: string, status: SavedCarStatus) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+              Watch inbox
+            </p>
+            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+              {items.length} active watched vehicle
+              {items.length === 1 ? "" : "s"}.
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+              No new price-drop alert yet. These saved vehicles are being
+              tracked with source proof, data quality, and buyer math.
+            </p>
+          </div>
+          <Link
+            href="/saved"
+            className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+          >
+            Open watchlist
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {items.map((item) => (
+          <SavedCarCard
+            key={item.id}
+            save={item}
+            onDelete={onDelete}
+            onUpdateStatus={onUpdateStatus}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LocalWatchInbox({
+  items,
+  onRemove,
+}: {
+  items: ReturnType<typeof useLocalSavedVehicles>["items"];
+  onRemove: (id: string) => void;
+}) {
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(value || 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-panel p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+              Local watch inbox
+            </p>
+            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+              {items.length} watched vehicle{items.length === 1 ? "" : "s"} on
+              this device.
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+              These came from live preview saves. Connect Supabase and Google
+              login to turn them into server-side alerts, price tracking, and
+              cross-device watchlists.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/saved"
+              className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+            >
+              Open watchlist
+            </Link>
+            <Link
+              href="/status"
+              className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+            >
+              Setup sync
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4">
+        {items.map((item) => {
+          const savedDays = Math.max(
+            0,
+            Math.round(
+              (Date.now() - new Date(item.savedAt).getTime()) / 86_400_000,
+            ),
+          );
+          const missing = item.dataQuality?.missing || [];
+          const trustSummary =
+            item.trustExplanation?.summary ||
+            item.trustExplanation?.reasons?.slice(0, 3).join(" · ");
+          const nextTrustChecks = item.trustExplanation?.nextChecks || [];
+          return (
+            <div
+              key={item.id}
+              className="glass-panel p-4"
+              style={{ borderRadius: "var(--r4)" }}
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 gap-3">
+                  <div className="h-20 w-24 shrink-0 overflow-hidden rounded-[var(--r3)] bg-[var(--s1)]">
+                    {item.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] font-black uppercase text-[var(--t5)]">
+                        No photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[var(--s1)] px-2 py-1 text-[10px] font-black uppercase text-[var(--t4)]">
+                        {item.source}
+                        {item.locationState ? ` · ${item.locationState}` : ""}
+                      </span>
+                      <span className="rounded-full bg-[var(--amber-lo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--amber-d)]">
+                        Watching locally
+                      </span>
+                    </div>
+                    <h3 className="mt-2 truncate text-base font-black text-[var(--t1)]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1 text-xs text-[var(--t4)]">
+                      Saved {savedDays === 0 ? "today" : `${savedDays}d ago`}
+                      {item.mileage
+                        ? ` · ${item.mileage.toLocaleString()} mi`
+                        : ""}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-[var(--t4)]">
+                      Data quality {item.dataQuality?.score ?? 0}/100
+                      {missing.length
+                        ? ` · missing ${missing
+                            .slice(0, 3)
+                            .map(qualityFieldLabel)
+                            .join(", ")}`
+                        : " · core details present"}
+                    </p>
+                    {trustSummary ? (
+                      <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+                        Trust proof: {trustSummary}
+                        {typeof item.trustExplanation?.score === "number"
+                          ? ` (${Math.round(item.trustExplanation.score)}/100)`
+                          : ""}
+                        {nextTrustChecks.length
+                          ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
+                          : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="mr-2">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                      Watched price
+                    </p>
+                    <p className="font-mono text-lg font-black text-[var(--t1)]">
+                      {formatMoney(item.askPrice)}
+                    </p>
+                  </div>
+                  {item.sourceUrl && (
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+                    >
+                      Source
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemove(item.id)}
+                    className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--red)]"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

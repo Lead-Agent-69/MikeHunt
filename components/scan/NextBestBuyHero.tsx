@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { BorderBeam, ShineBorder, GradientText } from "@/components/ui/premium-visuals";
-import { LiquidMetalButton, LiquidGlassButton } from "@/components/ui/framer-components";
+import { BorderBeam } from "@/components/ui/premium-visuals";
+import { LiquidMetalButton } from "@/components/ui/framer-components";
+import {
+  Calculator,
+  CheckCircle2,
+  Flame,
+  MessageSquareText,
+  Zap,
+} from "lucide-react";
 
 export interface BestBuyDeal {
   id: string;
@@ -33,59 +39,52 @@ export function NextBestBuyHero({
 }) {
   const [claimed, setClaimed] = useState(false);
 
-  // Fallback demo deal if no deal passed
-  const topDeal: BestBuyDeal = deal || {
-    id: "best-1",
-    year: 2021,
-    make: "BMW",
-    model: "M3 Competition",
-    trim: "xDrive Sedan",
-    askPrice: 58500,
-    mmrValue: 71200,
-    profitEstimate: 8400,
-    profitScore: 96,
-    locationCity: "Dallas",
-    locationState: "TX",
-    vin: "WBS83AY05M12****",
-    source: "Manheim Auction",
-    repairEstimate: 850,
-  };
+  if (!deal) return null;
 
-  const roi = (((topDeal.profitEstimate) / topDeal.askPrice) * 100).toFixed(1);
+  const topDeal = deal;
+
+  const roi = ((topDeal.profitEstimate / topDeal.askPrice) * 100).toFixed(1);
 
   return (
     <div className="relative w-full mb-8">
       <div
         className="relative rounded-3xl border border-[var(--amber-bd)] bg-[var(--s0)] p-6 sm:p-8 overflow-hidden shadow-2xl backdrop-blur-2xl"
         style={{
-          background: "linear-gradient(135deg, rgba(20, 18, 25, 0.95), rgba(12, 10, 16, 0.98))",
-          boxShadow: "0 0 40px rgba(242, 91, 154, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+          background:
+            "linear-gradient(135deg, rgba(20, 18, 25, 0.95), rgba(12, 10, 16, 0.98))",
+          boxShadow:
+            "0 0 40px rgba(242, 91, 154, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
         }}
       >
-        <BorderBeam duration={5} size={140} colorFrom="#00ff66" colorTo="#ff7a4d" />
-
-        {/* Ambient Glow */}
-        <div
-          className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full blur-[120px] opacity-25"
-          style={{ background: "radial-gradient(circle, #00ff66 0%, transparent 70%)" }}
-          aria-hidden
+        <BorderBeam
+          duration={5}
+          size={140}
+          colorFrom="#00ff66"
+          colorTo="#ff7a4d"
         />
 
         {/* Header Ribbon */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 relative z-10">
           <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-[var(--amber-bd)] bg-[var(--amber-lo)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00ff66] animate-ping" />
+            <Flame
+              className="h-3.5 w-3.5 text-[var(--amber-d)]"
+              aria-hidden="true"
+            />
             <span className="text-xs font-black uppercase tracking-wider text-[var(--amber-d)] font-mono">
-              🔥 NEXT BEST BUY OPTION · ALGORITHM MATCH #1
+              Next best buy option · Algorithm match #1
             </span>
           </div>
 
           <div className="flex items-center gap-3 font-mono text-xs text-[var(--t4)]">
             <span className="flex items-center gap-1 text-[#00ff66]">
-              <span className="w-2 h-2 rounded-full bg-[#00ff66]" /> Live Sourced
+              <span className="w-2 h-2 rounded-full bg-[#00ff66]" /> Live
+              Sourced
             </span>
             <span>·</span>
-            <span>Source: <strong className="text-[var(--t1)]">{topDeal.source}</strong></span>
+            <span>
+              Source:{" "}
+              <strong className="text-[var(--t1)]">{topDeal.source}</strong>
+            </span>
           </div>
         </div>
 
@@ -104,7 +103,11 @@ export function NextBestBuyHero({
 
             <h2 className="text-3xl sm:text-4xl font-black text-[var(--t1)] tracking-tight mb-2">
               {topDeal.year} {topDeal.make} {topDeal.model}{" "}
-              {topDeal.trim && <span className="text-[var(--t3)] font-medium text-2xl">{topDeal.trim}</span>}
+              {topDeal.trim && (
+                <span className="text-[var(--t3)] font-medium text-2xl">
+                  {topDeal.trim}
+                </span>
+              )}
             </h2>
 
             <p className="text-sm font-mono text-[var(--t4)] mb-6">
@@ -114,16 +117,28 @@ export function NextBestBuyHero({
             {/* Price Metrics Strip */}
             <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl border border-[var(--b2)] bg-[var(--s1)]/80 backdrop-blur-md font-mono">
               <div>
-                <span className="text-[11px] text-[var(--t4)] uppercase block">Asking Price</span>
-                <span className="text-xl font-bold text-[var(--t1)]">${topDeal.askPrice.toLocaleString()}</span>
+                <span className="text-[11px] text-[var(--t4)] uppercase block">
+                  Asking Price
+                </span>
+                <span className="text-xl font-bold text-[var(--t1)]">
+                  ${topDeal.askPrice.toLocaleString()}
+                </span>
               </div>
               <div>
-                <span className="text-[11px] text-[var(--t4)] uppercase block">Market MMR</span>
-                <span className="text-xl font-bold text-[var(--t2)]">${topDeal.mmrValue.toLocaleString()}</span>
+                <span className="text-[11px] text-[var(--t4)] uppercase block">
+                  Market MMR
+                </span>
+                <span className="text-xl font-bold text-[var(--t2)]">
+                  ${topDeal.mmrValue.toLocaleString()}
+                </span>
               </div>
               <div>
-                <span className="text-[11px] text-[var(--t4)] uppercase block">Est Recon</span>
-                <span className="text-xl font-bold text-[var(--t3)]">${(topDeal.repairEstimate || 850).toLocaleString()}</span>
+                <span className="text-[11px] text-[var(--t4)] uppercase block">
+                  Est Recon
+                </span>
+                <span className="text-xl font-bold text-[var(--t3)]">
+                  ${(topDeal.repairEstimate || 850).toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
@@ -137,13 +152,21 @@ export function NextBestBuyHero({
               +${topDeal.profitEstimate.toLocaleString()}
             </div>
             <div className="text-sm font-mono text-[var(--t3)] mb-6">
-              Net ROI: <span className="font-bold text-[#00ff66]">{roi}%</span> · Turn Est: <span className="text-[var(--t1)]">14 Days</span>
+              Net ROI: <span className="font-bold text-[#00ff66]">{roi}%</span>{" "}
+              · Turn Est: <span className="text-[var(--t1)]">14 Days</span>
             </div>
 
             {/* Action buttons */}
             <div className="flex flex-wrap items-center justify-center lg:justify-end gap-3 w-full">
               <LiquidMetalButton onClick={() => setClaimed(true)}>
-                <span>{claimed ? "✅ SNIPE QUEUED" : "⚡ EXECUTE BEST BUY"}</span>
+                <span className="inline-flex items-center gap-2">
+                  {claimed ? (
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Zap className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {claimed ? "Queued for review" : "Review best buy"}
+                </span>
               </LiquidMetalButton>
 
               {onOpenSimulator && (
@@ -151,7 +174,11 @@ export function NextBestBuyHero({
                   onClick={() => onOpenSimulator(topDeal)}
                   className="px-4 py-3 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-xs font-bold text-[var(--t2)] hover:text-[var(--t1)] hover:border-[var(--amber-bd)] transition-all"
                 >
-                  🧮 Profit Lab
+                  <Calculator
+                    className="mr-2 inline h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  Profit Lab
                 </button>
               )}
 
@@ -160,7 +187,11 @@ export function NextBestBuyHero({
                   onClick={() => onOpenCopilot(topDeal)}
                   className="px-4 py-3 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-xs font-bold text-[var(--t2)] hover:text-[var(--t1)] hover:border-[var(--purple-d)] transition-all"
                 >
-                  🤖 AI Outreach
+                  <MessageSquareText
+                    className="mr-2 inline h-4 w-4"
+                    aria-hidden="true"
+                  />
+                  Offer Draft
                 </button>
               )}
             </div>

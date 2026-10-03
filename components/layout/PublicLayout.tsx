@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Ico } from "@/components/shared/Ico";
+import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 
 interface PublicLayoutProps {
   children: React.ReactNode;
@@ -10,7 +11,11 @@ interface PublicLayoutProps {
   description?: string;
 }
 
-export function PublicLayout({ children, title, description }: PublicLayoutProps) {
+export function PublicLayout({
+  children,
+  title,
+  description,
+}: PublicLayoutProps) {
   return (
     <div className="min-h-screen bg-[var(--s1)]">
       {/* Professional Navigation */}
@@ -19,15 +24,7 @@ export function PublicLayout({ children, title, description }: PublicLayoutProps
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5">
-              <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
-                style={{ background: "var(--grad)" }}
-              >
-                <Ico name="search" size={16} />
-              </div>
-              <span className="text-lg font-bold tracking-tight text-[var(--t1)]">
-                MikeHunt
-              </span>
+              <MikeHuntLogo size="sm" />
             </Link>
 
             {/* Desktop Navigation */}
@@ -93,7 +90,9 @@ export function PublicLayout({ children, title, description }: PublicLayoutProps
                 {title}
               </h1>
               {description && (
-                <p className="text-lg text-[var(--t3)] max-w-2xl">{description}</p>
+                <p className="text-lg text-[var(--t3)] max-w-2xl">
+                  {description}
+                </p>
               )}
             </div>
           </div>
@@ -108,18 +107,11 @@ export function PublicLayout({ children, title, description }: PublicLayoutProps
             {/* Company */}
             <div>
               <div className="flex items-center gap-2.5 mb-4">
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
-                  style={{ background: "var(--grad)" }}
-                >
-                  <Ico name="search" size={16} />
-                </div>
-                <span className="text-lg font-bold tracking-tight text-[var(--t1)]">
-                  MikeHunt
-                </span>
+                <MikeHuntLogo size="sm" />
               </div>
               <p className="text-sm text-[var(--t4)] mb-4">
-                Vehicle sourcing intelligence for dealers. Find underpriced cars with AI-powered market analysis.
+                Vehicle sourcing intelligence for dealers. Find underpriced cars
+                with AI-powered market analysis.
               </p>
               <div className="flex gap-4">
                 <a
@@ -141,7 +133,9 @@ export function PublicLayout({ children, title, description }: PublicLayoutProps
 
             {/* Product */}
             <div>
-              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">Product</h3>
+              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">
+                Product
+              </h3>
               <ul className="space-y-2">
                 <li>
                   <Link
@@ -180,7 +174,9 @@ export function PublicLayout({ children, title, description }: PublicLayoutProps
 
             {/* Company */}
             <div>
-              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">Company</h3>
+              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">
+                Company
+              </h3>
               <ul className="space-y-2">
                 <li>
                   <Link

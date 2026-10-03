@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { ensureAccountRows } from "@/lib/auth/account-bootstrap";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
 // a session (writing the auth cookies) and forward to `next` (the deal feed by default). Public
@@ -42,6 +43,17 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          await ensureAccountRows(user);
+        } catch (bootstrapError) {
+          console.error("OAuth account bootstrap failed:", bootstrapError);
+          return NextResponse.redirect(`${origin}/login?error=account_setup`);
+        }
+      }
       // Behind Vercel the public host is in x-forwarded-host; use it so the redirect stays on-origin.
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocal = process.env.NODE_ENV === "development";

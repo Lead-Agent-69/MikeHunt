@@ -5,7 +5,6 @@ import { ResponsiveProvider } from "@/components/ui/responsive-design-system";
 import {
   NetworkProvider,
   NetworkStatusBanner,
-  OfflineBanner,
 } from "@/components/ui/mobile-ux";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { SWRProvider } from "@/components/providers/SWRProvider";
@@ -30,7 +29,7 @@ export const metadata: Metadata = {
       { url: "/favicon.ico" },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    apple: "/icon.svg",
+    apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
@@ -50,7 +49,7 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#f25b9a",
+  themeColor: "#075BE8",
 };
 
 import { LenisSmoothScroll } from "@/components/ui/framer-components";
@@ -92,8 +91,10 @@ export default function RootLayout({
           sizes="32x32"
           href="/favicon-32x32.png"
         />
+        <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#075BE8" />
         <meta name="apple-mobile-web-app-title" content="MikeHunt" />
-        <meta name="theme-color" content="#f25b9a" />
+        <meta name="theme-color" content="#075BE8" />
+        <meta name="msapplication-TileColor" content="#075BE8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta
           name="apple-mobile-web-app-status-bar-style"
@@ -115,7 +116,6 @@ export default function RootLayout({
                   <ToastProvider />
                   <PWARegister />
                   <InstallPrompt />
-                  <OfflineBanner />
                 </LenisSmoothScroll>
               </ResponsiveProvider>
             </ErrorBoundary>

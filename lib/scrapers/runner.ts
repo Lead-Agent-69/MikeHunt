@@ -33,6 +33,8 @@ import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
 import { getSkipSources } from "./health";
+import type { BuyerScope } from "./buyer-scope";
+import { withScrapeRunScope } from "./run-scope-context";
 import {
   SequentialOrchestrator,
   ConcurrentOrchestrator,
@@ -51,6 +53,7 @@ export type OrchestratorType =
 export interface RunScraperOptions {
   orchestrator?: OrchestratorType;
   sourceIds?: string[];
+  scope?: BuyerScope;
   concurrency?: number;
   dryRun?: boolean;
   redisUrl?: string;
@@ -568,7 +571,9 @@ export async function runScrapers(options: RunScraperOptions = {}) {
       throw new Error(`Unknown orchestrator type: ${orchestratorType}`);
   }
 
-  const result = await orchestrator.run(sourceIds);
+  const result = await withScrapeRunScope(options.scope, () =>
+    orchestrator.run(sourceIds),
+  );
   return result;
 }
 

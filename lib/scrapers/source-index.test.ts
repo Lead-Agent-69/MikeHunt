@@ -12,6 +12,7 @@ import {
   RUNNER_ONLY_META_SOURCES,
   normalizeSourceId,
   hasScraper,
+  hasSharedImporter,
   catalogForRunnerId,
   findSource,
   scraperCoverage,
@@ -91,14 +92,27 @@ describe("source index / registry consistency", () => {
     expect(catalogForRunnerId("gsa_auctions")?.id).toBe("gsa-auctions");
   });
 
+  it("recognizes catalog dealers covered by the shared targeted importer", () => {
+    expect(hasSharedImporter(findSource("ae-of-miami")!)).toBe(true);
+    expect(hasSharedImporter(findSource("dg-auto")!)).toBe(true);
+    expect(hasSharedImporter(findSource("recar")!)).toBe(true);
+    expect(hasSharedImporter(findSource("stjames-auto")!)).toBe(true);
+    expect(hasSharedImporter(findSource("damage-com")!)).toBe(true);
+    expect(hasSharedImporter(findSource("copart")!)).toBe(false);
+  });
+
   it("reports coherent coverage numbers", () => {
     const cov = scraperCoverage();
     expect(cov.catalogued).toBe(ALL_SOURCES.length);
     expect(cov.catalogued).toBe(SOURCE_STATS.total);
-    expect(cov.implemented + cov.planned).toBe(cov.catalogued);
+    expect(cov.implemented + cov.sharedImported + cov.catalogOnly).toBe(
+      cov.catalogued,
+    );
+    expect(cov.planned).toBe(cov.catalogOnly);
+    expect(cov.sharedImported).toBeGreaterThan(0);
     expect(cov.ratio).toBeGreaterThanOrEqual(0);
     expect(cov.ratio).toBeLessThanOrEqual(1);
-    expect(cov.missing.length).toBe(cov.planned);
+    expect(cov.missing.length).toBe(cov.catalogOnly);
     // The catalog is intentionally much wider than what's scraped — if this ever reads 100%,
     // someone mass-flipped status without writing scrapers.
     expect(cov.implemented).toBeLessThan(cov.catalogued);

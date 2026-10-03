@@ -16,14 +16,28 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
 
-import { LayoutGrid, Rows3, Table2 } from "lucide-react";
+import {
+  ArrowUpRight,
+  Camera,
+  LayoutGrid,
+  Rows3,
+  ShieldCheck,
+  Sparkles,
+  Table2,
+  TrendingUp,
+} from "lucide-react";
 import { DealTable } from "@/components/scan/DealTable";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 import { LaneModeHUD } from "@/components/scan/LaneModeHUD";
 import { isValidVin } from "@/lib/vehicle/vin";
 import { ErrorState as SharedErrorState } from "@/components/shared/ErrorState";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
-import { sourceMeta, tint } from "@/lib/sources/source-meta";
+import {
+  dealerSourceIdFromUrl,
+  displaySource,
+  sourceMeta,
+  tint,
+} from "@/lib/sources/source-meta";
 import { cn } from "@/lib/utils";
 import { Deal } from "@/lib/data/deals-service";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -31,7 +45,6 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { useDealerId } from "@/hooks/useDealerId";
 import { fetcher } from "@/lib/swr-config";
 import {
   CAR_CATEGORIES,
@@ -41,12 +54,20 @@ import {
 import { ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
+import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import {
+  buildBuyerIntentQuery,
+  readLocalBuyerIntent,
+} from "@/hooks/useBuyerIntent";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ScanResult {
   id: string;
   source: string;
+  title?: string;
   year: number;
   make: string;
   model: string;
@@ -62,10 +83,25 @@ interface ScanResult {
   mileage?: number;
   condition?: string;
   damageType?: string;
+  titleType?: string;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;
   sellEstimate?: number;
+  sellBasis?: "comps" | "market" | "baseline";
+  valuation?: {
+    basis?: "comps" | "market" | "baseline";
+    compCount?: number;
+    compConfidence?: "high" | "medium" | "low" | "none";
+    soldCount?: number;
+    soldAnchored?: boolean;
+    titleTag?: string;
+    mileageMult?: number;
+    titleMult?: number;
+  };
+  soldAnchored?: boolean;
   repairEstimate: number;
+  transportEstimate?: number;
+  warnings?: string[];
   auctionEnds: string;
   priceDropAmount?: number;
   priceDropDays?: number;
@@ -78,10 +114,21 @@ interface ScanResult {
   sourceUrl?: string;
   seller?: string;
   sellerType?: string;
+  sellerPhone?: string;
+  sellerEmail?: string;
+  sellerContactUrl?: string;
   dataQuality?: {
     score: number;
     label: "Excellent" | "Good" | "Thin" | "Sparse";
     missing: string[];
+  };
+  trustExplanation?: {
+    confidence?: "high" | "medium" | "low" | string;
+    score?: number;
+    reasons?: string[];
+    missing?: string[];
+    nextChecks?: string[];
+    summary?: string;
   };
 }
 
@@ -108,7 +155,110 @@ type ReadinessItem = {
   status: "ready" | "missing" | "partial";
   detail: string;
   nextStep: string;
+  verifyPath?: string;
+  actionLabel?: string;
 };
+
+type SourceHealthItem = {
+  id: string;
+  name: string;
+  readiness:
+    | "ready"
+    | "needs_login"
+    | "blocked"
+    | "no_rows"
+    | "needs_run"
+    | "not_configured"
+    | "disabled";
+  activeRows: number;
+  rowsWithPhotos: number;
+  averageQuality: number;
+  lastSeenAt?: string | null;
+  lastRunAt?: string | null;
+  lastStatus?: string | null;
+  lastError?: string | null;
+  nextAction?: string | null;
+  userImpact?: string | null;
+  proofSummary?: string | null;
+  proofBadges?: string[];
+  photoCoveragePct?: number;
+  qualityLabel?: string | null;
+  freshnessHours?: number | null;
+  completeness?: {
+    photosPct?: number;
+    vinPct?: number;
+    titlePct?: number;
+    mileagePct?: number;
+    damagePct?: number;
+    pricePct?: number;
+    locationPct?: number;
+    sellerPct?: number;
+    sellerContactPct?: number;
+    auctionDatePct?: number;
+    sourceLinkPct?: number;
+  };
+};
+
+type SourceScopeStatus = {
+  status: "ready" | "empty" | "no_match" | "unfiltered" | string;
+  label: string;
+  message: string;
+  nextAction: string;
+  scopeLabel?: string;
+};
+
+type ScrapePlanSource = {
+  id: string;
+  name: string;
+  readiness: string;
+  runnable: boolean;
+  action: string;
+  estimatedDealsPerRun?: number;
+};
+
+type ScrapePlanGate = {
+  id: string;
+  label: string;
+  status: "ready" | "missing" | "partial";
+  nextStep: string;
+  actionLabel?: string;
+};
+
+type ScrapePlanResult = {
+  canImport: boolean;
+  scraperControlReady: boolean;
+  sourceIds?: string[];
+  requestedSourceIds?: string[];
+  mismatchedSourceIds?: string[];
+  dealerSourceIds?: string[];
+  gates: ScrapePlanGate[];
+  sources: ScrapePlanSource[];
+  summary: {
+    total: number;
+    runnable: number;
+    heldBack: number;
+    estimatedDealsPerRun: number;
+    firstBlocker?: string | null;
+  };
+  message?: string;
+};
+
+function normalizeMaxPriceFilter(value: unknown) {
+  if (value == null || value === "" || value === "any") return "any";
+  const raw = String(value).trim().toLowerCase();
+  if (raw.endsWith("k")) {
+    const amount = Number(raw.replace("k", ""));
+    return Number.isFinite(amount) ? String(amount * 1000) : "any";
+  }
+  const digits = raw.replace(/[^0-9]/g, "");
+  return digits ? digits : "any";
+}
+
+function formatMaxPriceFilter(value: string) {
+  const normalized = normalizeMaxPriceFilter(value);
+  if (normalized === "any") return null;
+  return `$${Number(normalized).toLocaleString()}`;
+}
 
 function mapDealToResult(deal: Deal): ScanResult {
   const images = Array.isArray(deal.images) ? deal.images : [];
@@ -119,6 +269,11 @@ function mapDealToResult(deal: Deal): ScanResult {
       images,
       imageUrl: images[0],
       vin: deal.vin,
+      titleType:
+        (deal as any).titleType ||
+        (deal as any).title_type ||
+        (deal as any).titleStatus ||
+        (deal as any).title_status,
       condition: deal.condition,
       damageType: deal.damageType,
       mileage: deal.mileage,
@@ -127,12 +282,20 @@ function mapDealToResult(deal: Deal): ScanResult {
       askPrice: deal.askPrice,
       seller: deal.seller,
       sellerType: deal.sellerType,
+      sellerPhone: deal.contact?.phone,
+      sellerEmail: deal.contact?.email,
+      sellerContactUrl:
+        (deal as any).sellerContactUrl ||
+        (deal.contact as any)?.url ||
+        deal.contact?.listingUrl,
+      auctionEndAt: deal.auctionEndAt,
       sourceUrl: deal.sourceUrl,
     });
 
   return {
     id: deal.id,
     source: deal.source,
+    title: deal.title,
     year: deal.year ?? 0,
     make: deal.make || "",
     model: deal.model || "",
@@ -148,10 +311,34 @@ function mapDealToResult(deal: Deal): ScanResult {
     mileage: deal.mileage,
     condition: deal.condition,
     damageType: deal.damageType,
+    titleType:
+      (deal as any).titleType ||
+      (deal as any).title_type ||
+      (deal as any).titleStatus ||
+      (deal as any).title_status,
     dealVerdict: deal.dealVerdict,
     recommendedMaxBid: deal.recommendedMaxBid,
     sellEstimate: deal.sellEstimate,
+    sellBasis:
+      (deal as any).sellBasis ||
+      (deal as any).dealAnalysis?.sellBasis ||
+      (deal as any).deal_analysis?.sellBasis ||
+      (deal as any).valuation?.basis,
+    valuation:
+      (deal as any).valuation ||
+      (deal as any).dealAnalysis?.valuation ||
+      (deal as any).deal_analysis?.valuation,
+    soldAnchored:
+      (deal as any).soldAnchored ||
+      (deal as any).dealAnalysis?.soldAnchored ||
+      (deal as any).deal_analysis?.soldAnchored,
     repairEstimate: (deal as any).repair_estimate ?? 0,
+    transportEstimate: (deal as any).transport_cost ?? undefined,
+    warnings:
+      (deal as any).warnings ||
+      (deal as any).dealAnalysis?.warnings ||
+      (deal as any).deal_analysis?.warnings ||
+      [],
     auctionEnds: deal.auctionEndAt
       ? new Date(deal.auctionEndAt).toLocaleDateString()
       : "Active",
@@ -166,6 +353,12 @@ function mapDealToResult(deal: Deal): ScanResult {
     sourceUrl: deal.sourceUrl,
     seller: deal.seller,
     sellerType: deal.sellerType,
+    sellerPhone: (deal as any).sellerPhone || deal.contact?.phone,
+    sellerEmail: (deal as any).sellerEmail || deal.contact?.email,
+    sellerContactUrl:
+      (deal as any).sellerContactUrl ||
+      (deal.contact as any)?.url ||
+      deal.contact?.listingUrl,
     dataQuality: {
       score: quality.score,
       label: quality.label,
@@ -175,6 +368,7 @@ function mapDealToResult(deal: Deal): ScanResult {
           : fieldLabel(field),
       ),
     },
+    trustExplanation: (deal as any).trustExplanation,
   };
 }
 
@@ -195,7 +389,7 @@ function ToastStack({
 }) {
   if (!toasts.length) return null;
   return (
-    <div className="fixed bottom-6 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none">
+    <div className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-3 z-40 flex max-w-[calc(100vw-24px)] flex-col gap-2 items-end pointer-events-none md:bottom-6 md:right-4 md:z-50 md:max-w-none">
       {toasts.map((t) => (
         <div
           key={t.id}
@@ -265,7 +459,8 @@ function StatusStrip({
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     results.forEach((r) => {
-      counts[r.source] = (counts[r.source] || 0) + 1;
+      const source = displaySource(r.source, r.sourceUrl);
+      counts[source] = (counts[source] || 0) + 1;
     });
     return counts;
   }, [results]);
@@ -344,9 +539,474 @@ function StatusStrip({
   );
 }
 
+function pct(part: number, total: number) {
+  if (!total) return 0;
+  return Math.round((part / total) * 100);
+}
+
+function ScopeQualityPanel({
+  results,
+  sourceHealthById,
+}: {
+  results: ScanResult[];
+  sourceHealthById: Map<string, SourceHealthItem>;
+}) {
+  const summary = useMemo(() => {
+    const total = results.length;
+    const count = (ok: (row: ScanResult) => boolean) =>
+      results.reduce((sum, row) => sum + (ok(row) ? 1 : 0), 0);
+    const scoreTotal = results.reduce(
+      (sum, row) => sum + (Number(row.dataQuality?.score) || 0),
+      0,
+    );
+    const sourceIds = new Set(results.map((row) => row.source).filter(Boolean));
+    const scopedSourceIds = Array.from(sourceIds);
+    const readySources = scopedSourceIds.filter((id) => {
+      const health = sourceHealthById.get(id);
+      return health?.readiness === "ready" || health?.readiness === "needs_run";
+    }).length;
+    const freshestHours = scopedSourceIds.reduce<number | null>((best, id) => {
+      const hours = sourceHealthById.get(id)?.freshnessHours;
+      if (typeof hours !== "number" || !Number.isFinite(hours)) return best;
+      return best == null ? hours : Math.min(best, hours);
+    }, null);
+
+    return {
+      total,
+      avgQuality: total ? Math.round(scoreTotal / total) : 0,
+      photoPct: pct(
+        count((row) => Boolean(row.imageUrl)),
+        total,
+      ),
+      vinPct: pct(
+        count((row) => Boolean(row.vin)),
+        total,
+      ),
+      titlePct: pct(
+        count((row) => Boolean(row.titleType || row.condition)),
+        total,
+      ),
+      mileagePct: pct(
+        count((row) => Number(row.mileage || 0) > 0),
+        total,
+      ),
+      sellerPct: pct(
+        count((row) => Boolean(row.seller || row.sellerType)),
+        total,
+      ),
+      sourceLinkPct: pct(
+        count((row) => Boolean(row.sourceUrl)),
+        total,
+      ),
+      damagePct: pct(
+        count((row) => Boolean(row.condition || row.damageType)),
+        total,
+      ),
+      pricePct: pct(
+        count((row) => Number(row.askPrice || 0) > 0),
+        total,
+      ),
+      sellerContactPct: pct(
+        count((row) =>
+          Boolean(row.sellerPhone || row.sellerEmail || row.sellerContactUrl),
+        ),
+        total,
+      ),
+      auctionDatePct: pct(
+        count((row) => Boolean(row.auctionEndAt)),
+        total,
+      ),
+      sourceCount: sourceIds.size,
+      readySources,
+      freshestHours,
+    };
+  }, [results, sourceHealthById]);
+
+  if (!summary.total) return null;
+
+  const fields = [
+    { label: "Photos", value: summary.photoPct },
+    { label: "VIN", value: summary.vinPct },
+    { label: "Title/detail", value: summary.titlePct },
+    { label: "Condition", value: summary.damagePct },
+    { label: "Price", value: summary.pricePct },
+    { label: "Mileage", value: summary.mileagePct },
+    { label: "Seller", value: summary.sellerPct },
+    { label: "Contact", value: summary.sellerContactPct },
+    { label: "Auction date", value: summary.auctionDatePct },
+    { label: "Source link", value: summary.sourceLinkPct },
+  ];
+  const weakFields = fields.filter((item) => item.value < 70).slice(0, 3);
+  const criticalMissing = [
+    summary.vinPct < 70 ? "VIN" : null,
+    summary.mileagePct < 70 ? "mileage" : null,
+    summary.sellerContactPct < 70 ? "seller contact" : null,
+    summary.auctionDatePct < 70 ? "auction timing" : null,
+  ].filter(Boolean) as string[];
+  const buyerVerdict =
+    summary.avgQuality >= 78 &&
+    summary.photoPct >= 85 &&
+    summary.sourceLinkPct >= 85 &&
+    criticalMissing.length === 0
+      ? {
+          label: "Buyer-ready",
+          tone: "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]",
+          detail:
+            "This scope has enough proof for confident shortlisting. Still inspect individual listings before bidding.",
+          action: "Sort by Trust and save the best candidates.",
+        }
+      : summary.photoPct >= 70 && summary.sourceLinkPct >= 70
+        ? {
+            label: "Inspect-first",
+            tone: "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+            detail:
+              "The source is usable, but the buyer should verify weak fields before acting.",
+            action: criticalMissing.length
+              ? `Verify ${criticalMissing.slice(0, 3).join(", ")} on the original listing.`
+              : "Open the original listing and confirm title, fees, transport, and resale comps.",
+          }
+        : {
+            label: "Thin proof",
+            tone: "border-[var(--b2)] bg-[var(--s0)] text-[var(--t4)]",
+            detail:
+              "This result set is too thin for a serious buyer decision without more proof.",
+            action:
+              "Broaden the scope, check Source Health, or run/import a fresher matching source.",
+          };
+  const freshness =
+    summary.freshestHours == null
+      ? "freshness pending"
+      : summary.freshestHours < 1
+        ? "seen this hour"
+        : summary.freshestHours < 24
+          ? `${summary.freshestHours}h fresh`
+          : `${Math.round(summary.freshestHours / 24)}d fresh`;
+
+  return (
+    <section className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+            Scope quality
+          </div>
+          <h2 className="mt-1 text-base font-black text-[var(--t1)]">
+            {summary.total.toLocaleString()} rows · {summary.avgQuality}/100
+            detail
+          </h2>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
+            This grades only the vehicles currently shown. It tells a buyer
+            whether the result set has enough proof to trust photos, VIN,
+            title/detail, mileage, seller, and original source links.
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--glo)] px-3 py-2">
+            <div className="font-black text-[var(--green)]">
+              {summary.readySources}/{summary.sourceCount}
+            </div>
+            <div className="text-[var(--t5)]">sources ready</div>
+          </div>
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">
+              {summary.photoPct}%
+            </div>
+            <div className="text-[var(--t5)]">photo proof</div>
+          </div>
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">{freshness}</div>
+            <div className="text-[var(--t5)]">freshest source</div>
+          </div>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "mt-4 rounded-[var(--r2)] border px-3 py-2.5",
+          buyerVerdict.tone,
+        )}
+      >
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em]">
+              Buyer data verdict
+            </div>
+            <p className="mt-1 text-sm font-black">{buyerVerdict.label}</p>
+          </div>
+          <p className="max-w-2xl text-xs font-semibold leading-relaxed text-[var(--t3)]">
+            {buyerVerdict.detail} {buyerVerdict.action}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {fields.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2"
+          >
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-black text-[var(--t2)]">{item.label}</span>
+              <span
+                className={cn(
+                  "font-black",
+                  item.value >= 85
+                    ? "text-[var(--green)]"
+                    : item.value >= 60
+                      ? "text-[var(--amber-d)]"
+                      : "text-[var(--red)]",
+                )}
+              >
+                {item.value}%
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--s2)]">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${item.value}%`,
+                  background:
+                    item.value >= 85
+                      ? "var(--green)"
+                      : item.value >= 60
+                        ? "var(--amber)"
+                        : "var(--red)",
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      {weakFields.length > 0 && (
+        <p className="mt-3 text-[11px] leading-relaxed text-[var(--t4)]">
+          Weakest proof in this scope:{" "}
+          <span className="font-bold text-[var(--t2)]">
+            {weakFields
+              .map((field) => `${field.label} ${field.value}%`)
+              .join(", ")}
+          </span>
+          . Treat those listings as inspect-first until the source provides
+          better detail.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function money(value?: number | null) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function ScanReviewStrip({
+  results,
+  sourceHealthById,
+  href,
+}: {
+  results: ScanResult[];
+  sourceHealthById: Map<string, SourceHealthItem>;
+  href: string;
+}) {
+  if (!results.length) return null;
+
+  const best = results.reduce(
+    (winner, row) => {
+      if (!winner) return row;
+      if ((row.profitScore || 0) !== (winner.profitScore || 0)) {
+        return (row.profitScore || 0) > (winner.profitScore || 0)
+          ? row
+          : winner;
+      }
+      return (row.profitEstimate || 0) > (winner.profitEstimate || 0)
+        ? row
+        : winner;
+    },
+    null as ScanResult | null,
+  );
+  const avgProfit = Math.round(
+    results.reduce((sum, row) => sum + (row.profitEstimate || 0), 0) /
+      Math.max(results.length, 1),
+  );
+  const photoRows = results.filter((row) => Boolean(row.imageUrl)).length;
+  const qualityRows = results.filter(
+    (row) => (row.dataQuality?.score || 0) >= 70,
+  ).length;
+  const sourceIds = new Set(results.map((row) => row.source).filter(Boolean));
+  const readySources = Array.from(sourceIds).filter(
+    (source) => sourceHealthById.get(source)?.readiness === "ready",
+  ).length;
+  const photoPct = Math.round((photoRows / Math.max(results.length, 1)) * 100);
+  const qualityPct = Math.round(
+    (qualityRows / Math.max(results.length, 1)) * 100,
+  );
+  const bestTitle = best
+    ? [best.year, best.make, best.model].filter(Boolean).join(" ")
+    : "Top match";
+
+  return (
+    <section className="glass-panel motion-enter overflow-hidden p-0">
+      <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="p-4 md:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+                Review queue
+              </p>
+              <h2 className="mt-1 text-lg font-black text-[var(--t1)] md:text-xl">
+                Start with {bestTitle}
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
+                This strip summarizes the visible ranked set before you scroll:
+                profit signal, proof quality, source health, and the safest next
+                action.
+              </p>
+            </div>
+            {best && (
+              <Link
+                href={`/deal/${best.id}`}
+                className="interactive-surface premium-focus inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--glo)] px-3 py-2 text-xs font-black text-[var(--green)]"
+              >
+                Open best match
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            )}
+          </div>
+
+          <div className="stagger-children mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                label: "Visible rows",
+                value: results.length.toLocaleString(),
+                detail: "after filters",
+                Icon: Sparkles,
+              },
+              {
+                label: "Avg profit",
+                value: money(avgProfit),
+                detail: "modeled, verify",
+                Icon: TrendingUp,
+              },
+              {
+                label: "Photo proof",
+                value: `${photoPct}%`,
+                detail: `${photoRows}/${results.length} rows`,
+                Icon: Camera,
+              },
+              {
+                label: "Ready sources",
+                value: `${readySources}/${sourceIds.size || 1}`,
+                detail: "source health",
+                Icon: ShieldCheck,
+              },
+            ].map(({ label, value, detail, Icon }) => (
+              <div
+                key={label}
+                className="interactive-surface rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
+                    {label}
+                  </span>
+                  <Icon
+                    className="h-3.5 w-3.5 text-[var(--t4)]"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="mt-2 text-base font-black text-[var(--t1)]">
+                  {value}
+                </div>
+                <div className="text-[11px] font-semibold text-[var(--t5)]">
+                  {detail}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--b1)] bg-[var(--s1)] p-4 md:p-5 lg:border-l lg:border-t-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+            Action order
+          </p>
+          <div className="mt-3 space-y-2">
+            {[
+              [
+                "1",
+                "Open best match",
+                "Check photos, VIN, title, source proof.",
+              ],
+              [
+                "2",
+                "Verify max bid",
+                "Confirm costs before bidding or calling.",
+              ],
+              [
+                "3",
+                "Save or move on",
+                "Keep the row only if the proof is real.",
+              ],
+            ].map(([step, title, detail]) => (
+              <div
+                key={step}
+                className="flex gap-3 rounded-[var(--r2)] bg-[var(--s0)] p-2.5"
+              >
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--t1)] text-[11px] font-black text-[var(--s0)]">
+                  {step}
+                </span>
+                <div>
+                  <div className="text-xs font-black text-[var(--t1)]">
+                    {title}
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--t4)]">
+                    {detail}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Link
+            href={href}
+            className="interactive-surface premium-focus mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+          >
+            Refresh this ranked scope
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+          <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
+            {qualityPct}% of visible rows have strong listing detail. Thin rows
+            should stay inspect-first until VIN, mileage, title, contact, and
+            original source proof improve.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 
-function EmptyState({ onRetry }: { onRetry: () => void }) {
+function EmptyState({
+  onRetry,
+  sourceHealth = [],
+  broadHref = "/scan?sort=profit",
+}: {
+  onRetry: () => void;
+  sourceHealth?: SourceHealthItem[];
+  broadHref?: string;
+}) {
+  const checkedSources = sourceHealth.filter((item) =>
+    ["ready", "no_rows", "needs_run"].includes(item.readiness),
+  );
+  const blockedSources = sourceHealth.filter((item) =>
+    ["needs_login", "blocked", "disabled", "not_configured"].includes(
+      item.readiness,
+    ),
+  );
+  const scopedRows = sourceHealth.reduce(
+    (sum, item) => sum + (Number(item.activeRows) || 0),
+    0,
+  );
+  const hasScopedProof = sourceHealth.length > 0;
+
   return (
     <div
       className="flex flex-col items-center justify-center text-center py-20 px-6 rounded-2xl"
@@ -398,22 +1058,57 @@ function EmptyState({ onRetry }: { onRetry: () => void }) {
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        Scanning for deals
+        {hasScopedProof
+          ? "No matches in this exact scope"
+          : "Scanning for deals"}
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
-        We’re continuously scanning thousands of listings for profitable flips.
-        Nothing matches your current view yet — try widening your filters, or
-        check back in a few minutes as fresh deals land.
+        {hasScopedProof
+          ? "The selected source path is reachable, but the current lane, state, keyword, dealer, price, or title filters do not return active vehicles together. Broaden one filter to see what inventory is available."
+          : "We’re continuously scanning thousands of listings for profitable flips. Nothing matches your current view yet — try widening your filters, or check back in a few minutes as fresh deals land."}
       </p>
 
-      <button
-        onClick={onRetry}
-        className="flex items-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
-        style={{ background: "var(--grad)" }}
-      >
-        <Ico name="refresh" size={16} />
-        Refresh Now
-      </button>
+      {hasScopedProof && (
+        <div className="mb-6 grid w-full max-w-xl grid-cols-3 gap-2 text-xs">
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">
+              {checkedSources.length}
+            </div>
+            <div className="text-[var(--t5)]">sources checked</div>
+          </div>
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">
+              {scopedRows.toLocaleString()}
+            </div>
+            <div className="text-[var(--t5)]">rows in scope</div>
+          </div>
+          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+            <div className="font-black text-[var(--t1)]">
+              {blockedSources.length}
+            </div>
+            <div className="text-[var(--t5)]">blocked</div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          onClick={onRetry}
+          className="flex items-center justify-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
+          style={{ background: "var(--grad)" }}
+        >
+          <Ico name="refresh" size={16} />
+          Refresh Now
+        </button>
+        {hasScopedProof && (
+          <Link
+            href={broadHref}
+            className="flex items-center justify-center rounded-xl border border-[var(--b2)] bg-[var(--s1)] px-5 py-2.5 text-sm font-bold text-[var(--t2)] transition-colors hover:text-[var(--t1)]"
+          >
+            Broaden search
+          </Link>
+        )}
+      </div>
 
       <style>{`
         @keyframes pulse-ring {
@@ -457,7 +1152,10 @@ function SmartDataPlanCard({
   showingPreview,
   proof,
   importRun,
+  importPlan,
   readinessItems,
+  sourceHealth,
+  scopeStatus,
   message,
 }: {
   configured: boolean;
@@ -472,7 +1170,10 @@ function SmartDataPlanCard({
   showingPreview: boolean;
   proof: PreviewProofItem[];
   importRun: ImportRunItem[];
+  importPlan: ScrapePlanResult | null;
   readinessItems: ReadinessItem[];
+  sourceHealth: SourceHealthItem[];
+  scopeStatus?: SourceScopeStatus | null;
   message: string | null;
 }) {
   const ready = configured && total > 0;
@@ -497,27 +1198,250 @@ function SmartDataPlanCard({
     0,
   );
   const importSuccesses = importRun.filter((item) => item.success).length;
+  const importFailures = importRun.filter((item) => !item.success);
+  const importEmptySuccesses = importRun.filter(
+    (item) => item.success && (item.dealsFound || 0) === 0,
+  );
+  const runHealthBySource = new Map(
+    sourceHealth.map((item) => [item.id, item]),
+  );
+  const postRunProof = importRun
+    .map((item) => {
+      const health =
+        runHealthBySource.get(item.source) ||
+        (item.source === "curated_dealers"
+          ? sourceHealth.find(
+              (source) =>
+                source.id !== "curated_dealers" && source.readiness === "ready",
+            )
+          : undefined);
+      return { ...item, health };
+    })
+    .filter((item) => item.success || item.health || item.error);
+  const postRunThinFields = Array.from(
+    new Set(
+      postRunProof.flatMap((item) => {
+        const c = item.health?.completeness || {};
+        return [
+          ["VIN", c.vinPct],
+          ["mileage", c.mileagePct],
+          ["seller contact", c.sellerContactPct],
+          ["auction date", c.auctionDatePct],
+          ["source link", c.sourceLinkPct],
+          ["photos", c.photosPct],
+        ]
+          .filter(
+            ([, value]) => typeof value === "number" && Number(value) < 70,
+          )
+          .map(([label]) => String(label));
+      }),
+    ),
+  );
+  const postRunReadyRows = postRunProof.reduce(
+    (sum, item) => sum + Number(item.health?.activeRows || 0),
+    0,
+  );
+  const postRunPhotos = postRunProof.reduce(
+    (sum, item) => sum + Number(item.health?.rowsWithPhotos || 0),
+    0,
+  );
+  const importOutcome =
+    importRun.length === 0
+      ? null
+      : importedRows > 0
+        ? {
+            tone: "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]",
+            label: "Rows saved",
+            detail:
+              "Open matching rows, check completeness, then save/watch the best candidates.",
+          }
+        : importFailures.length === importRun.length
+          ? {
+              tone: "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+              label: "All sources failed",
+              detail:
+                "Inspect source errors and source proof before rerunning this scope.",
+            }
+          : {
+              tone: "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+              label: "No matching rows",
+              detail:
+                "The run completed, but this exact scope is empty. Broaden state, budget, keyword, or dealer targets.",
+            };
+  const blockingImportItems = importReadiness.filter(
+    (item) => item.status !== "ready",
+  );
+  const nextImportGate = blockingImportItems[0] || null;
+  const selectedHealthIds = new Set([
+    ...plan.sourceIds,
+    ...(((plan.scope as { dealerSourceIds?: string[] }).dealerSourceIds ||
+      []) as string[]),
+  ]);
+  const selectedHealth = sourceHealth
+    .filter((item) => selectedHealthIds.has(item.id))
+    .sort((a, b) => {
+      const rank: Record<string, number> = {
+        ready: 0,
+        no_rows: 1,
+        needs_run: 2,
+        needs_login: 3,
+        blocked: 4,
+        not_configured: 5,
+        disabled: 6,
+      };
+      const ar = rank[a.readiness] ?? 9;
+      const br = rank[b.readiness] ?? 9;
+      if (ar !== br) return ar - br;
+      return (b.activeRows || 0) - (a.activeRows || 0);
+    });
+  const selectedReady = selectedHealth.filter(
+    (item) => item.readiness === "ready",
+  );
+  const selectedNeedsLogin = selectedHealth.filter(
+    (item) => item.readiness === "needs_login",
+  );
+  const selectedRunnable = selectedHealth.filter((item) =>
+    ["ready", "no_rows", "needs_run", "not_configured"].includes(
+      item.readiness,
+    ),
+  );
+  const selectedBlocked = selectedHealth.filter((item) =>
+    ["needs_login", "blocked", "disabled"].includes(item.readiness),
+  );
+  const selectedRows = selectedHealth.reduce(
+    (sum, item) => sum + (Number(item.activeRows) || 0),
+    0,
+  );
+  const hasNoMatchingSources = plan.sourceIds.length === 0;
+  const hasScopeNoMatch =
+    hasNoMatchingSources || scopeStatus?.status === "no_match";
+  const hasScopeEmpty = scopeStatus?.status === "empty";
+  const plannedSourceHref = `/sources?${new URLSearchParams({
+    lane: String(plan.scope.lane || "all"),
+    ...(plan.filters.state ? { state: plan.filters.state } : {}),
+    ...(plan.filters.q ? { q: plan.filters.q } : {}),
+    ...(plan.scope.sellerType
+      ? { sellerType: String(plan.scope.sellerType) }
+      : {}),
+    ...(plan.scope.maxPrice ? { maxPrice: String(plan.scope.maxPrice) } : {}),
+    ...(Array.isArray(plan.scope.dealerSourceIds) &&
+    plan.scope.dealerSourceIds.length
+      ? { dealerSourceIds: plan.scope.dealerSourceIds.join(",") }
+      : {}),
+  }).toString()}`;
+  const readinessLabel: Record<string, string> = {
+    ready: "Ready",
+    no_rows: "No rows",
+    needs_run: "Needs run",
+    needs_login: "Needs login",
+    blocked: "Blocked",
+    not_configured: "Setup",
+    disabled: "Disabled",
+  };
+  const readinessTone = (status: string) => {
+    if (status === "ready") return "text-[var(--green)]";
+    if (status === "no_rows" || status === "needs_run")
+      return "text-[var(--amber-d)]";
+    if (status === "needs_login" || status === "blocked")
+      return "text-[var(--red)]";
+    return "text-[var(--t5)]";
+  };
+  const sourceProofText = (item: SourceHealthItem) => {
+    const lastRun = item.lastRunAt
+      ? `ran ${new Date(item.lastRunAt).toLocaleDateString()}`
+      : "never run";
+    const freshness =
+      typeof item.freshnessHours === "number"
+        ? item.freshnessHours < 24
+          ? `${item.freshnessHours}h fresh`
+          : `${Math.round(item.freshnessHours / 24)}d fresh`
+        : item.lastSeenAt
+          ? `seen ${new Date(item.lastSeenAt).toLocaleDateString()}`
+          : "no rows seen";
+    return `${lastRun} · ${freshness}`;
+  };
+  const sourceListText = (sourceIds: string[], limit = 5) => {
+    if (!sourceIds.length) return "";
+    const visible = sourceIds
+      .slice(0, limit)
+      .map((sourceId) => sourceMeta(sourceId).label)
+      .join(", ");
+    return `${visible}${sourceIds.length > limit ? `, +${sourceIds.length - limit} more` : ""}`;
+  };
+  const runContract = [
+    {
+      label: "Buying lane",
+      value: String(plan.scope.lane || "all"),
+      detail:
+        plan.scope.titleType || plan.filters.q || "All title and vehicle types",
+    },
+    {
+      label: "Market",
+      value: plan.filters.state || "Nationwide",
+      detail: plan.scope.maxPrice
+        ? `Up to $${Number(plan.scope.maxPrice).toLocaleString()}`
+        : "No budget cap",
+    },
+    {
+      label: "Dealer targets",
+      value:
+        Array.isArray(plan.scope.dealerSourceIds) &&
+        plan.scope.dealerSourceIds.length
+          ? `${plan.scope.dealerSourceIds.length} selected source${
+              plan.scope.dealerSourceIds.length === 1 ? "" : "s"
+            }`
+          : Array.isArray(plan.scope.dealerHosts) &&
+              plan.scope.dealerHosts.length
+            ? `${plan.scope.dealerHosts.length} selected host${
+                plan.scope.dealerHosts.length === 1 ? "" : "s"
+              }`
+            : "Any matching seller",
+      detail:
+        Array.isArray(plan.scope.dealerSourceIds) &&
+        plan.scope.dealerSourceIds.length
+          ? sourceListText(plan.scope.dealerSourceIds)
+          : Array.isArray(plan.scope.dealerHosts) &&
+              plan.scope.dealerHosts.length
+            ? plan.scope.dealerHosts.join(", ")
+            : "No specific dealer target filter",
+    },
+    {
+      label: "Search discipline",
+      value: `${plan.sourceIds.length} source${plan.sourceIds.length === 1 ? "" : "s"}`,
+      detail: hasNoMatchingSources
+        ? "No source matches this exact lane and seller type"
+        : "Searches this scope only, not the whole catalog",
+    },
+  ];
 
   return (
-    <section className="glass-panel p-4 md:p-5">
+    <motion.section
+      className="glass-panel p-4 md:p-5"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-            Smart data plan
+            Buyer search plan
           </p>
           <h2 className="text-lg font-black text-[var(--t1)]">
-            {ready
-              ? "Live inventory is being filtered by your buying intent."
-              : showingPreview
-                ? "Showing real public preview rows while setup is pending."
-                : configured
-                  ? "Connected, but this search has no matching live rows yet."
-                  : "Real data is waiting on provider setup."}
+            {hasScopeNoMatch
+              ? "This buyer scope has no safe source match."
+              : hasScopeEmpty
+                ? scopeStatus?.label || "No ready source rows yet."
+                : ready
+                  ? "Live inventory is being filtered by your buying intent."
+                  : showingPreview
+                    ? "Showing real public preview rows while setup is pending."
+                    : configured
+                      ? "Connected, but this search has no matching live rows yet."
+                      : "Real data is waiting on provider setup."}
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
-            This view will fetch only the relevant source lane, then normalize
-            photos, VIN, mileage, title, state, price, seller, and source URL
-            into the deal cards.
+            {scopeStatus?.message ||
+              "MikeHunt searches only the sources that match this market, lane, seller type, and dealer target, then turns the results into photo-backed deal cards."}
           </p>
           {!configured && (
             <Link
@@ -530,43 +1454,79 @@ function SmartDataPlanCard({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button
+          <motion.button
             type="button"
             onClick={onPreview}
             disabled={previewing || running}
+            whileTap={{ scale: 0.98 }}
             className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)] transition-transform active:scale-[0.98] disabled:opacity-60"
           >
             <Ico name="scan" size={15} />
-            {previewing ? "Planning..." : "Preview source plan"}
-          </button>
+            {previewing ? "Checking..." : "Check sources"}
+          </motion.button>
           {!configured && (
-            <button
+            <motion.button
               type="button"
               onClick={onLivePreview}
               disabled={previewing || running || livePreviewing}
+              whileTap={{ scale: 0.98 }}
               className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)] transition-transform active:scale-[0.98] disabled:opacity-60"
             >
               <Ico name="search" size={15} />
               {livePreviewing ? "Fetching..." : "Live public preview"}
-            </button>
+            </motion.button>
           )}
-          <button
+          <motion.button
             type="button"
             onClick={onRun}
-            disabled={!configured || previewing || running}
+            disabled={previewing || running || hasScopeNoMatch}
+            whileTap={{ scale: 0.98 }}
             className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] px-4 py-2.5 text-sm font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
             style={{ background: "var(--grad)" }}
             title={
-              configured
-                ? "Run only the selected source lane."
-                : "Connect Supabase and auth before importing live inventory."
+              hasNoMatchingSources
+                ? "Change lane or seller type before running."
+                : configured
+                  ? "Search only the selected sources."
+                  : "Show the exact data setup path for this scope."
             }
           >
             <Ico name="refresh" size={15} />
-            {running ? "Running..." : "Run matching sources"}
-          </button>
+            {running
+              ? "Running..."
+              : hasNoMatchingSources
+                ? "No matching sources"
+                : configured
+                  ? "Search selected sources"
+                  : "Finish setup"}
+          </motion.button>
         </div>
       </div>
+
+      {hasScopeNoMatch && (
+        <div className="mt-4 rounded-[var(--r3)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-4 py-3">
+          <div className="text-sm font-black text-[var(--amber-d)]">
+            {scopeStatus?.label || "This scope has no safe source match."}
+          </div>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--t3)]">
+            {scopeStatus?.message ||
+              "The selected lane and seller type conflict, so MikeHunt will not run a broad fallback search."}{" "}
+            {scopeStatus?.nextAction ||
+              "Change seller type, lane, or dealer targets to preview sources again."}
+          </p>
+        </div>
+      )}
+
+      {hasScopeEmpty && !hasScopeNoMatch && (
+        <div className="mt-4 rounded-[var(--r3)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-4 py-3">
+          <div className="text-sm font-black text-[var(--amber-d)]">
+            {scopeStatus?.label || "No ready rows yet."}
+          </div>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--t3)]">
+            {scopeStatus?.message} {scopeStatus?.nextAction}
+          </p>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
@@ -577,7 +1537,9 @@ function SmartDataPlanCard({
             {plan.sourceIds.length} selected
           </div>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
-            {plan.sourceIds.join(", ")}
+            {hasScopeNoMatch
+              ? "No search starts until the buyer scope has a matching source lane."
+              : sourceListText(plan.sourceIds)}
           </p>
         </div>
         <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
@@ -590,6 +1552,7 @@ function SmartDataPlanCard({
           <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
             {plan.filters.state || "Nationwide"} ·{" "}
             {plan.filters.q || "all vehicles"}
+            {plan.scope.sellerType ? ` · ${plan.scope.sellerType} sellers` : ""}
           </p>
         </div>
         <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
@@ -597,19 +1560,67 @@ function SmartDataPlanCard({
             Status
           </div>
           <div className="mt-1 text-base font-black text-[var(--t1)]">
-            {configured
-              ? `${total.toLocaleString()} rows`
-              : showingPreview
-                ? `${total.toLocaleString()} preview rows`
-                : "setup needed"}
+            {hasScopeNoMatch
+              ? "adjust filters"
+              : configured
+                ? `${total.toLocaleString()} rows`
+                : showingPreview
+                  ? `${total.toLocaleString()} preview rows`
+                  : "setup needed"}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
-            {configured
-              ? "Scan is querying the live deals table."
-              : showingPreview
-                ? "Preview rows are fetched live and are not saved yet."
-                : "Add real Supabase/Auth keys and run an ingestion job."}
+            {hasScopeNoMatch
+              ? "No data path will run for this conflicting scope."
+              : configured
+                ? "Scan is reading the live deal table."
+                : showingPreview
+                  ? "Preview rows are fetched live and are not saved yet."
+                  : "Connect data/auth keys and search selected sources."}
           </p>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+              Search promise
+            </div>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
+              MikeHunt only looks for inventory that matches this buyer intent,
+              then shows source proof and completeness on the matching rows.
+              This keeps results useful and avoids collecting cars the buyer did
+              not ask for.
+            </p>
+          </div>
+          <Link
+            href={plannedSourceHref}
+            className="shrink-0 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t2)] hover:text-[var(--accent)]"
+          >
+            Source details
+          </Link>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {runContract.map((item, index) => (
+            <motion.div
+              key={item.label}
+              className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.035, duration: 0.18 }}
+              whileHover={{ y: -2 }}
+            >
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                {item.label}
+              </div>
+              <div className="mt-1 truncate text-sm font-black text-[var(--t1)]">
+                {item.value}
+              </div>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--t4)]">
+                {item.detail}
+              </p>
+            </motion.div>
+          ))}
         </div>
       </div>
 
@@ -619,16 +1630,435 @@ function SmartDataPlanCard({
         </div>
       )}
 
+      {importRun.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Post-run proof
+              </div>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
+                This is what the last scoped source search returned for this
+                buyer intent. Use it to decide whether to inspect, broaden, or
+                verify weak fields before bidding.
+              </p>
+            </div>
+            <div
+              className={cn(
+                "rounded-[var(--r2)] border px-3 py-2 text-xs font-black uppercase",
+                importOutcome?.tone ||
+                  "border-[var(--b1)] bg-[var(--s0)] text-[var(--t3)]",
+              )}
+            >
+              {importOutcome?.label || "Run complete"}
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                Found
+              </div>
+              <div className="mt-1 text-lg font-black text-[var(--t1)]">
+                {importedRows.toLocaleString()}
+              </div>
+              <p className="mt-1 text-[11px] text-[var(--t4)]">
+                rows reported by the run
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                Current proof
+              </div>
+              <div className="mt-1 text-lg font-black text-[var(--t1)]">
+                {postRunReadyRows.toLocaleString()}
+              </div>
+              <p className="mt-1 text-[11px] text-[var(--t4)]">
+                scoped live rows after search
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                Photos
+              </div>
+              <div className="mt-1 text-lg font-black text-[var(--t1)]">
+                {postRunPhotos.toLocaleString()}
+              </div>
+              <p className="mt-1 text-[11px] text-[var(--t4)]">
+                rows with image proof
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                Verify next
+              </div>
+              <div className="mt-1 line-clamp-1 text-sm font-black text-[var(--t1)]">
+                {postRunThinFields.length
+                  ? postRunThinFields.slice(0, 2).join(", ")
+                  : "Ready for review"}
+              </div>
+              <p className="mt-1 text-[11px] text-[var(--t4)]">
+                {postRunThinFields.length
+                  ? `${postRunThinFields.length} weak field${postRunThinFields.length === 1 ? "" : "s"}`
+                  : "No major weak source fields"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {postRunProof.map((item) => (
+              <div
+                key={`${item.source}-${item.duration}`}
+                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-black text-[var(--t1)]">
+                    {item.health?.name || item.source}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase",
+                      item.success
+                        ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
+                        : "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+                    )}
+                  >
+                    {item.success ? "saved" : "failed"}
+                  </span>
+                </div>
+                <p className="mt-1 leading-relaxed text-[var(--t4)]">
+                  {item.dealsFound.toLocaleString()} found ·{" "}
+                  {Math.max(0, Math.round(item.duration / 100) / 10)}s run
+                  {item.health
+                    ? ` · ${Number(item.health.activeRows || 0).toLocaleString()} live rows · ${Number(
+                        item.health.photoCoveragePct || 0,
+                      )}% photos`
+                    : ""}
+                </p>
+                <p className="mt-1 line-clamp-2 leading-relaxed text-[var(--t5)]">
+                  {item.error ||
+                    item.health?.nextAction ||
+                    importOutcome?.detail ||
+                    "Open matching rows and review source proof."}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Link
+              href={`/scan?${new URLSearchParams({
+                lane: String(plan.scope.lane || "all"),
+                ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                ...(plan.filters.q ? { q: plan.filters.q } : {}),
+                ...(plan.scope.sellerType
+                  ? { sellerType: String(plan.scope.sellerType) }
+                  : {}),
+                ...(plan.scope.maxPrice
+                  ? { maxPrice: String(plan.scope.maxPrice) }
+                  : {}),
+                ...(Array.isArray(plan.scope.dealerHosts) &&
+                plan.scope.dealerHosts.length
+                  ? { dealers: plan.scope.dealerHosts.join(",") }
+                  : {}),
+                ...(Array.isArray(plan.scope.dealerSourceIds) &&
+                plan.scope.dealerSourceIds.length
+                  ? { dealerSourceIds: plan.scope.dealerSourceIds.join(",") }
+                  : {}),
+                sort: "fresh",
+              }).toString()}`}
+              className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)] hover:text-[var(--accent)]"
+            >
+              View matching rows
+            </Link>
+            <Link
+              href={plannedSourceHref}
+              className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)] hover:text-[var(--accent)]"
+            >
+              Inspect source proof
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {importPlan && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Planned source search
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
+                {importPlan.message ||
+                  "Exact source plan for this buyer scope."}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+              <div className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2">
+                <div className="font-black text-[var(--t1)]">
+                  {importPlan.summary.total}
+                </div>
+                <div className="text-[var(--t5)]">sources</div>
+              </div>
+              <div className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2">
+                <div className="font-black text-[var(--green)]">
+                  {importPlan.summary.runnable}
+                </div>
+                <div className="text-[var(--t5)]">ready</div>
+              </div>
+              <div className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2">
+                <div className="font-black text-[var(--amber-d)]">
+                  {importPlan.summary.heldBack}
+                </div>
+                <div className="text-[var(--t5)]">skipped</div>
+              </div>
+              <div className="rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2">
+                <div className="font-black text-[var(--t1)]">
+                  {Number(
+                    importPlan.summary.estimatedDealsPerRun || 0,
+                  ).toLocaleString()}
+                </div>
+                <div className="text-[var(--t5)]">est rows</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {importPlan.sources.slice(0, 8).map((source, index) => (
+              <motion.div
+                key={source.id}
+                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-xs"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.025, duration: 0.18 }}
+                whileHover={{ y: -2 }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-black text-[var(--t1)]">
+                    {source.name}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase",
+                      source.runnable
+                        ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
+                        : "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+                    )}
+                  >
+                    {source.runnable ? "ready" : source.readiness}
+                  </span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--t4)]">
+                  {source.action}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+          {importPlan.mismatchedSourceIds?.length ? (
+            <div className="mt-3 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-xs">
+              <div className="font-black uppercase tracking-wider text-[var(--amber-d)]">
+                Outside this buyer lane
+              </div>
+              <p className="mt-1 leading-relaxed text-[var(--t3)]">
+                {sourceListText(importPlan.mismatchedSourceIds)}{" "}
+                {importPlan.mismatchedSourceIds.length === 1 ? "was" : "were"}{" "}
+                skipped because{" "}
+                {importPlan.mismatchedSourceIds.length === 1 ? "it" : "they"} do
+                not match the selected {plan.scope.lane} lane.
+              </p>
+            </div>
+          ) : null}
+          {importPlan.dealerSourceIds?.length ? (
+            <div className="mt-3 rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--glo)] px-3 py-2 text-xs">
+              <div className="font-black uppercase tracking-wider text-[var(--green)]">
+                Dealer targets included
+              </div>
+              <p className="mt-1 leading-relaxed text-[var(--t3)]">
+                {sourceListText(importPlan.dealerSourceIds)} will be handled by
+                the curated dealer network for this selected lane.
+              </p>
+            </div>
+          ) : null}
+          {importPlan.gates.some((gate) => gate.status !== "ready") && (
+            <div className="mt-3 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-xs">
+              <div className="font-black uppercase tracking-wider text-[var(--amber-d)]">
+                Setup checks
+              </div>
+              <div className="mt-1 space-y-1 text-[var(--t3)]">
+                {importPlan.gates
+                  .filter((gate) => gate.status !== "ready")
+                  .map((gate) => (
+                    <div key={gate.id}>
+                      <span className="font-bold text-[var(--t2)]">
+                        {gate.label}:
+                      </span>{" "}
+                      {gate.nextStep}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedHealth.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Source readiness
+              </div>
+              <p className="text-xs text-[var(--t4)]">
+                {selectedReady.length} ready · {selectedRows.toLocaleString()}{" "}
+                known rows · {selectedNeedsLogin.length} need login
+              </p>
+            </div>
+            <Link
+              href={plannedSourceHref}
+              className="text-xs font-bold text-[var(--accent)] hover:underline"
+            >
+              Source details
+            </Link>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {selectedHealth.slice(0, 8).map((item, index) => (
+              <Link
+                key={item.id}
+                href={`/scan?${new URLSearchParams({
+                  lane: String(plan.scope.lane || "all"),
+                  source: item.id,
+                  ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                  ...(plan.filters.q ? { q: plan.filters.q } : {}),
+                  ...(plan.scope.sellerType
+                    ? { sellerType: String(plan.scope.sellerType) }
+                    : {}),
+                  sort: "profit",
+                }).toString()}`}
+                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-xs"
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.025, duration: 0.18 }}
+                  whileHover={{ y: -2 }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="line-clamp-1 font-black text-[var(--t1)]">
+                      {item.name}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 font-black uppercase",
+                        readinessTone(item.readiness),
+                      )}
+                    >
+                      {readinessLabel[item.readiness] || item.readiness}
+                    </span>
+                  </div>
+                  <div className="mt-1 font-semibold text-[var(--t3)]">
+                    {Number(item.activeRows || 0).toLocaleString()} rows ·{" "}
+                    {Number(item.rowsWithPhotos || 0).toLocaleString()} photos
+                  </div>
+                  <div className="mt-1 text-[var(--t4)]">
+                    {item.qualityLabel || `${item.averageQuality || 0}% detail`}{" "}
+                    · {Number(item.photoCoveragePct || 0)}% photo coverage
+                  </div>
+                  <div className="mt-1 text-[var(--t5)]">
+                    {sourceProofText(item)}
+                  </div>
+                  <div className="mt-1 line-clamp-2 text-[var(--t5)]">
+                    {item.lastError || item.nextAction || item.userImpact}
+                  </div>
+                </motion.div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {selectedHealth.length > 0 && (
+        <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Search coverage
+              </div>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
+                The search uses the sources and filters above. It will not fan
+                out across unrelated lanes, states, or dealers.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--glo)] px-3 py-2">
+                <div className="font-black text-[var(--green)]">
+                  {selectedRunnable.length}
+                </div>
+                <div className="text-[var(--t5)]">ready</div>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+                <div className="font-black text-[var(--amber-d)]">
+                  {selectedBlocked.length}
+                </div>
+                <div className="text-[var(--t5)]">needs setup</div>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2">
+                <div className="font-black text-[var(--t1)]">
+                  {configured ? "Ready" : "Setup"}
+                </div>
+                <div className="text-[var(--t5)]">data access</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="rounded-[var(--r2)] border border-[var(--gbd)] bg-[var(--glo)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--green)]">
+                Ready to search
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+                {selectedRunnable.length
+                  ? sourceListText(selectedRunnable.map((item) => item.id))
+                  : "No selected source is ready yet."}
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+              <div className="text-[10px] font-black uppercase tracking-wider text-[var(--amber-d)]">
+                Needs setup
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+                {selectedBlocked.length
+                  ? selectedBlocked
+                      .map(
+                        (item) =>
+                          `${sourceMeta(item.id).label}: ${
+                            readinessLabel[item.readiness] || item.readiness
+                          }`,
+                      )
+                      .join(", ")
+                  : "No selected source is blocked by login, captcha, or disabled status."}
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-[var(--t4)]">
+            {configured
+              ? `Search selected sources will use ${sourceListText(
+                  plan.sourceIds,
+                )} with this exact buyer scope.`
+              : nextImportGate
+                ? `Setup needed: ${nextImportGate.nextStep}`
+                : "Data access is ready, but this scope has not returned live rows yet."}
+          </p>
+        </div>
+      )}
+
       {!configured && importReadiness.length > 0 && (
         <div className="mt-3 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-                Import readiness
+                Data readiness
               </div>
               <p className="text-xs text-[var(--t4)]">
-                These gates control saved inventory, Google sign-in, and
-                protected scraper runs.
+                These items control saved inventory, Google sign-in, and
+                protected source searches.
               </p>
             </div>
             <Link
@@ -678,6 +2108,34 @@ function SmartDataPlanCard({
               );
             })}
           </div>
+          <div className="mt-3 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--amber-d)]">
+                  Next setup step
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+                  {nextImportGate
+                    ? `Next: ${nextImportGate.nextStep}`
+                    : "All data access checks are ready."}
+                </p>
+              </div>
+              <Link
+                href={nextImportGate?.verifyPath || "/status"}
+                className="shrink-0 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--amber-d)]"
+              >
+                {nextImportGate?.actionLabel || "Verify data access"}
+              </Link>
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
+              Once ready, this search will use only{" "}
+              <span className="font-bold text-[var(--t2)]">
+                {sourceListText(plan.sourceIds)}
+              </span>{" "}
+              for this scope, then matching rows appear here with data quality
+              and source proof.
+            </p>
+          </div>
         </div>
       )}
 
@@ -694,7 +2152,7 @@ function SmartDataPlanCard({
               </p>
             </div>
             <Link
-              href="/sources"
+              href={plannedSourceHref}
               className="text-xs font-bold text-[var(--accent)] hover:underline"
             >
               All sources
@@ -702,8 +2160,12 @@ function SmartDataPlanCard({
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {proof.map((item) => (
-              <div
+              <Link
                 key={item.id}
+                href={`/sources?${new URLSearchParams({
+                  source: item.id,
+                  filter: item.status === "working" ? "ready" : item.status,
+                }).toString()}`}
                 className={cn(
                   "rounded-[var(--r2)] border px-3 py-2 text-xs",
                   proofStyles[item.status],
@@ -724,7 +2186,7 @@ function SmartDataPlanCard({
                     {item.detail}
                   </div>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -735,20 +2197,88 @@ function SmartDataPlanCard({
           <div className="mb-2 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-                Last import run
+                Last source search
               </div>
               <p className="text-xs text-[var(--t4)]">
                 {importSuccesses}/{importRun.length} sources succeeded ·{" "}
                 {importedRows.toLocaleString()} rows found
               </p>
             </div>
-            <Link
-              href="/status"
-              className="text-xs font-bold text-[var(--accent)] hover:underline"
-            >
-              Run health
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={plannedSourceHref}
+                className="text-xs font-bold text-[var(--accent)] hover:underline"
+              >
+                Source proof
+              </Link>
+              <Link
+                href="/status"
+                className="text-xs font-bold text-[var(--accent)] hover:underline"
+              >
+                Run health
+              </Link>
+            </div>
           </div>
+          {importOutcome && (
+            <div
+              className={cn(
+                "mb-3 rounded-[var(--r2)] border px-3 py-2 text-xs",
+                importOutcome.tone,
+              )}
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-black uppercase tracking-wider">
+                    {importOutcome.label}
+                  </div>
+                  <p className="mt-1 leading-relaxed text-[var(--t3)]">
+                    {importOutcome.detail}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {importedRows > 0 ? (
+                    <Link
+                      href={`/scan?${new URLSearchParams({
+                        lane: String(plan.scope.lane || "all"),
+                        ...(plan.filters.state
+                          ? { state: plan.filters.state }
+                          : {}),
+                        ...(plan.filters.q ? { q: plan.filters.q } : {}),
+                        sort: "profit",
+                      }).toString()}`}
+                      className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--s0)] px-2 py-1 text-[10px] font-black text-[var(--green)]"
+                    >
+                      Review rows
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onPreview}
+                      disabled={previewing || running}
+                      className="rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--s0)] px-2 py-1 text-[10px] font-black text-[var(--amber-d)] disabled:opacity-60"
+                    >
+                      Recheck plan
+                    </button>
+                  )}
+                </div>
+              </div>
+              {(importEmptySuccesses.length > 0 ||
+                importFailures.length > 0) && (
+                <p className="mt-2 leading-relaxed text-[var(--t4)]">
+                  {importEmptySuccesses.length > 0
+                    ? `Empty: ${importEmptySuccesses
+                        .map((item) => item.source)
+                        .join(", ")}. `
+                    : ""}
+                  {importFailures.length > 0
+                    ? `Failed: ${importFailures
+                        .map((item) => item.source)
+                        .join(", ")}.`
+                    : ""}
+                </p>
+              )}
+            </div>
+          )}
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {importRun.map((item) => {
               const ok = item.success;
@@ -790,7 +2320,7 @@ function SmartDataPlanCard({
           </div>
         </div>
       )}
-    </section>
+    </motion.section>
   );
 }
 
@@ -852,8 +2382,9 @@ let _toastId = 0;
 
 function ScanPageInner() {
   const urlParams = useSearchParams();
+  const reviewMode = urlParams.get("review");
+  const isFreshImportReview = reviewMode === "fresh-import";
   const { transitionTo } = useViewTransition();
-  const { dealerId, loading: dealerLoading } = useDealerId();
 
   // Search
   const [searchInput, setSearchInput] = useState("");
@@ -867,6 +2398,7 @@ function ScanPageInner() {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const { recents, addRecent, removeRecent, clearRecents } =
     useRecentSearches();
+  const localSaved = useLocalSavedVehicles();
 
   // Persisted display density (Visor "compact view" — see more listings at once).
   useEffect(() => {
@@ -919,7 +2451,7 @@ function ScanPageInner() {
 
         if (p.make) setMake(p.make);
         if (p.state) setState(p.state);
-        if (p.maxPrice) setMaxPrice(String(p.maxPrice));
+        if (p.maxPrice) setMaxPrice(normalizeMaxPriceFilter(p.maxPrice));
         if (p.targetProfit) setMinProfit(String(p.targetProfit));
         if (p.minYear) setMinYear(String(p.minYear));
 
@@ -945,11 +2477,13 @@ function ScanPageInner() {
 
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [sellerTypeFilter, setSellerTypeFilter] = useState("all");
   const [titleType, setTitleType] = useState("all");
   const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
   const [minProfit, setMinProfit] = useState("any");
   const [state, setState] = useState("all");
   const [make, setMake] = useState("all");
+  const [makesFilter, setMakesFilter] = useState<string[]>([]);
   const [model, setModel] = useState("all");
   const [maxPrice, setMaxPrice] = useState("any");
   const [minYear, setMinYear] = useState("any");
@@ -961,6 +2495,10 @@ function ScanPageInner() {
   // New: verdict (GO-only), price floor, year ceiling, and an advanced-filters disclosure.
   const [verdict, setVerdict] = useState("all");
   const [category, setCategory] = useState("all"); // browsable one-tap lead category
+  const [dealerHostsFilter, setDealerHostsFilter] = useState<string[]>([]);
+  const [dealerSourceIdsFilter, setDealerSourceIdsFilter] = useState<string[]>(
+    [],
+  );
   const [minPrice, setMinPrice] = useState("any");
   const [maxYear, setMaxYear] = useState("any");
   const [showMore, setShowMore] = useState(false);
@@ -972,35 +2510,193 @@ function ScanPageInner() {
     [],
   );
   const [importRunProof, setImportRunProof] = useState<ImportRunItem[]>([]);
+  const [importPlanProof, setImportPlanProof] =
+    useState<ScrapePlanResult | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const autoPreviewKeyRef = useRef<string | null>(null);
+  const activePreviewRequestRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setLivePreviewRows([]);
+    setLivePreviewProof([]);
+    autoPreviewKeyRef.current = null;
+    activePreviewRequestRef.current = null;
+  }, [
+    sourceFilter,
+    sellerTypeFilter,
+    lane,
+    state,
+    search,
+    make,
+    makesFilter,
+    model,
+    titleType,
+    maxPrice,
+    minYear,
+    maxMileage,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+    sellerTypeFilter,
+  ]);
 
   useEffect(() => {
     const q = urlParams.get("q");
     const source = urlParams.get("source");
+    const sellerTypeParam = urlParams.get("sellerType");
     const title = urlParams.get("titleType");
     const laneParam = urlParams.get("lane");
     const stateParam = urlParams.get("state");
     const makeParam = urlParams.get("make");
+    const makesParam = urlParams.get("makes");
     const modelParam = urlParams.get("model");
     const sortParam = urlParams.get("sort");
+    const maxPriceParam = urlParams.get("maxPrice");
+    const verdictParam = urlParams.get("verdict");
+    const dealersParam = urlParams.get("dealers");
+    const dealerSourceIdsParam = urlParams.get("dealerSourceIds");
+    const hasExplicitScanParams = [
+      q,
+      source,
+      sellerTypeParam,
+      title,
+      laneParam,
+      stateParam,
+      makeParam,
+      makesParam,
+      modelParam,
+      sortParam,
+      maxPriceParam,
+      verdictParam,
+      dealersParam,
+      dealerSourceIdsParam,
+    ].some(Boolean);
 
     if (q) {
       setSearchInput(q);
       setSearch(q);
     }
     if (source) setSourceFilter(source);
+    if (sellerTypeParam) setSellerTypeFilter(sellerTypeParam);
     if (title) setTitleType(title);
     if (laneParam) setLane(laneParam);
     if (stateParam) setState(stateParam.toUpperCase());
     if (makeParam) setMake(makeParam);
+    if (makesParam) {
+      setMakesFilter(
+        makesParam
+          .split(",")
+          .map((item) =>
+            item
+              .replace(/[^a-zA-Z0-9\s-]/g, " ")
+              .replace(/\s+/g, " ")
+              .trim(),
+          )
+          .filter(Boolean)
+          .slice(0, 12),
+      );
+    }
     if (modelParam) setModel(modelParam);
     if (sortParam) setSort(sortParam);
+    if (maxPriceParam) setMaxPrice(normalizeMaxPriceFilter(maxPriceParam));
+    if (verdictParam) setVerdict(verdictParam);
+    if (dealersParam) {
+      setDealerHostsFilter(
+        dealersParam
+          .split(",")
+          .map((host) => host.trim().toLowerCase())
+          .filter(Boolean),
+      );
+    }
+    if (dealerSourceIdsParam) {
+      setDealerSourceIdsFilter(
+        dealerSourceIdsParam
+          .split(",")
+          .map((id) =>
+            id
+              .toLowerCase()
+              .replace(/\s+/g, "-")
+              .replace(/[^a-z0-9_-]/g, "")
+              .trim(),
+          )
+          .filter(Boolean)
+          .slice(0, 25),
+      );
+    }
+
+    if (hasExplicitScanParams || typeof window === "undefined") return;
+
+    const savedScope = readLocalBuyerIntent();
+    const savedParams = buildBuyerIntentQuery(savedScope);
+    const scopedQuery = savedParams.get("q") || "";
+    const scopedMakes = savedParams.get("makes");
+    const scopedLane = savedParams.get("lane") || "";
+    const scopedState = savedParams.get("state") || "";
+    const scopedTitleType = savedParams.get("titleType") || "";
+    const scopedSellerType = savedParams.get("sellerType") || "";
+    const scopedMaxPrice = savedParams.get("maxPrice") || "";
+    const scopedDealers = savedParams.get("dealers") || "";
+    const scopedDealerSourceIds = savedParams.get("dealerSourceIds") || "";
+
+    if (scopedQuery) {
+      setSearchInput(scopedQuery);
+      setSearch(scopedQuery);
+    }
+    if (scopedMakes) {
+      setMakesFilter(
+        scopedMakes
+          .split(",")
+          .map((make) => make.trim())
+          .filter(Boolean)
+          .slice(0, 12),
+      );
+    }
+    if (scopedLane) setLane(scopedLane);
+    if (scopedState) setState(scopedState.toUpperCase());
+    if (scopedTitleType) setTitleType(scopedTitleType);
+    if (scopedSellerType) setSellerTypeFilter(scopedSellerType);
+    if (scopedMaxPrice) setMaxPrice(normalizeMaxPriceFilter(scopedMaxPrice));
+    if (scopedDealerSourceIds) {
+      setDealerSourceIdsFilter(
+        scopedDealerSourceIds
+          .split(",")
+          .map((id) =>
+            id
+              .toLowerCase()
+              .replace(/\s+/g, "-")
+              .replace(/[^a-z0-9_-]/g, "")
+              .trim(),
+          )
+          .filter(Boolean)
+          .slice(0, 25),
+      );
+    }
+    if (scopedDealers) {
+      setDealerHostsFilter(
+        scopedDealers
+          .split(",")
+          .map((host) =>
+            host
+              .toLowerCase()
+              .replace(/^https?:\/\//, "")
+              .replace(/^www\./, "")
+              .split("/")[0]
+              .replace(/[^a-z0-9.-]/g, "")
+              .trim(),
+          )
+          .filter(Boolean)
+          .slice(0, 25),
+      );
+    }
   }, [urlParams]);
 
   // How many advanced filters are active (shown on the "More filters" button).
   const advancedCount = useMemo(() => {
     let c = 0;
+    if (verdict !== "all") c++;
+    if (dealerHostsFilter.length) c++;
+    if (dealerSourceIdsFilter.length) c++;
     if (sourceFilter !== "all") c++;
+    if (sellerTypeFilter !== "all") c++;
     if (minPrice !== "any") c++;
     if (minProfit !== "any") c++;
     if (minYear !== "any") c++;
@@ -1012,7 +2708,11 @@ function ScanPageInner() {
     if (drivetrain !== "all") c++;
     return c;
   }, [
+    verdict,
+    dealerHostsFilter.length,
+    dealerSourceIdsFilter.length,
     sourceFilter,
+    sellerTypeFilter,
     minPrice,
     minProfit,
     minYear,
@@ -1025,7 +2725,12 @@ function ScanPageInner() {
   ]);
 
   const resetFilters = useCallback(() => {
+    setVerdict("all");
+    setDealerHostsFilter([]);
+    setDealerSourceIdsFilter([]);
     setSourceFilter("all");
+    setSellerTypeFilter("all");
+    setMakesFilter([]);
     setMinPrice("any");
     setMinProfit("any");
     setMinYear("any");
@@ -1048,15 +2753,54 @@ function ScanPageInner() {
     };
     const parts = [
       search || "all vehicles",
+      verdict === "go"
+        ? "BUY only"
+        : verdict === "watch"
+          ? "watch candidates"
+          : null,
       laneLabel[lane] || lane,
       state !== "all" ? state : "nationwide",
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
+      make === "all" && makesFilter.length
+        ? `makes: ${makesFilter.slice(0, 3).join(", ")}${
+            makesFilter.length > 3 ? ` +${makesFilter.length - 3}` : ""
+          }`
+        : null,
       model !== "all" ? model : null,
-      maxPrice !== "any" ? `under $${maxPrice.replace("k", ",000")}` : null,
+      dealerHostsFilter.length
+        ? `watched dealers: ${dealerHostsFilter.slice(0, 2).join(", ")}${
+            dealerHostsFilter.length > 2
+              ? ` +${dealerHostsFilter.length - 2}`
+              : ""
+          }`
+        : null,
+      dealerSourceIdsFilter.length
+        ? `dealer sources: ${dealerSourceIdsFilter.slice(0, 2).join(", ")}${
+            dealerSourceIdsFilter.length > 2
+              ? ` +${dealerSourceIdsFilter.length - 2}`
+              : ""
+          }`
+        : null,
+      sellerTypeFilter !== "all" ? `${sellerTypeFilter} sellers` : null,
+      maxPrice !== "any" ? `under ${formatMaxPriceFilter(maxPrice)}` : null,
     ].filter(Boolean);
     return `Searching ${parts.join(" · ")} · sorted by ${sort}`;
-  }, [search, lane, state, titleType, make, model, maxPrice, sort]);
+  }, [
+    search,
+    verdict,
+    lane,
+    state,
+    titleType,
+    make,
+    makesFilter,
+    model,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+    sellerTypeFilter,
+    maxPrice,
+    sort,
+  ]);
 
   const smartPlan = useMemo(
     () =>
@@ -1069,52 +2813,68 @@ function ScanPageInner() {
         lane,
         state: state !== "all" ? state : undefined,
         make: make !== "all" ? make : undefined,
+        makes: make === "all" && makesFilter.length ? makesFilter : undefined,
         model: model !== "all" ? model : undefined,
         titleType: titleType !== "all" ? titleType : undefined,
+        sellerType: sellerTypeFilter !== "all" ? sellerTypeFilter : undefined,
         maxPrice:
-          maxPrice !== "any" ? Number(maxPrice.replace("k", "000")) : undefined,
+          maxPrice !== "any"
+            ? Number(normalizeMaxPriceFilter(maxPrice))
+            : undefined,
+        minPrice:
+          minPrice !== "any" ? Number(minPrice.replace("k", "000")) : undefined,
         minYear: minYear !== "any" ? Number(minYear) : undefined,
         maxMileage:
           maxMileage !== "any"
             ? Number(maxMileage.replace("k", "000"))
             : undefined,
+        dealerHosts: dealerHostsFilter,
+        dealerSourceIds: dealerSourceIdsFilter,
       }),
     [
       search,
       lane,
       state,
       make,
+      makesFilter,
       model,
       titleType,
       maxPrice,
+      minPrice,
       minYear,
       maxMileage,
+      dealerHostsFilter,
+      dealerSourceIdsFilter,
+      sellerTypeFilter,
     ],
   );
 
   const previewSourcePlan = useCallback(async () => {
     setPlanPreviewing(true);
     setPlanMessage(null);
+    setImportPlanProof(null);
     try {
-      const q =
-        search ||
-        [make !== "all" ? make : "", model !== "all" ? model : ""]
-          .filter(Boolean)
-          .join(" ")
-          .trim() ||
-        "all vehicles";
-      const res = await fetch("/api/scan", {
+      const res = await fetch("/api/scrape/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          q,
           scope: smartPlan.scope,
+          sourceIds:
+            sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds,
         }),
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.error || "Could not preview source plan.");
-      setPlanMessage(data?.message || "Smart source plan is ready.");
+      setImportPlanProof(data as ScrapePlanResult);
+      const runnable = Number(data?.summary?.runnable || 0);
+      const heldBack = Number(data?.summary?.heldBack || 0);
+      const estimated = Number(data?.summary?.estimatedDealsPerRun || 0);
+      const firstBlocker = data?.summary?.firstBlocker;
+      setPlanMessage(
+        data?.message ||
+          `Plan ready: ${runnable} ready, ${heldBack} skipped, about ${estimated.toLocaleString()} expected rows per full search.${firstBlocker ? ` First setup step: ${firstBlocker}` : ""}`,
+      );
     } catch (error) {
       setPlanMessage(
         error instanceof Error
@@ -1124,27 +2884,55 @@ function ScanPageInner() {
     } finally {
       setPlanPreviewing(false);
     }
-  }, [search, make, model, smartPlan.scope]);
+  }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter]);
 
   const fetchLivePreview = useCallback(async () => {
     setLivePreviewing(true);
     setPlanMessage(null);
+    const requestKey = JSON.stringify({
+      scope: smartPlan.scope,
+      sourceFilter,
+    });
+    activePreviewRequestRef.current = requestKey;
     try {
       const params = new URLSearchParams();
       if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
       if (smartPlan.scope.lane)
         params.set("lane", String(smartPlan.scope.lane));
       if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
+      if (smartPlan.scope.makes?.length)
+        params.set("makes", smartPlan.scope.makes.join(","));
+      if (smartPlan.scope.make) params.set("make", smartPlan.scope.make);
+      if (smartPlan.scope.model) params.set("model", smartPlan.scope.model);
+      if (smartPlan.scope.titleType)
+        params.set("titleType", String(smartPlan.scope.titleType));
+      if (smartPlan.scope.maxPrice)
+        params.set("maxPrice", String(smartPlan.scope.maxPrice));
+      if (smartPlan.scope.minYear)
+        params.set("minYear", String(smartPlan.scope.minYear));
+      if (smartPlan.scope.maxMileage)
+        params.set("maxMileage", String(smartPlan.scope.maxMileage));
+      if (minPrice !== "any")
+        params.set("minPrice", minPrice.replace("k", "000"));
+      if (sourceFilter !== "all") params.set("source", sourceFilter);
+      if (sellerTypeFilter !== "all")
+        params.set("sellerType", sellerTypeFilter);
+      if (dealerHostsFilter.length)
+        params.set("dealers", dealerHostsFilter.join(","));
+      if (dealerSourceIdsFilter.length)
+        params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
       const res = await fetch(`/api/scan/live-preview?${params.toString()}`, {
         cache: "no-store",
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data?.error || "Could not fetch live preview.");
+      if (activePreviewRequestRef.current !== requestKey) return;
       setLivePreviewRows(data.vehicles || []);
       setLivePreviewProof(data.proof || []);
       setPlanMessage(data.message || "Live public preview loaded.");
     } catch (error) {
+      if (activePreviewRequestRef.current !== requestKey) return;
       setPlanMessage(
         error instanceof Error
           ? error.message
@@ -1153,14 +2941,29 @@ function ScanPageInner() {
     } finally {
       setLivePreviewing(false);
     }
-  }, [smartPlan.scope]);
+  }, [
+    smartPlan.scope,
+    sourceFilter,
+    sellerTypeFilter,
+    minPrice,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+  ]);
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
-  const { data: facets } = useSWR(
-    `/api/scan/facets${state !== "all" ? `?state=${state}` : ""}`,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
+  const facetKey = useMemo(() => {
+    const params = new URLSearchParams();
+    if (state !== "all") params.set("state", state);
+    if (lane !== "all") params.set("lane", lane);
+    if (maxPrice !== "any")
+      params.set("maxPrice", normalizeMaxPriceFilter(maxPrice));
+    if (minPrice !== "any")
+      params.set("minPrice", minPrice.replace("k", "000"));
+    return `/api/scan/facets${params.toString() ? `?${params.toString()}` : ""}`;
+  }, [state, lane, maxPrice, minPrice]);
+  const { data: facets } = useSWR(facetKey, fetcher, {
+    revalidateOnFocus: false,
+  });
   const makeOptions = useMemo(() => {
     const opts = [{ value: "all", label: "Make: All" }];
     for (const m of facets?.makes ?? [])
@@ -1171,7 +2974,7 @@ function ScanPageInner() {
   // CASCADE: once a make is chosen, load its full model list (Copart-style make → model).
   const { data: modelFacets } = useSWR(
     make !== "all"
-      ? `/api/scan/facets?make=${encodeURIComponent(make)}${state !== "all" ? `&state=${state}` : ""}`
+      ? `${facetKey}${facetKey.includes("?") ? "&" : "?"}make=${encodeURIComponent(make)}`
       : null,
     fetcher,
     { revalidateOnFocus: false },
@@ -1182,6 +2985,42 @@ function ScanPageInner() {
       opts.push({ value: m.model, label: `${m.model} (${m.count})` });
     return opts;
   }, [modelFacets]);
+  const sellerTypeOptions = useMemo(() => {
+    const live = Array.isArray(facets?.sellerTypes)
+      ? facets.sellerTypes
+          .filter((item: any) => item?.value)
+          .map((item: any) => ({
+            value: String(item.value),
+            label: `${item.label || item.value} (${Number(item.count || 0)})`,
+          }))
+      : [];
+    return live.length
+      ? [{ value: "all", label: "Seller: All live" }, ...live]
+      : [
+          { value: "all", label: "Seller: All" },
+          { value: "dealer", label: "Dealers" },
+          { value: "auction", label: "Auctions" },
+          { value: "private", label: "Private sellers" },
+        ];
+  }, [facets?.sellerTypes]);
+  const titleTypeOptions = useMemo(() => {
+    const live = Array.isArray(facets?.titleTypes)
+      ? facets.titleTypes
+          .filter((item: any) => item?.value)
+          .map((item: any) => ({
+            value: String(item.value),
+            label: `${item.label || item.value} (${Number(item.count || 0)})`,
+          }))
+      : [];
+    return live.length
+      ? [{ value: "all", label: "Title: All live" }, ...live]
+      : [
+          { value: "all", label: "Title: All" },
+          { value: "clean", label: "Clean Title" },
+          { value: "salvage", label: "Salvage Title" },
+          { value: "rebuilt", label: "Rebuilt Title" },
+        ];
+  }, [facets?.titleTypes]);
   // Reset the model whenever the make changes so a stale model can't linger.
   useEffect(() => {
     setModel("all");
@@ -1189,19 +3028,21 @@ function ScanPageInner() {
 
   // Build SWR key from filters
   const swrKey = useMemo(() => {
-    if (dealerLoading || !dealerId) return null;
     const params = new URLSearchParams({ sort });
     if (search) params.set("q", search);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
+    if (sellerTypeFilter !== "all") params.set("sellerType", sellerTypeFilter);
     if (titleType !== "all") params.set("titleType", titleType);
     if (lane !== "all") params.set("lane", lane);
     if (state !== "all") params.set("state", state);
     if (make !== "all") params.set("make", make);
+    if (make === "all" && makesFilter.length)
+      params.set("makes", makesFilter.join(","));
     if (model !== "all") params.set("model", model);
     if (minProfit !== "any")
       params.set("minProfit", minProfit.replace("k", "000"));
     if (maxPrice !== "any")
-      params.set("maxPrice", maxPrice.replace("k", "000"));
+      params.set("maxPrice", normalizeMaxPriceFilter(maxPrice));
     if (minPrice !== "any")
       params.set("minPrice", minPrice.replace("k", "000"));
     if (minYear !== "any") params.set("minYear", minYear);
@@ -1210,18 +3051,22 @@ function ScanPageInner() {
       params.set("maxMileage", maxMileage.replace("k", "000"));
     if (availability !== "all") params.set("availability", availability);
     if (verdict !== "all") params.set("verdict", verdict);
+    if (dealerHostsFilter.length)
+      params.set("dealers", dealerHostsFilter.join(","));
+    if (dealerSourceIdsFilter.length)
+      params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
     if (madeInUsa) params.set("madeInUsa", "1");
     if (drivetrain !== "all") params.set("drivetrain", drivetrain);
     return `/api/scan?${params.toString()}`;
   }, [
-    dealerId,
-    dealerLoading,
     search,
     sourceFilter,
+    sellerTypeFilter,
     titleType,
     lane,
     state,
     make,
+    makesFilter,
     model,
     minProfit,
     maxPrice,
@@ -1231,6 +3076,8 @@ function ScanPageInner() {
     maxMileage,
     availability,
     verdict,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
     madeInUsa,
     drivetrain,
     sort,
@@ -1283,6 +3130,91 @@ function ScanPageInner() {
     revalidateOnFocus: false,
     dedupingInterval: 30000,
   });
+  const scrapeHealthKey = useMemo(() => {
+    const params = new URLSearchParams();
+    if (smartPlan.scope.lane) params.set("lane", String(smartPlan.scope.lane));
+    if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
+    if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
+    if (smartPlan.scope.makes?.length)
+      params.set("makes", smartPlan.scope.makes.join(","));
+    if (smartPlan.scope.make) params.set("make", smartPlan.scope.make);
+    if (smartPlan.scope.model) params.set("model", smartPlan.scope.model);
+    if (smartPlan.scope.sellerType)
+      params.set("sellerType", String(smartPlan.scope.sellerType));
+    if (smartPlan.scope.titleType)
+      params.set("titleType", String(smartPlan.scope.titleType));
+    if (smartPlan.scope.maxPrice)
+      params.set("maxPrice", String(smartPlan.scope.maxPrice));
+    if (minPrice !== "any")
+      params.set("minPrice", minPrice.replace("k", "000"));
+    if (dealerHostsFilter.length)
+      params.set("dealers", dealerHostsFilter.join(","));
+    if (dealerSourceIdsFilter.length)
+      params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
+    return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
+  }, [
+    smartPlan.scope.lane,
+    smartPlan.scope.state,
+    smartPlan.scope.q,
+    smartPlan.scope.makes,
+    smartPlan.scope.make,
+    smartPlan.scope.model,
+    smartPlan.scope.sellerType,
+    smartPlan.scope.titleType,
+    smartPlan.scope.maxPrice,
+    minPrice,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+  ]);
+  const { data: scrapeHealth, mutate: mutateScrapeHealth } = useSWR(
+    scrapeHealthKey,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+    },
+  );
+  const sourceHealthById = useMemo(() => {
+    return new Map(
+      ((scrapeHealth?.sources || []) as SourceHealthItem[]).map((source) => [
+        source.id,
+        source,
+      ]),
+    );
+  }, [scrapeHealth?.sources]);
+  const resolveSourceHealth = useCallback(
+    (vehicle: { source?: string; sourceUrl?: string }) => {
+      const source = String(vehicle.source || "");
+      const url = String(vehicle.sourceUrl || "").toLowerCase();
+      if (sourceHealthById.has(source)) return sourceHealthById.get(source);
+      if (source === "gov_auction") {
+        if (url.includes("govdeals.com"))
+          return sourceHealthById.get("govdeals");
+        if (url.includes("publicsurplus"))
+          return sourceHealthById.get("publicsurplus");
+        if (url.includes("municibid")) return sourceHealthById.get("municibid");
+        if (url.includes("gsa")) return sourceHealthById.get("gsa_auctions");
+      }
+      if (source === "independent_dealer") {
+        const dealerSourceId = dealerSourceIdFromUrl(
+          url,
+          Array.from(sourceHealthById.keys()),
+        );
+        if (dealerSourceId) return sourceHealthById.get(dealerSourceId);
+        return sourceHealthById.get("curated_dealers");
+      }
+      return undefined;
+    },
+    [sourceHealthById],
+  );
+  const selectedSourceIds = useMemo(
+    () => (sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds),
+    [sourceFilter, smartPlan.sourceIds],
+  );
+  const effectiveSmartPlan = useMemo(
+    () => ({ ...smartPlan, sourceIds: selectedSourceIds }),
+    [smartPlan, selectedSourceIds],
+  );
 
   const runMatchingSources = useCallback(async () => {
     setRunImporting(true);
@@ -1294,22 +3226,160 @@ function ScanPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           scope: smartPlan.scope,
-          concurrency: Math.min(2, Math.max(1, smartPlan.sourceIds.length)),
+          sourceIds: selectedSourceIds,
+          concurrency: Math.min(2, Math.max(1, selectedSourceIds.length)),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 424 && data?.code === "IMPORTS_LOCKED") {
+          setImportPlanProof((current) => ({
+            ...(current || {
+              canImport: false,
+              scraperControlReady: false,
+              sources: Array.isArray(data.sources) ? data.sources : [],
+              summary: {
+                total: Number(data.summary?.total) || selectedSourceIds.length,
+                runnable: Number(data.summary?.runnable) || 0,
+                heldBack:
+                  Number(data.summary?.heldBack) || selectedSourceIds.length,
+                estimatedDealsPerRun:
+                  Number(data.summary?.estimatedDealsPerRun) || 0,
+              },
+            }),
+            canImport: false,
+            scraperControlReady: false,
+            dealerSourceIds: Array.isArray(data.dealerSourceIds)
+              ? data.dealerSourceIds
+              : current?.dealerSourceIds,
+            sources: Array.isArray(data.sources)
+              ? data.sources
+              : current?.sources || [],
+            summary: {
+              total: Number(data.summary?.total) || selectedSourceIds.length,
+              runnable: Number(data.summary?.runnable) || 0,
+              heldBack:
+                Number(data.summary?.heldBack) || selectedSourceIds.length,
+              estimatedDealsPerRun:
+                Number(data.summary?.estimatedDealsPerRun) || 0,
+              firstBlocker:
+                data.gates?.find?.(
+                  (gate: ScrapePlanGate) => gate.status !== "ready",
+                )?.nextStep ||
+                current?.summary?.firstBlocker ||
+                null,
+            },
+            gates: Array.isArray(data.gates) ? data.gates : [],
+            message:
+              data.message ||
+              "Source searches are planned, but production connections are not ready yet.",
+          }));
+          throw new Error(
+            data.message ||
+              "Source searches are planned, but production connections are not ready yet.",
+          );
+        }
+        if (res.status === 422 && data?.code === "NO_MATCHING_SOURCES") {
+          setImportPlanProof({
+            canImport: false,
+            scraperControlReady: false,
+            sourceIds: Array.isArray(data.sourceIds) ? data.sourceIds : [],
+            requestedSourceIds: Array.isArray(data.requestedSourceIds)
+              ? data.requestedSourceIds
+              : selectedSourceIds,
+            mismatchedSourceIds: Array.isArray(data.mismatchedSourceIds)
+              ? data.mismatchedSourceIds
+              : selectedSourceIds,
+            dealerSourceIds: Array.isArray(data.dealerSourceIds)
+              ? data.dealerSourceIds
+              : undefined,
+            sources: Array.isArray(data.sources) ? data.sources : [],
+            gates: [],
+            summary: {
+              total: Number(data.summary?.total) || selectedSourceIds.length,
+              runnable: Number(data.summary?.runnable) || 0,
+              heldBack:
+                Number(data.summary?.heldBack) || selectedSourceIds.length,
+              estimatedDealsPerRun:
+                Number(data.summary?.estimatedDealsPerRun) || 0,
+              firstBlocker:
+                data.message || "No selected source matches this buyer lane.",
+            },
+            message:
+              data.message ||
+              "No requested source matches the selected buyer lane, so no scraper was started.",
+          });
+          throw new Error(
+            data.message ||
+              "No requested source matches the selected buyer lane, so no scraper was started.",
+          );
+        }
         if (res.status === 401) {
           throw new Error(
-            "Only an admin session or scrape secret can run imports.",
+            "Only an admin session or scrape secret can run source searches.",
           );
         }
         if (res.status === 503) {
-          throw new Error(data?.error || "Scraper control is not configured.");
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              "Scraper control is not configured.",
+          );
         }
-        throw new Error(data?.error || "Could not run matching sources.");
+        throw new Error(
+          data?.message || data?.error || "Could not run matching sources.",
+        );
       }
-      const runResults = Array.isArray(data.results) ? data.results : [];
+      let completedData = data;
+      if (data.queued && data.job?.id) {
+        setPlanMessage(
+          data.deduplicated
+            ? "Your scoped source search is already in progress. Waiting for the worker..."
+            : "Scoped source search queued. The browser worker is starting it now...",
+        );
+        const deadline = Date.now() + 10 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          const statusRes = await fetch(`/api/scrape/jobs/${data.job.id}`, {
+            cache: "no-store",
+          });
+          const statusData = await statusRes.json();
+          if (!statusRes.ok)
+            throw new Error(
+              statusData?.error ||
+                "Could not read the scoped source search status.",
+            );
+          const job = statusData.job;
+          if (job.status === "failed")
+            throw new Error(
+              job.error_message || "The scoped source search failed.",
+            );
+          if (job.status === "completed") {
+            completedData = job.result || {
+              total: selectedSourceIds.length,
+              successful: selectedSourceIds.length,
+              failed: 0,
+              totalDeals: job.listings_saved || job.listings_found || 0,
+              results: [],
+            };
+            break;
+          }
+          setPlanMessage(
+            job.status === "running"
+              ? "Searching only the matching sources. New rows will appear here when complete..."
+              : "Scoped source search is next in the worker queue...",
+          );
+        }
+        if (completedData === data) {
+          setPlanMessage(
+            "The source search is still running in the background. This page will refresh when you return.",
+          );
+          return;
+        }
+      }
+      const runResults = Array.isArray(completedData.results)
+        ? completedData.results
+        : [];
       setImportRunProof(
         runResults.map((item: any) => ({
           source: String(item.source || "unknown"),
@@ -1320,9 +3390,10 @@ function ScanPageInner() {
         })),
       );
       setPlanMessage(
-        `Import finished: ${data.successful || 0}/${data.total || 0} sources succeeded, ${data.totalDeals || 0} rows found.`,
+        `Source search finished: ${completedData.successful || 0}/${completedData.total || 0} sources succeeded, ${completedData.totalDeals || 0} rows found.`,
       );
       mutate();
+      mutateScrapeHealth();
     } catch (error) {
       setPlanMessage(
         error instanceof Error
@@ -1332,20 +3403,20 @@ function ScanPageInner() {
     } finally {
       setRunImporting(false);
     }
-  }, [smartPlan.scope, smartPlan.sourceIds.length, mutate]);
+  }, [smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
 
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
   const [extra, setExtra] = useState<any[]>([]);
   const [morePage, setMorePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const autoPreviewKeyRef = useRef<string | null>(null);
   useEffect(() => {
     setExtra([]);
     setMorePage(0);
     setLivePreviewRows([]);
     setLivePreviewProof([]);
     setImportRunProof([]);
+    setImportPlanProof(null);
     autoPreviewKeyRef.current = null;
   }, [swrKey]);
 
@@ -1358,30 +3429,56 @@ function ScanPageInner() {
     [swrData, livePreviewRows, extra],
   );
   const total = (swrData?.total || 0) + livePreviewRows.length;
-  const loading = dealerLoading || swrLoading;
+  const loading = swrLoading;
   const scanConfigured =
     swrData?.configured === false ? false : isSupabaseConfigured();
+  const swrPreviewRows =
+    swrData?.configured === false &&
+    swrData?.isLivePreview &&
+    (swrData?.vehicles?.length || 0) > 0;
+  const displayProof =
+    livePreviewProof.length > 0
+      ? livePreviewProof
+      : Array.isArray(swrData?.previewProof)
+        ? swrData.previewProof
+        : [];
+  const displayMessage = planMessage || swrData?.message || null;
 
   useEffect(() => {
     if (
       scanConfigured ||
       swrLoading ||
+      swrPreviewRows ||
       livePreviewing ||
       livePreviewRows.length
     )
       return;
-    if (!smartPlan.sourceIds.includes("copart")) return;
-    const key = JSON.stringify(smartPlan.scope);
+    const publicPreviewSourceIds = new Set([
+      "copart",
+      "govdeals",
+      "publicsurplus",
+      "municibid",
+    ]);
+    const canPublicPreview =
+      sourceFilter !== "all"
+        ? publicPreviewSourceIds.has(sourceFilter)
+        : smartPlan.sourceIds.some((sourceId) =>
+            publicPreviewSourceIds.has(sourceId),
+          );
+    if (!canPublicPreview) return;
+    const key = JSON.stringify({ scope: smartPlan.scope, sourceFilter });
     if (autoPreviewKeyRef.current === key) return;
     autoPreviewKeyRef.current = key;
     fetchLivePreview();
   }, [
     scanConfigured,
     swrLoading,
+    swrPreviewRows,
     livePreviewing,
     livePreviewRows.length,
     smartPlan.sourceIds,
     smartPlan.scope,
+    sourceFilter,
     fetchLivePreview,
   ]);
   const hasMore = !loading && !!swrKey && results.length < total;
@@ -1417,10 +3514,7 @@ function ScanPageInner() {
     io.observe(el);
     return () => io.disconnect();
   }, [loadMore]);
-  const error =
-    !dealerId && !dealerLoading
-      ? "Please sign in to view scan results."
-      : swrError?.message || swrData?.error || null;
+  const error = swrError?.message || swrData?.error || null;
   const [lastScan, setLastScan] = useState<Date | null>(null);
 
   // Toasts
@@ -1437,6 +3531,69 @@ function ScanPageInner() {
     },
     [],
   );
+
+  const saveCurrentScanAsAlert = useCallback(() => {
+    const nameParts = [
+      search || null,
+      make !== "all"
+        ? make
+        : makesFilter.length
+          ? makesFilter.slice(0, 2).join("/")
+          : null,
+      model !== "all" ? model : null,
+      lane !== "all" ? lane.replace(/-/g, " ") : null,
+      state !== "all" ? state : null,
+      minPrice !== "any"
+        ? `over $${Number(minPrice.replace("k", "000")).toLocaleString()}`
+        : null,
+      maxPrice !== "any" ? `under ${formatMaxPriceFilter(maxPrice)}` : null,
+    ].filter(Boolean);
+    const saved = saveLocalSavedSearch({
+      name: nameParts.length ? nameParts.join(" · ") : "Scan alert",
+      q: search || null,
+      make: make !== "all" ? make : null,
+      makes: make === "all" && makesFilter.length ? makesFilter : null,
+      model: model !== "all" ? model : null,
+      state: state !== "all" ? state : null,
+      lane: lane !== "all" ? lane : null,
+      seller_type: sellerTypeFilter !== "all" ? sellerTypeFilter : null,
+      title_type: titleType !== "all" ? titleType : null,
+      dealer_hosts: dealerHostsFilter.length ? dealerHostsFilter : null,
+      dealer_source_ids: dealerSourceIdsFilter.length
+        ? dealerSourceIdsFilter
+        : null,
+      min_year: minYear !== "any" ? Number(minYear) : null,
+      max_year: maxYear !== "any" ? Number(maxYear) : null,
+      min_price:
+        minPrice !== "any" ? Number(minPrice.replace("k", "000")) : null,
+      max_price:
+        maxPrice !== "any" ? Number(normalizeMaxPriceFilter(maxPrice)) : null,
+      target_profit: minProfit !== "any" ? Number(minProfit) : null,
+      require_go: verdict === "go",
+      notify_email: false,
+      notify_sms: false,
+      is_active: true,
+    });
+    addToast(`Saved alert scope: ${saved.name}`, "success");
+  }, [
+    search,
+    make,
+    makesFilter,
+    model,
+    lane,
+    state,
+    minPrice,
+    maxPrice,
+    sellerTypeFilter,
+    titleType,
+    minYear,
+    maxYear,
+    minProfit,
+    verdict,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+    addToast,
+  ]);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -1569,12 +3726,7 @@ function ScanPageInner() {
   const filteredResults = useMemo(() => {
     let list = results;
     if (search) {
-      const q = search.toLowerCase();
-      list = list.filter((r: ScanResult) =>
-        `${r.year} ${r.make} ${r.model} ${r.locationCity ?? ""} ${r.locationState ?? ""}`
-          .toLowerCase()
-          .includes(q),
-      );
+      list = list.filter((r: ScanResult) => matchesVehicleQuery(r, search));
     }
     if (category !== "all") {
       list = list.filter((r: ScanResult) =>
@@ -1583,7 +3735,11 @@ function ScanPageInner() {
     }
     const sorted = [...list];
     if (sort === "score") {
-      sorted.sort((a, b) => (b.profitScore ?? 0) - (a.profitScore ?? 0));
+      sorted.sort(
+        (a, b) =>
+          (b.trustExplanation?.score ?? b.profitScore ?? 0) -
+          (a.trustExplanation?.score ?? a.profitScore ?? 0),
+      );
     } else if (sort === "price") {
       sorted.sort((a, b) => (a.askPrice ?? 0) - (b.askPrice ?? 0));
     } else {
@@ -1592,6 +3748,15 @@ function ScanPageInner() {
     }
     return sorted;
   }, [results, search, sort, category]);
+
+  const tableSourceHealthById = useMemo(() => {
+    const map = new Map(sourceHealthById);
+    for (const row of filteredResults as ScanResult[]) {
+      const health = resolveSourceHealth(row);
+      if (health) map.set(row.source, health);
+    }
+    return map;
+  }, [sourceHealthById, filteredResults, resolveSourceHealth]);
 
   // Category chip counts (from the fetched result set) — only non-empty chips render.
   const categoryCounts = useMemo(() => {
@@ -1605,11 +3770,21 @@ function ScanPageInner() {
   // Source options for filter
   const sourceOptions = useMemo(() => {
     const opts = [{ value: "all", label: "Source: All" }];
-    ALL_VEHICLE_SOURCES.slice(0, 20).forEach((s) =>
-      opts.push({ value: s.id, label: s.name }),
+    const liveSources = Array.isArray(facets?.sources) ? facets.sources : [];
+    liveSources.forEach((s: any) =>
+      opts.push({
+        value: String(s.value),
+        label: `${s.label || s.value} (${Number(s.count || 0)})`,
+      }),
     );
+    const seen = new Set(opts.map((option) => option.value));
+    ALL_VEHICLE_SOURCES.slice(0, 20).forEach((s) => {
+      if (seen.has(s.id)) return;
+      opts.push({ value: s.id, label: s.name });
+      seen.add(s.id);
+    });
     return opts;
-  }, []);
+  }, [facets?.sources]);
 
   const stateOptions = useMemo(() => {
     const opts = [{ value: "all", label: "State: All" }];
@@ -1623,7 +3798,7 @@ function ScanPageInner() {
       style={{ animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)" }}
     >
       {/* ── Search bar ── */}
-      <div className="glass-panel p-4 flex flex-col sm:flex-row gap-3 items-center sticky top-4 z-20">
+      <div className="glass-panel flex flex-col items-center gap-3 p-4 sm:flex-row md:sticky md:top-4 md:z-20">
         <div className="relative flex-1 w-full">
           <Ico
             name="search"
@@ -1801,21 +3976,44 @@ function ScanPageInner() {
         {searchSummary}
       </div>
 
+      {isFreshImportReview && (
+        <div className="rounded-[var(--r3)] border border-[var(--gbd)] bg-[var(--glo)] px-4 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
+            Fresh search review
+          </div>
+          <p className="mt-1 text-sm font-semibold leading-relaxed text-[var(--t2)]">
+            Showing proof-ranked matches from your selected buyer scope first.
+            Open each card&apos;s trust proof before bidding: VIN, mileage,
+            auction timing, seller path, source freshness, and buyer math.
+          </p>
+        </div>
+      )}
+
       <SmartDataPlanCard
         configured={scanConfigured}
         total={total}
-        plan={smartPlan}
+        plan={effectiveSmartPlan}
         onPreview={previewSourcePlan}
         onRun={runMatchingSources}
         onLivePreview={fetchLivePreview}
         previewing={planPreviewing}
         running={runImporting}
         livePreviewing={livePreviewing}
-        showingPreview={!scanConfigured && livePreviewRows.length > 0}
-        proof={livePreviewProof}
+        showingPreview={
+          !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
+        }
+        proof={displayProof}
         importRun={importRunProof}
+        importPlan={importPlanProof}
         readinessItems={systemStatus?.readiness?.items || []}
-        message={planMessage}
+        sourceHealth={scrapeHealth?.sources || []}
+        scopeStatus={scrapeHealth?.scopeStatus || null}
+        message={displayMessage}
+      />
+
+      <ScopeQualityPanel
+        results={filteredResults}
+        sourceHealthById={tableSourceHealthById}
       />
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
@@ -1835,6 +4033,20 @@ function ScanPageInner() {
             title="Only show deals the engine rates BUY"
           >
             ✓ BUY only
+          </button>
+          <button
+            type="button"
+            onClick={() => setVerdict((v) => (v === "watch" ? "all" : "watch"))}
+            className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+            style={{
+              background: verdict === "watch" ? "var(--amber-lo)" : "var(--s0)",
+              color: verdict === "watch" ? "var(--amber-d)" : "var(--t3)",
+              borderColor:
+                verdict === "watch" ? "var(--amber-bd)" : "var(--b2)",
+            }}
+            title="Show serious watch candidates closest to profitable"
+          >
+            Watch queue
           </button>
           <FilterSelect
             label="Make"
@@ -1863,11 +4075,11 @@ function ScanPageInner() {
             onChange={setMaxPrice}
             options={[
               { value: "any", label: "Price: Any" },
-              { value: "5k", label: "Under $5,000" },
-              { value: "10k", label: "Under $10,000" },
-              { value: "20k", label: "Under $20,000" },
-              { value: "35k", label: "Under $35,000" },
-              { value: "50k", label: "Under $50,000" },
+              { value: "5000", label: "Under $5,000" },
+              { value: "10000", label: "Under $10,000" },
+              { value: "20000", label: "Under $20,000" },
+              { value: "35000", label: "Under $35,000" },
+              { value: "50000", label: "Under $50,000" },
             ]}
           />
           <FilterSelect
@@ -1905,6 +4117,20 @@ function ScanPageInner() {
             }}
           >
             Profit Simulator
+          </button>
+          <button
+            type="button"
+            onClick={saveCurrentScanAsAlert}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
+            style={{
+              background: "var(--s0)",
+              color: "var(--t2)",
+              borderColor: "var(--b2)",
+            }}
+            title="Save this exact Scan scope as a local alert"
+          >
+            <Ico name="bell" size={12} />
+            Save alert
           </button>
 
           {/* Results count + density */}
@@ -1996,6 +4222,12 @@ function ScanPageInner() {
           <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
             <FilterGroup label="From">
               <FilterSelect
+                label="Seller Type"
+                value={sellerTypeFilter}
+                onChange={setSellerTypeFilter}
+                options={sellerTypeOptions}
+              />
+              <FilterSelect
                 label="Source"
                 value={sourceFilter}
                 onChange={setSourceFilter}
@@ -2074,12 +4306,7 @@ function ScanPageInner() {
                 label="Title Type"
                 value={titleType}
                 onChange={setTitleType}
-                options={[
-                  { value: "all", label: "Title: All" },
-                  { value: "clean", label: "Clean Title" },
-                  { value: "salvage", label: "Salvage Title" },
-                  { value: "rebuilt", label: "Rebuilt Title" },
-                ]}
+                options={titleTypeOptions}
               />
               <FilterSelect
                 label="Availability"
@@ -2166,6 +4393,14 @@ function ScanPageInner() {
         })}
       </div>
 
+      {!loading && !error && filteredResults.length > 0 && (
+        <ScanReviewStrip
+          results={filteredResults as ScanResult[]}
+          sourceHealthById={tableSourceHealthById}
+          href={swrKey || "/scan?sort=profit"}
+        />
+      )}
+
       {/* ── Results grid ── */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2180,11 +4415,21 @@ function ScanPageInner() {
       )}
 
       {!loading && !error && filteredResults.length === 0 && (
-        <EmptyState onRetry={() => mutate()} />
+        <EmptyState
+          onRetry={() => mutate()}
+          sourceHealth={scrapeHealth?.sources || []}
+          broadHref={`/scan?${new URLSearchParams({
+            ...(lane && lane !== "all" ? { lane } : {}),
+            sort: "profit",
+          }).toString()}`}
+        />
       )}
 
       {!loading && !error && filteredResults.length > 0 && view === "table" && (
-        <DealTable rows={filteredResults as any} />
+        <DealTable
+          rows={filteredResults as any}
+          sourceHealthById={tableSourceHealthById}
+        />
       )}
 
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
@@ -2234,9 +4479,16 @@ function ScanPageInner() {
                 mileage={car.mileage}
                 condition={car.condition}
                 damageType={car.damageType}
+                titleType={car.titleType}
                 dealVerdict={car.dealVerdict}
                 recommendedMaxBid={car.recommendedMaxBid}
                 sellEstimate={car.sellEstimate}
+                sellBasis={car.sellBasis}
+                valuation={car.valuation}
+                soldAnchored={car.soldAnchored}
+                repairEstimate={car.repairEstimate}
+                transportEstimate={car.transportEstimate}
+                warnings={car.warnings}
                 priceDropAmount={car.priceDropAmount}
                 priceDropDays={car.priceDropDays}
                 auctionEndAt={car.auctionEndAt}
@@ -2248,13 +4500,84 @@ function ScanPageInner() {
                 sourceUrl={car.sourceUrl}
                 seller={car.seller}
                 sellerType={car.sellerType}
+                sellerPhone={car.sellerPhone}
+                sellerEmail={car.sellerEmail}
+                sellerContactUrl={car.sellerContactUrl}
                 dataQuality={car.dataQuality}
-                onClick={() => {
-                  if (car.id.startsWith("live-") && car.sourceUrl) {
-                    window.open(car.sourceUrl, "_blank", "noopener,noreferrer");
+                trustExplanation={car.trustExplanation}
+                sourceHealth={resolveSourceHealth(car)}
+                isSaved={localSaved.has(car.id)}
+                onSave={async () => {
+                  if (localSaved.has(car.id)) {
+                    localSaved.remove(car.id);
+                    addToast("Vehicle removed from local watchlist", "info");
                     return;
                   }
-                  transitionTo(`/deal/${car.id}`);
+                  let cloudSynced = false;
+                  let alreadyCloudSaved = false;
+                  try {
+                    const res = await fetch("/api/saved-cars", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        dealId: car.id,
+                        snapshot: {
+                          dataQuality: car.dataQuality,
+                          trustExplanation: car.trustExplanation,
+                        },
+                      }),
+                    });
+                    cloudSynced = res.ok;
+                    alreadyCloudSaved = res.status === 409;
+                  } catch {
+                    cloudSynced = false;
+                  }
+                  localSaved.save({
+                    id: car.id,
+                    title:
+                      `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() ||
+                      "Saved vehicle",
+                    year: car.year,
+                    make: car.make,
+                    model: car.model,
+                    vin: car.vin,
+                    mileage: car.mileage,
+                    askPrice: car.askPrice,
+                    estimatedProfit: car.profitEstimate,
+                    sellEstimate: car.sellEstimate,
+                    recommendedMaxBid: car.recommendedMaxBid,
+                    repairEstimate: car.repairEstimate,
+                    transportEstimate: car.transportEstimate,
+                    source: car.source,
+                    sourceUrl: car.sourceUrl,
+                    seller: car.seller,
+                    sellerType: car.sellerType,
+                    sellerPhone: car.sellerPhone,
+                    sellerEmail: car.sellerEmail,
+                    sellerContactUrl: car.sellerContactUrl,
+                    image: car.imageUrl,
+                    locationCity: car.locationCity,
+                    locationState: car.locationState,
+                    dataQuality: car.dataQuality,
+                    trustExplanation: car.trustExplanation,
+                    firstSeenAt:
+                      typeof car.firstSeenAt === "string"
+                        ? car.firstSeenAt
+                        : car.firstSeenAt?.toISOString(),
+                    lastSeenAt:
+                      typeof car.lastSeenAt === "string"
+                        ? car.lastSeenAt
+                        : car.lastSeenAt?.toISOString(),
+                    savedAt: new Date().toISOString(),
+                  });
+                  addToast(
+                    cloudSynced
+                      ? "Watching with cloud alerts and a local backup."
+                      : alreadyCloudSaved
+                        ? "Already watching in cloud; local backup refreshed."
+                        : "Watching locally. Sign in when Google OAuth is ready to sync alerts.",
+                    "success",
+                  );
                 }}
               />
             </motion.div>

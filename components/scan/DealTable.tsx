@@ -4,8 +4,9 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
 import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
-import { buyTerms } from "@/lib/sources/source-meta";
+import { buyTerms, dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
 import { SourceBadge } from "@/components/shared/SourceBadge";
+import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
 // sticky header, GPU-only hover transitions, and content-visibility so 500+ rows stay 60fps).
@@ -27,6 +28,33 @@ export interface TableRow {
   locationState?: string;
   condition?: string;
   damageType?: string;
+  titleType?: string;
+  vin?: string;
+  imageUrl?: string;
+  sourceUrl?: string;
+  seller?: string;
+  sellerType?: string;
+  sellerPhone?: string;
+  sellerEmail?: string;
+  sellerContactUrl?: string;
+  auctionEndAt?: string | Date;
+  firstSeenAt?: string | Date;
+  lastSeenAt?: string | Date;
+  warnings?: string[];
+  dataQuality?: {
+    score: number;
+    label: "Excellent" | "Good" | "Thin" | "Sparse";
+    missing: string[];
+  };
+}
+
+export interface TableSourceHealth {
+  readiness?: string;
+  userStatus?: string;
+  activeRows?: number;
+  rowsWithPhotos?: number;
+  photoCoveragePct?: number;
+  freshnessHours?: number | null;
 }
 
 type SortKey =
@@ -36,6 +64,7 @@ type SortKey =
   | "sellEstimate"
   | "profitEstimate"
   | "recommendedMaxBid"
+  | "dataQuality"
   | "profitScore";
 
 const fmt = (v?: number | null) =>
@@ -57,7 +86,89 @@ const LANE_LABEL: Record<string, string> = {
   private: "Private",
 };
 
-export function DealTable({ rows }: { rows: TableRow[] }) {
+export const TABLE_PROOF_FIELD_COUNT = 11;
+
+function relativeFreshness(value?: string | Date | null) {
+  if (!value) return "unknown";
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return "unknown";
+  const hours = Math.max(0, Math.round(ms / 3_600_000));
+  if (hours < 1) return "now";
+  if (hours < 24) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+
+export function proofCount(r: TableRow) {
+  const total =
+    String(r.sellerType || "").toLowerCase() === "dealer" ||
+    String(r.sellerType || "").toLowerCase() === "private" ||
+    String(r.sellerType || "").toLowerCase() === "retail"
+      ? TABLE_PROOF_FIELD_COUNT - 1
+      : TABLE_PROOF_FIELD_COUNT;
+  if (r.dataQuality?.missing) {
+    return Math.max(0, total - r.dataQuality.missing.length);
+  }
+  return gradeDataQuality({
+    images: [],
+    imageUrl: r.imageUrl,
+    vin: r.vin,
+    titleType: r.titleType,
+    condition: r.condition,
+    damageType: r.damageType,
+    mileage: r.mileage,
+    locationState: r.locationState,
+    askPrice: r.askPrice,
+    seller: r.seller,
+    sellerType: r.sellerType,
+    sellerPhone: r.sellerPhone,
+    sellerEmail: r.sellerEmail,
+    sellerContactUrl: r.sellerContactUrl,
+    auctionEndAt: r.auctionEndAt,
+    sourceUrl: r.sourceUrl,
+  }).present.length;
+}
+
+export function proofFieldCount(r: TableRow) {
+  return String(r.sellerType || "").toLowerCase() === "dealer" ||
+    String(r.sellerType || "").toLowerCase() === "private" ||
+    String(r.sellerType || "").toLowerCase() === "retail"
+    ? TABLE_PROOF_FIELD_COUNT - 1
+    : TABLE_PROOF_FIELD_COUNT;
+}
+
+function sourceHealthForRow(
+  row: TableRow,
+  sourceHealthById?: Map<string, TableSourceHealth>,
+) {
+  if (!sourceHealthById) return undefined;
+  const source = String(row.source || "");
+  const url = String(row.sourceUrl || "").toLowerCase();
+  if (sourceHealthById.has(source)) return sourceHealthById.get(source);
+  if (source === "gov_auction") {
+    if (url.includes("govdeals.com")) return sourceHealthById.get("govdeals");
+    if (url.includes("publicsurplus"))
+      return sourceHealthById.get("publicsurplus");
+    if (url.includes("municibid")) return sourceHealthById.get("municibid");
+    if (url.includes("gsa")) return sourceHealthById.get("gsa_auctions");
+  }
+  if (source === "independent_dealer") {
+    const dealerSourceId = dealerSourceIdFromUrl(
+      url,
+      Array.from(sourceHealthById.keys()),
+    );
+    if (dealerSourceId) return sourceHealthById.get(dealerSourceId);
+    return sourceHealthById.get("curated_dealers");
+  }
+  return undefined;
+}
+
+export function DealTable({
+  rows,
+  sourceHealthById,
+}: {
+  rows: TableRow[];
+  sourceHealthById?: Map<string, TableSourceHealth>;
+}) {
   const router = useRouter();
   const [sortKey, setSortKey] = React.useState<SortKey>("profitEstimate");
   const [dir, setDir] = React.useState<"asc" | "desc">("desc");
@@ -75,6 +186,11 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
           return r.sellEstimate || 0;
         case "recommendedMaxBid":
           return r.recommendedMaxBid || 0;
+        case "dataQuality":
+          return (
+            r.dataQuality?.score ||
+            Math.round((proofCount(r) / proofFieldCount(r)) * 100)
+          );
         case "profitScore":
           return r.profitScore || 0;
         default:
@@ -145,11 +261,12 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
             <Th k="sellEstimate" label="Sell est." />
             <Th k="recommendedMaxBid" label="Max buy" />
             <Th k="profitEstimate" label="Net profit" />
+            <Th k="dataQuality" label="Proof" />
             <th
               className="sticky top-0 z-10 px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider"
               style={{ background: "var(--s1)", color: "var(--t4)" }}
             >
-              Call
+              Verdict
             </th>
           </tr>
         </thead>
@@ -158,6 +275,32 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
             const lane = dealLane(r);
             const vc = VERDICT_COLOR[r.dealVerdict || "pass"] || "var(--t4)";
             const profitPos = (r.profitEstimate || 0) > 0;
+            const proof = proofCount(r);
+            const qualityScore =
+              r.dataQuality?.score ||
+              Math.round((proof / proofFieldCount(r)) * 100);
+            const fresh = relativeFreshness(r.lastSeenAt || r.firstSeenAt);
+            const missing = r.dataQuality?.missing || [];
+            const warning = r.warnings?.find(Boolean);
+            const sourceHealth = sourceHealthForRow(r, sourceHealthById);
+            const sourceReadiness = sourceHealth?.readiness || "unknown";
+            const sourceTone =
+              sourceReadiness === "ready"
+                ? "var(--green)"
+                : sourceReadiness === "blocked" ||
+                    sourceReadiness === "needs_login"
+                  ? "var(--red)"
+                  : sourceReadiness === "unknown"
+                    ? "var(--t5)"
+                    : "var(--amber-d)";
+            const sourceFreshness =
+              typeof sourceHealth?.freshnessHours === "number"
+                ? sourceHealth.freshnessHours < 1
+                  ? "now"
+                  : sourceHealth.freshnessHours < 24
+                    ? `${sourceHealth.freshnessHours}h`
+                    : `${Math.round(sourceHealth.freshnessHours / 24)}d`
+                : "pending";
             return (
               <tr
                 key={r.id}
@@ -186,7 +329,26 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                     </span>
                   </div>
                   <div className="mt-1 flex items-center gap-1.5">
-                    <SourceBadge source={r.source} size="sm" />
+                    <SourceBadge
+                      source={r.source}
+                      sourceUrl={r.sourceUrl}
+                      size="sm"
+                    />
+                    <span
+                      className="rounded-full border border-[var(--b1)] bg-[var(--s1)] px-1.5 py-0.5 text-[9px] font-black uppercase"
+                      style={{ color: sourceTone }}
+                      title={
+                        sourceHealth
+                          ? `${sourceHealth.userStatus || sourceReadiness} · ${Number(
+                              sourceHealth.activeRows || 0,
+                            ).toLocaleString()} scoped rows · ${Number(
+                              sourceHealth.photoCoveragePct || 0,
+                            )}% photo coverage · ${sourceFreshness}`
+                          : "No scoped source health returned yet"
+                      }
+                    >
+                      {sourceHealth?.userStatus || sourceReadiness}
+                    </span>
                     <span className="truncate text-[11px] text-[var(--t4)]">
                       {[
                         r.trim,
@@ -250,6 +412,58 @@ export function DealTable({ rows }: { rows: TableRow[] }) {
                     {profitPos ? "+" : ""}
                     {fmt(r.profitEstimate)}
                   </Mono>
+                </td>
+                <td className="px-3 py-2.5 text-right">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-black"
+                      style={{
+                        background:
+                          qualityScore >= 68 ? "var(--glo)" : "var(--amber-lo)",
+                        color:
+                          qualityScore >= 68
+                            ? "var(--green)"
+                            : "var(--amber-d)",
+                      }}
+                      title={
+                        missing.length
+                          ? `Missing ${missing
+                              .slice(0, 4)
+                              .map(qualityFieldLabel)
+                              .join(", ")}`
+                          : "Core listing fields are present"
+                      }
+                    >
+                      {qualityScore}
+                    </span>
+                    <span
+                      className="rounded-full border border-[var(--b1)] bg-[var(--s1)] px-2 py-0.5 text-[10px] font-black text-[var(--t3)]"
+                      title={`${proof}/${proofFieldCount(r)} relevant fields present`}
+                    >
+                      {proof}/{proofFieldCount(r)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-end gap-1 text-[9px] uppercase text-[var(--t5)]">
+                    <span>{fresh}</span>
+                    <span>·</span>
+                    <span>{r.sourceUrl ? "link" : "no link"}</span>
+                    <span>·</span>
+                    <span>
+                      {r.sellerPhone || r.sellerEmail || r.sellerContactUrl
+                        ? "contact"
+                        : "no contact"}
+                    </span>
+                    <span>·</span>
+                    <span>{r.imageUrl ? "photo" : "no photo"}</span>
+                  </div>
+                  {warning && (
+                    <div
+                      className="mt-1 max-w-[180px] truncate text-right text-[9px] font-bold text-[var(--amber-d)]"
+                      title={warning}
+                    >
+                      Warning: {warning}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 text-center">
                   <span

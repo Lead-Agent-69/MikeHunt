@@ -1,3 +1,5 @@
+import { extractVin } from "@/lib/vehicle/vin";
+
 export interface ContactInfo {
   phone?: string;
   email?: string;
@@ -31,12 +33,9 @@ export function extractContactInfo(text?: string): ContactInfo {
     info.email = emailMatch[0].toLowerCase();
   }
 
-  // Extract hidden VIN (17 chars, no I, O, Q)
-  const vinRegex = /\b([A-HJ-NPR-Z0-9]{17})\b/gi;
-  const vinMatch = text.match(vinRegex);
-  if (vinMatch && vinMatch.length > 0) {
-    info.vin = vinMatch[0].toUpperCase();
-  }
+  // Extract hidden VIN only when it passes ISO-3779 check digit validation.
+  const vin = extractVin(text);
+  if (vin) info.vin = vin;
 
   return info;
 }

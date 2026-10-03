@@ -148,6 +148,5 @@ export async function scrapeGsaAuctions(maxPages = 6): Promise<number> {
 
   const deals = Array.from(byId.values());
   console.log(`[GSA] Found ${deals.length} vehicle auctions`);
-  if (deals.length > 0) await upsertDeals(deals);
-  return deals.length;
+  return deals.length > 0 ? upsertDeals(deals) : 0;
 }

@@ -5,6 +5,7 @@ import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
 import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { gradeDataQuality } from "@/lib/data-quality";
+import { sellerContact } from "@/lib/data/deal-contact";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,21 @@ function cleanText(value: string | null) {
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
+}
+
+function cleanSource(value: string | null) {
+  return (value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function cleanNumber(value: string | null) {
+  const n = Number(String(value || "").replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function queryTokens(q: string) {
@@ -42,10 +58,62 @@ function matchesQuery(row: any, q: string) {
   return queryTokens(q).some((token) => haystack.includes(token));
 }
 
-function rowToVehicle(row: any) {
+function rowTitleType(row: any) {
+  return String(
+    row.title_type ||
+      row.titleType ||
+      row.title_status ||
+      row.titleStatus ||
+      row.condition ||
+      row.title ||
+      "",
+  ).toLowerCase();
+}
+
+function matchesTitleType(row: any, titleType: string) {
+  if (!titleType || titleType === "all") return true;
+  const haystack = rowTitleType(row);
+  if (titleType === "clean") return /clean/.test(haystack);
+  if (titleType === "salvage")
+    return /salvage|repairable|damage/.test(haystack);
+  if (titleType === "rebuilt") return /rebuilt|reconstructed/.test(haystack);
+  return haystack.includes(titleType);
+}
+
+function matchesNumericScope(
+  row: any,
+  scope: {
+    minPrice: number;
+    maxPrice: number;
+    minYear: number;
+    maxMileage: number;
+  },
+) {
+  const price = Number(row.ask_price || row.askPrice || 0);
+  const year = Number(row.year || 0);
+  const mileage = Number(row.mileage || 0);
+  if (scope.minPrice && (!price || price < scope.minPrice)) return false;
+  if (scope.maxPrice && (!price || price > scope.maxPrice)) return false;
+  if (scope.minYear && (!year || year < scope.minYear)) return false;
+  if (scope.maxMileage && mileage && mileage > scope.maxMileage) return false;
+  return true;
+}
+
+function rowToVehicle(row: any, sourceId?: string) {
+  const canonicalSource = sourceId || row.source;
+  const contact = sellerContact(row);
   const quality = gradeDataQuality({
     images: row.images,
     vin: row.vin,
+    titleType:
+      row.title_type ||
+      row.titleType ||
+      row.title_status ||
+      row.titleStatus ||
+      String(row.title || row.condition || "").match(
+        /salvage|rebuilt|clean title|parts/i,
+      )?.[0] ||
+      null,
     condition: row.condition,
     damageType: row.damage_type,
     mileage: row.mileage,
@@ -54,12 +122,16 @@ function rowToVehicle(row: any) {
     askPrice: row.ask_price,
     seller: row.seller,
     sellerType: row.seller_type,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
+    auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
     sourceUrl: row.source_url,
   });
 
   return {
-    id: `live-${row.source}-${row.source_deal_id}`,
-    source: row.source,
+    id: `live-${canonicalSource}-${row.source_deal_id}`,
+    source: canonicalSource,
     title: row.title,
     year: row.year,
     make: row.make,
@@ -78,6 +150,9 @@ function rowToVehicle(row: any) {
     sourceUrl: row.source_url,
     seller: row.seller,
     sellerType: row.seller_type,
+    sellerPhone: contact.phone,
+    sellerEmail: contact.email,
+    sellerContactUrl: contact.url,
     auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
     bidCount: row.bid_count,
     firstSeenAt: row.scraped_at || new Date().toISOString(),
@@ -124,17 +199,22 @@ const PREVIEW_SOURCES: PreviewSource[] = [
   },
 ];
 
-function sourceMatchesPlan(
-  source: PreviewSource,
-  sourceIds: string[],
-  lane: string,
-) {
-  if (source.sourceIds.some((id) => sourceIds.includes(id))) return true;
-  // Damaged/all shoppers still benefit from a no-auth government fallback when Copart is unreachable.
-  return (
-    ["all", "damaged", "auction", "government"].includes(lane) &&
-    source.id !== "copart"
-  );
+function sourceMatchesPlan(source: PreviewSource, sourceIds: string[]) {
+  return source.sourceIds.some((id) => sourceIds.includes(id));
+}
+
+function sourceMatchesSellerType(source: PreviewSource, sellerType: string) {
+  if (!sellerType || sellerType === "all") return true;
+  const auctionSources = new Set([
+    "copart",
+    "govdeals",
+    "publicsurplus",
+    "municibid",
+  ]);
+  if (sellerType === "auction") {
+    return source.sourceIds.some((id) => auctionSources.has(id));
+  }
+  return false;
 }
 
 export async function GET(req: NextRequest) {
@@ -143,11 +223,39 @@ export async function GET(req: NextRequest) {
     const lane = searchParams.get("lane") || "damaged";
     const q = cleanText(searchParams.get("q"));
     const state = (searchParams.get("state") || "").toUpperCase();
-    const plan = planScrapeForBuyerScope({ lane, q, state });
+    const titleType = cleanText(searchParams.get("titleType"));
+    const maxPrice = cleanNumber(searchParams.get("maxPrice"));
+    const minPrice = cleanNumber(searchParams.get("minPrice"));
+    const minYear = cleanNumber(searchParams.get("minYear"));
+    const maxMileage = cleanNumber(searchParams.get("maxMileage"));
+    const requestedSource = cleanSource(searchParams.get("source"));
+    const sellerType = cleanText(searchParams.get("sellerType"));
+    const plan = planScrapeForBuyerScope({
+      lane,
+      q,
+      state,
+      titleType,
+      maxPrice: maxPrice || undefined,
+      minYear: minYear || undefined,
+      maxMileage: maxMileage || undefined,
+    });
 
-    const candidates = PREVIEW_SOURCES.filter((source) =>
-      sourceMatchesPlan(source, plan.sourceIds, lane),
+    let candidates = PREVIEW_SOURCES.filter(
+      (source) =>
+        sourceMatchesPlan(source, plan.sourceIds) &&
+        sourceMatchesSellerType(source, sellerType),
     );
+    if (requestedSource && requestedSource !== "all") {
+      const exact = PREVIEW_SOURCES.find((source) =>
+        source.sourceIds.some((id) => cleanSource(id) === requestedSource),
+      );
+      candidates =
+        exact &&
+        sourceMatchesPlan(exact, plan.sourceIds) &&
+        sourceMatchesSellerType(exact, sellerType)
+          ? [exact, ...candidates.filter((source) => source.id !== exact.id)]
+          : [];
+    }
 
     if (!candidates.length) {
       return NextResponse.json({
@@ -156,8 +264,11 @@ export async function GET(req: NextRequest) {
         plan,
         vehicles: [],
         total: 0,
-        message:
-          "No public no-auth preview source is available for this scope yet.",
+        message: requestedSource
+          ? "This source does not have a public no-auth preview path yet. Connect Supabase and run an authorized import for this source."
+          : sellerType && sellerType !== "all"
+            ? "No public no-auth preview source matches this seller type yet. Use live Scan rows or run an authorized import."
+            : "No public no-auth preview source is available for this scope yet.",
       });
     }
 
@@ -172,12 +283,25 @@ export async function GET(req: NextRequest) {
     for (const candidate of candidates) {
       try {
         const lots = await candidate.fetchRows();
-        const filtered = lots.filter((row: any) => {
+        const tagged = lots.map((row: any) => ({
+          ...row,
+          source: candidate.id,
+        }));
+        const filtered = tagged.filter((row: any) => {
           if (state && state !== "ALL" && row.location_state !== state)
             return false;
-          return matchesQuery(row, q);
+          if (!matchesQuery(row, q)) return false;
+          if (!matchesTitleType(row, titleType)) return false;
+          return matchesNumericScope(row, {
+            minPrice,
+            maxPrice,
+            minYear,
+            maxMileage,
+          });
         });
-        const vehicles = filtered.slice(0, 24).map(rowToVehicle);
+        const vehicles = filtered
+          .slice(0, 24)
+          .map((row) => rowToVehicle(row, candidate.id));
 
         proof.push({
           id: candidate.id,

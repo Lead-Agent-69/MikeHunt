@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createClientComponentClient,
@@ -10,6 +10,7 @@ import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
+import { MikeHuntLogo, MikeHuntMark } from "@/components/brand/MikeHuntLogo";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -17,57 +18,86 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [liveStats, setLiveStats] = useState<{
+    activeDeals: number | null;
+    readySources: number | null;
+  }>({ activeDeals: null, readySources: null });
   const router = useRouter();
   const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/system/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((status) => {
+        if (cancelled || !status) return;
+        setLiveStats({
+          activeDeals:
+            typeof status.activeDeals === "number" ? status.activeDeals : null,
+          readySources:
+            typeof status.sourceHealth?.readySources === "number"
+              ? status.sourceHealth.readySources
+              : null,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
 
-    // 1. Provision profile & dealer & auth user via secure API route
     try {
-      const res = await fetch("/api/auth/provision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          fullName,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        const errorMessage =
-          errorData?.error?.message ||
-          errorData?.error ||
-          "Failed to create account. Email may already be in use.";
-        setError(
-          typeof errorMessage === "string"
-            ? errorMessage
-            : JSON.stringify(errorMessage),
-        );
-        setLoading(false);
-        return;
-      }
-
       if (!isSupabaseConfigured()) {
+        const res = await fetch("/api/auth/demo-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, name: fullName }),
+        });
+        if (!res.ok) throw new Error("Could not start the local preview.");
         router.push("/onboarding");
         router.refresh();
         return;
       }
 
-      // 2. Sign in the newly created user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: { full_name: fullName },
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+        },
       });
 
-      if (signInError) {
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!data.session) {
+        setNotice(
+          "Check your email to confirm your account. The confirmation link will return you to setup.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      const bootstrap = await fetch("/api/auth/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName }),
+      });
+      if (!bootstrap.ok) {
         setError(
-          "Account created, but failed to automatically log in. Please try logging in manually.",
+          "Account created, but setup could not be completed. Please sign in again.",
         );
         setLoading(false);
         return;
@@ -85,20 +115,11 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-24 sm:p-6 bg-[var(--s1)] pb-safe animate-fadeUp">
       {/* Professional Header */}
-      <div className="absolute top-0 left-0 right-0 p-6">
+      <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link href="/" className="inline-flex items-center gap-2.5">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg"
-            style={{ background: "var(--grad)" }}
-            aria-hidden
-          >
-            <Ico name="search" size={20} />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-[var(--t1)]">
-            MikeHunt
-          </span>
+          <MikeHuntLogo size="md" />
         </Link>
       </div>
 
@@ -107,17 +128,12 @@ export default function RegisterPage() {
         <div className="glass-panel p-8 sm:p-10 flex flex-col gap-6">
           {/* Header */}
           <div className="text-center">
-            <div
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
-              style={{ background: "var(--grad)" }}
-            >
-              <Ico name="plus" size={32} className="text-white" />
-            </div>
+            <MikeHuntMark size="lg" className="mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-[var(--t1)] mb-2">
               Create your account
             </h1>
             <p className="text-base text-[var(--t3)]">
-              Start finding underpriced vehicles with AI-powered market
+              Start finding underpriced vehicles with source-backed market
               intelligence
             </p>
           </div>
@@ -134,6 +150,12 @@ export default function RegisterPage() {
             >
               <Ico name="alert-triangle" size={16} />
               <span>{error}</span>
+            </div>
+          )}
+
+          {notice && (
+            <div className="p-4 rounded-xl text-sm font-medium border border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]">
+              {notice}
             </div>
           )}
 
@@ -232,19 +254,23 @@ export default function RegisterPage() {
           </div>
           <div className="flex items-center gap-1.5">
             <Ico name="zap" size={14} />
-            <span>Instant access</span>
+            <span>Source proof</span>
           </div>
         </div>
 
         {/* Benefits */}
         <div className="mt-6 grid grid-cols-3 gap-3 text-center">
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
-            <div className="text-lg font-bold text-[var(--t1)] mb-1">12K+</div>
+            <div className="text-lg font-bold text-[var(--t1)] mb-1">
+              {liveStats.activeDeals?.toLocaleString() || "Live"}
+            </div>
             <div className="text-xs text-[var(--t4)]">Active deals</div>
           </div>
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
-            <div className="text-lg font-bold text-[var(--t1)] mb-1">50</div>
-            <div className="text-xs text-[var(--t4)]">States</div>
+            <div className="text-lg font-bold text-[var(--t1)] mb-1">
+              {liveStats.readySources ?? "Multi"}
+            </div>
+            <div className="text-xs text-[var(--t4)]">Ready sources</div>
           </div>
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
             <div className="text-lg font-bold text-[var(--t1)] mb-1">Free</div>

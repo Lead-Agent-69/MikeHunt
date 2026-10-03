@@ -29,6 +29,10 @@ export function MarketPulse() {
   }
 
   const report: string | null = data?.report ?? null;
+  const deterministic = Boolean(
+    data?.deterministic || data?.provider === "none",
+  );
+  const title = deterministic ? "Market Pulse" : "AI Market Pulse";
 
   return (
     <div className="glass-panel p-5">
@@ -36,7 +40,7 @@ export function MarketPulse() {
         <div className="flex items-center gap-2">
           <Ico name="bot" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            AI Market Pulse
+            {title}
           </p>
         </div>
         {report && (
@@ -58,8 +62,9 @@ export function MarketPulse() {
       ) : (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-[var(--t4)]">
-            A plain-English read on where the market's moving, from your own
-            accumulated data.
+            {deterministic
+              ? "Generate a deterministic read from real timing and aggregate market data."
+              : "A plain-English read on where the market's moving, from your own accumulated data."}
           </p>
           <button
             onClick={generate}

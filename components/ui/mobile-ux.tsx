@@ -37,11 +37,6 @@ export const NetworkProvider = ({
     let cancelled = false;
 
     const verifyOnline = async () => {
-      if (typeof navigator !== "undefined" && navigator.onLine === false) {
-        setStatus({ isOnline: false, isOffline: true });
-        return;
-      }
-
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 3000);
       try {
@@ -62,7 +57,7 @@ export const NetworkProvider = ({
       setStatus({ isOnline: true, isOffline: false });
       void verifyOnline();
     };
-    const handleOffline = () => setStatus({ isOnline: false, isOffline: true });
+    const handleOffline = () => void verifyOnline();
 
     void verifyOnline();
     window.addEventListener("online", handleOnline);

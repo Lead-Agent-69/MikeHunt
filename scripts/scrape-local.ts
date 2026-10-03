@@ -7,6 +7,10 @@ import { createWriteStream } from "node:fs";
 import { format } from "node:util";
 import { LocalScraperCache } from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
+import {
+  claimNextScopedScrapeJob,
+  isRemoteScrapeQueueEnabled,
+} from "../lib/scrapers/job-queue";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -70,6 +74,11 @@ interface Status {
   progress: number;
   lastRun?: string;
   lastError?: string;
+  activeJob?: {
+    id: string;
+    sourceIds: string[];
+    requestedAt: string;
+  };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
   accessBarriers: {
     host: string;
@@ -86,6 +95,13 @@ interface Status {
   }[];
 }
 
+const QUEUE_POLL_MS = Math.max(
+  1_000,
+  Number(process.env.REMOTE_QUEUE_POLL_MS || 5_000),
+);
+const WORKER_ID =
+  process.env.SCRAPER_WORKER_ID || `mikehunt-docker-${process.pid}`;
+
 let manualPaused = false;
 let stopRequested = false;
 let quotaPaused = false;
@@ -99,7 +115,10 @@ const statusDir = path.dirname(STATUS_PATH);
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
-  const tmp = `${STATUS_PATH}.${process.pid}.tmp`;
+  await mkdir(statusDir, { recursive: true });
+  const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
+    .toString(36)
+    .slice(2)}.tmp`;
   await writeFile(tmp, JSON.stringify(currentStatus, null, 2), { mode: 0o600 });
   await rename(tmp, STATUS_PATH);
 }
@@ -386,6 +405,138 @@ async function runCycle(): Promise<void> {
   await writeStatus();
 }
 
+async function runQueuedJobLoop(): Promise<void> {
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey)
+    throw new Error(
+      "Queue mode requires hosted NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY",
+    );
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { runScrapers } = await import("../lib/scrapers/runner");
+
+  console.log(
+    `[scrape-queue] ${WORKER_ID} polling buyer-scoped jobs every ${QUEUE_POLL_MS}ms`,
+  );
+  while (!stopRequested) {
+    const job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+    if (!job) {
+      currentStatus.state = manualPaused ? "paused" : "running";
+      currentStatus.currentSources = [];
+      currentStatus.activeJob = undefined;
+      currentStatus.nextRunAt = new Date(
+        Date.now() + QUEUE_POLL_MS,
+      ).toISOString();
+      await writeStatus();
+      await new Promise((resolve) => setTimeout(resolve, QUEUE_POLL_MS));
+      continue;
+    }
+
+    if (manualPaused) {
+      await supabase
+        .from("scrape_jobs")
+        .update({ status: "pending", worker_id: null, started_at: null })
+        .eq("id", job.id)
+        .eq("worker_id", WORKER_ID);
+      await new Promise((resolve) => setTimeout(resolve, QUEUE_POLL_MS));
+      continue;
+    }
+
+    const sourceIds = Array.isArray(job.source_ids)
+      ? job.source_ids.filter(Boolean)
+      : [];
+    currentStatus.state = "running";
+    currentStatus.activeJob = {
+      id: job.id,
+      sourceIds,
+      requestedAt: job.created_at,
+    };
+    currentStatus.currentSources = [];
+    currentStatus.completedSources = 0;
+    currentStatus.totalSources = sourceIds.length;
+    currentStatus.progress = 0;
+    currentStatus.results = [];
+    currentStatus.lastRun = new Date().toISOString();
+    currentStatus.lastError = undefined;
+    await writeStatus();
+
+    try {
+      if (!sourceIds.length) throw new Error("Queued job has no source ids");
+      const results = await runScrapers({
+        orchestrator: job.orchestrator || "concurrent",
+        sourceIds,
+        scope: job.scope || {},
+        concurrency: Math.min(3, Math.max(1, Number(job.concurrency || 1))),
+        dryRun: Boolean(job.dry_run),
+        onProgress: (progress) => {
+          currentStatus.completedSources = progress.completed;
+          currentStatus.totalSources = progress.total;
+          currentStatus.progress = progress.percentage;
+          currentStatus.currentSources = progress.currentSource
+            ? [progress.currentSource]
+            : [];
+          void writeStatus();
+        },
+      });
+      const summary = {
+        total: results.length,
+        successful: results.filter((result) => result.success).length,
+        failed: results.filter((result) => !result.success).length,
+        totalDeals: results.reduce(
+          (sum, result) => sum + Number(result.dealsFound || 0),
+          0,
+        ),
+        totalDuration: results.reduce(
+          (sum, result) => sum + Number(result.duration || 0),
+          0,
+        ),
+        results,
+      };
+      const { error } = await supabase
+        .from("scrape_jobs")
+        .update({
+          status: "completed",
+          listings_found: summary.totalDeals,
+          listings_saved: summary.totalDeals,
+          result: summary,
+          completed_at: new Date().toISOString(),
+          heartbeat_at: new Date().toISOString(),
+        })
+        .eq("id", job.id)
+        .eq("worker_id", WORKER_ID);
+      if (error)
+        throw new Error(`Could not complete queue job: ${error.message}`);
+      currentStatus.results = results;
+      currentStatus.completedSources = results.length;
+      currentStatus.progress = 100;
+      console.log(
+        `[scrape-queue] completed ${job.id}: ${summary.successful}/${summary.total} sources, ${summary.totalDeals} rows`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      currentStatus.lastError = message;
+      await supabase
+        .from("scrape_jobs")
+        .update({
+          status: "failed",
+          error_message: message.slice(0, 2_000),
+          completed_at: new Date().toISOString(),
+          heartbeat_at: new Date().toISOString(),
+        })
+        .eq("id", job.id)
+        .eq("worker_id", WORKER_ID);
+      console.error(`[scrape-queue] failed ${job.id}:`, message);
+    } finally {
+      currentStatus.activeJob = undefined;
+      currentStatus.currentSources = [];
+      await writeStatus();
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const intervalMs = HOURS_BETWEEN_RUNS * 60 * 60 * 1000;
   while (!stopRequested) {
@@ -437,7 +588,7 @@ void initializeRuntime()
     server.listen(PORT, "0.0.0.0", () =>
       console.log(`[local-scraper] dashboard listening on ${PORT}`),
     );
-    return main();
+    return isRemoteScrapeQueueEnabled() ? runQueuedJobLoop() : main();
   })
   .catch((error) => {
     if (currentStatus) {

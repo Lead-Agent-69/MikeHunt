@@ -78,9 +78,7 @@ export function InstallPrompt() {
           className="h-11 w-11 shrink-0 rounded-xl"
         />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black text-white">
-            Install MikeHunt
-          </div>
+          <div className="text-sm font-black text-white">Install MikeHunt</div>
           <div className="truncate text-xs text-white/60">
             {isIOS
               ? "Tap ‘Share’ then ‘Add to Home Screen’"
@@ -91,7 +89,7 @@ export function InstallPrompt() {
           <button
             onClick={install}
             className="shrink-0 rounded-full px-4 py-2 text-sm font-black text-white"
-            style={{ background: "var(--grad, #f25b9a)" }}
+            style={{ background: "var(--grad, #075BE8)" }}
           >
             Install
           </button>

@@ -1,105 +1,140 @@
-const { withSentryConfig } = require('@sentry/nextjs')
+const { withSentryConfig } = require("@sentry/nextjs");
+
+function supabaseConnectSources() {
+  const sources = new Set(["'self'", "https:", "wss:"]);
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      sources.add(url.origin);
+      if (url.protocol === "http:") {
+        sources.add(`ws://${url.host}`);
+      }
+      if (url.protocol === "https:") {
+        sources.add(`wss://${url.host}`);
+      }
+    } catch {
+      // Invalid/template envs are handled by runtime readiness checks.
+    }
+  }
+  if (process.env.NODE_ENV !== "production") {
+    sources.add("http://127.0.0.1:54321");
+    sources.add("ws://127.0.0.1:54321");
+    sources.add("http://localhost:54321");
+    sources.add("ws://localhost:54321");
+  }
+  return Array.from(sources).join(" ");
+}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  output: 'standalone',
-  transpilePackages: ['@supabase/supabase-js'],
+  output: "standalone",
+  transpilePackages: ["@supabase/supabase-js"],
   serverExternalPackages: [
-    'playwright',
-    'playwright-extra',
-    'patchright',
-    'puppeteer-extra-plugin-stealth',
-    'bull',
-    'bullmq',
-    'ioredis',
+    "playwright",
+    "playwright-extra",
+    "patchright",
+    "puppeteer-extra-plugin-stealth",
+    "bull",
+    "bullmq",
+    "ioredis",
+    // @supabase/realtime-js loads this dynamically on Node. Keeping it external makes Vercel
+    // include the direct runtime dependency instead of leaving a require("ws") in a traced chunk.
+    "ws",
   ],
+  outputFileTracingIncludes: {
+    // Supabase Realtime selects its Node WebSocket transport dynamically. Turbopack leaves the
+    // require external, so explicitly trace the package into every server function that may
+    // construct a Supabase client (including /api/system/status on Vercel).
+    "/*": ["./node_modules/ws/**/*"],
+  },
   // Scraping runs on GitHub Actions, not Vercel serverless. Keep heavy browser/scraper
   // packages external so the Next build never tries to bundle Chromium into functions.
 
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'images.copart.com' },
-      { protocol: 'https', hostname: 'cs.copart.com' },
-      { protocol: 'https', hostname: 'iaai-img-web.azureedge.net' },
-      { protocol: 'https', hostname: '*.craigslist.org' },
-      { protocol: 'https', hostname: 'i.ebayimg.com' },
-      { protocol: 'https', hostname: '*.fbcdn.net' },
-      { protocol: 'https', hostname: 'media.ed.edmunds-media.com' },
-      { protocol: 'https', hostname: 'vehicle-photos.carmax.com' },
-      { protocol: 'https', hostname: '*.cargurus.com' },
-      { protocol: 'https', hostname: '*.autotrader.com' },
-      { protocol: 'https', hostname: '*.carvana.io' },
-      { protocol: 'https', hostname: '*.vroomcdn.com' },
-      { protocol: 'https', hostname: '*.truecar.com' },
-      { protocol: 'https', hostname: '*.offerupnow.com' },
+      { protocol: "https", hostname: "images.copart.com" },
+      { protocol: "https", hostname: "cs.copart.com" },
+      { protocol: "https", hostname: "iaai-img-web.azureedge.net" },
+      { protocol: "https", hostname: "*.craigslist.org" },
+      { protocol: "https", hostname: "i.ebayimg.com" },
+      { protocol: "https", hostname: "*.fbcdn.net" },
+      { protocol: "https", hostname: "media.ed.edmunds-media.com" },
+      { protocol: "https", hostname: "vehicle-photos.carmax.com" },
+      { protocol: "https", hostname: "*.cargurus.com" },
+      { protocol: "https", hostname: "*.autotrader.com" },
+      { protocol: "https", hostname: "*.carvana.io" },
+      { protocol: "https", hostname: "*.vroomcdn.com" },
+      { protocol: "https", hostname: "*.truecar.com" },
+      { protocol: "https", hostname: "*.offerupnow.com" },
     ],
-    formats: ['image/avif', 'image/webp'],
+    formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 60,
   },
   async redirects() {
     return [
-      { source: '/deals', destination: '/find', permanent: false },
-      { source: '/scanner', destination: '/scan', permanent: false },
-      { source: '/syndicate', destination: '/list', permanent: false },
-      { source: '/watchlist', destination: '/fleet', permanent: false },
-    ]
+      { source: "/deals", destination: "/find", permanent: false },
+      { source: "/scanner", destination: "/scan", permanent: false },
+      { source: "/syndicate", destination: "/list", permanent: false },
+      { source: "/watchlist", destination: "/fleet", permanent: false },
+    ];
   },
   async headers() {
     return [
       {
-        source: '/(.*)',
+        source: "/(.*)",
         headers: [
           {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on',
+            key: "X-DNS-Prefetch-Control",
+            value: "on",
           },
           {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
+            key: "X-XSS-Protection",
+            value: "1; mode=block",
           },
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
+            key: "X-Frame-Options",
+            value: "SAMEORIGIN",
           },
           {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
+            key: "X-Content-Type-Options",
+            value: "nosniff",
           },
           {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
           },
           {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=31536000; includeSubDomains',
+            key: "Strict-Transport-Security",
+            value: "max-age=31536000; includeSubDomains",
           },
           {
             // D4: permissive on script/style/img (Next inline bootstrap + scraped https images) to
             // avoid breakage, strict on the high-value XSS / clickjacking / injection directives.
-            key: 'Content-Security-Policy',
+            key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
               "style-src 'self' 'unsafe-inline' https:",
-              "img-src 'self' data: blob: https:",
+              "img-src 'self' data: blob: https: http:",
               "media-src 'self' blob: https:",
               "font-src 'self' data: https:",
-              "connect-src 'self' https: wss:",
+              `connect-src ${supabaseConnectSources()}`,
               "frame-src 'self' https://*.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'self'",
-            ].join('; '),
+            ].join("; "),
           },
         ],
       },
-    ]
+    ];
   },
-}
+};
 
 // Sentry Next.js wrapper. This was imported at the top of the file but NEVER applied, so the
 // plugin's Next-specific work (release injection, source-map resolution, SDK config wiring) was
@@ -121,6 +156,6 @@ const sentryOptions = {
   disableLogger: true,
   // NOTE: deliberately no `bundler` override — webpack is the bundler withSentryConfig targets,
   // and Next 16 builds with Turbopack, which ignores this wrapper entirely.
-}
+};
 
-module.exports = withSentryConfig(nextConfig, sentryOptions)
+module.exports = withSentryConfig(nextConfig, sentryOptions);

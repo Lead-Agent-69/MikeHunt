@@ -1,7 +1,7 @@
 ﻿// app/(dashboard)/saved/page.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
@@ -19,15 +19,21 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
   Plus,
-  Bookmark,
-  HelpCircle,
   Link as LinkIcon,
-  Camera,
-  Key,
+  ExternalLink,
+  Trash2,
+  Phone,
+  Mail,
 } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
+import {
+  LocalSavedVehicle,
+  saveLocalVehicle,
+  useLocalSavedVehicles,
+} from "@/hooks/useLocalSavedVehicles";
+import { qualityFieldLabel } from "@/lib/data-quality";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -36,15 +42,46 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
+function titleFromUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "");
+    const slug = decodeURIComponent(parsed.pathname)
+      .split("/")
+      .filter(Boolean)
+      .pop()
+      ?.replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return slug ? `${slug} · ${host}` : `Watched listing · ${host}`;
+  } catch {
+    return "Watched listing";
+  }
+}
+
+function sourceFromUrl(url: string) {
+  const lower = url.toLowerCase();
+  if (lower.includes("copart")) return "copart";
+  if (lower.includes("iaai")) return "iaa";
+  if (lower.includes("govdeals")) return "govdeals";
+  if (lower.includes("publicsurplus")) return "publicsurplus";
+  if (lower.includes("craigslist")) return "craigslist";
+  if (lower.includes("facebook")) return "facebook_marketplace";
+  if (lower.includes("ebay")) return "ebay_motors";
+  if (lower.includes("autotrader")) return "autotrader";
+  if (lower.includes("cars.com")) return "cars_com";
+  return "web-share";
+}
+
 export default function SavedCarsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
+  const localSaved = useLocalSavedVehicles();
   const [filter, setFilter] = useState<
     "all" | "active" | "price_drops" | "gone"
   >("all");
   const [adding, setAdding] = useState(false);
   const [inputUrl, setInputUrl] = useState("");
-  const [bookmarkletCode, setBookmarkletCode] = useState("");
-
   // Use SWR for data fetching with automatic revalidation
   const {
     data: saves,
@@ -68,13 +105,23 @@ export default function SavedCarsPage() {
     !dealerLoading && !dealerId
       ? "Please sign in to view your saved cars."
       : null;
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const code = `javascript:(function(){var url=window.location.href;var title=document.title;var price=(document.body.innerText.match(/\\$[\\d,]+/)||[''])[0];window.open('${window.location.origin}/save?url='+encodeURIComponent(url)+'&title='+encodeURIComponent(title)+'&price='+encodeURIComponent(price),'MikeHunt','width=420,height=600,left=200,top=100');})();`;
-      setBookmarkletCode(code);
-    }
-  }, []);
+  const unsyncedLocalItems = localSaved.items.filter(
+    (item) =>
+      !saves?.some(
+        (save) =>
+          save.deal_id === item.id ||
+          save.snapshot?.id === item.id ||
+          save.snapshot?.dealId === item.id,
+      ),
+  );
+  const canShowLocalSaves = unsyncedLocalItems.length > 0;
+  const supabaseStatus =
+    dealerLoading || isLoading
+      ? "checking"
+      : dealerId && !error
+        ? "ready"
+        : "missing";
+  const cloudSyncReady = supabaseStatus === "ready";
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this saved vehicle?")) return;
@@ -145,11 +192,59 @@ export default function SavedCarsPage() {
         setInputUrl("");
         mutate(); // Refresh data from server
         toast.success("Vehicle saved to watchlist");
+      } else if (res.status === 401 || res.status === 503 || data.local) {
+        const localVehicle: LocalSavedVehicle = {
+          id: `local-url-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          title: titleFromUrl(inputUrl),
+          askPrice: 0,
+          source: sourceFromUrl(inputUrl),
+          sourceUrl: inputUrl,
+          savedAt: new Date().toISOString(),
+          dataQuality: {
+            score: 22,
+            label: "Sparse",
+            missing: [
+              "photo",
+              "VIN",
+              "title type",
+              "mileage",
+              "price",
+              "seller",
+              "auction date",
+            ],
+          },
+        };
+        saveLocalVehicle(localVehicle);
+        setInputUrl("");
+        toast.success("Saved locally. Sign in later to sync alerts.");
       } else {
         toast.error(data.error || "Failed to save vehicle");
       }
-    } catch (e: any) {
-      toast.error("Network error occurred");
+    } catch {
+      const localVehicle: LocalSavedVehicle = {
+        id: `local-url-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        title: titleFromUrl(inputUrl),
+        askPrice: 0,
+        source: sourceFromUrl(inputUrl),
+        sourceUrl: inputUrl,
+        savedAt: new Date().toISOString(),
+        dataQuality: {
+          score: 22,
+          label: "Sparse",
+          missing: [
+            "photo",
+            "VIN",
+            "title type",
+            "mileage",
+            "price",
+            "seller",
+            "auction date",
+          ],
+        },
+      };
+      saveLocalVehicle(localVehicle);
+      setInputUrl("");
+      toast.success("Saved locally. Network sync can happen later.");
     } finally {
       setAdding(false);
     }
@@ -227,11 +322,103 @@ export default function SavedCarsPage() {
         ))}
       </div>
 
+      <div className="glass-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+              Watch readiness
+            </p>
+            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+              {cloudSyncReady
+                ? "Cloud alerts are ready for this account."
+                : canShowLocalSaves
+                  ? "Local watchlist is working; cloud sync still needs account setup."
+                  : "Save a vehicle to start watching locally."}
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+              {cloudSyncReady
+                ? "This account is syncing watchlist changes, alerts, and price tracking across devices. A local backup keeps recent saves resilient during brief network issues."
+                : "Saved vehicles stay usable on this device immediately. Sign in with email or Google to sync alerts, notes, and price tracking across devices."}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+              <p className="text-lg font-black text-[var(--t1)]">
+                {unsyncedLocalItems.length}
+              </p>
+              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                local only
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+              <p
+                className="text-sm font-black uppercase"
+                style={{
+                  color:
+                    supabaseStatus === "ready"
+                      ? "var(--green)"
+                      : "var(--amber)",
+                }}
+              >
+                {supabaseStatus}
+              </p>
+              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                data
+              </p>
+            </div>
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+              <p
+                className="text-sm font-black uppercase"
+                style={{
+                  color: dealerId ? "var(--green)" : "var(--amber)",
+                }}
+              >
+                {dealerId ? "connected" : "guest"}
+              </p>
+              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                account
+              </p>
+            </div>
+          </div>
+        </div>
+        {!cloudSyncReady && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+            <p className="text-xs leading-relaxed text-[var(--amber-d)]">
+              Cloud alerts are not fully proven yet. Use local watching now;
+              finish Google OAuth to sync alerts, notes, and price tracking
+              across devices.
+            </p>
+            <a
+              href="/login"
+              className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+            >
+              Check login
+            </a>
+            <a
+              href="/status"
+              className="rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--amber-d)]"
+            >
+              Readiness
+            </a>
+          </div>
+        )}
+      </div>
+
       {/* BOOKMARKLET & PWA SIDEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main watchlist list */}
         <div className="lg:col-span-3 space-y-6">
-          {authError || error ? (
+          {(authError || error) && canShowLocalSaves ? (
+            <LocalSavedSection
+              items={unsyncedLocalItems}
+              onRemove={localSaved.remove}
+              syncUnavailableMessage={
+                error
+                  ? "Cloud sync is unavailable right now, but your local watchlist is still usable on this device."
+                  : undefined
+              }
+            />
+          ) : authError || error ? (
             <ErrorState
               title="Couldn't load saved cars"
               message={authError || error?.message || "An error occurred"}
@@ -243,16 +430,30 @@ export default function SavedCarsPage() {
                 <SkeletonCard key={i} />
               ))}
             </div>
+          ) : (!saves || saves.length === 0) && canShowLocalSaves ? (
+            <LocalSavedSection
+              items={unsyncedLocalItems}
+              onRemove={localSaved.remove}
+            />
           ) : !saves || saves.length === 0 ? (
-            <div className="glass-panel" style={{ padding: 0 }}>
-              <EmptyState
-                icon="bell"
-                title="Nothing saved yet"
-                message="Paste a listing URL above — or use the bookmarklet — to watch a vehicle and get price-drop alerts."
-              />
+            <div className="space-y-4">
+              <div className="glass-panel" style={{ padding: 0 }}>
+                <EmptyState
+                  icon="bell"
+                  title="Nothing saved yet"
+                  message="Save a vehicle from Discover or paste a listing URL above to start a watchlist."
+                />
+              </div>
             </div>
           ) : (
             <div className="space-y-8">
+              {canShowLocalSaves && (
+                <LocalSavedSection
+                  items={unsyncedLocalItems}
+                  onRemove={localSaved.remove}
+                />
+              )}
+
               {/* 1. Needs Attention (Drops & urgent countdowns) */}
               {needsAttention.length > 0 && (
                 <div className="space-y-3">
@@ -333,80 +534,270 @@ export default function SavedCarsPage() {
           )}
         </div>
 
-        {/* Sidebar widgets */}
+        {/* Save help */}
         <div className="space-y-6">
-          {/* Bookmarklet widget */}
           <Card className="border-[var(--b2)] bg-[var(--s0)] shadow-sm">
             <CardHeader className="p-5 pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <CardTitle className="flex items-center gap-1.5 text-sm font-bold">
                 <LinkIcon className="w-4 h-4 text-[var(--amber)]" />
-                Browser Bookmarklet
+                Save from anywhere
               </CardTitle>
               <CardDescription className="text-xs leading-relaxed">
-                Save any vehicle instantly while browsing desktop Craigslist,
-                AutoTrader, or Copart.
+                Copy a vehicle listing link from any marketplace, then paste it
+                into the field above.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-5 space-y-4">
-              <div className="p-3 bg-[var(--s1)] rounded-lg text-center border border-dashed border-[var(--b2)]">
-                {bookmarkletCode ? (
-                  <a
-                    href={bookmarkletCode}
-                    onClick={(e) => e.preventDefault()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--amber)] hover:bg-[var(--amber-d)] text-white text-xs font-bold rounded-lg shadow cursor-grab active:cursor-grabbing select-none"
-                    title="Drag me to your bookmark bar"
-                  >
-                    <Bookmark className="w-3.5 h-3.5" />+ Save to DH
-                  </a>
-                ) : (
-                  <span className="text-xs text-[var(--t4)]">
-                    Generating bookmarklet...
-                  </span>
-                )}
-                <span className="block text-[10px] text-[var(--t4)] mt-2">
-                  Drag this button to your Browser Bookmarks Bar.
-                </span>
-              </div>
-              <div className="text-[11px] text-[var(--t3)] space-y-2 leading-relaxed">
-                <p className="font-semibold text-[var(--t2)]">How to use:</p>
-                <ul className="list-decimal list-inside space-y-1">
-                  <li>Navigate to any listing page.</li>
-                  <li>Click the "+ Save to DH" bookmark.</li>
-                  <li>DH opens a popup, analyzes, and saves.</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Mobile PWA instructions */}
-          <Card className="border-[var(--b2)] bg-[var(--s0)] shadow-sm">
-            <CardHeader className="p-5 pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-[var(--green)]" />
-                Mobile Share Sheet
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 text-xs text-[var(--t3)] space-y-3 leading-relaxed">
-              <p>
-                When using the mobile application, you can save listings
-                directly from your phone's browser share sheet.
-              </p>
-              <div className="p-3 bg-[var(--s1)] rounded-lg border border-[var(--b1)] space-y-2">
-                <p className="font-bold text-[var(--t2)] text-[10px] uppercase tracking-wider">
-                  PWA Setup:
+            <CardContent className="space-y-3 p-5 text-xs leading-relaxed text-[var(--t3)]">
+              <div className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+                <p className="font-semibold text-[var(--t2)]">
+                  Local backup included
                 </p>
-                <ol className="list-decimal list-inside space-y-1 text-[11px]">
-                  <li>Open app in Safari (iOS) or Chrome (Android).</li>
-                  <li>Tap "Share" or menu &rarr; "Add to Home Screen".</li>
-                  <li>
-                    Now, tap Share on any vehicle page and choose "MikeHunt".
-                  </li>
-                </ol>
+                <p className="mt-1">
+                  A recent copy remains on this device while cloud sync handles
+                  cross-device alerts and tracking.
+                </p>
               </div>
+              <p>
+                Sign in with email or Google to keep one watchlist across
+                devices.
+              </p>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function LocalSavedSection({
+  items,
+  onRemove,
+  syncUnavailableMessage,
+}: {
+  items: LocalSavedVehicle[];
+  onRemove: (id: string) => void;
+  syncUnavailableMessage?: string;
+}) {
+  const formatMoney = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(value || 0);
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--t3)]">
+            Local-only saves ({items.length})
+          </h3>
+          <p className="text-xs text-[var(--t4)]">
+            {syncUnavailableMessage ||
+              "These saves are stored on this device and have not reached cloud sync yet."}
+          </p>
+        </div>
+        <Badge
+          className="border-none text-[10px] font-bold uppercase"
+          style={{ background: "var(--glo)", color: "var(--green)" }}
+        >
+          Waiting to sync
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {items.map((item) => {
+          const trustSummary =
+            item.trustExplanation?.summary ||
+            item.trustExplanation?.reasons?.slice(0, 3).join(" · ");
+          const nextTrustChecks = item.trustExplanation?.nextChecks || [];
+          const contactHref = item.sellerContactUrl || item.sourceUrl;
+          return (
+            <Card
+              key={item.id}
+              className="overflow-hidden border-none bg-[var(--s0)]"
+              style={{ boxShadow: "var(--shadow2)", borderRadius: "var(--r4)" }}
+            >
+              <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 gap-3">
+                  <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--s1)]">
+                    {item.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-[var(--t4)]">
+                        No photo
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <Badge
+                      className="border-none text-[10px] font-bold uppercase"
+                      style={{ background: "var(--s1)", color: "var(--t3)" }}
+                    >
+                      {item.source}
+                      {item.sellerType ? ` · ${item.sellerType}` : ""}
+                      {item.locationState ? ` · ${item.locationState}` : ""}
+                    </Badge>
+                    <h4 className="truncate text-base font-black text-[var(--t1)]">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs text-[var(--t4)]">
+                      {item.mileage
+                        ? `${item.mileage.toLocaleString()} mi · `
+                        : ""}
+                      Saved {new Date(item.savedAt).toLocaleDateString()}
+                    </p>
+                    {item.dataQuality && (
+                      <p className="text-[11px] font-semibold text-[var(--t4)]">
+                        Data quality {item.dataQuality.score}/100
+                        {item.dataQuality.missing.length
+                          ? ` · missing ${item.dataQuality.missing
+                              .slice(0, 2)
+                              .map(qualityFieldLabel)
+                              .join(", ")}`
+                          : ""}
+                      </p>
+                    )}
+                    {trustSummary ? (
+                      <p className="text-[11px] leading-relaxed text-[var(--t4)]">
+                        Trust proof: {trustSummary}
+                        {typeof item.trustExplanation?.score === "number"
+                          ? ` (${Math.round(item.trustExplanation.score)}/100)`
+                          : ""}
+                        {nextTrustChecks.length
+                          ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
+                          : ""}
+                      </p>
+                    ) : null}
+                    {(item.seller ||
+                      item.sellerPhone ||
+                      item.sellerEmail ||
+                      contactHref) && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-[var(--t3)]">
+                        <span className="rounded-full bg-[var(--s1)] px-2 py-1 uppercase tracking-wide text-[var(--t5)]">
+                          Seller
+                        </span>
+                        {item.seller ? (
+                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
+                            {item.seller}
+                          </span>
+                        ) : null}
+                        {item.sellerPhone ? (
+                          <a
+                            href={`tel:${item.sellerPhone}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                          >
+                            <Phone className="h-3 w-3" />
+                            Call
+                          </a>
+                        ) : null}
+                        {item.sellerEmail ? (
+                          <a
+                            href={`mailto:${item.sellerEmail}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                          >
+                            <Mail className="h-3 w-3" />
+                            Email
+                          </a>
+                        ) : null}
+                        {contactHref ? (
+                          <a
+                            href={contactHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Listing
+                          </a>
+                        ) : null}
+                      </div>
+                    )}
+                    {(item.repairEstimate ||
+                      item.transportEstimate ||
+                      item.recommendedMaxBid ||
+                      item.sellEstimate) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-[var(--t3)]">
+                        {item.sellEstimate ? (
+                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
+                            Sell $
+                            {Math.round(item.sellEstimate).toLocaleString()}
+                          </span>
+                        ) : null}
+                        {item.recommendedMaxBid ? (
+                          <span className="rounded-full bg-[var(--glo)] px-2 py-1 text-[var(--green)]">
+                            Max $
+                            {Math.round(
+                              item.recommendedMaxBid,
+                            ).toLocaleString()}
+                          </span>
+                        ) : null}
+                        {item.repairEstimate ? (
+                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
+                            Repair $
+                            {Math.round(item.repairEstimate).toLocaleString()}
+                          </span>
+                        ) : null}
+                        {item.transportEstimate ? (
+                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
+                            Transport $
+                            {Math.round(
+                              item.transportEstimate,
+                            ).toLocaleString()}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="mr-2">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)]">
+                      Price
+                    </p>
+                    <p className="font-mono text-lg font-black text-[var(--t1)]">
+                      {formatMoney(item.askPrice)}
+                    </p>
+                    {item.estimatedProfit && item.estimatedProfit > 0 && (
+                      <p className="text-xs font-bold text-[var(--green)]">
+                        +{formatMoney(item.estimatedProfit)} est.
+                      </p>
+                    )}
+                  </div>
+
+                  {item.sourceUrl && (
+                    <a
+                      href={item.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-bold text-[var(--t2)] transition-colors hover:text-[var(--amber)]"
+                      style={{ background: "var(--s1)" }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Source
+                    </a>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onRemove(item.id)}
+                    className="h-9 w-9 rounded-lg border-none p-0 text-[var(--red)] hover:bg-[var(--rlo)]"
+                    title="Remove saved vehicle"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </section>
   );
 }

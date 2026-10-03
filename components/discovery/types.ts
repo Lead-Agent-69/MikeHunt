@@ -28,10 +28,25 @@ export interface DiscoveryDeal {
   profitScore?: number;
   trueNetProfit?: number;
   recommendedMaxBid?: number;
+  repairEstimate?: number;
+  transportEstimate?: number;
   dealVerdict?: "go" | "hold" | "pass";
   locationCity?: string;
   locationState?: string;
   images: string[];
+  dataQuality?: {
+    score: number;
+    label: "Excellent" | "Good" | "Thin" | "Sparse";
+    missing: string[];
+  };
+  trustExplanation?: {
+    confidence?: "high" | "medium" | "low" | string;
+    score?: number;
+    reasons?: string[];
+    missing?: string[];
+    nextChecks?: string[];
+    summary?: string;
+  };
   segment?: string;
   luxury?: boolean;
   priceTier?: string;
@@ -45,11 +60,21 @@ export interface DiscoveryDeal {
   alsoOn: AlsoOn[];
   listingCount: number;
   firstSeenAt?: string;
+  /** Freshness proof: when the source/importer last confirmed this listing still existed. */
+  lastSeenAt?: string;
   /** Optional context line shown on the card (e.g. "32 mi from you", win-pattern reason). */
   winReason?: string;
+  /** Why this result appears for the active buyer scope. */
+  matchReasons?: string[];
+  /** Analyzer warnings that explain risk, hold/pass decisions, or suspicious pricing. */
+  warnings?: string[];
   distanceMiles?: number;
+  seller?: string;
   sellerPhone?: string;
   sellerEmail?: string;
+  sellerContactUrl?: string;
+  /** Seller category used by buyer-scope filtering and trust copy. */
+  sellerType?: "dealer" | "auction" | "private" | string;
   /** VIN-graph cross-market history red flags + severity (the proprietary moat, surfaced). */
   vinFlags?: string[];
   vinFlagSeverity?: "high" | "info";
@@ -75,6 +100,18 @@ export interface DiscoverResponse {
   uniqueVehicles: number;
   mergedDuplicates: number;
   state: string;
+  q?: string;
+  lane?: string;
+  sellerType?: string;
   personalized?: boolean;
   configured?: boolean;
+  previewMode?: boolean;
+  previewCount?: number;
+  previewProof?: Array<{
+    id: string;
+    status: "working" | "no_rows" | "blocked";
+    rows: number;
+    matchedRows: number;
+    detail?: string;
+  }>;
 }

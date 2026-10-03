@@ -1,7 +1,7 @@
 // lib/scrapers/pipeline.ts
 // Persistence helpers for scraped deals.
 
-import { getSupabaseClient } from "@/lib/supabase";
+import { createServerComponentClient } from "@/lib/supabase";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
@@ -19,9 +19,81 @@ import { withinMiles } from "@/lib/geo/distance";
 import { cleanCity } from "@/lib/data/clean-location";
 import { getLocalWriteContext } from "./local-write-context";
 import { stableListingId } from "./local-cache";
+import { getScrapeRunScope } from "./run-scope-context";
+import type { BuyerScope } from "./buyer-scope";
+
+function text(value: unknown) {
+  return String(value || "").trim();
+}
+
+export function normalizeAuctionEndAt(value: unknown): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function haystack(deal: Partial<Deal>) {
+  return `${deal.title || ""} ${deal.make || ""} ${deal.model || ""}`.toLowerCase();
+}
+
+function matchesScopeText(deal: Partial<Deal>, scope: BuyerScope) {
+  const q = text(scope.q || scope.vehicleType).toLowerCase();
+  if (!q) return true;
+  const tokens = Array.from(new Set(q.split(/\s+/).filter(Boolean)));
+  const h = haystack(deal);
+  return tokens.some((token) => h.includes(token));
+}
+
+function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
+  const requested = text(titleType).toLowerCase();
+  if (!requested || requested === "all") return true;
+  const h =
+    `${deal.title || ""} ${deal.condition || ""} ${(deal as any).title_type || ""}`.toLowerCase();
+  if (requested === "clean") return /clean/.test(h);
+  if (requested === "salvage") return /salvage|repairable|damage/.test(h);
+  if (requested === "rebuilt") return /rebuilt|reconstructed/.test(h);
+  return h.includes(requested);
+}
+
+function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
+  const state = text(deal.location_state).toUpperCase();
+  const allowedStates = new Set(
+    [scope.state, ...(scope.states || [])]
+      .map((value) => text(value).toUpperCase())
+      .filter(Boolean),
+  );
+  if (allowedStates.size && (!state || !allowedStates.has(state))) return false;
+
+  const price = Number(deal.ask_price || 0);
+  if (scope.minPrice && (!price || price < scope.minPrice)) return false;
+  if (scope.maxPrice && (!price || price > scope.maxPrice)) return false;
+
+  const year = Number(deal.year || 0);
+  if (scope.minYear && (!year || year < scope.minYear)) return false;
+
+  const mileage = Number(deal.mileage || 0);
+  if (scope.maxMileage && mileage && mileage > scope.maxMileage) return false;
+
+  if (
+    scope.make &&
+    text(deal.make).toLowerCase() !== text(scope.make).toLowerCase()
+  ) {
+    return false;
+  }
+  if (
+    scope.model &&
+    text(deal.model).toLowerCase() !== text(scope.model).toLowerCase()
+  ) {
+    return false;
+  }
+
+  return (
+    matchesScopeText(deal, scope) && matchesTitleType(deal, scope.titleType)
+  );
+}
 
 function getSupabase() {
-  return getLocalWriteContext()?.supabase || getSupabaseClient();
+  return getLocalWriteContext()?.supabase || createServerComponentClient();
 }
 
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
@@ -36,7 +108,18 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!localContext?.cacheOnly) await loadMarketIndex(getSupabase());
 
   const source = deals[0]?.source || "unknown";
-  const normalized = normalizeDeals(deals);
+  const runScope = getScrapeRunScope();
+  const scopedDeals = runScope
+    ? deals.filter((deal) => matchesBuyerScope(deal, runScope))
+    : deals;
+  if (runScope && scopedDeals.length !== deals.length) {
+    console.log(
+      `[Pipeline] scoped ${source}: kept ${scopedDeals.length}/${deals.length} rows for buyer intent`,
+    );
+  }
+  if (scopedDeals.length === 0) return 0;
+
+  const normalized = normalizeDeals(scopedDeals);
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
   // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
   const vinApplied = localContext?.cacheOnly
@@ -75,6 +158,20 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       const phone = deal.seller_phone || extractedContact.phone;
       const email = deal.seller_email || extractedContact.email;
       const vin = deal.vin || extractedContact.vin;
+      const auctionEndAt = normalizeAuctionEndAt(deal.auction_end);
+
+      const scraperOptions =
+        typeof (deal as any).options === "object" && (deal as any).options
+          ? (deal as any).options
+          : {};
+      const sellerName = (deal as any).seller ?? scraperOptions.seller;
+      const sellerType = (deal as any).seller_type ?? scraperOptions.sellerType;
+      const bidCount =
+        typeof deal.bid_count === "number" && Number.isFinite(deal.bid_count)
+          ? deal.bid_count
+          : typeof scraperOptions.auction?.bidCount === "number"
+            ? scraperOptions.auction.bidCount
+            : undefined;
 
       // Omit `id` to allow Supabase to generate UUID, but include source_deal_id
       return {
@@ -103,9 +200,16 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
             `${deal.title || ""} ${(deal as any).description || ""}`,
           ),
           // Let scrapers contribute structured options (e.g. AutoTrader's free KBB price rating).
-          ...(typeof (deal as any).options === "object" && (deal as any).options
-            ? (deal as any).options
-            : {}),
+          ...scraperOptions,
+          seller: sellerName || scraperOptions.seller,
+          sellerType: sellerType || scraperOptions.sellerType,
+          auction: {
+            ...(typeof scraperOptions.auction === "object" &&
+            scraperOptions.auction
+              ? scraperOptions.auction
+              : {}),
+            ...(bidCount != null ? { bidCount } : {}),
+          },
           contact:
             phone || email
               ? { phone, email }
@@ -134,14 +238,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
-        // seller / seller_type columns exist (5k+ rows already populated) and most scrapers set them —
-        // writing them here unlocks real Seller-Type filtering (Dealer / Auction / Private).
-        seller: (deal as any).seller ?? null,
-        seller_type: (deal as any).seller_type ?? null,
+        auction_end_at: auctionEndAt,
+        // Seller name/type and bid count live in options JSON for this deployed schema. Do not write
+        // seller, seller_type, or bid_count columns here; this Supabase project does not expose them.
         // Absent columns kept OUT of the upsert — writing a non-existent column rejects the whole row.
         // description: deal.description,
-        // auction_end: deal.auction_end,
-        // bid_count: deal.bid_count,
         // seller_phone / seller_email do NOT exist — contact lives in options.contact above.
         estimated_transport_cost: analysis.transportCost,
         estimated_repair_cost: analysis.repairCost,
@@ -346,7 +447,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     await matchUserSearches(returnedRows);
   }
 
-  return rows.length;
+  // Report rows actually accepted by the persistence layer. This keeps run receipts honest when
+  // database recovery skips a malformed row or an upsert returns fewer records than attempted.
+  return returnedRows.length;
 }
 
 async function markDuplicatesByVin(vins: string[]): Promise<void> {

@@ -2,15 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  MessageSquare,
-  Send,
-  CheckCircle,
-  Bot,
-  PhoneCall,
-  ShieldCheck,
-  FileText,
-} from "lucide-react";
+import { Send, PenLine, ShieldCheck, FileText } from "lucide-react";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 
 export function AutonomousSellerNegotiator({
@@ -73,22 +65,24 @@ export function AutonomousSellerNegotiator({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl grid place-items-center text-white bg-gradient-to-br from-[var(--purple)] to-[#00ff66]">
-            <Bot className="w-5 h-5" />
+            <PenLine className="w-5 h-5" />
           </div>
           <div>
             <h3 className="text-lg font-black text-[var(--t1)]">
-              Autonomous Seller Negotiator
+              Cash Offer Draft
             </h3>
             <p className="text-xs text-[var(--t4)]">
-              AI-driven SMS & Messenger cash outreach bot with parameter
-              constraints
+              Draft seller outreach from your max-bid limits. Sending stays
+              local until messaging is connected.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 font-mono text-xs text-[var(--t4)]">
-          <span className="w-2 h-2 rounded-full bg-[#00ff66] animate-pulse" />
-          <span>Seller: {sellerPhone}</span>
+          <span className="w-2 h-2 rounded-full bg-[var(--amber)]" />
+          <span>
+            {sellerPhone ? `Seller: ${sellerPhone}` : "Seller contact needed"}
+          </span>
         </div>
       </div>
 
@@ -140,9 +134,7 @@ export function AutonomousSellerNegotiator({
             style={{ background: "var(--grad)" }}
           >
             <Send className="w-4 h-4" />
-            {isSending
-              ? "Dispatching SMS Bot..."
-              : "Dispatch Automated Offer SMS →"}
+            {isSending ? "Preparing draft..." : "Save offer draft"}
           </button>
 
           <button
@@ -180,10 +172,10 @@ export function AutonomousSellerNegotiator({
 
           <div className="pt-3 border-t border-[var(--b2)] flex items-center justify-between text-[11px] font-mono text-[var(--t4)]">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#00ff66]" /> Verified
-              Buyer Protocol Active
+              <ShieldCheck className="w-3.5 h-3.5 text-[var(--amber)]" /> Draft
+              mode
             </span>
-            <span>SMS Transport: Twilio Cloud</span>
+            <span>Messaging provider not connected</span>
           </div>
         </div>
       </div>

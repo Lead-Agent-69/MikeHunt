@@ -1,5 +1,10 @@
 import React from "react";
-import { sourceMeta, tint, buyTerms } from "@/lib/sources/source-meta";
+import {
+  sourceMeta,
+  tint,
+  buyTerms,
+  displaySource,
+} from "@/lib/sources/source-meta";
 
 // The dealer's at-a-glance "where is this from?" — a prominent, brand-colored chip with the REAL source
 // name (Carvana, eBay Motors, CarGurus…), not tiny gray "EBAY_MOTORS". One look tells them the source
@@ -7,16 +12,20 @@ import { sourceMeta, tint, buyTerms } from "@/lib/sources/source-meta";
 
 export function SourceBadge({
   source,
+  sourceUrl,
   size = "md",
   showChannel = false,
   className = "",
 }: {
   source?: string | null;
+  sourceUrl?: string | null;
   size?: "sm" | "md" | "lg";
   showChannel?: boolean;
   className?: string;
 }) {
-  const m = sourceMeta(source);
+  const display = displaySource(source, sourceUrl);
+  const m = sourceMeta(display);
+  const terms = buyTerms(display);
   const pad =
     size === "lg"
       ? "px-2.5 py-1 text-[12px]"
@@ -29,7 +38,7 @@ export function SourceBadge({
     <span
       className={`inline-flex items-center gap-1.5 rounded-full font-bold leading-none whitespace-nowrap ${pad} ${className}`}
       style={{ background: tint(m.color), color: m.color }}
-      title={`${m.label}${showChannel ? ` · ${buyTerms(source).channelTag}` : ""}`}
+      title={`${m.label}${showChannel ? ` · ${terms.channelTag}` : ""}`}
     >
       <span
         className="inline-block shrink-0 rounded-full"
@@ -41,7 +50,7 @@ export function SourceBadge({
           className="ml-0.5 rounded-sm px-1 py-px text-[9px] font-extrabold uppercase tracking-wide opacity-80"
           style={{ background: tint(m.color, 0.18) }}
         >
-          {buyTerms(source).channelTag}
+          {terms.channelTag}
         </span>
       )}
     </span>

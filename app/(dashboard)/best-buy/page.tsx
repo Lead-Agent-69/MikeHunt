@@ -24,7 +24,10 @@ import { Mono } from "@/components/shared/Mono";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
-import { PremiumCarousel, type PremiumCarouselItem } from "@/components/ui/premium-carousel";
+import {
+  PremiumCarousel,
+  type PremiumCarouselItem,
+} from "@/components/ui/premium-carousel";
 
 interface BestBuyData {
   bestBuy: any;
@@ -39,7 +42,9 @@ interface BestBuyData {
 
 export default function BestBuyPage() {
   const [capital, setCapital] = useState<number>(15000);
-  const [strategy, setStrategy] = useState<"max_roi" | "fastest_flip" | "max_profit">("max_roi");
+  const [strategy, setStrategy] = useState<
+    "max_roi" | "fastest_flip" | "max_profit"
+  >("max_roi");
   const [state, setState] = useState<string>("");
   const [data, setData] = useState<BestBuyData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -72,7 +77,7 @@ export default function BestBuyPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       {/* Premium Carousel — Top picks showcase */}
-      {data && (data.bestBuy || (data.runnerUps?.length > 0)) && (
+      {data && (data.bestBuy || data.runnerUps?.length > 0) && (
         <div className="glass-panel p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-[var(--t1)]">Top Picks</h2>
@@ -82,18 +87,29 @@ export default function BestBuyPage() {
             items={[
               ...(data.bestBuy ? [data.bestBuy] : []),
               ...(data.runnerUps || []),
-            ].slice(0, 5).map((deal: any) => ({
-              id: deal.id,
-              image: deal.image_url || deal.image || "/images/car-placeholder.jpg",
-              title: `${deal.year} ${deal.make} ${deal.model}`.trim(),
-              subtitle: deal.location_state ? `${deal.location_state} · ${deal.mileage?.toLocaleString() || ""} miles` : undefined,
-              category: deal.deal_verdict?.toUpperCase() || deal.source,
-              description: deal.true_net_profit ? `Net profit: $${deal.true_net_profit.toLocaleString()}` : undefined,
-              price: deal.ask_price ? `$${deal.ask_price.toLocaleString()}` : undefined,
-              year: deal.year,
-              mileage: deal.mileage ? `${deal.mileage.toLocaleString()} mi` : undefined,
-              cta: "View Deal",
-            }))}
+            ]
+              .slice(0, 5)
+              .map((deal: any) => ({
+                id: deal.id,
+                image:
+                  deal.image_url || deal.image || "/images/car-placeholder.jpg",
+                title: `${deal.year} ${deal.make} ${deal.model}`.trim(),
+                subtitle: deal.location_state
+                  ? `${deal.location_state} · ${deal.mileage?.toLocaleString() || ""} miles`
+                  : undefined,
+                category: deal.deal_verdict?.toUpperCase() || deal.source,
+                description: deal.true_net_profit
+                  ? `Net profit: $${deal.true_net_profit.toLocaleString()}`
+                  : undefined,
+                price: deal.ask_price
+                  ? `$${deal.ask_price.toLocaleString()}`
+                  : undefined,
+                year: deal.year,
+                mileage: deal.mileage
+                  ? `${deal.mileage.toLocaleString()} mi`
+                  : undefined,
+                cta: "View Deal",
+              }))}
             autoPlay={true}
             autoPlaySpeed={4000}
           />
@@ -110,10 +126,11 @@ export default function BestBuyPage() {
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-[var(--t1)] tracking-tight">
-            Next Best Buy Sniper
+            Next Best Buy
           </h1>
           <p className="text-[var(--t3)] text-sm sm:text-base mt-1 max-w-2xl">
-            Algorithms scan thousands of live dealer auctions and private listings to surface the single highest-margin flip tailored to your available cash on hand.
+            Rank live dealer auctions and private listings by proof, margin,
+            velocity, and your available capital.
           </p>
         </div>
 
@@ -163,7 +180,9 @@ export default function BestBuyPage() {
               <Mono className="text-3xl font-black text-[var(--t1)]">
                 ${capital.toLocaleString()}
               </Mono>
-              <span className="text-xs font-medium text-[var(--t4)]">cash budget</span>
+              <span className="text-xs font-medium text-[var(--t4)]">
+                cash budget
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -272,7 +291,10 @@ export default function BestBuyPage() {
                 <div className="pt-4 mt-4 border-t border-[var(--b1)] flex flex-col gap-2.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[var(--t4)] font-bold">
-                      Target Offer: <Mono className="text-amber-400 font-black">${item.targetOffer?.toLocaleString() ?? "—"}</Mono>
+                      Target Offer:{" "}
+                      <Mono className="text-amber-400 font-black">
+                        ${item.targetOffer?.toLocaleString() ?? "—"}
+                      </Mono>
                     </span>
                     <button
                       onClick={() => setSelectedLoiDeal(item)}
@@ -326,7 +348,10 @@ export default function BestBuyPage() {
             How Much Can You Grow ${capital.toLocaleString()} in 90 Days?
           </h2>
           <p className="text-xs sm:text-sm text-[var(--t3)] leading-relaxed">
-            By rolling your initial bankroll and profits every 18 days into MikeHunt Next Best Buy opportunities (averaging {data?.stats.avgRoi ?? 32}% ROI per flip), here is your projected compounding trajectory:
+            By rolling your initial bankroll and profits every 18 days into
+            MikeHunt Next Best Buy opportunities (averaging{" "}
+            {data?.stats.avgRoi ?? 32}% ROI per flip), here is your projected
+            compounding trajectory:
           </p>
         </div>
 
@@ -347,7 +372,9 @@ export default function BestBuyPage() {
                 <Mono className="text-xl font-black text-[var(--t1)] mt-1 block">
                   ${capital.toLocaleString()}
                 </Mono>
-                <span className="text-[10px] text-[var(--t5)] mt-0.5 block">Day 0 Deployment</span>
+                <span className="text-[10px] text-[var(--t5)] mt-0.5 block">
+                  Day 0 Deployment
+                </span>
               </div>
 
               <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
@@ -357,7 +384,9 @@ export default function BestBuyPage() {
                 <Mono className="text-xl font-black text-cyan-400 mt-1 block">
                   ${flip1.toLocaleString()}
                 </Mono>
-                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">+${(flip1 - capital).toLocaleString()} net profit</span>
+                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">
+                  +${(flip1 - capital).toLocaleString()} net profit
+                </span>
               </div>
 
               <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
@@ -367,7 +396,9 @@ export default function BestBuyPage() {
                 <Mono className="text-xl font-black text-amber-400 mt-1 block">
                   ${flip2.toLocaleString()}
                 </Mono>
-                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">+${(flip2 - flip1).toLocaleString()} net profit</span>
+                <span className="text-[10px] text-[var(--t4)] mt-0.5 block">
+                  +${(flip2 - flip1).toLocaleString()} net profit
+                </span>
               </div>
 
               <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
@@ -378,7 +409,8 @@ export default function BestBuyPage() {
                   ${flip3.toLocaleString()}
                 </Mono>
                 <span className="text-[10px] font-bold text-emerald-400/90 mt-0.5 block">
-                  +${netGain.toLocaleString()} Total Gain ({Math.round((netGain / capital) * 100)}%)
+                  +${netGain.toLocaleString()} Total Gain (
+                  {Math.round((netGain / capital) * 100)}%)
                 </span>
               </div>
             </div>

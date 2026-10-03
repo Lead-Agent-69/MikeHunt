@@ -105,7 +105,7 @@ export function EnablePush({ className }: { className?: string }) {
       style={
         className
           ? undefined
-          : { background: enabled ? "var(--s2)" : "var(--grad, #f25b9a)" }
+          : { background: enabled ? "var(--s2)" : "var(--grad, #075BE8)" }
       }
     >
       {busy ? "…" : enabled ? "🔔 Alerts on" : "🔔 Enable deal alerts"}
