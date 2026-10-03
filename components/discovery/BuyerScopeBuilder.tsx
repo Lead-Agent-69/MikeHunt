@@ -1088,7 +1088,7 @@ export function BuyerScopeBuilder({
           {runProof.sourceHealth?.length ? (
             <div className="mt-3">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Source coverage
+                Fresh source proof
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {runProof.sourceHealth.map((source) => (

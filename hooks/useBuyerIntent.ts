@@ -17,6 +17,8 @@ export type BuyerIntent = {
   minPrice?: number;
   maxPrice?: number;
   targetProfit?: number;
+  timeline?: "now" | "month" | "research";
+  repairCapability?: "none" | "basic" | "advanced";
   preferredMakes?: string[];
   makes?: string[];
   watchedDealers?: string[];
@@ -172,6 +174,18 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
     targetProfit:
       Number.isFinite(targetProfit) && targetProfit > 0
         ? targetProfit
+        : undefined,
+    timeline:
+      raw.timeline === "now" ||
+      raw.timeline === "month" ||
+      raw.timeline === "research"
+        ? raw.timeline
+        : undefined,
+    repairCapability:
+      raw.repairCapability === "none" ||
+      raw.repairCapability === "basic" ||
+      raw.repairCapability === "advanced"
+        ? raw.repairCapability
         : undefined,
     preferredMakes: compactStrings(raw.preferredMakes),
     makes: compactStrings(raw.makes),

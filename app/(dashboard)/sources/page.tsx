@@ -353,12 +353,13 @@ function IndependentDealerCoverage() {
               Independent dealer coverage
             </p>
             <h2 className="text-xl font-black text-[var(--t1)]">
-              Small dealers are included when they match your selected market.
+              Select catalogued shops, then verify their scoped availability
+              before relying on inventory.
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               AE of Miami, Damage.com, D&G Auto, ReCar, and St. James are
-              available here. Select the shops you care about and focus your
-              search on their current inventory.
+              catalogued here. A shop becomes "Working" only after its scoped
+              source proof shows current rows, photos, and a last verified time.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -372,11 +373,11 @@ function IndependentDealerCoverage() {
               <div className="text-lg font-black text-[var(--t1)]">
                 {curatedStateCount}
               </div>
-              <div className="text-[var(--t5)]">states covered</div>
+              <div className="text-[var(--t5)]">catalogued states</div>
             </div>
             <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3">
               <div className="text-lg font-black text-[var(--t1)]">1</div>
-              <div className="text-[var(--t5)]">search coverage</div>
+              <div className="text-[var(--t5)]">scoped policy</div>
             </div>
           </div>
         </div>
@@ -417,7 +418,7 @@ function IndependentDealerCoverage() {
               Requested shops
             </div>
             <span className="rounded-full border border-[var(--green)]/40 bg-[var(--green)]/10 px-2 py-0.5 text-[10px] font-black text-[var(--green)]">
-              cataloged
+              verify availability
             </span>
           </div>
           <div className="space-y-2">
@@ -436,7 +437,7 @@ function IndependentDealerCoverage() {
                   </div>
                 </div>
                 <span className="shrink-0 rounded-full border border-[var(--b1)] px-2 py-0.5 text-[10px] font-bold text-[var(--t4)]">
-                  Included
+                  Catalogued
                 </span>
               </div>
             ))}

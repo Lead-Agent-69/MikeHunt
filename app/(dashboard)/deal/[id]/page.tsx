@@ -303,21 +303,21 @@ function DecisionCommandPanel({
           <div className="mt-3 space-y-2">
             {[
               [
-                sourceReady ? "Ready" : "Check",
+                "Why this verdict?",
                 sourceReady
-                  ? `${Number(sourceHealth?.activeRows || 0).toLocaleString()} source rows · ${Number(sourceHealth?.rowsWithPhotos || 0).toLocaleString()} photos`
+                  ? `${Number(sourceHealth?.activeRows || 0).toLocaleString()} current rows and ${Number(sourceHealth?.rowsWithPhotos || 0).toLocaleString()} photos support this source read.`
                   : sourceHealth?.nextAction ||
-                    "Source proof is still loading.",
+                    "The source proof is still loading, so this recommendation is provisional.",
               ],
               [
-                "Inspect",
-                "Confirm VIN, mileage, title, damage, seller contact, and auction timing.",
-              ],
-              [
-                "Act",
+                "What would make this a buy?",
                 engineVerdict === "GO"
-                  ? "Bid or call only under max bid."
-                  : "Save/watch unless the seller moves.",
+                  ? "A clean inspection and verified listing details at or below the maximum purchase price."
+                  : "A lower acquisition price or stronger verified resale and repair evidence.",
+              ],
+              [
+                "What still needs checking?",
+                "Confirm VIN, mileage, title, damage, seller contact, and auction timing before money moves.",
               ],
             ].map(([label, detail]) => (
               <div

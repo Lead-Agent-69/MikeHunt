@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * Registers the PWA service worker (public/sw.js) once on mount.
@@ -8,15 +8,39 @@ import { useEffect } from "react";
  * (avoids stale-cache headaches during local development).
  */
 export function PWARegister() {
+  const [updateReady, setUpdateReady] = useState(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") return;
 
-    const register = () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
-        // Registration failures are non-fatal — the app still works without offline support.
+    const observeRegistration = (registration: ServiceWorkerRegistration) => {
+      const observeInstalling = (worker: ServiceWorker | null) => {
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (
+            worker.state === "installed" &&
+            navigator.serviceWorker.controller
+          ) {
+            setUpdateReady(true);
+          }
+        });
+      };
+      observeInstalling(registration.installing);
+      registration.addEventListener("updatefound", () => {
+        observeInstalling(registration.installing);
       });
+      registration.update().catch(() => undefined);
+    };
+
+    const register = () => {
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then(observeRegistration)
+        .catch(() => {
+          // Registration failures are non-fatal — the app still works without offline support.
+        });
     };
 
     if (document.readyState === "complete") {
@@ -27,5 +51,23 @@ export function PWARegister() {
     }
   }, []);
 
-  return null;
+  if (!updateReady) return null;
+
+  return (
+    <div
+      role="status"
+      className="fixed inset-x-3 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[80] mx-auto flex max-w-md items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-3 text-sm shadow-[var(--shadow)] md:bottom-5"
+    >
+      <span className="font-semibold text-[var(--t2)]">
+        A new version is ready.
+      </span>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="rounded-[var(--r1)] bg-[var(--accent)] px-3 py-1.5 text-xs font-black text-white"
+      >
+        Refresh
+      </button>
+    </div>
+  );
 }

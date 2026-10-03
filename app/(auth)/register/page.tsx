@@ -164,7 +164,7 @@ export default function RegisterPage() {
           )}
 
           {/* Social Login */}
-          <GoogleButton next="/discover" label="Sign up with Google" />
+          <GoogleButton next="/onboarding" label="Sign up with Google" />
           <OrDivider label="or continue with email" />
 
           {/* Form */}

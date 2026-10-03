@@ -19,6 +19,8 @@ export interface Prefs {
     sellerType?: string;
     maxPrice?: number;
     targetProfit?: number;
+    timeline?: "now" | "month" | "research";
+    repairCapability?: "none" | "basic" | "advanced";
     preferredMakes?: string[];
     makes?: string[];
     watchedDealers?: string[];

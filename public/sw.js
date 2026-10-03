@@ -1,5 +1,5 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v5'
+const STATIC_CACHE = 'MikeHunt-static-v6'
 const DYNAMIC_CACHE = 'MikeHunt-dynamic-v4'
 
 const STATIC_ASSETS = [

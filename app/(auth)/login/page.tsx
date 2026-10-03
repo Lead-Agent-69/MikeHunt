@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createClientComponentClient,
@@ -18,9 +18,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [next, setNext] = useState("/discover");
   const router = useRouter();
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
+
+  useEffect(() => {
+    const requestedNext = new URLSearchParams(window.location.search).get(
+      "next",
+    );
+    if (requestedNext?.startsWith("/")) setNext(requestedNext);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +49,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/discover");
+      router.push(next);
       router.refresh();
       return;
     }
@@ -64,7 +72,7 @@ export default function LoginPage() {
         return;
       }
       // Land on the deal feed after signing in.
-      router.push("/discover");
+      router.push(next);
       router.refresh();
     }
   };
@@ -114,7 +122,7 @@ export default function LoginPage() {
           )}
 
           {/* Social Login */}
-          <GoogleButton next="/discover" />
+          <GoogleButton next={next} />
           <OrDivider
             label={
               configured ? "or continue with email" : "or start local demo"

@@ -11,12 +11,10 @@ describe("buyer-facing polish", () => {
 
     expect(source).not.toContain("dealer.sourceId");
     expect(source).not.toContain("through exact dealer source IDs");
-    expect(source).toContain("as priority sources for this buying scope");
-    expect(source).toContain('source{plannedSourceCount === 1 ? "" : "s"}');
-    expect(source).toContain(
-      "window.setTimeout(() => controller.abort(), 25_000)",
-    );
-    expect(source).toContain("opening your matching scanner");
+    expect(source).toContain("What are you buying for?");
+    expect(source).toContain("MIKEHUNT does not run a broad crawl from setup");
+    expect(source).toContain("Your first search");
+    expect(source).not.toContain('fetch("/api/scrape/run")');
   });
 
   it("keeps Discover focused on the buyer's choices and real listings", () => {
