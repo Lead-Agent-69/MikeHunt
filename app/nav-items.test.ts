@@ -10,7 +10,7 @@ import {
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
-  it("keeps secondary pages under the four main jobs", () => {
+  it("keeps secondary pages under the five main jobs", () => {
     expect(primaryJobForPath("/")).toBe("Discover");
     expect(primaryJobForPath("/feed")).toBe("Discover");
     expect(primaryJobForPath("/find")).toBe("Discover");
@@ -63,9 +63,10 @@ describe("primaryJobForPath", () => {
     ]);
     expect(MOBILE_PRIMARY.map((item) => item.name)).toEqual([
       "Discover",
+      "Deal Check",
       "Saved",
-      "Lane",
       "Pipeline",
+      "Account",
     ]);
 
     const coverage = navJobCoverage();
@@ -155,20 +156,15 @@ describe("primaryJobForPath", () => {
     ).toEqual(expect.arrayContaining(["/changelog"]));
   });
 
-  it("keeps discover anchored to the four-job workflow", () => {
+  it("keeps discover focused on listings instead of the search-planning workflow", () => {
     const discoverPage = readFileSync(
       "app/(dashboard)/discover/page.tsx",
       "utf8",
     );
 
-    expect(discoverPage).toContain("const DAILY_WORKFLOW");
-    expect(discoverPage).toContain("Discover");
-    expect(discoverPage).toContain("Deal Check");
-    expect(discoverPage).toContain("Auction Lane");
-    expect(discoverPage).toContain("Pipeline");
-    expect(discoverPage).toContain("Saved");
-    expect(discoverPage).toContain(
-      "<DailyWorkflowStrip scopeQuery={scopeQuery} />",
-    );
+    expect(discoverPage).toContain("Buying for");
+    expect(discoverPage).toContain("Refine search");
+    expect(discoverPage).not.toContain("<BuyerScopeBuilder");
+    expect(discoverPage).not.toContain("<SetupStatusPanel");
   });
 });

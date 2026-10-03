@@ -16,13 +16,17 @@ import {
   useLocalSavedVehicles,
 } from "@/hooks/useLocalSavedVehicles";
 import { qualityFieldLabel } from "@/lib/data-quality";
-import { Clock3, Flame, Link2, Zap } from "lucide-react";
+import { Clock3, Flame, Zap } from "lucide-react";
 
 const TITLE_STYLES: Record<
   string,
   { label: string; bg: string; text: string }
 > = {
-  clean: { label: "Clean Title", bg: "var(--glo)", text: "var(--green)" },
+  clean: {
+    label: "Clean title reported",
+    bg: "var(--glo)",
+    text: "var(--green)",
+  },
   rebuilt: { label: "Rebuilt", bg: "var(--amber-lo)", text: "var(--amber-d)" },
   salvage: { label: "Salvage", bg: "var(--rlo)", text: "var(--red)" },
   parts: { label: "Parts Only", bg: "var(--rlo)", text: "var(--red)" },
@@ -106,45 +110,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       : `/deal/${deal.id}`;
   const external = href.startsWith("http");
   const isSaved = localSaves.has(deal.id);
-  const trustSignals = [
-    deal.sourceUrl ? "source" : null,
-    deal.images?.length ? "photo" : null,
-    deal.lastSeenAt ? "freshness" : null,
-    deal.vin ? "VIN" : null,
-    deal.mileage ? "mileage" : null,
-    deal.sellerPhone || deal.sellerEmail || deal.sellerContactUrl
-      ? "seller contact"
-      : null,
-  ].filter(Boolean);
   const resaleBasis = deal.sellEstimate || 0;
-  const confidenceScore =
-    (deal.dataQuality?.score || 0) +
-    (resaleBasis ? 12 : 0) +
-    (deal.trueNetProfit && deal.trueNetProfit > 0 ? 8 : 0) +
-    (deal.recommendedMaxBid ? 6 : 0);
-  const buyConfidence =
-    confidenceScore >= 88 ? "High" : confidenceScore >= 68 ? "Medium" : "Low";
-  const buyConfidenceTone =
-    buyConfidence === "High"
-      ? { bg: "var(--glo)", color: "var(--green)" }
-      : buyConfidence === "Medium"
-        ? { bg: "var(--amber-lo)", color: "var(--amber-d)" }
-        : { bg: "var(--rlo)", color: "var(--red)" };
-  const profitReadiness = deal.trueNetProfit
-    ? `spread ${deal.trueNetProfit > 0 ? "+" : "-"}$${Math.abs(
-        deal.trueNetProfit,
-      ).toLocaleString()}`
-    : "profit not proven";
-  const bidReadiness = deal.recommendedMaxBid
-    ? `max bid $${Math.round(deal.recommendedMaxBid).toLocaleString()}`
-    : "max bid unknown";
   const confidenceGaps = [
     !resaleBasis ? "resale comps" : null,
     !deal.recommendedMaxBid ? "max bid" : null,
     !deal.trueNetProfit ? "fees/transport/repair" : null,
     ...(deal.dataQuality?.missing.slice(0, 2).map(qualityFieldLabel) || []),
   ].filter(Boolean);
-  const visibleWarnings = (deal.warnings || []).filter(Boolean).slice(0, 2);
   const decision =
     deal.vinFlagSeverity === "high" || confidenceGaps.length >= 3
       ? {
@@ -407,6 +379,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             <span
               className="w-fit rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
               style={{ background: titleStyle.bg, color: titleStyle.text }}
+              title="Listing-reported title status. Verify the actual title before purchase."
             >
               {titleStyle.label}
             </span>
@@ -449,193 +422,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           )}
 
-          {deal.dataQuality && (
-            <div
-              className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
-              style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-              title={
-                deal.dataQuality.missing.length
-                  ? `Missing ${deal.dataQuality.missing
-                      .map(qualityFieldLabel)
-                      .join(", ")}`
-                  : "All key listing fields present"
-              }
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-black uppercase tracking-wide text-[var(--t4)]">
-                  Completeness
-                </span>
-                <span className="font-mono font-black text-[var(--t2)]">
-                  {deal.dataQuality.score}
-                </span>
-              </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--s3)]">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max(4, deal.dataQuality.score)}%`,
-                    background:
-                      deal.dataQuality.score >= 88
-                        ? "var(--green)"
-                        : deal.dataQuality.score >= 68
-                          ? "var(--amber)"
-                          : "var(--red)",
-                  }}
-                />
-              </div>
-              {deal.dataQuality.missing.length > 0 && (
-                <div className="mt-1 truncate font-semibold text-[var(--t4)]">
-                  Missing{" "}
-                  {deal.dataQuality.missing
-                    .slice(0, 2)
-                    .map(qualityFieldLabel)
-                    .join(", ")}
-                  {deal.dataQuality.missing.length > 2 ? "…" : ""}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div
-            className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
-            style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-black uppercase tracking-wide text-[var(--t4)]">
-                Buy confidence
-              </span>
-              <span
-                className="rounded-full px-2 py-0.5 font-black uppercase"
-                style={buyConfidenceTone}
-              >
-                {buyConfidence}
-              </span>
-            </div>
-            <div className="mt-1 grid grid-cols-2 gap-1">
-              <span className="rounded-[var(--r1)] bg-[var(--s2)] px-1.5 py-1 font-bold text-[var(--t3)]">
-                {profitReadiness}
-              </span>
-              <span className="rounded-[var(--r1)] bg-[var(--s2)] px-1.5 py-1 font-bold text-[var(--t3)]">
-                {bidReadiness}
-              </span>
-            </div>
-            <div className="mt-1 truncate font-semibold text-[var(--t4)]">
-              {confidenceGaps.length
-                ? `Needs ${confidenceGaps.slice(0, 3).join(", ")}`
-                : "Core math and proof are present"}
-            </div>
-            {visibleWarnings.length > 0 && (
-              <div className="mt-2 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-2 py-1.5">
-                <div className="font-black uppercase tracking-wide text-[var(--amber-d)]">
-                  Analyzer warning
-                </div>
-                <div className="mt-0.5 max-h-[2.5rem] overflow-hidden font-semibold leading-snug text-[var(--amber-d)]">
-                  {visibleWarnings.join(" ")}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div
-            className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
-            style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-black uppercase tracking-wide text-[var(--t4)]">
-                Trust proof
-              </span>
-              <span className="font-bold text-[var(--t3)]">
-                {relativeFreshness(deal.lastSeenAt)}
-              </span>
-            </div>
-            <div className="mt-1 truncate font-semibold text-[var(--t4)]">
-              {deal.sourceUrl ? "Direct source" : "No source link"} ·{" "}
-              {deal.sellerType ? `${deal.sellerType} seller · ` : ""}
-              {trustSignals.length}/6 signals
-              {deal.dataQuality?.missing.length
-                ? ` · missing ${deal.dataQuality.missing
-                    .slice(0, 2)
-                    .map(qualityFieldLabel)
-                    .join(", ")}`
-                : ""}
-            </div>
-          </div>
-
-          {/* Quick Actions (Contact, Copy, Share) */}
-          <div className="flex flex-wrap gap-2 mt-1 z-10 relative">
-            {deal.vin && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigator.clipboard.writeText(deal.vin!);
-                }}
-                className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
-              >
-                📋 Copy VIN
-              </button>
-            )}
-
-            {(deal.sellerPhone ||
-              deal.sellerEmail ||
-              deal.sellerContactUrl) && (
-              <div className="inline-flex items-center gap-1">
-                {deal.sellerPhone && (
-                  <>
-                    <a
-                      href={`tel:${deal.sellerPhone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded bg-[var(--blo)] hover:bg-[var(--bbd)] px-2 py-1 text-[10px] font-bold text-[var(--blue)] transition-colors"
-                    >
-                      📞 Call
-                    </a>
-                    <a
-                      href={`sms:${deal.sellerPhone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded bg-[var(--glo)] hover:bg-[var(--gbd)] px-2 py-1 text-[10px] font-bold text-[var(--green)] transition-colors"
-                    >
-                      💬 Text
-                    </a>
-                  </>
-                )}
-                {deal.sellerEmail && (
-                  <a
-                    href={`mailto:${deal.sellerEmail}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] transition-colors border border-[var(--b1)]"
-                  >
-                    ✉️ Email
-                  </a>
-                )}
-                {deal.sellerContactUrl && (
-                  <a
-                    href={deal.sellerContactUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] transition-colors border border-[var(--b1)]"
-                  >
-                    Contact
-                  </a>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                const url = deal.sourceUrl || window.location.href;
-                if (navigator.share) {
-                  navigator.share({ url });
-                } else {
-                  navigator.clipboard.writeText(url);
-                }
-              }}
-              className="inline-flex items-center gap-1 rounded bg-[var(--s2)] hover:bg-[var(--s3)] px-2 py-1 text-[10px] font-bold text-[var(--t3)] transition-colors border border-[var(--b1)]"
-            >
-              <Link2 className="h-3 w-3" aria-hidden="true" />
-              Share
-            </button>
-          </div>
+          <p className="text-[11px] font-semibold text-[var(--t4)]">
+            {relativeFreshness(deal.lastSeenAt)} ·{" "}
+            {deal.sourceUrl ? "source linked" : "source link unavailable"}
+          </p>
 
           {/* Price and practical ceiling stay adjacent so the acquisition decision is readable. */}
           <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">

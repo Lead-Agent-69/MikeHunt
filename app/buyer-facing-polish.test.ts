@@ -19,11 +19,22 @@ describe("buyer-facing polish", () => {
     expect(source).toContain("opening your matching scanner");
   });
 
-  it("does not describe carousel mechanics in the Discover UI", () => {
+  it("keeps Discover focused on the buyer's choices and real listings", () => {
     const source = read("app/(dashboard)/discover/page.tsx");
 
     expect(source).not.toContain("Drag or swipe to explore");
-    expect(source).toContain("Live candidates for this scope");
+    expect(source).toContain("Buying for");
+    expect(source).toContain("Refine search");
+    expect(source).not.toContain("<BuyerScopeBuilder");
+    expect(source).not.toContain("<SetupStatusPanel");
+  });
+
+  it("labels title claims as reported rather than a condition guarantee", () => {
+    const card = read("components/discovery/DiscoveryCard.tsx");
+
+    expect(card).toContain("Clean title reported");
+    expect(card).toContain("Listing-reported title status");
+    expect(card).not.toContain("No major issues found");
   });
 
   it("shows source display names instead of raw registry ids in the smart-run copy", () => {

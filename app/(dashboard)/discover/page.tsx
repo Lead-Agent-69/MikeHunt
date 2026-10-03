@@ -15,14 +15,7 @@ import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
-import {
-  BellRing,
-  Clock,
-  Compass,
-  FileCheck,
-  Gavel,
-  Sparkles,
-} from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { motion } from "framer-motion";
 import { SelectField } from "@/components/shared/Field";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -34,15 +27,8 @@ import { MarketSummary } from "@/components/discovery/MarketSummary";
 import { DealTicker } from "@/components/home/DealTicker";
 import { MarketPulse } from "@/components/home/MarketPulse";
 import { DiscoverHero } from "@/components/discovery/DiscoverHero";
-import { BuyerScopeBuilder } from "@/components/discovery/BuyerScopeBuilder";
-import { SetupStatusPanel } from "@/components/discovery/SetupStatusPanel";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { EdgeBanner } from "@/components/shared/EdgeBanner";
-import { DNACarousel, type CarouselItem } from "@/components/ui/dna-carousel";
-import {
-  PremiumCarousel,
-  type PremiumCarouselItem,
-} from "@/components/ui/premium-carousel";
 import type {
   DiscoverResponse,
   DiscoveryRail,
@@ -58,44 +44,6 @@ const LANE_VALUE_TO_LABEL: Record<string, string> = {
   parts: "Parts / teardown",
   specialty: "Specialty",
 };
-
-const DAILY_WORKFLOW = [
-  {
-    label: "Discover",
-    href: "/discover",
-    icon: Compass,
-    title: "Choose a buying scope",
-    detail: "Vehicle, state, budget, title, seller, and watched dealers.",
-  },
-  {
-    label: "Deal Check",
-    href: "/deal-check",
-    icon: FileCheck,
-    title: "Verify one listing",
-    detail: "Paste a VIN, URL, or deal sheet before you spend time.",
-  },
-  {
-    label: "Auction Lane",
-    href: "/lane",
-    icon: Gavel,
-    title: "Operate a live lane",
-    detail: "Review ceilings, inspection gaps, and outcome actions.",
-  },
-  {
-    label: "Saved",
-    href: "/saved",
-    icon: BellRing,
-    title: "Save what can move",
-    detail: "Track listings, saved searches, dealers, and alerts.",
-  },
-  {
-    label: "Pipeline",
-    href: "/fleet",
-    icon: Clock,
-    title: "Manage acquired units",
-    detail: "Recon, costs, status, and outcomes after purchase.",
-  },
-];
 
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -159,128 +107,6 @@ function RailSkeleton() {
           </div>
         ))}
       </div>
-    </section>
-  );
-}
-
-function PreviewProofStrip({
-  proof,
-  query,
-}: {
-  proof: NonNullable<DiscoverResponse["previewProof"]>;
-  query: string;
-}) {
-  if (!proof.length) return null;
-  const label: Record<string, string> = {
-    govdeals: "GovDeals",
-    publicsurplus: "PublicSurplus",
-    municibid: "Municibid",
-    copart: "Copart",
-    iaa: "IAA",
-    "ae-of-miami": "AE of Miami",
-    "damage-com": "Damage.com",
-    "dg-auto": "D&G Auto",
-    recar: "ReCar",
-    "stjames-auto": "St. James",
-  };
-  return (
-    <section className="glass-panel p-3 md:p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-            Public source proof
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--t4)]">
-            Live rows read before anything is saved to the database.
-          </p>
-        </div>
-        <a
-          href="/sources"
-          className="shrink-0 text-xs font-bold text-[var(--accent)] hover:underline"
-        >
-          Sources
-        </a>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {proof.map((item) => {
-          const working = item.status === "working";
-          const blocked = item.status === "blocked";
-          return (
-            <a
-              key={item.id}
-              href={`/scan${query ? `${query}&` : "?"}source=${item.id}&sort=profit`}
-              className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-xs"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-black text-[var(--t1)]">
-                  {label[item.id] || item.id}
-                </span>
-                <span
-                  className={
-                    working
-                      ? "font-black text-[var(--green)]"
-                      : blocked
-                        ? "font-black text-[var(--red)]"
-                        : "font-black text-[var(--amber-d)]"
-                  }
-                >
-                  {working ? "Working" : blocked ? "Blocked" : "No rows"}
-                </span>
-              </div>
-              <div className="mt-1 font-semibold text-[var(--t3)]">
-                {item.matchedRows.toLocaleString()} matched ·{" "}
-                {item.rows.toLocaleString()} read
-              </div>
-              {item.detail && (
-                <div className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-[var(--t5)]">
-                  {item.detail}
-                </div>
-              )}
-            </a>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function DailyWorkflowStrip({ scopeQuery }: { scopeQuery: string }) {
-  return (
-    <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-      {DAILY_WORKFLOW.map((job) => {
-        const Icon = job.icon;
-        const href =
-          scopeQuery &&
-          ["Discover", "Deal Check", "Auction Lane"].includes(job.label)
-            ? `${job.href}${scopeQuery}`
-            : job.href;
-        return (
-          <a
-            key={job.label}
-            href={href}
-            className="group rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-3 transition-colors hover:border-[var(--b3)]"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-                <Icon
-                  className="h-3.5 w-3.5 text-[var(--amber)]"
-                  strokeWidth={2.4}
-                />
-                {job.label}
-              </span>
-              <span className="text-[11px] font-black text-[var(--t5)] transition-transform group-hover:translate-x-0.5">
-                →
-              </span>
-            </div>
-            <div className="mt-2 text-sm font-black text-[var(--t1)]">
-              {job.title}
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
-              {job.detail}
-            </p>
-          </a>
-        );
-      })}
     </section>
   );
 }
@@ -428,105 +254,25 @@ export default function DiscoverPage() {
         <MarketPicker accent="var(--amber-d)" onPick={(st) => setState(st)} />
       )}
 
-      <BuyerScopeBuilder initialScope={urlScope} />
-
-      <DailyWorkflowStrip scopeQuery={scopeQuery} />
-
-      <section className="glass-panel flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between md:p-4">
+      <section className="flex flex-col gap-3 border-y border-[var(--b1)] py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-            Active buying scope
+            Buying for
           </p>
           <p className="mt-1 text-sm font-bold text-[var(--t1)]">
             {activeScopeLabel}
           </p>
           <p className="mt-1 text-xs text-[var(--t4)]">
-            Discover, source proof, and matching Scan links use this same scope.
+            Refine makes and budgets without leaving your live results.
           </p>
         </div>
         <a
           href={`/scan${scopeQuery ? `${scopeQuery}&` : "?"}sort=profit`}
           className="inline-flex items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
         >
-          Analyze this scope
+          Refine search
         </a>
       </section>
-
-      {/* DNA Carousel — Featured deals showcase */}
-      {data?.rails && data.rails.length > 0 && (
-        <div className="glass-panel p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[var(--t1)]">
-              Featured Deals
-            </h2>
-            <span className="text-xs text-[var(--t4)]">
-              Live candidates for this scope
-            </span>
-          </div>
-          <DNACarousel
-            items={data.rails[0].deals.slice(0, 5).map((deal: any) => ({
-              id: deal.id,
-              image:
-                deal.images?.[0] ||
-                deal.image_url ||
-                deal.image ||
-                "/images/car-placeholder.jpg",
-              title:
-                deal.title ||
-                `${deal.year || ""} ${deal.make || ""} ${deal.model || ""}`.trim(),
-              subtitle:
-                deal.locationState || deal.mileage
-                  ? [
-                      deal.locationState,
-                      deal.mileage
-                        ? `${deal.mileage.toLocaleString()} miles`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")
-                  : undefined,
-              category: deal.dealVerdict?.toUpperCase() || deal.source,
-              description:
-                deal.trueNetProfit && deal.trueNetProfit > 0
-                  ? `Net profit: $${deal.trueNetProfit.toLocaleString()}`
-                  : deal.askPrice
-                    ? `Current bid: $${deal.askPrice.toLocaleString()}`
-                    : undefined,
-              cta: "View Deal",
-              ctaLink:
-                deal.id?.startsWith?.("live-") && deal.sourceUrl
-                  ? deal.sourceUrl
-                  : `/deal/${deal.id}`,
-            }))}
-            autoPlay={true}
-            autoPlaySpeed={4000}
-            depth={250}
-            curve={0.8}
-            helixSpread={0.8}
-            perspective={1200}
-            imageWidth={240}
-            imageHeight={320}
-            imageRadius={16}
-            blur={5}
-            rgbSplit={2}
-            inactiveOpacity={0.3}
-            shadow={true}
-            shadowStrength={0.2}
-          />
-        </div>
-      )}
-
-      {data && (
-        <SetupStatusPanel
-          configured={data.configured}
-          previewMode={data.previewMode}
-          previewCount={data.previewCount || data.totalListings || 0}
-        />
-      )}
-
-      {data?.previewMode && data.previewProof && (
-        <PreviewProofStrip proof={data.previewProof} query={scopeQuery} />
-      )}
 
       {/* Always show the saved dealer intent. Even before database import is live, this confirms the
           shops being watched and gives the user a direct path to source proof. */}

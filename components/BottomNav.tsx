@@ -28,7 +28,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-4"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -43,7 +43,6 @@ export function BottomNav() {
         const isActive =
           navItemMatchesPath(item, pathname) ||
           (item.name === "Discover" && pathname === "/") ||
-          (item.name === "Lane" && activeJob === "Auction Lane") ||
           activeJob === item.name;
         return (
           <Link

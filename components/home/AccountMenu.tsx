@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Settings } from "lucide-react";
+import { CircleHelp, Database, LogOut, Settings } from "lucide-react";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
@@ -68,6 +68,14 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
           <button onClick={() => router.push("/settings")} className={item}>
             <Settings className="h-4 w-4" aria-hidden="true" />
             Settings
+          </button>
+          <button onClick={() => router.push("/sources")} className={item}>
+            <Database className="h-4 w-4" aria-hidden="true" />
+            Sources
+          </button>
+          <button onClick={() => router.push("/changelog")} className={item}>
+            <CircleHelp className="h-4 w-4" aria-hidden="true" />
+            Help &amp; updates
           </button>
           <div className="my-1 border-t border-[var(--b1)]" />
           <button

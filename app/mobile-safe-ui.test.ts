@@ -42,8 +42,10 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("hidden items-center justify-end gap-2 md:flex");
     expect(topNav).toContain("flex items-center justify-end gap-2 md:hidden");
     expect(topNav).toContain("max-w-[88px]");
-    expect(topNav).toContain("!moreActive && activeJob === item.name");
+    expect(topNav).toContain("activeJob === item.name");
+    expect(topNav).not.toContain("More dropdown");
     expect(accountMenu).toContain("LogOut");
+    expect(accountMenu).toContain('router.push("/sources")');
     expect(accountMenu).not.toContain("⚙ Settings");
     expect(accountMenu).not.toContain("⎋ Log out");
   });

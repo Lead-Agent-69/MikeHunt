@@ -1,24 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell, Bookmark, ChevronDown, Settings } from "lucide-react";
-import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { Bell } from "lucide-react";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
-import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
-import {
-  PRIMARY,
-  MORE_GROUPS,
-  ADMIN_GROUP,
-  primaryJobForPath,
-  navItemMatchesPath,
-} from "./nav-items";
+import { PRIMARY, primaryJobForPath } from "./nav-items";
 
 function IconBtn({
   href,
@@ -70,18 +62,11 @@ function NavPill() {
 export function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAdmin } = useIsAdmin();
-  // The admin sees everything — their "More" gains the Admin group with the dev/ops surfaces.
-  const moreGroups = isAdmin ? [...MORE_GROUPS, ADMIN_GROUP] : MORE_GROUPS;
-  const moreItems = moreGroups.flatMap((g) => g.items);
   const activeJob = primaryJobForPath(pathname);
-  const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [scopedStates, setScopedStates] = useState<string[] | undefined>();
-  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -137,21 +122,6 @@ export function TopNav() {
       window.removeEventListener("scroll", onScroll, { capture: true });
   }, []);
 
-  // Close the More menu on navigation or outside click.
-  useEffect(() => setMoreOpen(false), [pathname]);
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (moreRef.current && !moreRef.current.contains(e.target as Node))
-        setMoreOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
-
-  const moreActive = moreItems.some((item) =>
-    navItemMatchesPath(item, pathname),
-  );
-  const watchScopeCount = localSaved.count + localSearches.count;
   const totalAlertCount = alertCount + localSearches.count;
 
   return (
@@ -198,14 +168,14 @@ export function TopNav() {
         )}
       </div>
 
-      {/* CENTER: Primary nav + More (desktop) — in the flow so it centers between the flex-1 sides and can't
+      {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
           overlap them as the window narrows. */}
       <nav className="hidden md:flex items-center gap-0.5 shrink-0">
         {PRIMARY.map((item) => {
           const active =
             pathname === item.href ||
             (item.href === "/discover" && pathname === "/") ||
-            (!moreActive && activeJob === item.name);
+            activeJob === item.name;
           return (
             <Link
               key={item.name}
@@ -225,93 +195,6 @@ export function TopNav() {
             </Link>
           );
         })}
-
-        {/* More dropdown */}
-        <div className="relative" ref={moreRef}>
-          <button
-            onClick={() => setMoreOpen((o) => !o)}
-            aria-expanded={moreOpen}
-            aria-haspopup="menu"
-            className={`relative flex items-center gap-1 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
-              moreActive
-                ? "text-white"
-                : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
-            }`}
-          >
-            {moreActive && <NavPill />}
-            <span className="relative z-10">More</span>
-            <ChevronDown
-              className="relative z-10 h-3 w-3 transition-transform"
-              style={{ transform: moreOpen ? "rotate(180deg)" : "none" }}
-            />
-          </button>
-
-          <AnimatePresence>
-            {moreOpen && (
-              <motion.div
-                role="menu"
-                initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute right-0 mt-2 w-[22rem] p-2 rounded-[var(--r3)] z-50 origin-top-right overflow-hidden"
-                style={{
-                  background: "var(--glass)",
-                  backdropFilter: "blur(24px) saturate(180%)",
-                  WebkitBackdropFilter: "blur(24px) saturate(180%)",
-                  border: "1px solid var(--b1)",
-                  boxShadow: "var(--shadow)",
-                }}
-              >
-                {/* Top highlight — the same glass cue the landing CTAs use. */}
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-[10%] top-0 h-px rounded-full"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",
-                  }}
-                />
-                <div className="max-h-[min(70vh,34rem)] overflow-y-auto overscroll-contain">
-                  {moreGroups.map((g) => (
-                    <div key={g.group} className="mb-1.5 last:mb-0">
-                      <p className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold text-[var(--t5)]">
-                        {g.group}
-                      </p>
-                      {g.items.map((item) => {
-                        const active = navItemMatchesPath(item, pathname);
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            role="menuitem"
-                            className={`flex items-start gap-2.5 px-2 py-2 rounded-[var(--r2)] text-[13px] font-medium transition-colors ${
-                              active
-                                ? "bg-[var(--amber-lo)] text-[var(--amber)]"
-                                : "text-[var(--t2)] hover:bg-[var(--s2)]"
-                            }`}
-                          >
-                            <item.icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t4)]" />
-                            <span className="min-w-0">
-                              <span className="block font-bold leading-tight">
-                                {item.name}
-                              </span>
-                              {item.description && (
-                                <span className="mt-0.5 block text-[11px] font-medium leading-snug text-[var(--t5)]">
-                                  {item.description}
-                                </span>
-                              )}
-                            </span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </nav>
 
       {/* RIGHT: Actions */}
@@ -324,19 +207,6 @@ export function TopNav() {
           />
           <ThemeToggle />
           <IconBtn
-            href="/saved"
-            title={
-              watchScopeCount
-                ? `${watchScopeCount} active watch scope${
-                    watchScopeCount === 1 ? "" : "s"
-                  } across saved vehicles and searches`
-                : "Saved"
-            }
-            badge={watchScopeCount}
-          >
-            <Bookmark style={{ width: 17, height: 17 }} />
-          </IconBtn>
-          <IconBtn
             href="/alerts"
             title={
               totalAlertCount
@@ -345,14 +215,11 @@ export function TopNav() {
                   }: ${alertCount} unread, ${localSearches.count} saved search${
                     localSearches.count === 1 ? "" : "es"
                   }`
-                : "Alerts"
+                : "Activity"
             }
             badge={totalAlertCount}
           >
             <Bell style={{ width: 17, height: 17 }} />
-          </IconBtn>
-          <IconBtn href="/settings" title="Settings">
-            <Settings style={{ width: 17, height: 17 }} />
           </IconBtn>
           <AccountMenu floating={false} />
         </div>

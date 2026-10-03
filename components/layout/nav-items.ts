@@ -6,6 +6,7 @@ import {
   Bookmark,
   CalendarDays,
   Clock,
+  CircleUserRound,
   Code2,
   Columns3,
   Compass,
@@ -58,15 +59,16 @@ export const PRIMARY: NavItem[] = [
   { name: "Saved", href: "/saved", icon: Bookmark },
 ];
 
-/** The mobile bottom bar carries four acquisition destinations. */
-export const MOBILE_TAB_COUNT = 4;
+/** The mobile bottom bar exposes the four daily buyer actions plus account. */
+export const MOBILE_TAB_COUNT = 5;
 
-/** Mobile uses the acquisition board's four bottom destinations. */
+/** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
 export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
+  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Saved", href: "/saved", icon: Bookmark },
-  { name: "Lane", href: "/lane", icon: Gavel },
   { name: "Pipeline", href: "/fleet", icon: Clock },
+  { name: "Account", href: "/settings", icon: CircleUserRound },
 ];
 
 export const MORE_GROUPS: NavGroup[] = [
