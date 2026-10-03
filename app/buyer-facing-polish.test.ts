@@ -71,5 +71,7 @@ describe("buyer-facing polish", () => {
     expect(source).not.toContain("shared dealer import");
     expect(source).toContain('label: "Checking listings"');
     expect(source).toContain('label: "Search this market"');
+    expect(source).toContain("researched dealer option");
+    expect(source).toContain("state dealer research appears");
   });
 });

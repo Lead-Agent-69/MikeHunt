@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
   ALL_SOURCES,
+  RESEARCHED_DEALER_STATES,
   SOURCE_STATS,
   getSourcesByCategory,
   getSourcesByPriority,
@@ -1799,11 +1800,39 @@ export default function SourcesPage() {
         selectedPriority === "all" || source.priority === selectedPriority;
       const matchesStatus =
         selectedStatus === "all" || source.status === selectedStatus;
+      const matchesState =
+        !healthScope.state ||
+        !source.states?.length ||
+        source.states.includes(healthScope.state);
+      const matchesResearchVisibility =
+        !source.id.startsWith("research-") ||
+        Boolean(healthScope.state) ||
+        Boolean(normalizedQuery);
       return (
-        matchesSearch && matchesCategory && matchesPriority && matchesStatus
+        matchesSearch &&
+        matchesCategory &&
+        matchesPriority &&
+        matchesStatus &&
+        matchesState &&
+        matchesResearchVisibility
       );
     });
-  }, [searchQuery, selectedCategory, selectedPriority, selectedStatus]);
+  }, [
+    healthScope.state,
+    searchQuery,
+    selectedCategory,
+    selectedPriority,
+    selectedStatus,
+  ]);
+  const scopedResearchCandidates = useMemo(
+    () =>
+      healthScope.state
+        ? filteredSources.filter((source) =>
+            source.states?.includes(healthScope.state!),
+          ).length
+        : 0,
+    [filteredSources, healthScope.state],
+  );
   const healthBySourceId = useMemo(() => {
     return new Map(
       ((health?.sources || []) as SourceHealthRow[]).map((source) => [
@@ -1837,6 +1866,10 @@ export default function SourcesPage() {
               <p className="text-sm text-[var(--t4)]">
                 Choose trusted markets for your buying plan and see where the
                 available vehicles come from.
+              </p>
+              <p className="mt-1 text-xs font-semibold text-[var(--blue)]">
+                {RESEARCHED_DEALER_STATES.length}-state dealer research appears
+                when you choose a state or search for a dealer.
               </p>
             </div>
             <Link
@@ -2195,6 +2228,14 @@ export default function SourcesPage() {
                 {COVERAGE.sharedImported} selectable dealer markets •{" "}
                 {COVERAGE.catalogOnly} awaiting availability
               </p>
+              {healthScope.state && (
+                <p className="mt-1 text-[10px] font-semibold text-[var(--blue)]">
+                  {scopedResearchCandidates} researched dealer option
+                  {scopedResearchCandidates === 1 ? "" : "s"} for{" "}
+                  {healthScope.state} are included below alongside national
+                  markets.
+                </p>
+              )}
             </div>
             <span className="text-lg font-black text-[var(--amber)]">
               {Math.round(COVERAGE.ratio * 100)}%
