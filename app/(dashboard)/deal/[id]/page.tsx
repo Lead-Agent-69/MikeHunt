@@ -158,6 +158,7 @@ function DecisionCommandPanel({
   sourceHealth,
   proofLinks,
   onCashOffer,
+  onWatchPrice,
 }: {
   deal: any;
   engineVerdict: "GO" | "HOLD" | "PASS";
@@ -169,6 +170,7 @@ function DecisionCommandPanel({
   sourceHealth?: SourceHealthItem;
   proofLinks: { scan: string; sources: string };
   onCashOffer: () => void;
+  onWatchPrice: () => void;
 }) {
   const verdictTone =
     engineVerdict === "GO"
@@ -260,21 +262,30 @@ function DecisionCommandPanel({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <AcquireToPipelineButton
-              deal={{
-                id: deal.id,
-                vin: deal.vin,
-                year: deal.year,
-                make: deal.make,
-                model: deal.model,
-                trim: deal.trim,
-                askPrice: deal.askPrice,
-                trueNetProfit: deal.true_net_profit || deal.trueNetProfit,
-                sellEstimate: deal.sellEstimate,
-                locationCity: deal.locationCity,
-                locationState: deal.locationState,
-              }}
-            />
+            {engineVerdict === "PASS" ? (
+              <button
+                onClick={onWatchPrice}
+                className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
+              >
+                Watch price instead
+              </button>
+            ) : (
+              <AcquireToPipelineButton
+                deal={{
+                  id: deal.id,
+                  vin: deal.vin,
+                  year: deal.year,
+                  make: deal.make,
+                  model: deal.model,
+                  trim: deal.trim,
+                  askPrice: deal.askPrice,
+                  trueNetProfit: deal.true_net_profit || deal.trueNetProfit,
+                  sellEstimate: deal.sellEstimate,
+                  locationCity: deal.locationCity,
+                  locationState: deal.locationState,
+                }}
+              />
+            )}
             <button
               onClick={onCashOffer}
               className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
@@ -899,6 +910,7 @@ export default function DealPage({
           sourceHealth={sourceHealth}
           proofLinks={proofLinks}
           onCashOffer={() => setShowCashOfferModal(true)}
+          onWatchPrice={handleWatchPrice}
         />
       )}
 

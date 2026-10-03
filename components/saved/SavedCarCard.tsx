@@ -581,15 +581,21 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     </Button>
                   </Link>
 
-                  <Button
-                    size="sm"
-                    onClick={handleAcquire}
-                    className="text-white font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
-                    style={{ background: "var(--grad)" }}
-                  >
-                    <CheckSquare className="w-3.5 h-3.5" />
-                    Buy
-                  </Button>
+                  {profitValue > 0 ? (
+                    <Button
+                      size="sm"
+                      onClick={handleAcquire}
+                      className="text-white font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
+                      style={{ background: "var(--grad)" }}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      Buy
+                    </Button>
+                  ) : (
+                    <span className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-[10px] font-black text-[var(--amber-d)]">
+                      Wait for a lower price
+                    </span>
+                  )}
                 </>
               )}
 

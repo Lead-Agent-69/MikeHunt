@@ -108,8 +108,9 @@ export async function POST(req: NextRequest) {
     ...(body.name !== undefined && { name: body.name }),
     ...(body.phone !== undefined && { phone: body.phone }),
     ...(body.city !== undefined && { city: body.city }),
-    ...(body.state !== undefined && { state: body.state }),
     ...(body.home_state !== undefined && { home_state: body.home_state }),
+    ...(body.state !== undefined &&
+      body.home_state === undefined && { home_state: body.state }),
     ...(body.auction_fee_default !== undefined && {
       auction_fee_default: body.auction_fee_default,
     }),
@@ -139,16 +140,11 @@ export async function POST(req: NextRequest) {
         home_lng: body.home_lng,
       }),
     ...(body.onboarded !== undefined && { onboarded: body.onboarded }),
-    updated_at: new Date().toISOString(),
   };
 
-  // Geocode the dealer's home when their location changes, so saved-search radius matching and
-  // "deals near me" work. Best-effort — a lookup failure just leaves home coords unchanged.
-  if (
-    body.home_zip !== undefined ||
-    body.home_state !== undefined ||
-    body.city !== undefined
-  ) {
+  // A state alone is too broad to place precisely. Only resolve a ZIP or city, so profile
+  // saves never wait on an external lookup when a user chooses a state during onboarding.
+  if (body.home_zip !== undefined || body.city !== undefined) {
     try {
       const coords = await geocodePlace(supabase, {
         zip: body.home_zip,
