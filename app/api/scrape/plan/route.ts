@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createScraperRegistry } from "@/lib/scrapers/runner";
 import {
   buildBuyerScopeLinks,
   planScrapeForBuyerScope,
@@ -8,6 +7,7 @@ import {
 import { buildImportContract } from "@/lib/scrapers/import-contract";
 import { systemReadiness } from "@/lib/system-readiness";
 import { scrapeSecret } from "@/lib/auth/scrape-gate";
+import { catalogForRunnerId, hasScraper } from "@/lib/scrapers/source-index";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,70 @@ type SourceReadiness =
   | "needs_run"
   | "not_configured"
   | "disabled";
+
+type PlanningSource = {
+  id: string;
+  name: string;
+  type: string;
+  priority: string;
+  enabled: boolean;
+  requiresAuth: boolean;
+  stealthRequired: boolean;
+  estimatedDealsPerRun: number;
+};
+
+const RUNNER_META_SOURCES: Record<string, Omit<PlanningSource, "id">> = {
+  curated_dealers: {
+    name: "Selected dealer inventory",
+    type: "dealer",
+    priority: "medium",
+    enabled: true,
+    requiresAuth: false,
+    stealthRequired: true,
+    estimatedDealsPerRun: 200,
+  },
+  independent_dealer: {
+    name: "Independent dealer inventory",
+    type: "dealer",
+    priority: "medium",
+    enabled: false,
+    requiresAuth: false,
+    stealthRequired: true,
+    estimatedDealsPerRun: 100,
+  },
+  auto_discover: {
+    name: "Dealer discovery",
+    type: "dealer",
+    priority: "low",
+    enabled: false,
+    requiresAuth: false,
+    stealthRequired: true,
+    estimatedDealsPerRun: 0,
+  },
+};
+
+// Planning must stay light enough for Vercel. The executable runner imports browser automation
+// packages and belongs only in the authorized run path; this catalog answers which runners are
+// eligible without loading a scraper or a browser dependency.
+function planningSource(id: string): PlanningSource | undefined {
+  const meta = RUNNER_META_SOURCES[id];
+  if (meta) return { id, ...meta };
+
+  const catalog = catalogForRunnerId(id);
+  if (!catalog || !hasScraper(id)) return undefined;
+  return {
+    id,
+    name: catalog.name,
+    type: catalog.type,
+    priority: catalog.priority,
+    enabled: catalog.status === "active",
+    requiresAuth: false,
+    stealthRequired: Boolean(
+      catalog.requiresProxy || catalog.requiresFlareSolverr,
+    ),
+    estimatedDealsPerRun: 100,
+  };
+}
 
 function normalizeSourceId(value: unknown) {
   if (typeof value !== "string") return "";
@@ -73,8 +137,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const plan = planScrapeForBuyerScope(body.scope || body);
-    const registry = createScraperRegistry();
-    const allSources = registry.getAll();
     const requested: string[] = Array.isArray(body.sourceIds)
       ? body.sourceIds.map(normalizeSourceId).filter(Boolean)
       : plan.sourceIds;
@@ -97,7 +159,6 @@ export async function POST(request: NextRequest) {
       ...plan.scope,
       dealerSourceIds: dealerSourceIds.length ? dealerSourceIds : undefined,
     });
-    const byId = new Map(allSources.map((source) => [source.id, source]));
     const readiness = systemReadiness();
     const importGates = readiness.items.filter((item) =>
       ["supabase", "service-role", "scrape-control"].includes(item.id),
@@ -107,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     const sources = [
       ...sourceIds.map((id) => {
-        const source = byId.get(id);
+        const source = planningSource(id);
         if (!source) {
           return {
             id,
@@ -144,12 +205,12 @@ export async function POST(request: NextRequest) {
       }),
       ...mismatchedSourceIds.map((id) => ({
         id,
-        name: byId.get(id)?.name || id,
-        type: byId.get(id)?.type || "unknown",
-        priority: byId.get(id)?.priority || "low",
+        name: planningSource(id)?.name || id,
+        type: planningSource(id)?.type || "unknown",
+        priority: planningSource(id)?.priority || "low",
         enabled: false,
-        requiresAuth: Boolean(byId.get(id)?.requiresAuth),
-        stealthRequired: Boolean(byId.get(id)?.stealthRequired),
+        requiresAuth: Boolean(planningSource(id)?.requiresAuth),
+        stealthRequired: Boolean(planningSource(id)?.stealthRequired),
         estimatedDealsPerRun: 0,
         readiness: "blocked" as SourceReadiness,
         runnable: false,
