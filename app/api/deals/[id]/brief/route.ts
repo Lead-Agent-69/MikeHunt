@@ -47,6 +47,19 @@ export function buildBriefModeMetadata({
   };
 }
 
+/** Service-role writes must name a real user id. Cron is not an owner. */
+export function aiBriefWriteDecision(
+  analysis: { aiBrief?: unknown; aiBriefUserId?: unknown } | null | undefined,
+  userId: string | null | undefined,
+): "create" | "overwrite" | "reject" {
+  const actor = typeof userId === "string" ? userId.trim() : "";
+  if (!actor || actor === "cron") return "reject";
+  const existing = analysis?.aiBrief;
+  const hasBrief = typeof existing === "string" && existing.trim().length > 0;
+  if (!hasBrief) return "create";
+  return analysis?.aiBriefUserId === actor ? "overwrite" : "reject";
+}
+
 export function buildDeterministicDealBrief(d: any) {
   const costs = d.deal_analysis?.costs || {};
   const verdict = String(d.deal_verdict || "hold").toUpperCase();
@@ -99,9 +112,11 @@ export async function GET(
   const refresh = sp.get("refresh") === "1";
   // Generation is explicit (a click) so a plain page view never spends tokens.
   const wantGenerate = refresh || sp.get("generate") === "1";
+  let callerUserId: string | null = null;
   if (wantGenerate) {
     const caller = await requirePaidAiCaller(req);
     if (!caller.ok) return caller.response;
+    callerUserId = caller.userId;
     const genRl = rateLimit(req, {
       key: `brief:${caller.userId}`,
       limit: 10,
@@ -146,6 +161,16 @@ export async function GET(
         provider: activeProvider(),
       }),
     });
+  }
+
+  // The service-role client can update any deal. Bind the write to the session user
+  // and refuse a cross-user overwrite, including an unowned cached brief.
+  const writeDecision = aiBriefWriteDecision(d.deal_analysis, callerUserId);
+  if (writeDecision === "reject") {
+    return NextResponse.json(
+      { error: "Only the brief owner can write this brief." },
+      { status: 403 },
+    );
   }
 
   if (!hasTextModel()) {
@@ -213,6 +238,7 @@ Keep it under 110 words. Be direct, financial, and practical.`;
             ...(d.deal_analysis || {}),
             aiBrief: brief,
             aiBriefAt: new Date().toISOString(),
+            aiBriefUserId: callerUserId,
           },
         })
         .eq("id", id);
