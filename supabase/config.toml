@@ -1,0 +1,23 @@
+# Local Supabase config for auth redirect allow-list.
+# No secrets. Used by local `supabase start` and CI contract tests.
+
+project_id = "mikehunt"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/auth/callback",
+  "http://localhost:3000/auth/callback",
+]

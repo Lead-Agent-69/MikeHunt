@@ -67,6 +67,7 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  // First import of the route is heavy under CI parallelism; 5s default flakes on Windows runners.
   it("keeps gov_auction government rows and maps trust/cost fields", async () => {
     rpc.mockResolvedValueOnce({
       data: [
@@ -100,7 +101,7 @@ describe("GET /api/discover scoped feed contract", () => {
       repairEstimate: 1100,
       transportEstimate: 650,
     });
-  });
+  }, 15_000);
 
   it("honors title, min price, max price, and selected dealer scope", async () => {
     rpc.mockResolvedValueOnce({
