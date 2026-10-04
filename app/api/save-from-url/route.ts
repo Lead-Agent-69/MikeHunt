@@ -8,8 +8,8 @@ import { getServerUser } from "@/lib/server-supabase";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
 // P0: AI invent queue disabled — do not import queueForAIParsing.
 import * as crypto from "crypto";
-import axios from "axios";
-import * as cheerio from "cheerio";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
+import { scrapeOrParseListing } from "@/lib/save-from-url/scrape-listing";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +72,23 @@ export async function POST(request: NextRequest) {
     const source = detectSource(url);
 
     // 3. Scrape or Parse URL details. Returns null if nothing real could be extracted.
-    const scrapedData = await scrapeOrParseListing(url, source);
+    // Blocked targets (private, link-local, metadata, redirect onto those) are 400.
+    // A miss stays 422 and does not echo the request body.
+    let scrapedData: Awaited<ReturnType<typeof scrapeOrParseListing>>;
+    try {
+      scrapedData = await scrapeOrParseListing(url, source);
+    } catch (error) {
+      if (error instanceof UrlNotAllowedError) {
+        return NextResponse.json(
+          {
+            error: "That URL can't be fetched.",
+            code: "URL_NOT_ALLOWED",
+          },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
 
     // P0 (Ren): do NOT hand off to AI invent→store→display.
     // valuation-agent invented wholesale/retail; ai-worker wrote mmr_value/marketValue;
@@ -208,10 +224,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, dealId: actualDealId, savedId });
   } catch (error: any) {
     console.error("[SAVE-FROM-URL] Fatal error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to save deal from URL" },
-      { status: 500 },
-    );
+    const message =
+      process.env.NODE_ENV === "production"
+        ? "Failed to save deal from URL"
+        : error?.message || "Failed to save deal from URL";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -231,219 +248,6 @@ function detectSource(url: string): string {
   return "web-share";
 }
 
-async function scrapeOrParseListing(
-  url: string,
-  source: string,
-): Promise<any | null> {
-  // Start with NO fabricated vehicle. Fields are populated only from real
-  // parsing of the URL structure and the fetched page content.
-  const data: any = {
-    external_id: crypto
-      .createHash("md5")
-      .update(url)
-      .digest("hex")
-      .substring(0, 8)
-      .toUpperCase(),
-    images: [],
-    year: undefined,
-    make: undefined,
-    model: undefined,
-    trim: undefined,
-    mileage: undefined,
-    ask_price: undefined,
-    condition: undefined,
-    location_city: undefined,
-    location_state: undefined,
-    vin: "",
-    description: "",
-  };
-
-  // Regular expression parsing on the URL structure (first line of resilience)
-  try {
-    const lowercaseUrl = url.toLowerCase();
-
-    // Parse Year
-    const yearMatch = lowercaseUrl.match(/\b(20\d{2}|19\d{2})\b/);
-    if (yearMatch) {
-      data.year = parseInt(yearMatch[1]);
-    }
-
-    // Parse Make
-    const makes = [
-      "ford",
-      "chevrolet",
-      "chevy",
-      "toyota",
-      "honda",
-      "nissan",
-      "jeep",
-      "dodge",
-      "ram",
-      "gmc",
-      "bmw",
-      "mercedes",
-      "audi",
-      "lexus",
-      "subaru",
-      "hyundai",
-      "kia",
-      "mazda",
-      "tesla",
-      "porsche",
-      "volkswagen",
-      "vw",
-    ];
-    for (const make of makes) {
-      if (lowercaseUrl.includes(make)) {
-        data.make = make.charAt(0).toUpperCase() + make.slice(1);
-        if (data.make === "Chevy") data.make = "Chevrolet";
-        if (data.make === "Vw") data.make = "Volkswagen";
-        break;
-      }
-    }
-
-    // Parse Model (approximate from URL words following make)
-    if (data.make) {
-      const urlParts = lowercaseUrl
-        .replace(/[^a-z0-9]/g, " ")
-        .split(" ")
-        .filter(Boolean);
-      const makeIndex = urlParts.indexOf(data.make.toLowerCase());
-      if (makeIndex !== -1 && urlParts[makeIndex + 1]) {
-        const skipWords = [
-          "and",
-          "for",
-          "sale",
-          "with",
-          "salvage",
-          "clean",
-          "title",
-          "used",
-          "new",
-          "in",
-          "near",
-        ];
-        let modelStr =
-          urlParts[makeIndex + 1].charAt(0).toUpperCase() +
-          urlParts[makeIndex + 1].slice(1);
-
-        if (
-          urlParts[makeIndex + 2] &&
-          !skipWords.includes(urlParts[makeIndex + 2])
-        ) {
-          modelStr +=
-            " " +
-            urlParts[makeIndex + 2].charAt(0).toUpperCase() +
-            urlParts[makeIndex + 2].slice(1);
-        }
-        data.model = modelStr;
-      }
-    }
-
-    // Extract potential price if it's in the URL path
-    const priceMatch = lowercaseUrl.match(/[\/-](\d{3,5})[\/-]/);
-    if (priceMatch) {
-      const p = parseInt(priceMatch[1]);
-      if (p > 500 && p < 100000) data.ask_price = p;
-    }
-
-    // Extract potential mileage
-    const milesMatch = lowercaseUrl.match(/(\d{2,3})[k|m]?[ -]?miles?/);
-    if (milesMatch) {
-      data.mileage = parseInt(milesMatch[1]) * 1000;
-    }
-  } catch {}
-
-  // Attempt standard page fetch (will work on Craigslist, cars.com, sometimes eBay, but blocks on Copart/IAA)
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      },
-      timeout: 6000,
-    });
-
-    const $ = cheerio.load(response.data);
-
-    // Source-specific parsing rules
-    if (source === "craigslist") {
-      const priceText = $(".price").first().text();
-      if (priceText)
-        data.ask_price =
-          parseFloat(priceText.replace(/[^0-9.]/g, "")) || data.ask_price;
-
-      const titleText = $("#titletextonly").text();
-      if (titleText) {
-        data.title = titleText.trim();
-        const parts = titleText.split(" ");
-        const yearVal = parseInt(parts[0]);
-        if (yearVal > 1900) data.year = yearVal;
-      }
-
-      const attrGroup = $(".attrgroup").text();
-      if (attrGroup) {
-        const vinMatch = attrGroup.match(/vin:\s*([A-HJ-NPR-Z0-9]{17})/i);
-        if (vinMatch) data.vin = vinMatch[1].toUpperCase();
-
-        const odoMatch = attrGroup.match(/odometer:\s*([0-9,]+)/i);
-        if (odoMatch) data.mileage = parseInt(odoMatch[1].replace(/,/g, ""));
-      }
-
-      data.description = $("#postingbody")
-        .text()
-        .replace("QR Code Link to This Post", "")
-        .trim();
-
-      // Images
-      $(".gallery img").each((_, img) => {
-        const src = $(img).attr("src");
-        if (src) data.images.push(src);
-      });
-    } else if (source === "facebook-marketplace") {
-      // FB Marketplace is highly obfuscated, relies on URL metadata + simple parsing
-      const priceMatch = $("body")
-        .text()
-        .match(/\$[0-9,]+/);
-      if (priceMatch)
-        data.ask_price =
-          parseFloat(priceMatch[0].replace(/[^0-9.]/g, "")) || data.ask_price;
-    } else if (source === "copart") {
-      const lotMatch = url.match(/lot\/(\d+)/);
-      if (lotMatch) data.external_id = lotMatch[1];
-    } else if (source === "iaa") {
-      const idMatch = url.match(/VehicleDetail\/(\d+)/);
-      if (idMatch) data.external_id = idMatch[1];
-    }
-
-    // Parse images from general elements if none were parsed
-    if (data.images.length === 0) {
-      $('meta[property="og:image"]').each((_, meta) => {
-        const content = $(meta).attr("content");
-        if (content && content.startsWith("http")) data.images.push(content);
-      });
-    }
-  } catch (e: any) {
-    console.log(
-      `[SAVE-FROM-URL] HTML fetch skipped/blocked: ${e.message}. Using URL heuristic parsing.`,
-    );
-  }
-
-  // Only keep a real, valid 17-char VIN. Never fabricate one.
-  if (!data.vin || data.vin.length !== 17) {
-    data.vin = "";
-  }
-
-  // Honest failure: require at least make/model and an ask price extracted from
-  // real sources. No stock photos or placeholder vehicles are injected.
-  if (!data.make || !data.model || !data.ask_price) {
-    return null;
-  }
-
-  return data;
-}
 
 async function createAnalyzingSavedCar(
   supabase: any,
