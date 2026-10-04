@@ -10,6 +10,7 @@ describe("onboarding goal scope", () => {
     expect(source).toContain("buildBuyerIntentQuery(intent)");
     expect(source).toContain('fetch("/api/preferences"');
     expect(source).not.toContain('fetch("/api/scrape/run"');
-    expect(source).toContain("MIKEHUNT does not run a broad crawl from setup");
+    expect(source).toContain("onboarding-buyers.webp");
+    expect(source).toContain("aria-pressed={buyerMode === mode}");
   });
 });

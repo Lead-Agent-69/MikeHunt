@@ -2,7 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CarFront,
+  Wrench,
+  TrendingUp,
+  Building2,
+  MapPin,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
+import Link from "next/link";
+import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
@@ -14,6 +27,32 @@ import {
 } from "@/hooks/useBuyerIntent";
 
 const VEHICLES = ["SUVs", "Trucks", "Sedans", "Vans", "Hybrid / EV"];
+const MODE_VISUALS = {
+  personal: {
+    icon: CarFront,
+    position: "0%",
+    caption: "For everyday life",
+    color: "#176d51",
+  },
+  diy: {
+    icon: Wrench,
+    position: "33.333%",
+    caption: "For your next project",
+    color: "#9b6014",
+  },
+  reseller: {
+    icon: TrendingUp,
+    position: "66.667%",
+    caption: "For your next opportunity",
+    color: "#126a89",
+  },
+  dealer: {
+    icon: Building2,
+    position: "100%",
+    caption: "For your business",
+    color: "#315bd7",
+  },
+};
 const TITLES = [
   { value: "all", label: "Any title" },
   { value: "clean", label: "Clean title only" },
@@ -37,8 +76,9 @@ function ChoiceButton({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
-      className="rounded-[var(--r2)] border px-3 py-3 text-left text-sm font-bold transition-colors"
+      className="min-h-12 rounded-lg border px-3 py-3 text-left text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
       style={{
         background: active ? "var(--accent-surface)" : "var(--s0)",
         borderColor: active ? "var(--accent)" : "var(--b2)",
@@ -158,25 +198,64 @@ export default function OnboardingPage() {
   const steps = [
     {
       title: "What are you buying for?",
-      description:
-        "Your recommendation stays consistent, but the evidence and math adapt to your goal.",
+      description: "Start with your goal. You can change it anytime.",
       body: (
         <div className="grid gap-3 sm:grid-cols-2">
           {(Object.keys(BUYER_MODES) as BuyerMode[]).map((mode) => {
             const item = BUYER_MODES[mode];
+            const visual = MODE_VISUALS[mode];
+            const Icon = visual.icon;
             return (
-              <ChoiceButton
+              <button
+                type="button"
                 key={mode}
-                active={buyerMode === mode}
+                aria-pressed={buyerMode === mode}
                 onClick={() => setBuyerMode(mode)}
+                className="group overflow-hidden rounded-lg border-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                style={{
+                  borderColor:
+                    buyerMode === mode ? "var(--accent)" : "var(--b1)",
+                  background:
+                    buyerMode === mode ? "var(--accent-surface)" : "var(--s0)",
+                }}
               >
-                <span className="block text-base text-[var(--t1)]">
-                  {item.label}
+                <span
+                  className="relative block h-28 sm:h-36"
+                  style={{
+                    backgroundImage: "url(/images/onboarding-buyers.webp)",
+                    backgroundSize: "400% auto",
+                    backgroundPosition: `${visual.position} center`,
+                  }}
+                >
+                  <span
+                    className="absolute bottom-2 left-2 grid h-9 w-9 place-items-center rounded-lg bg-white shadow-sm"
+                    style={{ color: visual.color }}
+                  >
+                    <Icon size={20} aria-hidden="true" />
+                  </span>
+                  <span
+                    className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full border bg-white"
+                    style={{
+                      color: buyerMode === mode ? "white" : "transparent",
+                      background:
+                        buyerMode === mode ? "var(--accent)" : "white",
+                    }}
+                  >
+                    <Check size={15} aria-hidden="true" />
+                  </span>
                 </span>
-                <span className="mt-1 block text-xs leading-relaxed text-[var(--t4)]">
-                  {item.question}
+                <span className="block p-3 sm:p-4">
+                  <span className="block text-[10px] font-semibold uppercase text-[var(--t4)]">
+                    {visual.caption}
+                  </span>
+                  <span className="mt-1 block text-base font-bold text-[var(--t1)]">
+                    {item.label}
+                  </span>
+                  <span className="mt-1 block text-xs leading-relaxed text-[var(--t4)]">
+                    {item.question}
+                  </span>
                 </span>
-              </ChoiceButton>
+              </button>
             );
           })}
         </div>
@@ -290,8 +369,7 @@ export default function OnboardingPage() {
     },
     {
       title: "Your first search is ready",
-      description:
-        "MIKEHUNT does not run a broad crawl from setup. Refreshes use the source, location, and vehicle criteria you choose.",
+      description: "A search shaped around your goal, budget, and location.",
       body: (
         <div className="space-y-3">
           <div className="rounded-[var(--r3)] border border-[var(--accent)] bg-[var(--accent-surface)] p-4">
@@ -310,12 +388,11 @@ export default function OnboardingPage() {
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">
             <div className="flex items-center gap-2 font-bold text-[var(--t2)]">
               <MapPin className="h-4 w-4" />
-              Scoped refresh policy
+              Your search, your choices
             </div>
             <p className="mt-1 text-xs leading-relaxed">
-              Your first results load from matching inventory. You choose when
-              to refresh, and saved watches refresh only within approved source
-              timing.
+              Look for vehicles that fit your preferences. Broaden your search
+              whenever you choose.
             </p>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">
@@ -336,8 +413,37 @@ export default function OnboardingPage() {
   const isLast = step === steps.length - 1;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--s1)] px-4 py-8">
-      <section className="glass-panel w-full max-w-xl p-5 sm:p-8">
+    <main className="min-h-screen bg-[var(--s1)] px-4 pb-8 pt-5 sm:px-8">
+      <header className="mx-auto flex max-w-3xl items-center justify-between gap-3 border-b border-[var(--b1)] pb-4">
+        <Link href="/discover" aria-label="MIKEHUNT home">
+          <MikeHuntLogo size="md" />
+        </Link>
+        <span className="text-xs font-medium text-[var(--t4)]">
+          Your buying profile
+        </span>
+      </header>
+      <section className="mx-auto w-full max-w-3xl py-6 sm:py-10">
+        <ol
+          className="mb-4 flex justify-between gap-2 text-[11px] font-semibold text-[var(--t4)]"
+          aria-label="Setup progress"
+        >
+          {["Your goal", "Your search", "Your comfort", "Ready"].map(
+            (label, index) => (
+              <li
+                key={label}
+                aria-current={index === step ? "step" : undefined}
+                className={index === step ? "text-[var(--accent)]" : ""}
+              >
+                {index < step ? (
+                  <Check className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                ) : (
+                  `${index + 1}. `
+                )}
+                {label}
+              </li>
+            ),
+          )}
+        </ol>
         <div
           className="mb-7 flex gap-1.5"
           aria-label={`Setup step ${step + 1} of ${steps.length}`}
@@ -352,33 +458,36 @@ export default function OnboardingPage() {
             />
           ))}
         </div>
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--accent)]">
-          Personalized vehicle intelligence
+        <p className="text-xs font-semibold text-[var(--accent)]">
+          Step {step + 1} of {steps.length}
         </p>
-        <h1 className="mt-2 text-2xl font-black text-[var(--t1)]">
+        <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-[var(--t1)]">
           {current.title}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[var(--t4)]">
           {current.description}
         </p>
         <div className="mt-7">{current.body}</div>
-        <div className="mt-8 flex items-center justify-between gap-3">
+        <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
           <button
             type="button"
             onClick={() =>
               step > 0 ? setStep(step - 1) : router.push("/discover")
             }
-            className="px-3 py-2 text-sm font-bold text-[var(--t4)]"
+            disabled={saving}
+            className="inline-flex min-h-12 items-center gap-2 px-3 py-2 text-sm font-bold text-[var(--t4)] disabled:opacity-60"
           >
+            {step > 0 && <ArrowLeft size={16} aria-hidden="true" />}
             {step === 0 ? "Set up later" : "Back"}
           </button>
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
             disabled={saving}
-            className="rounded-[var(--r2)] bg-[var(--accent)] px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+            className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
           >
             {saving ? "Saving..." : isLast ? "See my matches" : "Continue"}
+            {!saving && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>
       </section>
