@@ -6,7 +6,7 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { Field } from "@/components/shared/Field";
+import { Field, PasswordField } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
@@ -189,13 +189,13 @@ export default function RegisterPage() {
               className="text-base"
             />
 
-            <Field
+            <PasswordField
               label="Password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
+              autoComplete="new-password"
               placeholder="At least 6 characters"
               className="text-base"
             />

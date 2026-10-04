@@ -6,7 +6,7 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { Field } from "@/components/shared/Field";
+import { Field, PasswordField } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
@@ -141,20 +141,23 @@ export default function LoginPage() {
               className="text-base"
             />
 
-            <Field
+            <PasswordField
               label="Password"
-              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required={configured}
+              autoComplete="current-password"
               placeholder={configured ? "••••••••••" : "optional in local demo"}
               className="text-base"
             />
 
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex items-center gap-2 text-[var(--t3)]">
+              <span
+                className="flex items-center gap-2 text-[var(--t3)]"
+                role="status"
+              >
                 <Ico name="shield" size={14} />
-                Stay signed in on this device
+                Stays signed in until you log out
               </span>
               <Link
                 href="/forgot-password"

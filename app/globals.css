@@ -275,7 +275,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   min-height: 100vh;
-  overscroll-behavior: none;
+  overscroll-behavior-x: none;
 }
 
 html {

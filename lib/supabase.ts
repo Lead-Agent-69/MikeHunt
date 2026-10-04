@@ -66,7 +66,16 @@ export function getSupabaseClient(): SupabaseClient {
 }
 
 export function createClientComponentClient(): SupabaseClient {
-  return createBrowserClient(resolvedUrl(), resolvedPublicAnonKey());
+  // The browser client owns the durable, refreshable auth session. Supabase's
+  // SSR adapter mirrors it into cookies so middleware and server routes see
+  // the same session after a refresh or browser restart.
+  return createBrowserClient(resolvedUrl(), resolvedPublicAnonKey(), {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
 }
 
 export function createServerComponentClient(): SupabaseClient {

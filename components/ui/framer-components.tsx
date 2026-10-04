@@ -570,28 +570,42 @@ export function ParallaxSection({
 
 export function LenisSmoothScroll({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    let lenis: any;
+    // Native scrolling is more reliable for touch, embedded browsers, and
+    // assistive technology. Lenis is an optional desktop polish only.
+    const finePointer = window.matchMedia(
+      "(pointer: fine) and (min-width: 769px)",
+    );
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!finePointer.matches || reducedMotion.matches) return;
+
+    let lenis:
+      | { destroy?: () => void; raf: (time: number) => void }
+      | undefined;
+    let frame: number | undefined;
+    let cancelled = false;
     // `lenis` is the maintained package — @studio-freight/lenis was renamed and is deprecated.
-    // The constructor options below (duration/easing/touchMultiplier) are API-identical.
+    // It is intentionally never enabled for touch input.
     import("lenis" as any)
       .then((mod: any) => {
+        if (cancelled) return;
         const LenisCtor = mod.default || mod.Lenis || mod;
         if (!LenisCtor) return;
         lenis = new LenisCtor({
           duration: 1.2,
           easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-          touchMultiplier: 2,
         });
 
         function raf(time: number) {
           lenis?.raf(time);
-          requestAnimationFrame(raf);
+          frame = requestAnimationFrame(raf);
         }
-        requestAnimationFrame(raf);
+        frame = requestAnimationFrame(raf);
       })
       .catch(() => {});
 
     return () => {
+      cancelled = true;
+      if (frame) cancelAnimationFrame(frame);
       if (lenis?.destroy) lenis.destroy();
     };
   }, []);
