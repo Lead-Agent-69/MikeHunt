@@ -43,6 +43,9 @@ describe("account creation security", () => {
     const stats = readFileSync("app/api/admin/stats/route.ts", "utf8");
     expect(stats).toContain("canManageOperations(req)");
     expect(stats).not.toContain("supabase.auth.getUser()");
+
+    const registry = readFileSync("app/api/scrape/registry/route.ts", "utf8");
+    expect(registry).toContain("allowAdminSession: true");
   });
 
   it("returns OAuth session cookies on the callback redirect", () => {

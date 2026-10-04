@@ -8,7 +8,8 @@ import { denyUnauthed } from "@/lib/auth/scrape-gate";
 
 // P0: previously unauthenticated on both verbs — an anonymous caller could enable/disable any
 // source and reset failure counters, i.e. silently switch off scraping or flip a gated source on.
-// Bearer secret only; no UI consumes this route.
+// The owner control room is the only browser UI that consumes this route. It may use a verified
+// admin session; automation continues to use the bearer secret.
 
 function createRegistry() {
   const stateManager = new ScraperStateManager();
@@ -17,7 +18,7 @@ function createRegistry() {
 }
 
 export async function GET(request: NextRequest) {
-  const denied = await denyUnauthed(request);
+  const denied = await denyUnauthed(request, { allowAdminSession: true });
   if (denied) return denied;
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await denyUnauthed(request);
+  const denied = await denyUnauthed(request, { allowAdminSession: true });
   if (denied) return denied;
   try {
     const body = await request.json();

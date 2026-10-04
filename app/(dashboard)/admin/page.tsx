@@ -178,6 +178,32 @@ export default function AdminDashboard() {
     [refreshHealth, refreshStats],
   );
 
+  const setSourceAvailability = useCallback(
+    async (source: SourceHealth["sources"][number]) => {
+      const action = source.enabled ? "disable" : "enable";
+      setActiveOperation(`source-${source.id}`);
+      try {
+        const response = await fetch("/api/scrape/registry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: source.id, action }),
+        });
+        if (!response.ok) throw new Error();
+        toast.success(
+          source.enabled ? `${source.name} paused` : `${source.name} restored`,
+        );
+        await refreshHealth();
+      } catch {
+        toast.error("Source status could not be changed", {
+          description: "No source configuration was confirmed.",
+        });
+      } finally {
+        setActiveOperation(null);
+      }
+    },
+    [refreshHealth],
+  );
+
   const attentionSources = useMemo(
     () =>
       (health?.sources ?? [])
@@ -310,6 +336,18 @@ export default function AdminDashboard() {
                   >
                     {state.label}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setSourceAvailability(source)}
+                    disabled={Boolean(activeOperation)}
+                    className="h-8 rounded-md border border-[var(--b2)] px-3 text-xs font-semibold text-[var(--t2)] transition-colors hover:border-[var(--blue)] hover:text-[var(--blue)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {activeOperation === `source-${source.id}`
+                      ? "Updating..."
+                      : source.enabled
+                        ? "Pause"
+                        : "Restore"}
+                  </button>
                 </div>
               );
             })}
