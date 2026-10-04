@@ -133,4 +133,30 @@ describe("analyzeDeal reality gate", () => {
     expect(a.verdict).not.toBe("go");
     expect(a.warnings.join(" ")).toMatch(/final purchase price/i);
   });
+
+  it("uses the buyer home state for transport and does not assume Texas", () => {
+    const prev = process.env.HOME_BASE_STATE;
+    delete process.env.HOME_BASE_STATE;
+    const deal = {
+      year: 2018,
+      make: "Ford",
+      model: "F-150",
+      ask_price: 14000,
+      mileage: 90000,
+      condition: "run_drive",
+      title: "2018 Ford F-150 XLT",
+      source: "craigslist",
+      location_state: "CA",
+    } as any;
+    try {
+      const atHome = analyzeDeal(deal, { homeState: "CA" });
+      const noHome = analyzeDeal(deal);
+      expect(atHome.miles).toBe(45);
+      expect(noHome.miles).toBeNull();
+      expect(noHome.transportCost).toBe(600);
+    } finally {
+      if (prev === undefined) delete process.env.HOME_BASE_STATE;
+      else process.env.HOME_BASE_STATE = prev;
+    }
+  });
 });

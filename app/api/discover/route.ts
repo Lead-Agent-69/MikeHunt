@@ -12,6 +12,15 @@ import {
   dealLane,
   LANE_COLORS,
 } from "@/lib/discovery/categorize";
+import {
+  compareFlip,
+  comparePersonal,
+  dropsForNoRepair,
+  isFlipMode,
+  rowMatchesBuyerQuery,
+  transportAdjustedProfit,
+  type BuyerScopePrefs,
+} from "@/lib/discovery/for-you-rank";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
@@ -217,25 +226,8 @@ function rowTitleSignal(row: any) {
 }
 
 function rowMatchesQuery(row: any, q: string) {
-  if (!q) return true;
-  const haystack = [
-    row.title,
-    row.year,
-    row.make,
-    row.model,
-    row.trim,
-    row.condition,
-    row.damage_type,
-    row.location_city,
-    row.location_state,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-  return q
-    .split(" ")
-    .filter(Boolean)
-    .every((term) => haystack.includes(term));
+  // "suvs" / "trucks" from an empty makes list is a segment, not a title substring.
+  return rowMatchesBuyerQuery(row, q);
 }
 
 function buyerScopeReasons(
@@ -384,22 +376,27 @@ async function publicPreviewDeals(
   return {
     proof,
     deals: rows.slice(0, 60).map((row: any) => {
-      const analysis = analyzeDeal({
-        title: row.title,
-        year: row.year,
-        make: row.make,
-        model: row.model,
-        trim: row.trim,
-        vin: row.vin,
-        mileage: row.mileage,
-        condition: row.condition,
-        damage_type: row.damage_type,
-        ask_price: Number(row.ask_price || 0),
-        mmr_value: row.metadata?.acv_estimate || undefined,
-        source: row.source,
-        location_state: row.location_state,
-        first_seen_at: row.scraped_at,
-      } as any);
+      const analysis = analyzeDeal(
+        {
+          title: row.title,
+          year: row.year,
+          make: row.make,
+          model: row.model,
+          trim: row.trim,
+          vin: row.vin,
+          mileage: row.mileage,
+          condition: row.condition,
+          damage_type: row.damage_type,
+          ask_price: Number(row.ask_price || 0),
+          mmr_value: row.metadata?.acv_estimate || undefined,
+          source: row.source,
+          location_state: row.location_state,
+          first_seen_at: row.scraped_at,
+        } as any,
+        {
+          homeState: state && /^[A-Z]{2}$/.test(state) ? state : undefined,
+        },
+      );
       const deal = mapDeal(
         {
           id: `live-discover-${row.source}-${row.source_deal_id || row.source_url}`,
@@ -704,8 +701,10 @@ export async function GET(request: NextRequest) {
       )
       .slice(0, N);
 
-    const roi = merged
-      .filter((d) => d.dealVerdict === "go" || d.dealVerdict === "hold")
+    const roiPool = merged.filter(
+      (d) => d.dealVerdict === "go" || d.dealVerdict === "hold",
+    );
+    let roi = [...roiPool]
       .sort((a, b) => (b.profitScore || 0) - (a.profitScore || 0))
       .slice(0, N);
 
@@ -750,53 +749,103 @@ export async function GET(request: NextRequest) {
     const repairable = laneRail("repairable");
     const auctionLots = laneRail("auction");
 
-    // ── Personalized "For You" rail (Booking/Kayak "your picks") ──
-    // Reads the signed-in dealer's saved preferences — preferred states, budget, makes, min profit —
-    // and surfaces matching deals first. Preferences were captured but never used; this wires them in.
+    // ── Personalized "For You" rail ──
+    // Saved buyerScope (vehicle, title, timeline, repair, mode) plus profile home_state.
+    // Personal buyers are ranked by scope match then recency — not profit — and non-matches
+    // stay in the rail (repairCapability "none" is the only drop). Flip/dealer modes keep a
+    // profit gate, re-ranked with transport to the buyer's home state. The displayed dollar
+    // is not rewritten.
     let forYou: any[] = [];
+    let forYouSubtitle = "Matched to your saved search";
     let personalized = false;
     try {
       const {
         data: { user },
       } = await getServerUser();
       if (user?.id) {
-        // Read the SAME table the app writes prefs to (user_profiles, via /api/profile + onboarding).
         const supabase = createServerComponentClient();
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("home_state, preferred_makes, budget_max, target_profit")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profile) {
-          const homeState = (profile.home_state || "").toUpperCase();
-          const makes = new Set<string>(
-            (profile.preferred_makes || []).map((m: string) => m.toLowerCase()),
-          );
-          const maxPrice = Number(profile.budget_max) || 0;
-          const minProfit = Number(profile.target_profit) || 0;
-          const hasPrefs =
-            !!homeState || makes.size > 0 || maxPrice > 0 || minProfit > 0;
-          if (hasPrefs) {
-            personalized = true;
+        const [{ data: profile }, { data: prefRow }] = await Promise.all([
+          supabase
+            .from("user_profiles")
+            .select("home_state, preferred_makes, budget_max, target_profit")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("user_preferences")
+            .select("prefs")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
+        const scope = ((
+          prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
+        )?.buyerScope || {}) as BuyerScopePrefs;
+        const homeState = String(profile?.home_state || "")
+          .trim()
+          .toUpperCase();
+        const usableHome =
+          /^[A-Z]{2}$/.test(homeState) && homeState !== "NA" ? homeState : "";
+        const makes = [
+          ...((profile?.preferred_makes as string[] | null) || []),
+          ...((scope as { makes?: string[] }).makes || []),
+          ...((scope as { preferredMakes?: string[] }).preferredMakes || []),
+        ]
+          .map((m) => String(m).toLowerCase())
+          .filter(Boolean);
+        const maxPrice =
+          Number(profile?.budget_max) || Number(scope.maxPrice) || 0;
+        const minProfit = Number(profile?.target_profit) || 0;
+        const hasScope =
+          !!usableHome ||
+          makes.length > 0 ||
+          maxPrice > 0 ||
+          !!scope.vehicle ||
+          !!scope.vehicleType ||
+          (!!scope.titleType && scope.titleType !== "all") ||
+          !!scope.buyerMode ||
+          !!scope.timeline ||
+          !!scope.repairCapability;
+        if (usableHome) {
+          roi = [...roiPool]
+            .sort((a, b) => compareFlip(a, b, usableHome))
+            .slice(0, N);
+        }
+        if (hasScope) {
+          personalized = true;
+          const repair = scope.repairCapability;
+          if (isFlipMode(scope.buyerMode)) {
+            forYouSubtitle =
+              "Matched to your states, budget, and profit target";
             forYou = merged
               .filter((d) => {
+                if (dropsForNoRepair(d, repair)) return false;
                 if (
-                  homeState &&
-                  (d.locationState || "").toUpperCase() !== homeState
+                  usableHome &&
+                  (d.locationState || "").toUpperCase() !== usableHome
                 )
                   return false;
-                if (makes.size > 0 && !makes.has((d.make || "").toLowerCase()))
+                if (
+                  makes.length &&
+                  !makes.includes((d.make || "").toLowerCase())
+                )
                   return false;
                 if (maxPrice > 0 && d.askPrice > maxPrice) return false;
-                if (minProfit > 0 && (d.trueNetProfit || 0) < minProfit)
-                  return false;
+                if (minProfit > 0) {
+                  const profit = transportAdjustedProfit(d, usableHome);
+                  if ((profit ?? 0) < minProfit) return false;
+                }
                 return true;
               })
               .sort(
                 (a, b) =>
                   byGradeRank[b.grade] - byGradeRank[a.grade] ||
-                  (b.profitScore || 0) - (a.profitScore || 0),
+                  compareFlip(a, b, usableHome),
               )
+              .slice(0, N);
+          } else {
+            forYouSubtitle = "Matched to your saved search, newest first";
+            forYou = merged
+              .filter((d) => !dropsForNoRepair(d, repair))
+              .sort((a, b) => comparePersonal(a, b, scope, makes, usableHome))
               .slice(0, N);
           }
         }
@@ -811,7 +860,7 @@ export async function GET(request: NextRequest) {
             {
               key: "foryou",
               title: "⭐ For You",
-              subtitle: "Matched to your states, budget & profit target",
+              subtitle: forYouSubtitle,
               deals: forYou,
             },
           ]
