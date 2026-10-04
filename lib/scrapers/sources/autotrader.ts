@@ -7,8 +7,18 @@ import type { Deal } from "@/types";
 import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
-import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
+
+const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
+
+/** Two-letter state from the listing itself. A search ZIP is not a listing. */
+export function listingStateCode(value: unknown): string | undefined {
+  const code = String(value || "")
+    .trim()
+    .toUpperCase();
+  return LISTING_STATES.has(code) ? code : undefined;
+}
 
 export const AUTOTRADER_CONFIG: ScraperConfig = {
   name: "AutoTrader",
@@ -31,6 +41,8 @@ export function parseAutotraderNextData(
   html: string,
   seedZip = "",
 ): Partial<Deal>[] {
+  // seedZip is the search center, not the car. A 100mi radius crosses state lines.
+  void seedZip;
   const m = html.match(
     /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
   );
@@ -77,21 +89,17 @@ export function parseAutotraderNextData(
         : `https://www.autotrader.com${o.vdpBaseUrl}`
       : `https://www.autotrader.com/cars-for-sale/vehicle/${id}`;
 
-    // LOCATION: AutoTrader nests the dealer's place under a few possible keys depending on the response
-    // shape — pull it defensively. If none are present, fall back to the SEARCH region: every listing here
-    // is within ~100mi of the seed ZIP, so its state is a reliable approximation (far better than null,
-    // which left 25k AutoTrader cars off the map + out of every location filter). ZIP → state when needed.
+    // LOCATION: only fields on this listing. The search ZIP is not the car.
+    // No listing state means scrapeAutoTrader drops the row before upsert.
     const owner = o.owner || o.location || o.dealer || {};
     const rawZip =
       o.zip || owner.zip || owner.postalCode || o.postalCode || undefined;
     const locCity = o.city || owner.city || owner.cityName || undefined;
     const locState =
-      o.state ||
-      owner.state ||
-      owner.stateCode ||
-      (rawZip ? zipToState(String(rawZip)) : null) ||
-      (seedZip ? zipToState(seedZip) : null) ||
-      undefined;
+      listingStateCode(o.state) ||
+      listingStateCode(owner.state) ||
+      listingStateCode(owner.stateCode) ||
+      (rawZip ? listingStateCode(zipToState(String(rawZip))) : undefined);
 
     // AutoTrader ships free KBB Fair Purchase Price (market value) + a price rating on every listing.
     const pd = o.pricingDetail || {};
@@ -171,7 +179,8 @@ export async function scrapeAutoTrader(
     }
     const items = parseAutotraderNextData(html, zip);
     if (!items.length) break;
-    allDeals.push(...items);
+    // Page length still paginates. Only listing-derived states are stored.
+    allDeals.push(...items.filter((d) => listingStateCode(d.location_state)));
     if (items.length < 20) break;
   }
 
