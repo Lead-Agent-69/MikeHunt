@@ -1,9 +1,8 @@
 import { createServerComponentClient } from "@/lib/supabase";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { DealCard } from "@/components/shared/DealCard";
-import { Ico } from "@/components/shared/Ico";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { Deal } from "@/lib/data/deals-service";
 import { Zap } from "lucide-react";
 
@@ -61,9 +60,11 @@ export default async function FlashDealsPage() {
       </header>
 
       {error ? (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-[var(--r3)] text-red-600 dark:text-red-400">
-          Failed to load flash deals: {error.message}
-        </div>
+        <ErrorState
+          compact
+          title="We couldn't load time-sensitive deals"
+          message={error.message}
+        />
       ) : flashDeals && flashDeals.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {flashDeals.map((deal: any) => (

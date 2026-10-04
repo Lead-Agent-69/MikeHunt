@@ -224,7 +224,7 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Bulk actions",
         href: "/bulk",
         icon: Layers,
-        description: "Batch review, import, and cleanup workflows.",
+        description: "Batch review and cleanup workflows.",
       },
       {
         name: "Finance",
@@ -247,7 +247,7 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "System status",
         href: "/status",
         icon: Activity,
-        description: "Supabase, Google, AI, and importer readiness.",
+        description: "Account connections and service readiness.",
       },
     ],
   },

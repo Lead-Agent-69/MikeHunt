@@ -51,7 +51,7 @@ next-env.d.ts
 
 # supabase
 /supabase/.temp
-/supabase/config.toml
+# config.toml is committed (no secrets) so CI can assert OAuth callback allow-list.
 
 # playwright
 /test-results/

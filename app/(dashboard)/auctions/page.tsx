@@ -5,6 +5,7 @@ import { Ico } from "@/components/shared/Ico";
 import { createClientComponentClient } from "@/lib/supabase";
 import Link from "next/link";
 import { toast } from "sonner";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 export default function AuctionsPage() {
   const supabase = createClientComponentClient();
@@ -93,7 +94,12 @@ export default function AuctionsPage() {
         fetchRunLists();
       } else {
         const data = await res.json();
-        toast.error(data.error || "Failed to upload run list");
+        toast.error(
+          userFacingErrorMessage(
+            data.error,
+            "We couldn't add that auction list. Please try again.",
+          ),
+        );
       }
     } catch (err) {
       toast.error("Network error submitting run list");

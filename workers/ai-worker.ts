@@ -1,8 +1,17 @@
 import { chromium } from "playwright";
 import { extractVehicleDataFromText } from "../lib/ai/agents/scraper-agent";
-import { predictVehicleValuation } from "../lib/ai/agents/valuation-agent";
+// P0: predictVehicleValuation import removed — LLM invent disabled.
 import { createServerComponentClient } from "../lib/supabase";
-import { aiParsingQueue, aiValuationQueue } from "../lib/ai/queue";
+import { aiParsingQueue, aiValuationQueue, isAiPriceInventQueueEnabled } from "../lib/ai/queue";
+
+// P0: refuse to process invent queues unless explicitly re-enabled AFTER invent→store→display is dead.
+if (!isAiPriceInventQueueEnabled()) {
+  console.error(
+    "[AI Worker] Refusing to start: ENABLE_LLM_PRICE_INVENT is not true. " +
+      "LLM must not invent mmr_value/marketValue. Exiting.",
+  );
+  process.exit(1);
+}
 
 // --- 1. PARSING QUEUE ---
 aiParsingQueue.process(async (job) => {
@@ -81,19 +90,21 @@ aiValuationQueue.process(async (job) => {
     `[AI Valuation] Valuing ${dealData.year} ${dealData.make} ${dealData.model}`,
   );
 
-  const valuation = await predictVehicleValuation({
-    make: dealData.make,
-    model: dealData.model,
-    year: dealData.year,
-    mileage: dealData.mileage || 0,
-    condition: dealData.condition,
-    ask_price: dealData.ask_price,
-    location_state: "Unknown", // Ideally passed down from dealer info
-  });
-
-  console.log(
-    `[AI Valuation] Wholesale: $${valuation.estimatedWholesalePrice}, Retail: $${valuation.estimatedRetailPrice}`,
-  );
+  // P0: NEVER call predictVehicleValuation for numbers that become mmr_value/marketValue.
+  // Only keep a fetched mmr if the extract already attached one from the page/API.
+  const fetchedMmr =
+    typeof dealData.mmr_value === "number" && dealData.mmr_value > 0
+      ? dealData.mmr_value
+      : null;
+  if (!fetchedMmr) {
+    console.warn(
+      `[AI Valuation] No fetched market value for ${dealData.year} ${dealData.make} ${dealData.model} — failing closed (no LLM invent).`,
+    );
+    throw new Error(
+      "No fetched market value; LLM price invent is disabled (P0). Refusing to store invented mmr_value/marketValue.",
+    );
+  }
+  console.log(`[AI Valuation] Using fetched mmr_value=$${fetchedMmr} (LLM invent disabled)`);
 
   // Real transport cost via haversine distance between the deal's origin state
   // and the dealer's home state (same model as app/api/transport/quote).
@@ -118,11 +129,17 @@ aiValuationQueue.process(async (job) => {
     originState,
     dealerState,
   );
-  const estimatedRepairCost = valuation.estimatedRepairCost || 0;
+  // Repair cost: only if extract provided it — never invent via LLM.
+  const estimatedRepairCost =
+    typeof dealData.estimated_repair_cost === "number"
+      ? dealData.estimated_repair_cost
+      : typeof dealData.repair_estimate === "number"
+        ? dealData.repair_estimate
+        : 0;
 
-  // Calculate true net profit
+  // Net vs fetched guide only — not an LLM invent.
   const trueNetProfit =
-    valuation.estimatedWholesalePrice -
+    fetchedMmr -
     dealData.ask_price -
     estimatedTransportCost -
     estimatedRepairCost;
@@ -159,12 +176,14 @@ aiValuationQueue.process(async (job) => {
     drivetrain: dealData.drivetrain || null,
     engine: dealData.engine || null,
     images: dealData.images || [],
-    mmr_value: valuation.estimatedWholesalePrice, // This automatically triggers profit_estimate generation via DB trigger/generated column
+    // P0: mmr_value is fetched-only. Never write LLM invent here.
+    mmr_value: fetchedMmr,
     profit_score: profitScore,
-    ai_wholesale_estimate: valuation.estimatedWholesalePrice,
-    ai_retail_estimate: valuation.estimatedRetailPrice,
-    ai_rationale: valuation.rationale,
-    is_arbitrage_opportunity: valuation.isArbitrageOpportunity,
+    // Do not populate ai_* price estimates from the model — left null / omitted.
+    ai_wholesale_estimate: null,
+    ai_retail_estimate: null,
+    ai_rationale: "Market value from fetched data only; LLM price invent disabled (P0).",
+    is_arbitrage_opportunity: false,
     estimated_transport_cost: estimatedTransportCost,
     estimated_repair_cost: estimatedRepairCost,
     true_net_profit: trueNetProfit,
@@ -203,7 +222,7 @@ aiValuationQueue.process(async (job) => {
           trim: dealData.trim || null,
           odometer: dealData.mileage || null,
           askingPrice: dealData.ask_price,
-          marketValue: valuation.estimatedWholesalePrice,
+          marketValue: fetchedMmr, // fetched only; never LLM invent
           estimatedProfit: trueNetProfit,
           profitScore,
           images: dealData.images || [],
@@ -211,7 +230,7 @@ aiValuationQueue.process(async (job) => {
           locationState: dealData.location_state || null,
           source,
           sourceUrl,
-          aiRationale: valuation.rationale,
+          aiRationale: "Fetched market value only; LLM invent disabled.",
           scrapedAt: new Date().toISOString(),
         };
 
@@ -222,7 +241,7 @@ aiValuationQueue.process(async (job) => {
             snapshot,
             price_at_save: dealData.ask_price,
             last_price_seen: dealData.ask_price,
-            market_value_at_save: valuation.estimatedWholesalePrice,
+            market_value_at_save: fetchedMmr,
             profit_at_save: trueNetProfit,
             status: "active",
             last_checked: new Date().toISOString(),
@@ -245,7 +264,7 @@ aiValuationQueue.process(async (job) => {
     }
   }
 
-  return { dealData, valuation };
+  return { dealData, fetchedMmr };
 });
 
 // --- Transport cost estimation (mirrors app/api/transport/quote) ---

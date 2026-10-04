@@ -86,23 +86,6 @@ export class ErrorBoundary extends Component<Props, State> {
               </p>
             </div>
 
-            {/* Error Details (Development Only) */}
-            {process.env.NODE_ENV === "development" && this.state.error && (
-              <details className="text-left">
-                <summary className="cursor-pointer text-xs font-bold text-[var(--t4)] uppercase tracking-wider mb-2">
-                  Error Details
-                </summary>
-                <div className="bg-[var(--s2)] rounded-[var(--r2)] p-3 text-xs font-mono text-[var(--t3)] overflow-auto max-h-40">
-                  <div className="text-[var(--red)] font-bold mb-1">
-                    {this.state.error.name}: {this.state.error.message}
-                  </div>
-                  <pre className="whitespace-pre-wrap text-[10px] opacity-70">
-                    {this.state.error.stack}
-                  </pre>
-                </div>
-              </details>
-            )}
-
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Btn

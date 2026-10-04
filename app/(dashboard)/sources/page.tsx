@@ -28,6 +28,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   Activity,
   BarChart3,
@@ -119,13 +120,13 @@ const featuredDealerRows = FEATURED_SMALL_DEALERS.map((name) =>
 
 function readinessLabel(value: string | undefined) {
   const labels: Record<string, string> = {
-    ready: "Ready",
-    no_rows: "No rows",
-    blocked: "Blocked",
-    needs_run: "Needs run",
-    needs_login: "Needs login",
-    disabled: "Disabled",
-    not_configured: "Needs database",
+    ready: "Working",
+    no_rows: "No matching inventory",
+    blocked: "Unavailable",
+    needs_run: "Needs refresh",
+    needs_login: "Sign-in required",
+    disabled: "Unavailable",
+    not_configured: "Unavailable",
   };
   return labels[value || ""] || "Unknown";
 }
@@ -173,8 +174,8 @@ function SetupOverview({ health }: { health: any }) {
             </div>
             <div className="text-xs text-[var(--t4)]">
               {loading
-                ? "Reading live source proof..."
-                : `${readySources} ready market${readySources === 1 ? "" : "s"} · ${provenRows.toLocaleString()} current listings`}
+                ? "Checking current listings..."
+                : `${readySources} working market${readySources === 1 ? "" : "s"} · ${provenRows.toLocaleString()} current listings`}
             </div>
           </div>
         </div>
@@ -267,10 +268,10 @@ function SetupOverview({ health }: { health: any }) {
               : loading
                 ? "Checking..."
                 : !configured
-                  ? "Needs database"
+                  ? "Needs setup"
                   : live.length
                     ? readinessLabel(laneReadiness)
-                    : "Needs scraper";
+                    : "Coming soon";
 
           return (
             <div key={lane.label} className="glass-panel p-4 space-y-3">
@@ -322,7 +323,7 @@ function SetupOverview({ health }: { health: any }) {
               <div className="text-xs text-[var(--t4)]">
                 {hasCredentials
                   ? "Credentials or account access may be required."
-                  : "Can start with public/no-auth sources where runners exist."}
+                  : "You can start with public sources that are ready for search."}
               </div>
               <button
                 onClick={() => {
@@ -359,7 +360,8 @@ function IndependentDealerCoverage() {
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               AE of Miami, Damage.com, D&G Auto, ReCar, and St. James are
               catalogued here. A shop becomes "Working" only after its scoped
-              source proof shows current rows, photos, and a last verified time.
+              listing evidence shows current listings, photos, and a last
+              verified time.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -536,11 +538,11 @@ const TITLE_TYPE_OPTIONS = [
 
 const SOURCE_PROOF_FILTERS = [
   { id: "all", label: "All" },
-  { id: "ready", label: "Ready" },
-  { id: "needs_login", label: "Needs login" },
-  { id: "blocked", label: "Blocked" },
-  { id: "no_rows", label: "No rows" },
-  { id: "needs_run", label: "Needs run" },
+  { id: "ready", label: "Working" },
+  { id: "needs_login", label: "Sign-in required" },
+  { id: "blocked", label: "Unavailable" },
+  { id: "no_rows", label: "No matching inventory" },
+  { id: "needs_run", label: "Needs refresh" },
 ] as const;
 
 const FEATURED_DEALER_OPTIONS = [
@@ -608,34 +610,34 @@ function readinessTone(readiness?: string) {
 function sourceNextAction(source: SourceHealthRow, configured: boolean) {
   if (source.nextAction) return source.nextAction;
   if (source.readiness === "ready") {
-    return "Open matching Scan results and inspect data quality.";
+    return "Open matching results and review the vehicle details.";
   }
   if (source.readiness === "needs_login") {
     return source.requiresAuth
-      ? "Add required account, dealer license, or provider credentials."
-      : "Enable the runner and verify access.";
+      ? "This market requires account access or a dealer license before listings can be shown."
+      : "Sign in to this market, then try again.";
   }
   if (
     !configured &&
     !["govdeals", "publicsurplus", "municibid"].includes(source.id)
   ) {
-    return "Connect Supabase before importing this source.";
+    return "This source needs a connection before it can provide matches.";
   }
   if (source.readiness === "blocked") {
     return source.stealthRequired
-      ? "Needs browser/proxy/captcha strategy before it can be trusted."
-      : "Open the last error and repair the scraper.";
+      ? "This source needs an additional access review before it can be used."
+      : "This source is temporarily unavailable. Try again later.";
   }
   if (source.readiness === "no_rows") {
-    return "Runner responded, but no matching vehicles were found.";
+    return "No vehicles matched this source and search right now.";
   }
   if (source.readiness === "needs_run") {
-    return "Search this source with a buyer scope, then recheck proof.";
+    return "Refresh this market for your selected search.";
   }
   if (source.readiness === "disabled") {
-    return "Disabled in the runner until its access path is proven.";
+    return "This source is not available for searches yet.";
   }
-  return "Review setup and run proof before showing this to users.";
+  return "This market is being prepared. Check back for verified listings.";
 }
 
 function detailProofItems(source: SourceHealthRow) {
@@ -652,7 +654,7 @@ function detailProofItems(source: SourceHealthRow) {
 }
 
 function weakestDetailProof(source: SourceHealthRow) {
-  if (!source.activeRows) return "No rows to grade";
+  if (!source.activeRows) return "No listings to assess";
   const weak = detailProofItems(source)
     .filter((item) => item.value < 70)
     .sort((a, b) => a.value - b.value)
@@ -798,8 +800,8 @@ function SourceProofPanel({
   const noScopeMessage =
     health?.scopeStatus?.message ||
     (noScopeSources && health?.plan?.sourceIds?.length === 0
-      ? "This buyer scope has no safe source intersection. Change the lane, seller type, watched dealer, or broaden the scope before running imports."
-      : "No source returned proof for this exact scope yet. Broaden the scope or run a matching import.");
+      ? "No source matches this combination yet. Change the lane, seller type, watched dealer, or broaden your search."
+      : "No source has verified matches for this exact search yet. Broaden your search or refresh matching sources.");
   const readyRows = readySources.reduce(
     (sum, source) => sum + (Number(source.activeRows) || 0),
     0,
@@ -1134,9 +1136,17 @@ function SourceProofPanel({
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--t4)]">
-                    {source.lastError ||
-                      source.userImpact ||
-                      sourceNextAction(source, configured)}
+                    {source.lastError
+                      ? userFacingErrorMessage(
+                          source.lastError,
+                          "This source is temporarily unavailable. Try again later.",
+                        )
+                      : source.userImpact
+                        ? userFacingErrorMessage(
+                            source.userImpact,
+                            sourceNextAction(source, configured),
+                          )
+                        : sourceNextAction(source, configured)}
                   </p>
                 </button>
               ))}
@@ -1159,12 +1169,12 @@ function SourceProofPanel({
           <div className="min-w-[1180px] divide-y divide-[var(--b1)] rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)]">
             <div className="grid grid-cols-[1.2fr_0.75fr_0.5fr_0.65fr_0.7fr_1.15fr_0.75fr_1.25fr_0.8fr] gap-3 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
               <div>Source</div>
-              <div>Status</div>
-              <div>Rows</div>
-              <div>Photo proof</div>
+              <div>Availability</div>
+              <div>Listings</div>
+              <div>Photos</div>
               <div>Quality</div>
-              <div>Detail proof</div>
-              <div>Newest seen</div>
+              <div>Vehicle details</div>
+              <div>Last verified</div>
               <div>Next action</div>
               <div>Open</div>
             </div>
@@ -1177,9 +1187,6 @@ function SourceProofPanel({
                   <div className="truncate font-bold text-[var(--t1)]">
                     {source.name}
                   </div>
-                  <div className="truncate text-[10px] text-[var(--t5)]">
-                    {source.id}
-                  </div>
                 </div>
                 <div>
                   <span
@@ -1188,7 +1195,12 @@ function SourceProofPanel({
                       readinessTone(source.readiness),
                     )}
                   >
-                    {source.userStatus || readinessLabel(source.readiness)}
+                    {source.userStatus
+                      ? userFacingErrorMessage(
+                          source.userStatus,
+                          readinessLabel(source.readiness),
+                        )
+                      : readinessLabel(source.readiness)}
                   </span>
                 </div>
                 <div className="font-mono text-[var(--t2)]">
@@ -1238,9 +1250,17 @@ function SourceProofPanel({
                     : "never"}
                 </div>
                 <div className="text-[var(--t4)]">
-                  {source.lastError ||
-                    source.proofSummary ||
-                    sourceNextAction(source, configured)}
+                  {source.lastError
+                    ? userFacingErrorMessage(
+                        source.lastError,
+                        "This source is temporarily unavailable. Try again later.",
+                      )
+                    : source.proofSummary
+                      ? userFacingErrorMessage(
+                          source.proofSummary,
+                          sourceNextAction(source, configured),
+                        )
+                      : sourceNextAction(source, configured)}
                 </div>
                 <div className="flex items-center gap-2">
                   <Link
@@ -1283,7 +1303,7 @@ function sourceCardProof(source: SourceConfig, health?: SourceHealthRow) {
     return {
       label: readinessLabel(health.readiness),
       tone: readinessTone(health.readiness),
-      title: `${health.name} live proof: ${health.activeRows || 0} rows, ${
+      title: `${health.name} listing evidence: ${health.activeRows || 0} listings, ${
         health.rowsWithPhotos || 0
       } photos, ${health.averageQuality || 0}% detail quality.`,
     };
@@ -1461,24 +1481,11 @@ function SourceCard({
                   </span>
                 </div>
                 <div>
-                  <span className="text-[var(--t5)]">Auth Required</span>
+                  <span className="text-[var(--t5)]">Account access</span>
                   <span className="block text-[var(--t2)] capitalize">
-                    {source.authRequired.replace("-", " ")}
-                  </span>
-                </div>
-                {source.rateLimit && (
-                  <div>
-                    <span className="text-[var(--t5)]">Rate Limit</span>
-                    <span className="block text-[var(--t2)]">
-                      {source.rateLimit.requests} req /{" "}
-                      {source.rateLimit.perMs / 1000}s
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <span className="text-[var(--t5)]">FlareSolverr</span>
-                  <span className="block text-[var(--t2)]">
-                    {source.requiresFlareSolverr ? "Yes" : "No"}
+                    {source.authRequired === "none"
+                      ? "Not required"
+                      : "May be required"}
                   </span>
                 </div>
               </div>
@@ -1490,7 +1497,7 @@ function SourceCard({
               <div className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-3 text-xs">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="font-semibold text-[var(--t1)]">
-                    Live proof
+                    Listing evidence
                   </span>
                   <span
                     className={cn(
@@ -1508,7 +1515,9 @@ function SourceCard({
                         <div className="font-mono font-black text-[var(--t1)]">
                           {health.activeRows || 0}
                         </div>
-                        <div className="text-[10px] text-[var(--t5)]">rows</div>
+                        <div className="text-[10px] text-[var(--t5)]">
+                          listings
+                        </div>
                       </div>
                       <div className="rounded-[var(--r1)] bg-[var(--s0)] p-2">
                         <div className="font-mono font-black text-[var(--t1)]">
@@ -1574,23 +1583,35 @@ function SourceCard({
                 ) : (
                   <p className="leading-relaxed text-[var(--t4)]">
                     {scraped
-                      ? "Runner exists, but it has not produced live proof in this environment yet."
+                      ? "This source is connected but has not returned verified matches yet."
                       : sharedImported
-                        ? "This dealer can be selected through the shared importer. Run it for a buyer scope before expecting live rows."
-                        : "This source is still a catalog record. It needs a runner before users should expect rows."}
+                        ? "Select this dealer for a tailored search to check for current matches."
+                        : "This source is being prepared and is not available for searches yet."}
                   </p>
                 )}
                 <p className="mt-2 leading-relaxed text-[var(--t4)]">
-                  {health?.lastError ||
-                    health?.proofSummary ||
-                    health?.userImpact ||
-                    (health
-                      ? sourceNextAction(health, true)
-                      : scraped
-                        ? "Run a scoped source search or preview, then verify rows, photos, and freshness."
-                        : sharedImported
-                          ? "Select this dealer in Discover, preview the scope, and run the targeted search."
-                          : "Build and register a source scraper before adding it to active sourcing.")}
+                  {health?.lastError
+                    ? userFacingErrorMessage(
+                        health.lastError,
+                        "This source is temporarily unavailable. Try again later.",
+                      )
+                    : health?.proofSummary
+                      ? userFacingErrorMessage(
+                          health.proofSummary,
+                          sourceNextAction(health, true),
+                        )
+                      : health?.userImpact
+                        ? userFacingErrorMessage(
+                            health.userImpact,
+                            sourceNextAction(health, true),
+                          )
+                        : health
+                          ? sourceNextAction(health, true)
+                          : scraped
+                            ? "Search this market, then verify listings, photos, and freshness."
+                            : sharedImported
+                              ? "Select this dealer in Discover, preview the scope, and run the targeted search."
+                              : "This source is being prepared. Check back for verified matches."}
                 </p>
                 {health?.nextAction && (
                   <p className="mt-1 font-bold leading-relaxed text-[var(--t2)]">
@@ -1612,11 +1633,11 @@ function SourceCard({
                     href={scanHrefForSource(health)}
                     className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--s2)] text-[var(--t2)] text-xs font-bold text-center"
                   >
-                    Scan source
+                    Search this market
                   </Link>
                 ) : (
                   <button className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--s2)] text-[var(--t2)] text-xs font-bold">
-                    Configure Scraper
+                    View availability
                   </button>
                 )}
               </div>

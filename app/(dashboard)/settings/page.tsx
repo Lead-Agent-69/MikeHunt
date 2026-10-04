@@ -244,7 +244,7 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--t1)]">Settings</h1>
           <p className="text-sm text-[var(--t4)] mt-1">
-            Your view preferences, dealer profile, and scraping engine.
+            Your viewing preferences, workspace profile, and source connections.
           </p>
         </div>
       </div>

@@ -46,10 +46,13 @@ export function ValuationBreakdown({
       icon: "list",
       label: `${v.compCount} comparable listing${v.compCount === 1 ? "" : "s"}`,
     });
+  // P0: deal-analyzer maps mmr_value → kbbValue. Do NOT label it "KBB" —
+  // LLM invent previously wrote mmr_value and this chip made it look like a guide.
+  // Only show an attached guide value; never imply Kelley Blue Book without a real source.
   if (v.kbbValue)
     evidence.push({
       icon: "calculator",
-      label: `KBB market value ${money(v.kbbValue)}`,
+      label: `Attached market guide ${money(v.kbbValue)}`,
     });
   if (v.soldCount > 0)
     evidence.push({

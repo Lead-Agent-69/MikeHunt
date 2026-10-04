@@ -23,24 +23,8 @@ type SourceHealthSummary = {
   }>;
 };
 
-type SystemStatusSummary = {
-  readiness?: {
-    counts?: {
-      ready?: number;
-      partial?: number;
-      missing?: number;
-    };
-    items?: Array<{
-      label: string;
-      status: string;
-      userImpact?: string;
-      detail?: string;
-    }>;
-  };
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. MIKEHUNT DEAL COPILOT DRAWER — Conversational Readiness Assistant
+// 1. MIKEHUNT DECISION GUIDE — Plain-language buying help
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -62,14 +46,11 @@ export function MikeHuntCopilotDrawer() {
   const [sourceHealth, setSourceHealth] = useState<SourceHealthSummary | null>(
     null,
   );
-  const [systemStatus, setSystemStatus] = useState<SystemStatusSummary | null>(
-    null,
-  );
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
       sender: "ai",
-      text: "Deal Copilot can read live readiness, source health, and inventory proof now. Deterministic deal and market reads work today; provider-generated AI upgrades when a key is connected.",
+      text: "I can help you understand market availability, title risk, and the next check to make before you buy.",
       timestamp: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
@@ -88,32 +69,29 @@ export function MikeHuntCopilotDrawer() {
 
   useEffect(() => {
     let alive = true;
-    async function loadReadiness() {
+    if (!isOpen) return;
+
+    const controller = new AbortController();
+    async function loadAvailability() {
       try {
-        const [healthRes, statusRes] = await Promise.all([
-          fetch("/api/scrape/health"),
-          fetch("/api/system/status"),
-        ]);
-        const [healthJson, statusJson] = await Promise.all([
-          healthRes.ok ? healthRes.json() : null,
-          statusRes.ok ? statusRes.json() : null,
-        ]);
+        const healthRes = await fetch("/api/scrape/health", {
+          signal: controller.signal,
+        });
+        const healthJson = healthRes.ok ? await healthRes.json() : null;
         if (!alive) return;
         setSourceHealth(healthJson);
-        setSystemStatus(statusJson);
-      } catch {
+      } catch (error) {
+        if ((error as Error).name === "AbortError") return;
         if (!alive) return;
         setSourceHealth(null);
-        setSystemStatus(null);
       }
     }
-    loadReadiness();
-    const interval = window.setInterval(loadReadiness, 60000);
+    loadAvailability();
     return () => {
       alive = false;
-      window.clearInterval(interval);
+      controller.abort();
     };
-  }, []);
+  }, [isOpen]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -124,21 +102,12 @@ export function MikeHuntCopilotDrawer() {
   }, [messages, isOpen, isTyping]);
 
   const QUICK_PROMPTS = [
-    "What data sources are connected?",
-    "Why is inventory empty?",
-    "What do I need to enable AI?",
-    "What should I fix next?",
+    "Which markets have current listings?",
+    "Why are there no matches?",
+    "What should I check before buying?",
+    "What would make this a better buy?",
     "How should salvage titles be verified?",
   ];
-  const aiProviderReady = Boolean(
-    systemStatus?.readiness?.items?.find((item) => item.label === "AI provider")
-      ?.status === "ready",
-  );
-  const supabaseReady = Boolean(
-    systemStatus?.readiness?.items?.find(
-      (item) => item.label === "Supabase data API",
-    )?.status === "ready",
-  );
   const visibleRows =
     sourceHealth?.sources?.reduce(
       (sum, source) => sum + (source.activeRows || 0),
@@ -147,16 +116,11 @@ export function MikeHuntCopilotDrawer() {
   const readySourceCount =
     sourceHealth?.sources?.filter((source) => source.readiness === "ready")
       .length || 0;
-  const launcherLabel = aiProviderReady
-    ? "AI connected"
-    : supabaseReady || visibleRows > 0
-      ? "Inventory live · briefs ready"
-      : "AI setup needed";
-  const headerStatus = aiProviderReady
-    ? "Provider connected"
-    : supabaseReady || visibleRows > 0
-      ? `${visibleRows.toLocaleString()} live rows · ${readySourceCount} ready sources · deterministic briefs`
-      : "Provider not connected";
+  const launcherLabel = "Decision guide";
+  const headerStatus =
+    visibleRows > 0
+      ? `${visibleRows.toLocaleString()} current listings from ${readySourceCount} working market${readySourceCount === 1 ? "" : "s"}`
+      : "Checking current market availability";
 
   const handleSend = (userText: string) => {
     if (!userText.trim()) return;
@@ -175,101 +139,74 @@ export function MikeHuntCopilotDrawer() {
     setInput("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      const lower = userText.toLowerCase();
-      const sources = sourceHealth?.sources || [];
-      const readySources = sources.filter((s) => s.readiness === "ready");
-      const authSources = sources.filter((s) => s.readiness === "needs_login");
-      const noRowSources = sources.filter((s) => s.readiness === "no_rows");
-      const totalRows = sources.reduce(
-        (sum, s) => sum + (s.activeRows || 0),
-        0,
-      );
-      const totalPhotos = sources.reduce(
-        (sum, s) => sum + (s.rowsWithPhotos || 0),
-        0,
-      );
-      const missingReadiness =
-        systemStatus?.readiness?.items
-          ?.filter((item) => item.status === "missing")
-          .map((item) => item.label)
-          .slice(0, 4) || [];
-      const partialReadiness =
-        systemStatus?.readiness?.items
-          ?.filter((item) => item.status === "partial")
-          .map((item) => item.label)
-          .slice(0, 4) || [];
+    const lower = userText.toLowerCase();
+    const sources = sourceHealth?.sources || [];
+    const readySources = sources.filter((s) => s.readiness === "ready");
+    const authSources = sources.filter((s) => s.readiness === "needs_login");
+    const noRowSources = sources.filter((s) => s.readiness === "no_rows");
+    const totalRows = sources.reduce((sum, s) => sum + (s.activeRows || 0), 0);
+    const totalPhotos = sources.reduce(
+      (sum, s) => sum + (s.rowsWithPhotos || 0),
+      0,
+    );
 
-      let responseText =
-        "I can answer from this app's live readiness checks and deterministic deal logic now. Connect an AI provider key to upgrade the same evidence into generated co-pilot answers.";
+    let responseText =
+      "Start with your budget, location, title tolerance, and vehicle type. MIKEHUNT will keep the search focused and show what still needs checking.";
 
-      if (
-        lower.includes("source") ||
-        lower.includes("connected") ||
-        lower.includes("working")
-      ) {
-        responseText = readySources.length
-          ? `Ready sources right now: ${readySources
-              .map(
-                (s) =>
-                  `${s.name} (${s.activeRows || 0} rows, ${
-                    s.rowsWithPhotos || 0
-                  } with photos, ${s.averageQuality || 0}% quality)`,
-              )
-              .join("; ")}. Needs login: ${authSources.length}. No rows: ${
-              noRowSources.length
-            }. Total visible rows from public proof: ${totalRows}, with ${totalPhotos} photo-backed rows.`
-          : "No source has proven ready rows yet. Open Sources to see whether each one needs login, scraper setup, or a fresh run.";
-      } else if (
-        lower.includes("empty") ||
-        lower.includes("inventory") ||
-        lower.includes("data")
-      ) {
-        responseText = sourceHealth?.configured
-          ? `Inventory is connected, but source proof currently shows ${totalRows} active rows from ${readySources.length} ready sources. If a search looks empty, narrow less or run the matching sources.`
-          : `The app is in public preview mode because Supabase is not connected in this environment. It can show public source proof (${totalRows} rows, ${totalPhotos} photo-backed), but saved inventory and user-specific imports need real Supabase keys.`;
-      } else if (
-        lower.includes("ai") ||
-        lower.includes("enable") ||
-        lower.includes("key")
-      ) {
-        responseText = `Inventory and source-health checks are ${sourceHealth?.configured || totalRows > 0 ? "live" : "not fully connected"}; deterministic briefs are available from saved deal math; provider-generated AI is ${aiProviderReady ? "connected" : "offline"}. To enable the full copilot, connect an approved AI provider key on the server and keep import controls protected. Missing now: ${
-          missingReadiness.length
-            ? missingReadiness.join(", ")
-            : "none reported"
-        }. Partial: ${
-          partialReadiness.length
-            ? partialReadiness.join(", ")
-            : "none reported"
-        }.`;
-      } else if (
-        lower.includes("next") ||
-        lower.includes("fix") ||
-        lower.includes("upgrade")
-      ) {
-        responseText = `Best next fixes: finish account sync, raise VIN/mileage/contact coverage, connect provider AI for richer generated answers, then add credentials or approved access handling for gated auction sources. Product-wise, keep the user flow tight: pick vehicle, state, title, budget, lane; run only matching sources; show quality and source proof on every result.`;
-      } else if (
-        lower.includes("salvage") ||
-        lower.includes("title") ||
-        lower.includes("rebuilt")
-      ) {
-        responseText =
-          "Title guidance can be shown without fabricating a deal: verify salvage/rebuilt status through the state title record, NMVTIS-style history, seller disclosure, frame/airbag inspection, and post-repair receipts. The app should discount branded-title vehicles only after real comps and inspection data are available.";
-      }
+    if (
+      lower.includes("source") ||
+      lower.includes("market") ||
+      lower.includes("working")
+    ) {
+      responseText = readySources.length
+        ? `Working markets: ${readySources
+            .map(
+              (s) =>
+                `${s.name} (${s.activeRows || 0} listings, ${
+                  s.rowsWithPhotos || 0
+                } with photos)`,
+            )
+            .join(
+              "; ",
+            )}. ${authSources.length} market${authSources.length === 1 ? " needs" : "s need"} sign-in, and ${noRowSources.length} ${noRowSources.length === 1 ? "has" : "have"} no match for the current search.`
+        : "No market has current matches for this search yet. Try a broader location, vehicle type, title preference, or budget.";
+    } else if (
+      lower.includes("empty") ||
+      lower.includes("inventory") ||
+      lower.includes("match")
+    ) {
+      responseText = totalRows
+        ? `${totalRows} current listings are available from ${readySources.length} working markets, including ${totalPhotos} with photos. Broaden one filter at a time to find more matches.`
+        : "No current listings match this search yet. Broaden the location or budget first, then consider more vehicle types or title conditions.";
+    } else if (
+      lower.includes("next") ||
+      lower.includes("fix") ||
+      lower.includes("better") ||
+      lower.includes("check")
+    ) {
+      responseText =
+        "Before buying, confirm the title source, inspect damage and safety items, price transport and immediate repairs, then compare the all-in total against similar vehicles. A missing inspection or title record is a reason to hold, not a reason to guess.";
+    } else if (
+      lower.includes("salvage") ||
+      lower.includes("title") ||
+      lower.includes("rebuilt")
+    ) {
+      responseText =
+        "Verify salvage or rebuilt status through the title record, seller disclosure, vehicle-history source, frame and airbag inspection, and repair receipts. Treat any missing evidence as an open question before you make an offer.";
+    }
 
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "ai",
-        text: responseText,
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      };
+    const aiMsg: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      sender: "ai",
+      text: responseText,
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
 
-      setMessages((prev) => [...prev, aiMsg]);
-      setIsTyping(false);
-    }, 400);
+    setMessages((prev) => [...prev, aiMsg]);
+    setIsTyping(false);
   };
 
   return (
@@ -279,7 +216,7 @@ export function MikeHuntCopilotDrawer() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        aria-label="Open deal readiness copilot"
+        aria-label="Open decision guide"
         className="fixed right-4 top-20 z-40 hidden max-w-[calc(100vw-24px)] items-center gap-3 rounded-full border px-4 py-3 text-sm font-bold shadow-2xl md:flex lg:right-6 lg:top-auto lg:bottom-6 lg:z-50 lg:px-5 lg:py-3.5"
         style={{
           background: "var(--s0)",
@@ -325,7 +262,7 @@ export function MikeHuntCopilotDrawer() {
                   </div>
                   <div>
                     <h3 className="text-base font-black text-[var(--t1)]">
-                      Deal Readiness Copilot
+                      Decision guide
                     </h3>
                     <p className="text-xs text-[var(--t4)]">{headerStatus}</p>
                   </div>
@@ -334,7 +271,7 @@ export function MikeHuntCopilotDrawer() {
                 <button
                   onClick={() => setIsOpen(false)}
                   className="w-8 h-8 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  aria-label="Close deal copilot"
+                  aria-label="Close decision guide"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -419,7 +356,7 @@ export function MikeHuntCopilotDrawer() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about sources, setup, or deal proof..."
+                    placeholder="Ask about a market, title, or next step..."
                     className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
                   />
                   <button

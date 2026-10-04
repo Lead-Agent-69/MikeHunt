@@ -58,6 +58,7 @@ import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   buildBuyerIntentQuery,
   readLocalBuyerIntent,
@@ -680,7 +681,7 @@ function ScopeQualityPanel({
             detail:
               "This result set is too thin for a serious buyer decision without more proof.",
             action:
-              "Broaden the scope, check Source Health, or run/import a fresher matching source.",
+              "Try a broader search, review source details, or refresh the matching sources.",
           };
   const freshness =
     summary.freshestHours == null
@@ -2896,9 +2897,10 @@ function ScanPageInner() {
       );
     } catch (error) {
       setPlanMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not preview source plan.",
+        userFacingErrorMessage(
+          error,
+          "We couldn't prepare this source search. Please try again.",
+        ),
       );
     } finally {
       setPlanPreviewing(false);
@@ -2953,9 +2955,10 @@ function ScanPageInner() {
     } catch (error) {
       if (activePreviewRequestRef.current !== requestKey) return;
       setPlanMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not fetch live preview.",
+        userFacingErrorMessage(
+          error,
+          "We couldn't preview matching vehicles. Please try again.",
+        ),
       );
     } finally {
       setLivePreviewing(false);
@@ -3334,23 +3337,23 @@ function ScanPageInner() {
             },
             message:
               data.message ||
-              "No requested source matches the selected buyer lane, so no scraper was started.",
+              "No selected source matches this search. Try a different source or broaden your filters.",
           });
           throw new Error(
             data.message ||
-              "No requested source matches the selected buyer lane, so no scraper was started.",
+              "No selected source matches this search. Try a different source or broaden your filters.",
           );
         }
         if (res.status === 401) {
           throw new Error(
-            "Only an admin session or scrape secret can run source searches.",
+            "This source refresh needs account access. Sign in and try again.",
           );
         }
         if (res.status === 503) {
           throw new Error(
             data?.message ||
               data?.error ||
-              "Scraper control is not configured.",
+              "This source refresh is not available right now.",
           );
         }
         throw new Error(
@@ -3361,8 +3364,8 @@ function ScanPageInner() {
       if (data.queued && data.job?.id) {
         setPlanMessage(
           data.deduplicated
-            ? "Your scoped source search is already in progress. Waiting for the worker..."
-            : "Scoped source search queued. The browser worker is starting it now...",
+            ? "Your source search is already in progress. We'll show new matches when it finishes."
+            : "Your source search is underway. We'll show new matches when it finishes.",
         );
         const deadline = Date.now() + 10 * 60 * 1000;
         while (Date.now() < deadline) {
@@ -3397,7 +3400,7 @@ function ScanPageInner() {
           setPlanMessage(
             job.status === "running"
               ? "Searching only the matching sources. New rows will appear here when complete..."
-              : "Scoped source search is next in the worker queue...",
+              : "Your source search is waiting to begin...",
           );
         }
         if (completedData === data) {
