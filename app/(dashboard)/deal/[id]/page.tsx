@@ -929,7 +929,8 @@ export default function DealPage({
           )}
         </div>
 
-        {/* Buyer mode toggle */}
+        {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
+        {store.userType === "dealer" && (
         <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex p-1 rounded-xl"
@@ -949,6 +950,7 @@ export default function DealPage({
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
@@ -1371,8 +1373,9 @@ export default function DealPage({
           );
         })()}
 
-      {/* THE MONEY — one-glance profit visual (buy + costs → your cut), the hero of the page */}
-      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
+      {/* THE MONEY — dealer desk only. Personal buyers do not get the profit console. */}
+      {store.userType === "dealer" &&
+        serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealVerdict &&
         serverDeal.dealAnalysis?.costs && (
           <DealEconomics
@@ -1394,8 +1397,9 @@ export default function DealPage({
           />
         )}
 
-      {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
-      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
+      {/* PREDICTIVE — dealer desk only. */}
+      {store.userType === "dealer" &&
+        serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealAnalysis?.prediction && (
           <details className="border-t border-[var(--b2)] py-4">
             <summary className="cursor-pointer text-sm font-bold text-[var(--t2)]">
@@ -1407,8 +1411,8 @@ export default function DealPage({
           </details>
         )}
 
-      {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}
-      {serverDeal && (
+      {/* CONTACT SELLER — dealer desk only. */}
+      {store.userType === "dealer" && serverDeal && (
         <ContactSeller
           contact={serverDeal.contact}
           sourceUrl={serverDeal.sourceUrl}
