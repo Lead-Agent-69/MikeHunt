@@ -2,38 +2,18 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // GET /api/admin/stats — Platform health metrics for the admin dashboard.
 // Requires admin role or INGEST_SECRET auth header.
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const isSecretAuth =
-    authHeader === `Bearer ${process.env.INGEST_SECRET}` &&
-    !!process.env.INGEST_SECRET;
-
-  const supabase = createServerComponentClient();
-
-  if (!isSecretAuth) {
-    // Check if the user is an admin via Supabase RLS
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    // Two admin paths: the DB role (user_profiles.role) and the single-admin email
-    // (lib/auth/admin.ts). Either is sufficient — the email path keeps ops access working even
-    // when the role column hasn't been populated for the owner account.
-    if (profile?.role !== "admin" && !isAdminEmail(user.email)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+  if (!(await canManageOperations(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // This is a service client for aggregate operations data, not a browser session client.
+  // Authorization above always comes from the request's owner session or automation secret.
+  const supabase = createServerComponentClient();
 
   try {
     const [

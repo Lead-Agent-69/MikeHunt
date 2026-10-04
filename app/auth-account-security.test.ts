@@ -39,6 +39,10 @@ describe("account creation security", () => {
     const adminPage = readFileSync("app/(dashboard)/admin/page.tsx", "utf8");
     expect(adminPage).not.toContain("INGEST_SECRET");
     expect(adminPage).not.toContain("SCRAPE_SECRET");
+
+    const stats = readFileSync("app/api/admin/stats/route.ts", "utf8");
+    expect(stats).toContain("canManageOperations(req)");
+    expect(stats).not.toContain("supabase.auth.getUser()");
   });
 
   it("returns OAuth session cookies on the callback redirect", () => {
