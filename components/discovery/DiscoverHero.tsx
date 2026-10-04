@@ -40,8 +40,7 @@ export function DiscoverHero({ state }: { state?: string }) {
         <span className="font-black text-[var(--t1)]">
           {count.toLocaleString()}
         </span>{" "}
-        listings with an asking price in {place}. This is not money you can
-        make.
+        {`listings with an asking price in ${place}. This is not money you can make.`}
       </p>
       {top?.id && name ? (
         <Link
