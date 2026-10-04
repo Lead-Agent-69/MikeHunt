@@ -1,3 +1,5 @@
+import { isAuctionChannel } from "@/lib/sources/source-meta";
+
 export type DecisionEvidenceState =
   | "verified"
   | "auction_watch"
@@ -53,7 +55,7 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   const valuation = input.valuation || analysis.valuation || {};
   const source = String(input.source || "").toLowerCase();
   const text = `${input.condition || ""} ${input.damageType || ""}`;
-  const isAuction = AUCTION_SOURCES.has(source);
+  const isAuction = AUCTION_SOURCES.has(source) || isAuctionChannel(source);
   const repairable = REPAIRABLE_RE.test(text);
   const priceAnomaly =
     Boolean(analysis.priceImplausible) ||

@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { getUserPlan, meterDealView } from "@/lib/auth/plan";
+import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +14,10 @@ export async function GET(
 ) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
-      { error: "Supabase is not configured" },
+      {
+        error:
+          "Vehicle details are temporarily unavailable. Please try again shortly.",
+      },
       { status: 503 },
     );
   }
@@ -66,7 +70,12 @@ export async function GET(
       /* metering is best-effort */
     }
 
-    return NextResponse.json({ deal, meter });
+    const evidence = assessDecisionEvidence(deal);
+    const safeDeal =
+      evidence.state === "auction_watch"
+        ? { ...deal, dealVerdict: "hold", decisionEvidence: evidence }
+        : { ...deal, decisionEvidence: evidence };
+    return NextResponse.json({ deal: safeDeal, meter });
   } catch (error) {
     console.error("Error in single deal API:", error);
     return NextResponse.json(

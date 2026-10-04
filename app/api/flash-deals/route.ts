@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -75,7 +76,9 @@ export async function GET(request: NextRequest) {
     if (error)
       return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const deals = (data || []).map(mapFlashDeal);
+    const deals = (data || [])
+      .filter((row) => !isAuctionChannel(row.source))
+      .map(mapFlashDeal);
     return NextResponse.json(
       {
         deals,

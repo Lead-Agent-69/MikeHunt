@@ -2,6 +2,14 @@ import { describe, it, expect } from "vitest";
 import { readCondition } from "./condition";
 
 describe("readCondition", () => {
+  it("does not let a generic runner flag override explicit listing warnings", () => {
+    expect(
+      readCondition("run_drive", null, "DOES NOT RUN - PARTS ONLY"),
+    ).toMatchObject({ runs: "no", label: "Parts only" });
+    expect(
+      readCondition("run_drive", null, "Vehicle does not run"),
+    ).toMatchObject({ runs: "no", label: "Non-runner" });
+  });
   it("flags a runner as good and driving", () => {
     const r = readCondition("run_drive", "FRONT END")!;
     expect(r.label).toBe("Runs & drives");

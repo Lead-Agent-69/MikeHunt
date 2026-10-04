@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -148,6 +149,7 @@ export async function GET() {
       "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
     )
     .eq("active", true)
+    .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0)
     .in("make", makes)
     .order("profit_score", { ascending: false, nullsFirst: false })

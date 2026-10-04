@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
       { count: "exact" },
     )
     .eq("active", true)
+    .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .eq("deal_verdict", "go")
     .gt("true_net_profit", 0)
     .order("true_net_profit", { ascending: false })

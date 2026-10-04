@@ -1,4 +1,6 @@
 export const dynamic = "force-dynamic";
+import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
+import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -243,6 +245,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (
+    !wantsAuctionInventory({
+      lane,
+      sellerType,
+      sources: source ? [source] : [],
+    })
+  )
+    rows = rows.filter((row: any) => !isAuctionChannel(row.source));
   if (!rows || rows.length === 0) {
     return NextResponse.json({
       bestBuy: null,

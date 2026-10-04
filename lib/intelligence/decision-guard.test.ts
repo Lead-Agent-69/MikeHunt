@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
 describe("assessDecisionEvidence", () => {
+  it("holds stored government auction rows even with a stale buy verdict", () => {
+    expect(
+      assessDecisionEvidence({
+        source: "gov_auction",
+        dealVerdict: "go",
+        vin: "1HGCM82633A000000",
+        mileage: 40000,
+        valuation: { source: "comparables", compCount: 8 },
+      }).acquisitionReady,
+    ).toBe(false);
+  });
   it("holds a cheap Copart bid for auction verification instead of promoting it as a buy", () => {
     const result = assessDecisionEvidence({
       source: "copart",

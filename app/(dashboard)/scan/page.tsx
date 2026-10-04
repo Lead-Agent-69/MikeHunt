@@ -16,6 +16,9 @@ import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
+import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 
 import {
@@ -2399,6 +2402,7 @@ function FilterGroup({
 let _toastId = 0;
 
 function ScanPageInner() {
+  const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
   const reviewMode = urlParams.get("review");
   const isFreshImportReview = reviewMode === "fresh-import";
@@ -3661,6 +3665,15 @@ function ScanPageInner() {
         { event: "INSERT", schema: "public", table: "deals" },
         (payload) => {
           const d = payload.new;
+          if (
+            isAuctionChannel(d.source) &&
+            !wantsAuctionInventory({
+              lane,
+              sellerType: sellerTypeFilter,
+              sources: [sourceFilter],
+            })
+          )
+            return;
           if (state !== "all" && d.location_state !== state) return;
           if (sourceFilter !== "all" && d.source !== sourceFilter) return;
 
@@ -3755,7 +3768,7 @@ function ScanPageInner() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [state, sourceFilter, sort, addToast, mutate]);
+  }, [state, sourceFilter, sellerTypeFilter, lane, sort, addToast, mutate]);
 
   // Client-side filtering + sorting with useMemo (instant, no re-fetch).
   // The API ignores `sort`, so the sort control is honored here.
@@ -4012,7 +4025,7 @@ function ScanPageInner() {
         {searchSummary}
       </div>
 
-      {isFreshImportReview && (
+      {isAdmin && isFreshImportReview && (
         <div className="rounded-[var(--r3)] border border-[var(--gbd)] bg-[var(--glo)] px-4 py-3">
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
             Fresh search review
@@ -4025,32 +4038,53 @@ function ScanPageInner() {
         </div>
       )}
 
-      <SmartDataPlanCard
-        configured={scanConfigured}
-        total={total}
-        plan={effectiveSmartPlan}
-        onPreview={previewSourcePlan}
-        onRun={runMatchingSources}
-        onLivePreview={fetchLivePreview}
-        previewing={planPreviewing}
-        running={runImporting}
-        livePreviewing={livePreviewing}
-        showingPreview={
-          !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
-        }
-        proof={displayProof}
-        importRun={importRunProof}
-        importPlan={importPlanProof}
-        readinessItems={systemStatus?.readiness?.items || []}
-        sourceHealth={scrapeHealth?.sources || []}
-        scopeStatus={scrapeHealth?.scopeStatus || null}
-        message={displayMessage}
-      />
+      {isAdmin ? (
+        <SmartDataPlanCard
+          configured={scanConfigured}
+          total={total}
+          plan={effectiveSmartPlan}
+          onPreview={previewSourcePlan}
+          onRun={runMatchingSources}
+          onLivePreview={fetchLivePreview}
+          previewing={planPreviewing}
+          running={runImporting}
+          livePreviewing={livePreviewing}
+          showingPreview={
+            !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
+          }
+          proof={displayProof}
+          importRun={importRunProof}
+          importPlan={importPlanProof}
+          readinessItems={systemStatus?.readiness?.items || []}
+          sourceHealth={scrapeHealth?.sources || []}
+          scopeStatus={scrapeHealth?.scopeStatus || null}
+          message={displayMessage}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={runMatchingSources}
+          disabled={runImporting}
+          className="inline-flex w-fit items-center gap-2 rounded-[var(--r2)] border border-[var(--b1)] px-4 py-2 text-sm font-semibold text-[var(--t2)]"
+        >
+          <Ico name="refresh" size={16} />
+          {runImporting ? "Looking for new matches..." : "Find new matches"}
+        </button>
+      )}
 
-      <ScopeQualityPanel
-        results={filteredResults}
-        sourceHealthById={tableSourceHealthById}
-      />
+      {isAdmin && (
+        <ScopeQualityPanel
+          results={filteredResults}
+          sourceHealthById={tableSourceHealthById}
+        />
+      )}
+      {!isAdmin && displayMessage && (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          {runImporting
+            ? "Checking your selected sources for matching vehicles."
+            : "Search update finished. Review the matches below, or try again if a source could not be reached."}
+        </p>
+      )}
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
       <div className="glass-panel px-4 py-3 space-y-3">

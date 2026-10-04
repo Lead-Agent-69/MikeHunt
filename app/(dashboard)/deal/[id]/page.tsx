@@ -891,28 +891,45 @@ export default function DealPage({
         </div>
       </div>
 
-      {serverDeal && (
-        <DecisionCommandPanel
-          deal={{
-            ...serverDeal,
-            id,
-            askPrice:
-              serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
-            vin: serverDeal?.vin || store.vin,
-            trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
-          }}
-          engineVerdict={engineVerdict}
-          engineNetProfit={engineNetProfit}
-          engineScore={engineScore}
-          engineRoi={engineRoi}
-          detailQualityScore={detailQuality?.score}
-          detailMathConfidence={detailMathConfidence}
-          sourceHealth={sourceHealth}
-          proofLinks={proofLinks}
-          onCashOffer={() => setShowCashOfferModal(true)}
-          onWatchPrice={handleWatchPrice}
-        />
+      {serverDeal?.decisionEvidence?.state === "auction_watch" && (
+        <section
+          className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
+          aria-label="Auction research status"
+        >
+          <h2 className="text-lg font-bold text-[var(--t1)]">
+            Auction research, not a purchase recommendation
+          </h2>
+          <p className="mt-2 text-sm text-[var(--t2)]">
+            {serverDeal.decisionEvidence.summary}
+          </p>
+          <p className="mt-2 text-sm text-[var(--t3)]">
+            {serverDeal.decisionEvidence.nextCheck}
+          </p>
+        </section>
       )}
+      {serverDeal &&
+        serverDeal?.decisionEvidence?.state !== "auction_watch" && (
+          <DecisionCommandPanel
+            deal={{
+              ...serverDeal,
+              id,
+              askPrice:
+                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              vin: serverDeal?.vin || store.vin,
+              trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+            }}
+            engineVerdict={engineVerdict}
+            engineNetProfit={engineNetProfit}
+            engineScore={engineScore}
+            engineRoi={engineRoi}
+            detailQualityScore={detailQuality?.score}
+            detailMathConfidence={detailMathConfidence}
+            sourceHealth={sourceHealth}
+            proofLinks={proofLinks}
+            onCashOffer={() => setShowCashOfferModal(true)}
+            onWatchPrice={handleWatchPrice}
+          />
+        )}
 
       {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
       {serverDeal?.images && serverDeal.images.length > 0 && (
@@ -1142,6 +1159,7 @@ export default function DealPage({
 
       {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
       {dealData?.deal?.dealVerdict &&
+        serverDeal?.decisionEvidence?.state !== "auction_watch" &&
         (() => {
           const d = dealData.deal;
           const a = d.dealAnalysis || {};

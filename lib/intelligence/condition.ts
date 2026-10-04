@@ -34,7 +34,16 @@ function prettyDamage(d?: string): string | undefined {
 export function readCondition(
   condition?: string | null,
   damageType?: string | null,
+  listingTitle?: string | null,
 ): ConditionRead | null {
+  if (/parts[ _-]*only/i.test(listingTitle || ""))
+    return { label: "Parts only", tier: "risk", runs: "no" };
+  if (
+    /does not run|doesn't run|non[- ]runner|not running/i.test(
+      listingTitle || "",
+    )
+  )
+    return { label: "Non-runner", tier: "risk", runs: "no" };
   const c = (condition || "").toLowerCase().trim();
   const dmg = prettyDamage(damageType || undefined);
   if (!c && !dmg) return null;

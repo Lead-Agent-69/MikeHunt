@@ -103,7 +103,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
   // Operability read — "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
-  const cond = readCondition(deal.condition, deal.damageType);
+  const cond = readCondition(deal.condition, deal.damageType, title);
   const href =
     deal.id.startsWith("live-") && deal.sourceUrl
       ? deal.sourceUrl
