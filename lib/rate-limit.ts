@@ -12,11 +12,24 @@ interface Bucket {
 const buckets = new Map<string, Bucket>();
 let lastSweep = 0;
 
-// Best-effort client IP from standard proxy headers.
+// Client IP for the per-instance limiter.
+// Prefer platform headers Vercel sets (the first X-Forwarded-For hop is client-controlled).
+// If only X-Forwarded-For is present, use the last hop — the one a proxy appends — so a
+// spoofed prefix cannot mint a fresh bucket. This is still per-instance, not a global quota.
 export function clientIp(req: Request): string {
+  const vercel = req.headers.get("x-vercel-forwarded-for");
+  if (vercel) {
+    const hop = vercel.split(",")[0]?.trim();
+    if (hop) return hop;
+  }
+  const real = req.headers.get("x-real-ip")?.trim();
+  if (real) return real;
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  if (xff) {
+    const hops = xff.split(",").map((part) => part.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
+  }
+  return "unknown";
 }
 
 /**
