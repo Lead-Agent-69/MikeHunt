@@ -63,6 +63,18 @@ describe("buyer intent profile", () => {
     expect(params.has("state")).toBe(false);
   });
 
+  it("does not turn an all-vehicle profile into a hidden text filter", () => {
+    const intent = normalizeBuyerIntent({
+      buyerMode: "personal",
+      vehicle: "All vehicle types",
+      state: "MO",
+    });
+    const params = buildBuyerIntentQuery(intent);
+    expect(intent?.vehicle).toBeUndefined();
+    expect(params.get("state")).toBe("MO");
+    expect(params.has("q")).toBe(false);
+  });
+
   it("normalizes buyer modes without treating every user as a reseller", () => {
     const personal = normalizeBuyerIntent({
       mode: "personal-buyer",

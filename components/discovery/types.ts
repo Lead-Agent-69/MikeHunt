@@ -104,6 +104,8 @@ export interface DiscoverResponse {
   rails: DiscoveryRail[];
   totalListings: number;
   uniqueVehicles: number;
+  /** Active listings in the selected market before buyer-profile filters are applied. */
+  marketListings?: number;
   mergedDuplicates: number;
   state: string;
   q?: string;

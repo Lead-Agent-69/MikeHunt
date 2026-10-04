@@ -507,6 +507,7 @@ export async function GET(request: NextRequest) {
           : [],
         totalListings: previewDeals.deals.length,
         uniqueVehicles: previewDeals.deals.length,
+        marketListings: previewDeals.deals.length,
         mergedDuplicates: 0,
         state: state || "nationwide",
         q: q || undefined,
@@ -526,10 +527,14 @@ export async function GET(request: NextRequest) {
     // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
-    const { merged, rowCount } = await cached(
+    const { merged, rowCount, marketListingCount } = await cached(
       `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}`,
       45_000,
-      async (): Promise<{ merged: any[]; rowCount: number }> => {
+      async (): Promise<{
+        merged: any[];
+        rowCount: number;
+        marketListingCount: number;
+      }> => {
         const supabase = createServerComponentClient();
         // ONE index-driven pull via the discover_deals RPC. The old approach paged .range() up to 24k rows
         // across 24 round-trips — but the real cost was serializing 24k heavy rows (deal_analysis + options
@@ -546,59 +551,58 @@ export async function GET(request: NextRequest) {
           },
         );
         if (rpcErr) throw new Error(rpcErr.message);
-        const rows: any[] = (Array.isArray(rpcData) ? rpcData : []).filter(
-          (row: any) => {
-            if (
-              dealLane(row) === "auction" &&
-              !wantsAuctionInventory({
-                lane,
-                sellerType,
-                sources: dealerSourceIds,
-              })
+        const marketRows: any[] = Array.isArray(rpcData) ? rpcData : [];
+        const rows: any[] = marketRows.filter((row: any) => {
+          if (
+            dealLane(row) === "auction" &&
+            !wantsAuctionInventory({
+              lane,
+              sellerType,
+              sources: dealerSourceIds,
+            })
+          )
+            return false;
+          if (minPrice && Number(row.ask_price || 0) < minPrice) return false;
+          if (q && !rowMatchesQuery(row, q)) return false;
+          if (!matchesSellerType(row, sellerType || "all")) return false;
+          if (
+            titleType &&
+            titleType !== "all" &&
+            !rowTitleSignal(row).includes(titleType)
+          )
+            return false;
+          if (
+            dealerSourceIds.length &&
+            !dealerSourceIdFromUrl(
+              String(row.source_url || "").toLowerCase(),
+              dealerSourceIds,
             )
-              return false;
-            if (minPrice && Number(row.ask_price || 0) < minPrice) return false;
-            if (q && !rowMatchesQuery(row, q)) return false;
-            if (!matchesSellerType(row, sellerType || "all")) return false;
-            if (
-              titleType &&
-              titleType !== "all" &&
-              !rowTitleSignal(row).includes(titleType)
-            )
-              return false;
-            if (
-              dealerSourceIds.length &&
-              !dealerSourceIdFromUrl(
-                String(row.source_url || "").toLowerCase(),
-                dealerSourceIds,
-              )
-            )
-              return false;
-            if (lane && lane !== "all") {
-              const rowLane = dealLane(row);
-              if (lane === "damaged") {
-                if (rowLane !== "salvage" && rowLane !== "repairable")
-                  return false;
-              } else if (lane === "government") {
-                const source = String(row.source || "").toLowerCase();
-                if (
-                  ![
-                    "govdeals",
-                    "gov_auction",
-                    "publicsurplus",
-                    "municibid",
-                    "gsa_auctions",
-                    "allsurplus",
-                  ].includes(source)
-                )
-                  return false;
-              } else if (rowLane !== lane) {
+          )
+            return false;
+          if (lane && lane !== "all") {
+            const rowLane = dealLane(row);
+            if (lane === "damaged") {
+              if (rowLane !== "salvage" && rowLane !== "repairable")
                 return false;
-              }
+            } else if (lane === "government") {
+              const source = String(row.source || "").toLowerCase();
+              if (
+                ![
+                  "govdeals",
+                  "gov_auction",
+                  "publicsurplus",
+                  "municibid",
+                  "gsa_auctions",
+                  "allsurplus",
+                ].includes(source)
+              )
+                return false;
+            } else if (rowLane !== lane) {
+              return false;
             }
-            return true;
-          },
-        );
+          }
+          return true;
+        });
 
         const byVin = new Map<string, any[]>();
         const noVin: any[] = [];
@@ -654,7 +658,11 @@ export async function GET(request: NextRequest) {
             }),
           });
         }
-        return { merged: m, rowCount: rows.length };
+        return {
+          merged: m,
+          rowCount: rows.length,
+          marketListingCount: marketRows.length,
+        };
       },
     );
 
@@ -938,6 +946,7 @@ export async function GET(request: NextRequest) {
       rails,
       totalListings: rowCount,
       uniqueVehicles: merged.length,
+      marketListings: marketListingCount,
       mergedDuplicates: rowCount - merged.length,
       state: state || "nationwide",
       q: q || undefined,

@@ -309,6 +309,10 @@ export default function DiscoverPage() {
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
   const emptyScopeMessage = `No ${vehicleName} in ${placeName}${budgetText} yet. Widen the state or raise the budget.`;
+  const marketContext =
+    data?.marketListings && data.marketListings > data.totalListings
+      ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
+      : null;
   const personalBuyer = buyerScope?.buyerMode === "personal";
   const hiddenPersonalRails = new Set([
     "roi",
@@ -358,14 +362,15 @@ export default function DiscoverPage() {
             {activeScopeLabel}
           </p>
           <p className="mt-1 text-xs text-[var(--t4)]">
-            Refine makes and budgets without leaving your live results.
+            {marketContext ||
+              "Refine makes and budgets without leaving your live results."}
           </p>
         </div>
         <a
           href={`/scan${scopeQuery ? `${scopeQuery}&` : "?"}sort=profit`}
           className="inline-flex items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
         >
-          Refine search
+          View all matches & filters
         </a>
       </section>
 

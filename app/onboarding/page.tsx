@@ -25,7 +25,17 @@ import {
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
 
-const VEHICLES = ["SUVs", "Trucks", "Sedans", "Vans", "Hybrid / EV"];
+const VEHICLES = [
+  "All vehicle types",
+  "SUVs",
+  "Trucks",
+  "Sedans",
+  "Coupes",
+  "Convertibles",
+  "Vans",
+  "Luxury",
+  "Hybrid / EV",
+];
 const MODE_VISUALS = {
   personal: {
     icon: CarFront,
@@ -94,7 +104,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
-  const [vehicle, setVehicle] = useState("SUVs");
+  const [vehicle, setVehicle] = useState("All vehicle types");
   const [state, setState] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [titleType, setTitleType] = useState("all");
@@ -104,10 +114,33 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/profile")
-      .then((response) => response.json())
-      .then((data) => {
-        if (active && data?.profile?.onboarded) router.replace("/discover");
+    const editing =
+      new URLSearchParams(window.location.search).get("edit") === "1";
+    Promise.all([fetch("/api/profile"), fetch("/api/preferences")])
+      .then(async ([profileResponse, preferencesResponse]) => {
+        const [profileData, preferencesData] = await Promise.all([
+          profileResponse.json(),
+          preferencesResponse.json(),
+        ]);
+        if (!active) return;
+        if (profileData?.profile?.onboarded && !editing) {
+          router.replace("/discover");
+          return;
+        }
+        const saved = preferencesData?.prefs?.buyerScope as
+          | Partial<BuyerIntent>
+          | undefined;
+        if (!saved) return;
+        setBuyerMode(saved.buyerMode || "personal");
+        setVehicle(saved.vehicle || "All vehicle types");
+        setState(saved.state || preferencesData?.prefs?.carsState || "");
+        setMaxPrice(saved.maxPrice ? String(saved.maxPrice) : "");
+        setTitleType(saved.titleType || "all");
+        setTimeline(saved.timeline || "now");
+        setRepairCapability(saved.repairCapability || "none");
+        setTargetProfit(
+          saved.targetProfit ? String(saved.targetProfit) : "3000",
+        );
       })
       .catch(() => undefined);
     return () => {
@@ -119,9 +152,11 @@ export default function OnboardingPage() {
     () => ({
       buyerMode,
       vehicle,
-      vehicleType: vehicle.toLowerCase().replace(" / ", " "),
-      state:
-        state === "Nationwide" || US_STATES.includes(state) ? state : "",
+      vehicleType:
+        vehicle === "All vehicle types"
+          ? undefined
+          : vehicle.toLowerCase().replace(" / ", " "),
+      state: state === "Nationwide" || US_STATES.includes(state) ? state : "",
       titleType,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       targetProfit:
@@ -148,8 +183,7 @@ export default function OnboardingPage() {
           ? "Profit, repair risk, and time-to-sale lead your decision."
           : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
 
-  const scopeChosen =
-    state === "Nationwide" || US_STATES.includes(state);
+  const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
 
   async function finish() {
     if (!buyerMode || !vehicle || !scopeChosen) return;
@@ -172,8 +206,7 @@ export default function OnboardingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             onboarded: true,
-            home_state:
-              state && state !== "Nationwide" ? state : undefined,
+            home_state: state && state !== "Nationwide" ? state : undefined,
             state: state && state !== "Nationwide" ? state : undefined,
             budget_max: maxPrice ? Number(maxPrice) : undefined,
             target_profit:
@@ -274,7 +307,7 @@ export default function OnboardingPage() {
         "These choices narrow the cars and sources we show you. You can change them anytime.",
       body: (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {VEHICLES.map((item) => (
               <ChoiceButton
                 key={item}
@@ -399,8 +432,9 @@ export default function OnboardingPage() {
               Your search, your choices
             </div>
             <p className="mt-1 text-xs leading-relaxed">
-              Look for vehicles that fit your preferences. Broaden your search
-              whenever you choose.
+              Your state starts with currently indexed listings. Choose Refresh
+              inventory later only when you want MIKEHUNT to check eligible
+              sources for this exact search.
             </p>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">

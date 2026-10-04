@@ -57,6 +57,19 @@ function CarsViewPrefs() {
       <p className="text-[12px] text-[var(--t4)] mt-4">
         Saves instantly to your account and syncs across devices.
       </p>
+      <div className="mt-5 border-t border-[var(--b1)] pt-5">
+        <p className="text-sm font-black text-[var(--t1)]">Buying profile</p>
+        <p className="mt-1 text-[12px] text-[var(--t4)]">
+          Change your buyer mode, vehicle types, budget, title tolerance, and
+          timeline.
+        </p>
+        <a
+          href="/onboarding?edit=1"
+          className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-[var(--b2)] px-4 text-sm font-bold text-[var(--t1)] transition-colors hover:bg-[var(--s2)]"
+        >
+          Edit buying profile
+        </a>
+      </div>
 
       <div className="mt-6 pt-6 border-t border-[var(--b1)] flex items-center justify-between gap-4">
         <div className="min-w-0">
