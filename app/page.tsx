@@ -3,9 +3,9 @@ import { getServerUser } from "@/lib/server-supabase";
 import { PremiumLandingPage } from "@/components/landing/PremiumLandingPage";
 
 export const metadata = {
-  title: "MikeHunt — Underpriced cars, deal-scored",
+  title: "MikeHunt — Listings workspace",
   description:
-    "MikeHunt finds underpriced cars across every auction, marketplace, and dealer lot — each priced against the live market so you know exactly what to pay before you bid.",
+    "MikeHunt is a workspace for car listings. The public home is not a live scan and does not show sold comps or profit until sources are connected.",
 };
 
 export default async function Home() {
