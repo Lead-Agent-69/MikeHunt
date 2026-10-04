@@ -48,4 +48,39 @@ describe("auction-aware grading", () => {
   it("dealGrade math is unchanged for direct callers", () => {
     expect(dealGrade(15000, 20000).grade).toBe("great");
   });
+
+  it("does not treat an asking-price haircut as a great or good deal", () => {
+    // ask × 1.15 is the analyzer's high-confidence ceiling — ~13% "discount", which is "good"
+    // if graded as market. The source is the ask itself, so there is no comp to invent.
+    const haircut = categorize({
+      source: "cars_com",
+      ask_price: 20000,
+      sell_estimate: Math.round(20000 * 1.15),
+      sellBasis: "market",
+      valuationSource: "asking_price",
+    });
+    expect(haircut.grade).not.toBe("great");
+    expect(haircut.grade).not.toBe("good");
+    expect(haircut.discountPct).toBe(0);
+
+    const fromRow = categorize({
+      source: "cars_com",
+      ask_price: 20000,
+      sell_estimate: Math.round(20000 * 1.15),
+      sellBasis: "market",
+      deal_analysis: { valuation: { source: "asking_price" } },
+    });
+    expect(fromRow.grade).not.toBe("good");
+    expect(fromRow.grade).not.toBe("great");
+
+    const realMarket = categorize({
+      source: "cars_com",
+      ask_price: 17000,
+      sell_estimate: 20000,
+      sellBasis: "market",
+      valuationSource: "historical_estimate",
+    });
+    expect(realMarket.grade).toBe("good");
+    expect(realMarket.discountPct).toBe(15);
+  });
 });

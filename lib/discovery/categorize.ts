@@ -232,14 +232,23 @@ export function categorize(deal: {
   // a markup-on-ask value yields a circular "discount", so we don't grade those (CarGurus
   // only badges a car when it has enough real comparables).
   sellBasis?: string | null;
+  // analyzeDeal labels an ask ceiling/floor as sellBasis "market" while valuation.source
+  // is "asking_price". That gap is the ask haircut (up to ~13%), not a comp. Do not grade it.
+  valuationSource?: string | null;
+  deal_analysis?: {
+    valuation?: { source?: string | null } | null;
+  } | null;
   // For auction lots, ask_price is just the CURRENT/opening bid — grading off it fakes a huge discount.
   source?: string | null;
   recommended_max_bid?: number | null;
 }): DealTags {
+  const valuationSource =
+    deal.valuationSource ?? deal.deal_analysis?.valuation?.source ?? null;
   const trusted =
-    deal.sellBasis === "comps" ||
-    deal.sellBasis === "market" ||
-    (!deal.sellBasis && deal.mmr_value);
+    valuationSource !== "asking_price" &&
+    (deal.sellBasis === "comps" ||
+      deal.sellBasis === "market" ||
+      (!deal.sellBasis && deal.mmr_value));
   const market = trusted
     ? (deal.sell_estimate ?? deal.mmr_value) || null
     : null;
