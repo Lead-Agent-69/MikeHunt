@@ -75,6 +75,21 @@ function isSupabaseConfigured(): boolean {
   );
 }
 
+
+function guestProfileOnboarded(request: NextRequest): boolean {
+  const raw = request.cookies.get("mh_guest_profile")?.value;
+  if (!raw) return false;
+  try {
+    const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(
+      atob(padded + "=".repeat((4 - (padded.length % 4)) % 4)),
+    );
+    return json?.onboarded === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -102,6 +117,20 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+    if (
+      demoUser &&
+      isProtectedRoute &&
+      !isAdminRoute &&
+      !pathname.startsWith("/onboarding") &&
+      !pathname.startsWith("/api/") &&
+      !guestProfileOnboarded(request)
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+
     if (isAdminRoute) {
       const url = request.nextUrl.clone();
       url.pathname = demoUser ? "/discover" : "/login";
@@ -110,7 +139,10 @@ export async function middleware(request: NextRequest) {
 
     if (isAuthRoute && demoUser) {
       const url = request.nextUrl.clone();
-      url.pathname = "/discover";
+      url.pathname = guestProfileOnboarded(request)
+        ? "/discover"
+        : "/onboarding";
+      url.search = "";
       return NextResponse.redirect(url);
     }
 
@@ -182,11 +214,49 @@ export async function middleware(request: NextRequest) {
     return redirectWithAuthCookies(url);
   }
 
-  // Logged-in users shouldn't see the auth pages — send them to the deal feed.
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+
+  // Logged-in users leave the auth pages. An unfinished profile stays on
+  // setup; a failed profile read must not lock the app.
   if (isAuthRoute && user) {
+    let profileError = false;
+    let onboarded = false;
+    if (userId) {
+      const { data: profile, error } = await supabase
+        .from("user_profiles")
+        .select("onboarded")
+        .eq("id", userId)
+        .maybeSingle();
+      profileError = Boolean(error);
+      onboarded = profile?.onboarded === true;
+    }
     const url = request.nextUrl.clone();
-    url.pathname = "/discover";
+    url.pathname = !profileError && !onboarded ? "/onboarding" : "/discover";
+    url.search = "";
     return redirectWithAuthCookies(url);
+  }
+
+  if (
+    user &&
+    userId &&
+    isProtectedRoute &&
+    !isAdminRoute &&
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/api/")
+  ) {
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("onboarded")
+      .eq("id", userId)
+      .maybeSingle();
+    // A failed read must not lock the app. A missing or unfinished profile
+    // goes through onboarding; there is no "set up later" bypass.
+    if (!profileError && profile?.onboarded !== true) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      url.search = "";
+      return redirectWithAuthCookies(url);
+    }
   }
 
   return supabaseResponse;

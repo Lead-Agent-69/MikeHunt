@@ -10,6 +10,7 @@ import {
   activeProvider,
 } from "@/lib/ai/text-model";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 
 // GET /api/market/analyst — Deal IQ Layer 4. A plain-English market read over the REAL aggregated
 // data (timing signals + market aggregates). The only AI piece in Deal IQ: generation is explicit
@@ -155,6 +156,16 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const wantGenerate = sp.get("generate") === "1" || sp.get("refresh") === "1";
   const fresh = sp.get("refresh") === "1";
+  if (wantGenerate) {
+    const caller = await requirePaidAiCaller(req);
+    if (!caller.ok) return caller.response;
+    const genRl = rateLimit(req, {
+      key: `analyst:${caller.userId}`,
+      limit: 6,
+      windowMs: 60_000,
+    });
+    if (!genRl.allowed) return tooManyRequests(genRl);
+  }
 
   if (cache && Date.now() - cache.at < TTL_MS && !fresh) {
     return NextResponse.json({
@@ -260,9 +271,7 @@ Write 4-6 sentences, plain text, no markdown headers. Lead with the biggest acti
       provider: cache.provider,
     });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e.message || "Generation failed" },
-      { status: 500 },
-    );
+    console.error("[market-analyst] generation failed", e);
+    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   }
 }

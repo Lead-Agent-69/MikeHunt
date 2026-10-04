@@ -64,7 +64,9 @@ export function systemReadiness(): SystemReadinessResult {
   const serviceRoleSecret = hasValue(process.env.SUPABASE_SERVICE_ROLE_KEY);
   const serviceRole = supabase && serviceRoleSecret;
   const scrapeControl = Boolean(scrapeSecret());
+  const anthropicNarrate = hasValue(process.env.ANTHROPIC_API_KEY);
   const aiProvider =
+    anthropicNarrate ||
     hasValue(process.env.OPENAI_API_KEY) ||
     hasValue(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   const appUrl =
@@ -279,26 +281,36 @@ export function systemReadiness(): SystemReadinessResult {
       status: aiProvider ? "ready" : "missing",
       blockerType: aiProvider ? "none" : "env",
       detail: aiProvider
-        ? "AI brief and analyst routes have a provider key available."
-        : "Deterministic deal briefs and market pulse are available now; provider-generated AI needs a key.",
+        ? anthropicNarrate
+          ? "Anthropic Haiku is set for narrate-only briefs. Prices still come from fetched data, not the model."
+          : "An OpenAI or Gemini key is set as a narrate fallback. Prefer ANTHROPIC_API_KEY (Haiku). Prices still come from fetched data."
+        : "Deterministic deal briefs and market pulse are available now. Narration prefers ANTHROPIC_API_KEY (Haiku); OpenAI and Gemini are optional fallbacks.",
       nextStep: aiProvider
-        ? "Verified. AI routes can use the configured provider key."
-        : "Set OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY to upgrade from deterministic reads to generated AI.",
-      envKeys: ["OPENAI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
-      envStatus: envStatus(["OPENAI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"]),
+        ? "Verified. Narration can use the configured provider. Do not use the model to invent prices."
+        : "Set ANTHROPIC_API_KEY for Haiku narrate-only briefs. OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks.",
+      envKeys: [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+      ],
+      envStatus: envStatus([
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+      ]),
       unlocks:
-        "AI deal briefs, buy/pass explanations, market analyst routes, and richer trust summaries.",
+        "Narrate-only deal briefs and market analyst wording on top of fetched deal data. Not price invention.",
       userImpact: aiProvider
-        ? "Deal briefs and analyst routes can add natural-language reasoning on top of the deterministic buyer math."
+        ? "Deal briefs and analyst routes can add natural-language reasoning on top of the deterministic buyer math. Shown prices stay fetched, not model-invented."
         : "Users still get deterministic buy/pass math, deal briefs, and market pulse from real data; provider AI is the upgrade for richer generated explanations.",
       verifyPath: "/api/market/analyst",
       actionLabel: "Connect AI",
-      setupUrl: "https://platform.openai.com/api-keys",
+      setupUrl: "https://console.anthropic.com/settings/keys",
       setupSteps: [
-        "Create an AI provider API key.",
-        "Set OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY in the server environment.",
+        "Create an Anthropic API key and set ANTHROPIC_API_KEY. Optional ANTHROPIC_MODEL defaults to Haiku; Opus is refused.",
+        "OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks only.",
         "Restart the app so server routes can read the key.",
-        "Verify /api/market/analyst and deal brief routes return provider text instead of deterministic fallback only.",
+        "Verify briefs narrate fetched deals. Do not enable ENABLE_LLM_PRICE_INVENT.",
       ],
       verifyEvidence:
         "Deal briefs and market analyst routes include provider-generated explanations without leaking the key.",

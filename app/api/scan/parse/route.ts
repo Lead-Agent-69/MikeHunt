@@ -3,6 +3,7 @@ import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 
 const parserSchema = z.object({
   make: z.string().optional().describe("Vehicle make, e.g. Ford"),
@@ -13,7 +14,15 @@ const parserSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const rl = rateLimit(req, { key: "parse", limit: 30, windowMs: 60_000 });
+  // The /scan page stays public. This route spends a model, so it does not.
+  const caller = await requirePaidAiCaller(req);
+  if (!caller.ok) return caller.response;
+
+  const rl = rateLimit(req, {
+    key: `parse:${caller.userId}`,
+    limit: 30,
+    windowMs: 60_000,
+  });
   if (!rl.allowed) return tooManyRequests(rl);
 
   const { searchParams } = new URL(req.url);

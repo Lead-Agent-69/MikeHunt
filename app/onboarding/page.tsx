@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import Link from "next/link";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -121,7 +120,8 @@ export default function OnboardingPage() {
       buyerMode,
       vehicle,
       vehicleType: vehicle.toLowerCase().replace(" / ", " "),
-      state: state || "Nationwide",
+      state:
+        state === "Nationwide" || US_STATES.includes(state) ? state : "",
       titleType,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       targetProfit:
@@ -148,7 +148,11 @@ export default function OnboardingPage() {
           ? "Profit, repair risk, and time-to-sale lead your decision."
           : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
 
+  const scopeChosen =
+    state === "Nationwide" || US_STATES.includes(state);
+
   async function finish() {
+    if (!buyerMode || !vehicle || !scopeChosen) return;
     setSaving(true);
     writeLocalBuyerIntent(intent);
     const preferences = {
@@ -157,7 +161,9 @@ export default function OnboardingPage() {
         timeline,
         repairCapability: buyerMode === "diy" ? repairCapability : undefined,
       },
-      ...(state ? { carsState: state, carsStates: [state] } : {}),
+      ...(state && state !== "Nationwide"
+        ? { carsState: state, carsStates: [state] }
+        : {}),
     };
     try {
       const [profileResult, preferenceResult] = await Promise.all([
@@ -166,8 +172,9 @@ export default function OnboardingPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             onboarded: true,
-            home_state: state || undefined,
-            state: state || undefined,
+            home_state:
+              state && state !== "Nationwide" ? state : undefined,
+            state: state && state !== "Nationwide" ? state : undefined,
             budget_max: maxPrice ? Number(maxPrice) : undefined,
             target_profit:
               buyerMode === "reseller" || buyerMode === "dealer"
@@ -285,7 +292,8 @@ export default function OnboardingPage() {
               onChange={(event) => setState(event.target.value)}
               className="mt-2 w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-3 text-[var(--t1)]"
             >
-              <option value="">Nationwide</option>
+              <option value="">Choose a state</option>
+              <option value="Nationwide">Nationwide</option>
               {US_STATES.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -415,9 +423,9 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-[var(--s1)] px-4 pb-8 pt-5 sm:px-8">
       <header className="mx-auto flex max-w-3xl items-center justify-between gap-3 border-b border-[var(--b1)] pb-4">
-        <Link href="/discover" aria-label="MIKEHUNT home">
+        <div className="inline-flex" aria-hidden="true">
           <MikeHuntLogo size="md" />
-        </Link>
+        </div>
         <span className="text-xs font-medium text-[var(--t4)]">
           Your buying profile
         </span>
@@ -469,21 +477,24 @@ export default function OnboardingPage() {
         </p>
         <div className="mt-7">{current.body}</div>
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
-          <button
-            type="button"
-            onClick={() =>
-              step > 0 ? setStep(step - 1) : router.push("/discover")
-            }
-            disabled={saving}
-            className="inline-flex min-h-12 items-center gap-2 px-3 py-2 text-sm font-bold text-[var(--t4)] disabled:opacity-60"
-          >
-            {step > 0 && <ArrowLeft size={16} aria-hidden="true" />}
-            {step === 0 ? "Set up later" : "Back"}
-          </button>
+          {step > 0 ? (
+            <button
+              type="button"
+              onClick={() => setStep(step - 1)}
+              disabled={saving}
+              className="inline-flex min-h-12 items-center gap-2 px-3 py-2 text-sm font-bold text-[var(--t4)] disabled:opacity-60"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
-            disabled={saving}
+            disabled={saving || (step === 1 && !scopeChosen)}
             className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
           >
             {saving ? "Saving..." : isLast ? "See my matches" : "Continue"}
