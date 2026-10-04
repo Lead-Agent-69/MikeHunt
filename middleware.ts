@@ -139,7 +139,10 @@ export async function middleware(request: NextRequest) {
 
     if (isAuthRoute && demoUser) {
       const url = request.nextUrl.clone();
-      url.pathname = "/discover";
+      url.pathname = guestProfileOnboarded(request)
+        ? "/discover"
+        : "/onboarding";
+      url.search = "";
       return NextResponse.redirect(url);
     }
 
@@ -211,14 +214,28 @@ export async function middleware(request: NextRequest) {
     return redirectWithAuthCookies(url);
   }
 
-  // Logged-in users shouldn't see the auth pages — send them to the deal feed.
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+
+  // Logged-in users leave the auth pages. An unfinished profile stays on
+  // setup; a failed profile read must not lock the app.
   if (isAuthRoute && user) {
+    let profileError = false;
+    let onboarded = false;
+    if (userId) {
+      const { data: profile, error } = await supabase
+        .from("user_profiles")
+        .select("onboarded")
+        .eq("id", userId)
+        .maybeSingle();
+      profileError = Boolean(error);
+      onboarded = profile?.onboarded === true;
+    }
     const url = request.nextUrl.clone();
-    url.pathname = "/discover";
+    url.pathname = !profileError && !onboarded ? "/onboarding" : "/discover";
+    url.search = "";
     return redirectWithAuthCookies(url);
   }
 
-  const userId = typeof claims?.sub === "string" ? claims.sub : null;
   if (
     user &&
     userId &&

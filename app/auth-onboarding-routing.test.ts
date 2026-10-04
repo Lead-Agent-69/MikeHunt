@@ -16,7 +16,9 @@ describe("new-account onboarding routes", () => {
     const login = readFileSync("app/(auth)/login/page.tsx", "utf8");
 
     expect(login).toContain("new URLSearchParams(window.location.search)");
-    expect(login).toContain('safeNextPath(params.get("next"))');
+    expect(login).toContain('useState("/onboarding")');
+    expect(login).toContain('safeNextPath(params.get("next"), "/onboarding")');
+    expect(login).not.toContain('useState("/discover")');
     expect(login).toContain("<GoogleButton next={next}");
   });
 
@@ -27,5 +29,13 @@ describe("new-account onboarding routes", () => {
     expect(safeNextPath("//example.com")).toBe("/discover");
     expect(safeNextPath("https://example.com")).toBe("/discover");
     expect(safeNextPath("/\\example.com")).toBe("/discover");
+  });
+
+  it("does not let the onboarding logo skip setup", () => {
+    const onboarding = readFileSync("app/onboarding/page.tsx", "utf8");
+    expect(onboarding).not.toContain('href="/discover"');
+    expect(onboarding).toContain("Choose a state");
+    expect(onboarding).toContain('value="Nationwide"');
+    expect(onboarding).toContain("scopeChosen");
   });
 });

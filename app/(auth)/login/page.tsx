@@ -27,14 +27,14 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
-  const [next, setNext] = useState("/discover");
+  const [next, setNext] = useState("/onboarding");
   const router = useRouter();
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNext(safeNextPath(params.get("next")));
+    setNext(safeNextPath(params.get("next"), "/onboarding"));
     setError(authCallbackMessage(params.get("error")));
   }, []);
 
@@ -128,7 +128,7 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        // Land on the deal feed after signing in.
+        // Unfinished profiles stay on setup. A safe ?next= still wins.
         router.push(next);
         router.refresh();
       }
