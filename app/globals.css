@@ -174,7 +174,7 @@
 
 /* ── Dark theme (default) ── */
 [data-theme="dark"] {
-  --s0: rgba(255, 255, 255, 0.04);
+  --s0: #17191e;
   --s1: #0a0a0f;
   --s2: #12121a;
   --s3: #1a1a2e;
@@ -185,15 +185,21 @@
   --t1: #f8f8ff;
   --t2: #e0e0f0;
   --t3: #b0b0d0;
-  --t4: #8080a0;
-  --t5: #505070;
+  --t4: #a3a8b5;
+  --t5: #949baa;
+  --green: #4ade9a;
+  --red: #ff8580;
+  --blue: #8eb6ff;
+  --amber: #8eb6ff;
+  --amber-d: #8eb6ff;
+  --glow-bg: linear-gradient(180deg, #111318, #0a0a0f);
 
   --b1: rgba(255, 255, 255, 0.08);
   --b2: rgba(255, 255, 255, 0.12);
   --b3: rgba(255, 255, 255, 0.18);
 
-  --amber-lo: rgba(245, 158, 11, 0.2);
-  --amber-bd: rgba(245, 158, 11, 0.4);
+  --amber-lo: rgba(7, 91, 232, 0.2);
+  --amber-bd: rgba(142, 182, 255, 0.4);
   --glo: rgba(16, 185, 129, 0.25);
   --gbd: rgba(16, 185, 129, 0.5);
   --rlo: rgba(239, 68, 68, 0.2);
@@ -212,45 +218,6 @@
   --glass: rgba(10, 10, 15, 0.72);
 
   color-scheme: dark;
-}
-
-/* Keep the product on the premium research skin even when saved preference is dark/system. */
-[data-theme="dark"] {
-  --s0: #ffffff;
-  --s1: #f6f8fb;
-  --s2: #eef2f7;
-  --s3: #e2e8f0;
-  --s4: #cbd5e1;
-  --s5: #94a3b8;
-  --s6: #64748b;
-  --t1: #0b1220;
-  --t2: #172033;
-  --t3: #3f4b5f;
-  --t4: #667085;
-  --t5: #98a2b3;
-  --b1: rgba(15, 23, 42, 0.1);
-  --b2: rgba(15, 23, 42, 0.16);
-  --b3: rgba(15, 23, 42, 0.24);
-  --amber: #0b5fff;
-  --amber-d: #075be8;
-  --amber-lo: rgba(7, 91, 232, 0.1);
-  --amber-bd: rgba(7, 91, 232, 0.26);
-  --glo: rgba(7, 135, 95, 0.12);
-  --gbd: rgba(7, 135, 95, 0.28);
-  --rlo: rgba(197, 52, 46, 0.1);
-  --rbd: rgba(197, 52, 46, 0.24);
-  --blo: rgba(7, 91, 232, 0.12);
-  --bbd: rgba(7, 91, 232, 0.25);
-  --accent: #075be8;
-  --accent-surface: #edf3ff;
-  --olo: rgba(180, 83, 9, 0.1);
-  --plo: rgba(79, 70, 229, 0.1);
-  --shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
-  --shadow2:
-    0 1px 2px rgba(15, 23, 42, 0.08), 0 10px 24px rgba(15, 23, 42, 0.06);
-  --shadow3: 0 28px 70px rgba(15, 23, 42, 0.16);
-  --glass: rgba(255, 255, 255, 0.9);
-  color-scheme: light;
 }
 
 * {

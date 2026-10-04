@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
@@ -62,6 +62,7 @@ function NavPill() {
 
 export function TopNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const activeJob = primaryJobForPath(pathname);
   const localSearches = useLocalSavedSearches();
@@ -82,7 +83,7 @@ export function TopNav() {
         ? [stateParam.trim().toUpperCase()]
         : undefined;
     setScopedStates(nextStates?.length ? nextStates : undefined);
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +134,7 @@ export function TopNav() {
       if (states.length === 1) params.set("state", states[0]);
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
-      router.replace(`${pathname}?${params.toString()}`);
+      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
     } else router.refresh();
   };
 

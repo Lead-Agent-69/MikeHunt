@@ -11,15 +11,12 @@ import {
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
-import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
-import { SelectField } from "@/components/shared/Field";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { US_STATES } from "@/lib/utils/titleRules";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
@@ -181,6 +178,7 @@ function RailSkeleton() {
 
 export default function DiscoverPage() {
   const searchParams = useSearchParams();
+  const { prefs } = usePreferences();
   const urlScope = React.useMemo(() => {
     const q = (searchParams.get("q") || "").toLowerCase().trim();
     const laneValue = (searchParams.get("lane") || "all").toLowerCase().trim();
@@ -193,62 +191,45 @@ export default function DiscoverPage() {
       q ||
       (laneValue && laneValue !== "all") ||
       stateParam ||
+      searchParams.has("states") ||
       maxPriceParam ||
       titleType ||
       sellerType ||
       buyerMode,
     );
     if (!hasScope) return null;
-    const maxPrice = Number(maxPriceParam || 0);
-    return normalizeBuyerIntent({
-      vehicleType: q || undefined,
-      lane: LANE_VALUE_TO_LABEL[laneValue] || undefined,
-      laneValue,
-      state: stateParam || "Nationwide",
-      titleType,
-      sellerType,
-      buyerMode,
-      maxPrice:
-        Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
-    });
-  }, [searchParams]);
-  const [state, setState] = useState(""); // '' = nationwide
-  useEffect(() => {
-    const chosen = searchParams.get("state");
-    if (chosen !== null)
-      setState(
-        chosen.toUpperCase() === "NATIONWIDE" ? "" : chosen.toUpperCase(),
-      );
-    else if (searchParams.has("states")) setState("");
-  }, [searchParams]);
-  const [showInsights, setShowInsights] = useState(false);
-  const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
-
-  // Land on the user's saved default market once (they can still change it — this only sets the initial).
-  const { prefs } = usePreferences();
-  const prefsApplied = useRef(false);
-  useEffect(() => {
-    if (prefsApplied.current || !Object.keys(prefs).length) return;
-    prefsApplied.current = true;
-    if (urlScope) {
-      if (urlScope.state && urlScope.state !== "Nationwide") {
-        setState(urlScope.state);
-      }
-      return;
-    }
-    // Saved buyer scope (this device, then the account) wins over the older
-    // carsState-only default so Discover does not drop lane, price, or state.
     const savedBuyerScope =
       readLocalBuyerIntent() || normalizeBuyerIntent(prefs.buyerScope);
-    if (savedBuyerScope) {
-      setBuyerScope(savedBuyerScope);
-      if (savedBuyerScope.state && savedBuyerScope.state !== "Nationwide") {
-        setState(savedBuyerScope.state);
-      }
-      return;
-    }
-    if (prefs.carsState) setState(prefs.carsState);
-  }, [prefs, urlScope]);
+    const maxPrice = Number(maxPriceParam || 0);
+    return normalizeBuyerIntent({
+      ...savedBuyerScope,
+      ...(searchParams.has("q")
+        ? { vehicle: undefined, vehicleType: q || undefined }
+        : {}),
+      ...(searchParams.has("lane")
+        ? { lane: LANE_VALUE_TO_LABEL[laneValue], laneValue }
+        : {}),
+      ...(stateParam || searchParams.has("states")
+        ? {
+            state:
+              stateParam === "NATIONWIDE" || searchParams.has("states")
+                ? "Nationwide"
+                : stateParam,
+          }
+        : {}),
+      ...(searchParams.has("titleType") ? { titleType } : {}),
+      ...(searchParams.has("sellerType") ? { sellerType } : {}),
+      ...(searchParams.has("mode") ? { buyerMode } : {}),
+      ...(searchParams.has("maxPrice")
+        ? {
+            maxPrice:
+              Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
+          }
+        : {}),
+    });
+  }, [searchParams, prefs.buyerScope]);
+  const [showInsights, setShowInsights] = useState(false);
+  const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
 
   useEffect(() => {
     const syncScope = () =>
@@ -267,38 +248,49 @@ export default function DiscoverPage() {
     };
   }, [urlScope, prefs.buyerScope]);
 
-  useEffect(() => {
-    if (buyerScope?.state && buyerScope.state !== "Nationwide") {
-      setState((current) => current || buyerScope.state || "");
-    }
-  }, [buyerScope?.state]);
-
+  const chosenState = searchParams.get("state");
+  const savedStates = prefs.carsStates;
+  const selectedStates =
+    searchParams.get("states") ??
+    (chosenState === null && savedStates && savedStates.length > 1
+      ? savedStates.join(",")
+      : null);
+  const state =
+    chosenState !== null
+      ? chosenState.toUpperCase() === "NATIONWIDE"
+        ? ""
+        : chosenState.toUpperCase()
+      : selectedStates
+        ? ""
+        : savedStates
+          ? savedStates[0] || ""
+          : buyerScope?.state && buyerScope.state !== "Nationwide"
+            ? buyerScope.state
+            : prefs.carsState || "";
   const scopeParams = buildBuyerIntentQuery(buyerScope, state);
-  if (searchParams.has("states")) {
+  if (selectedStates) {
     scopeParams.delete("state");
-    scopeParams.set("states", searchParams.get("states") || "");
-  } else if (searchParams.get("state")?.toUpperCase() === "NATIONWIDE") {
+    scopeParams.set("states", selectedStates);
+  } else if (!state) {
     scopeParams.delete("state");
   }
   const scopeQuery = scopeParams.toString() ? `?${scopeParams.toString()}` : "";
-  const activeScopeLabel = buyerIntentLabel(buyerScope, state);
+  const marketLabel = selectedStates || state || "Nationwide";
+  const activeScopeLabel = buyerIntentLabel(buyerScope, marketLabel);
 
-  const { data, error, isLoading } = useSWR<DiscoverResponse>(
-    `/api/discover${scopeQuery}`,
-    fetcher,
-    {
+  const { data, error, isLoading, isValidating, mutate } =
+    useSWR<DiscoverResponse>(`/api/discover${scopeQuery}`, fetcher, {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
       dedupingInterval: 60_000,
       // Keep the current feed visible while switching state, instead of flashing to skeletons — seamless.
       keepPreviousData: true,
-    },
-  );
+    });
 
   const statLine = data?.previewMode
-    ? `${data.totalListings.toLocaleString()} public preview rows · ${activeScopeLabel}`
+    ? `${data.uniqueVehicles.toLocaleString()} vehicles in preview`
     : data
-      ? `${data.totalListings.toLocaleString()} listings · ${data.uniqueVehicles.toLocaleString()} unique vehicles · merged ${data.mergedDuplicates.toLocaleString()} duplicates`
+      ? `${data.uniqueVehicles.toLocaleString()} matching vehicles`
       : null;
   const hasLiveListings = Boolean(data && data.totalListings > 0);
 
@@ -321,28 +313,15 @@ export default function DiscoverPage() {
             Discover
           </h1>
           <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
-            {statLine ??
-              (isLoading
-                ? "Loading matching vehicles..."
-                : "Find vehicles for your budget and buying goal")}
+            {isValidating && data
+              ? "Updating matching vehicles..."
+              : (statLine ??
+                (isLoading
+                  ? "Loading matching vehicles..."
+                  : "Find vehicles for your budget and buying goal"))}
           </p>
         </div>
-
-        <SelectField
-          options={[
-            { value: "", label: "Nationwide" },
-            ...US_STATES.map((s: string) => ({ value: s, label: s })),
-          ]}
-          value={state}
-          onChange={(e) => setState(e.target.value)}
-          className="w-full bg-[var(--s0)] sm:w-44"
-        />
       </div>
-
-      {/* Guided first-run: no market chosen yet → pick it here and the feed personalizes instantly. */}
-      {!state && (
-        <MarketPicker accent="var(--amber-d)" onPick={(st) => setState(st)} />
-      )}
 
       <section className="flex flex-col gap-3 border-y border-[var(--b1)] py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -455,7 +434,7 @@ export default function DiscoverPage() {
         )}
       </details>
       {/* Body */}
-      {isLoading ? (
+      {isLoading && !data ? (
         <div className="space-y-8">
           {Array.from({ length: 3 }).map((_, i) => (
             <RailSkeleton key={i} />
@@ -466,26 +445,23 @@ export default function DiscoverPage() {
           <EmptyState
             icon="alert-triangle"
             title="Couldn't load discovery"
-            message="Something went wrong fetching the market feed. Try again in a moment."
+            message="We couldn't update your vehicles. Check your connection and try again."
+            action={{ label: "Try again", onClick: () => void mutate() }}
           />
         </div>
       ) : !data || data.rails.length === 0 ? (
         <div className="glass-panel" style={{ padding: 0 }}>
           <EmptyState
             icon="search"
+            className="!py-10 sm:!py-16"
             title="Nothing to discover yet"
             message={
               data?.configured === false
                 ? "We don't have matching vehicles ready to review yet. Adjust your market, vehicle, or budget to broaden the search."
-                : state
-                  ? `No active deals in ${state} right now. Try nationwide or adjust your search.`
+                : marketLabel !== "Nationwide"
+                  ? `No matching vehicles in ${marketLabel} right now. Try another location or adjust your search.`
                   : "No active deals to browse yet. Adjust your search to see more matches."
             }
-            action={{
-              label:
-                data?.configured === false ? "Refine search" : "Open scanner",
-              href: "/scan",
-            }}
           />
         </div>
       ) : (

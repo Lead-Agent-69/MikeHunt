@@ -13,7 +13,27 @@ export function PWARegister() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    if (process.env.NODE_ENV !== "production") return;
+    if (process.env.NODE_ENV !== "production") {
+      // An old production worker on localhost can intercept fresh dev pages.
+      void navigator.serviceWorker
+        .getRegistrations()
+        .then(async (registrations) => {
+          for (const registration of registrations) {
+            const script =
+              registration.active?.scriptURL || registration.waiting?.scriptURL;
+            if (script && new URL(script).pathname === "/sw.js")
+              await registration.unregister();
+          }
+          const names = await caches.keys();
+          await Promise.all(
+            names
+              .filter((name) => name.startsWith("MikeHunt-"))
+              .map((name) => caches.delete(name)),
+          );
+        })
+        .catch(() => undefined);
+      return;
+    }
 
     const observeRegistration = (registration: ServiceWorkerRegistration) => {
       const observeInstalling = (worker: ServiceWorker | null) => {

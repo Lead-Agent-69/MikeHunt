@@ -29,4 +29,24 @@ describe("mobile location regression protections", () => {
       'if (!response.ok) throw new Error("Preferences could not be saved")',
     );
   });
+  it("keeps Discover's location control in the header and avoids filter-only server navigation", () => {
+    const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+    const header = readFileSync("components/layout/TopNav.tsx", "utf8");
+    expect(page).not.toContain("<SelectField");
+    expect(page).not.toContain("<MarketPicker");
+    expect(header).toContain("window.history.replaceState");
+    expect(header).toContain("[pathname, searchParams]");
+    expect(page).toContain("savedStates.join");
+    expect(page).toContain("...savedBuyerScope,");
+  });
+  it("offers scoped empty-state navigation and connection recovery", () => {
+    const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+    expect(page).toContain('label: "Try again", onClick: () => void mutate()');
+    expect(page).toContain(
+      'href={`/scan${scopeQuery ? `${scopeQuery}&` : "?"}sort=profit`}',
+    );
+    expect(page).toContain("matching vehicles");
+    expect(page).not.toContain("mergedDuplicates.toLocaleString()");
+    expect(page).toContain("isLoading && !data");
+  });
 });

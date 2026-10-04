@@ -1,85 +1,149 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>MikeHunt — Offline</title>
-  <meta name="theme-color" content="#075BE8">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0b0b0f;
-      color: #f4eff8;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
-    }
-    .icon {
-      width: 80px;
-      height: 80px;
-      border-radius: 20px;
-      background: #ffffff;
-      border: 1px solid rgba(7, 91, 232, 0.26);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 24px;
-      box-shadow: 0 8px 32px rgba(7, 91, 232, 0.3);
-    }
-    .icon img { width: 58px; height: 58px; object-fit: contain; }
-    h1 { font-size: 24px; font-weight: 800; margin-bottom: 8px; }
-    p { font-size: 15px; color: #a99fb6; line-height: 1.6; max-width: 320px; }
-    .retry {
-      margin-top: 32px;
-      padding: 12px 24px;
-      border-radius: 12px;
-      background: #075BE8;
-      color: white;
-      font-weight: 700;
-      font-size: 15px;
-      border: none;
-      cursor: pointer;
-      transition: transform 0.15s ease;
-    }
-    .retry:active { transform: scale(0.97); }
-    .status {
-      margin-top: 16px;
-      font-size: 13px;
-      color: #635a72;
-    }
-  </style>
-</head>
-<body>
-  <div class="icon">
-    <img src="/brand/MIKEHUNT-M.svg" alt="">
-  </div>
-  <h1 id="title">We couldn't reach MIKEHUNT</h1>
-  <p id="message">Check your connection and try again. Your saved items remain available when they were previously loaded.</p>
-  <button class="retry" onclick="window.location.reload()">Try Again</button>
-  <div class="status" id="status">Checking connection...</div>
-  <script>
-    function updateStatus() {
-      const el = document.getElementById('status');
-      const title = document.getElementById('title');
-      const message = document.getElementById('message');
-      if (navigator.onLine) {
-        title.textContent = "We couldn't reach MIKEHUNT";
-        message.textContent = 'Your device appears online. Retrying may restore the latest deals.';
-        el.textContent = 'Connection detected';
-      } else {
-        title.textContent = "You're Offline";
-        message.textContent = 'MIKEHUNT needs a connection to fetch the latest deals. Try again when you are back online.';
-        el.textContent = 'No connection detected';
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>MikeHunt — Offline</title>
+    <meta name="theme-color" content="#075BE8" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-    }
-    window.addEventListener('online', updateStatus);
-    window.addEventListener('offline', updateStatus);
-    updateStatus();
-  </script>
-</body>
+      :root {
+        color-scheme: light;
+        --surface: #f6f8fb;
+        --text: #0b1220;
+        --muted: #526075;
+      }
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --surface: #111318;
+        --text: #f4f6fa;
+        --muted: #b0b7c5;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--surface);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        background: #ffffff;
+        border: 1px solid rgba(7, 91, 232, 0.26);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 24px;
+        box-shadow: 0 8px 32px rgba(7, 91, 232, 0.3);
+      }
+      .icon img {
+        width: 58px;
+        height: 58px;
+        object-fit: contain;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 800;
+        margin-bottom: 8px;
+      }
+      p {
+        font-size: 15px;
+        color: var(--muted);
+        line-height: 1.6;
+        max-width: 320px;
+      }
+      .retry {
+        margin-top: 32px;
+        padding: 12px 24px;
+        border-radius: 12px;
+        background: #075be8;
+        color: white;
+        font-weight: 700;
+        font-size: 15px;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.15s ease;
+      }
+      .retry:active {
+        transform: scale(0.97);
+      }
+      .status {
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .retry:focus-visible {
+        outline: 3px solid #8eb6ff;
+        outline-offset: 4px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .retry {
+          transition: none;
+        }
+        .retry:active {
+          transform: none;
+        }
+      }
+    </style>
+    <script>
+      try {
+        var theme = localStorage.getItem("theme");
+        var dark =
+          theme === "dark" ||
+          (theme !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      } catch (_) {
+        document.documentElement.dataset.theme = "light";
+      }
+    </script>
+  </head>
+  <body>
+    <div class="icon">
+      <img src="/brand/MIKEHUNT-M.svg" alt="" />
+    </div>
+    <h1 id="title">We couldn't reach MIKEHUNT</h1>
+    <p id="message">
+      Check your connection and try again. This connection problem does not
+      change your account or saved lists.
+    </p>
+    <button class="retry" onclick="window.location.reload()">Try Again</button>
+    <div class="status" id="status" role="status">Checking connection...</div>
+    <script>
+      function updateStatus() {
+        const el = document.getElementById("status");
+        const title = document.getElementById("title");
+        const message = document.getElementById("message");
+        if (navigator.onLine) {
+          title.textContent = "We couldn't reach MIKEHUNT";
+          message.textContent =
+            "Your device appears online. Retrying may restore the latest deals.";
+          el.textContent = "Connection detected";
+        } else {
+          title.textContent = "You're Offline";
+          message.textContent =
+            "MIKEHUNT needs a connection to fetch the latest deals. Try again when you are back online.";
+          el.textContent = "No connection detected";
+        }
+      }
+      window.addEventListener("online", updateStatus);
+      window.addEventListener("offline", updateStatus);
+      updateStatus();
+    </script>
+  </body>
 </html>

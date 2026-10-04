@@ -1,6 +1,6 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v7'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v5'
+const STATIC_CACHE = 'MikeHunt-static-v8'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v6'
 
 const STATIC_ASSETS = [
   '/offline.html',

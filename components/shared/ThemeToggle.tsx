@@ -4,6 +4,15 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Sun, Moon, Monitor, type LucideIcon } from "lucide-react";
 
 export type Theme = "light" | "dark" | "system";
+const THEME_EVENT = "mh-theme-change";
+function savedTheme(): Theme {
+  try {
+    const value = localStorage.getItem("theme");
+    return value === "light" || value === "dark" ? value : "system";
+  } catch {
+    return "system";
+  }
+}
 
 function prefersDark(): boolean {
   return (
@@ -22,9 +31,18 @@ export function useTheme() {
   const [theme, setThemeState] = useState<Theme>("system");
 
   useEffect(() => {
-    const saved = (localStorage.getItem("theme") as Theme) || "system";
-    setThemeState(saved);
-    applyTheme(saved);
+    const sync = () => {
+      const saved = savedTheme();
+      setThemeState(saved);
+      applyTheme(saved);
+    };
+    sync();
+    window.addEventListener(THEME_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(THEME_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
   }, []);
 
   // When on "system", follow OS theme changes live.
@@ -44,6 +62,7 @@ export function useTheme() {
       /* ignore */
     }
     applyTheme(t);
+    window.dispatchEvent(new Event(THEME_EVENT));
   }, []);
 
   return { theme, setTheme };
@@ -69,10 +88,11 @@ export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(next)}
       title={`Theme: ${LABEL[theme]} (tap for ${LABEL[next]})`}
       aria-label={`Theme: ${LABEL[theme]}. Switch to ${LABEL[next]}.`}
-      className="flex items-center gap-2 px-2.5 py-2 rounded-[var(--r2)] text-[var(--t3)] hover:text-[var(--t1)] hover:bg-[var(--s2)] transition-colors"
+      className="flex min-h-11 min-w-11 items-center justify-center gap-2 px-2.5 py-2 rounded-[var(--r2)] text-[var(--t3)] hover:text-[var(--t1)] hover:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
     >
       <Icon size={16} />
       {showLabel && <span className="text-sm font-medium">{LABEL[theme]}</span>}
