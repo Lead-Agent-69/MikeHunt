@@ -1126,25 +1126,37 @@ export default function DealPage({
                 </span>
               </div>
               <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <span className="text-[var(--t4)]">Ask</span>
+                <span className="text-[var(--t4)]">
+                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                    ? "Auction amount"
+                    : "Ask"}
+                </span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {formatMoney(Number(serverDeal.askPrice || 0))}
                 </Mono>
                 <span className="text-[var(--t4)]">Resale</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {resaleBasis ? formatMoney(resaleBasis) : "Unknown"}
+                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                    ? "Needs verified comparisons"
+                    : resaleBasis
+                      ? formatMoney(resaleBasis)
+                      : "Unknown"}
                 </Mono>
                 <span className="text-[var(--t4)]">Repair</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {detailCosts?.repair
-                    ? formatMoney(detailCosts.repair)
-                    : "Needed"}
+                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                    ? "Inspection and quote needed"
+                    : detailCosts?.repair
+                      ? formatMoney(detailCosts.repair)
+                      : "Needed"}
                 </Mono>
                 <span className="text-[var(--t4)]">Transport</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {detailCosts?.transport
-                    ? formatMoney(detailCosts.transport)
-                    : "Needed"}
+                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                    ? "Quote needed"
+                    : detailCosts?.transport
+                      ? formatMoney(detailCosts.transport)
+                      : "Needed"}
                 </Mono>
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
@@ -1286,30 +1298,33 @@ export default function DealPage({
         })()}
 
       {/* THE MONEY — one-glance profit visual (buy + costs → your cut), the hero of the page */}
-      {serverDeal?.dealVerdict && serverDeal.dealAnalysis?.costs && (
-        <DealEconomics
-          buy={
-            serverDeal.dealAnalysis.costs.acquisition ??
-            serverDeal.askPrice ??
-            store.askPrice ??
-            0
-          }
-          transport={serverDeal.dealAnalysis.costs.transport ?? 0}
-          recon={serverDeal.dealAnalysis.costs.repair ?? 0}
-          fees={
-            (serverDeal.dealAnalysis.costs.holding ?? 0) +
-            (serverDeal.dealAnalysis.costs.selling ?? 0)
-          }
-          sell={serverDeal.sellEstimate ?? 0}
-          profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
-          verdict={String(serverDeal.dealVerdict).toUpperCase()}
-        />
-      )}
+      {serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+        serverDeal?.dealVerdict &&
+        serverDeal.dealAnalysis?.costs && (
+          <DealEconomics
+            buy={
+              serverDeal.dealAnalysis.costs.acquisition ??
+              serverDeal.askPrice ??
+              store.askPrice ??
+              0
+            }
+            transport={serverDeal.dealAnalysis.costs.transport ?? 0}
+            recon={serverDeal.dealAnalysis.costs.repair ?? 0}
+            fees={
+              (serverDeal.dealAnalysis.costs.holding ?? 0) +
+              (serverDeal.dealAnalysis.costs.selling ?? 0)
+            }
+            sell={serverDeal.sellEstimate ?? 0}
+            profit={serverDeal.true_net_profit ?? engineNetProfit ?? 0}
+            verdict={String(serverDeal.dealVerdict).toUpperCase()}
+          />
+        )}
 
       {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
-      {serverDeal?.dealAnalysis?.prediction && (
-        <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
-      )}
+      {serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+        serverDeal?.dealAnalysis?.prediction && (
+          <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
+        )}
 
       {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}
       {serverDeal && (
