@@ -26,10 +26,14 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain("lg:top-auto lg:bottom-6");
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("MOBILE_PRIMARY");
-    expect(bottomNav).toContain('layoutId="bottom-nav-active-pill"');
+    expect(bottomNav).toContain(
+      'layoutId={reducedMotion ? undefined : "bottom-nav-active-pill"}',
+    );
     expect(bottomNav).toContain('aria-current={isActive ? "page" : undefined}');
     expect(bottomNav).toContain("navigator.vibrate?.(8)");
-    expect(bottomNav).toContain("whileTap={{ scale: 0.92 }}");
+    expect(bottomNav).toContain(
+      "whileTap={reducedMotion ? undefined : { scale: 0.92 }}",
+    );
     expect(bottomNav).not.toContain("Deal assistant");
     expect(bottomNav).not.toContain("open-mikehunt-copilot");
   });
