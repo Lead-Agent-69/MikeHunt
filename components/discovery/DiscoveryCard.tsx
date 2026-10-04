@@ -32,7 +32,7 @@ const TITLE_STYLES: Record<
   parts: { label: "Parts Only", bg: "var(--rlo)", text: "var(--red)" },
 };
 
-// Short, glanceable lane labels — the channel/risk a dealer reads instantly (color from the API).
+// Short, glanceable lane labels ΓÇö the channel/risk a dealer reads instantly (color from the API).
 const LANE_LABELS: Record<string, string> = {
   auction: "Auction",
   salvage: "Salvage",
@@ -77,7 +77,7 @@ function relativeFreshness(value?: string | null) {
 }
 
 /**
- * Compact, tappable discovery card — CarGurus/Kayak feel. Image-forward, with a
+ * Compact, tappable discovery card ΓÇö CarGurus/Kayak feel. Image-forward, with a
  * market deal-grade badge, prominent ask price, the key Kayak "found on N sites"
  * multi-source signal, and a subtle max-bid hint for the flipper.
  */
@@ -103,7 +103,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
-  // Operability read — "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
+  // Operability read ΓÇö "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
   const cond = readCondition(deal.condition, deal.damageType, title);
   const href =
     deal.id.startsWith("live-") && deal.sourceUrl
@@ -158,7 +158,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {decision.label}
           </span>
 
-          {/* Multi-source chip — floating top-right (the Kayak signal) */}
+          {/* Multi-source chip ΓÇö floating top-right (the Kayak signal) */}
           {multi && (
             <span
               className="absolute right-2.5 top-12 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
@@ -235,7 +235,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             )}
           </div>
 
-          {/* VIN-graph red flag — the moat made visible. Loud red for misrepresentation traps (a
+          {/* VIN-graph red flag ΓÇö the moat made visible. Loud red for misrepresentation traps (a
               "clean" car our cross-market records show was salvaged/washed/rolled-back); a subtle chip
               for a car that already discloses its history. */}
           {deal.vinFlags && deal.vinFlags.length > 0 && (
@@ -246,54 +246,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   ? { background: "var(--rlo)", color: "var(--red)" }
                   : { background: "var(--amber-lo)", color: "var(--amber-d)" }
               }
-              title={deal.vinFlags.join(" · ")}
+              title={deal.vinFlags.join(" ┬╖ ")}
             >
-              {deal.vinFlagSeverity === "high" ? "⚠ " : ""}
+              {deal.vinFlagSeverity === "high" ? "ΓÜá " : ""}
               {deal.vinFlags.find((f) =>
                 /washing|rollback|salvage|flood|fire/i.test(f),
               ) || deal.vinFlags[0]}
             </span>
           )}
 
-          {/* Forecast chip — the predictive layer surfaced on the card: urgency + time-to-sell, so the
-              engine's forward-looking read shows in the browse, not just the detail page. */}
-          {evidence.acquisitionReady &&
-            deal.prediction &&
-            (deal.prediction.urgency === "act_now" ||
-              deal.prediction.urgency === "soon" ||
-              deal.prediction.velocity === "fast") && (
-              <span
-                className="inline-flex w-fit items-center gap-1 rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-black"
-                style={
-                  deal.prediction.urgency === "act_now"
-                    ? { background: "var(--rlo)", color: "var(--red)" }
-                    : {
-                        background:
-                          "color-mix(in srgb, var(--green) 14%, transparent)",
-                        color: "var(--green)",
-                      }
-                }
-                title="Forecast: how fast this market clears + whether to act now"
-              >
-                {deal.prediction.urgency === "act_now" ? (
-                  <Flame className="h-3 w-3" aria-hidden="true" />
-                ) : deal.prediction.velocity === "fast" ? (
-                  <Zap className="h-3 w-3" aria-hidden="true" />
-                ) : (
-                  <Clock3 className="h-3 w-3" aria-hidden="true" />
-                )}
-                {deal.prediction.urgency === "act_now"
-                  ? "Act now"
-                  : deal.prediction.velocity === "fast"
-                    ? "Fast market"
-                    : "Move soon"}
-                {deal.prediction.daysToSell != null
-                  ? ` · ~${deal.prediction.daysToSell}d`
-                  : ""}
-              </span>
-            )}
-
-          {/* Meta: lane · mileage · location */}
+          {/* Meta: lane ┬╖ mileage ┬╖ location */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
             {deal.lane && deal.laneColor && (
               <span
@@ -326,9 +288,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       : "Operability unconfirmed"
                 }
               >
-                {cond.runs === "yes" ? "✓ " : cond.runs === "no" ? "✕ " : ""}
+                {cond.runs === "yes" ? "Γ£ô " : cond.runs === "no" ? "Γ£ò " : ""}
                 {cond.label}
-                {cond.detail ? ` · ${cond.detail}` : ""}
+                {cond.detail ? ` ┬╖ ${cond.detail}` : ""}
               </span>
             )}
             {deal.mileage != null && Number.isFinite(deal.mileage) ? (
@@ -337,7 +299,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               </span>
             ) : null}
             {deal.mileage != null && location ? (
-              <span className="opacity-30">·</span>
+              <span className="opacity-30">┬╖</span>
             ) : null}
             {location && (
               <span className="inline-flex items-center gap-1 truncate">
@@ -406,11 +368,33 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
-            {relativeFreshness(deal.lastSeenAt)} ·{" "}
+            {relativeFreshness(deal.lastSeenAt)} ┬╖{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
           <p className="text-xs leading-relaxed text-[var(--t3)]">
             {evidence.nextCheck}
+          </p>
+
+          <p className="text-[11px] leading-relaxed text-[var(--t3)]">
+            {`Ask $${deal.askPrice.toLocaleString()}`}
+            {" · "}
+            {deal.soldAnchored && deal.sellEstimate && (deal.compCount || 0) > 0
+              ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
+              : deal.sellEstimate && !deal.soldAnchored
+                ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}${
+                    deal.compCount
+                      ? ` · ${deal.compCount} listing asks`
+                      : ""
+                  }`
+                : "Resale basis not on file."}
+            {` · ${relativeFreshness(deal.lastSeenAt)}`}
+            {deal.valueAsOf ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}` : ""}
+            {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
+            {deal.sellerType === "dealer"
+              ? " · Dealer"
+              : deal.sellerType === "private"
+                ? " · Private"
+                : ""}
           </p>
 
           {/* Price and practical ceiling stay adjacent so the acquisition decision is readable. */}
@@ -442,7 +426,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </div>
           </div>
 
-          {/* Sell estimate + max bid — the context that makes the profit number mean something. */}
+          {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}
           <details className="border-t border-[var(--b1)] pt-2">
             <summary className="cursor-pointer py-2 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
               Cost estimates and source details
@@ -466,9 +450,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                           background:
                             CONFIDENCE_META[deal.valueConfidence].color,
                         }}
-                        title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}${
+                        title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence ΓÇö ${CONFIDENCE_META[deal.valueConfidence].blurb}${
                           deal.valueEvidence
-                            ? ` · backed by ${deal.valueEvidence} real comps/sales`
+                            ? ` ┬╖ backed by ${deal.valueEvidence} real comps/sales`
                             : ""
                         }`}
                       />
@@ -477,7 +461,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.sellEstimate
                       ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
                 <div
@@ -490,7 +474,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--green)]">
                     {deal.recommendedMaxBid
                       ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
               </div>
@@ -506,7 +490,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.repairEstimate
                       ? `$${Math.round(deal.repairEstimate).toLocaleString()}`
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
                 <div
@@ -519,14 +503,14 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.transportEstimate
                       ? `$${Math.round(deal.transportEstimate).toLocaleString()}`
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
               </div>
             )}
 
             {/* Cross-source price compare (Kayak): the SAME car on each source, brand-chipped,
-              cheapest first + outlined — so a dealer sees who has it and for how much at a glance. */}
+              cheapest first + outlined ΓÇö so a dealer sees who has it and for how much at a glance. */}
             {multi && (
               <div
                 className="mt-1 rounded-[var(--r2)] px-2.5 py-2"
@@ -572,7 +556,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                               ? `inset 0 0 0 1px ${m.color}`
                               : undefined,
                           }}
-                          title={`${m.label}${isCheapest ? " — cheapest" : ""}`}
+                          title={`${m.label}${isCheapest ? " ΓÇö cheapest" : ""}`}
                         >
                           <span
                             className="inline-block h-1.5 w-1.5 rounded-full"

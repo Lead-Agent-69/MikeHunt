@@ -97,6 +97,11 @@ function mapDeal(
     valueEvidence:
       (d.deal_analysis?.valuation?.compCount ?? 0) +
       (d.deal_analysis?.valuation?.soldCount ?? 0),
+    compCount: d.deal_analysis?.valuation?.compCount ?? 0,
+    sellBasis: d.deal_analysis?.sellBasis,
+    soldAnchored: d.deal_analysis?.soldAnchored === true,
+    valueAsOf:
+      d.deal_analysis?.valuation?.asOf || d.last_seen_at || null,
     profitScore: d.profit_score != null ? Number(d.profit_score) : undefined,
     trueNetProfit:
       d.true_net_profit != null ? Number(d.true_net_profit) : undefined,

@@ -25,6 +25,12 @@ export interface DiscoveryDeal {
   valueConfidence?: "high" | "good" | "fair" | "estimate";
   /** How many real comps + sales back the resale number (the "backed by N" trust hint). */
   valueEvidence?: number;
+  /** Comparable-listing count, separate from sold anchors. */
+  compCount?: number;
+  sellBasis?: string;
+  soldAnchored?: boolean;
+  /** When the resale figure was computed, if the analyzer stored it. */
+  valueAsOf?: string | null;
   profitScore?: number;
   trueNetProfit?: number;
   recommendedMaxBid?: number;
