@@ -135,7 +135,7 @@ export default function FeedPage() {
 
       {/* Editorial Cards — Featured deals grid */}
       {items.length > 0 && (
-        <div className="snap-start min-h-screen bg-[var(--s1)] py-8 px-4">
+        <div className="snap-start bg-[var(--s1)] px-4 py-8 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-[var(--t1)]">
@@ -303,7 +303,7 @@ function FeedCard({ it }: { it: FeedItem }) {
       </div>
 
       {/* Right action rail. */}
-      <div className="absolute bottom-36 right-3 flex flex-col items-center gap-6">
+      <div className="absolute bottom-[calc(9rem+env(safe-area-inset-bottom))] right-3 flex flex-col items-center gap-6 md:bottom-36">
         <button
           onClick={save}
           className="flex flex-col items-center gap-1"
@@ -345,7 +345,7 @@ function FeedCard({ it }: { it: FeedItem }) {
       </div>
 
       {/* Bottom info block. */}
-      <div className="absolute inset-x-0 bottom-0 p-5 pb-10 pr-20">
+      <div className="absolute inset-x-0 bottom-0 p-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pr-20 md:pb-10">
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-black text-white drop-shadow">
             {money(it.askPrice)}
