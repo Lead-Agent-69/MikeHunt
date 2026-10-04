@@ -4,7 +4,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Sun, Moon, Monitor, type LucideIcon } from "lucide-react";
 
 export type Theme = "light" | "dark" | "system";
-const THEME_EVENT = "mh-theme-change";
+export const THEME_EVENT = "mh-theme-change";
+
 function savedTheme(): Theme {
   try {
     const value = localStorage.getItem("theme");
@@ -80,7 +81,7 @@ const LABEL: Record<Theme, string> = {
   dark: "Dark",
 };
 
-/** Cycles System → Light → Dark. Compact icon button styled for the nav. */
+/** Cycles System -> Light -> Dark. Compact icon button styled for the nav. */
 export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
   const { theme, setTheme } = useTheme();
   const Icon = ICON[theme];
