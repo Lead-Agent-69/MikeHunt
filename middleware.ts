@@ -75,6 +75,21 @@ function isSupabaseConfigured(): boolean {
   );
 }
 
+
+function guestProfileOnboarded(request: NextRequest): boolean {
+  const raw = request.cookies.get("mh_guest_profile")?.value;
+  if (!raw) return false;
+  try {
+    const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(
+      atob(padded + "=".repeat((4 - (padded.length % 4)) % 4)),
+    );
+    return json?.onboarded === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -99,6 +114,20 @@ export async function middleware(request: NextRequest) {
     if (isProtectedRoute && !demoUser) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
+    if (
+      demoUser &&
+      isProtectedRoute &&
+      !isAdminRoute &&
+      !pathname.startsWith("/onboarding") &&
+      !pathname.startsWith("/api/") &&
+      !guestProfileOnboarded(request)
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      url.search = "";
       return NextResponse.redirect(url);
     }
 
@@ -187,6 +216,30 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/discover";
     return redirectWithAuthCookies(url);
+  }
+
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  if (
+    user &&
+    userId &&
+    isProtectedRoute &&
+    !isAdminRoute &&
+    !pathname.startsWith("/onboarding") &&
+    !pathname.startsWith("/api/")
+  ) {
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("onboarded")
+      .eq("id", userId)
+      .maybeSingle();
+    // A failed read must not lock the app. A missing or unfinished profile
+    // goes through onboarding; there is no "set up later" bypass.
+    if (!profileError && profile?.onboarded !== true) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      url.search = "";
+      return redirectWithAuthCookies(url);
+    }
   }
 
   return supabaseResponse;

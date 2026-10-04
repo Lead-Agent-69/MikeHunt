@@ -469,17 +469,20 @@ export default function OnboardingPage() {
         </p>
         <div className="mt-7">{current.body}</div>
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
-          <button
-            type="button"
-            onClick={() =>
-              step > 0 ? setStep(step - 1) : router.push("/discover")
-            }
-            disabled={saving}
-            className="inline-flex min-h-12 items-center gap-2 px-3 py-2 text-sm font-bold text-[var(--t4)] disabled:opacity-60"
-          >
-            {step > 0 && <ArrowLeft size={16} aria-hidden="true" />}
-            {step === 0 ? "Set up later" : "Back"}
-          </button>
+          {step > 0 ? (
+            <button
+              type="button"
+              onClick={() => setStep(step - 1)}
+              disabled={saving}
+              className="inline-flex min-h-12 items-center gap-2 px-3 py-2 text-sm font-bold text-[var(--t4)] disabled:opacity-60"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
