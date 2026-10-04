@@ -22,6 +22,14 @@ export async function ensureAccountRows(
   const admin = createServerComponentClient();
   const name = displayName(user, requestedName);
 
+  const { data: existingProfile, error: existingProfileError } = await admin
+    .from("user_profiles")
+    .select("onboarded")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (existingProfileError) throw existingProfileError;
+
   const [profileResult, dealerResult] = await Promise.all([
     admin.from("user_profiles").upsert(
       {
@@ -51,5 +59,9 @@ export async function ensureAccountRows(
 
   if (profileResult.error) throw profileResult.error;
   if (dealerResult.error) throw dealerResult.error;
-  return { userId: user.id, name };
+  return {
+    userId: user.id,
+    name,
+    onboarded: existingProfile?.onboarded === true,
+  };
 }

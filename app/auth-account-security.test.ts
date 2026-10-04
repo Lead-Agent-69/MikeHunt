@@ -25,4 +25,15 @@ describe("account creation security", () => {
     expect(middleware).toContain("redirectWithAuthCookies");
     expect(middleware).toContain("supabaseResponse.cookies\n      .getAll()");
   });
+
+  it("returns OAuth session cookies on the callback redirect", () => {
+    const callback = readFileSync("app/auth/callback/route.ts", "utf8");
+    expect(callback).toContain("const response = NextResponse.redirect");
+    expect(callback).toContain("response.cookies.set(name, value, options)");
+    expect(callback).toContain("return response;");
+    expect(callback).toContain(
+      'response.headers.set("location", `${base}/onboarding`)',
+    );
+    expect(callback).not.toContain('import { cookies } from "next/headers"');
+  });
 });

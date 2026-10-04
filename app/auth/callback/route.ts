@@ -1,40 +1,52 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { ensureAccountRows } from "@/lib/auth/account-bootstrap";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
 // a session (writing the auth cookies) and forward to `next` (the deal feed by default). Public
 // route: the user isn't authenticated until the exchange completes.
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const nextParam = searchParams.get("next") || "/discover";
   // Only allow relative in-app redirects (no open redirect to arbitrary hosts).
   const next = nextParam.startsWith("/") ? nextParam : "/discover";
+  // Behind Vercel the public host is in x-forwarded-host; keep every callback
+  // redirect on the same public origin so auth cookies are returned to the browser.
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const isLocal = process.env.NODE_ENV === "development";
+  const base = isLocal
+    ? origin
+    : forwardedHost
+      ? `https://${forwardedHost}`
+      : origin;
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.redirect(
-      `${origin}/login?error=supabase_not_configured`,
-    );
+    return NextResponse.redirect(`${base}/login?error=supabase_not_configured`);
   }
 
   if (code) {
-    const cookieStore = await cookies();
+    // Supabase may rotate several session cookies while exchanging the PKCE code.
+    // They must be set on this redirect response; writing to a separate cookie store
+    // and then creating a new redirect loses the authenticated session.
+    const response = NextResponse.redirect(`${base}${next}`);
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            return request.cookies.getAll();
           },
           setAll(
             cookiesToSet: { name: string; value: string; options: any }[],
           ) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value),
+            );
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              response.cookies.set(name, value, options),
             );
           },
         },
@@ -48,23 +60,20 @@ export async function GET(request: Request) {
       } = await supabase.auth.getUser();
       if (user) {
         try {
-          await ensureAccountRows(user);
+          const account = await ensureAccountRows(user);
+          // A user who has not chosen their buying preferences gets the same
+          // onboarding path whether they joined by email or Google.
+          if (!account.onboarded && next === "/discover") {
+            response.headers.set("location", `${base}/onboarding`);
+          }
         } catch (bootstrapError) {
           console.error("OAuth account bootstrap failed:", bootstrapError);
-          return NextResponse.redirect(`${origin}/login?error=account_setup`);
+          return NextResponse.redirect(`${base}/login?error=account_setup`);
         }
       }
-      // Behind Vercel the public host is in x-forwarded-host; use it so the redirect stays on-origin.
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocal = process.env.NODE_ENV === "development";
-      const base = isLocal
-        ? origin
-        : forwardedHost
-          ? `https://${forwardedHost}`
-          : origin;
-      return NextResponse.redirect(`${base}${next}`);
+      return response;
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=oauth`);
+  return NextResponse.redirect(`${base}/login?error=oauth`);
 }
