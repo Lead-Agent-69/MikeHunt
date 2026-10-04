@@ -89,6 +89,7 @@ describe("GET /api/discover scoped feed contract", () => {
       rail.deals.map((deal: any) => deal.id),
     );
     expect(body.totalListings).toBe(1);
+    expect(body.marketListings).toBe(2);
     expect(ids).toContain("dealer-car");
     expect(ids).not.toContain("deal-1");
   }, 15_000);

@@ -212,7 +212,8 @@ export function StatePicker({
               Your states
             </h2>
             <p className="mt-1 text-sm text-[var(--t4)]">
-              Only see {noun} where you want them. Add as many as you like.
+              Counts are active listings before your buying profile filters
+              them. Add as many markets as you like.
             </p>
           </div>
           <button

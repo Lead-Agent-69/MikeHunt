@@ -91,9 +91,12 @@ export function normalizeBuyerMode(value: unknown): BuyerMode | undefined {
 }
 
 const VEHICLE_TO_QUERY: Record<string, string> = {
+  "All vehicle types": "",
   Trucks: "truck",
   SUVs: "suv",
   Sedans: "sedan",
+  Coupes: "coupe",
+  Convertibles: "convertible",
   Vans: "van",
   Luxury: "luxury",
   Performance: "performance",
@@ -104,6 +107,19 @@ const VEHICLE_TO_QUERY: Record<string, string> = {
 const QUERY_TO_VEHICLE: Record<string, string> = Object.fromEntries(
   Object.entries(VEHICLE_TO_QUERY).map(([label, query]) => [query, label]),
 );
+
+function isAnyVehicle(value: unknown): boolean {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return (
+    !normalized ||
+    normalized === "all" ||
+    normalized === "any" ||
+    normalized === "any vehicle" ||
+    normalized === "all vehicle types"
+  );
+}
 
 const LANE_VALUE_TO_LABEL: Record<string, string> = {
   all: "All deals",
@@ -138,12 +154,13 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
   const maxPrice = Number(raw.maxPrice || 0);
   const minPrice = Number(raw.minPrice || 0);
   const targetProfit = Number(raw.targetProfit || 0);
-  const vehicle =
+  const rawVehicle =
     typeof raw.vehicle === "string"
       ? raw.vehicle
       : typeof raw.vehicleType === "string"
         ? QUERY_TO_VEHICLE[raw.vehicleType] || raw.vehicleType
         : undefined;
+  const vehicle = isAnyVehicle(rawVehicle) ? undefined : rawVehicle;
   const laneValue =
     typeof raw.laneValue === "string"
       ? raw.laneValue
@@ -153,11 +170,12 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
   const normalized: BuyerIntent = {
     buyerMode: normalizeBuyerMode(raw.buyerMode || raw.mode),
     vehicle,
-    vehicleType:
-      typeof raw.vehicleType === "string"
+    vehicleType: isAnyVehicle(raw.vehicleType)
+      ? undefined
+      : typeof raw.vehicleType === "string"
         ? raw.vehicleType
         : vehicle
-          ? VEHICLE_TO_QUERY[vehicle] || vehicle
+          ? (VEHICLE_TO_QUERY[vehicle] ?? vehicle)
           : undefined,
     lane:
       typeof raw.lane === "string"
@@ -242,8 +260,10 @@ export function buildBuyerIntentQuery(
     (intent?.state && intent.state !== "Nationwide" ? intent.state : "");
   const laneValue = intent?.laneValue || "";
   const vehicleQuery =
-    intent?.vehicleType ||
-    (intent?.vehicle ? VEHICLE_TO_QUERY[intent.vehicle] || intent.vehicle : "");
+    intent?.vehicleType ??
+    (intent?.vehicle
+      ? (VEHICLE_TO_QUERY[intent.vehicle] ?? intent.vehicle)
+      : "");
   const makes = intent?.makes?.length
     ? intent.makes
     : intent?.preferredMakes || [];
