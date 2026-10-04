@@ -1,8 +1,8 @@
 // lib/valuation/confidence.ts
-// Honest confidence for a resale estimate, derived from what actually backs the number. Real sold-price
-// anchored comps = high; live retail comps = good; a market aggregate = fair; an offline baseline =
-// estimate only. Shared by the deal page and the discovery cards so the signal is consistent — a dealer
-// should trust a comp-backed number and discount a baseline guess, at a glance, before clicking in.
+// Honest confidence for a resale estimate, derived from what actually backs the number. A sold blend
+// (rare, damaged titles only) = high; ask-based comps = good; a market aggregate = fair; an offline
+// baseline = estimate only. Shared by the deal page and the discovery cards so the signal is consistent.
+// Wording only — ASK_TO_SOLD and the sold blend weight are not retuned here.
 
 export type ValueConfidence = "high" | "good" | "fair" | "estimate";
 
@@ -22,12 +22,12 @@ export const CONFIDENCE_META: Record<
   high: {
     label: "High",
     color: "var(--green)",
-    blurb: "Anchored to real sold prices",
+    blurb: "Partly blended with completed sales",
   },
   good: {
     label: "Good",
     color: "var(--green)",
-    blurb: "Backed by live retail comps",
+    blurb: "Ask-based comps",
   },
   fair: {
     label: "Fair",
