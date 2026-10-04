@@ -41,7 +41,7 @@ interface BestBuyData {
 }
 
 export default function BestBuyPage() {
-  const [capital, setCapital] = useState<number>(15000);
+  const [capital, setCapital] = useState<number>(0);
   const [strategy, setStrategy] = useState<
     "max_roi" | "fastest_flip" | "max_profit"
   >("max_roi");
@@ -125,15 +125,15 @@ export default function BestBuyPage() {
           <div className="flex items-center gap-2 mb-2">
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Automated Opportunity Engine
+              One listing to check first
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-[var(--t1)] tracking-tight">
             Next Best Buy
           </h1>
           <p className="text-[var(--t3)] text-sm sm:text-base mt-1 max-w-2xl">
-            Rank live dealer auctions and private listings by proof, margin,
-            velocity, and your available capital.
+            Ask, city, and source only. Not a buy until condition and the
+            all-in price are checked.
           </p>
         </div>
 
@@ -148,16 +148,6 @@ export default function BestBuyPage() {
             }`}
           >
             Max ROI %
-          </button>
-          <button
-            onClick={() => setStrategy("fastest_flip")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              strategy === "fastest_flip"
-                ? "bg-cyan-500 text-black shadow-md font-black"
-                : "text-[var(--t3)] hover:text-[var(--t1)]"
-            }`}
-          >
-            Fast Turn (&lt;14d)
           </button>
           <button
             onClick={() => setStrategy("max_profit")}
@@ -262,9 +252,9 @@ export default function BestBuyPage() {
                       <span
                         className={`text-xs font-black ${isReady ? "text-emerald-400" : "text-amber-300"}`}
                       >
-                        {isReady
-                          ? `+${item.roiPct}% ROI`
-                          : item.evidence?.label || "Needs verification"}
+                        {item.source
+                          ? String(item.source).replace(/_/g, " ")
+                          : "Source on file"}
                       </span>
                     </div>
 
@@ -274,9 +264,8 @@ export default function BestBuyPage() {
                       </h3>
                       <p className="text-xs text-[var(--t4)] mt-0.5">
                         {item.locationState ? `${item.locationState} · ` : ""}
-                        {isReady && item.daysToTurn
-                          ? `${item.daysToTurn}d estimated turn`
-                          : "Research before purchase"}
+                        Not a buy until condition and the all-in price are
+                        checked.
                       </p>
                     </div>
 
@@ -365,89 +354,6 @@ export default function BestBuyPage() {
           </div>
         </div>
       )}
-
-      {/* A projection is only useful after the lead clears the evidence gate. */}
-      {data?.bestBuy?.evidence?.acquisitionReady === true ? (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/20 via-[var(--s1)] to-black/80 shadow-2xl space-y-6">
-          <div className="max-w-3xl space-y-2">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-emerald-400">
-              <BarChart3 className="h-4 w-4" />
-              Capital Velocity Compound Model
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-[var(--t1)] tracking-tight">
-              How Much Can You Grow ${capital.toLocaleString()} in 90 Days?
-            </h2>
-            <p className="text-xs sm:text-sm text-[var(--t3)] leading-relaxed">
-              By rolling your initial bankroll and profits every 18 days into
-              MikeHunt Next Best Buy opportunities (averaging{" "}
-              {data?.stats.avgRoi ?? 32}% ROI per flip), here is your projected
-              compounding trajectory:
-            </p>
-          </div>
-
-          {/* 3-Stage Visual Pipeline */}
-          {(() => {
-            const roi = (data?.stats.avgRoi ?? 32) / 100;
-            const flip1 = Math.round(capital * (1 + roi));
-            const flip2 = Math.round(flip1 * (1 + roi));
-            const flip3 = Math.round(flip2 * (1 + roi));
-            const netGain = flip3 - capital;
-
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t4)] block">
-                    Starting Bankroll
-                  </span>
-                  <Mono className="text-xl font-black text-[var(--t1)] mt-1 block">
-                    ${capital.toLocaleString()}
-                  </Mono>
-                  <span className="text-[10px] text-[var(--t5)] mt-0.5 block">
-                    Day 0 Deployment
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400 block">
-                    After Flip #1 (Day 18)
-                  </span>
-                  <Mono className="text-xl font-black text-cyan-400 mt-1 block">
-                    ${flip1.toLocaleString()}
-                  </Mono>
-                  <span className="text-[10px] text-[var(--t4)] mt-0.5 block">
-                    +${(flip1 - capital).toLocaleString()} net profit
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-[var(--s0)] border border-[var(--b2)]">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
-                    After Flip #2 (Day 42)
-                  </span>
-                  <Mono className="text-xl font-black text-amber-400 mt-1 block">
-                    ${flip2.toLocaleString()}
-                  </Mono>
-                  <span className="text-[10px] text-[var(--t4)] mt-0.5 block">
-                    +${(flip2 - flip1).toLocaleString()} net profit
-                  </span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 block">
-                    Final Portfolio (Day 90)
-                  </span>
-                  <Mono className="text-2xl font-black text-emerald-400 mt-1 block">
-                    ${flip3.toLocaleString()}
-                  </Mono>
-                  <span className="text-[10px] font-bold text-emerald-400/90 mt-0.5 block">
-                    +${netGain.toLocaleString()} Total Gain (
-                    {Math.round((netGain / capital) * 100)}%)
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      ) : null}
 
       {selectedLoiDeal && (
         <CashOfferLetterModal
