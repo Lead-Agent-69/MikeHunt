@@ -119,7 +119,9 @@ export function NextBestBuySpotlight({
     return null;
   }
 
-  const city = [deal?.locationCity, deal?.locationState].filter(Boolean).join(", ");
+  const city = [deal?.locationCity, deal?.locationState]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-[var(--b2)] bg-[var(--s0)] p-6 sm:p-8">
@@ -127,7 +129,9 @@ export function NextBestBuySpotlight({
         One listing to check first
       </p>
       {loading || !deal ? (
-        <p className="mt-4 text-sm text-[var(--t3)]">Loading a listing in your scope…</p>
+        <p className="mt-4 text-sm text-[var(--t3)]">
+          Loading a listing in your scope…
+        </p>
       ) : (
         <div className="mt-4 space-y-3">
           <Link

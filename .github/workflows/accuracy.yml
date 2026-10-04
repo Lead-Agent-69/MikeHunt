@@ -31,3 +31,6 @@ jobs:
 
       - name: Run valuation backtest accuracy gate
         run: npm run accuracy:gate
+      - name: Cleanup workspace
+        if: always()
+        run: git clean -ffdx -e node_modules

@@ -67,9 +67,9 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
       const headed = scrapeSourcesEnv(file);
       expect(headed).toContain("truecar");
       for (const id of defaults) expect(headed).toContain(id);
-      expect(headed.filter((id) => !defaults.includes(id) && id !== "truecar")).toEqual(
-        [],
-      );
+      expect(
+        headed.filter((id) => !defaults.includes(id) && id !== "truecar"),
+      ).toEqual([]);
     }
   });
 
@@ -79,7 +79,9 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
     expect(src).toContain("if (photoCacheMax > 0)");
     expect(src).not.toContain('CACHE_PHOTOS_MAX || "12"');
     for (const file of ["fly.toml", "Dockerfile.scraper"]) {
-      expect(readFileSync(file, "utf8")).toMatch(/CACHE_PHOTOS_MAX\s*=\s*"?0"?/);
+      expect(readFileSync(file, "utf8")).toMatch(
+        /CACHE_PHOTOS_MAX\s*=\s*"?0"?/,
+      );
     }
     const fly = readFileSync("fly.toml", "utf8");
     const image = readFileSync("Dockerfile.scraper", "utf8");

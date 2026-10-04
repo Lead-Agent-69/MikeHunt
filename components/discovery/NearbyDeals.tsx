@@ -97,8 +97,9 @@ export function NearbyDeals() {
             const where =
               miles != null
                 ? `About ${miles} miles${zipMode ? ` from ${zip}` : ""}`
-                : [d.locationCity, d.locationState].filter(Boolean).join(", ") ||
-                  "Distance not available";
+                : [d.locationCity, d.locationState]
+                    .filter(Boolean)
+                    .join(", ") || "Distance not available";
             return (
               <Link
                 key={d.id}

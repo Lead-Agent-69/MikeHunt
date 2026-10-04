@@ -9,7 +9,9 @@ describe("value confidence copy", () => {
     expect(CONFIDENCE_META.high.blurb).toBe(
       "Partly blended with completed sales",
     );
-    expect(CONFIDENCE_META.good.blurb.toLowerCase()).not.toContain("live retail");
+    expect(CONFIDENCE_META.good.blurb.toLowerCase()).not.toContain(
+      "live retail",
+    );
     expect(CONFIDENCE_META.high.blurb.toLowerCase()).not.toContain("real sold");
   });
 });

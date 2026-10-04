@@ -288,7 +288,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       : "Operability unconfirmed"
                 }
               >
-                {cond.runs === "yes" ? "Γ£ô " : cond.runs === "no" ? "Γ£ò " : ""}
+                {cond.runs === "yes"
+                  ? "Γ£ô "
+                  : cond.runs === "no"
+                    ? "Γ£ò "
+                    : ""}
                 {cond.label}
                 {cond.detail ? ` ┬╖ ${cond.detail}` : ""}
               </span>
@@ -382,13 +386,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
               : deal.sellEstimate && !deal.soldAnchored
                 ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}${
-                    deal.compCount
-                      ? ` · ${deal.compCount} listing asks`
-                      : ""
+                    deal.compCount ? ` · ${deal.compCount} listing asks` : ""
                   }`
                 : "Resale basis not on file."}
             {` · ${relativeFreshness(deal.lastSeenAt)}`}
-            {deal.valueAsOf ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}` : ""}
+            {deal.valueAsOf
+              ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
+              : ""}
             {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
             {deal.sellerType === "dealer"
               ? " · Dealer"

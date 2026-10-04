@@ -969,28 +969,31 @@ export default function DealPage({
       )}
       {serverDeal &&
         serverDeal?.decisionEvidence?.state !== "auction_watch" &&
-        (store.userType === "dealer"
-          ? serverDeal?.decisionEvidence?.acquisitionReady === true && (
-          <DecisionCommandPanel
-            deal={{
-              ...serverDeal,
-              id,
-              askPrice:
-                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
-              vin: serverDeal?.vin || store.vin,
-              trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
-            }}
-            engineVerdict={engineVerdict}
-            engineNetProfit={engineNetProfit}
-            engineScore={engineScore}
-            engineRoi={engineRoi}
-            detailQualityScore={detailQuality?.score}
-            detailMathConfidence={detailMathConfidence}
-            sourceHealth={sourceHealth}
-            proofLinks={proofLinks}
-            onCashOffer={() => setShowCashOfferModal(true)}
-            onWatchPrice={handleWatchPrice}
-          />
+        (store.userType === "dealer" ? (
+          serverDeal?.decisionEvidence?.acquisitionReady === true && (
+            <DecisionCommandPanel
+              deal={{
+                ...serverDeal,
+                id,
+                askPrice:
+                  serverDeal?.ask_price ||
+                  serverDeal?.askPrice ||
+                  store.askPrice,
+                vin: serverDeal?.vin || store.vin,
+                trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+              }}
+              engineVerdict={engineVerdict}
+              engineNetProfit={engineNetProfit}
+              engineScore={engineScore}
+              engineRoi={engineRoi}
+              detailQualityScore={detailQuality?.score}
+              detailMathConfidence={detailMathConfidence}
+              sourceHealth={sourceHealth}
+              proofLinks={proofLinks}
+              onCashOffer={() => setShowCashOfferModal(true)}
+              onWatchPrice={handleWatchPrice}
+            />
+          )
         ) : (
           <PersonalListingLead
             deal={{

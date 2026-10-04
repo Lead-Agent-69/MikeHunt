@@ -500,10 +500,13 @@ function StatusStrip({
           )}
           style={{ background: error ? "var(--red)" : "var(--green)" }}
         />
-        <span style={{ color: error ? "var(--red)" : "var(--green)" }}>
-          {error ? "[ERR]" : "[OK]"}
+        <span className="text-[var(--t4)] font-semibold">
+          {error
+            ? "Couldn't update vehicles"
+            : loading
+              ? "Updating vehicles..."
+              : "Vehicles updated"}
         </span>
-        <span className="text-[var(--t4)] font-semibold">Connected</span>
       </span>
 
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
@@ -1071,14 +1074,12 @@ function EmptyState({
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        {hasScopedProof
-          ? "No matches in this exact scope"
-          : "Scanning for deals"}
+        {hasScopedProof ? "No matching vehicles" : "No vehicles to show yet"}
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
-          ? "The selected source path is reachable, but the current lane, state, keyword, dealer, price, or title filters do not return active vehicles together. Broaden one filter to see what inventory is available."
-          : "We’re continuously scanning thousands of listings for profitable flips. Nothing matches your current view yet — try widening your filters, or check back in a few minutes as fresh deals land."}
+          ? "No available vehicles match these filters. Try another location, a higher budget, or a broader vehicle search."
+          : "Refresh available inventory or adjust your filters to look for more vehicles."}
       </p>
 
       {hasScopedProof && (
@@ -1093,13 +1094,13 @@ function EmptyState({
             <div className="font-black text-[var(--t1)]">
               {scopedRows.toLocaleString()}
             </div>
-            <div className="text-[var(--t5)]">rows in scope</div>
+            <div className="text-[var(--t5)]">matching vehicles</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
               {blockedSources.length}
             </div>
-            <div className="text-[var(--t5)]">blocked</div>
+            <div className="text-[var(--t5)]">sources unavailable</div>
           </div>
         </div>
       )}

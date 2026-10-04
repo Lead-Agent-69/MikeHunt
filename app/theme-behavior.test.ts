@@ -81,6 +81,10 @@ describe("appearance preference", () => {
       "--glow-bg: linear-gradient(180deg, #111318, #0a0a0f)",
     );
     expect(css).toContain("color-scheme: dark");
+    const offline = readFileSync("public/offline.html", "utf8");
+    expect(offline).toContain("background: #ffffff");
+    expect(offline).toContain("/brand/MIKEHUNT-M.svg");
+    expect(offline).toContain('role="status"');
     const lightGroup = css.slice(
       css.indexOf("Premium acquisition skin"),
       css.indexOf("/* Dark theme */"),

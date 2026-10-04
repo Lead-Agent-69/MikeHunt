@@ -423,7 +423,6 @@ async function main() {
       } catch (e) {
         console.warn("photo hosting skipped:", (e as Error).message);
       }
-
     }
   }
 

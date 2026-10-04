@@ -132,8 +132,8 @@ export default function BestBuyPage() {
             Next Best Buy
           </h1>
           <p className="text-[var(--t3)] text-sm sm:text-base mt-1 max-w-2xl">
-            Ask, city, and source only. Not a buy until condition and the
-            all-in price are checked.
+            Ask, city, and source only. Not a buy until condition and the all-in
+            price are checked.
           </p>
         </div>
 

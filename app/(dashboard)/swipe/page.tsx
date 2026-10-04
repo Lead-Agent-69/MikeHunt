@@ -43,7 +43,6 @@ type SwipeDeal = {
   images?: string[];
 };
 
-
 function DealFace({ deal }: { deal: SwipeDeal }) {
   const [imgFailed, setImgFailed] = useState(false);
   const img = proxiedImage(deal.images?.[0]);

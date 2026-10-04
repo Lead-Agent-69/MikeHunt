@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 describe("buyer card stamps", () => {
   it("does not default a profit score or urge a buy", () => {
     const deal = readFileSync("components/shared/DealCard.tsx", "utf8");
-    const discovery = readFileSync("components/discovery/DiscoveryCard.tsx", "utf8");
+    const discovery = readFileSync(
+      "components/discovery/DiscoveryCard.tsx",
+      "utf8",
+    );
     const swipe = readFileSync("app/(dashboard)/swipe/page.tsx", "utf8");
 
     expect(deal).not.toContain("profitScore = 50");

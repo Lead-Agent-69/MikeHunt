@@ -354,7 +354,11 @@ export function ImageGallery({
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              <AnimatePresence initial={false} custom={direction} mode="popLayout">
+              <AnimatePresence
+                initial={false}
+                custom={direction}
+                mode="popLayout"
+              >
                 <motion.div
                   key={currentIndex}
                   custom={direction}

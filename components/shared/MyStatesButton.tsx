@@ -19,8 +19,13 @@ export function MyStatesButton({
   const { prefs } = usePreferences();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
+  const defaultMarket = prefs.buyerScope?.state || prefs.carsState;
   const states =
-    statesOverride || ((prefs as any).carsStates as string[] | undefined) || [];
+    statesOverride ||
+    prefs.carsStates ||
+    (defaultMarket && defaultMarket.toUpperCase() !== "NATIONWIDE"
+      ? [defaultMarket]
+      : []);
   const label =
     states.length === 0
       ? "All states"

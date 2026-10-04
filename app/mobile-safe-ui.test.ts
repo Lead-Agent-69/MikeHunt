@@ -73,21 +73,16 @@ describe("mobile fixed UI surfaces", () => {
 
     // Editorial showcase must not force a full-viewport interstitial over the feed.
     expect(feedPage).not.toContain("snap-start min-h-screen");
-    expect(feedPage).toContain(
-      "pb-[calc(5rem+env(safe-area-inset-bottom))]",
-    );
+    expect(feedPage).toContain("pb-[calc(5rem+env(safe-area-inset-bottom))]");
     // Feed card actions + price block clear BottomNav (58px) + home indicator.
     expect(feedPage).toContain(
       "bottom-[calc(9rem+env(safe-area-inset-bottom))]",
     );
-    expect(feedPage).toContain(
-      "pb-[calc(4.5rem+env(safe-area-inset-bottom))]",
-    );
+    expect(feedPage).toContain("pb-[calc(4.5rem+env(safe-area-inset-bottom))]");
     // Install nudge sits above the tab bar (same clearance family as PWARegister).
     expect(installPrompt).toContain(
       "bottom-[calc(72px+env(safe-area-inset-bottom))]",
     );
     expect(installPrompt).not.toContain("fixed inset-x-0 bottom-0 z-50");
   });
-
 });

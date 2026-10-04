@@ -7,10 +7,7 @@ import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
-import {
-  VERDICT_STYLES,
-  formatCondition,
-} from "./deal-card/utils";
+import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { buyTerm } from "@/lib/deal-terms";
 import { qualityFieldLabel } from "@/lib/data-quality";

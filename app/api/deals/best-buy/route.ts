@@ -255,8 +255,7 @@ export async function GET(req: NextRequest) {
 
       // Safety buffer: how much can market drop before breaking even
       const downsideBuffer = profit;
-      const discountToComps =
-        sellEst != null ? Math.max(0, sellEst - ask) : 0;
+      const discountToComps = sellEst != null ? Math.max(0, sellEst - ask) : 0;
 
       return {
         id: deal.id,
@@ -330,8 +329,7 @@ export async function GET(req: NextRequest) {
   const aiRationale = {
     headline: "One listing to check first.",
     spreadAnalysis: best.evidence.summary,
-    turnSpeed:
-      "Not a buy until condition and the all-in price are checked.",
+    turnSpeed: "Not a buy until condition and the all-in price are checked.",
     riskBuffer: isVerifiedBuy
       ? `Projected cushion is $${best.downsideBuffer.toLocaleString()} after current modeled costs; final transaction terms still require confirmation.`
       : "Projected profit is intentionally withheld from the decision until the missing evidence is resolved.",

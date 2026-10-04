@@ -1,18 +1,13 @@
 // scripts/valuation-backtest.ts
 //
-// Enterprise accuracy harness — a proper TRAIN/TEST split on real retail listings.
-//
-// Why not eBay sold: only ~1% of sold_listings carry mileage and the channel is budget/salvage (a
-// "2017 Silverado, $2,275" is a parts truck), so it can't benchmark clean-retail valuation. Clean
-// retail TRANSACTION data is gated/paid. The honest measure with free data: hold out a random slice of
-// real RETAIL listings, build the comp index from the rest, then predict the held-out cars and compare
-// to their actual market ask (× the ask→sold haircut). This is genuine out-of-sample accuracy: "given
-// every OTHER comparable car, how close do we price this one?".
+// In-sample asking-price proxy regression check, NOT transaction accuracy.
+// The live index includes these listings. The 7% haircut is an assumption, not a sale outcome.
 //
 // Run: npx tsx scripts/valuation-backtest.ts
 
 import * as dotenv from "dotenv";
 import path from "path";
+import { requireProxySample } from "../lib/scoring/proxy-sample";
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 const RETAIL = new Set([
@@ -43,16 +38,16 @@ async function main() {
       .lt("ask_price", 90000)
       .gt("mileage", 0)
       .range(from, from + 999);
-    if (error || !data || !data.length) break;
+    if (error)
+      throw new Error(`Retail benchmark query failed: ${error.message}`);
+    if (!data?.length) break;
     rows.push(...data);
     if (data.length < 1000) break;
   }
   console.log(`retail listings with mileage: ${rows.length}`);
 
   await mv.loadMarketIndex(sb);
-  // Score a 1-in-5 slice against the live index. Self-influence is negligible in the deep buckets we
-  // restrict to (the analyzer only trusts medium/high-confidence comps), so this approximates
-  // out-of-sample: "given the market, how close do we price this car vs its own ask?".
+  // Sampling does not make this held-out: all rows may be in the live index.
   const test = rows.filter((_, i) => i % 5 === 0);
 
   const abs: number[] = [];
@@ -60,14 +55,21 @@ async function main() {
   let scored = 0;
   for (const d of test) {
     const a = analyzeDeal(d as any);
-    if (!a.sellEstimate || a.sellBasis === "baseline") continue;
-    // Truth = the market's own ask, haircut to a sold-equivalent (same basis our estimate targets).
+    if (
+      !Number.isFinite(a.sellEstimate) ||
+      a.sellEstimate <= 0 ||
+      a.sellBasis === "baseline"
+    )
+      continue;
+    // Proxy reference only; no confirmed sale is observed here.
     const truth = d.ask_price * 0.93;
+    if (!Number.isFinite(truth) || truth <= 0) continue;
     const e = (a.sellEstimate - truth) / truth;
     abs.push(Math.abs(e));
     signed.push(e);
     scored++;
   }
+  requireProxySample(abs);
   abs.sort((a, b) => a - b);
   signed.sort((a, b) => a - b);
   const mean = (x: number[]) => x.reduce((s, v) => s + v, 0) / (x.length || 1);
@@ -76,10 +78,10 @@ async function main() {
     abs.filter((v) => v <= t).length / (abs.length || 1);
 
   console.log(
-    `\n=== Out-of-sample retail accuracy (${scored} held-out cars) ===`,
+    `\n=== In-sample asking-price proxy (${scored} sampled cars) ===`,
   );
   console.log(
-    `  MAPE:               ${(mean(abs) * 100).toFixed(1)}%   [enterprise target <12%]`,
+    `  Proxy MAPE:         ${(mean(abs) * 100).toFixed(1)}%   [not transaction accuracy]`,
   );
   console.log(`  Median abs err:     ${(at(abs, 0.5) * 100).toFixed(1)}%`);
   console.log(
@@ -104,7 +106,9 @@ async function main() {
       .eq("active", true)
       .gt("ask_price", 1000)
       .range(from, from + 999);
-    if (error || !data || !data.length) break;
+    if (error)
+      throw new Error(`Salvage benchmark query failed: ${error.message}`);
+    if (!data?.length) break;
     cp.push(...data);
     if (data.length < 1000) break;
   }
@@ -120,7 +124,7 @@ async function main() {
   ratios.sort((a, b) => a - b);
   console.log(`\n=== Salvage segment (Copart, ${ratios.length} lots) ===`);
   console.log(
-    `  Median sell/ask:    ${at(ratios, 0.5).toFixed(2)}  (conservative <1.0 = mostly PASS, good)`,
+    `  Median estimate/listed price: ${ratios.length ? at(ratios, 0.5).toFixed(2) : "unavailable"} (not a profit or quality measure)`,
   );
   console.log(
     `  Sell > 2× ask:      ${over2x} (${((over2x / (ratios.length || 1)) * 100).toFixed(1)}%)  (watch for over-value)`,

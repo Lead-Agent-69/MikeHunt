@@ -186,17 +186,16 @@
   --t3: #b0b0d0;
   --t4: #a3a8b5;
   --t5: #949baa;
-
-  --b1: rgba(255, 255, 255, 0.08);
-  --b2: rgba(255, 255, 255, 0.12);
-  --b3: rgba(255, 255, 255, 0.18);
-
   --green: #4ade9a;
   --red: #ff8580;
   --blue: #8eb6ff;
   --amber: #8eb6ff;
   --amber-d: #8eb6ff;
   --glow-bg: linear-gradient(180deg, #111318, #0a0a0f);
+
+  --b1: rgba(255, 255, 255, 0.08);
+  --b2: rgba(255, 255, 255, 0.12);
+  --b3: rgba(255, 255, 255, 0.18);
 
   --amber-lo: rgba(7, 91, 232, 0.2);
   --amber-bd: rgba(142, 182, 255, 0.4);

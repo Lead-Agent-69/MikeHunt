@@ -73,4 +73,3 @@ export async function cacheVehiclePhotos(
   }
   return out;
 }
-
