@@ -201,4 +201,44 @@ describe("GET /api/discover scoped feed contract", () => {
     );
     expect(aeDeal.dataQuality.missing).not.toContain("seller contact");
   });
+
+  it("honors the makes query the buyer intent already sends", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        {
+          ...baseRow,
+          id: "ford",
+          source: "independent_dealer",
+          source_url: "https://dealer.example/ford",
+          seller_type: "dealer",
+          condition: "clean",
+          damage_type: null,
+          make: "Ford",
+          ask_price: 15000,
+        },
+        {
+          ...baseRow,
+          id: "honda",
+          source: "independent_dealer",
+          source_url: "https://dealer.example/honda",
+          seller_type: "dealer",
+          condition: "clean",
+          damage_type: null,
+          make: "Honda",
+          ask_price: 14000,
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const res = await GET(req("/api/discover?makes=ford&state=TX&maxPrice=20000"));
+    const body = await res.json();
+    const ids = body.rails.flatMap((rail: any) =>
+      rail.deals.map((deal: any) => deal.id),
+    );
+    expect(res.status).toBe(200);
+    expect(body.makes).toEqual(["ford"]);
+    expect(ids).toContain("ford");
+    expect(ids).not.toContain("honda");
+  });
 });

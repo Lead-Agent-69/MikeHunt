@@ -209,6 +209,29 @@ function normalizeDealerSourceIds(value: string | null) {
     .slice(0, 25);
 }
 
+function parseMakesParam(value: string | null) {
+  const seen = new Set<string>();
+  const makes: string[] = [];
+  for (const part of (value || "").split(",")) {
+    const make = part.trim().replace(/\s+/g, " ");
+    const key = make.toLowerCase();
+    if (!make || seen.has(key)) continue;
+    seen.add(key);
+    makes.push(make);
+    if (makes.length >= 12) break;
+  }
+  return makes;
+}
+
+function rowMatchesMakes(row: { make?: string | null }, makes: string[]) {
+  if (!makes.length) return true;
+  const make = String(row.make || "")
+    .trim()
+    .toLowerCase();
+  if (!make) return false;
+  return makes.some((wanted) => wanted.toLowerCase() === make);
+}
+
 function rowTitleSignal(row: any) {
   return [
     row.title_type,
@@ -287,6 +310,7 @@ async function publicPreviewDeals(
   lane = "all",
   sellerType = "all",
   selectedSources: string[] = [],
+  makes: string[] = [],
 ) {
   const plan = planScrapeForBuyerScope({
     lane: lane || "all",
@@ -346,6 +370,7 @@ async function publicPreviewDeals(
     const matched = source.rows.filter((row: any) => {
       if (state && row.location_state !== state) return false;
       if (maxPrice && Number(row.ask_price || 0) > maxPrice) return false;
+      if (!rowMatchesMakes(row, makes)) return false;
       if (!rowMatchesQuery(row, q)) return false;
       return true;
     });
@@ -368,6 +393,7 @@ async function publicPreviewDeals(
     .filter((row: any) => {
       if (state && row.location_state !== state) return false;
       if (maxPrice && Number(row.ask_price || 0) > maxPrice) return false;
+      if (!rowMatchesMakes(row, makes)) return false;
       if (!rowMatchesQuery(row, q)) return false;
       return true;
     });
@@ -478,10 +504,12 @@ export async function GET(request: NextRequest) {
         searchParams.get("sourceId") ||
         searchParams.get("source"),
     );
+    const makes = parseMakesParam(searchParams.get("makes"));
+    const makesKey = makes.map((make) => make.toLowerCase()).join(",") || "any";
 
     if (!isSupabaseConfigured()) {
       const previewDeals = await cached(
-        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}`,
+        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
         60_000,
         () =>
           publicPreviewDeals(
@@ -491,6 +519,7 @@ export async function GET(request: NextRequest) {
             lane || "all",
             sellerType || "all",
             dealerSourceIds,
+            makes,
           ),
       );
       return NextResponse.json({
@@ -517,6 +546,7 @@ export async function GET(request: NextRequest) {
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
         dealerSourceIds,
+        makes: makes.length ? makes : undefined,
         personalized: false,
         configured: false,
         previewMode: true,
@@ -528,7 +558,7 @@ export async function GET(request: NextRequest) {
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
     const { merged, rowCount, marketListingCount } = await cached(
-      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}`,
+      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -579,6 +609,7 @@ export async function GET(request: NextRequest) {
             )
           )
             return false;
+          if (!rowMatchesMakes(row, makes)) return false;
           if (lane && lane !== "all") {
             const rowLane = dealLane(row);
             if (lane === "damaged") {
@@ -956,6 +987,7 @@ export async function GET(request: NextRequest) {
       minPrice: minPrice || undefined,
       maxPrice: maxPrice || undefined,
       dealerSourceIds,
+      makes: makes.length ? makes : undefined,
       personalized,
       configured: true,
       previewMode: false,
