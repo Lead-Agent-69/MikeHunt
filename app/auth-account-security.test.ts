@@ -33,6 +33,7 @@ describe("account creation security", () => {
     const admin = readFileSync("lib/auth/admin.ts", "utf8");
     const operations = readFileSync("lib/auth/admin-operations.ts", "utf8");
     expect(admin).toContain('"/admin"');
+    expect(admin).not.toContain("NEXT_PUBLIC_ADMIN_EMAIL");
     expect(operations).toContain("canManageOperations");
     expect(operations).toContain("process.env.INGEST_SECRET");
 
