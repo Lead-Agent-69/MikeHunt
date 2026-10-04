@@ -1,6 +1,6 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v6'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v4'
+const STATIC_CACHE = 'MikeHunt-static-v7'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v5'
 
 const STATIC_ASSETS = [
   '/offline.html',
@@ -70,8 +70,21 @@ self.addEventListener('fetch', (event) => {
   // so login state and fresh server-rendered pages do not get stale cached HTML.
   if (request.mode === 'navigate' || url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(request).catch(() => {
-        if (request.mode === 'navigate') return caches.match('/offline.html')
+      fetch(request).catch(async () => {
+        // A worker fetch can fail transiently while the device is online. Retry a navigation once
+        // before replacing the screen with offline UI.
+        if (request.mode === 'navigate') {
+          await new Promise(resolve => setTimeout(resolve, 500))
+          try {
+            return await fetch(request)
+          } catch (_) {
+            return caches.match('/offline.html')
+          }
+        }
+        return new Response(JSON.stringify({ error: 'Request could not reach MIKEHUNT. Please retry.' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        })
       })
     )
     return

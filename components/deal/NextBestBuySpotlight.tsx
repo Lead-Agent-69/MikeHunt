@@ -16,10 +16,12 @@ import {
   Flame,
   CheckCircle2,
   MapPin,
+  AlertTriangle,
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
+import type { DecisionEvidence } from "@/lib/intelligence/decision-guard";
 
 interface BestBuyDeal {
   id: string;
@@ -56,8 +58,10 @@ interface BestBuyDeal {
     recommendedAction: string;
   };
   opportunityMode?: "buy" | "watchlist";
+  evidence: DecisionEvidence;
   matchScope?: {
     state?: string;
+    source?: string;
     lane?: string;
     sellerType?: string;
     titleType?: string;
@@ -65,88 +69,6 @@ interface BestBuyDeal {
     makes?: string[];
     maxPrice?: number;
     dealerSourceIds?: string[];
-  };
-}
-
-function num(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function scanVehicleToBestBuy(
-  vehicle: any,
-  params: URLSearchParams,
-): BestBuyDeal {
-  const ask = num(vehicle.askPrice);
-  const sell = num(vehicle.sellEstimate || vehicle.mmrValue || ask);
-  const profit = num(vehicle.true_net_profit ?? vehicle.profitEstimate);
-  const roi = ask > 0 ? Math.round((profit / ask) * 1000) / 10 : 0;
-  const maxBid = num(vehicle.recommendedMaxBid) || Math.round(ask * 0.92);
-  const targetOffer = Math.max(0, Math.round(Math.min(maxBid, ask * 0.88)));
-  const isBuy = profit > 0 && vehicle.dealVerdict === "go";
-  const makes = (params.get("makes") || "")
-    .split(",")
-    .map((make) => make.trim())
-    .filter(Boolean);
-
-  return {
-    id: vehicle.id,
-    year: num(vehicle.year),
-    make: vehicle.make || "",
-    model: vehicle.model || "",
-    trim: vehicle.trim,
-    title:
-      vehicle.title ||
-      `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim(),
-    vin: vehicle.vin || undefined,
-    mileage: vehicle.mileage ? num(vehicle.mileage) : undefined,
-    askPrice: ask,
-    sellEstimate: sell,
-    trueNetProfit: Math.round(profit),
-    roiPct: roi,
-    profitScore: num(vehicle.profitScore),
-    dealVerdict: vehicle.dealVerdict || (isBuy ? "go" : "hold"),
-    recommendedMaxBid: maxBid,
-    targetOffer,
-    locationCity: vehicle.locationCity,
-    locationState: vehicle.locationState,
-    images: vehicle.imageUrl ? [vehicle.imageUrl] : [],
-    source: vehicle.source,
-    sourceUrl: vehicle.sourceUrl,
-    sellerPhone: vehicle.sellerPhone,
-    liquidityScore: 78,
-    daysToTurn: 21,
-    downsideBuffer: Math.round(profit),
-    discountToComps: Math.max(0, Math.round(sell - ask)),
-    aiRationale: {
-      headline: isBuy
-        ? `Scoped BUY candidate — projected $${Math.round(profit).toLocaleString()} net`
-        : `Best scoped watch candidate — needs $${Math.abs(Math.round(profit)).toLocaleString()} more cushion`,
-      spreadAnalysis: `Matched the saved buyer intent from live Scan results. Listed at $${ask.toLocaleString()} against an estimated resale of $${sell.toLocaleString()}.`,
-      turnSpeed: `Prioritize source freshness, photo proof, and direct seller verification before committing capital.`,
-      riskBuffer: isBuy
-        ? `Estimated downside buffer is $${Math.round(profit).toLocaleString()} before additional recon surprises.`
-        : `Current math is not a buy at ask. Treat it as a watch or negotiation target.`,
-      recommendedAction: isBuy
-        ? `Inspect the source listing and cap the final bid near $${maxBid.toLocaleString()}.`
-        : `Verify title, VIN, mileage, and comps. Open near $${targetOffer.toLocaleString()} and keep the walk-away cap near $${maxBid.toLocaleString()}.`,
-    },
-    opportunityMode: isBuy ? "buy" : "watchlist",
-    matchScope: {
-      state: params.get("state") || undefined,
-      lane: params.get("lane") || undefined,
-      sellerType: params.get("sellerType") || undefined,
-      titleType: params.get("titleType") || undefined,
-      q: params.get("q") || undefined,
-      makes,
-      maxPrice: params.get("maxPrice")
-        ? num(params.get("maxPrice"))
-        : undefined,
-      dealerSourceIds: (params.get("dealerSourceIds") || "")
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean),
-    },
   };
 }
 
@@ -186,31 +108,12 @@ export function NextBestBuySpotlight({
         if (capital > 0) params.set("capital", capital.toString());
         if (state) params.set("state", state);
         if (strategy) params.set("strategy", strategy);
-        const tightScope =
-          params.has("dealerSourceIds") ||
-          params.has("dealers") ||
-          params.has("makes") ||
-          params.has("make") ||
-          params.has("maxPrice");
-        const res = await fetch(
-          tightScope
-            ? `/api/scan?${new URLSearchParams({
-                ...Object.fromEntries(params),
-                sort: "profit",
-                pageSize: "8",
-              }).toString()}`
-            : `/api/deals/best-buy?${params.toString()}`,
-        );
+        // The server applies the same evidence gate for every intent. Do not take the first
+        // profit-sorted Scan row and relabel it as a best buy.
+        const res = await fetch(`/api/deals/best-buy?${params.toString()}`);
         if (res.ok) {
           const json = await res.json();
-          const vehicle = tightScope ? json.vehicles?.[0] : null;
-          setDeal(
-            tightScope
-              ? vehicle
-                ? scanVehicleToBestBuy(vehicle, params)
-                : null
-              : json.bestBuy,
-          );
+          setDeal(json.bestBuy || null);
         }
       } catch (err) {
         console.error("Failed to fetch best buy deal:", err);
@@ -235,6 +138,7 @@ export function NextBestBuySpotlight({
   }
 
   const isWatchCandidate = deal?.opportunityMode === "watchlist";
+  const isVerifiedBuy = deal?.evidence.acquisitionReady === true;
 
   return (
     <div
@@ -252,17 +156,23 @@ export function NextBestBuySpotlight({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.25em] text-emerald-400">
-                {isWatchCandidate ? "Best Watch Candidate" : "Next Best Buy"}
+              <span
+                className={`text-[11px] font-black uppercase tracking-[0.25em] ${isVerifiedBuy ? "text-emerald-400" : "text-amber-300"}`}
+              >
+                {isWatchCandidate ? "Best Research Candidate" : "Next Best Buy"}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                {isWatchCandidate ? "Live Watch #1" : "Live Rank #1"}
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isVerifiedBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-300 border-amber-500/20"}`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${isVerifiedBuy ? "bg-emerald-400 animate-ping" : "bg-amber-300"}`}
+                />
+                {isWatchCandidate ? "Research first" : "Evidence checked"}
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-[var(--t1)] tracking-tight">
               {isWatchCandidate
-                ? "Best Candidate To Watch Or Negotiate"
+                ? "Verify This Listing Before You Buy"
                 : "Highest Margin Flip Opportunity"}
             </h2>
           </div>
@@ -300,10 +210,12 @@ export function NextBestBuySpotlight({
             {/* Left: Vehicle Hero & Metrics */}
             <div className="lg:col-span-7 space-y-5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg bg-emerald-500/10 px-3 py-1 text-xs font-black uppercase text-emerald-400 border border-emerald-500/20">
-                  {isWatchCandidate
-                    ? "Not a buy at ask"
-                    : `${deal.roiPct}% Projected ROI`}
+                <span
+                  className={`rounded-lg px-3 py-1 text-xs font-black uppercase border ${isVerifiedBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-300 border-amber-500/20"}`}
+                >
+                  {isVerifiedBuy
+                    ? `${deal.roiPct}% Projected ROI`
+                    : deal.evidence.label}
                 </span>
                 <span className="rounded-lg bg-[var(--s1)] px-3 py-1 text-xs font-bold text-[var(--t3)] border border-[var(--b1)]">
                   Score {deal.profitScore}/130
@@ -337,8 +249,10 @@ export function NextBestBuySpotlight({
                 </Link>
                 {deal.mileage ? (
                   <p className="text-sm font-semibold text-[var(--t3)] mt-1">
-                    {deal.mileage.toLocaleString()} miles · {deal.daysToTurn}{" "}
-                    days avg turn speed
+                    {deal.mileage.toLocaleString()} miles
+                    {isVerifiedBuy && deal.daysToTurn > 0
+                      ? ` · ${deal.daysToTurn} days estimated turn`
+                      : ""}
                   </p>
                 ) : null}
               </div>
@@ -356,30 +270,52 @@ export function NextBestBuySpotlight({
 
                 <div className="glass-panel p-3.5 rounded-2xl border border-[var(--b1)]">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)]">
-                    Resale Est.
+                    {isVerifiedBuy ? "Resale estimate" : "Market reference"}
                   </div>
-                  <Mono className="text-lg sm:text-xl font-bold text-[var(--t1)] mt-0.5">
-                    ${deal.sellEstimate.toLocaleString()}
-                  </Mono>
+                  {isVerifiedBuy ? (
+                    <Mono className="text-lg sm:text-xl font-bold text-[var(--t1)] mt-0.5">
+                      ${deal.sellEstimate.toLocaleString()}
+                    </Mono>
+                  ) : (
+                    <div className="mt-1 text-sm font-bold text-[var(--t3)]">
+                      Verify condition first
+                    </div>
+                  )}
                 </div>
 
-                <div className="glass-panel p-3.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                    {isWatchCandidate ? "Gap To Buy" : "Net Profit"}
+                <div
+                  className={`glass-panel p-3.5 rounded-2xl border ${isVerifiedBuy ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/20 bg-amber-500/5"}`}
+                >
+                  <div
+                    className={`text-[10px] font-bold uppercase tracking-wider ${isVerifiedBuy ? "text-emerald-400" : "text-amber-300"}`}
+                  >
+                    {isVerifiedBuy ? "Projected Net" : "Decision status"}
                   </div>
-                  <Mono className="text-lg sm:text-xl font-black text-emerald-400 mt-0.5">
-                    {deal.trueNetProfit >= 0 ? "+" : "-"}$
-                    {Math.abs(deal.trueNetProfit).toLocaleString()}
-                  </Mono>
+                  {isVerifiedBuy ? (
+                    <Mono className="text-lg sm:text-xl font-black text-emerald-400 mt-0.5">
+                      {deal.trueNetProfit >= 0 ? "+" : "-"}$
+                      {Math.abs(deal.trueNetProfit).toLocaleString()}
+                    </Mono>
+                  ) : (
+                    <div className="mt-1 text-sm font-bold text-amber-100">
+                      Research required
+                    </div>
+                  )}
                 </div>
 
                 <div className="glass-panel p-3.5 rounded-2xl border border-amber-500/20 bg-amber-500/5">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                    Target Offer
+                    {isVerifiedBuy ? "Target offer" : "Next requirement"}
                   </div>
-                  <Mono className="text-lg sm:text-xl font-black text-amber-400 mt-0.5">
-                    ${deal.targetOffer.toLocaleString()}
-                  </Mono>
+                  {isVerifiedBuy ? (
+                    <Mono className="text-lg sm:text-xl font-black text-amber-400 mt-0.5">
+                      ${deal.targetOffer.toLocaleString()}
+                    </Mono>
+                  ) : (
+                    <div className="mt-1 text-sm font-bold text-amber-100">
+                      Verify all-in cost
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -396,42 +332,54 @@ export function NextBestBuySpotlight({
                   <ChevronRight className="h-4 w-4" />
                 </Link>
 
-                <AcquireToPipelineButton
-                  deal={{
-                    id: deal.id,
-                    vin: deal.vin,
-                    year: deal.year,
-                    make: deal.make,
-                    model: deal.model,
-                    trim: deal.trim,
-                    askPrice: deal.askPrice,
-                    trueNetProfit: deal.trueNetProfit,
-                    sellEstimate: deal.sellEstimate,
-                    locationCity: deal.locationCity,
-                    locationState: deal.locationState,
-                  }}
-                />
+                {isVerifiedBuy ? (
+                  <AcquireToPipelineButton
+                    deal={{
+                      id: deal.id,
+                      vin: deal.vin,
+                      year: deal.year,
+                      make: deal.make,
+                      model: deal.model,
+                      trim: deal.trim,
+                      askPrice: deal.askPrice,
+                      trueNetProfit: deal.trueNetProfit,
+                      sellEstimate: deal.sellEstimate,
+                      locationCity: deal.locationCity,
+                      locationState: deal.locationState,
+                    }}
+                  />
+                ) : null}
 
                 <Link
                   href={`/deal/${deal.id}#negotiator`}
                   className="flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold text-[var(--t2)] bg-[var(--s1)] border border-[var(--b2)] hover:border-[var(--b3)] hover:text-[var(--t1)] transition-all"
                 >
                   <Target className="h-4 w-4 text-amber-400" />
-                  Open Offer Draft
+                  {isVerifiedBuy ? "Open Offer Draft" : "See What To Check"}
                 </Link>
               </div>
             </div>
 
             {/* Right: Decision Breakdown */}
             <div className="lg:col-span-5">
-              <div className="glass-panel p-6 rounded-3xl border border-emerald-500/20 bg-[var(--s1)]/80 space-y-4">
+              <div
+                className={`glass-panel p-6 rounded-3xl border bg-[var(--s1)]/80 space-y-4 ${isVerifiedBuy ? "border-emerald-500/20" : "border-amber-500/20"}`}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-400">
-                    <ShieldCheck className="h-4 w-4" />
-                    {isWatchCandidate ? "Watch Thesis" : "Decision Thesis"}
+                  <div
+                    className={`flex items-center gap-2 text-xs font-black uppercase tracking-widest ${isVerifiedBuy ? "text-emerald-400" : "text-amber-300"}`}
+                  >
+                    {isVerifiedBuy ? (
+                      <ShieldCheck className="h-4 w-4" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" />
+                    )}
+                    {isWatchCandidate
+                      ? "What still needs checking"
+                      : "Decision thesis"}
                   </div>
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                    {isWatchCandidate ? "Buy confidence low" : "Proof-backed"}
+                    {isVerifiedBuy ? "Evidence-backed" : "Not purchase-ready"}
                   </div>
                 </div>
 
@@ -440,7 +388,9 @@ export function NextBestBuySpotlight({
                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
                     <div>
                       <strong className="text-[var(--t1)]">
-                        Equity Spread:{" "}
+                        {isVerifiedBuy
+                          ? "Why this verdict:"
+                          : "Why it is on watch:"}{" "}
                       </strong>
                       {deal.aiRationale.spreadAnalysis}
                     </div>
@@ -450,7 +400,9 @@ export function NextBestBuySpotlight({
                     <Clock className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
                     <div>
                       <strong className="text-[var(--t1)]">
-                        Liquidity Velocity:{" "}
+                        {isVerifiedBuy
+                          ? "Market context:"
+                          : "What would make this a buy:"}{" "}
                       </strong>
                       {deal.aiRationale.turnSpeed}
                     </div>
@@ -460,7 +412,9 @@ export function NextBestBuySpotlight({
                     <Zap className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                     <div>
                       <strong className="text-[var(--t1)]">
-                        Downside Cushion:{" "}
+                        {isVerifiedBuy
+                          ? "Transaction risk:"
+                          : "What still needs checking:"}{" "}
                       </strong>
                       {deal.aiRationale.riskBuffer}
                     </div>
@@ -469,9 +423,11 @@ export function NextBestBuySpotlight({
 
                 <div className="rounded-2xl bg-black/40 border border-white/5 p-3.5">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)] mb-1">
-                    Negotiation Playbook
+                    {isVerifiedBuy ? "Next action" : "Do this next"}
                   </div>
-                  <p className="text-xs font-semibold text-emerald-300">
+                  <p
+                    className={`text-xs font-semibold ${isVerifiedBuy ? "text-emerald-300" : "text-amber-100"}`}
+                  >
                     {deal.aiRationale.recommendedAction}
                   </p>
                 </div>

@@ -273,6 +273,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           warnings: analysis.warnings,
           recommendations: analysis.recommendations,
           priceImplausible: analysis.priceImplausible,
+          priceSanity: analysis.priceSanity,
+          inferredPrice: analysis.inferredPrice ?? null,
+          conditionTag: analysis.conditionTag,
+          soldAnchored: analysis.soldAnchored,
           // Evidence + adjustments behind the resale number — powers the "How we valued this" card.
           valuation: analysis.valuation,
           // Forward-looking forecasts (time-to-sell, price-drop odds, urgency, projected ROI).

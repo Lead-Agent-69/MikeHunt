@@ -559,6 +559,23 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
     ];
   }
 
+  // A current auction bid is not the buyer's final all-in cost. Keep auction inventory useful for
+  // research and disciplined max-bid planning, but do not turn an in-progress bid into a BUY promise.
+  // A true buy-now listing is the exception because its purchase price is known.
+  const activeAuctionBid =
+    AUCTION_SOURCES.has((deal.source || "").toLowerCase()) &&
+    !(Number(deal.buy_now_price) > 0);
+  if (activeAuctionBid) {
+    if (verdict === "go") {
+      verdict = "hold";
+      score = Math.min(score, 84);
+    }
+    warnings = [
+      "Current auction bid is not a final purchase price. Verify the final bid, buyer fees, title, condition, and repair scope before treating this as a buy.",
+      ...warnings,
+    ];
+  }
+
   // Forecasting layer — what's ABOUT to happen, from data we already have (supply scarcity, days-on-market,
   // ask-vs-market, prior cuts, margin). Pure + explainable; degrades to nulls when a signal is missing.
   const firstSeen = (deal as { first_seen_at?: string }).first_seen_at;

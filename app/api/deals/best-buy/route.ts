@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 
 function csvParam(value: string | null) {
   return (value || "")
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
   const capital = parseFloat(searchParams.get("capital") || "0");
   const state = searchParams.get("state")?.trim().toUpperCase() || "";
+  const source = searchParams.get("source")?.trim().toLowerCase() || "";
   const lane = searchParams.get("lane")?.trim().toLowerCase() || "";
   const sellerType = searchParams.get("sellerType")?.trim().toLowerCase() || "";
   const titleType = searchParams.get("titleType")?.trim().toLowerCase() || "";
@@ -133,7 +135,7 @@ export async function GET(req: NextRequest) {
       id, year, make, model, trim, vin, mileage, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, recommended_max_bid,
       location_city, location_state, images, source, source_url, options,
-      condition, damage_type, deal_analysis
+      condition, damage_type, buy_now_price, auction_end_at, deal_analysis
     `;
 
   const buildQuery = (positiveOnly: boolean) => {
@@ -155,6 +157,7 @@ export async function GET(req: NextRequest) {
 
     if (positiveOnly) query = query.gt("true_net_profit", 0);
     if (state) query = query.eq("location_state", state);
+    if (source && source !== "all") query = query.eq("source", source);
     if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
     if (make) query = query.ilike("make", make);
     if (makes.length) query = query.in("make", makes);
@@ -197,6 +200,7 @@ export async function GET(req: NextRequest) {
     dealers.length > 0 ||
     makes.length > 0 ||
     Boolean(make) ||
+    Boolean(source && source !== "all") ||
     Boolean(maxPrice > 0);
   const positive = hasTightScope
     ? { data: null, error: null }
@@ -248,6 +252,32 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Positive projected profit alone is not evidence that a listing is safe to buy. Prefer only
+  // evidence-backed GO records; otherwise keep the best non-anomalous result in a research/watch state.
+  const evidenceFor = (deal: any) =>
+    assessDecisionEvidence({
+      source: deal.source,
+      condition: deal.condition,
+      damageType: deal.damage_type,
+      vin: deal.vin,
+      mileage: deal.mileage,
+      buyNowPrice: deal.buy_now_price,
+      dealVerdict: deal.deal_verdict,
+      dealAnalysis: deal.deal_analysis,
+    });
+  const verifiedRows = rows.filter(
+    (deal: any) => evidenceFor(deal).acquisitionReady,
+  );
+  if (verifiedRows.length > 0) {
+    rows = verifiedRows;
+    fallbackMode = false;
+  } else {
+    rows = rows.filter(
+      (deal: any) => evidenceFor(deal).state !== "price_anomaly",
+    );
+    fallbackMode = true;
+  }
+
   // Score and rank deals
   const scoredDeals = rows
     .map((deal) => {
@@ -263,6 +293,7 @@ export async function GET(req: NextRequest) {
         deal.model,
         deal.mileage,
       );
+      const evidence = evidenceFor(deal);
 
       // Strategy composite ranking
       let rankScore = 0;
@@ -299,7 +330,7 @@ export async function GET(req: NextRequest) {
         trueNetProfit: Math.round(profit),
         roiPct: Math.round(roi * 10) / 10,
         profitScore: deal.profit_score ?? 85,
-        dealVerdict: deal.deal_verdict || (profit > 0 ? "go" : "hold"),
+        dealVerdict: evidence.acquisitionReady ? "go" : "hold",
         recommendedMaxBid: maxBid,
         targetOffer: Math.round(ask * 0.88),
         locationCity: deal.location_city,
@@ -310,6 +341,7 @@ export async function GET(req: NextRequest) {
         sellerPhone: sellerContact(deal).phone,
         matchScope: {
           state,
+          source: source || undefined,
           lane,
           sellerType,
           titleType,
@@ -324,6 +356,7 @@ export async function GET(req: NextRequest) {
         daysToTurn,
         downsideBuffer: Math.round(downsideBuffer),
         discountToComps: Math.round(discountToComps),
+        evidence,
         rankScore,
       };
     })
@@ -349,20 +382,23 @@ export async function GET(req: NextRequest) {
   const best = scoredDeals[0];
 
   // Generate dynamic AI rationale for the #1 best buy
+  const isVerifiedBuy = best.evidence.acquisitionReady;
   const aiRationale = {
-    headline: fallbackMode
-      ? `Best watch candidate — needs $${Math.abs(best.trueNetProfit).toLocaleString()} more cushion`
-      : `${best.roiPct}% ROI — Projected $${best.trueNetProfit.toLocaleString()} Net Cash Flip`,
-    spreadAnalysis: fallbackMode
-      ? `Listed at $${best.askPrice.toLocaleString()} against an estimated resale of $${best.sellEstimate.toLocaleString()}. Current math is not a BUY yet; use this as a watch/offer target.`
-      : `Listed at $${best.askPrice.toLocaleString()} against an estimated resale of $${best.sellEstimate.toLocaleString()} ($${best.discountToComps.toLocaleString()} gross spread before risk checks).`,
-    turnSpeed: `Estimated turnover time is ${best.daysToTurn} days (${best.liquidityScore}/100 high-demand liquidity index).`,
-    riskBuffer: fallbackMode
-      ? `There is no positive downside buffer yet. Keep this on watch unless the seller accepts a bid near $${best.recommendedMaxBid.toLocaleString()} or better.`
-      : `Downside safety buffer of $${best.downsideBuffer.toLocaleString()} protects your capital against unexpected recon surprises or price cuts.`,
-    recommendedAction: fallbackMode
-      ? `Do not buy at ask. Watch it, verify comps, and only open with a disciplined offer around $${best.targetOffer.toLocaleString()} with a walk-away cap of $${best.recommendedMaxBid.toLocaleString()}.`
-      : `Open negotiation with a cash-offer of $${best.targetOffer.toLocaleString()}. Cap your final walk-away bid at $${best.recommendedMaxBid.toLocaleString()}.`,
+    headline: isVerifiedBuy
+      ? `Evidence-backed buy — projected $${best.trueNetProfit.toLocaleString()} net`
+      : `${best.evidence.label} — research before any offer`,
+    spreadAnalysis: isVerifiedBuy
+      ? `Listed at $${best.askPrice.toLocaleString()} against evidence-backed comparable value of $${best.sellEstimate.toLocaleString()} before final transaction checks.`
+      : best.evidence.summary,
+    turnSpeed: isVerifiedBuy
+      ? `Estimated turnover time is ${best.daysToTurn} days (${best.liquidityScore}/100 liquidity signal).`
+      : "Turnover is not estimated until the listing's condition and final all-in price are verified.",
+    riskBuffer: isVerifiedBuy
+      ? `Projected cushion is $${best.downsideBuffer.toLocaleString()} after current modeled costs; final transaction terms still require confirmation.`
+      : "Projected profit is intentionally withheld from the decision until the missing evidence is resolved.",
+    recommendedAction: isVerifiedBuy
+      ? `Review the source listing, then keep the final purchase below $${best.recommendedMaxBid.toLocaleString()} after confirming the transaction terms.`
+      : best.evidence.nextCheck,
   };
 
   // Group runner-ups by budget tiers
@@ -387,7 +423,7 @@ export async function GET(req: NextRequest) {
     bestBuy: {
       ...best,
       aiRationale,
-      opportunityMode: fallbackMode ? "watchlist" : "buy",
+      opportunityMode: isVerifiedBuy ? "buy" : "watchlist",
     },
     runnerUps,
     stats: {
@@ -396,6 +432,6 @@ export async function GET(req: NextRequest) {
       maxProfit,
       strategyUsed: strategy,
     },
-    mode: fallbackMode ? "watchlist" : "buy",
+    mode: isVerifiedBuy ? "buy" : "watchlist",
   });
 }

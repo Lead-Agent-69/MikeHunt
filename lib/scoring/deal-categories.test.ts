@@ -40,4 +40,17 @@ describe("carCategories", () => {
     expect(cats).not.toContain("salvage_steal");
     expect(cats).not.toContain("high_margin");
   });
+
+  it("does not market an implausible price as a high-margin or below-market deal", () => {
+    const cats = carCategories({
+      askPrice: 3000,
+      sellEstimate: 24000,
+      true_net_profit: 14000,
+      dealVerdict: "go",
+      source: "copart",
+      dealAnalysis: { priceImplausible: true },
+    });
+    expect(cats).not.toContain("high_margin");
+    expect(cats).not.toContain("below_market");
+  });
 });

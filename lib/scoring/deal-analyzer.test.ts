@@ -118,4 +118,19 @@ describe("analyzeDeal reality gate", () => {
     } as any);
     expect(a.sellEstimate).toBeGreaterThan(Math.round(5000 * 1.15));
   });
+
+  it("keeps an active auction bid out of BUY until the final purchase price is known", () => {
+    const a = analyzeDeal({
+      year: 2020,
+      make: "Acura",
+      model: "MDX",
+      ask_price: 3000,
+      mileage: 45000,
+      condition: "salvage",
+      title: "2020 Acura MDX Technology",
+      source: "copart",
+    } as any);
+    expect(a.verdict).not.toBe("go");
+    expect(a.warnings.join(" ")).toMatch(/final purchase price/i);
+  });
 });

@@ -12,6 +12,7 @@ export interface CarLike {
   condition?: string | null;
   damageType?: string | null;
   source?: string | null;
+  dealAnalysis?: { priceImplausible?: boolean; priceSanity?: string } | null;
   mileage?: number | null;
   year?: number | null;
 }
@@ -35,6 +36,11 @@ const isSalvage = (d: CarLike) =>
     `${d.condition || ""} ${d.damageType || ""}`.toLowerCase(),
   );
 
+const isPurchaseReady = (d: CarLike) =>
+  d.dealVerdict === "go" &&
+  !d.dealAnalysis?.priceImplausible &&
+  !["typo", "implausible"].includes(String(d.dealAnalysis?.priceSanity || ""));
+
 export interface DealCategory {
   key: string;
   label: string;
@@ -46,13 +52,14 @@ export const CAR_CATEGORIES: DealCategory[] = [
     // Engine-rated BUY with a real, meaningful net profit.
     key: "high_margin",
     label: "🔥 High margin",
-    match: (d) => (d.true_net_profit ?? 0) >= 3000,
+    match: (d) => isPurchaseReady(d) && (d.true_net_profit ?? 0) >= 3000,
   },
   {
     // Asking well under our resale estimate — priced below market.
     key: "below_market",
     label: "🎯 Below market",
     match: (d) =>
+      isPurchaseReady(d) &&
       (d.sellEstimate ?? 0) > 0 &&
       (d.askPrice ?? 0) > 0 &&
       (d.askPrice as number) <= (d.sellEstimate as number) * 0.85,
@@ -61,7 +68,7 @@ export const CAR_CATEGORIES: DealCategory[] = [
     // Damaged/salvage title the engine still rates a BUY — the rehab-flipper's bread and butter.
     key: "salvage_steal",
     label: "🔧 Salvage steal",
-    match: (d) => isSalvage(d) && d.dealVerdict === "go",
+    match: (d) => isSalvage(d) && isPurchaseReady(d),
   },
   {
     // Auction/wholesale channels — bought below retail (the classic arbitrage).
