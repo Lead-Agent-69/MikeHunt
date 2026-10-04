@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Database, Route, Search, ShieldCheck } from "lucide-react";
+import { CarFront, MapPinned, Search, ShieldCheck } from "lucide-react";
 
 interface DataSetupStateProps {
   title?: string;
@@ -14,23 +14,35 @@ interface DataSetupStateProps {
 }
 
 export function DataSetupState({
-  title = "Connect real data to unlock this workspace",
-  message = "Choose the buyer scope, connect one source lane, then import verified inventory. Until then, this page stays honest instead of showing sample cars.",
-  primaryHref = "/sources",
-  primaryLabel = "Open source setup",
-  secondaryHref = "/discover",
-  secondaryLabel = "Set buyer scope",
+  title = "This workspace is ready for your first vehicle",
+  message = "Find a vehicle, save it, and MIKEHUNT will keep the next decision and open checks together here.",
+  primaryHref = "/discover",
+  primaryLabel = "Find vehicles",
+  secondaryHref = "/sources",
+  secondaryLabel = "Explore markets",
   compact = false,
 }: DataSetupStateProps) {
   const steps = [
     {
       icon: Search,
-      label: "Buyer intent",
-      detail: "Type, lane, state, budget",
+      label: "Your search",
+      detail: "Vehicle, location, budget",
     },
-    { icon: Route, label: "Scoped sources", detail: "Only relevant lanes run" },
-    { icon: Database, label: "Real inventory", detail: "Rows land in Scan" },
-    { icon: ShieldCheck, label: "Verified actions", detail: "No fake wins" },
+    {
+      icon: MapPinned,
+      label: "Relevant markets",
+      detail: "Only matching listings",
+    },
+    {
+      icon: CarFront,
+      label: "Saved vehicles",
+      detail: "Keep good options close",
+    },
+    {
+      icon: ShieldCheck,
+      label: "Clear next steps",
+      detail: "Know what to check next",
+    },
   ];
 
   return (
@@ -38,7 +50,7 @@ export function DataSetupState({
       <div className={compact ? "p-5" : "p-6 md:p-8"}>
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-            Setup required
+            Get started
           </p>
           <h2 className="mt-2 text-xl font-black text-[var(--t1)] md:text-2xl">
             {title}

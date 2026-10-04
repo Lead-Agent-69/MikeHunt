@@ -34,6 +34,7 @@ import {
   useLocalSavedVehicles,
 } from "@/hooks/useLocalSavedVehicles";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -218,7 +219,12 @@ export default function SavedCarsPage() {
         setInputUrl("");
         toast.success("Saved locally. Sign in later to sync alerts.");
       } else {
-        toast.error(data.error || "Failed to save vehicle");
+        toast.error(
+          userFacingErrorMessage(
+            data.error,
+            "We couldn't save this vehicle. Please try again.",
+          ),
+        );
       }
     } catch {
       const localVehicle: LocalSavedVehicle = {

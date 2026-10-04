@@ -39,30 +39,6 @@ export default function RouteError({
           </p>
         </div>
 
-        {process.env.NODE_ENV === "development" && (
-          <details className="text-left">
-            <summary className="cursor-pointer text-xs font-bold text-[var(--t4)] uppercase tracking-wider mb-2">
-              Error Details
-            </summary>
-            <div
-              className="rounded-[var(--r2)] p-3 text-xs font-mono text-[var(--t3)] overflow-auto max-h-40"
-              style={{ background: "var(--s2)" }}
-            >
-              <div className="text-[var(--red)] font-bold mb-1">
-                {error.name}: {error.message}
-              </div>
-              {error.digest && (
-                <div className="text-[var(--t4)] mb-1">
-                  Digest: {error.digest}
-                </div>
-              )}
-              <pre className="whitespace-pre-wrap text-[10px] opacity-70">
-                {error.stack}
-              </pre>
-            </div>
-          </details>
-        )}
-
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <button
             onClick={reset}

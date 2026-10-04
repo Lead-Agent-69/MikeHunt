@@ -8,6 +8,7 @@ import {
   ShineBorder,
   Spotlight,
 } from "@/components/ui/premium-visuals";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 // Static plan display (amounts/features). Checkout resolves price IDs server-side from the plan id.
 const PLANS = [
@@ -86,9 +87,20 @@ export default function UpgradePage() {
       });
       const json = await res.json();
       if (json.url) window.location.href = json.url;
-      else setError(json.error || "Could not start checkout.");
+      else
+        setError(
+          userFacingErrorMessage(
+            json.error,
+            "We couldn't start checkout. Please try again.",
+          ),
+        );
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        userFacingErrorMessage(
+          e,
+          "We couldn't start checkout. Please try again.",
+        ),
+      );
     } finally {
       setBusy(null);
     }

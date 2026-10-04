@@ -114,8 +114,8 @@ export default function SavePage({
                   Analyzing shared vehicle...
                 </h2>
                 <p className="text-sm text-[var(--t3)] leading-relaxed">
-                  Scraping vehicle specifications and estimating market value
-                  profit scores.
+                  Checking vehicle details and estimating market value profit
+                  scores.
                 </p>
               </div>
               {sharedUrl && (

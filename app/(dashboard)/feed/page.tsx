@@ -200,18 +200,18 @@ export default function FeedPage() {
                 Build the feed from buyer intent
               </h1>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                Feed is the fast review lane after sources produce real,
-                photo-backed rows. It stays empty until the app knows what
-                market, lane, vehicle type, and source quality to trust.
+                Feed is your fast review lane for photo-backed vehicles. It
+                fills as MIKEHUNT finds matches for the market, vehicle type,
+                and budget you selected.
               </p>
             </div>
             <DataSetupState
-              title="Connect one source lane before Feed goes live"
-              message="Start with a scoped lane like Texas government trucks, Florida dealer SUVs, or salvage imports. Once matching rows are saved, Feed becomes a fast, photo-first review queue."
+              title="Choose a market to start your Feed"
+              message="Try Texas government trucks, Florida dealer SUVs, or salvage vehicles. When matching listings are available, Feed becomes a fast, photo-first review list."
               primaryHref="/discover"
               primaryLabel="Choose buyer scope"
               secondaryHref="/sources"
-              secondaryLabel="Open source setup"
+              secondaryLabel="Explore markets"
             />
           </div>
         </div>

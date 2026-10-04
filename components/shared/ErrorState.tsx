@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Ico } from "./Ico";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 interface ErrorStateProps {
   title?: string;
@@ -45,7 +46,9 @@ export function ErrorState({
         >
           {title}
         </h3>
-        <p className="text-sm text-[var(--t3)] max-w-xs">{message}</p>
+        <p className="text-sm text-[var(--t3)] max-w-xs">
+          {userFacingErrorMessage(message)}
+        </p>
       </div>
 
       {onRetry && (
@@ -78,7 +81,9 @@ export function ErrorBanner({
       style={{ background: "var(--rlo)", color: "var(--red)" }}
     >
       <Ico name="alert-triangle" size={16} className="shrink-0" />
-      <span className="font-medium flex-1">{message}</span>
+      <span className="font-medium flex-1">
+        {userFacingErrorMessage(message)}
+      </span>
       {onDismiss && (
         <button
           onClick={onDismiss}

@@ -128,7 +128,7 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
                   className="w-16 h-16 rounded-full border-t-4 border-cyan-500 shadow-[0_0_30px_theme(colors.cyan.500)]"
                 />
                 <div className="text-cyan-500 font-mono text-sm uppercase tracking-widest animate-pulse">
-                  Querying Database...
+                  Searching the market...
                 </div>
               </div>
             )}
@@ -142,7 +142,7 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
               >
                 <div className="max-w-sm rounded-xl border border-white/10 bg-white/5 p-5 text-center">
                   <div className="mb-2 text-xs font-black uppercase tracking-widest text-cyan-400">
-                    Real lookup required
+                    Search unavailable
                   </div>
                   <p className="text-sm leading-relaxed text-white/70">
                     {message}

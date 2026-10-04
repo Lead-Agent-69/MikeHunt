@@ -5,6 +5,7 @@ import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 import { useDelayedLoading } from "@/hooks/useDelayedLoading";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 const money = (v: any) =>
   v == null
@@ -78,11 +79,22 @@ export default function DealCheckPage() {
       });
       const json = await res.json();
       if (id !== requestId.current) return;
-      if (!res.ok) setError(json.error || "Failed to read the document.");
+      if (!res.ok)
+        setError(
+          userFacingErrorMessage(
+            json.error,
+            "We couldn't analyze this listing. Please try again.",
+          ),
+        );
       else setResult(json);
     } catch (e: any) {
       if (e.name !== "AbortError" && id === requestId.current)
-        setError(e.message || "Could not analyze this deal.");
+        setError(
+          userFacingErrorMessage(
+            e,
+            "We couldn't analyze this listing. Please try again.",
+          ),
+        );
     } finally {
       if (id === requestId.current) setLoading(false);
     }

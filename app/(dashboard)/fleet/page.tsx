@@ -14,6 +14,7 @@ import { CapitalVelocityTracker } from "@/components/fleet/CapitalVelocityTracke
 import { useDealerId } from "@/hooks/useDealerId";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { Clock3 } from "lucide-react";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DAILY_FLOOR_RATE = 35;
@@ -340,9 +341,20 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
       });
       const data = await res.json();
       if (data.item) onSaved(data.item);
-      else setErr(data.error || "Failed to save");
+      else
+        setErr(
+          userFacingErrorMessage(
+            data.error,
+            "We couldn't save that change. Please try again.",
+          ),
+        );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Unknown error");
+      setErr(
+        userFacingErrorMessage(
+          e,
+          "We couldn't save that change. Please try again.",
+        ),
+      );
     } finally {
       setSaving(false);
     }
@@ -508,9 +520,20 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
       });
       const data = await res.json();
       if (data.item) onSold(data.item);
-      else setErr(data.error || "Failed to mark sold");
+      else
+        setErr(
+          userFacingErrorMessage(
+            data.error,
+            "We couldn't update this vehicle. Please try again.",
+          ),
+        );
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Unknown error");
+      setErr(
+        userFacingErrorMessage(
+          e,
+          "We couldn't update this vehicle. Please try again.",
+        ),
+      );
     } finally {
       setSaving(false);
     }
@@ -944,18 +967,18 @@ function FleetSetupState({ signedIn }: { signedIn: boolean }) {
     <DataSetupState
       title={
         signedIn
-          ? "Connect inventory to unlock Fleet"
+          ? "Add a vehicle to start your pipeline"
           : "Sign in to track acquired units"
       }
       message={
         signedIn
-          ? "Fleet needs the inventory tables and saved acquisition events before it can track carrying costs, recon stages, listed price, offers, and sale outcomes."
+          ? "Fleet tracks vehicles you acquire: transport, repairs, carrying costs, list price, offers, and the final outcome. Add one from your saved vehicles when you are ready."
           : "Fleet is personal operating data. Sign in first, then add a vehicle from Scan or Saved when you purchase it."
       }
       primaryHref={signedIn ? "/sources" : "/login"}
-      primaryLabel={signedIn ? "Open data sources" : "Sign in"}
+      primaryLabel={signedIn ? "Explore markets" : "Sign in"}
       secondaryHref="/scan?sort=profit"
-      secondaryLabel="Open scanner"
+      secondaryLabel="Find vehicles"
       compact
     />
   );

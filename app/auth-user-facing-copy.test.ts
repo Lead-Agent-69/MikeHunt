@@ -20,7 +20,7 @@ describe("auth user-facing copy", () => {
     expect(googleButton).toContain("View system status");
   });
 
-  it("keeps the floating assistant from exposing server env variable names", () => {
+  it("keeps the floating decision guide free of infrastructure language", () => {
     const copilot = readFileSync(
       "components/ui/next-level-features.tsx",
       "utf8",
@@ -30,6 +30,8 @@ describe("auth user-facing copy", () => {
     expect(copilot).not.toContain("GOOGLE_GENERATIVE_AI_API_KEY");
     expect(copilot).not.toContain("SCRAPE_SECRET");
     expect(copilot).not.toContain("CRON_SECRET");
-    expect(copilot).toContain("connect an approved AI provider key");
+    expect(copilot).not.toContain("provider key");
+    expect(copilot).not.toContain("Supabase is not connected");
+    expect(copilot).toContain("Decision guide");
   });
 });
