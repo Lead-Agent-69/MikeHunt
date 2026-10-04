@@ -19,7 +19,8 @@ describe("account creation security", () => {
   });
 
   it("preserves refreshed session cookies while middleware redirects", () => {
-    const middleware = readFileSync("middleware.ts", "utf8");
+    // Windows runners may check out CRLF; normalize before multiline asserts.
+    const middleware = readFileSync("middleware.ts", "utf8").replace(/\r\n/g, "\n");
     expect(middleware).toContain("supabase.auth.getClaims");
     expect(middleware).toContain("redirectWithAuthCookies");
     expect(middleware).toContain("supabaseResponse.cookies\n      .getAll()");

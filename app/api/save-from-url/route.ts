@@ -6,7 +6,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
-import { queueForAIParsing } from "@/lib/ai/queue";
+// P0: AI invent queue disabled — do not import queueForAIParsing.
 import * as crypto from "crypto";
 import axios from "axios";
 import * as cheerio from "cheerio";
@@ -74,32 +74,22 @@ export async function POST(request: NextRequest) {
     // 3. Scrape or Parse URL details. Returns null if nothing real could be extracted.
     const scrapedData = await scrapeOrParseListing(url, source);
 
-    // Honest failure: if we could not extract a real vehicle (need at least a
-    // make/model and an ask price), hand the URL to the AI parsing queue instead
-    // of giving up. The AI worker (Playwright + Gemini) will create the deal and
-    // the saved-cars snapshot asynchronously.
+    // P0 (Ren): do NOT hand off to AI invent→store→display.
+    // valuation-agent invented wholesale/retail; ai-worker wrote mmr_value/marketValue;
+    // UI labeled it like KBB. Fail closed with an honest empty/error instead.
     if (
       !scrapedData ||
       !scrapedData.make ||
       !scrapedData.model ||
       !scrapedData.ask_price
     ) {
-      const savedCarId = await createAnalyzingSavedCar(
-        supabase,
-        userId,
-        dealerId,
-        url,
-        source,
-      );
-      await queueForAIParsing(url, dealerId, source, { savedCarId, userId });
       return NextResponse.json(
         {
-          queued: true,
-          savedId: savedCarId,
-          message:
-            "AI is analyzing this listing. It will appear in Saved Vehicles shortly.",
+          error:
+            "Could not extract listing details from this URL. Try a page we can read, or enter the vehicle manually. AI price invent is disabled — market values must come from fetched data only.",
+          code: "EXTRACT_FAILED_NO_AI_FALLBACK",
         },
-        { status: 202 },
+        { status: 422 },
       );
     }
 
