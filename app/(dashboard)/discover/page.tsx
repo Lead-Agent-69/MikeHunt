@@ -153,13 +153,25 @@ export default function DiscoverPage() {
   useEffect(() => {
     if (prefsApplied.current || !Object.keys(prefs).length) return;
     prefsApplied.current = true;
-    if (urlScope?.state && urlScope.state !== "Nationwide") {
-      setState(urlScope.state);
+    if (urlScope) {
+      if (urlScope.state && urlScope.state !== "Nationwide") {
+        setState(urlScope.state);
+      }
+      return;
+    }
+    // Saved buyer scope (this device, then the account) wins over the older
+    // carsState-only default so Discover does not drop lane, price, or state.
+    const savedBuyerScope =
+      readLocalBuyerIntent() || normalizeBuyerIntent(prefs.buyerScope);
+    if (savedBuyerScope) {
+      setBuyerScope(savedBuyerScope);
+      if (savedBuyerScope.state && savedBuyerScope.state !== "Nationwide") {
+        setState(savedBuyerScope.state);
+      }
       return;
     }
     if (prefs.carsState) setState(prefs.carsState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs]);
+  }, [prefs, urlScope]);
 
   useEffect(() => {
     const syncScope = () =>
