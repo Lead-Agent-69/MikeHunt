@@ -1323,7 +1323,14 @@ export default function DealPage({
       {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
       {serverDeal?.decisionEvidence?.state !== "auction_watch" &&
         serverDeal?.dealAnalysis?.prediction && (
-          <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
+          <details className="border-t border-[var(--b2)] py-4">
+            <summary className="cursor-pointer text-sm font-bold text-[var(--t2)]">
+              Market outlook estimates
+            </summary>
+            <div className="mt-4">
+              <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
+            </div>
+          </details>
         )}
 
       {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}
@@ -1376,16 +1383,21 @@ export default function DealPage({
       )}
 
       {/* VISUALIZE — price-vs-mileage position + best time to buy */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PriceMilesScatter
-          dealId={id}
-          mileage={serverDeal?.mileage}
-          askPrice={serverDeal?.askPrice}
-        />
-        {serverDeal && (
-          <BestTimeToBuy make={serverDeal.make} model={serverDeal.model} />
-        )}
-      </div>
+      <details className="border-t border-[var(--b2)] py-4">
+        <summary className="cursor-pointer text-sm font-bold text-[var(--t2)]">
+          Explore market pricing
+        </summary>
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <PriceMilesScatter
+            dealId={id}
+            mileage={serverDeal?.mileage}
+            askPrice={serverDeal?.askPrice}
+          />
+          {serverDeal && (
+            <BestTimeToBuy make={serverDeal.make} model={serverDeal.model} />
+          )}
+        </div>
+      </details>
 
       {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
       <motion.div
@@ -1751,6 +1763,7 @@ export default function DealPage({
         <VisionDamageInspector
           imageUrl={serverDeal.images[0]}
           images={serverDeal.images}
+          sourceUrl={serverDeal.sourceUrl}
           vin={serverDeal.vin ?? store.vin}
         />
       )}
