@@ -15,6 +15,14 @@ const ago = (iso?: string | null) => {
   return `${Math.round(h / 24)}d ago`;
 };
 
+function seenAgo(hours: number | null | undefined) {
+  if (hours == null) return "Last seen unknown";
+  if (hours < 1) return "Seen just now";
+  if (hours < 24) return `Seen ${hours}h ago`;
+  const days = Math.max(1, Math.round(hours / 24));
+  return `Seen ${days}d ago`;
+}
+
 function Stat({
   label,
   value,
@@ -267,13 +275,17 @@ export default function StatusPage() {
     ["Has auction date", q?.auctionDatePct ?? 0],
     ["Has VIN", q?.vinPct ?? 0],
   ] as const;
-  const trulyWorking = [
-    realData?.status === "ready"
-      ? `${(realData?.activeDeals ?? 0).toLocaleString()} fresh rows with source proof, photos, prices, and title/condition labels.`
-      : `${(f?.activeDeals ?? 0).toLocaleString()} active rows exist, but the real-data trust pass still needs stronger coverage before this feels premium.`,
-    `${readySourceCount} ready source${readySourceCount === 1 ? "" : "s"} can show inventory now, including public auctions and dealer inventory.`,
+  const newestStoredHours = breakdown.reduce<number | null>((min, row) => {
+    if (typeof row?.ageHours !== "number") return min;
+    return min == null ? row.ageHours : Math.min(min, row.ageHours);
+  }, null);
+  const storedNow = [
+    newestStoredHours == null
+      ? `${(f?.activeDeals ?? realData?.activeDeals ?? 0).toLocaleString()} stored rows. No last-seen time yet. Ready is not a live scrape.`
+      : `${(realData?.activeDeals ?? f?.activeDeals ?? 0).toLocaleString()} stored rows. Newest last-seen: ${seenAgo(newestStoredHours)} (deals.last_seen_at), not a live scrape.`,
+    `${readySourceCount} source${readySourceCount === 1 ? "" : "s"} have listings on file. That means rows exist, not that inventory is live right now.`,
     "Scoped source searches are enabled, so Scan can use only the buyer's lane, state, budget, title type, keyword, and watched dealers.",
-    "Deal math is available on current rows, so users can sort by profit/watch candidates instead of browsing raw scrape output.",
+    "Deal math is available on stored rows, so users can sort by profit/watch candidates instead of browsing raw scrape output.",
   ];
   const notDone = [
     {
@@ -427,16 +439,17 @@ export default function StatusPage() {
                   Visionary but realistic readout
                 </p>
                 <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-                  The app works as a live inventory scout, but not yet as a
-                  fully trusted buyer co-pilot.
+                  Stored listings are ranked by last-seen age, not a live
+                  inventory scout, and the app is not yet a fully trusted
+                  buyer co-pilot.
                 </h2>
                 <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
                   A serious buyer expects three things: exact-fit inventory,
-                  proof they can trust, and a clean path to act. The current
-                  system is strongest on live discovery and scoped source
-                  searches; the remaining adoption work is account sync, AI
-                  analysis, source-access expansion, and deeper per-vehicle
-                  evidence.
+                  proof they can trust, and a clean path to act. Last-seen age
+                  comes from deals.last_seen_at. Ready means rows are on file,
+                  not that a source was just scraped. Remaining work is account
+                  sync, AI analysis, source-access expansion, and deeper
+                  per-vehicle evidence.
                 </p>
               </div>
               <Link
@@ -450,10 +463,10 @@ export default function StatusPage() {
             <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr]">
               <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--green)]">
-                  Working now
+                  Last seen, not live
                 </div>
                 <div className="mt-3 space-y-2">
-                  {trulyWorking.map((item) => (
+                  {storedNow.map((item) => (
                     <p
                       key={item}
                       className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-xs leading-relaxed text-[var(--t3)]"
@@ -623,14 +636,8 @@ export default function StatusPage() {
                   tone={realData.activeDeals ? "var(--green)" : "var(--red)"}
                 />
                 <Stat
-                  label="Newest listing"
-                  value={
-                    realData.newestAgeHours == null
-                      ? "unknown"
-                      : realData.newestAgeHours < 1
-                        ? "<1h"
-                        : `${realData.newestAgeHours}h`
-                  }
+                  label="Newest last seen"
+                  value={seenAgo(realData.newestAgeHours)}
                   tone={
                     realData.status === "stale" ? "var(--red)" : "var(--green)"
                   }
@@ -728,8 +735,9 @@ export default function StatusPage() {
                       : "Some production providers still need setup."}
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                    This is the checklist behind live inventory, Google login,
-                    scraper imports, AI briefs, and source proof.
+                    This is the checklist behind stored listings, Google login,
+                    scraper imports, AI briefs, and source proof. It is not a
+                    live scrape heartbeat.
                   </p>
                 </div>
                 <span
@@ -1469,7 +1477,7 @@ export default function StatusPage() {
             )}
           </div>
 
-          {/* Live inventory per source — count, freshness, and are we SHOWING the cars (photos) */}
+          {/* Stored listings per source — count, last-seen age, photos. Not a live badge. */}
           {breakdown.length > 0 && (
             <div className="glass-panel p-5">
               <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-1">
@@ -1480,13 +1488,8 @@ export default function StatusPage() {
               </p>
               <div className="divide-y divide-[var(--b1)]">
                 {breakdown.map((s) => {
-                  const live = s.status === "live";
                   const idle = s.status === "idle";
-                  const dot = idle
-                    ? "var(--t5)"
-                    : live
-                      ? "var(--green)"
-                      : "var(--amber)";
+                  const dot = idle ? "var(--t5)" : "var(--amber)";
                   const photoTone =
                     s.photoPct >= 70
                       ? "var(--green)"
@@ -1525,12 +1528,8 @@ export default function StatusPage() {
                         >
                           {s.photoPct}% photos
                         </span>
-                        <span className="text-[var(--t4)] w-[64px] text-right">
-                          {s.ageHours == null
-                            ? "—"
-                            : s.ageHours < 1
-                              ? "<1h"
-                              : `${s.ageHours}h`}
+                        <span className="text-[var(--t4)] w-[120px] text-right">
+                          {seenAgo(s.ageHours)}
                         </span>
                       </div>
                     </div>
