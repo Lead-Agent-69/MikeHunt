@@ -1,10 +1,6 @@
 // lib/scrapers/sources/ebay-sold.ts
-// eBay Motors COMPLETED/SOLD listings = REAL transaction prices — the actual amount a vehicle sold
-// for, NOT a delisted asking price. This is an honest source of real sale prices (the only other one
-// besides dealer-logged deal_outcomes), and it's the RIGHT comp for the salvage/budget segment
-// (Copart/PublicSurplus flips) where eBay's used-car buyers actually transact. eBay guards the sold
-// SRP behind a bot wall, but a homepage cookie warm-up gets us in. We filter parts/project junk hard
-// and store to public.sold_listings.
+// Completed-listing price observations, not independently verified settlements.
+// Hidden accepted offers and ambiguous prices cannot be treated as sold-price evidence.
 
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -103,7 +99,7 @@ export interface SoldRow {
   source_url: string;
 }
 
-/** Parse an eBay SOLD/completed SRP (.s-card structure) into real sold-price rows. */
+/** Parse explicit USD sold-listing observations, excluding hidden accepted offers. */
 export function parseEbaySoldHtml(html: string): SoldRow[] {
   const $ = cheerio.load(html);
   const rows: SoldRow[] = [];
@@ -126,20 +122,30 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
     if (!ym) return;
     const year = parseInt(ym[0], 10);
 
-    // On the SOLD SRP, the card price IS the price it sold for.
-    const sold_price = num(card.find(".s-card__price").first().text());
+    if (/best offer|or best|accepted offer/i.test(card.text())) return;
+    const priceText = card.find(".s-card__price").first().text().trim();
+    if (!/^(?:US\s*)?\$\s*\d[\d,]*(?:\.\d{2})?$/.test(priceText)) return;
+    const sold_price = num(priceText);
     if (!sold_price || sold_price < 1000 || sold_price > 300000) return;
 
     const link =
       card.find("a.s-card__link").attr("href") ||
       card.find('a[href*="/itm/"]').first().attr("href") ||
       "";
-    const absoluteLink = link
-      ? new URL(link, "https://www.ebay.com").toString()
-      : "";
+    let absoluteLink: string;
+    try {
+      const url = new URL(link, "https://www.ebay.com");
+      if (
+        url.protocol !== "https:" ||
+        !/^(?:www\.)?ebay\.com$/.test(url.hostname)
+      )
+        return;
+      absoluteLink = url.toString();
+    } catch {
+      return;
+    }
     const item_id = absoluteLink.match(/\/itm\/(\d+)/)?.[1] || "";
     if (!item_id || seen.has(item_id)) return;
-    seen.add(item_id);
 
     // "Sold Apr 28, 2026" caption → ISO date.
     const sm = card.text().match(/Sold\s+([A-Za-z]{3}\s+\d{1,2},?\s+\d{4})/);
@@ -148,6 +154,8 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       const d = new Date(sm[1]);
       if (!isNaN(d.getTime())) sold_at = d.toISOString();
     }
+    if (!sold_at) return;
+    seen.add(item_id);
 
     const subtitle = card
       .find(".s-card__subtitle, .su-card-container__attributes")

@@ -17,6 +17,37 @@ const card = (
 </div>`;
 
 describe("parseEbaySoldHtml", () => {
+  it("rejects unsold, hidden-offer, ambiguous and non-USD prices", () => {
+    expect(
+      parseEbaySoldHtml(
+        card("2020 Acura MDX", "$3,000", "20", "Completed") +
+          card(
+            "2020 Acura MDX",
+            "$3,000",
+            "21",
+            "Sold Apr 28, 2026 Best offer accepted",
+          ) +
+          card("2020 Acura MDX", "$3,000 to $4,000", "22") +
+          card("2020 Acura MDX", "C $3,000", "23") +
+          card("2020 Acura MDX", "$3,000", "24", "Sold Xxx 28, 2026"),
+      ),
+    ).toEqual([]);
+  });
+  it("ignores invalid and foreign item links without discarding valid cards", () => {
+    const invalid = card("2020 Acura MDX", "$3,000", "25").replace(
+      "https://www.ebay.com/itm/25?hash=x",
+      "https://[",
+    );
+    const foreign = card("2020 Acura MDX", "$3,000", "26").replace(
+      "www.ebay.com",
+      "example.com",
+    );
+    expect(
+      parseEbaySoldHtml(
+        invalid + foreign + card("2020 Acura MDX", "$3,000", "27"),
+      ),
+    ).toHaveLength(1);
+  });
   it("parses a sold vehicle: real sold price + sold date + mileage", () => {
     const rows = parseEbaySoldHtml(
       card(
