@@ -97,7 +97,6 @@
 
 /* Premium acquisition skin: crisp graphite/white surfaces with controlled blue emphasis. */
 :root,
-[data-theme="dark"],
 [data-theme="light"] {
   --s0: #ffffff;
   --s1: #f6f8fb;
@@ -172,7 +171,7 @@
   color-scheme: light;
 }
 
-/* ── Dark theme (default) ── */
+/* Dark theme */
 [data-theme="dark"] {
   --s0: #17191e;
   --s1: #0a0a0f;
