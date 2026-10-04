@@ -11,6 +11,7 @@ import {
   activeProvider,
 } from "@/lib/ai/text-model";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 
 // GET /api/deals/[id]/brief — a short, plain-English dealer brief for a deal: why the verdict, the
 // real risks, and what to verify before bidding. Generated from the deal's own structured numbers
@@ -98,6 +99,16 @@ export async function GET(
   const refresh = sp.get("refresh") === "1";
   // Generation is explicit (a click) so a plain page view never spends tokens.
   const wantGenerate = refresh || sp.get("generate") === "1";
+  if (wantGenerate) {
+    const caller = await requirePaidAiCaller(req);
+    if (!caller.ok) return caller.response;
+    const genRl = rateLimit(req, {
+      key: `brief:${caller.userId}`,
+      limit: 10,
+      windowMs: 60_000,
+    });
+    if (!genRl.allowed) return tooManyRequests(genRl);
+  }
   const supabase = createServerComponentClient();
 
   const { data: d, error } = await supabase
@@ -218,9 +229,7 @@ Keep it under 110 words. Be direct, financial, and practical.`;
       }),
     });
   } catch (e: any) {
-    return NextResponse.json(
-      { error: e.message || "Generation failed" },
-      { status: 500 },
-    );
+    console.error("[deal-brief] generation failed", e);
+    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   }
 }
