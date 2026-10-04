@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { pickSoldAnchor } from "./market-value";
 import {
   titleSeverityMultiplier,
   mileageMultiplier,
@@ -92,14 +93,38 @@ describe("conditionAdjustedSell", () => {
     );
   });
 
-  it("clean cars are unaffected by the sold anchor (titleMult ~1)", () => {
-    const adj = conditionAdjustedSell(
+  it("uses a sold median for clean cars when n is at least 3, and ignores a thinner sample", () => {
+    const car = { year: 2021, condition: "clean", mileage: 60000 } as any;
+    const thin = conditionAdjustedSell(
       25000,
-      { year: 2021, condition: "clean", mileage: 60000 } as any,
-      { median: 5000, n: 50 },
+      car,
+      { median: 18000, n: 2 },
       2026,
     );
-    expect(adj.soldAnchored).toBe(false);
+    expect(thin.soldAnchored).toBe(false);
+    expect(thin.sell).toBe(25000);
+
+    const adj = conditionAdjustedSell(
+      25000,
+      car,
+      { median: 18000, n: 3 },
+      2026,
+    );
+    expect(adj.soldAnchored).toBe(true);
     expect(adj.titleTag).toBe("clean");
+    // Age-expected miles for 2021 in 2026 are 60k, so mileage does not move the sold median.
+    expect(adj.sell).toBe(18000);
+  });
+});
+describe("sold anchor state preference", () => {
+  it("prefers the same state at n >= 3 and does not invent a sold under that floor", () => {
+    const national = { median: 20000, n: 10 };
+    const state = { median: 15000, n: 3 };
+    expect(pickSoldAnchor(national, state)).toEqual(state);
+    expect(pickSoldAnchor(national, { median: 15000, n: 2 })).toEqual(national);
+    expect(
+      pickSoldAnchor({ median: 20000, n: 2 }, { median: 15000, n: 2 }),
+    ).toBeNull();
+    expect(pickSoldAnchor(null, null)).toBeNull();
   });
 });

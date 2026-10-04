@@ -302,7 +302,12 @@ export function analyzeDeal(
   // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
   // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed
   // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
-  const realSold = lookupRealSold(deal.make, deal.model, deal.year);
+  const realSold = lookupRealSold(
+    deal.make,
+    deal.model,
+    deal.year,
+    deal.location_state,
+  );
   const conditionTag = titleSeverityMultiplier(deal).tag;
   // Comps: anchor the mileage adjustment to the comp pool's actual median mileage (precise).
   const compAdj = comps?.retail

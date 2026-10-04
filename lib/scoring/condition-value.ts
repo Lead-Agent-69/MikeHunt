@@ -104,12 +104,18 @@ export function conditionAdjustedSell(
   const mileageMult = mileageMultiplier(deal, currentYear, refMileage);
   let sell = cleanRetail * titleMult * mileageMult;
 
-  // Real-sold anchor: for damaged/budget cars (titleMult < ~1), eBay's completed-sale market IS the
-  // right market — blend toward its median, weighted by how many real sales back it.
+  // Real-sold anchor. n >= 3 is the same floor as an ask bucket — below that, do not invent a sale.
+  // Damaged titles still blend (the ask comp and the sold median can disagree a lot). Clean titles
+  // use the sold median itself when the band is deep enough. Condition is not filtered here;
+  // sold_listings has no like-for-like condition column on this path.
   let soldAnchored = false;
-  if (realSold && realSold.n >= 3 && realSold.median > 0 && titleMult < 0.95) {
-    const w = Math.min(0.6, realSold.n / 20); // up to 60% as the real-sale sample grows
-    sell = sell * (1 - w) + realSold.median * w;
+  if (realSold && realSold.n >= 3 && realSold.median > 0) {
+    if (titleMult < 0.95) {
+      const w = Math.min(0.6, realSold.n / 20); // up to 60% as the real-sale sample grows
+      sell = sell * (1 - w) + realSold.median * w;
+    } else {
+      sell = realSold.median * titleMult * mileageMult;
+    }
     soldAnchored = true;
   }
 
