@@ -175,7 +175,6 @@ export function TopNav() {
           <MikeHuntLogo
             size="sm"
             className="transition-transform group-hover:scale-[1.02]"
-            wordmarkClassName="block md:hidden lg:block"
           />
         </Link>
         {activeJob && (
