@@ -10,7 +10,6 @@ import {
   Spotlight,
   ShineBorder,
   GradientText,
-  LiveCounter,
   BentoCard,
 } from "@/components/ui/premium-visuals";
 import {
@@ -29,57 +28,33 @@ import {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TESTIMONIALS = [
-  {
-    name: "Michael Rodriguez",
-    role: "Owner, Rodriguez Auto Sales",
-    image: "👨‍💼",
-    text: "The workflow is built for one job: turn scattered listings into a clean buy, hold, or pass decision once live data is connected.",
-    rating: 5,
-  },
-  {
-    name: "Sarah Chen",
-    role: "Director, Premier Motors",
-    image: "👩‍💼",
-    text: "The geographic arbitrage feature alone paid for our subscription in the first week. We're now importing cars from 3 states we never considered.",
-    rating: 5,
-  },
-  {
-    name: "James Wilson",
-    role: "Independent Dealer",
-    image: "👨‍💼",
-    text: "I used to spend hours checking multiple auction sites. Now I see everything in one dashboard with accurate profit calculations.",
-    rating: 5,
-  },
-];
-
 const PROOF = [
-  { icon: "🗺️", text: "All 50 states" },
-  { icon: "⚡", text: "Real-time scraping" },
-  { icon: "✅", text: "Free — no credit card" },
-  { icon: "🧠", text: "AI-powered deal scoring" },
+  { icon: "⏸️", text: "Market feed not connected" },
+  { icon: "📋", text: "No sold comps on this page" },
+  { icon: "✅", text: "Free to start — no credit card" },
+  { icon: "🚫", text: "No score until a listing is fetched" },
 ];
 
 const HOW = [
   {
     num: "01",
     icon: "📡",
-    title: "We scan everything",
-    body: "Every auction, marketplace & dealer lot — all 50 states, around the clock. The 40 tabs you'd never have time to open, in one live feed.",
+    title: "Connect a source first",
+    body: "Auctions, marketplaces, and dealer lots are not scanning from this page. A feed shows up only after a source is connected and returns listings.",
     color: "var(--amber)",
   },
   {
     num: "02",
     icon: "🧮",
-    title: "We price it against reality",
-    body: "Each listing is valued against real sold comps and true title & condition. The honest number, not the hopeful asking price.",
+    title: "Prices come from fetched data",
+    body: "Ask, basis, and sample size have to come from a listing or a sold-comp feed. This page does not invent wholesale, retail, or profit.",
     color: "var(--purple)",
   },
   {
     num: "03",
     icon: "🎯",
-    title: "You act with confidence",
-    body: "BUY / HOLD / PASS with true net profit after fees, transport & recon — the decision handed to you before you commit a dollar.",
+    title: "Then you decide",
+    body: "Buy, hold, or pass only after the card shows ask, basis, and n. Fees, transport, and recon stay blank until they are measured.",
     color: "#00ff66",
   },
 ];
@@ -87,26 +62,26 @@ const HOW = [
 const EDGE = [
   {
     icon: "📈",
-    title: "Profit before you bid",
-    body: "True net after fees, transport & recon. Every listing is a decision, not just a photo and a price.",
+    title: "Profit only with a basis",
+    body: "Net after fees, transport, and recon is the product goal. It is not shown as cash until those inputs exist on a fetched listing.",
     glow: "var(--amber)",
   },
   {
     icon: "🛡️",
-    title: "Title & condition truth",
-    body: "Salvage / rebuilt / clean called per car, with VIN history and cross-market sighting timeline.",
+    title: "Title and condition when sourced",
+    body: "Salvage, rebuilt, or clean is stated per car only when the listing or a history source says so. No VIN story is filled in.",
     glow: "var(--purple)",
   },
   {
     icon: "🌐",
-    title: "Every source, one screen",
-    body: "Auctions, marketplaces, and salvage & rebuilder network — deduped, scored, and ranked side by side.",
+    title: "Sources you connect",
+    body: "Connected auctions and marketplaces can sit on one screen. This page does not claim every lot is already in the feed.",
     glow: "#5b9bef",
   },
   {
     icon: "🔍",
-    title: "Found first, nationwide",
-    body: "Off-market and private supply surfaced before the crowd — all 50 states, around the clock.",
+    title: "Coverage is what you set",
+    body: "State and radius come from your settings. Until that scope is saved, this is not a nationwide live search.",
     glow: "#00ff66",
   },
 ];
@@ -114,11 +89,11 @@ const EDGE = [
 const SAMPLE_DEALS = [
   {
     year: 0,
-    make: "Live",
+    make: "Auction",
     model: "Auction Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "live-auction-feed",
@@ -130,7 +105,7 @@ const SAMPLE_DEALS = [
     model: "Wholesale Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "dealer-wholesale-feed",
@@ -142,7 +117,7 @@ const SAMPLE_DEALS = [
     model: "Repairable Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "salvage-repairable-feed",
@@ -154,7 +129,7 @@ const SAMPLE_DEALS = [
     model: "Marketplace Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "private-marketplace-feed",
@@ -171,7 +146,7 @@ const HELIX_DEALS = [
     model: "Liquidation Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "fleet-liquidation-feed",
@@ -183,7 +158,7 @@ const HELIX_DEALS = [
     model: "Comp Feed",
     price: "Connect",
     estRetail: "Data",
-    profit: "Pending",
+    profit: "Not measured",
     score: 0,
     source: "Not configured",
     vin: "sold-comp-feed",
@@ -191,38 +166,38 @@ const HELIX_DEALS = [
   },
 ];
 
-// Simulated live deal feed for the hero section
+// Hero ticker: not a live scan. Sources are not configured.
 const LIVE_DEALS = [
   {
     year: 0,
     make: "Auction",
     model: "Feed",
-    profit: "Pending",
-    verdict: "SETUP",
+    profit: "Not measured",
+    verdict: "NOT LIVE",
     score: 0,
   },
   {
     year: 0,
     make: "Salvage",
     model: "Feed",
-    profit: "Pending",
-    verdict: "SETUP",
+    profit: "Not measured",
+    verdict: "NOT LIVE",
     score: 0,
   },
   {
     year: 0,
     make: "Wholesale",
     model: "Feed",
-    profit: "Pending",
-    verdict: "SETUP",
+    profit: "Not measured",
+    verdict: "NOT LIVE",
     score: 0,
   },
   {
     year: 0,
     make: "Private",
     model: "Feed",
-    profit: "Pending",
-    verdict: "SETUP",
+    profit: "Not measured",
+    verdict: "NOT LIVE",
     score: 0,
   },
 ];
@@ -290,8 +265,8 @@ function HeroSection() {
         {/* Badge */}
         <motion.div variants={item} className="flex justify-center mb-8">
           <div className="relative inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[var(--amber-bd)] bg-[var(--amber-lo)] text-sm font-bold text-[var(--amber-d)]">
-            <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
-            MikeHunt Auto Flip Intelligence · Live Now
+            <span className="w-2 h-2 rounded-full bg-[var(--t4)]" />
+            Sources not connected · Not a live scan
             <BorderBeam
               duration={6}
               size={80}
@@ -318,10 +293,9 @@ function HeroSection() {
           variants={item}
           className="text-lg md:text-xl text-[var(--t3)] max-w-2xl mx-auto leading-relaxed mb-10"
         >
-          MikeHunt scans every auction, marketplace & dealer lot — priced
-          against live sold comps — and tells you the true profit{" "}
-          <span className="text-[var(--t1)] font-semibold">before you bid</span>
-          .
+          MikeHunt is a workspace for car listings once sources are connected.
+          This page is not a live scan, and it does not show sold comps or
+          profit.
         </motion.p>
 
         {/* Liquid Glass & Liquid Metal CTAs */}
@@ -330,11 +304,11 @@ function HeroSection() {
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
         >
           <LiquidMetalButton href="/register">
-            <span>⚡ Start Free Trial</span>
+            <span>Start free</span>
           </LiquidMetalButton>
 
-          <LiquidGlassButton href="/scan" variant="default" size="lg">
-            View Live Intelligence Feed <span className="text-lg">→</span>
+          <LiquidGlassButton href="/status" variant="default" size="lg">
+            Check source status <span className="text-lg">→</span>
           </LiquidGlassButton>
         </motion.div>
 
@@ -352,7 +326,7 @@ function HeroSection() {
         </motion.div>
       </motion.div>
 
-      {/* Live Deal Feed — scrolling ticker */}
+      {/* Not-configured ticker — not a live scan */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -366,18 +340,17 @@ function HeroSection() {
               className="flex items-center gap-3 shrink-0 px-4 py-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s0)] backdrop-blur-lg"
               style={{ backdropFilter: "blur(20px)" }}
             >
-              <span className="text-xs font-black text-[#00ff66] bg-[rgba(0,255,102,0.15)] px-2 py-0.5 rounded-full">
+              <span className="text-xs font-black text-[var(--t3)] bg-[var(--s2)] px-2 py-0.5 rounded-full">
                 {d.verdict}
               </span>
               <span className="text-sm font-bold text-[var(--t1)]">
-                {d.year ? `${d.year} ` : ""}
                 {d.make} {d.model}
               </span>
-              <span className="font-mono text-sm font-black text-[#00ff66]">
+              <span className="font-mono text-sm text-[var(--t4)]">
                 {d.profit}
               </span>
-              <span className="text-xs font-bold text-[var(--t4)] font-mono">
-                IQ {d.score}
+              <span className="text-xs font-bold text-[var(--t4)]">
+                No score
               </span>
             </div>
           ))}
@@ -402,9 +375,8 @@ function InteractiveDealShowcase() {
             Click to Flip & Inspect Deals
           </h2>
           <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
-            Experience our 3D Flipping Book component. Click any card below to
-            turn it over and inspect hidden margin details, VIN comps, and
-            market spread.
+            Layout preview only. Cards below are placeholders, not listings.
+            Nothing on the back is a comp, a fee, or a profit.
           </p>
         </div>
 
@@ -418,7 +390,7 @@ function InteractiveDealShowcase() {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-mono font-bold text-[var(--amber-d)] bg-[var(--amber-lo)] px-2 py-0.5 rounded-full">
-                        IQ {deal.score}
+                        No score
                       </span>
                       <span className="text-xs text-[var(--t4)]">
                         {deal.source}
@@ -475,21 +447,21 @@ function InteractiveDealShowcase() {
                         <span className="text-[var(--t2)]">{deal.vin}</span>
                       </div>
                       <div className="flex justify-between text-[var(--t3)]">
-                        <span>Est. Transport:</span>
-                        <span className="text-[var(--t2)]">$450</span>
+                        <span>Transport:</span>
+                        <span className="text-[var(--t2)]">Not measured</span>
                       </div>
                       <div className="flex justify-between text-[var(--t3)]">
-                        <span>Est. Recon:</span>
-                        <span className="text-[var(--t2)]">$850</span>
+                        <span>Recon:</span>
+                        <span className="text-[var(--t2)]">Not measured</span>
                       </div>
                     </div>
                   </div>
 
                   <Link
-                    href="/scan"
+                    href="/status"
                     className="w-full text-center py-2 px-3 rounded-lg text-xs font-bold text-white bg-[var(--grad)] hover:opacity-90 transition-opacity"
                   >
-                    Open Live Analysis →
+                    Source status →
                   </Link>
                 </div>
               }
@@ -516,9 +488,8 @@ function DNADealShowcase() {
             The Deal Helix
           </h2>
           <p className="text-base text-[var(--t3)] max-w-xl mx-auto">
-            A continuously rotating 3D carousel of live-scored opportunities.
-            Drag to spin, hover to pause, click any card to bring it front and
-            center.
+            A layout preview only. These cards are not live listings, not
+            scored, and not priced from sold comps.
           </p>
         </div>
 
@@ -533,7 +504,7 @@ function DNADealShowcase() {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-mono font-bold text-[var(--amber-d)] bg-[var(--amber-lo)] px-2 py-0.5 rounded-full">
-                      IQ {deal.score}
+                      No score
                     </span>
                     <span className="text-[10px] text-[var(--t4)]">
                       {deal.source}
@@ -598,8 +569,7 @@ function FoldersAndCollectionsShowcase() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <RealFolder
-            label="High Margin Sports Cars"
-            count={14}
+            label="Sports cars — example workspace"
             color="var(--amber)"
           >
             <div className="space-y-2 text-xs font-mono">
@@ -616,8 +586,7 @@ function FoldersAndCollectionsShowcase() {
           </RealFolder>
 
           <RealFolder
-            label="Trucks & Heavy Utility"
-            count={28}
+            label="Trucks — example workspace"
             color="var(--purple)"
           >
             <div className="space-y-2 text-xs font-mono">
@@ -633,7 +602,7 @@ function FoldersAndCollectionsShowcase() {
             </div>
           </RealFolder>
 
-          <RealFolder label="Fast Flip Commuters" count={42} color="#00ff66">
+          <RealFolder label="Commuters — example workspace" color="#00ff66">
             <div className="space-y-2 text-xs font-mono">
               <div className="p-2 rounded bg-[var(--s1)] border border-[var(--b2)]">
                 Retail commuter feed — pending connection
@@ -656,10 +625,10 @@ function FoldersAndCollectionsShowcase() {
 
 function StatsSection() {
   const stats = [
-    { value: 12400, label: "Active Deals", suffix: "+", prefix: "" },
-    { value: 4, label: "Live Sources", suffix: "", prefix: "" },
-    { value: 50, label: "States Covered", suffix: "", prefix: "" },
-    { value: 94, label: "Avg Deal IQ Score", suffix: "%", prefix: "" },
+    { display: "—", label: "Listings connected" },
+    { display: "0", label: "Sources live" },
+    { display: "—", label: "Sold comps on file" },
+    { display: "n/a", label: "Deal score" },
   ];
 
   return (
@@ -677,12 +646,7 @@ function StatsSection() {
               className="text-center"
             >
               <div className="text-4xl md:text-5xl font-black text-[var(--t1)] mb-1 font-mono">
-                <LiveCounter
-                  value={s.value}
-                  prefix={s.prefix}
-                  suffix={s.suffix}
-                  duration={2}
-                />
+                {s.display}
               </div>
               <p className="text-sm text-[var(--t4)] font-semibold uppercase tracking-widest">
                 {s.label}
@@ -795,9 +759,9 @@ function ProblemSection() {
           transition={{ delay: 0.2 }}
           className="text-lg text-[var(--t3)] leading-relaxed"
         >
-          Winners don't search harder — they see the whole market at once and
-          know the number instantly. That's the entire job MikeHunt does for
-          you.
+          The product is meant to put listings and a basis on one screen.
+          That does not happen until a source is connected. Nothing above is
+          that feed.
         </motion.p>
       </div>
     </section>
@@ -884,8 +848,8 @@ function CTASection() {
           See the deal before <GradientText>everyone else does.</GradientText>
         </h2>
         <p className="text-xl text-[var(--t3)] max-w-xl mx-auto leading-relaxed mb-12">
-          Free to start. No credit card, no paid data brokers — just the whole
-          market, scored, on one login.
+          Free to start. No credit card. Coverage, scores, and profit show up
+          only after a source returns real listings.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
@@ -925,7 +889,7 @@ export function PremiumLandingPage() {
         <div className="pointer-events-auto hidden sm:block">
           <PillDropdownNav
             items={[
-              { key: "feed", label: "Live Feed", icon: "⚡" },
+              { key: "feed", label: "Overview", icon: "•" },
               { key: "deals", label: "Deals 3D", icon: "🃏" },
               { key: "folders", label: "Workspaces", icon: "📁" },
             ]}
@@ -935,8 +899,8 @@ export function PremiumLandingPage() {
         </div>
 
         <div className="pointer-events-auto">
-          <LiquidGlassButton href="/scan" variant="primary" size="sm">
-            Launch App →
+          <LiquidGlassButton href="/register" variant="primary" size="sm">
+            Start free →
           </LiquidGlassButton>
         </div>
       </header>
