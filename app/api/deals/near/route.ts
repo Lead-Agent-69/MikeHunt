@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
+import { nearQueryLock } from "@/lib/discovery/near-lock";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -9,12 +10,15 @@ import { sellerContactFields } from "@/lib/data/deal-contact";
 import { haversineMiles, boundingBox } from "@/lib/geo/distance";
 import { geocodeZip } from "@/lib/geo/geocode";
 
-// GET /api/deals/near?verdict=go&radius= — closest deals to the dealer's geocoded home base.
-// Unlocked by the geocoding work: reads home_lat/home_lng from the profile, computes haversine
-// distance to every geocoded deal, returns them nearest-first in DiscoveryDeal shape (so the
-// standard IntelRail/DiscoveryCard render it). $0 — pure math, no PostGIS RPC, no AI.
-function mapDeal(d: any, distanceMiles: number) {
+// GET /api/deals/near?verdict=go&radius=
+// State-locked. A ZIP or saved home state is required. Miles never cross that
+// state, and a missing radius is not a 150mi net.
+function mapDeal(d: any, distanceMiles: number | null) {
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
+  const miles =
+    distanceMiles != null && Number.isFinite(distanceMiles)
+      ? Math.round(distanceMiles)
+      : null;
   return {
     id: d.id,
     source: d.source,
@@ -41,8 +45,8 @@ function mapDeal(d: any, distanceMiles: number) {
     ...tags,
     alsoOn: [],
     listingCount: 1,
-    distanceMiles: Math.round(distanceMiles),
-    winReason: `${Math.round(distanceMiles)} mi from you`,
+    ...(miles != null ? { distanceMiles: miles } : {}),
+    winReason: miles != null ? `${miles} mi from you` : "In your state",
   };
 }
 
@@ -55,17 +59,25 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   const { data: profile } = await supabase
     .from("user_profiles")
-    .select("home_lat, home_lng")
+    .select("home_lat, home_lng, home_state, home_zip")
     .eq("id", user.id)
     .maybeSingle();
 
   const sp = new URL(req.url).searchParams;
   const verdict = sp.get("verdict") || "go";
   const zip = sp.get("zip");
-  // A ZIP search casts a 150mi net by default so it ALWAYS surfaces the nearest inventory; explicit wins.
-  const radius = Number(sp.get("radius")) || (zip ? 150 : 0); // 0 = no cap
+  const lock = nearQueryLock({
+    zip,
+    radiusParam: sp.get("radius"),
+    homeState: profile?.home_state,
+    homeZip: profile?.home_zip,
+    homeLat: profile?.home_lat != null ? Number(profile.home_lat) : null,
+    homeLng: profile?.home_lng != null ? Number(profile.home_lng) : null,
+  });
+  if (!lock.state) {
+    return NextResponse.json({ deals: [], needsState: true });
+  }
 
-  // Center on the searched ZIP (geocoded, cache-first) if given, else the dealer's saved home base.
   let centerLat = profile?.home_lat != null ? Number(profile.home_lat) : null;
   let centerLng = profile?.home_lng != null ? Number(profile.home_lng) : null;
   if (zip) {
@@ -75,10 +87,7 @@ export async function GET(req: NextRequest) {
       centerLng = c.lng;
     }
   }
-  if (centerLat == null || centerLng == null) {
-    // No ZIP and no geocoded home → the rail hides. Set a ZIP in Settings (or pass ?zip=) to enable it.
-    return NextResponse.json({ deals: [], needsHome: true });
-  }
+  const canMeasure = centerLat != null && centerLng != null;
 
   let q = supabase
     .from("deals")
@@ -86,14 +95,15 @@ export async function GET(req: NextRequest) {
       "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
     )
     .eq("active", true)
+    .eq("location_state", lock.state)
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
-    .gt("ask_price", 0)
-    .not("lat", "is", null);
+    .gt("ask_price", 0);
   if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
-  // Bounding-box pre-filter so we only haversine-sort listings actually near the center (not 500 random rows).
-  if (radius > 0) {
-    const bb = boundingBox(centerLat, centerLng, radius);
+  // An explicit radius narrows inside the locked state. It never adds neighbor states.
+  if (lock.radius > 0 && canMeasure) {
+    const bb = boundingBox(centerLat as number, centerLng as number, lock.radius);
     q = q
+      .not("lat", "is", null)
       .gte("lat", bb.minLat)
       .lte("lat", bb.maxLat)
       .gte("lng", bb.minLng)
@@ -103,20 +113,31 @@ export async function GET(req: NextRequest) {
 
   const { data: rows } = await q;
 
-  const withDist: { d: any; miles: number }[] = [];
+  const withDist: { d: any; miles: number | null }[] = [];
   for (const r of rows || []) {
-    const miles = haversineMiles(
-      centerLat,
-      centerLng,
-      Number(r.lat),
-      Number(r.lng),
-    );
-    if (miles == null) continue;
-    if (radius > 0 && miles > radius) continue;
+    if (String(r.location_state || "").toUpperCase() !== lock.state) continue;
+    let miles: number | null = null;
+    if (canMeasure && r.lat != null && r.lng != null) {
+      miles = haversineMiles(
+        centerLat as number,
+        centerLng as number,
+        Number(r.lat),
+        Number(r.lng),
+      );
+      if (miles == null) miles = null;
+      if (lock.radius > 0 && (miles == null || miles > lock.radius)) continue;
+    } else if (lock.radius > 0) {
+      continue;
+    }
     withDist.push({ d: r, miles });
   }
-  withDist.sort((a, b) => a.miles - b.miles);
+  withDist.sort((a, b) => {
+    if (a.miles == null && b.miles == null) return 0;
+    if (a.miles == null) return 1;
+    if (b.miles == null) return -1;
+    return a.miles - b.miles;
+  });
 
   const deals = withDist.slice(0, 24).map(({ d, miles }) => mapDeal(d, miles));
-  return NextResponse.json({ deals });
+  return NextResponse.json({ deals, state: lock.state });
 }
