@@ -2386,22 +2386,6 @@ img[loading="lazy"] {
   justify-content: center;
   animation: fadeIn 0.3s ease;
 }
-.splash-screen-mobile .logo {
-  width: 80px;
-  height: 80px;
-  border-radius: 20px;
-  background: var(--grad);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 32px rgba(242, 91, 154, 0.3);
-  animation: pulse 2s ease infinite;
-}
-.splash-screen-mobile .logo svg {
-  width: 40px;
-  height: 40px;
-}
 .splash-screen-mobile .app-name {
   font-size: 24px;
   font-weight: 800;
@@ -2413,15 +2397,6 @@ img[loading="lazy"] {
   color: var(--t4);
   margin-bottom: 32px;
 }
-.splash-screen-mobile .loader {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--s3);
-  border-top-color: var(--amber);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
 /* ── Mobile app banner ── */
 .app-banner-mobile {
   position: fixed;

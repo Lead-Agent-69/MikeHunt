@@ -166,6 +166,11 @@ export async function middleware(request: NextRequest) {
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set(
+      "next",
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    );
     return redirectWithAuthCookies(url);
   }
 

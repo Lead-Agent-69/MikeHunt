@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 
 describe("new-account onboarding routes", () => {
   it("sends both email and Google registration through onboarding", () => {
@@ -15,7 +16,16 @@ describe("new-account onboarding routes", () => {
     const login = readFileSync("app/(auth)/login/page.tsx", "utf8");
 
     expect(login).toContain("new URLSearchParams(window.location.search)");
-    expect(login).toContain('requestedNext?.startsWith("/")');
+    expect(login).toContain('safeNextPath(params.get("next"))');
     expect(login).toContain("<GoogleButton next={next}");
+  });
+
+  it("keeps post-auth destinations inside the app", () => {
+    expect(safeNextPath("/deal-check?vehicle=123")).toBe(
+      "/deal-check?vehicle=123",
+    );
+    expect(safeNextPath("//example.com")).toBe("/discover");
+    expect(safeNextPath("https://example.com")).toBe("/discover");
+    expect(safeNextPath("/\\example.com")).toBe("/discover");
   });
 });

@@ -9,6 +9,7 @@ import React, {
   useRef,
 } from "react";
 import { cn } from "@/lib/utils";
+import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 
 // ── Network Status ──
 interface NetworkStatus {
@@ -2522,21 +2523,14 @@ export function MobileSplashScreen({
   if (!visible) return null;
   return (
     <div className="splash-screen-mobile">
-      <div className="logo">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M3 13l2-2 4 4 6-6 4 4 2-2" />
-        </svg>
-      </div>
+      <MikeHuntLoader
+        state="loading"
+        size={80}
+        label={`${appName} is starting`}
+        className="mb-6"
+      />
       <div className="app-name">{appName}</div>
       <div className="tagline">{tagline}</div>
-      <div className="loader" />
     </div>
   );
 }

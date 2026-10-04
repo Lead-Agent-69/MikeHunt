@@ -11,6 +11,11 @@ import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
 import { MikeHuntLogo, MikeHuntMark } from "@/components/brand/MikeHuntLogo";
+import {
+  authCallbackMessage,
+  authErrorMessage,
+} from "@/lib/auth/auth-error-message";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -24,10 +29,9 @@ export default function LoginPage() {
   const configured = isSupabaseConfigured();
 
   useEffect(() => {
-    const requestedNext = new URLSearchParams(window.location.search).get(
-      "next",
-    );
-    if (requestedNext?.startsWith("/")) setNext(requestedNext);
+    const params = new URLSearchParams(window.location.search);
+    setNext(safeNextPath(params.get("next")));
+    setError(authCallbackMessage(params.get("error")));
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,7 +64,12 @@ export default function LoginPage() {
     });
 
     if (error) {
-      setError(error.message);
+      setError(
+        authErrorMessage(
+          error.message,
+          "We couldn't sign you in. Please try again.",
+        ),
+      );
       setLoading(false);
     } else {
       const bootstrap = await fetch("/api/auth/bootstrap", { method: "POST" });

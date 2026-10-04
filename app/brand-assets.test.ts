@@ -10,12 +10,15 @@ describe("MikeHunt brand assets", () => {
   it("uses the supplied M identity in app chrome", () => {
     const topNav = read("components/layout/TopNav.tsx");
     const logo = read("components/brand/MikeHuntLogo.tsx");
+    const mobileUx = read("components/ui/mobile-ux.tsx");
 
     expect(topNav).toContain("MikeHuntLogo");
     expect(topNav).not.toContain("BarChart3");
     expect(logo).toContain("/brand/MIKEHUNT-M.svg");
     expect(logo).not.toContain("aviator");
     expect(topNav).toContain('aria-label="MIKEHUNT home"');
+    expect(mobileUx).toContain("MikeHuntLoader");
+    expect(mobileUx).not.toContain('<path d="M3 13l2-2');
   });
 
   it("ships a matching blue PWA icon and theme color", () => {

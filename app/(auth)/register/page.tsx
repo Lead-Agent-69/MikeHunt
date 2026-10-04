@@ -11,6 +11,7 @@ import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { GoogleButton, OrDivider } from "@/components/shared/GoogleButton";
 import { MikeHuntLogo, MikeHuntMark } from "@/components/brand/MikeHuntLogo";
+import { authErrorMessage } from "@/lib/auth/auth-error-message";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -77,7 +78,12 @@ export default function RegisterPage() {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(
+          authErrorMessage(
+            signUpError.message,
+            "We couldn't create your account. Please try again.",
+          ),
+        );
         setLoading(false);
         return;
       }

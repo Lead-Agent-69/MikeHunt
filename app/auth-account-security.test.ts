@@ -47,6 +47,7 @@ describe("account creation security", () => {
 
     const registry = readFileSync("app/api/scrape/registry/route.ts", "utf8");
     expect(registry).toContain("allowAdminSession: true");
+    expect(registry).toContain('await import("@/lib/scrapers/runner")');
   });
 
   it("returns OAuth session cookies on the callback redirect", () => {

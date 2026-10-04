@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { ensureAccountRows } from "@/lib/auth/account-bootstrap";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
 // a session (writing the auth cookies) and forward to `next` (the deal feed by default). Public
@@ -9,9 +10,8 @@ import { ensureAccountRows } from "@/lib/auth/account-bootstrap";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const nextParam = searchParams.get("next") || "/discover";
-  // Only allow relative in-app redirects (no open redirect to arbitrary hosts).
-  const next = nextParam.startsWith("/") ? nextParam : "/discover";
+  // Keep the callback inside the app, including against protocol-relative URLs.
+  const next = safeNextPath(searchParams.get("next"));
   // Behind Vercel the public host is in x-forwarded-host; keep every callback
   // redirect on the same public origin so auth cookies are returned to the browser.
   const forwardedHost = request.headers.get("x-forwarded-host");

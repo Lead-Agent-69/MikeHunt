@@ -6,6 +6,8 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { authErrorMessage } from "@/lib/auth/auth-error-message";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 
 // "Continue with Google" — kicks off Supabase OAuth (PKCE). On success the browser is redirected to
 // Google, then back to /auth/callback?next=…, which exchanges the code and lands on the deal feed.
@@ -75,13 +77,18 @@ export function GoogleButton({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`,
         queryParams: { access_type: "offline", prompt: "select_account" },
       },
     });
     // On success the page navigates to Google, so we only get here on failure.
     if (error) {
-      setError(error.message);
+      setError(
+        authErrorMessage(
+          error.message,
+          "Google sign-in could not start. Please try again.",
+        ),
+      );
       setLoading(false);
     }
   };

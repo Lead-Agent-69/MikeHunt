@@ -2,7 +2,6 @@
 // Manage scraper registry state: list sources, auto-disabled sources, enable/disable, reset failures.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createScraperRegistry } from "@/lib/scrapers/runner";
 import { ScraperStateManager } from "@/lib/scrapers/tools/state";
 import { denyUnauthed } from "@/lib/auth/scrape-gate";
 
@@ -11,7 +10,12 @@ import { denyUnauthed } from "@/lib/auth/scrape-gate";
 // The owner control room is the only browser UI that consumes this route. It may use a verified
 // admin session; automation continues to use the bearer secret.
 
-function createRegistry() {
+async function createRegistry() {
+  // The runner includes Playwright adapters that are intentionally not bundled in
+  // the Vercel request function. Import it only after the request passes the
+  // admin/secret gate so a public request reliably returns 401 instead of a
+  // module-loading failure.
+  const { createScraperRegistry } = await import("@/lib/scrapers/runner");
   const stateManager = new ScraperStateManager();
   const registry = createScraperRegistry(stateManager);
   return { registry, stateManager };
@@ -24,7 +28,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const filter = searchParams.get("filter") || "all"; // all | enabled | disabled | auto-disabled
 
-    const { registry } = createRegistry();
+    const { registry } = await createRegistry();
     await registry.loadState();
     const all = registry.getAll().map((s) => ({
       id: s.id,
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { registry } = createRegistry();
+    const { registry } = await createRegistry();
     await registry.loadState();
     const scraper = registry.get(id);
     if (!scraper) {
