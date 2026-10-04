@@ -1472,8 +1472,11 @@ export default function StatusPage() {
           {/* Live inventory per source — count, freshness, and are we SHOWING the cars (photos) */}
           {breakdown.length > 0 && (
             <div className="glass-panel p-5">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
-                Live inventory by source
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-1">
+                Listings on file by source
+              </p>
+              <p className="mb-3 text-xs text-[var(--t4)]">
+                Freshness of stored listings. Not a worker heartbeat.
               </p>
               <div className="divide-y divide-[var(--b1)]">
                 {breakdown.map((s) => {
@@ -1503,11 +1506,13 @@ export default function StatusPage() {
                         <span className="text-sm font-bold text-[var(--t1)] capitalize truncate">
                           {s.source.replace(/_/g, " ")}
                         </span>
-                        {s.status === "stale" && (
-                          <span className="text-[10px] font-bold text-[var(--amber)] uppercase shrink-0">
-                            stale
-                          </span>
-                        )}
+                        <span className="text-[10px] font-bold uppercase shrink-0 text-[var(--t4)]">
+                          {s.status === "stale"
+                            ? "older listings"
+                            : s.status === "idle"
+                              ? "no stored listings"
+                              : "stored listings"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-4 text-xs shrink-0">
                         <span className="text-[var(--t2)] font-semibold tabular-nums">

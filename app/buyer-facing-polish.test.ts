@@ -82,7 +82,9 @@ describe("buyer-facing polish", () => {
     expect(source).toContain(
       "Choose where you want to find your next vehicle.",
     );
-    expect(source).toContain("Live coverage available");
+    expect(source).toContain("Listings on file");
+    expect(source).toContain("Not a worker heartbeat.");
+    expect(source).not.toContain("Live coverage available");
     expect(source).toContain("Available market coverage");
     expect(source).toContain("Independent dealer coverage");
     expect(source).not.toContain(

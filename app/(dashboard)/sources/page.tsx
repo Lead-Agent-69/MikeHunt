@@ -167,15 +167,15 @@ function SetupOverview({ health }: { health: any }) {
               {loading
                 ? "Checking readiness"
                 : configured
-                  ? "Live coverage available"
+                  ? "Listings on file"
                   : readySources
-                    ? "Preview coverage available"
+                    ? "Preview listings on file"
                     : "Coverage is being prepared"}
             </div>
             <div className="text-xs text-[var(--t4)]">
               {loading
-                ? "Checking current listings..."
-                : `${readySources} working market${readySources === 1 ? "" : "s"} · ${provenRows.toLocaleString()} current listings`}
+                ? "Checking stored listings..."
+                : `${readySources} market${readySources === 1 ? "" : "s"} with stored listings · ${provenRows.toLocaleString()} current listings. Not a worker heartbeat.`}
             </div>
           </div>
         </div>
