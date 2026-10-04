@@ -105,9 +105,8 @@ export function conditionAdjustedSell(
   let sell = cleanRetail * titleMult * mileageMult;
 
   // Real-sold anchor. n >= 3 is the same floor as an ask bucket — below that, do not invent a sale.
-  // Damaged titles still blend (the ask comp and the sold median can disagree a lot). Clean titles
-  // use the sold median itself when the band is deep enough. Condition is not filtered here;
-  // sold_listings has no like-for-like condition column on this path.
+  // Damaged titles blend toward the salvage-titled median. Clean titles use the clean median only.
+  // The caller picks the lane; salvage titles never enter the clean median.
   let soldAnchored = false;
   if (realSold && realSold.n >= 3 && realSold.median > 0) {
     if (titleMult < 0.95) {
