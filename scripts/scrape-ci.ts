@@ -33,20 +33,29 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-// $0-friendly defaults: no dealer login, no paid proxy. Carvana/Copart/PublicSurplus use open
-// JSON APIs (no FlareSolverr); cars_com/autotrader/cargurus escalate to FlareSolverr when blocked.
+// $0-friendly defaults: runner-enabled open sources only. Explicit ids bypass the registry
+// `enabled` flag (lib/scrapers/runner.ts), so this list must not name disabled sources.
+// Gov surplus siblings share the public-surplus path (govdeals, allsurplus, municibid, gsa).
+// Not listed (enabled:false): cargurus, independent_dealer, iaa, manheim, acv, adesa,
+// facebook_marketplace, vroom, auto_discover.
+// truecar is enabled but headed-only: the Fly/Docker worker sets SCRAPE_SOURCES (see
+// Dockerfile.scraper / fly.toml). CI and any process without that env do not hit it.
 const DEFAULT_SOURCES = [
   "craigslist",
-  "carvana", // open JSON API (apik.carvana.io v2) — ~73k clean retail comps, NO FlareSolverr
-  "autotempest", // meta-aggregator — Cars.com/CarGurus/eBay/TrueCar/CarMax/FB in one API, NO FlareSolverr
-  "ebay_sold", // REAL completed-sale prices -> sold_listings (via system curl), NO FlareSolverr
-  "publicsurplus", // open gov-surplus auctions — cheap police/fleet flips, NO FlareSolverr
-  "cars_com", // FlareSolverr — real retail comps (data-vehicle-details JSON)
-  "autotrader", // FlareSolverr — real retail comps (__NEXT_DATA__)
-  "cargurus", // FlareSolverr — AJAX listings JSON (best-effort until live-verified)
+  "offerup",
+  "carvana", // open JSON API (apik.carvana.io v2) — clean retail comps, NO FlareSolverr
+  "autotempest", // meta-aggregator — Cars.com/CarGurus/eBay/TrueCar/CarMax in one API, NO FlareSolverr
+  "ebay_sold", // completed-sale prices -> sold_listings (via system curl), NO FlareSolverr
   "ebay_motors",
-  "independent_dealer",
-  "curated_dealers", // salvage-rebuilder + dealer network (we curate the list; AI/generic crawler ingests)
+  "cars_com",
+  "autotrader",
+  "carparts_com",
+  "publicsurplus", // open gov-surplus auctions
+  "govdeals",
+  "allsurplus",
+  "municibid",
+  "gsa_auctions",
+  "curated_dealers", // salvage-rebuilder + dealer network (absolute-URL sites only)
   "copart",
 ];
 
@@ -405,10 +414,16 @@ async function main() {
     } catch (e) {
       console.warn("canonicalize skipped:", (e as Error).message);
     }
-    try {
-      await cacheGoPhotos(parseInt(process.env.CACHE_PHOTOS_MAX || "0", 10));
-    } catch (e) {
-      console.warn("photo hosting skipped:", (e as Error).message);
+    // 0 (the default) skips hosting. Copying listing photos into vehicle-photos fills
+    // that bucket and replaces deals.images source URLs. Opt in with CACHE_PHOTOS_MAX>0.
+    const photoCacheMax = parseInt(process.env.CACHE_PHOTOS_MAX || "0", 10);
+    if (photoCacheMax > 0) {
+      try {
+        await cacheGoPhotos(photoCacheMax);
+      } catch (e) {
+        console.warn("photo hosting skipped:", (e as Error).message);
+      }
+
     }
   }
 
