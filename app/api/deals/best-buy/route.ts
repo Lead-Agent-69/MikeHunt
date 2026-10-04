@@ -31,65 +31,6 @@ function dealerNeedles(ids: string[]) {
   return ids.flatMap((id) => map[id] || [id.replace(/-/g, "")]);
 }
 
-// High-velocity liquidity models (turn in under 18 days on average)
-const HIGH_VELOCITY_MODELS = [
-  "civic",
-  "accord",
-  "camry",
-  "corolla",
-  "cr-v",
-  "rav4",
-  "tacoma",
-  "tundra",
-  "f-150",
-  "silverado",
-  "sierra",
-  "wrangler",
-  "outback",
-  "forester",
-  "cx-5",
-  "prius",
-];
-
-function calculateLiquidityScore(
-  make?: string,
-  model?: string,
-  mileage?: number,
-): { score: number; daysToTurn: number } {
-  const normModel = (model || "").toLowerCase();
-  const normMake = (make || "").toLowerCase();
-
-  let baseScore = 75;
-  let daysToTurn = 28;
-
-  if (HIGH_VELOCITY_MODELS.some((m) => normModel.includes(m))) {
-    baseScore = 95;
-    daysToTurn = 11;
-  } else if (["toyota", "honda", "subaru", "mazda"].includes(normMake)) {
-    baseScore = 90;
-    daysToTurn = 14;
-  } else if (["ford", "chevrolet", "gmc", "ram", "jeep"].includes(normMake)) {
-    baseScore = 85;
-    daysToTurn = 19;
-  } else if (
-    ["bmw", "mercedes-benz", "audi", "lexus", "porsche"].includes(normMake)
-  ) {
-    baseScore = 72;
-    daysToTurn = 34;
-  }
-
-  // Mileage modifier
-  if (mileage && mileage < 75000) {
-    baseScore = Math.min(99, baseScore + 5);
-    daysToTurn = Math.max(7, daysToTurn - 3);
-  } else if (mileage && mileage > 150000) {
-    baseScore = Math.max(50, baseScore - 10);
-    daysToTurn += 7;
-  }
-
-  return { score: baseScore, daysToTurn };
-}
-
 // GET /api/deals/best-buy
 // Finds the #1 highest-margin, highest-velocity flip based on dealer capital and strategy.
 export async function GET(req: NextRequest) {
@@ -293,42 +234,29 @@ export async function GET(req: NextRequest) {
     .map((deal) => {
       const ask = Number(deal.ask_price) || 0;
       const profit = Number(deal.true_net_profit) || 0;
-      const sellEst = Number(deal.sell_estimate) || ask + profit;
+      const sellEst =
+        deal.sell_estimate != null ? Number(deal.sell_estimate) : null;
       const maxBid =
-        Number(deal.recommended_max_bid) ||
-        (ask > 0 ? Math.round(ask * 0.92) : 0);
-      // ROI is return on all invested costs, not return on the advertised price.
-      const investedCosts = Number(deal.deal_analysis?.costs?.total);
-      const roi =
-        Number.isFinite(investedCosts) && investedCosts > 0
-          ? (profit / investedCosts) * 100
-          : 0;
-      const { score: liquidityScore, daysToTurn } = calculateLiquidityScore(
-        deal.make,
-        deal.model,
-        deal.mileage,
-      );
+        deal.recommended_max_bid != null
+          ? Number(deal.recommended_max_bid)
+          : null;
+      const roi = ask > 0 ? (profit / ask) * 100 : 0;
       const evidence = evidenceFor(deal);
 
       // Strategy composite ranking
       let rankScore = 0;
-      if (fallbackMode) {
-        // When there are no true BUY deals, "best" means closest to a profitable buy. Liquidity still
-        // matters, but it should never outrank a materially better walk-away gap.
-        rankScore =
-          profit * 10 + liquidityScore * 4 + Number(deal.profit_score || 0);
-      } else if (strategy === "max_profit") {
-        rankScore = profit * 0.7 + roi * 20 + liquidityScore * 10;
-      } else if (strategy === "fastest_flip") {
-        rankScore = liquidityScore * 50 + roi * 25 + (profit / 100) * 25;
+      if (strategy === "max_profit") {
+        rankScore = profit;
+      } else if (strategy === "max_roi") {
+        rankScore = roi;
       } else {
-        // max_roi default
-        rankScore = roi * 50 + profit / 50 + liquidityScore * 15;
+        rankScore = Number(deal.profit_score || 0);
       }
 
       // Safety buffer: how much can market drop before breaking even
       const downsideBuffer = profit;
-      const discountToComps = Math.max(0, sellEst - ask);
+      const discountToComps =
+        sellEst != null ? Math.max(0, sellEst - ask) : 0;
 
       return {
         id: deal.id,
@@ -344,10 +272,11 @@ export async function GET(req: NextRequest) {
         sellEstimate: sellEst,
         trueNetProfit: Math.round(profit),
         roiPct: Math.round(roi * 10) / 10,
-        profitScore: deal.profit_score ?? 85,
+        profitScore:
+          deal.profit_score != null ? Number(deal.profit_score) : null,
         dealVerdict: evidence.acquisitionReady ? "go" : "hold",
         recommendedMaxBid: maxBid,
-        targetOffer: Math.round(ask * 0.88),
+        targetOffer: null,
         locationCity: deal.location_city,
         locationState: deal.location_state,
         images: deal.images || [],
@@ -367,8 +296,8 @@ export async function GET(req: NextRequest) {
           dealerSourceIds,
           dealers,
         },
-        liquidityScore,
-        daysToTurn,
+        liquidityScore: null,
+        daysToTurn: null,
         downsideBuffer: Math.round(downsideBuffer),
         discountToComps: Math.round(discountToComps),
         evidence,
@@ -399,21 +328,17 @@ export async function GET(req: NextRequest) {
   // Generate dynamic AI rationale for the #1 best buy
   const isVerifiedBuy = best.evidence.acquisitionReady;
   const aiRationale = {
-    headline: isVerifiedBuy
-      ? `Evidence-backed buy — projected $${best.trueNetProfit.toLocaleString()} net`
-      : `${best.evidence.label} — research before any offer`,
-    spreadAnalysis: isVerifiedBuy
-      ? `Listed at $${best.askPrice.toLocaleString()} against evidence-backed comparable value of $${best.sellEstimate.toLocaleString()} before final transaction checks.`
-      : best.evidence.summary,
-    turnSpeed: isVerifiedBuy
-      ? "Selling time is not established by the current comparable evidence. Plan for holding costs and verify local demand."
-      : "Turnover is not estimated until the listing's condition and final all-in price are verified.",
+    headline: "One listing to check first.",
+    spreadAnalysis: best.evidence.summary,
+    turnSpeed:
+      "Not a buy until condition and the all-in price are checked.",
     riskBuffer: isVerifiedBuy
-      ? `Modeled net result is $${best.trueNetProfit.toLocaleString()} after current costs. This is not a safety reserve or guaranteed profit.`
+      ? `Projected cushion is $${best.downsideBuffer.toLocaleString()} after current modeled costs; final transaction terms still require confirmation.`
       : "Projected profit is intentionally withheld from the decision until the missing evidence is resolved.",
-    recommendedAction: isVerifiedBuy
-      ? `Review the source listing, then keep the final purchase below $${best.recommendedMaxBid.toLocaleString()} after confirming the transaction terms.`
-      : best.evidence.nextCheck,
+    recommendedAction:
+      isVerifiedBuy && best.recommendedMaxBid != null
+        ? `Review the source listing, then keep the final purchase below $${best.recommendedMaxBid.toLocaleString()} after confirming the transaction terms.`
+        : best.evidence.nextCheck,
   };
 
   // Group runner-ups by budget tiers
