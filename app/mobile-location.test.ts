@@ -36,6 +36,8 @@ describe("mobile location regression protections", () => {
     expect(page).not.toContain("<MarketPicker");
     expect(header).toContain("window.history.replaceState");
     expect(header).toContain("[pathname, searchParams]");
+    expect(header).toMatch(/<Suspense\s+fallback=/);
+    expect(header).toContain("<TopNavContent />");
     expect(page).toContain("savedStates.join");
     expect(page).toContain("...savedBuyerScope,");
   });

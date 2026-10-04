@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -61,6 +61,25 @@ function NavPill() {
 }
 
 export function TopNav() {
+  return (
+    <Suspense
+      fallback={
+        <header
+          className="sticky top-0 z-30 flex h-14 items-center px-4 md:px-6"
+          style={{ background: "var(--glass)" }}
+        >
+          <Link href="/discover" aria-label="MIKEHUNT home">
+            <MikeHuntLogo />
+          </Link>
+        </header>
+      }
+    >
+      <TopNavContent />
+    </Suspense>
+  );
+}
+
+function TopNavContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
