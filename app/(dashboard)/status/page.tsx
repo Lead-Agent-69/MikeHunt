@@ -284,9 +284,16 @@ export default function StatusPage() {
       action: "Test login",
     },
     {
-      title: "AI briefs are not provider-backed yet",
+      title:
+        readiness?.items?.find((item: any) => item.id === "ai-provider")
+          ?.status === "ready"
+          ? "AI briefs stay narrate-only"
+          : "AI briefs are not provider-backed yet",
       detail:
-        "Deterministic deal briefs and market pulse are working from saved buyer math and live deal data. Rich provider-generated AI still needs OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY.",
+        readiness?.items?.find((item: any) => item.id === "ai-provider")
+          ?.status === "ready"
+          ? "A provider key is set. Briefs may explain fetched deals in words. Prices, MMR, and market value still come only from fetched data, never from the model."
+          : "Deterministic deal briefs and market pulse use saved buyer math and live deal data. Narration prefers ANTHROPIC_API_KEY (Haiku). OPENAI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks, and the model must not invent prices.",
       href: "/status",
       action: "Provider checklist",
     },
@@ -380,8 +387,8 @@ export default function StatusPage() {
       why:
         readiness?.items?.find((item: any) => item.id === "ai-provider")
           ?.status === "ready"
-          ? "Provider-backed AI can summarize why a deal is shown and what to verify next."
-          : "The app can rank, explain, and generate deterministic briefs from live system data now; a provider key upgrades those reads into generated AI.",
+          ? "Haiku (or the configured narrate fallback) can summarize why a deal is shown. It does not invent prices."
+          : "The app can rank and explain from live data now. Narration prefers an Anthropic Haiku key; OpenAI and Gemini are optional fallbacks.",
       href: "/status",
       action: "Provider checklist",
       state:
