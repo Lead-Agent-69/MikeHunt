@@ -4,6 +4,7 @@ import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
+import { proxiedImage } from "@/lib/image-url";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import {
@@ -362,9 +363,7 @@ export const DealCard = memo(function DealCard({
       : confidenceScore >= 62
         ? "Worth reviewing, but verify weak fields before bidding."
         : "Needs better proof before this should drive a bid.");
-  const proxiedUrl = imageUrl?.startsWith("http")
-    ? `/api/image/proxy?url=${encodeURIComponent(imageUrl)}`
-    : imageUrl;
+  const proxiedUrl = proxiedImage(imageUrl) || imageUrl;
 
   return (
     <motion.div
