@@ -12,7 +12,7 @@ describe("buyer-facing polish", () => {
     expect(source).not.toContain("dealer.sourceId");
     expect(source).not.toContain("through exact dealer source IDs");
     expect(source).toContain("What are you buying for?");
-    expect(source).toContain("MIKEHUNT does not run a broad crawl from setup");
+    expect(source).toContain("Your search, your choices");
     expect(source).toContain("Your first search");
     expect(source).not.toContain('fetch("/api/scrape/run")');
   });
