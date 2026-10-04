@@ -67,6 +67,7 @@ describe("parseEbaySoldHtml", () => {
     expect(r.mileage).toBe(98000);
     expect(r.item_id).toBe("123");
     expect(r.sold_at?.slice(0, 10)).toBe("2026-04-28");
+    expect(r.title).toBe("2018 Honda Accord EX-L");
   });
 
   it("filters out parts/project junk and out-of-range prices", () => {

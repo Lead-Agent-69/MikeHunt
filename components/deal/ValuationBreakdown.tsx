@@ -54,11 +54,22 @@ export function ValuationBreakdown({
       icon: "calculator",
       label: `Attached market guide ${money(v.kbbValue)}`,
     });
-  if (v.soldCount > 0)
+  if (v.soldCount >= 3) {
+    const soldOn = v.soldAt
+      ? new Date(v.soldAt).toLocaleDateString("en-US", {
+          timeZone: "America/Chicago",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
     evidence.push({
       icon: "check-circle",
-      label: `${v.soldCount} recent real sale${v.soldCount === 1 ? "" : "s"}`,
+      label: `${v.soldCount} ${v.soldLane === "salvage" ? "salvage" : "clean"} sales${
+        soldOn ? ` · ${soldOn}` : ""
+      }`,
     });
+  }
   if (evidence.length === 0)
     evidence.push({
       icon: "alert-triangle",

@@ -84,6 +84,11 @@ const PARTS_RX =
 const num = (t: unknown): number =>
   Number(String(t ?? "").replace(/[^0-9.]/g, "")) || 0;
 
+/** Listing title only. Never a photo. Capped so the sold row stays thin. */
+export function shortSoldTitle(title: string): string {
+  return title.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
 export interface SoldRow {
   vin?: string;
   year?: number;
@@ -93,6 +98,8 @@ export interface SoldRow {
   mileage?: number;
   sold_price: number;
   sold_at?: string;
+  /** Short listing title, including salvage wording when the sale is branded. */
+  title?: string;
   source: string;
   location_state?: string;
   item_id: string;
@@ -182,6 +189,7 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       mileage,
       sold_price,
       sold_at,
+      title: shortSoldTitle(title),
       source: "ebay_motors",
       item_id,
       source_url: absoluteLink.split("?")[0],
@@ -341,6 +349,7 @@ export async function scrapeEbaySold(): Promise<number> {
       mileage: r.mileage ?? null,
       sold_price: r.sold_price,
       sold_at: r.sold_at ?? null,
+      title: r.title ? shortSoldTitle(r.title) : null,
       source: r.source,
       source_item_id: r.item_id,
       source_url: r.source_url,

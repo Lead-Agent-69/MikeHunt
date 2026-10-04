@@ -89,10 +89,11 @@ let supplyByModel: Map<string, number> | null = null;
 // pure offline baseline. ~90% of make/model/year buckets are otherwise too thin for direct comps.
 let retailByModel: Map<string, { year: number; price: number }[]> | null = null;
 // Real completed-sale prices (eBay sold etc.) keyed make|model|yearBucket.
-// soldByState adds |STATE when that state's n >= 3. No condition split — sold_listings
-// has no like-for-like condition column in this path. Below n = 3 we do not invent a sold.
-let soldIndex: Map<string, { median: number; n: number }> | null = null;
-let soldByState: Map<string, { median: number; n: number }> | null = null;
+// Clean and salvage are separate. A missing title is neither. Below n = 3 we do not invent a sold.
+let soldIndex: Map<string, SoldMedian> | null = null;
+let soldByState: Map<string, SoldMedian> | null = null;
+let salvageSoldIndex: Map<string, SoldMedian> | null = null;
+let salvageSoldByState: Map<string, SoldMedian> | null = null;
 
 const modelKey = (make?: string | null, model?: string | null) =>
   `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
@@ -110,6 +111,8 @@ export function __resetMarketIndexForTest() {
   retailByModel = null;
   soldIndex = null;
   soldByState = null;
+  salvageSoldIndex = null;
+  salvageSoldByState = null;
   aggregates = null;
   loadedAt = 0;
   loadingPromise = null;
@@ -372,51 +375,160 @@ async function loadMarketIndexUnlocked(
   await loadAggregateIndex(supabase);
 }
 
+const SALVAGE_SOLD_TITLE =
+  /\b(salvage|rebuilt|rebuild|repairable|flood(?:ed)?|junk|non-?runner|wreck(?:ed)?|branded title|title brand|for parts|parts only|certificate of destruction|\bcod\b)\b/i;
+
+export type SoldTitleLane = "clean" | "salvage" | "unknown";
+
+/** Salvage/rebuilt/flood wording on the stored title. Blank titles are unknown, not clean. */
+export function soldTitleLane(title?: string | null): SoldTitleLane {
+  const text = (title || "").replace(/\s+/g, " ").trim();
+  if (!text) return "unknown";
+  return SALVAGE_SOLD_TITLE.test(text) ? "salvage" : "clean";
+}
+
+export type SoldObservation = {
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  sold_price?: number | null;
+  location_state?: string | null;
+  title?: string | null;
+  sold_at?: string | null;
+};
+
+type SoldBucket = { prices: number[]; soldAt: string | null };
+
+function pushSold(
+  buckets: Map<string, SoldBucket>,
+  bucketKey: string,
+  price: number,
+  soldAt?: string | null,
+) {
+  let bucket = buckets.get(bucketKey);
+  if (!bucket) {
+    bucket = { prices: [], soldAt: null };
+    buckets.set(bucketKey, bucket);
+  }
+  bucket.prices.push(price);
+  if (soldAt && (!bucket.soldAt || soldAt > bucket.soldAt)) bucket.soldAt = soldAt;
+}
+
+function finalizeSold(buckets: Map<string, SoldBucket>) {
+  const idx = new Map<string, SoldMedian>();
+  buckets.forEach((bucket, bucketKey) => {
+    const value = median(bucket.prices);
+    if (value == null) return;
+    idx.set(bucketKey, {
+      median: Math.round(value),
+      n: bucket.prices.length,
+      soldAt: bucket.soldAt,
+    });
+  });
+  return idx;
+}
+
+/** Split completed sales by title. Untitled rows are dropped so they cannot pose as clean. */
+export function buildSoldIndexes(rows: SoldObservation[]) {
+  const clean = new Map<string, SoldBucket>();
+  const cleanState = new Map<string, SoldBucket>();
+  const salvage = new Map<string, SoldBucket>();
+  const salvageState = new Map<string, SoldBucket>();
+  for (const row of rows || []) {
+    const price = Number(row.sold_price);
+    if (!(row.make && row.model && price > 0)) continue;
+    const lane = soldTitleLane(row.title);
+    if (lane === "unknown") continue;
+    const national = lane === "clean" ? clean : salvage;
+    const byState = lane === "clean" ? cleanState : salvageState;
+    const bucketKey = key(row.make, row.model, row.year);
+    pushSold(national, bucketKey, price, row.sold_at);
+    const state = String(row.location_state || "").trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(state)) {
+      pushSold(byState, `${bucketKey}|${state}`, price, row.sold_at);
+    }
+  }
+  return {
+    clean: finalizeSold(clean),
+    cleanState: finalizeSold(cleanState),
+    salvage: finalizeSold(salvage),
+    salvageState: finalizeSold(salvageState),
+  };
+}
+
+export function summarizeCleanSold(rows: SoldObservation[]) {
+  const clean: SoldObservation[] = [];
+  let salvageCount = 0;
+  let unknownCount = 0;
+  for (const row of rows || []) {
+    const price = Number(row.sold_price);
+    if (!(price > 0)) continue;
+    const lane = soldTitleLane(row.title);
+    if (lane === "clean") clean.push(row);
+    else if (lane === "salvage") salvageCount += 1;
+    else unknownCount += 1;
+  }
+  const prices = clean
+    .map((row) => Number(row.sold_price))
+    .filter((price) => price > 0)
+    .sort((a, b) => a - b);
+  const publish = prices.length >= 3;
+  const value = publish ? median(prices) : null;
+  const soldAt = publish
+    ? clean
+        .map((row) => row.sold_at)
+        .filter((stamp): stamp is string => Boolean(stamp))
+        .sort()
+        .at(-1) || null
+    : null;
+  const note =
+    publish
+      ? null
+      : salvageCount > 0
+        ? `Salvage titles are not a clean price. ${prices.length} clean sale${prices.length === 1 ? "" : "s"} on file; a clean median needs at least 3.`
+        : prices.length > 0
+          ? `${prices.length} clean sale${prices.length === 1 ? "" : "s"} on file. A clean price needs at least 3.`
+          : unknownCount > 0
+            ? "Sold rows have no title, so they are not used as a clean price."
+            : salvageCount > 0
+              ? "Only salvage titles on file. Not a clean price."
+              : null;
+  return {
+    median: value == null ? null : Math.round(value),
+    count: prices.length,
+    soldAt,
+    low: publish ? prices[0] : null,
+    high: publish ? prices[prices.length - 1] : null,
+    salvageCount,
+    unknownCount,
+    mixed: salvageCount > 0 && prices.length < 3,
+    note,
+  };
+}
+
 async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
   try {
-    const soldBuckets = new Map<string, number[]>();
-    const soldStateBuckets = new Map<string, number[]>();
+    const rows: SoldObservation[] = [];
     const PAGE = 1000;
     for (let from = 0; from < 40000; from += PAGE) {
-      const { data: rows, error } = await supabase
+      const { data, error } = await supabase
         .from("sold_listings")
-        .select("make, model, year, sold_price, location_state")
+        .select("make, model, year, sold_price, location_state, title, sold_at")
         .eq("currency_code", "USD")
         .eq("country_code", "US")
         .gt("sold_price", 0)
         .range(from, from + PAGE - 1);
-      if (error || !rows || rows.length === 0) break;
-      for (const r of rows) {
-        if (!(r.make && r.model && r.sold_price)) continue;
-        const k = key(r.make, r.model, r.year);
-        if (!soldBuckets.has(k)) soldBuckets.set(k, []);
-        soldBuckets.get(k)!.push(Number(r.sold_price));
-        const st = String(r.location_state || "")
-          .trim()
-          .toUpperCase();
-        if (/^[A-Z]{2}$/.test(st)) {
-          const sk = `${k}|${st}`;
-          if (!soldStateBuckets.has(sk)) soldStateBuckets.set(sk, []);
-          soldStateBuckets.get(sk)!.push(Number(r.sold_price));
-        }
-      }
-      if (rows.length < PAGE) break;
+      if (error || !data || data.length === 0) break;
+      rows.push(...data);
+      if (data.length < PAGE) break;
     }
-    const idx = new Map<string, { median: number; n: number }>();
-    soldBuckets.forEach((prices, k) => {
-      const m = median(prices);
-      if (m != null) idx.set(k, { median: Math.round(m), n: prices.length });
-    });
-    const byState = new Map<string, { median: number; n: number }>();
-    soldStateBuckets.forEach((prices, k) => {
-      const m = median(prices);
-      if (m != null)
-        byState.set(k, { median: Math.round(m), n: prices.length });
-    });
-    soldIndex = idx;
-    soldByState = byState;
+    const built = buildSoldIndexes(rows);
+    soldIndex = built.clean;
+    soldByState = built.cleanState;
+    salvageSoldIndex = built.salvage;
+    salvageSoldByState = built.salvageState;
     console.log(
-      `[market-value] sold index: ${idx.size} groups from real completed sales`,
+      `[market-value] sold index: ${built.clean.size} clean groups, ${built.salvage.size} salvage groups`,
     );
   } catch (e) {
     console.warn(
@@ -425,10 +537,12 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
     );
     if (!soldIndex) soldIndex = new Map();
     if (!soldByState) soldByState = new Map();
+    if (!salvageSoldIndex) salvageSoldIndex = new Map();
+    if (!salvageSoldByState) salvageSoldByState = new Map();
   }
 }
 
-export type SoldMedian = { median: number; n: number };
+export type SoldMedian = { median: number; n: number; soldAt?: string | null };
 
 /** Same-state median when that state has n >= 3, else the national band, else null. */
 export function pickSoldAnchor(
@@ -453,6 +567,23 @@ export function lookupRealSold(
   const same =
     st && soldByState
       ? soldByState.get(`${key(make, model, year)}|${st}`)
+      : null;
+  return pickSoldAnchor(national, same);
+}
+
+/** Salvage-titled completed sales only. Never used as the clean price. */
+export function lookupSalvageSold(
+  make?: string | null,
+  model?: string | null,
+  year?: number | null,
+  state?: string | null,
+): SoldMedian | null {
+  if (!salvageSoldIndex) return null;
+  const national = salvageSoldIndex.get(key(make, model, year)) || null;
+  const st = (state || "").trim().toUpperCase();
+  const same =
+    st && salvageSoldByState
+      ? salvageSoldByState.get(`${key(make, model, year)}|${st}`)
       : null;
   return pickSoldAnchor(national, same);
 }

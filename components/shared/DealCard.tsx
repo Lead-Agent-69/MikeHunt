@@ -179,15 +179,26 @@ export const DealCard = memo(function DealCard({
   const valuationCompCount = Number(valuation?.compCount || 0);
   const valuationSoldCount = Number(valuation?.soldCount || 0);
   const valuationSampleCount = Number(valuation?.sampleCount || 0);
+  const soldOn =
+    valuationSoldCount >= 3 && valuation?.soldAt
+      ? new Date(valuation.soldAt).toLocaleDateString("en-US", {
+          timeZone: "America/Chicago",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+  const soldLine =
+    valuationSoldCount >= 3
+      ? `${valuationSoldCount} ${
+          valuation?.soldLane === "salvage" ? "salvage" : "clean"
+        } sold${soldOn ? ` · ${soldOn}` : ""}`
+      : null;
   const valuationProof = [
     valuationCompCount > 0
       ? `${valuationCompCount} comparable${valuationCompCount === 1 ? "" : "s"}`
       : null,
-    valuationSoldCount > 0
-      ? `${valuationSoldCount} sold`
-      : soldAnchored
-        ? "sold anchored"
-        : null,
+    soldLine,
     valuationSource === "historical_estimate" && valuationSampleCount > 0
       ? `${valuationSampleCount} historical listing${valuationSampleCount === 1 ? "" : "s"}`
       : valuationSource === "third_party"

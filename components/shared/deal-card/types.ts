@@ -40,6 +40,8 @@ export interface DealCardProps {
     compCount?: number;
     compConfidence?: "high" | "medium" | "low" | "none";
     soldCount?: number;
+    soldAt?: string | null;
+    soldLane?: "clean" | "salvage";
     soldAnchored?: boolean;
     titleTag?: string;
     mileageMult?: number;
