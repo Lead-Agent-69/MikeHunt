@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAutotraderNextData } from "./autotrader";
+import { listingStateCode, parseAutotraderNextData } from "./autotrader";
 
 function page(inventory: Record<string, unknown>): string {
   const nd = { props: { pageProps: { __eggsState: { inventory } } } };
@@ -84,7 +84,7 @@ describe("parseAutotraderNextData", () => {
     expect(d[0].location_state).toBe("TX");
   });
 
-  it("falls back to the search-region state (seed ZIP) when the listing has no location", () => {
+    it("does not stamp the search ZIP state when the listing has no location", () => {
     const html = page({
       y: {
         listingType: "USED",
@@ -96,14 +96,60 @@ describe("parseAutotraderNextData", () => {
         pricingDetail: { displayPrice: 22000 },
       },
     });
-    // 77002 = Houston, TX → the car with no explicit location gets TX (better than null).
+    // 77002 = Houston, TX. That is the search, not the car.
     const d = parseAutotraderNextData(html, "77002")!;
-    expect(d[0].location_state).toBe("TX");
-    // No seed ZIP → stays undefined (no fabrication).
+    expect(d[0].location_state).toBeUndefined();
     expect(parseAutotraderNextData(html)[0].location_state).toBeUndefined();
   });
 
-  it("returns [] when there is no __NEXT_DATA__", () => {
+  it("uses the listing ZIP and ignores the seed ZIP", () => {
+    const html = page({
+      z: {
+        listingType: "USED",
+        vin: "USED444",
+        year: 2018,
+        make: { name: "Ford" },
+        model: { name: "Escape" },
+        mileage: { value: "50000" },
+        pricingDetail: { displayPrice: 16000 },
+        zip: "30301",
+      },
+    });
+    const d = parseAutotraderNextData(html, "77002")!;
+    expect(d[0].location_state).toBe("GA");
+  });
+
+it("returns [] when there is no __NEXT_DATA__", () => {
     expect(parseAutotraderNextData("<html>nope</html>")).toEqual([]);
+  });
+});
+
+describe("listingStateCode", () => {
+  it("drops rows whose state did not come from the listing", () => {
+    const html = page({
+      y: {
+        listingType: "USED",
+        vin: "USED333",
+        year: 2020,
+        make: { name: "Subaru" },
+        model: { name: "Outback" },
+        mileage: { value: "40000" },
+        pricingDetail: { displayPrice: 22000 },
+      },
+      x: {
+        listingType: "USED",
+        vin: "USED222",
+        year: 2021,
+        make: { name: "Kia" },
+        model: { name: "Telluride" },
+        mileage: { value: "20000" },
+        pricingDetail: { displayPrice: 35000 },
+        owner: { city: "Austin", state: "TX" },
+      },
+    });
+    const kept = parseAutotraderNextData(html, "77002").filter((d) =>
+      listingStateCode(d.location_state),
+    );
+    expect(kept.map((d) => d.vin)).toEqual(["USED222"]);
   });
 });

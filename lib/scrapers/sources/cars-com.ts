@@ -2,10 +2,16 @@ import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { enrichAndStore } from "./shared";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
+import { zipToState } from "@/lib/geo/zip-state";
+import { getScrapeRunScope } from "../run-scope-context";
 
 // cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
-// <fuse-card> carries a `data-vehicle-details="{…JSON…}"` attribute with clean structured data
-// (year/make/model/trim/vin/mileage/price/bodyStyle/thumbnail). We read THAT — robust to CSS churn.
+// <fuse-card> carries a `data-vehicle-details="{JSON}"` attribute with clean structured data
+// (year/make/model/trim/vin/mileage/price/bodyStyle/thumbnail). Location is NOT that search ZIP.
+// It is the dealer line on the card ("City, ST") or a state/ZIP on the listing JSON. A 100mi
+// search crosses state lines, so the seed state must never be written onto the row.
+const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
+
 const decodeEntities = (s: string) =>
   s
     .replace(/&quot;/g, '"')
@@ -15,24 +21,107 @@ const decodeEntities = (s: string) =>
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
 
-/** Parse cars.com SRP HTML into listing rows from the embedded data-vehicle-details JSON. */
-export function parseCarsComHtml(html: string, state = ""): any[] {
+export function listingStateCode(value: unknown): string | undefined {
+  const code = String(value || "")
+    .trim()
+    .toUpperCase();
+  return LISTING_STATES.has(code) ? code : undefined;
+}
+
+function placeFromCard(fragment: string): { city?: string; state?: string } {
+  const text = decodeEntities(fragment).replace(/<[^>]+>/g, " ");
+  const re = /([A-Za-z][A-Za-z .'-]{0,40}?),\s*([A-Z]{2})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const state = listingStateCode(m[2]);
+    const city = m[1].replace(/\s+/g, " ").trim();
+    if (!state || !city || /\d/.test(city)) continue;
+    return { city, state };
+  }
+  return {};
+}
+
+function placeFromVehicle(v: any): { city?: string; state?: string } {
+  const cityRaw =
+    v?.city || v?.dealerCity || v?.location?.city || v?.seller?.city;
+  const city = typeof cityRaw === "string" ? cityRaw.trim() : undefined;
+  const explicit = [
+    v?.state,
+    v?.dealerState,
+    v?.locationState,
+    v?.location?.state,
+    v?.seller?.state,
+    v?.dealer?.state,
+  ];
+  for (const candidate of explicit) {
+    const state = listingStateCode(candidate);
+    if (state) return { city, state };
+  }
+  const zips = [
+    v?.zip,
+    v?.dealerZip,
+    v?.sellerZip,
+    v?.postalCode,
+    v?.seller?.zip,
+    v?.location?.zip,
+  ];
+  for (const zip of zips) {
+    if (!zip) continue;
+    const state = listingStateCode(zipToState(String(zip)));
+    if (state) return { city, state };
+  }
+  return { city };
+}
+
+/**
+ * States Cars.com is allowed to search.
+ * CARS_STATES (comma-separated) is an operator override.
+ * Otherwise one saved buyer state. Never the full US list.
+ */
+export function resolveCarsComStates(
+  env: string | undefined = process.env.CARS_STATES,
+  scope = getScrapeRunScope(),
+): string[] {
+  const fromEnv = String(env || "")
+    .split(",")
+    .map((s) => listingStateCode(s))
+    .filter((s): s is string => Boolean(s));
+  if (fromEnv.length) return Array.from(new Set(fromEnv));
+
+  const saved = [scope?.state, ...(scope?.states || [])]
+    .map((s) => listingStateCode(s))
+    .filter((s): s is string => Boolean(s));
+  const unique = Array.from(new Set(saved));
+  return unique.length ? [unique[0]] : [];
+}
+
+/** Parse cars.com SRP HTML. Rows without a listing state are dropped. */
+export function parseCarsComHtml(html: string, searchState = ""): any[] {
+  // The search seed is the query center, not the car. Never copy it onto the row.
+  void searchState;
   const items: any[] = [];
-  const re = /data-vehicle-details="([^"]*)"/g;
+  const re = /<fuse-card\b([^>]*?)(?:\/>|>([\s\S]*?)<\/fuse-card>)/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
+    const attrs = m[1] || "";
+    const body = m[2] || "";
+    const details = attrs.match(/data-vehicle-details="([^"]*)"/);
+    if (!details) continue;
     let v: any;
     try {
-      v = JSON.parse(decodeEntities(m[1]));
+      v = JSON.parse(decodeEntities(details[1]));
     } catch {
       continue;
     }
     const price = parseInt(String(v.price || "").replace(/[^0-9]/g, ""), 10);
     const stock = String(v.stockType || "").toLowerCase();
-    if (!v.vin || !price || stock === "new") continue; // used/CPO only for resale comps
+    if (!v.vin || !price || stock === "new") continue;
+    const fromVehicle = placeFromVehicle(v);
+    const fromCard = placeFromCard(`${attrs} ${body}`);
+    const state = fromVehicle.state || fromCard.state;
+    if (!state) continue;
     const seller =
       v.seller && typeof v.seller === "object" ? v.seller.name : v.seller;
-    // listing_condition is an enum — map cars.com stock type to a valid value (no "used").
     const condition =
       stock === "certified" || v.cpoIndicator ? "certified" : "clean";
     items.push({
@@ -58,7 +147,8 @@ export function parseCarsComHtml(html: string, state = ""): any[] {
       images: v.primaryThumbnail ? [v.primaryThumbnail] : [],
       seller: seller || undefined,
       seller_type: "dealer",
-      location_state: state ? state.toUpperCase() : undefined,
+      location_city: fromVehicle.city || fromCard.city,
+      location_state: state,
     });
   }
   return items;
@@ -68,8 +158,8 @@ export const CARS_COM_CONFIG: ScraperConfig = {
   name: "Cars.com",
   baseUrl: "https://www.cars.com",
   // Cloudflare-walled: static fetch + FlareSolverr both 403. Render through the (Patchright) browser
-  // pool instead — stealth Chromium passes Cloudflare headless and the SRP HTML carries the same
-  // embedded listings JSON parseCarsComHtml already reads. See open-api-source-unlocks memory.
+  // pool instead ? stealth Chromium passes Cloudflare headless and the SRP HTML carries the same
+  // embedded listings JSON parseCarsComHtml already reads.
   renderMode: "browser",
   requestDelay: 1500,
   concurrency: 2,
@@ -80,50 +170,49 @@ export const CARS_COM_CONFIG: ScraperConfig = {
 
 export async function scrapeCarsCom(
   searchTerm = "",
-  state = "tx",
+  state = "",
   maxPages = 5,
 ) {
-  console.log("[Cars.com] Starting scrape...");
-  const zip = STATE_SEED_ZIPS[state?.toUpperCase()] || "";
-  if (!zip) return 0;
+  const code = listingStateCode(state);
+  const zip = code ? STATE_SEED_ZIPS[code] || "" : "";
+  if (!code || !zip) return 0;
+  console.log(`[Cars.com] Starting scrape for saved state ${code}...`);
 
-  // Cloudflare-walled — smartFetch escalates past it (stealth headless tier) and reuses the warm
-  // browser across pages. The SRP HTML carries the embedded listings JSON parseCarsComHtml reads.
   let saved = 0;
   for (let page = 1; page <= maxPages; page++) {
     const q = searchTerm ? `&searchTerm=${encodeURIComponent(searchTerm)}` : "";
     const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
     const { html, blocked } = await smartFetch(url, {
-      validate: (h) => parseCarsComHtml(h).length > 0,
+      // A page can be real even when every card lacks a listing state. Do not treat that as a block.
+      validate: (h) => /data-vehicle-details="/.test(h),
     });
     if (blocked) {
-      console.warn(`[Cars.com] ${state} blocked (no tier passed)`);
+      console.warn(`[Cars.com] ${code} blocked (no tier passed)`);
       break;
     }
-    const items = parseCarsComHtml(html, state);
-    if (!items.length) break; // no more results
+    const items = parseCarsComHtml(html, code);
+    if (!items.length) break;
     for (const v of items) {
       await enrichAndStore(v);
       saved++;
     }
-    if (items.length < 8) break; // partial grid → last page
+    if (items.length < 8) break;
   }
 
-  console.log(`[Cars.com] Found ${saved} listings (${state})`);
+  console.log(`[Cars.com] Stored ${saved} listings with a listing state (${code})`);
   return saved;
 }
 
-// Nationwide Cars.com: iterate one seed ZIP per state (radius 100mi). Override the state set
-// with CARS_STATES env (comma-separated); cap pages/state with CARS_MAX_PAGES.
+// One saved buyer state, or CARS_STATES when an operator set it. Cap pages with CARS_MAX_PAGES.
+// Does not walk all 50 states when CARS_STATES is unset.
 export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
-  const fromEnv = process.env.CARS_STATES?.split(",")
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean);
-  // Shuffle so the per-source timeout doesn't always burn on the same first states — over many
-  // cycles this spreads cars.com coverage across all of them.
-  const states = fromEnv?.length
-    ? fromEnv
-    : [...US_STATES].sort(() => Math.random() - 0.5);
+  const states = resolveCarsComStates();
+  if (!states.length) {
+    console.warn(
+      "[Cars.com] CARS_STATES unset and no saved buyer state ? not walking every state",
+    );
+    return 0;
+  }
   const maxPages = parseInt(process.env.CARS_MAX_PAGES || "3");
   let total = 0;
   for (const state of states) {
@@ -134,7 +223,7 @@ export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
     }
   }
   console.log(
-    `[Cars.com] Nationwide total: ${total} listings across ${states.length} states`,
+    `[Cars.com] Total: ${total} listings across ${states.length} state(s)`,
   );
   return total;
 }
