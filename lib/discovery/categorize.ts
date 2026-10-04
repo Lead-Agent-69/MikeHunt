@@ -63,7 +63,7 @@ export function titleClass(condition?: string | null): TitleClass {
   if (c.includes("salvage")) return "salvage";
   if (c.includes("rebuilt")) return "rebuilt";
   if (c.includes("parts")) return "parts";
-  if (c.includes("clean") || c.includes("run_drive")) return "clean";
+  if (c.includes("clean")) return "clean";
   return "unknown";
 }
 
@@ -125,7 +125,7 @@ export function dealLane(deal: {
   const src = (deal.source || "").toLowerCase().trim();
   const cond = (deal.condition || "").toLowerCase();
   const dmg = (deal.damage_type || "").toLowerCase();
-  if (LANE_AUCTION.has(src)) return "auction"; // auction channel first (mostly salvage, but browsed as lots)
+  if (LANE_AUCTION.has(src) || isAuctionChannel(src)) return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
     return "salvage";
   const damaged =

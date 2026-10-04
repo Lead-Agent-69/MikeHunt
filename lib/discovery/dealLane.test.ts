@@ -1,11 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { dealLane } from "./categorize";
+import { dealLane, titleClass } from "./categorize";
 
 // These are exactly the condition/damage values SITE_TYPE_DEFAULTS (lib/scrapers/sources/index.ts)
 // injects per curated-site type. This test locks in the bug fix: curated salvage cars must land in
 // the salvage/repairable lane (red/orange), NOT the "private" lane they fell into when condition was
 // hardcoded to "run_drive". If dealLane stops honoring these, the whole curated network mislabels again.
 describe("dealLane — curated-site type defaults map to the right channel", () => {
+  it("running condition is not proof of a clean title", () => {
+    expect(titleClass("run_drive")).toBe("unknown");
+    expect(titleClass("clean_title")).toBe("clean");
+  });
+
+  it("government auction sources remain in the auction lane", () => {
+    expect(dealLane({ source: "govdeals", condition: "run_drive" })).toBe(
+      "auction",
+    );
+    expect(
+      dealLane({ source: "publicsurplus", condition: "clean_title" }),
+    ).toBe("auction");
+  });
   it("salvage_yard default (salvage_title) → salvage", () => {
     expect(
       dealLane({ source: "independent_dealer", condition: "salvage_title" }),

@@ -13,6 +13,10 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import {
+  AUCTION_DB_SOURCES,
+  wantsAuctionInventory,
+} from "@/lib/discovery/auction-scope";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
@@ -769,6 +773,7 @@ async function publicPreviewFallback(args: {
   minPrice: number;
   page: number;
   pageSize: number;
+  sellerType?: string;
 }) {
   const plan = planScrapeForBuyerScope({
     lane: args.lane || "all",
@@ -781,6 +786,14 @@ async function publicPreviewFallback(args: {
     { id: "publicsurplus", fetchRows: () => previewPublicSurplus(1) },
     { id: "municibid", fetchRows: () => previewMunicibid(1) },
   ].filter((source) => {
+    if (
+      !wantsAuctionInventory({
+        lane: args.lane,
+        sellerType: args.sellerType,
+        sources: [args.source],
+      })
+    )
+      return false;
     if (!plan.sourceIds.includes(source.id)) return false;
     if (args.source && args.source !== "all") return source.id === args.source;
     return true;
@@ -972,6 +985,7 @@ export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     const preview = await publicPreviewFallback({
       lane,
+      sellerType,
       q,
       state,
       source: source.toLowerCase(),
@@ -991,6 +1005,16 @@ export async function GET(req: NextRequest) {
     // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
+
+  if (
+    !wantsAuctionInventory({
+      lane,
+      sellerType,
+      sources: [source, category, ...dealerSourceIds],
+    })
+  ) {
+    query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
+  }
 
   if (make) {
     query = query.ilike("make", make);

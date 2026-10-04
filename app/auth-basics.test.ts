@@ -24,9 +24,11 @@ describe("account and touch basics", () => {
 
     expect(supabase).toContain("persistSession: true");
     expect(supabase).toContain("autoRefreshToken: true");
-    expect(smoothScroll).toContain("(pointer: fine) and (min-width: 769px)");
-    expect(smoothScroll).toContain(
-      "if (!finePointer.matches || reducedMotion.matches) return",
-    );
+    const provider = smoothScroll
+      .split("export function LenisSmoothScroll")[1]
+      .split("// ─")[0];
+    expect(provider).toContain("return <>{children}</>");
+    expect(provider).not.toContain("new LenisCtor");
+    expect(provider).not.toContain("requestAnimationFrame");
   });
 });

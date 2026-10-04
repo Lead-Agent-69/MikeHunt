@@ -23,6 +23,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmationEmail, setConfirmationEmail] = useState("");
   const [next, setNext] = useState("/discover");
   const router = useRouter();
   const supabase = createClientComponentClient();
@@ -34,55 +38,104 @@ export default function LoginPage() {
     setError(authCallbackMessage(params.get("error")));
   }, []);
 
+  const resendConfirmation = async () => {
+    if (resending || !confirmationEmail) return;
+    setResending(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: confirmationEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (resendError) {
+        setError(
+          authErrorMessage(
+            resendError.message,
+            "We couldn't send the confirmation link. Please try again shortly.",
+          ),
+        );
+      } else {
+        setNotice(
+          "Confirmation requested. Check your inbox and spam folder, then open the link to continue.",
+        );
+      }
+    } catch {
+      setError("We couldn't connect. Check your connection and try again.");
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
+    setNeedsConfirmation(false);
 
-    if (!configured) {
-      const res = await fetch("/api/auth/demo-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+    try {
+      if (!configured) {
+        const res = await fetch("/api/auth/demo-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data?.error || "Failed to start a local demo session.");
+          setLoading(false);
+          return;
+        }
+
+        router.push(next);
+        router.refresh();
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error || "Failed to start a local demo session.");
-        setLoading(false);
-        return;
-      }
-
-      router.push(next);
-      router.refresh();
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(
-        authErrorMessage(
-          error.message,
-          "We couldn't sign you in. Please try again.",
-        ),
-      );
-      setLoading(false);
-    } else {
-      const bootstrap = await fetch("/api/auth/bootstrap", { method: "POST" });
-      if (!bootstrap.ok) {
+      if (error) {
+        if (
+          error.code === "email_not_confirmed" ||
+          error.message.toLowerCase().includes("email not confirmed")
+        ) {
+          setNeedsConfirmation(true);
+          setConfirmationEmail(email.trim());
+        }
         setError(
-          "Signed in, but account setup could not be completed. Please retry.",
+          authErrorMessage(
+            error.message,
+            "We couldn't sign you in. Please try again.",
+          ),
         );
         setLoading(false);
-        return;
+      } else {
+        const bootstrap = await fetch("/api/auth/bootstrap", {
+          method: "POST",
+        });
+        if (!bootstrap.ok) {
+          setError(
+            "Signed in, but account setup could not be completed. Please retry.",
+          );
+          setLoading(false);
+          return;
+        }
+        // Land on the deal feed after signing in.
+        router.push(next);
+        router.refresh();
       }
-      // Land on the deal feed after signing in.
-      router.push(next);
-      router.refresh();
+    } catch {
+      setError("We couldn't connect. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -118,6 +171,7 @@ export default function LoginPage() {
           {/* Error Display */}
           {error && (
             <div
+              role="alert"
               className="p-4 rounded-xl text-sm font-medium border flex items-start gap-3"
               style={{
                 backgroundColor: "var(--rlo)",
@@ -128,6 +182,24 @@ export default function LoginPage() {
               <Ico name="alert-triangle" size={16} />
               <span>{error}</span>
             </div>
+          )}
+
+          {needsConfirmation && (
+            <Btn
+              type="button"
+              loading={resending}
+              disabled={resending || !!notice}
+              onClick={resendConfirmation}
+            >
+              {resending
+                ? "Sending confirmation..."
+                : "Resend confirmation email"}
+            </Btn>
+          )}
+          {notice && (
+            <p role="status" className="text-sm text-[var(--t2)]">
+              {notice}
+            </p>
           )}
 
           {/* Social Login */}

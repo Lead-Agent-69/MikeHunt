@@ -13,6 +13,7 @@ import {
   LANE_COLORS,
 } from "@/lib/discovery/categorize";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
@@ -289,6 +290,7 @@ async function publicPreviewDeals(
   q = "",
   lane = "all",
   sellerType = "all",
+  selectedSources: string[] = [],
 ) {
   const plan = planScrapeForBuyerScope({
     lane: lane || "all",
@@ -301,7 +303,12 @@ async function publicPreviewDeals(
     { id: "govdeals", fetchRows: () => previewGovDeals(1) },
     { id: "publicsurplus", fetchRows: () => previewPublicSurplus(1) },
     { id: "municibid", fetchRows: () => previewMunicibid(1) },
-  ].filter((source) => plan.sourceIds.includes(source.id));
+  ].filter(
+    (source) =>
+      wantsAuctionInventory({ lane, sellerType, sources: selectedSources }) &&
+      plan.sourceIds.includes(source.id) &&
+      (!selectedSources.length || selectedSources.includes(source.id)),
+  );
 
   const settled = await Promise.allSettled(
     previewSources.map(async (source) => ({
@@ -482,6 +489,7 @@ export async function GET(request: NextRequest) {
             q,
             lane || "all",
             sellerType || "all",
+            dealerSourceIds,
           ),
       );
       return NextResponse.json({
@@ -539,6 +547,15 @@ export async function GET(request: NextRequest) {
         if (rpcErr) throw new Error(rpcErr.message);
         const rows: any[] = (Array.isArray(rpcData) ? rpcData : []).filter(
           (row: any) => {
+            if (
+              dealLane(row) === "auction" &&
+              !wantsAuctionInventory({
+                lane,
+                sellerType,
+                sources: dealerSourceIds,
+              })
+            )
+              return false;
             if (minPrice && Number(row.ask_price || 0) < minPrice) return false;
             if (q && !rowMatchesQuery(row, q)) return false;
             if (!matchesSellerType(row, sellerType || "all")) return false;

@@ -11,7 +11,7 @@ describe("auth user-facing copy", () => {
 
     expect(login).not.toContain("Launch setup checklist");
     expect(login).not.toContain("Supabase Auth must have");
-    expect(login).not.toContain("auth/callback");
+    expect(login).not.toMatch(/>[\s]*[^<{]*auth\/callback/);
     expect(googleButton).not.toContain("GOOGLE_OAUTH_VERIFIED");
     expect(googleButton).not.toContain(
       "SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET",

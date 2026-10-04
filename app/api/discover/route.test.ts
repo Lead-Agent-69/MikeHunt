@@ -67,6 +67,31 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("keeps auctions out of ordinary discovery without losing dealer cars", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        baseRow,
+        {
+          ...baseRow,
+          id: "dealer-car",
+          source: "independent_dealer",
+          source_url: "https://aeofmiami.com/product/1",
+          condition: "salvage_title",
+          seller_type: "dealer",
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const res = await GET(req("/api/discover"));
+    const body = await res.json();
+    const ids = body.rails.flatMap((rail: any) =>
+      rail.deals.map((deal: any) => deal.id),
+    );
+    expect(body.totalListings).toBe(1);
+    expect(ids).toContain("dealer-car");
+    expect(ids).not.toContain("deal-1");
+  }, 15_000);
   // First import of the route is heavy under CI parallelism; 5s default flakes on Windows runners.
   it("keeps gov_auction government rows and maps trust/cost fields", async () => {
     rpc.mockResolvedValueOnce({
