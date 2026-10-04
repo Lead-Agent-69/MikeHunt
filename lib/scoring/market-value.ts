@@ -88,9 +88,11 @@ let supplyByModel: Map<string, number> | null = null;
 // other years (via the baseline depreciation curve) so it still gets a REAL number instead of the
 // pure offline baseline. ~90% of make/model/year buckets are otherwise too thin for direct comps.
 let retailByModel: Map<string, { year: number; price: number }[]> | null = null;
-// Real completed-sale prices (eBay sold etc.) keyed make|model|yearBucket — the truth anchor for the
-// damaged/budget segment. Populated by loadMarketIndex from public.sold_listings.
+// Real completed-sale prices (eBay sold etc.) keyed make|model|yearBucket.
+// soldByState adds |STATE when that state's n >= 3. No condition split — sold_listings
+// has no like-for-like condition column in this path. Below n = 3 we do not invent a sold.
 let soldIndex: Map<string, { median: number; n: number }> | null = null;
+let soldByState: Map<string, { median: number; n: number }> | null = null;
 
 const modelKey = (make?: string | null, model?: string | null) =>
   `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
@@ -107,6 +109,7 @@ export function __resetMarketIndexForTest() {
   supplyByModel = null;
   retailByModel = null;
   soldIndex = null;
+  soldByState = null;
   aggregates = null;
   loadedAt = 0;
   loadingPromise = null;
@@ -372,11 +375,12 @@ async function loadMarketIndexUnlocked(
 async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
   try {
     const soldBuckets = new Map<string, number[]>();
+    const soldStateBuckets = new Map<string, number[]>();
     const PAGE = 1000;
     for (let from = 0; from < 40000; from += PAGE) {
       const { data: rows, error } = await supabase
         .from("sold_listings")
-        .select("make, model, year, sold_price")
+        .select("make, model, year, sold_price, location_state")
         .eq("currency_code", "USD")
         .eq("country_code", "US")
         .gt("sold_price", 0)
@@ -387,6 +391,14 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
         const k = key(r.make, r.model, r.year);
         if (!soldBuckets.has(k)) soldBuckets.set(k, []);
         soldBuckets.get(k)!.push(Number(r.sold_price));
+        const st = String(r.location_state || "")
+          .trim()
+          .toUpperCase();
+        if (/^[A-Z]{2}$/.test(st)) {
+          const sk = `${k}|${st}`;
+          if (!soldStateBuckets.has(sk)) soldStateBuckets.set(sk, []);
+          soldStateBuckets.get(sk)!.push(Number(r.sold_price));
+        }
       }
       if (rows.length < PAGE) break;
     }
@@ -395,7 +407,14 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
       const m = median(prices);
       if (m != null) idx.set(k, { median: Math.round(m), n: prices.length });
     });
+    const byState = new Map<string, { median: number; n: number }>();
+    soldStateBuckets.forEach((prices, k) => {
+      const m = median(prices);
+      if (m != null)
+        byState.set(k, { median: Math.round(m), n: prices.length });
+    });
     soldIndex = idx;
+    soldByState = byState;
     console.log(
       `[market-value] sold index: ${idx.size} groups from real completed sales`,
     );
@@ -405,17 +424,37 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
       (e as Error).message,
     );
     if (!soldIndex) soldIndex = new Map();
+    if (!soldByState) soldByState = new Map();
   }
 }
 
-/** Real completed-sale median for a make/model/year bucket (null if too few real sales). */
+export type SoldMedian = { median: number; n: number };
+
+/** Same-state median when that state has n >= 3, else the national band, else null. */
+export function pickSoldAnchor(
+  national?: SoldMedian | null,
+  sameState?: SoldMedian | null,
+): SoldMedian | null {
+  if (sameState && sameState.n >= 3 && sameState.median > 0) return sameState;
+  if (national && national.n >= 3 && national.median > 0) return national;
+  return null;
+}
+
+/** Real completed-sale median for a make/model/year band (null under n = 3). */
 export function lookupRealSold(
   make?: string | null,
   model?: string | null,
   year?: number | null,
-): { median: number; n: number } | null {
+  state?: string | null,
+): SoldMedian | null {
   if (!soldIndex) return null;
-  return soldIndex.get(key(make, model, year)) || null;
+  const national = soldIndex.get(key(make, model, year)) || null;
+  const st = (state || "").trim().toUpperCase();
+  const same =
+    st && soldByState
+      ? soldByState.get(`${key(make, model, year)}|${st}`)
+      : null;
+  return pickSoldAnchor(national, same);
 }
 
 /**
