@@ -9,6 +9,7 @@ import { canManageOperations } from "@/lib/auth/admin-operations";
 // POST /api/admin/cache-photos — download + permanently host the photos of top deals in Supabase
 // Storage, then point deals.images at our own URLs. GO + highest-profit first. Gated by INGEST_SECRET.
 // Body: { limit?, goOnly?, maxPerDeal? }.
+// Free-tier: CACHE_PHOTOS_MAX=0 makes this a no-op so Storage cannot fill.
 const CORS = { "Access-Control-Allow-Origin": "*" };
 
 function admin() {
@@ -20,11 +21,33 @@ function admin() {
   );
 }
 
+function photoCacheMax(): number {
+  const raw = process.env.CACHE_PHOTOS_MAX;
+  if (raw === undefined || raw === "") return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
 export async function POST(req: Request) {
   if (!(await canManageOperations(req))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: CORS },
+    );
+  }
+
+  const cacheMax = photoCacheMax();
+  if (cacheMax <= 0) {
+    return NextResponse.json(
+      {
+        scanned: 0,
+        cachedDeals: 0,
+        photos: 0,
+        goRemaining: null,
+        skipped: true,
+        reason: "CACHE_PHOTOS_MAX=0",
+      },
+      { headers: CORS },
     );
   }
 
@@ -34,7 +57,10 @@ export async function POST(req: Request) {
   } catch {
     /* ok */
   }
-  const limit = Math.min(60, Math.max(1, Number(body.limit) || 25));
+  const limit = Math.min(
+    cacheMax,
+    Math.min(60, Math.max(1, Number(body.limit) || 25)),
+  );
   const maxPerDeal = Math.min(8, Math.max(1, Number(body.maxPerDeal) || 5));
   const goOnly = body.goOnly !== false;
 

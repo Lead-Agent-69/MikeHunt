@@ -17,6 +17,9 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useDealStore } from "@/lib/store/dealStore";
+import { usePreferences } from "@/hooks/usePreferences";
+import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
+import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,12 +142,60 @@ function relativeFreshness(value?: string | Date | null) {
 }
 
 function money(value?: number | null) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "\u2014";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function PersonalListingLead({ deal }: { deal: any }) {
+  const ask = Number(deal?.ask_price || deal?.askPrice || 0);
+  const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
+  const checks = [
+    "VIN matches the listing",
+    "Mileage and title status",
+    "Condition and damage photos",
+    "Seller contact and the all-in price",
+  ];
+  return (
+    <section className="glass-panel p-4 md:p-5" aria-label="Listing to check">
+      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
+        Check this listing
+      </p>
+      <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
+        {title || "This vehicle"}
+      </h2>
+      <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
+        Asking price
+      </p>
+      <p className="mt-1 text-2xl font-black text-[var(--t1)]">{money(ask)}</p>
+      <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
+        What to verify
+      </p>
+      <ul className="mt-2 space-y-1 text-sm text-[var(--t3)]">
+        {checks.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+      {deal?.sourceUrl ? (
+        <a
+          href={deal.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
+        >
+          Original listing
+          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </a>
+      ) : (
+        <p className="mt-4 text-sm text-[var(--t4)]">
+          Original listing link is not on this row yet.
+        </p>
+      )}
+    </section>
+  );
 }
 
 function DecisionCommandPanel({
@@ -380,6 +431,15 @@ export default function DealPage({
   params: Promise<{ id: string }>;
 }) {
   const store = useDealStore();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const buyerModeSynced = React.useRef(false);
+  React.useEffect(() => {
+    if (buyerModeSynced.current || prefsLoading) return;
+    const saved =
+      readLocalBuyerIntent()?.buyerMode || prefs.buyerScope?.buyerMode;
+    store.setUserType(userTypeFromSavedBuyerMode(saved));
+    buyerModeSynced.current = true;
+  }, [prefs.buyerScope, prefsLoading, store]);
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { targetProfit: savedTargetProfit } = useDealerDefaults();
   // The dealer's learned calibration (null until they've logged enough outcomes).
@@ -908,28 +968,42 @@ export default function DealPage({
         </section>
       )}
       {serverDeal &&
-        serverDeal?.decisionEvidence?.acquisitionReady === true && (
-          <DecisionCommandPanel
+        serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+        (store.userType === "dealer" ? (
+          serverDeal?.decisionEvidence?.acquisitionReady === true && (
+            <DecisionCommandPanel
+              deal={{
+                ...serverDeal,
+                id,
+                askPrice:
+                  serverDeal?.ask_price ||
+                  serverDeal?.askPrice ||
+                  store.askPrice,
+                vin: serverDeal?.vin || store.vin,
+                trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+              }}
+              engineVerdict={engineVerdict}
+              engineNetProfit={engineNetProfit}
+              engineScore={engineScore}
+              engineRoi={engineRoi}
+              detailQualityScore={detailQuality?.score}
+              detailMathConfidence={detailMathConfidence}
+              sourceHealth={sourceHealth}
+              proofLinks={proofLinks}
+              onCashOffer={() => setShowCashOfferModal(true)}
+              onWatchPrice={handleWatchPrice}
+            />
+          )
+        ) : (
+          <PersonalListingLead
             deal={{
               ...serverDeal,
-              id,
               askPrice:
                 serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
-              vin: serverDeal?.vin || store.vin,
-              trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+              sourceUrl: serverDeal?.sourceUrl || serverDeal?.source_url,
             }}
-            engineVerdict={engineVerdict}
-            engineNetProfit={engineNetProfit}
-            engineScore={engineScore}
-            engineRoi={engineRoi}
-            detailQualityScore={detailQuality?.score}
-            detailMathConfidence={detailMathConfidence}
-            sourceHealth={sourceHealth}
-            proofLinks={proofLinks}
-            onCashOffer={() => setShowCashOfferModal(true)}
-            onWatchPrice={handleWatchPrice}
           />
-        )}
+        ))}
 
       {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
       {serverDeal?.images && serverDeal.images.length > 0 && (

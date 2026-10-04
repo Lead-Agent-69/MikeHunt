@@ -18,7 +18,9 @@
 
 import "./polyfill";
 import { spawn } from "node:child_process";
-import "./ai-worker";
+// Do not import ./ai-worker. That module calls process.exit(1) unless
+// ENABLE_LLM_PRICE_INVENT==="true", which would take the scrape fleet down.
+// Invent stays closed; scrape cycles do not need the invent queues.
 
 const INTERVAL_MS = Number(process.env.SCRAPE_INTERVAL_MS || 30 * 60_000);
 const MIN_GAP_MS = 60_000; // never tight-loop, even if a cycle overruns the interval

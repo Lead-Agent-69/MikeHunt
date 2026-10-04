@@ -4,12 +4,27 @@ import { syncDealPhotos } from "../data/photo-storage";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+function photoCacheMax(): number {
+  const raw = process.env.CACHE_PHOTOS_MAX;
+  if (raw === undefined || raw === "") return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
 /**
  * Periodically downloads primary photos for high-profit deals and uploads them
  * to permanent Supabase Storage to prevent external hotlink blocking.
+ * Free-tier: CACHE_PHOTOS_MAX=0 (default) skips entirely so Storage cannot fill.
  */
 export async function runPhotoStorageSync() {
   if (!supabaseUrl || !supabaseKey) return;
+
+  if (photoCacheMax() <= 0) {
+    console.log(
+      "[PhotoSync] Skipped — CACHE_PHOTOS_MAX=0 (URL-only free-tier mode).",
+    );
+    return;
+  }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 

@@ -17,6 +17,7 @@ import useSWR from "swr";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
@@ -293,6 +294,31 @@ export default function DiscoverPage() {
       ? `${data.uniqueVehicles.toLocaleString()} matching vehicles`
       : null;
   const hasLiveListings = Boolean(data && data.totalListings > 0);
+  const placeName = (() => {
+    if (selectedStates)
+      return selectedStates
+        .split(",")
+        .map((code) => STATE_NAMES[code]?.[0] || code)
+        .join(", ");
+    const code = state.toUpperCase();
+    if (!code || code === "NATIONWIDE") return "Nationwide";
+    return STATE_NAMES[code]?.[0] || code;
+  })();
+  const vehicleName = buyerScope?.vehicle || "vehicles";
+  const budgetText = buyerScope?.maxPrice
+    ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
+    : "";
+  const emptyScopeMessage = `No ${vehicleName} in ${placeName}${budgetText} yet. Widen the state or raise the budget.`;
+  const personalBuyer = buyerScope?.buyerMode === "personal";
+  const hiddenPersonalRails = new Set([
+    "roi",
+    "salvage",
+    "auctionLots",
+    "fresh",
+  ]);
+  const visibleRails = (data?.rails || []).filter(
+    (rail) => !personalBuyer || !hiddenPersonalRails.has(rail.key),
+  );
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
@@ -426,7 +452,7 @@ export default function DiscoverPage() {
                 <IntelRail
                   endpoint="/api/deals/near"
                   title="Near you"
-                  subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
+                  subtitle="Distance not available until a listing has real miles."
                 />
               </>
             )}
@@ -449,24 +475,38 @@ export default function DiscoverPage() {
             action={{ label: "Try again", onClick: () => void mutate() }}
           />
         </div>
-      ) : !data || data.rails.length === 0 ? (
+      ) : !data || visibleRails.length === 0 ? (
         <div className="glass-panel" style={{ padding: 0 }}>
           <EmptyState
             icon="search"
             className="!py-10 sm:!py-16"
             title="Nothing to discover yet"
-            message={
-              data?.configured === false
-                ? "We don't have matching vehicles ready to review yet. Adjust your market, vehicle, or budget to broaden the search."
-                : marketLabel !== "Nationwide"
-                  ? `No matching vehicles in ${marketLabel} right now. Try another location or adjust your search.`
-                  : "No active deals to browse yet. Adjust your search to see more matches."
-            }
+            message={emptyScopeMessage}
           />
+          <div className="flex flex-wrap items-center justify-center gap-2 px-6 pb-10">
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams(window.location.search);
+                params.delete("states");
+                params.set("state", "Nationwide");
+                window.history.replaceState(null, "", `/discover?${params}`);
+              }}
+              className="min-h-12 rounded-lg border border-[var(--b2)] px-4 text-sm font-bold text-[var(--t1)]"
+            >
+              Widen state
+            </button>
+            <a
+              href="/onboarding"
+              className="inline-flex min-h-12 items-center rounded-lg border border-[var(--b2)] px-4 text-sm font-bold text-[var(--t1)]"
+            >
+              Raise budget
+            </a>
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
-          {data.rails.map((rail) => (
+          {visibleRails.map((rail) => (
             <Rail key={rail.key} rail={rail} />
           ))}
         </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import NextImage from "next/image";
 import {
   motion,
   animate,
@@ -11,7 +10,7 @@ import {
 } from "framer-motion";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
-import { proxiedImage } from "@/lib/image-url";
+import { galleryImageSrc } from "@/lib/image-url";
 
 // Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
 // rather than flying in from a side the user didn't ask for.
@@ -44,8 +43,11 @@ export function ImageGallery({
   fallbackSrc,
   sourceUrl,
 }: ImageGalleryProps) {
-  // Route every photo through the proxy so hotlink-protected sources load.
-  const images = (rawImages || []).map(proxiedImage).filter(Boolean);
+  // Free-tier: direct source URLs for gallery frames; proxy only hotlink hosts
+  // (and only the hero when the host does not block). Never next/image.
+  const images = (rawImages || [])
+    .map((url, index) => galleryImageSrc(url, index))
+    .filter(Boolean);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [direction, setDirection] = useState(0);
@@ -352,7 +354,11 @@ export function ImageGallery({
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
             >
-              <AnimatePresence initial={false} custom={direction} mode="popLayout">
+              <AnimatePresence
+                initial={false}
+                custom={direction}
+                mode="popLayout"
+              >
                 <motion.div
                   key={currentIndex}
                   custom={direction}

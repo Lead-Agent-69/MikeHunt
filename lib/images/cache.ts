@@ -1,10 +1,18 @@
 // Download a deal's listing photos and store them permanently in Supabase Storage (vehicle-photos),
 // returning our own public URLs. Solves hotlink blocking, source expiry, and proxy latency for the
 // deals that matter. Best-effort — returns what it managed to cache.
+// Free-tier: CACHE_PHOTOS_MAX unset or 0 returns [] so Storage cannot fill.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "vehicle-photos";
+
+function isPhotoCacheDisabled(): boolean {
+  const raw = process.env.CACHE_PHOTOS_MAX;
+  if (raw === undefined || raw === "") return true;
+  const n = Number(raw);
+  return !Number.isFinite(n) || n <= 0;
+}
 
 async function fetchImage(
   url: string,
@@ -39,8 +47,11 @@ export async function cacheVehiclePhotos(
   urls: string[],
   max = 6,
 ): Promise<string[]> {
+  if (isPhotoCacheDisabled()) return [];
+
   const out: string[] = [];
-  for (let i = 0; i < Math.min(urls.length, max); i++) {
+  const capped = Math.min(urls.length, max);
+  for (let i = 0; i < capped; i++) {
     const u = urls[i];
     if (!u || !/^https?:\/\//.test(u)) continue;
     // Skip ones we've already hosted.

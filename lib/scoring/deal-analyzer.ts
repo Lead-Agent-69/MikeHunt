@@ -27,8 +27,15 @@ import { checkPriceSanity } from "./price-sanity";
 import { predict, type Prediction } from "@/lib/intelligence/predict";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
-// Home base used for transport-distance math (where you recondition/sell). Override via env.
-const HOME_BASE_STATE = process.env.HOME_BASE_STATE || "TX";
+// Home base for transport. A caller's profile home_state wins. HOME_BASE_STATE is an
+// explicit operator override. There is no Texas default — a missing state keeps the
+// flat DEFAULT_TRANSPORT_COST instead of inventing miles.
+function resolveHomeState(explicit?: string | null): string {
+  const fromCaller = explicit?.trim();
+  if (fromCaller) return fromCaller.toUpperCase();
+  const fromEnv = process.env.HOME_BASE_STATE?.trim();
+  return fromEnv ? fromEnv.toUpperCase() : "";
+}
 // Target ROI used to back-solve the recommended max bid (e.g. 0.20 = 20%).
 const TARGET_ROI = parseFloat(process.env.TARGET_ROI || "0.20");
 // Selling + reconditioning-to-retail load, as a fraction of sale price (real flips run ~8-10%).
@@ -255,7 +262,10 @@ function isPriceImplausible(deal: Partial<Deal>, baseline: number): boolean {
 }
 
 /** Run the full decision model for one deal. */
-export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
+export function analyzeDeal(
+  deal: Partial<Deal>,
+  opts?: { homeState?: string | null },
+): DealAnalysis {
   const askPrice = deal.ask_price || 0;
   const fm = feeModel(deal.source);
 
@@ -292,7 +302,12 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
   // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
   // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed
   // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
-  const realSold = lookupRealSold(deal.make, deal.model, deal.year);
+  const realSold = lookupRealSold(
+    deal.make,
+    deal.model,
+    deal.year,
+    deal.location_state,
+  );
   const conditionTag = titleSeverityMultiplier(deal).tag;
   // Comps: anchor the mileage adjustment to the comp pool's actual median mileage (precise).
   const compAdj = comps?.retail
@@ -427,10 +442,10 @@ export function analyzeDeal(deal: Partial<Deal>): DealAnalysis {
 
   // TRANSPORT: listing state → home base. When location is missing (miles null), don't
   // book $0 — use a conservative national-average so deals aren't falsely cheap to move.
-  const miles = milesBetweenStates(
-    deal.location_state || undefined,
-    HOME_BASE_STATE,
-  );
+  const homeState = resolveHomeState(opts?.homeState);
+  const miles = homeState
+    ? milesBetweenStates(deal.location_state || undefined, homeState)
+    : null;
   const transportCost =
     miles != null ? transportCostForMiles(miles) : DEFAULT_TRANSPORT_COST;
 
