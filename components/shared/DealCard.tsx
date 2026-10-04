@@ -4,12 +4,10 @@ import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
-import { liteDealIQ, IQ_TIER_COLOR } from "@/lib/intelligence/lite-iq";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import {
   VERDICT_STYLES,
-  getScoreColor,
   formatCondition,
 } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
@@ -70,7 +68,7 @@ export const DealCard = memo(function DealCard({
   askPrice,
   mmrValue,
   profitEstimate,
-  profitScore = 50,
+  profitScore,
   locationCity,
   locationState,
   mileage,
@@ -107,7 +105,6 @@ export const DealCard = memo(function DealCard({
   isSaved,
   onSave,
 }: DealCardProps) {
-  const scoreColor = getScoreColor(profitScore);
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
   const isPositive = profitEstimate >= 0;
@@ -131,7 +128,6 @@ export const DealCard = memo(function DealCard({
   ].filter(Boolean);
   const whyShown = [
     profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
-    profitScore ? `${profitScore}/100 score` : null,
     recommendedMaxBid != null
       ? `$${recommendedMaxBid.toLocaleString()} max bid`
       : null,
@@ -167,16 +163,11 @@ export const DealCard = memo(function DealCard({
           valuationSource === "historical_estimate"
         ? "low"
         : "none");
-  const resaleBasisLabel =
-    valuationSource === "comparables"
-      ? "Comp-backed resale"
-      : valuationSource === "third_party"
-        ? "Market anchor"
-        : valuationSource === "historical_estimate"
-          ? "History estimate"
-          : valuationSource === "asking_price"
-            ? "Ask-price anchor"
-            : "Modeled resale";
+  const resaleBasisLabel = soldAnchored
+    ? "Comp-backed resale"
+    : resaleBasis
+      ? "Ask-based estimate"
+      : "Resale basis";
   const resaleBasisTitle =
     valuationSource === "comparables"
       ? "Resale estimate backed by comparable listings"
@@ -371,16 +362,6 @@ export const DealCard = memo(function DealCard({
       : confidenceScore >= 62
         ? "Worth reviewing, but verify weak fields before bidding."
         : "Needs better proof before this should drive a bid.");
-  // Zero-cost Deal IQ from fields already on the card. Pass the verdict so the chip can't
-  // contradict the GO/PASS pill (a rejected deal never shows a high IQ).
-  const iq = liteDealIQ({
-    askPrice,
-    sellEstimate,
-    mmrValue,
-    profitEstimate,
-    dealVerdict,
-  });
-
   const proxiedUrl = imageUrl?.startsWith("http")
     ? `/api/image/proxy?url=${encodeURIComponent(imageUrl)}`
     : imageUrl;
@@ -442,44 +423,6 @@ export const DealCard = memo(function DealCard({
               {verdict.label}
             </span>
           )}
-          {iq && (
-            <span
-              className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"
-              style={{ background: "var(--s2)", color: IQ_TIER_COLOR[iq.tier] }}
-              title={`Deal IQ ${iq.score}/100 (${iq.tier})`}
-            >
-              IQ {iq.score}
-            </span>
-          )}
-          {dataQuality && (
-            <span
-              className="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-[var(--r1)] shrink-0"
-              style={{
-                background:
-                  dataQuality.score >= 68 ? "var(--glo)" : "var(--amber-lo)",
-                color:
-                  dataQuality.score >= 68 ? "var(--green)" : "var(--amber-d)",
-              }}
-              title={
-                dataQuality.missing.length
-                  ? `Missing ${qualityMissingText(dataQuality.missing, 4)}`
-                  : "All core listing details are present"
-              }
-            >
-              Data {dataQuality.score}
-            </span>
-          )}
-        </div>
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
-          style={{
-            background: scoreColor.bg,
-            color: scoreColor.text,
-            fontFamily: "var(--fm)",
-          }}
-          title={`Profit Score: ${profitScore}/100`}
-        >
-          {profitScore}
         </div>
       </div>
 
@@ -494,6 +437,28 @@ export const DealCard = memo(function DealCard({
             {year} {make} {model}
           </span>
         </h3>
+        <p className="text-xs leading-relaxed text-[var(--t3)]">
+          {askPrice > 0
+            ? `Ask $${askPrice.toLocaleString()}`
+            : "Ask not listed"}
+          {" · "}
+          {soldAnchored && resaleBasis && valuationCompCount > 0
+            ? `Comp-backed resale $${resaleBasis.toLocaleString()} · ${valuationCompCount} comps`
+            : resaleBasis && !soldAnchored
+              ? `Ask-based estimate $${resaleBasis.toLocaleString()}${
+                  valuationCompCount > 0
+                    ? ` · ${valuationCompCount} listing asks`
+                    : ""
+                }`
+              : "Resale basis not on file."}
+          {` · ${freshnessText}`}
+          {source ? ` · ${source}` : ""}
+          {sellerType === "dealer"
+            ? " · Dealer"
+            : sellerType === "private"
+              ? " · Private"
+              : ""}
+        </p>
 
         {/* Trim + body type + recall badge — NHTSA-decoded, when known */}
         {(trim ||

@@ -43,11 +43,6 @@ type SwipeDeal = {
   images?: string[];
 };
 
-const VERDICT: Record<string, { label: string; bg: string; fg: string }> = {
-  go: { label: "BUY", bg: "var(--glo)", fg: "var(--green)" },
-  hold: { label: "HOLD", bg: "var(--amber-lo)", fg: "var(--amber-d)" },
-  pass: { label: "PASS", bg: "var(--rlo)", fg: "var(--red)" },
-};
 
 function DealFace({ deal }: { deal: SwipeDeal }) {
   const [imgFailed, setImgFailed] = useState(false);
@@ -59,8 +54,12 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
-  const profit = deal.true_net_profit ?? deal.profitEstimate ?? 0;
-  const verdict = deal.dealVerdict ? VERDICT[deal.dealVerdict] : undefined;
+  const seller =
+    (deal as { sellerType?: string }).sellerType === "dealer"
+      ? "Dealer"
+      : (deal as { sellerType?: string }).sellerType === "private"
+        ? "Private"
+        : "";
 
   return (
     <div className="flex h-full flex-col">
@@ -104,18 +103,6 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
               {deal.source}
             </span>
           )}
-          {deal.profitScore != null && (
-            <span
-              className="rounded-full px-2 py-1 font-mono text-[10px] font-black text-white"
-              style={{
-                background: "rgba(20,10,20,.72)",
-                backdropFilter: "blur(8px)",
-              }}
-              title={`Deal score ${deal.profitScore}/100`}
-            >
-              {deal.profitScore}/100
-            </span>
-          )}
         </div>
       </div>
 
@@ -125,14 +112,6 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
           <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)]">
             {title}
           </h3>
-          {verdict && (
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black"
-              style={{ background: verdict.bg, color: verdict.fg }}
-            >
-              {verdict.label}
-            </span>
-          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
@@ -145,6 +124,8 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
             <span className="capitalize">{deal.condition}</span>
           )}
           {location && <span className="truncate">{location}</span>}
+          {deal.source && <span>{deal.source}</span>}
+          {seller && <span>{seller}</span>}
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-2 border-t border-[var(--b1)] pt-2.5">
@@ -158,13 +139,12 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
           </div>
           <div className="text-right">
             <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-              Est. net profit
+              Resale basis
             </p>
-            <span
-              className="font-mono text-lg font-black leading-none"
-              style={{ color: profit > 0 ? "var(--green)" : "var(--t3)" }}
-            >
-              {profit > 0 ? `+$${Math.round(profit).toLocaleString()}` : "—"}
+            <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
+              {deal.sellEstimate
+                ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
+                : "Resale basis not on file."}
             </span>
           </div>
         </div>
@@ -219,7 +199,7 @@ export default function SwipePage() {
   const [passed, setPassed] = useState(0);
 
   const { data, error, isLoading } = useSWR(
-    `/api/deals?sortBy=profitScore&sortOrder=desc&limit=${PAGE}&offset=${
+    `/api/deals?sortBy=lastSeenAt&sortOrder=desc&limit=${PAGE}&offset=${
       batch * PAGE
     }`,
     fetcher,
@@ -362,8 +342,7 @@ export default function SwipePage() {
           <EmptyState
             icon="search"
             title="No deals to triage yet"
-            message="Nothing scored is in the queue. Run the scanner to populate the feed."
-            action={{ label: "Open scanner", href: "/scan" }}
+            message="No listings are in the queue yet."
           />
         </div>
       ) : (

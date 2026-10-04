@@ -32,7 +32,7 @@ export const CONFIDENCE_META: Record<
   fair: {
     label: "Fair",
     color: "var(--amber)",
-    blurb: "From a market aggregate",
+    blurb: "Ask-based estimate from scraped asking prices, not a sold price",
   },
   estimate: {
     label: "Estimate",
