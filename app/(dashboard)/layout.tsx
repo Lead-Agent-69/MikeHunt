@@ -1,7 +1,6 @@
 import { TopNav } from "@/components/layout/TopNav";
 import { BottomNav } from "@/components/BottomNav";
-import { CommandPalette } from "@/components/shared/CommandPalette";
-import { MikeHuntCopilotDrawer } from "@/components/ui/next-level-features";
+import { DashboardOverlays } from "@/components/layout/DashboardOverlays";
 
 export default function DashboardLayout({
   children,
@@ -15,8 +14,7 @@ export default function DashboardLayout({
         {children}
       </main>
       <BottomNav />
-      <CommandPalette />
-      <MikeHuntCopilotDrawer />
+      <DashboardOverlays />
     </div>
   );
 }

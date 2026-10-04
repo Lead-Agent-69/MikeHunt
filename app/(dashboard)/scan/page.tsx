@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,7 +53,6 @@ import {
   carCategories,
   type CarLike,
 } from "@/lib/scoring/deal-categories";
-import { ProfitSimulatorDrawer } from "@/components/ui/next-level-features";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
@@ -62,6 +62,14 @@ import {
   buildBuyerIntentQuery,
   readLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
+
+const ProfitSimulatorDrawer = dynamic(
+  () =>
+    import("@/components/ui/next-level-features").then(
+      (module) => module.ProfitSimulatorDrawer,
+    ),
+  { ssr: false },
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -4633,10 +4641,12 @@ function ScanPageInner() {
         onClose={() => setIsLaneModeOpen(false)}
       />
 
-      <ProfitSimulatorDrawer
-        isOpen={isSimulatorOpen}
-        onClose={() => setIsSimulatorOpen(false)}
-      />
+      {isSimulatorOpen && (
+        <ProfitSimulatorDrawer
+          isOpen={isSimulatorOpen}
+          onClose={() => setIsSimulatorOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -455,6 +455,12 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
     const minPrice = parseInt(searchParams.get("minPrice") || "0");
+    // Discover is an entry point, not an export. Keep the first response focused and let callers
+    // opt into a slightly deeper rail without serializing the same vehicle hundreds of times.
+    const requestedRailDepth = parseInt(searchParams.get("railDepth") || "12");
+    const railDepth = Number.isFinite(requestedRailDepth)
+      ? Math.min(Math.max(requestedRailDepth, 4), 24)
+      : 12;
     const q = normalizeQuery(searchParams.get("q"));
     const lane = normalizeQuery(searchParams.get("lane"));
     const sellerType = normalizeQuery(searchParams.get("sellerType"));
@@ -642,9 +648,9 @@ export async function GET(request: NextRequest) {
       high: 0,
       unknown: -1,
     };
-    // Rail depth — generous so a large category isn't silently truncated to a handful. The UI rail
-    // scrolls horizontally, so a deeper list just means more to swipe through, not a heavier page.
-    const N = 60;
+    // The same listing may belong to several rails. A bounded depth avoids a large initial payload
+    // and leaves full, scoped browsing to Scan, which is paginated and filter-driven.
+    const N = railDepth;
 
     const best = merged
       .filter((d) => d.grade === "great" || d.grade === "good")

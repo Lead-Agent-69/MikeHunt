@@ -14,6 +14,17 @@ import { sellerContact } from "@/lib/data/deal-contact";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 
+// Keep list responses lean. Cards do not need every stored scraper field, and selecting only
+// the fields used below reduces database serialization and transfer time on every search.
+const SCAN_SELECT =
+  "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options";
+
+const SCAN_CACHE_HEADERS = {
+  // Scan results are public inventory, not account data. A short shared cache removes repeat
+  // database work while stale-while-revalidate keeps browsing responsive during refreshes.
+  "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60",
+};
+
 // LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
 // without the runtime env, and createClient("","") throws on an empty URL → that top-level call was
 // failing the whole build ("Failed to collect page data for /api/scan") and freezing every deploy.
@@ -315,7 +326,9 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   const contact = sellerContact(r);
   const auctionEndAt =
     r.auction_end || r.auction_end_at || r.auctionEndAt || undefined;
-  const repairEst = toNum(r.repair_estimate ?? r.repairEst ?? 0);
+  const repairEst = toNum(
+    r.repair_estimate ?? r.repairEst ?? r.estimated_repair_cost ?? 0,
+  );
   const images = Array.isArray(r.images) ? r.images : r.images || [];
   const quality = gradeDataQuality({
     images,
@@ -400,7 +413,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     bidCount: rowBidCount(r),
     damageType,
     repair_estimate: repairEst || undefined,
-    transport_cost: r.transport_cost ?? undefined,
+    transport_cost: r.transport_cost ?? r.estimated_transport_cost ?? undefined,
     is_arbitrage_opportunity: r.is_arbitrage_opportunity ?? undefined,
     dataQuality: {
       score: quality.score,
@@ -974,7 +987,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("deals")
-    .select("*", { count: "exact" })
+    .select(SCAN_SELECT, { count: "exact" })
     // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
@@ -1188,16 +1201,19 @@ export async function GET(req: NextRequest) {
     ? ranked.slice(page * pageSize, (page + 1) * pageSize)
     : ranked;
 
-  return NextResponse.json({
-    vehicles: sorted,
-    total: count || 0,
-    state: state || "nationwide",
-    page,
-    pageSize,
-    hasMore: (count || 0) > (page + 1) * pageSize,
-    isLive: true,
-    sort,
-  });
+  return NextResponse.json(
+    {
+      vehicles: sorted,
+      total: count || 0,
+      state: state || "nationwide",
+      page,
+      pageSize,
+      hasMore: (count || 0) > (page + 1) * pageSize,
+      isLive: true,
+      sort,
+    },
+    { headers: SCAN_CACHE_HEADERS },
+  );
 }
 
 // POST — trigger a new scan
