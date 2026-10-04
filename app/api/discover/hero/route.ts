@@ -1,5 +1,4 @@
 export const dynamic = "force-dynamic";
-import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -7,65 +6,58 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 
-// GET /api/discover/hero?state= — the one-glance money headline for the home hero: how many live GO
-// deals, the total profit on the table, and the single best flip right now. Makes the value the
-// FIRST thing a dealer feels, not something they have to dig for.
+// Honest inventory count for the Discover header. This does not sum profit and
+// does not cap a hidden dollar total.
 export async function GET(req: NextRequest) {
   const state = new URL(req.url).searchParams.get("state") || "";
   if (!isSupabaseConfigured()) {
     return NextResponse.json({
-      goCount: 0,
-      totalProfit: 0,
-      shown: 0,
-      top: null,
+      listingCount: 0,
+      state: state || "Nationwide",
+      featured: null,
       configured: false,
     });
   }
 
   const supabase = createServerComponentClient();
-
   let q = supabase
     .from("deals")
     .select(
-      "id, year, make, model, true_net_profit, ask_price, recommended_max_bid, location_state, source",
+      "id, year, make, model, ask_price, location_city, location_state, source",
       { count: "exact" },
     )
     .eq("active", true)
-    .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
-    .eq("deal_verdict", "go")
-    .gt("true_net_profit", 0)
-    .order("true_net_profit", { ascending: false })
-    .limit(1000);
+    .gt("ask_price", 0)
+    .order("last_seen_at", { ascending: false })
+    .limit(1);
   if (state) q = q.eq("location_state", state);
 
   const { data, count, error } = await q;
-  if (error)
-    return NextResponse.json({ goCount: 0, totalProfit: 0, top: null });
+  if (error) {
+    return NextResponse.json({
+      listingCount: 0,
+      state: state || "Nationwide",
+      featured: null,
+    });
+  }
 
-  const rows = data || [];
-  const totalProfit = rows.reduce(
-    (s: number, d: any) => s + Math.max(0, Number(d.true_net_profit) || 0),
-    0,
-  );
-  const t = rows[0];
-  const top = t
+  const row = (data || [])[0];
+  const featured = row
     ? {
-        id: t.id,
-        name: `${t.year || ""} ${t.make || ""} ${t.model || ""}`
-          .replace(/\s+/g, " ")
-          .trim(),
-        profit: Math.round(Number(t.true_net_profit) || 0),
-        ask: Math.round(Number(t.ask_price) || 0),
-        maxBid: Math.round(Number(t.recommended_max_bid) || 0),
-        state: t.location_state || null,
-        source: t.source || null,
+        id: row.id,
+        year: row.year ?? null,
+        make: row.make ?? null,
+        model: row.model ?? null,
+        ask: Math.round(Number(row.ask_price) || 0),
+        city: row.location_city || null,
+        state: row.location_state || null,
+        source: row.source || null,
       }
     : null;
 
   return NextResponse.json({
-    goCount: count ?? rows.length,
-    totalProfit: Math.round(totalProfit),
-    shown: rows.length, // how many of the GO deals are in the summed total (for honesty)
-    top,
+    listingCount: count ?? (featured ? 1 : 0),
+    state: state || "Nationwide",
+    featured,
   });
 }

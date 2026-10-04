@@ -25,6 +25,20 @@ describe("buyer-facing polish", () => {
     expect(source).toContain("Refine search");
     expect(source).not.toContain("<BuyerScopeBuilder");
     expect(source).not.toContain("<SetupStatusPanel");
+    expect(source).not.toContain("Scanning the market");
+    expect(source).not.toContain("Open scanner");
+    expect(source).toContain("Widen the state or raise the budget");
+    expect(source).toContain("Distance not available until a listing has real miles.");
+  });
+
+  it("does not sell Discover profit as money on the table", () => {
+    const hero = read("components/discovery/DiscoverHero.tsx");
+    const api = read("app/api/discover/hero/route.ts");
+    expect(hero).toContain("This is not money you can make.");
+    expect(hero).not.toContain("Profit on the table");
+    expect(hero).not.toContain("Today's best flip");
+    expect(api).not.toContain("totalProfit");
+    expect(api).not.toContain("true_net_profit");
   });
 
   it("labels title claims as reported rather than a condition guarantee", () => {
