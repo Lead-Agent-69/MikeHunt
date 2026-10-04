@@ -86,7 +86,9 @@ const getMileagePenalty = (miles: number) => {
 export const useDealStore = create<DealState>()(
   persist(
     (set, get) => ({
-      userType: "dealer",
+      // Saved buyerMode (personal/diy vs reseller/dealer) is applied on the deal page.
+      // Do not assume a dealer desk before that read.
+      userType: "private",
       cachedDeals: {},
       addDealToCache: (id, deal) => {
         set((state) => ({
