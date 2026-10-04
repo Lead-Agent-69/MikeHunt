@@ -172,7 +172,7 @@ describe("primaryJobForPath", () => {
     );
 
     expect(discoverPage).toContain("Buying for");
-    expect(discoverPage).toContain("Refine search");
+    expect(discoverPage).toContain("View all matches & filters");
     expect(discoverPage).not.toContain("<BuyerScopeBuilder");
     expect(discoverPage).not.toContain("<SetupStatusPanel");
   });
