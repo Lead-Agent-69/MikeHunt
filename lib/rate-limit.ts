@@ -13,15 +13,17 @@ const buckets = new Map<string, Bucket>();
 let lastSweep = 0;
 
 // Client IP for the per-instance limiter.
-// Prefer platform headers Vercel sets (the first X-Forwarded-For hop is client-controlled).
-// If only X-Forwarded-For is present, use the last hop — the one a proxy appends — so a
-// spoofed prefix cannot mint a fresh bucket. This is still per-instance, not a global quota.
+// Production trusts only x-vercel-forwarded-for, which Vercel overwrites.
+// x-real-ip and x-forwarded-for are client-spoofable at the edge, so they are
+// ignored when NODE_ENV is production. Elsewhere, fall back to x-real-ip, then
+// the last X-Forwarded-For hop a local proxy appends. Still per-instance.
 export function clientIp(req: Request): string {
   const vercel = req.headers.get("x-vercel-forwarded-for");
   if (vercel) {
     const hop = vercel.split(",")[0]?.trim();
     if (hop) return hop;
   }
+  if (process.env.NODE_ENV === "production") return "unknown";
   const real = req.headers.get("x-real-ip")?.trim();
   if (real) return real;
   const xff = req.headers.get("x-forwarded-for");
