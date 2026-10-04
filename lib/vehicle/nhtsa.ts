@@ -1,5 +1,5 @@
-// Free authoritative vehicle data — NHTSA vPIC (VIN decode) + NHTSA Recalls. No API key, no rate
-// limit, public-domain data. Pure parsers (testable) + best-effort fetchers. Decode is immutable per
+// Free authoritative vehicle data — NHTSA vPIC (VIN decode) + NHTSA Recalls. No API key;
+// traffic controls still apply. Pure parsers (testable) + best-effort fetchers. Decode is immutable per
 // VIN; recalls change over time. Callers cache results in the vin_decodes table.
 
 import { isValidVin } from "./vin";
@@ -75,26 +75,37 @@ export async function decodeVin(
  *  VINs instead of one-at-a-time. Returns a VIN→decode map (only entries that resolved make+model). */
 export async function decodeVinBatch(
   vins: string[],
+  fetchImpl: typeof fetch = globalThis.fetch,
 ): Promise<Map<string, VinDecode>> {
   const out = new Map<string, VinDecode>();
-  const valid = Array.from(new Set(vins.filter((v) => isValidVin(v)).map((v) => v.toUpperCase())));
+  const valid = Array.from(
+    new Set(vins.map((v) => v.trim().toUpperCase()).filter(isValidVin)),
+  );
   for (let i = 0; i < valid.length; i += 50) {
     const chunk = valid.slice(i, i + 50);
     try {
-      const res = await fetch(
+      const res = await fetchImpl(
         "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/",
         {
           method: "POST",
+          signal: AbortSignal.timeout(10_000),
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ format: "json", data: chunk.join(";") }).toString(),
+          body: new URLSearchParams({
+            format: "json",
+            data: chunk.join(";"),
+          }).toString(),
         },
       );
       if (!res.ok) continue;
       const body = await res.json();
-      for (const r of body?.Results || []) {
+      const requested = new Set(chunk);
+      for (const r of Array.isArray(body?.Results) ? body.Results : []) {
         const d = parseDecode(r);
         const vin = strOrNull(r?.VIN);
-        if (vin && d.make && d.model) out.set(vin.toUpperCase(), d);
+        const normalizedVin = vin?.toUpperCase();
+        // A response must resolve a requested VIN, not silently inject unrelated records.
+        if (normalizedVin && requested.has(normalizedVin) && d.make && d.model)
+          out.set(normalizedVin, d);
       }
     } catch {
       /* skip the chunk on failure */

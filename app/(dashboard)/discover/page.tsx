@@ -15,8 +15,8 @@ import { MarketPicker } from "@/components/shared/MarketPicker";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
-import { Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { SelectField } from "@/components/shared/Field";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -52,23 +52,91 @@ const fetcher = (url: string) =>
   });
 
 function Rail({ rail }: { rail: DiscoveryRail }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
+  const [edges, setEdges] = useState({ start: true, end: true });
+  const railId = React.useId();
+  useEffect(() => {
+    const element = strip.current;
+    if (!element) return;
+    const update = () =>
+      setEdges({
+        start: element.scrollLeft <= 2,
+        end:
+          element.scrollLeft + element.clientWidth >= element.scrollWidth - 2,
+      });
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => {
+      element.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [rail.deals.length]);
+  const browse = (direction: number) => {
+    const element = strip.current;
+    if (!element) return;
+    element.scrollBy({
+      left: direction * element.clientWidth * 0.85,
+      behavior: reducedMotion ? "instant" : "smooth",
+    });
+  };
   return (
     <motion.section
-      initial={{ opacity: 0, y: 20 }}
+      initial={reducedMotion ? false : { opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="space-y-3"
     >
-      <div className="px-1">
-        <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
-          {rail.title}
-        </h2>
-        {rail.subtitle && (
-          <p className="mt-0.5 text-xs text-[var(--t4)]">{rail.subtitle}</p>
-        )}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
+            {rail.title}
+          </h2>
+          {rail.subtitle && (
+            <p className="mt-0.5 text-xs text-[var(--t4)]">{rail.subtitle}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            aria-label={`Previous vehicles in ${rail.title}`}
+            title="Previous vehicles"
+            aria-controls={railId}
+            disabled={edges.start}
+            onClick={() => browse(-1)}
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+          >
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Next vehicles in ${rail.title}`}
+            title="Next vehicles"
+            aria-controls={railId}
+            disabled={edges.end}
+            onClick={() => browse(1)}
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+          >
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <motion.div
+        ref={strip}
+        id={railId}
+        role="region"
+        aria-label={`${rail.title} vehicles`}
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+            event.preventDefault();
+            browse(event.key === "ArrowRight" ? 1 : -1);
+          }
+        }}
         className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
         style={{
           scrollSnapType: "x mandatory",
@@ -145,6 +213,15 @@ export default function DiscoverPage() {
     });
   }, [searchParams]);
   const [state, setState] = useState(""); // '' = nationwide
+  useEffect(() => {
+    const chosen = searchParams.get("state");
+    if (chosen !== null)
+      setState(
+        chosen.toUpperCase() === "NATIONWIDE" ? "" : chosen.toUpperCase(),
+      );
+    else if (searchParams.has("states")) setState("");
+  }, [searchParams]);
+  const [showInsights, setShowInsights] = useState(false);
   const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
 
   // Land on the user's saved default market once (they can still change it — this only sets the initial).
@@ -185,6 +262,12 @@ export default function DiscoverPage() {
   }, [buyerScope?.state]);
 
   const scopeParams = buildBuyerIntentQuery(buyerScope, state);
+  if (searchParams.has("states")) {
+    scopeParams.delete("state");
+    scopeParams.set("states", searchParams.get("states") || "");
+  } else if (searchParams.get("state")?.toUpperCase() === "NATIONWIDE") {
+    scopeParams.delete("state");
+  }
   const scopeQuery = scopeParams.toString() ? `?${scopeParams.toString()}` : "";
   const activeScopeLabel = buyerIntentLabel(buyerScope, state);
 
@@ -209,16 +292,11 @@ export default function DiscoverPage() {
 
   return (
     <div className="space-y-6 pb-24 md:pb-8">
-      {/* Your edge today — the live opportunity on the board right now. */}
-      {hasLiveListings && <EdgeBanner />}
-
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative">
           <h1 className="relative flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
-            <motion.span
-              animate={{ rotate: [0, 5, -5, 0] }}
-              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
+            <span
               className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg"
               style={{ background: "var(--grad)" }}
             >
@@ -227,14 +305,14 @@ export default function DiscoverPage() {
                 strokeWidth={2.5}
                 style={{ width: 18, height: 18 }}
               />
-            </motion.span>
+            </span>
             Discover
           </h1>
           <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
             {statLine ??
               (isLoading
-                ? "Scanning the market…"
-                : "Graded, deduped deals across every source")}
+                ? "Loading matching vehicles..."
+                : "Find vehicles for your budget and buying goal")}
           </p>
         </div>
 
@@ -274,84 +352,96 @@ export default function DiscoverPage() {
         </a>
       </section>
 
-      {/* Always show the saved dealer intent. Even before database import is live, this confirms the
+      <details
+        className="border-b border-[var(--b1)] pb-3"
+        onToggle={(event) => setShowInsights(event.currentTarget.open)}
+      >
+        <summary className="cursor-pointer text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+          Market insights and saved interests
+        </summary>
+        {showInsights && (
+          <div className="mt-4 space-y-6">
+            {hasLiveListings && <EdgeBanner />}
+            {/* Always show the saved dealer intent. Even before database import is live, this confirms the
           shops being watched and gives the user a direct path to source proof. */}
-      <WatchedDealerFeed />
+            <WatchedDealerFeed />
 
-      {hasLiveListings && (
-        <>
-          {/* Jump back to deals you just looked at. */}
-          <RecentlyViewed kind="car" accent="var(--amber-d)" />
+            {hasLiveListings && (
+              <>
+                {/* Jump back to deals you just looked at. */}
+                <RecentlyViewed kind="car" accent="var(--amber-d)" />
 
-          {/* Deals near you — personalized to the saved home market + surrounding states. */}
-          <NearbyDeals />
-        </>
-      )}
+                {/* Deals near you — personalized to the saved home market + surrounding states. */}
+                <NearbyDeals />
+              </>
+            )}
 
-      {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
-      {data && !data.personalized && (
-        <a
-          href="/settings"
-          className="glass-panel flex items-center gap-3 px-4 py-3 transition-colors hover:border-[var(--amber-bd)]"
-        >
-          <div className="flex-1">
-            <p className="text-sm font-bold text-[var(--t1)]">
-              Personalize your feed
-            </p>
-            <p className="text-xs text-[var(--t4)]">
-              Set your states, budget & profit target in Settings to get a “For
-              You” rail tuned to how you buy.
-            </p>
+            {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
+            {data && !data.personalized && (
+              <a
+                href="/settings"
+                className="glass-panel flex items-center gap-3 px-4 py-3 transition-colors hover:border-[var(--amber-bd)]"
+              >
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-[var(--t1)]">
+                    Personalize your feed
+                  </p>
+                  <p className="text-xs text-[var(--t4)]">
+                    Set your states, budget & profit target in Settings to get a
+                    “For You” rail tuned to how you buy.
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-[var(--amber)]">
+                  Set up →
+                </span>
+              </a>
+            )}
+
+            {hasLiveListings && (
+              <>
+                {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
+                <NextBestBuySpotlight initialState={state || undefined} />
+
+                {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
+                <DiscoverHero state={state || undefined} />
+
+                {/* Live ticker (Visor marquee) */}
+                <DealTicker />
+
+                {/* Market summary — at-a-glance intelligence (hides when empty) */}
+                <MarketSummary />
+
+                {/* What the market's doing — top GO make/models */}
+                <MarketPulse />
+              </>
+            )}
+
+            {hasLiveListings && (
+              <>
+                {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
+                <FlashRail state={state || undefined} />
+
+                {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
+                <IntelRail
+                  endpoint="/api/recommendations"
+                  title="Deals like your winners"
+                  subtitle="Matched to the make/models you've actually profited on"
+                />
+                <IntelRail
+                  endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
+                  title="Underpriced vs peers"
+                  subtitle="Statistical outliers priced well under their cluster"
+                />
+                <IntelRail
+                  endpoint="/api/deals/near"
+                  title="Near you"
+                  subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
+                />
+              </>
+            )}
           </div>
-          <span className="text-xs font-bold text-[var(--amber)]">
-            Set up →
-          </span>
-        </a>
-      )}
-
-      {hasLiveListings && (
-        <>
-          {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
-          <NextBestBuySpotlight initialState={state || undefined} />
-
-          {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
-          <DiscoverHero state={state || undefined} />
-
-          {/* Live ticker (Visor marquee) */}
-          <DealTicker />
-
-          {/* Market summary — at-a-glance intelligence (hides when empty) */}
-          <MarketSummary />
-
-          {/* What the market's doing — top GO make/models */}
-          <MarketPulse />
-        </>
-      )}
-
-      {hasLiveListings && (
-        <>
-          {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
-          <FlashRail state={state || undefined} />
-
-          {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
-          <IntelRail
-            endpoint="/api/recommendations"
-            title="Deals like your winners"
-            subtitle="Matched to the make/models you've actually profited on"
-          />
-          <IntelRail
-            endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
-            title="Underpriced vs peers"
-            subtitle="Statistical outliers priced well under their cluster"
-          />
-          <IntelRail
-            endpoint="/api/deals/near"
-            title="Near you"
-            subtitle="Closest BUY deals to your home base — set your ZIP in Settings"
-          />
-        </>
-      )}
-
+        )}
+      </details>
       {/* Body */}
       {isLoading ? (
         <div className="space-y-8">

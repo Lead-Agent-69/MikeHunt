@@ -27,6 +27,7 @@ function IconBtn({
     <Link
       href={href}
       title={title}
+      aria-label={title}
       className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors text-[var(--t3)] hover:text-[var(--t1)]"
       style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
     >
@@ -123,6 +124,18 @@ export function TopNav() {
   }, []);
 
   const totalAlertCount = alertCount + localSearches.count;
+  const changeLocation = (states: string[]) => {
+    setScopedStates(states);
+    if (pathname === "/discover" || pathname === "/scan") {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("state");
+      params.delete("states");
+      if (states.length === 1) params.set("state", states[0]);
+      else if (states.length > 1) params.set("states", states.join(","));
+      else params.set("state", "Nationwide");
+      router.replace(`${pathname}?${params.toString()}`);
+    } else router.refresh();
+  };
 
   return (
     <header
@@ -184,6 +197,7 @@ export function TopNav() {
             <Link
               key={item.name}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
                 active
                   ? "text-white"
@@ -205,7 +219,7 @@ export function TopNav() {
       <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
         <div className="hidden items-center justify-end gap-2 md:flex">
           <MyStatesButton
-            onChange={() => router.refresh()}
+            onChange={changeLocation}
             statesOverride={scopedStates}
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
           />
@@ -230,7 +244,7 @@ export function TopNav() {
 
         <div className="flex items-center justify-end gap-2 md:hidden">
           <MyStatesButton
-            onChange={() => router.refresh()}
+            onChange={changeLocation}
             statesOverride={scopedStates}
             className="inline-flex max-w-[88px] items-center gap-1.5 truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]"
           />

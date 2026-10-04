@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
 describe("assessDecisionEvidence", () => {
+  it("keeps auction buy-now evidence distinct from a current bid", () => {
+    const result = assessDecisionEvidence({
+      source: "copart",
+      buyNowPrice: 12000,
+    });
+    expect(result.summary).toMatch(/buy-now price/);
+    expect(result.summary).not.toMatch(/current auction price/);
+    expect(result.acquisitionReady).toBe(false);
+  });
   it("holds stored government auction rows even with a stale buy verdict", () => {
     expect(
       assessDecisionEvidence({
@@ -37,7 +46,7 @@ describe("assessDecisionEvidence", () => {
     expect(result.state).toBe("price_anomaly");
   });
 
-  it("requires identity and comparable evidence for a purchase recommendation", () => {
+  it("does not interpret a stored GO and asking comparisons as completed purchase checks", () => {
     const result = assessDecisionEvidence({
       source: "dealer",
       vin: "1HGCM82633A000000",
@@ -45,7 +54,55 @@ describe("assessDecisionEvidence", () => {
       dealVerdict: "go",
       valuation: { source: "comparables", compCount: 8, confidence: "high" },
     });
+    expect(result.acquisitionReady).toBe(false);
+    expect(result.nextCheck).toMatch(/purchase price/);
+  });
+
+  it("requires explicit evidence gates for a purchase candidate", () => {
+    const result = assessDecisionEvidence({
+      source: "dealer",
+      vin: "1HGCM82633A000000",
+      mileage: 40000,
+      dealVerdict: "go",
+      valuation: { source: "comparables", compCount: 8, confidence: "high" },
+      dealAnalysis: {
+        evidenceGates: {
+          priceMeaningConfirmed: true,
+          titleReviewed: true,
+          conditionInspected: true,
+          costsConfirmed: true,
+        },
+      },
+    });
     expect(result.state).toBe("verified");
     expect(result.acquisitionReady).toBe(true);
+  });
+
+  it.each([undefined, "none", "low"])(
+    "withholds third-party valuation with %s confidence",
+    (confidence) => {
+      expect(
+        assessDecisionEvidence({
+          source: "dealer",
+          vin: "1HGCM82633A000000",
+          mileage: 40000,
+          dealVerdict: "go",
+          valuation: { source: "third_party", confidence },
+        }).acquisitionReady,
+      ).toBe(false);
+    },
+  );
+
+  it("does not accept malformed identity or string-valued gate claims", () => {
+    expect(
+      assessDecisionEvidence({
+        source: "dealer",
+        vin: "unknown",
+        mileage: 40000,
+        dealVerdict: "go",
+        valuation: { source: "comparables", compCount: 8, confidence: "high" },
+        dealAnalysis: { evidenceGates: { costsConfirmed: "true" } },
+      }).acquisitionReady,
+    ).toBe(false);
   });
 });

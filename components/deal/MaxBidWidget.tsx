@@ -89,7 +89,7 @@ export function MaxBidWidget({
     <Card
       className="border-none overflow-hidden glass-panel relative"
       style={{
-        background: "rgba(20,10,20,0.6)",
+        background: "var(--s0)",
         backdropFilter: "blur(24px)",
         boxShadow: "var(--shadow)",
       }}
@@ -103,7 +103,7 @@ export function MaxBidWidget({
         <div className="flex items-center gap-2 mb-1">
           <Ico name="calculator" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            Name your price
+            Purchase scenario
           </p>
           {cal && (
             <span
@@ -116,8 +116,10 @@ export function MaxBidWidget({
           )}
         </div>
         <p className="text-sm text-[var(--t3)] mb-5">
-          Set the profit you want. We&apos;ll tell you the most you can{" "}
-          {term.verb} and still hit it.
+          Adjust your target profit to explore a scenario using the current
+          resale and cost inputs. This is not a verified purchase ceiling or
+          guaranteed return. Confirm condition, title, fees and quotes before
+          deciding.
         </p>
 
         {!hasSell ? (
@@ -163,7 +165,7 @@ export function MaxBidWidget({
             >
               <div className="absolute -inset-4 bg-[var(--green)] blur-[40px] opacity-10 pointer-events-none" />
               <p className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-                Your {maxLabel}
+                Scenario {maxLabel} (unverified)
               </p>
               <Mono
                 className="relative z-10 text-4xl md:text-5xl font-black text-transparent bg-clip-text leading-none"
@@ -176,9 +178,9 @@ export function MaxBidWidget({
                 {fmt(result.maxBid)}
               </Mono>
               <p className="relative z-10 text-xs text-[var(--t3)] font-semibold mt-2">
-                to net {fmt(targetProfit)} profit ·{" "}
+                Target {fmt(targetProfit)} profit ·{" "}
                 <span className="text-[var(--green)] font-bold">
-                  {result.impliedRoi}% ROI
+                  {result.impliedRoi}% scenario ROI
                 </span>
               </p>
             </div>
@@ -197,7 +199,7 @@ export function MaxBidWidget({
                   >
                     <Ico name="check-circle" size={16} />
                     {fmt(headroom)} of headroom — {priceWord} ({fmt(ask)}) is
-                    below your {maxLabel}
+                    below the scenario {maxLabel}
                   </div>
                 ) : (
                   <div

@@ -8,7 +8,7 @@ WORKDIR /app
 # Install dependencies
 COPY package.json package-lock.json* ./
 COPY scripts/postinstall.js ./scripts/postinstall.js
-RUN npm install
+RUN HUSKY=0 npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -18,6 +18,10 @@ COPY . .
 
 # Next.js telemetry can be disabled during build
 ENV NEXT_TELEMETRY_DISABLED 1
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 # If we are building the web target, we run next build.
 # For worker, we don't strictly need a build but we can use typescript to compile it or just use ts-node.

@@ -72,14 +72,14 @@ export async function GET(
 
     const evidence = assessDecisionEvidence(deal);
     const safeDeal =
-      evidence.state === "auction_watch"
+      !evidence.acquisitionReady && deal.dealVerdict === "go"
         ? { ...deal, dealVerdict: "hold", decisionEvidence: evidence }
         : { ...deal, decisionEvidence: evidence };
     return NextResponse.json({ deal: safeDeal, meter });
   } catch (error) {
     console.error("Error in single deal API:", error);
     return NextResponse.json(
-      { error: "Failed to fetch deal" },
+      { error: "Vehicle details couldn't be loaded. Please try again." },
       { status: 500 },
     );
   }

@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
+import { fetchObservedPrices } from "@/lib/vehicle/observed-price-history";
 
 interface PricePoint {
   price: number;
@@ -14,12 +15,6 @@ interface PricePoint {
 interface PriceSparklineProps {
   dealId: string;
 }
-
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch price history");
-    return res.json();
-  });
 
 const fmt = (val: number) =>
   new Intl.NumberFormat("en-US", {
@@ -31,15 +26,16 @@ const fmt = (val: number) =>
 const W = 280;
 const H = 64;
 const PAD = 4;
+const EMPTY_POINTS: PricePoint[] = [];
 
 export function PriceSparkline({ dealId }: PriceSparklineProps) {
-  const { data, isLoading } = useSWR<PricePoint[]>(
+  const { data, error, isLoading, mutate } = useSWR<PricePoint[]>(
     dealId ? `/api/deals/${dealId}/price-history` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60000 },
+    fetchObservedPrices,
+    { revalidateOnFocus: false, dedupingInterval: 60000, errorRetryCount: 1 },
   );
 
-  const points = Array.isArray(data) ? data : [];
+  const points = data ?? EMPTY_POINTS;
   const enough = points.length >= 2;
 
   const geom = React.useMemo(() => {
@@ -85,22 +81,33 @@ export function PriceSparkline({ dealId }: PriceSparklineProps) {
         <div className="flex items-center gap-2 mb-3">
           <Ico name="trending-up" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            Price history
+            Listing price history
           </p>
         </div>
 
         {isLoading ? (
           <div className="skeleton h-16 w-full" />
+        ) : error ? (
+          <div className="text-sm text-[var(--t3)]">
+            <p>Price history could not be loaded.</p>
+            <button
+              type="button"
+              className="mt-2 min-h-11 text-[var(--blue)]"
+              onClick={() => void mutate()}
+            >
+              Try again
+            </button>
+          </div>
         ) : !enough ? (
           <p className="text-sm text-[var(--t4)] py-3">
-            Tracking — check back as we re-scan.
+            Not enough dated price observations to show a trend.
           </p>
         ) : (
           <>
             <div className="flex items-end justify-between mb-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-0.5">
-                  Current
+                  Last observed
                 </p>
                 <Mono
                   className="text-2xl font-black text-[var(--t1)] leading-none"
@@ -168,6 +175,10 @@ export function PriceSparkline({ dealId }: PriceSparklineProps) {
             </svg>
           </>
         )}
+        <p className="mt-3 text-xs leading-relaxed text-[var(--t4)]">
+          Observed listing amounts, not confirmed sale prices. Listing history
+          does not verify accidents, title, or repairs.
+        </p>
       </CardContent>
     </Card>
   );

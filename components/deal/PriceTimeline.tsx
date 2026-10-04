@@ -3,23 +3,53 @@
 import React from "react";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
+import { fetchObservedPrices } from "@/lib/vehicle/observed-price-history";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) => `$${(Number(v) || 0).toLocaleString()}`;
 
 /** Per-listing price timeline + motivated-seller signal (Visor price history). Hides with <2 points. */
 export function PriceTimeline({ dealId }: { dealId: string }) {
-  const { data } = useSWR(`/api/deals/${dealId}/price-history`, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/deals/${dealId}/price-history`,
+    fetchObservedPrices,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
+      errorRetryCount: 1,
+    },
+  );
   // The route returns a bare ascending array of { price, observedAt }.
-  const raw: any[] = Array.isArray(data) ? data : (data?.history ?? []);
-  if (raw.length < 2) return null;
+  const raw = data ?? [];
+  if (isLoading)
+    return (
+      <p role="status" className="py-4 text-sm text-[var(--t3)]">
+        Loading observed prices...
+      </p>
+    );
+  if (error)
+    return (
+      <div className="py-4 text-sm text-[var(--t3)]">
+        <p>Price history could not be loaded.</p>
+        <button
+          type="button"
+          className="mt-2 min-h-11 text-[var(--blue)]"
+          onClick={() => void mutate()}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  if (raw.length < 2)
+    return (
+      <p className="py-4 text-sm text-[var(--t3)]">
+        Not enough dated price observations to show a trend.
+      </p>
+    );
 
   // Ascending → compute change vs previous; show newest first.
   const withChange = raw.map((h, i) => ({
     price: Number(h.price),
-    at: h.observedAt || h.observed_at || h.created_at,
+    at: h.observedAt,
     change: i > 0 ? Number(h.price) - Number(raw[i - 1].price) : 0,
   }));
   const drops = withChange.filter((h) => h.change < 0).length;
@@ -34,7 +64,7 @@ export function PriceTimeline({ dealId }: { dealId: string }) {
   return (
     <div className="glass-panel p-5 mt-4 space-y-3">
       <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-        Price history
+        Listing price history
       </p>
 
       {drops >= 2 && (
@@ -46,8 +76,7 @@ export function PriceTimeline({ dealId }: { dealId: string }) {
           }}
         >
           <span className="text-xs font-bold text-[var(--green)]">
-            ↓ {drops} price drops{days != null ? ` in ${days} days` : ""} —
-            motivated seller
+            {drops} observed price drops. Seller intent is unknown.
           </span>
         </div>
       )}
@@ -84,7 +113,7 @@ export function PriceTimeline({ dealId }: { dealId: string }) {
               }}
             >
               {h.change === 0
-                ? "listed"
+                ? "observed"
                 : `${h.change < 0 ? "↓" : "↑"} ${money(Math.abs(h.change))}`}
             </span>
           </div>
@@ -92,10 +121,16 @@ export function PriceTimeline({ dealId }: { dealId: string }) {
       </div>
 
       <p className="text-[11px] text-[var(--t4)]">
-        {days != null ? `On market ${days}d · ` : ""}
+        {days != null
+          ? `First observed by MIKEHUNT ${Math.max(0, days)}d ago · `
+          : ""}
         {totalChange !== 0
           ? `${totalChange < 0 ? "down" : "up"} ${money(Math.abs(totalChange))} total`
           : "no change"}
+      </p>
+      <p className="text-xs leading-relaxed text-[var(--t4)]">
+        Recorded listing amounts, not confirmed sale prices or vehicle-history
+        records. First observed is not the original listing date.
       </p>
     </div>
   );

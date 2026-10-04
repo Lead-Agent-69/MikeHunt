@@ -2,7 +2,7 @@
 
 import React, { memo, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
@@ -15,7 +15,7 @@ import {
   toLocalSavedVehicle,
   useLocalSavedVehicles,
 } from "@/hooks/useLocalSavedVehicles";
-import { qualityFieldLabel } from "@/lib/data-quality";
+import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Clock3, Flame, Zap } from "lucide-react";
 
 const TITLE_STYLES: Record<
@@ -87,6 +87,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   deal: DiscoveryDeal;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const reducedMotion = useReducedMotion();
   const localSaves = useLocalSavedVehicles();
   const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
@@ -110,46 +111,27 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       : `/deal/${deal.id}`;
   const external = href.startsWith("http");
   const isSaved = localSaves.has(deal.id);
-  const resaleBasis = deal.sellEstimate || 0;
-  const confidenceGaps = [
-    !resaleBasis ? "resale comps" : null,
-    !deal.recommendedMaxBid ? "max bid" : null,
-    !deal.trueNetProfit ? "fees/transport/repair" : null,
-    ...(deal.dataQuality?.missing.slice(0, 2).map(qualityFieldLabel) || []),
-  ].filter(Boolean);
-  const decision =
-    deal.vinFlagSeverity === "high" || confidenceGaps.length >= 3
-      ? {
-          label: "Needs evidence",
-          background: "rgba(35, 43, 55, .88)",
-          color: "#ffffff",
-        }
-      : deal.trueNetProfit && deal.trueNetProfit > 0 && deal.recommendedMaxBid
-        ? {
-            label: "Worth a look",
-            background: "rgba(15, 118, 75, .9)",
-            color: "#ffffff",
-          }
-        : {
-            label: "Consider",
-            background: "rgba(161, 98, 7, .9)",
-            color: "#ffffff",
-          };
+  const evidence = discoveryEvidence(deal);
+  const decision = {
+    label: evidence.label,
+    background: "rgba(35, 43, 55, .88)",
+    color: "#ffffff",
+  };
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      initial={reducedMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
       whileInView={{ opacity: 1, y: 0, scale: 1 }}
       viewport={{ once: true, margin: "-20px" }}
-      whileHover={{ y: -2 }}
+      whileHover={reducedMotion ? undefined : { y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
       className="w-[calc(100vw-2.5rem)] max-w-[358px] shrink-0 sm:w-[300px]"
       style={{ scrollSnapAlign: "start" }}
     >
       <div
-        className="deal-card glass-panel interactive-surface group flex flex-col overflow-hidden select-none premium-focus"
-        style={{ padding: 0, height: "100%" }}
+        className="deal-card glass-panel interactive-surface group flex flex-col overflow-hidden premium-focus"
+        style={{ padding: 0, height: "100%", borderRadius: 8 }}
       >
         {/* Image */}
         <div
@@ -163,7 +145,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               alt={title}
               loading="lazy"
               onError={() => setImgFailed(true)}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
             />
           ) : (
             <Placeholder />
@@ -242,7 +224,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
-              className="truncate text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--amber)]"
+              className="min-w-0 break-words text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--blue)]"
             >
               {title}
             </Link>
@@ -275,7 +257,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
           {/* Forecast chip — the predictive layer surfaced on the card: urgency + time-to-sell, so the
               engine's forward-looking read shows in the browse, not just the detail page. */}
-          {deal.prediction &&
+          {evidence.acquisitionReady &&
+            deal.prediction &&
             (deal.prediction.urgency === "act_now" ||
               deal.prediction.urgency === "soon" ||
               deal.prediction.velocity === "fast") && (
@@ -348,12 +331,12 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {cond.detail ? ` · ${cond.detail}` : ""}
               </span>
             )}
-            {deal.mileage ? (
+            {deal.mileage != null && Number.isFinite(deal.mileage) ? (
               <span className="font-mono text-[var(--t3)]">
                 {deal.mileage.toLocaleString()} mi
               </span>
             ) : null}
-            {deal.mileage && location ? (
+            {deal.mileage != null && location ? (
               <span className="opacity-30">·</span>
             ) : null}
             {location && (
@@ -415,7 +398,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                     key={reason}
                     className="rounded-full bg-[var(--s2)] px-1.5 py-0.5 font-bold text-[var(--t3)]"
                   >
-                    {reason}
+                    {discoveryReason(reason)}
                   </span>
                 ))}
               </div>
@@ -426,6 +409,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {relativeFreshness(deal.lastSeenAt)} ·{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
+          <p className="text-xs leading-relaxed text-[var(--t3)]">
+            {evidence.nextCheck}
+          </p>
 
           {/* Price and practical ceiling stay adjacent so the acquisition decision is readable. */}
           <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
@@ -434,174 +420,185 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {terms.priceLabel}
               </p>
               <span className="font-mono text-lg font-black leading-none text-[var(--t1)] tracking-tight">
-                ${deal.askPrice.toLocaleString()}
+                {Number.isFinite(deal.askPrice) && deal.askPrice > 0
+                  ? `$${deal.askPrice.toLocaleString()}`
+                  : "Price not reported"}
               </span>
             </div>
 
             <div className="text-right">
               <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                {terms.maxLabel}
+                Purchase ceiling
               </p>
-              {deal.recommendedMaxBid ? (
+              {evidence.acquisitionReady && deal.recommendedMaxBid ? (
                 <span className="font-mono text-[17px] font-black leading-none text-[var(--green)]">
                   ${Math.round(deal.recommendedMaxBid).toLocaleString()}
                 </span>
               ) : (
-                <span className="font-mono text-[17px] font-bold leading-none text-[var(--t3)]">
-                  --
+                <span className="text-xs font-semibold leading-normal text-[var(--t3)]">
+                  Not established
                 </span>
               )}
             </div>
           </div>
 
           {/* Sell estimate + max bid — the context that makes the profit number mean something. */}
-          {(deal.sellEstimate || deal.recommendedMaxBid) && (
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
-              <div
-                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-                style={{ background: "var(--s1)" }}
-              >
-                <span className="flex items-center gap-1 font-semibold text-[var(--t4)]">
-                  Sell est
-                  {deal.valueConfidence && (
-                    <span
-                      className="inline-block h-1.5 w-1.5 rounded-full"
-                      style={{
-                        background: CONFIDENCE_META[deal.valueConfidence].color,
-                      }}
-                      title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}${
-                        deal.valueEvidence
-                          ? ` · backed by ${deal.valueEvidence} real comps/sales`
-                          : ""
-                      }`}
-                    />
-                  )}
-                </span>
-                <span className="font-mono font-bold text-[var(--t2)]">
-                  {deal.sellEstimate
-                    ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
-                    : "—"}
-                </span>
+          <details className="border-t border-[var(--b1)] pt-2">
+            <summary className="cursor-pointer py-2 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+              Cost estimates and source details
+            </summary>
+            <p className="text-[11px] leading-relaxed text-[var(--t4)]">
+              Listing and model estimates, not inspection findings or guaranteed
+              sale prices.
+            </p>
+            {(deal.sellEstimate || deal.recommendedMaxBid) && (
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
+                <div
+                  className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                  style={{ background: "var(--s1)" }}
+                >
+                  <span className="flex items-center gap-1 font-semibold text-[var(--t4)]">
+                    Sell est
+                    {deal.valueConfidence && (
+                      <span
+                        className="inline-block h-1.5 w-1.5 rounded-full"
+                        style={{
+                          background:
+                            CONFIDENCE_META[deal.valueConfidence].color,
+                        }}
+                        title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence — ${CONFIDENCE_META[deal.valueConfidence].blurb}${
+                          deal.valueEvidence
+                            ? ` · backed by ${deal.valueEvidence} real comps/sales`
+                            : ""
+                        }`}
+                      />
+                    )}
+                  </span>
+                  <span className="font-mono font-bold text-[var(--t2)]">
+                    {deal.sellEstimate
+                      ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
+                      : "—"}
+                  </span>
+                </div>
+                <div
+                  className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                  style={{ background: "var(--s1)" }}
+                >
+                  <span className="font-semibold text-[var(--t4)]">
+                    Model ceiling (unverified)
+                  </span>
+                  <span className="font-mono font-bold text-[var(--green)]">
+                    {deal.recommendedMaxBid
+                      ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
+                      : "—"}
+                  </span>
+                </div>
               </div>
-              <div
-                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-                style={{ background: "var(--s1)" }}
-              >
-                <span className="font-semibold text-[var(--t4)]">
-                  {terms.maxLabel}
-                </span>
-                <span className="font-mono font-bold text-[var(--green)]">
-                  {deal.recommendedMaxBid
-                    ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
-                    : "—"}
-                </span>
-              </div>
-            </div>
-          )}
+            )}
 
+            {(deal.repairEstimate || deal.transportEstimate) && (
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
+                <div
+                  className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                  style={{ background: "var(--s1)" }}
+                >
+                  <span className="font-semibold text-[var(--t4)]">Repair</span>
+                  <span className="font-mono font-bold text-[var(--t2)]">
+                    {deal.repairEstimate
+                      ? `$${Math.round(deal.repairEstimate).toLocaleString()}`
+                      : "—"}
+                  </span>
+                </div>
+                <div
+                  className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
+                  style={{ background: "var(--s1)" }}
+                >
+                  <span className="font-semibold text-[var(--t4)]">
+                    Transport
+                  </span>
+                  <span className="font-mono font-bold text-[var(--t2)]">
+                    {deal.transportEstimate
+                      ? `$${Math.round(deal.transportEstimate).toLocaleString()}`
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Cross-source price compare (Kayak): the SAME car on each source, brand-chipped,
+              cheapest first + outlined — so a dealer sees who has it and for how much at a glance. */}
+            {multi && (
+              <div
+                className="mt-1 rounded-[var(--r2)] px-2.5 py-2"
+                style={{ background: "var(--s1)" }}
+              >
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--t4)]">
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--amber)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                  Same car on {deal.listingCount} sources
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { source: deal.source, askPrice: deal.askPrice },
+                    ...deal.alsoOn,
+                  ]
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        (a.askPrice || Infinity) - (b.askPrice || Infinity),
+                    )
+                    .map((s, i) => {
+                      const m = sourceMeta(s.source);
+                      const isCheapest = i === 0;
+                      return (
+                        <span
+                          key={`${s.source}-${i}`}
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                          style={{
+                            background: tint(m.color, isCheapest ? 0.22 : 0.1),
+                            color: m.color,
+                            boxShadow: isCheapest
+                              ? `inset 0 0 0 1px ${m.color}`
+                              : undefined,
+                          }}
+                          title={`${m.label}${isCheapest ? " — cheapest" : ""}`}
+                        >
+                          <span
+                            className="inline-block h-1.5 w-1.5 rounded-full"
+                            style={{ background: m.color }}
+                          />
+                          {m.short}
+                          {s.askPrice ? (
+                            <span className="font-mono text-[var(--t2)]">
+                              ${Math.round(s.askPrice).toLocaleString()}
+                            </span>
+                          ) : null}
+                        </span>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </details>
           <Link
             href={href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-[var(--r2)] bg-[var(--blue)] px-3 text-sm font-black text-white transition-opacity hover:opacity-90"
+            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
           >
-            See the analysis
+            {external ? "View source listing" : "Review vehicle"}
           </Link>
-
-          {(deal.repairEstimate || deal.transportEstimate) && (
-            <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[10px]">
-              <div
-                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-                style={{ background: "var(--s1)" }}
-              >
-                <span className="font-semibold text-[var(--t4)]">Repair</span>
-                <span className="font-mono font-bold text-[var(--t2)]">
-                  {deal.repairEstimate
-                    ? `$${Math.round(deal.repairEstimate).toLocaleString()}`
-                    : "—"}
-                </span>
-              </div>
-              <div
-                className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-                style={{ background: "var(--s1)" }}
-              >
-                <span className="font-semibold text-[var(--t4)]">
-                  Transport
-                </span>
-                <span className="font-mono font-bold text-[var(--t2)]">
-                  {deal.transportEstimate
-                    ? `$${Math.round(deal.transportEstimate).toLocaleString()}`
-                    : "—"}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Cross-source price compare (Kayak): the SAME car on each source, brand-chipped,
-              cheapest first + outlined — so a dealer sees who has it and for how much at a glance. */}
-          {multi && (
-            <div
-              className="mt-1 rounded-[var(--r2)] px-2.5 py-2"
-              style={{ background: "var(--s1)" }}
-            >
-              <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--t4)]">
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--amber)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
-                </svg>
-                Same car on {deal.listingCount} sources
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { source: deal.source, askPrice: deal.askPrice },
-                  ...deal.alsoOn,
-                ]
-                  .slice()
-                  .sort(
-                    (a, b) =>
-                      (a.askPrice || Infinity) - (b.askPrice || Infinity),
-                  )
-                  .map((s, i) => {
-                    const m = sourceMeta(s.source);
-                    const isCheapest = i === 0;
-                    return (
-                      <span
-                        key={`${s.source}-${i}`}
-                        className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
-                        style={{
-                          background: tint(m.color, isCheapest ? 0.22 : 0.1),
-                          color: m.color,
-                          boxShadow: isCheapest
-                            ? `inset 0 0 0 1px ${m.color}`
-                            : undefined,
-                        }}
-                        title={`${m.label}${isCheapest ? " — cheapest" : ""}`}
-                      >
-                        <span
-                          className="inline-block h-1.5 w-1.5 rounded-full"
-                          style={{ background: m.color }}
-                        />
-                        {m.short}
-                        {s.askPrice ? (
-                          <span className="font-mono text-[var(--t2)]">
-                            ${Math.round(s.askPrice).toLocaleString()}
-                          </span>
-                        ) : null}
-                      </span>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </motion.div>

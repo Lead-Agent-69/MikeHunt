@@ -10,6 +10,16 @@ import {
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
+  it("keeps navigation accessible and exposes mobile auction and activity entry points", () => {
+    const top = readFileSync("components/layout/TopNav.tsx", "utf8");
+    const dock = readFileSync("components/BottomNav.tsx", "utf8");
+    const account = readFileSync("components/home/AccountMenu.tsx", "utf8");
+    expect(top).toContain('aria-current={active ? "page" : undefined}');
+    expect(dock).toContain("useReducedMotion");
+    expect(dock).toContain("env(safe-area-inset-bottom)");
+    expect(account).toContain('router.push("/alerts")');
+    expect(account).toContain('router.push("/lane")');
+  });
   it("keeps secondary pages under the five main jobs", () => {
     expect(primaryJobForPath("/")).toBe("Discover");
     expect(primaryJobForPath("/feed")).toBe("Discover");

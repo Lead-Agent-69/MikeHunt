@@ -44,11 +44,12 @@ export function usePreferences() {
     const next = { ...prefs, ...patch };
     mutate({ prefs: next }, false); // optimistic
     try {
-      await fetch("/api/preferences", {
+      const response = await fetch("/api/preferences", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(patch),
       });
+      if (!response.ok) throw new Error("Preferences could not be saved");
     } finally {
       mutate();
     }

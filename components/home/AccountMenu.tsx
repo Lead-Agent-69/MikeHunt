@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CircleHelp, LogOut, Settings } from "lucide-react";
+import { Bell, Gavel, CircleHelp, LogOut, Settings } from "lucide-react";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
@@ -14,6 +14,21 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        ref.current
+          ?.querySelector<HTMLButtonElement>(
+            'button[aria-label="Account menu"]',
+          )
+          ?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -39,7 +54,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }
 
   const item =
-    "w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
+    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
 
   return (
     <div
@@ -49,7 +64,8 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
-        className="w-9 h-9 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)]/90 backdrop-blur text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
+        aria-expanded={open}
+        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)]/90 backdrop-blur text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
       >
         <svg
           width="18"
@@ -65,11 +81,41 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       </button>
       {open && (
         <div className="absolute top-11 right-0 w-52 p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur-md shadow-[var(--shadow)]">
-          <button onClick={() => router.push("/settings")} className={item}>
+          <button
+            onClick={() => {
+              setOpen(false);
+              router.push("/alerts");
+            }}
+            className={item}
+          >
+            <Bell className="h-4 w-4" aria-hidden="true" /> Activity
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              router.push("/lane");
+            }}
+            className={`${item} md:hidden`}
+          >
+            <Gavel className="h-4 w-4" aria-hidden="true" /> Auction Lane
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              router.push("/settings");
+            }}
+            className={item}
+          >
             <Settings className="h-4 w-4" aria-hidden="true" />
             Settings
           </button>
-          <button onClick={() => router.push("/changelog")} className={item}>
+          <button
+            onClick={() => {
+              setOpen(false);
+              router.push("/changelog");
+            }}
+            className={item}
+          >
             <CircleHelp className="h-4 w-4" aria-hidden="true" />
             Help &amp; updates
           </button>

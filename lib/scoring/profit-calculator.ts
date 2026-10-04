@@ -80,14 +80,14 @@ export function calculateProfit(inputs: DealInputs): ProfitResult {
     inputs.askPrice + (inputs.auctionFee || 0) + (inputs.titleFee || 0);
 
   const repairCost =
-    (inputs.repairCost || estimateRepairCost(inputs.damageType)) +
+    (inputs.repairCost ?? estimateRepairCost(inputs.damageType)) +
     (inputs.reconCost || 0);
 
   const transportCost =
-    inputs.transportCost || estimateTransportCost(inputs.miles || 0);
+    inputs.transportCost ?? estimateTransportCost(inputs.miles || 0);
 
-  const holdingDays = inputs.holdingDays || 14;
-  const dailyFloorRate = inputs.dailyFloorRate || 35;
+  const holdingDays = inputs.holdingDays ?? 14;
+  const dailyFloorRate = inputs.dailyFloorRate ?? 35;
   const holdingCost = holdingDays * dailyFloorRate;
 
   const sellingCost = inputs.sellingFee || 0;
@@ -167,10 +167,10 @@ export function calculateProfit(inputs: DealInputs): ProfitResult {
   riskScore = Math.max(0, riskScore);
 
   // 5-8. Market Intelligence Scores (0-30 points total)
-  const marketDemandScore = inputs.marketDemandScore || 5; // Default moderate
-  const marketVelocityScore = inputs.marketVelocityScore || 5; // Default moderate
-  const seasonalityScore = inputs.seasonalityScore || 3; // Default neutral
-  const competitionScore = inputs.competitionScore || 3; // Default moderate
+  const marketDemandScore = inputs.marketDemandScore ?? 5; // Default moderate
+  const marketVelocityScore = inputs.marketVelocityScore ?? 5; // Default moderate
+  const seasonalityScore = inputs.seasonalityScore ?? 3; // Default neutral
+  const competitionScore = inputs.competitionScore ?? 3; // Default moderate
 
   // ─── TOTAL SCORE & VERDICT ───────────────────────────────────────────────────
 
@@ -224,15 +224,21 @@ export function calculateProfit(inputs: DealInputs): ProfitResult {
 
   // Recommendations
   if (profit >= 2000 && roi >= 20) {
-    recommendations.push("Strong deal - move quickly before competition");
+    recommendations.push(
+      "Positive modeled margin - verify the price, evidence and costs before deciding",
+    );
   }
 
   if (estimatedDaysToSell <= 14) {
-    recommendations.push("Fast-moving vehicle - good for quick flip");
+    recommendations.push(
+      "Short holding scenario - actual selling time is not established",
+    );
   }
 
   if (repairCost < 1000 && profit >= 1500) {
-    recommendations.push("Low repair risk with good profit - ideal deal");
+    recommendations.push(
+      "Low modeled repair cost - confirm inspection findings and repair scope",
+    );
   }
 
   if (holdingDays <= 14 && profit >= 1000) {

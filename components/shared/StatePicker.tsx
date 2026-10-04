@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, useId } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   US_STATES,
@@ -23,10 +24,12 @@ export function StatePicker({
   open,
   onClose,
   onSaved,
+  initialStates,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved?: (states: string[]) => void;
+  initialStates?: string[];
 }) {
   const { prefs, save } = usePreferences();
   const key = "carsStates";
@@ -38,15 +41,57 @@ export function StatePicker({
   const [detected, setDetected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     if (!open) return;
-    setSelected(new Set(((prefs as any)[key] as string[]) || []));
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panel.current?.querySelector<HTMLInputElement>("input")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+      if (event.key !== "Tab") return;
+      const items = Array.from(
+        panel.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input, [tabindex="0"]',
+        ) || [],
+      );
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelected(new Set(initialStates ?? prefs.carsStates ?? []));
     setQuery("");
-    fetch(`/api/state-counts`)
-      .then((r) => r.json())
+    const controller = new AbortController();
+    fetch(`/api/state-counts`, { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error("Counts unavailable");
+        return r.json();
+      })
       .then((d) => setCounts(d.counts || {}))
       .catch(() => {});
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -139,24 +184,31 @@ export function StatePicker({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
     >
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
       />
-      <div className="animate-sheet sm:animate-springPop relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[var(--b1)] bg-[var(--s0)] shadow-2xl sm:rounded-3xl">
+      <div
+        ref={panel}
+        className="animate-sheet sm:animate-springPop relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-[var(--b1)] bg-[var(--s0)] shadow-2xl sm:rounded-lg"
+      >
         {/* Drag handle (mobile) */}
         <div className="mx-auto mt-2.5 h-1.5 w-10 shrink-0 rounded-full bg-[var(--b2)] sm:hidden" />
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 pt-4 sm:pt-6">
           <div>
-            <h2 className="serif text-2xl font-bold text-[var(--t1)]">
+            <h2
+              id={titleId}
+              className="serif text-2xl font-bold text-[var(--t1)]"
+            >
               Your states
             </h2>
             <p className="mt-1 text-sm text-[var(--t4)]">
@@ -165,21 +217,22 @@ export function StatePicker({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-[var(--t4)] transition-colors hover:bg-[var(--s2)]"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-[var(--t4)] transition-colors hover:bg-[var(--s2)]"
             aria-label="Close"
           >
-            ✕
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         {/* Selected tokens */}
         {selectedList.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-6 pt-4">
+          <div className="flex max-h-24 shrink-0 flex-wrap gap-1.5 overflow-y-auto px-6 pt-4">
             {selectedList.map((code) => (
               <button
                 key={code}
                 onClick={() => toggle(code)}
-                className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white transition-transform active:scale-95"
+                className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white transition-transform active:scale-95"
+                aria-label={`Remove ${stateName(code)}`}
                 style={{ background: accent }}
                 title="Remove"
               >
@@ -205,6 +258,7 @@ export function StatePicker({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search states"
+            aria-label="Search states"
             className="min-w-0 flex-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 py-2 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--brand)]"
           />
         </div>
@@ -220,7 +274,7 @@ export function StatePicker({
                 <button
                   key={code}
                   onClick={() => add(code)}
-                  className="shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-3 py-1.5 text-xs font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
+                  className="min-h-11 shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-3 py-1.5 text-xs font-bold text-[var(--t2)] transition-colors hover:bg-[var(--s2)]"
                 >
                   {detected === code ? (
                     <MapPin
@@ -246,8 +300,8 @@ export function StatePicker({
         )}
 
         {/* Grid */}
-        <div className="mt-4 flex-1 overflow-y-auto px-6 pb-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-4">
+          <div className="grid grid-cols-1 gap-2 min-[390px]:grid-cols-2 sm:grid-cols-3">
             {ordered.map((code) => {
               const on = selected.has(code);
               const n = counts[code] || 0;
@@ -255,6 +309,8 @@ export function StatePicker({
                 <button
                   key={code}
                   onClick={() => toggle(code)}
+                  aria-pressed={on}
+                  aria-label={stateName(code)}
                   className="relative flex items-center gap-2.5 rounded-2xl border p-2.5 text-left transition-all active:scale-[0.98]"
                   style={{
                     borderColor: on ? "transparent" : "var(--b1)",
@@ -274,7 +330,10 @@ export function StatePicker({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
-                      <span className="truncate text-sm font-bold">
+                      <span
+                        className="break-words text-sm font-bold"
+                        style={{ color: on ? "#fff" : "var(--t1)" }}
+                      >
                         {stateName(code)}
                       </span>
                       {detected === code && (
@@ -303,7 +362,7 @@ export function StatePicker({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--b1)] px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--b1)] px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <span className="text-sm font-semibold text-[var(--t4)]">
             {selected.size === 0 ? "Everywhere" : `${selected.size} selected`}
           </span>
@@ -327,6 +386,7 @@ export function StatePicker({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

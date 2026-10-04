@@ -1,5 +1,80 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseDecode, decodeVin, getRecallCount, parseSafety } from "./nhtsa";
+import {
+  parseDecode,
+  decodeVin,
+  decodeVinBatch,
+  getRecallCount,
+  parseSafety,
+} from "./nhtsa";
+
+describe("decodeVinBatch", () => {
+  it("normalizes and deduplicates VINs before sending a bounded request", async () => {
+    const f = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        Results: [{ VIN: "1HGCM82633A004352", Make: "HONDA", Model: "Accord" }],
+      }),
+    }));
+    const result = await decodeVinBatch(
+      [" 1hgcm82633a004352 ", "1HGCM82633A004352", "invalid"],
+      f as unknown as typeof fetch,
+    );
+    expect(f).toHaveBeenCalledTimes(1);
+    const init = (f.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(new URLSearchParams(String(init.body)).get("data")).toBe(
+      "1HGCM82633A004352",
+    );
+    expect(init.signal).toBeDefined();
+    expect(result.size).toBe(1);
+  });
+
+  it("rejects unsolicited VINs and malformed result payloads", async () => {
+    const f = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        Results: [{ VIN: "1HGCM82633A004353", Make: "HONDA", Model: "Accord" }],
+      }),
+    }));
+    expect(
+      (
+        await decodeVinBatch(
+          ["1HGCM82633A004352"],
+          f as unknown as typeof fetch,
+        )
+      ).size,
+    ).toBe(0);
+    const malformed = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ Results: {} }),
+    }));
+    expect(
+      (
+        await decodeVinBatch(
+          ["1HGCM82633A004352"],
+          malformed as unknown as typeof fetch,
+        )
+      ).size,
+    ).toBe(0);
+  });
+
+  it("keeps failures best-effort and skips invalid-only inputs", async () => {
+    const f = vi.fn(async () => {
+      throw new Error("Timed out");
+    });
+    expect(
+      (await decodeVinBatch(["invalid"], f as unknown as typeof fetch)).size,
+    ).toBe(0);
+    expect(f).not.toHaveBeenCalled();
+    expect(
+      (
+        await decodeVinBatch(
+          ["1HGCM82633A004352"],
+          f as unknown as typeof fetch,
+        )
+      ).size,
+    ).toBe(0);
+  });
+});
 
 describe("parseDecode", () => {
   it("maps NHTSA fields and infers made-in-USA", () => {

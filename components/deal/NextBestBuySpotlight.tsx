@@ -86,6 +86,8 @@ export function NextBestBuySpotlight({
   const [state, setState] = useState<string>(initialState);
   const [deal, setDeal] = useState<BestBuyDeal | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState(false);
+  const [retry, setRetry] = useState(0);
   const { intent } = useBuyerIntent();
   const intentQueryString = useMemo(
     () => buildBuyerIntentQuery(intent).toString(),
@@ -101,8 +103,11 @@ export function NextBestBuySpotlight({
   }, [initialState, scopedState]);
 
   useEffect(() => {
+    const controller = new AbortController();
     async function loadBestBuy() {
       setLoading(true);
+      setError(false);
+      setDeal(null);
       try {
         const params = new URLSearchParams(intentQueryString);
         if (capital > 0) params.set("capital", capital.toString());
@@ -110,20 +115,23 @@ export function NextBestBuySpotlight({
         if (strategy) params.set("strategy", strategy);
         // The server applies the same evidence gate for every intent. Do not take the first
         // profit-sorted Scan row and relabel it as a best buy.
-        const res = await fetch(`/api/deals/best-buy?${params.toString()}`);
-        if (res.ok) {
-          const json = await res.json();
-          setDeal(json.bestBuy || null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch best buy deal:", err);
+        const res = await fetch(`/api/deals/best-buy?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("Request failed");
+        const json = await res.json();
+        if (json.mode === "error") throw new Error("Search unavailable");
+        if (!controller.signal.aborted) setDeal(json.bestBuy || null);
+      } catch {
+        if (!controller.signal.aborted) setError(true);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
     loadBestBuy();
-  }, [capital, state, strategy, intentQueryString]);
+    return () => controller.abort();
+  }, [capital, state, strategy, intentQueryString, retry]);
 
   const capitalOptions = [
     { label: "Any Budget", value: 0 },
@@ -133,7 +141,7 @@ export function NextBestBuySpotlight({
     { label: "< $35,000", value: 35000 },
   ];
 
-  if (!loading && !deal) {
+  if (!loading && !deal && !error) {
     return null;
   }
 
@@ -173,7 +181,7 @@ export function NextBestBuySpotlight({
             <h2 className="text-xl sm:text-2xl font-black text-[var(--t1)] tracking-tight">
               {isWatchCandidate
                 ? "Verify This Listing Before You Buy"
-                : "Highest Margin Flip Opportunity"}
+                : "A Candidate Worth Reviewing"}
             </h2>
           </div>
         </div>
@@ -197,11 +205,24 @@ export function NextBestBuySpotlight({
       </div>
 
       {/* Content Section */}
-      {loading ? (
+      {error ? (
+        <div className="py-6" role="status">
+          <p>
+            We couldn't load a recommendation. Your search filters are
+            unchanged.
+          </p>
+          <button
+            className="mt-3 underline"
+            onClick={() => setRetry((value) => value + 1)}
+          >
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <div className="py-16 text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
           <p className="mt-3 text-xs font-semibold text-[var(--t4)] uppercase tracking-widest">
-            Ranking scoped inventory by proof, margin, and buyer fit...
+            Finding a vehicle to review...
           </p>
         </div>
       ) : deal ? (
@@ -218,7 +239,7 @@ export function NextBestBuySpotlight({
                     : deal.evidence.label}
                 </span>
                 <span className="rounded-lg bg-[var(--s1)] px-3 py-1 text-xs font-bold text-[var(--t3)] border border-[var(--b1)]">
-                  Score {deal.profitScore}/130
+                  {deal.evidence.label}
                 </span>
                 {deal.locationState && (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--s1)] px-3 py-1 text-xs font-bold text-[var(--t3)] border border-[var(--b1)]">

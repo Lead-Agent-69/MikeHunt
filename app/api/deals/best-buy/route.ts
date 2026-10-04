@@ -297,7 +297,12 @@ export async function GET(req: NextRequest) {
       const maxBid =
         Number(deal.recommended_max_bid) ||
         (ask > 0 ? Math.round(ask * 0.92) : 0);
-      const roi = ask > 0 ? (profit / ask) * 100 : 0;
+      // ROI is return on all invested costs, not return on the advertised price.
+      const investedCosts = Number(deal.deal_analysis?.costs?.total);
+      const roi =
+        Number.isFinite(investedCosts) && investedCosts > 0
+          ? (profit / investedCosts) * 100
+          : 0;
       const { score: liquidityScore, daysToTurn } = calculateLiquidityScore(
         deal.make,
         deal.model,
@@ -401,10 +406,10 @@ export async function GET(req: NextRequest) {
       ? `Listed at $${best.askPrice.toLocaleString()} against evidence-backed comparable value of $${best.sellEstimate.toLocaleString()} before final transaction checks.`
       : best.evidence.summary,
     turnSpeed: isVerifiedBuy
-      ? `Estimated turnover time is ${best.daysToTurn} days (${best.liquidityScore}/100 liquidity signal).`
+      ? "Selling time is not established by the current comparable evidence. Plan for holding costs and verify local demand."
       : "Turnover is not estimated until the listing's condition and final all-in price are verified.",
     riskBuffer: isVerifiedBuy
-      ? `Projected cushion is $${best.downsideBuffer.toLocaleString()} after current modeled costs; final transaction terms still require confirmation.`
+      ? `Modeled net result is $${best.trueNetProfit.toLocaleString()} after current costs. This is not a safety reserve or guaranteed profit.`
       : "Projected profit is intentionally withheld from the decision until the missing evidence is resolved.",
     recommendedAction: isVerifiedBuy
       ? `Review the source listing, then keep the final purchase below $${best.recommendedMaxBid.toLocaleString()} after confirming the transaction terms.`

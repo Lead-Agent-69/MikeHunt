@@ -274,7 +274,7 @@ export default function SavedCarsPage() {
             Saved Vehicles
           </h1>
           <p className="text-sm text-[var(--t3)]">
-            Watchlist snapshots, alerts, and sourcing ROI trends.
+            Keep track of saved vehicles, price changes, and availability.
           </p>
         </div>
 
@@ -309,21 +309,29 @@ export default function SavedCarsPage() {
 
       {/* FILTER BUTTONS */}
       <div
-        className="flex p-1 rounded-xl self-start max-w-xs sm:max-w-md"
+        className="flex w-full flex-wrap gap-1 p-1 rounded-lg self-start sm:w-auto"
         style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
       >
         {(["all", "active", "price_drops", "gone"] as const).map((tab) => (
           <button
             key={tab}
+            aria-pressed={filter === tab}
             onClick={() => setFilter(tab)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap border-none ${
+            className={`min-h-11 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-none ${
               filter === tab
                 ? "text-white"
                 : "text-[var(--t4)] hover:text-[var(--t1)]"
             }`}
             style={filter === tab ? { background: "var(--grad)" } : {}}
           >
-            {tab === "price_drops" ? "Price Drops" : tab}
+            {
+              {
+                all: "All saved",
+                active: "Available",
+                price_drops: "Price drops",
+                gone: "Unavailable",
+              }[tab]
+            }
           </button>
         ))}
       </div>

@@ -891,13 +891,13 @@ export default function DealPage({
         </div>
       </div>
 
-      {serverDeal?.decisionEvidence?.state === "auction_watch" && (
+      {serverDeal?.decisionEvidence?.acquisitionReady === false && (
         <section
           className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
-          aria-label="Auction research status"
+          aria-label="Vehicle evidence status"
         >
           <h2 className="text-lg font-bold text-[var(--t1)]">
-            Auction research, not a purchase recommendation
+            {serverDeal.decisionEvidence.label}: research before purchase
           </h2>
           <p className="mt-2 text-sm text-[var(--t2)]">
             {serverDeal.decisionEvidence.summary}
@@ -908,7 +908,7 @@ export default function DealPage({
         </section>
       )}
       {serverDeal &&
-        serverDeal?.decisionEvidence?.state !== "auction_watch" && (
+        serverDeal?.decisionEvidence?.acquisitionReady === true && (
           <DecisionCommandPanel
             deal={{
               ...serverDeal,
@@ -1136,7 +1136,7 @@ export default function DealPage({
                 </Mono>
                 <span className="text-[var(--t4)]">Resale</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                  {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Needs verified comparisons"
                     : resaleBasis
                       ? formatMoney(resaleBasis)
@@ -1144,7 +1144,7 @@ export default function DealPage({
                 </Mono>
                 <span className="text-[var(--t4)]">Repair</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                  {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Inspection and quote needed"
                     : detailCosts?.repair
                       ? formatMoney(detailCosts.repair)
@@ -1152,7 +1152,7 @@ export default function DealPage({
                 </Mono>
                 <span className="text-[var(--t4)]">Transport</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.state === "auction_watch"
+                  {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Quote needed"
                     : detailCosts?.transport
                       ? formatMoney(detailCosts.transport)
@@ -1162,7 +1162,7 @@ export default function DealPage({
               <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
                 {detailMathGaps.length
                   ? `Tighten before bidding: ${detailMathGaps.slice(0, 4).join(", ")}.`
-                  : "Core math inputs are present for a bid decision."}
+                  : "Review all costs and evidence before making an offer."}
               </p>
             </div>
           </CardContent>
@@ -1171,7 +1171,7 @@ export default function DealPage({
 
       {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
       {dealData?.deal?.dealVerdict &&
-        serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+        serverDeal?.decisionEvidence?.acquisitionReady === true &&
         (() => {
           const d = dealData.deal;
           const a = d.dealAnalysis || {};
@@ -1298,7 +1298,7 @@ export default function DealPage({
         })()}
 
       {/* THE MONEY — one-glance profit visual (buy + costs → your cut), the hero of the page */}
-      {serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealVerdict &&
         serverDeal.dealAnalysis?.costs && (
           <DealEconomics
@@ -1321,7 +1321,7 @@ export default function DealPage({
         )}
 
       {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
-      {serverDeal?.decisionEvidence?.state !== "auction_watch" &&
+      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealAnalysis?.prediction && (
           <details className="border-t border-[var(--b2)] py-4">
             <summary className="cursor-pointer text-sm font-bold text-[var(--t2)]">

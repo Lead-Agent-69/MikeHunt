@@ -9,7 +9,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json([], { status: 200 });
+    return NextResponse.json(
+      { error: "Price history is temporarily unavailable." },
+      { status: 503 },
+    );
   }
 
   try {
@@ -23,8 +26,10 @@ export async function GET(
       .order("observed_at", { ascending: true });
 
     if (error || !data) {
-      // Degrade gracefully — the sparkline just shows the "tracking" state.
-      return NextResponse.json([], { status: 200 });
+      return NextResponse.json(
+        { error: "Price history is temporarily unavailable." },
+        { status: 503 },
+      );
     }
 
     const points = data.map(
@@ -37,6 +42,9 @@ export async function GET(
     return NextResponse.json(points);
   } catch (error) {
     console.error("Error in price-history API:", error);
-    return NextResponse.json([], { status: 200 });
+    return NextResponse.json(
+      { error: "Price history is temporarily unavailable." },
+      { status: 503 },
+    );
   }
 }

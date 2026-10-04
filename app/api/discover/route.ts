@@ -856,13 +856,13 @@ export async function GET(request: NextRequest) {
       {
         key: "trucks",
         title: "Trucks & SUVs",
-        subtitle: "Highest-demand segment",
+        subtitle: "Browse trucks and SUVs matching your search",
         deals: trucksSuvs,
       },
       {
         key: "budget",
         title: "Under $10k",
-        subtitle: "Best value buys",
+        subtitle: "Reported prices under $10,000; verify terms and condition",
         deals: budget,
       },
       {
@@ -875,7 +875,8 @@ export async function GET(request: NextRequest) {
       {
         key: "fresh",
         title: "Just Listed",
-        subtitle: "Freshly scraped",
+        subtitle:
+          "Recently added listings; check each listing's last-seen time",
         deals: fresh,
       },
     ].filter((r) => r.deals.length > 0);

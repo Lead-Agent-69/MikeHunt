@@ -82,7 +82,10 @@ export default function DealCheckPage() {
       if (!res.ok)
         setError(
           userFacingErrorMessage(
-            json.error,
+            payload.text &&
+              /read the document|clearer photo/i.test(String(json.error || ""))
+              ? "We couldn't identify a vehicle in this text. Include its year, make, model, price, and any known condition details."
+              : json.error,
             "We couldn't analyze this listing. Please try again.",
           ),
         );
@@ -120,8 +123,9 @@ export default function DealCheckPage() {
           Deal Check
         </h1>
         <p className="text-[var(--t3)]">
-          Photograph an auction run sheet or wholesaler offer — we extract every
-          fee and compare it to the market.
+          Add a listing link, vehicle details, or a clear photo of an offer.
+          Review the extracted information and any missing costs before
+          deciding.
         </p>
       </div>
 

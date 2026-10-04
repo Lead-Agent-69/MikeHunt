@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    init: true
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -13,13 +17,18 @@ services:
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - REDIS_URL=redis://redis:6379
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     command: npm run worker
+    init: true
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -29,8 +38,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     depends_on:
-      - redis
-      - flaresolverr
+      redis:
+        condition: service_healthy
+      flaresolverr:
+        condition: service_healthy
 
   # Browser-capable scrape fleet. Runs smartFetch headed (Patchright + real Chrome under xvfb), beating
   # Cloudflare/PerimeterX/Akamai for free. Scale with `docker compose up --scale scraper=N` — but note
@@ -40,6 +51,7 @@ services:
       context: .
       dockerfile: Dockerfile.scraper
     restart: unless-stopped
+    init: true
     shm_size: "1gb" # Chrome needs ample /dev/shm or it crashes under load
     environment:
       - NODE_ENV=production
@@ -54,7 +66,8 @@ services:
       # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
       # - SCRAPE_SOURCES=cars_com,autotrader,truecar
     depends_on:
-      - flaresolverr
+      flaresolverr:
+        condition: service_healthy
     volumes:
       - ./cache:/app/cache
 
@@ -67,19 +80,34 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
     ports:
-      - "8191:8191"
+      - "127.0.0.1:8191:8191"
     environment:
       - LOG_LEVEL=warning
       - TZ=America/Chicago
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8191/'', timeout=3)"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   redis_data:

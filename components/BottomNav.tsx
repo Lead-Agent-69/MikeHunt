@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import {
@@ -14,6 +14,7 @@ import {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const reducedMotion = useReducedMotion();
   const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
   const activeJob = primaryJobForPath(pathname);
@@ -21,7 +22,7 @@ export function BottomNav() {
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate?.(8);
+      if (!reducedMotion) navigator.vibrate?.(8);
     }
   };
 
@@ -65,20 +66,28 @@ export function BottomNav() {
           >
             {isActive && (
               <motion.span
-                layoutId="bottom-nav-active-pill"
+                layoutId={reducedMotion ? undefined : "bottom-nav-active-pill"}
                 className="absolute inset-x-3 top-1.5 bottom-1.5 rounded-[22px]"
                 style={{ background: "var(--accent-surface)" }}
-                transition={{ type: "spring", stiffness: 430, damping: 34 }}
+                transition={
+                  reducedMotion
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 430, damping: 34 }
+                }
                 aria-hidden="true"
               />
             )}
             <motion.span
               className="relative z-10 grid h-6 w-8 place-items-center"
-              animate={{
-                y: isActive ? -1 : 0,
-                scale: isActive ? 1.08 : 1,
-              }}
-              whileTap={{ scale: 0.92 }}
+              animate={
+                reducedMotion
+                  ? undefined
+                  : {
+                      y: isActive ? -1 : 0,
+                      scale: isActive ? 1.08 : 1,
+                    }
+              }
+              whileTap={reducedMotion ? undefined : { scale: 0.92 }}
               transition={{ type: "spring", stiffness: 520, damping: 32 }}
               aria-hidden="true"
             >

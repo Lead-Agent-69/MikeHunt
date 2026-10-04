@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { sourceMeta } from "@/lib/sources/source-meta";
 
 export type SavedCarStatus =
   | "active"
@@ -304,9 +305,9 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 className={`text-[10px] font-bold ${getSourceBadgeColor(save.source_name)} px-2 py-0.5`}
                 style={{ background: "var(--s1)" }}
               >
-                from {save.source_name.toUpperCase()}{" "}
+                {sourceMeta(save.source_name).label}{" "}
                 {snapshot.locationCity
-                  ? `&bull; ${snapshot.locationCity} ${snapshot.locationState || ""}`
+                  ? ` - ${snapshot.locationCity} ${snapshot.locationState || ""}`
                   : ""}
                 {snapshot.sellerType ? ` · ${snapshot.sellerType}` : ""}
               </Badge>
@@ -328,7 +329,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               {snapshot.odometer
                 ? `${snapshot.odometer.toLocaleString()} mi`
                 : ""}
-              {snapshot.vin ? ` &bull; VIN: ${snapshot.vin}` : ""}
+              {snapshot.vin ? ` - VIN: ${snapshot.vin}` : ""}
             </p>
             <p className="text-[11px] leading-relaxed text-[var(--t4)]">
               Source proof:{" "}

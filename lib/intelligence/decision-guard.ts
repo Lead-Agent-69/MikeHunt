@@ -45,6 +45,13 @@ type GuardInput = {
   valuation?: any;
 };
 
+export type PurchaseEvidenceGates = {
+  priceMeaningConfirmed?: boolean;
+  titleReviewed?: boolean;
+  conditionInspected?: boolean;
+  costsConfirmed?: boolean;
+};
+
 /**
  * Separates an opportunity worth acquiring from a listing that needs more proof.
  * A low current auction bid is never a completed purchase price, and a damaged unit
@@ -62,9 +69,31 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
     ["typo", "implausible"].includes(String(analysis.priceSanity || ""));
   const hasComparableEvidence =
     (valuation.source === "comparables" &&
-      Number(valuation.compCount || valuation.sampleCount || 0) >= 3) ||
-    (valuation.source === "third_party" && valuation.confidence !== "none");
-  const identityComplete = Boolean(input.vin) && Number(input.mileage || 0) > 0;
+      ["high", "medium"].includes(valuation.confidence) &&
+      Number(valuation.compCount ?? valuation.sampleCount ?? 0) >= 3) ||
+    (valuation.source === "third_party" &&
+      ["high", "medium"].includes(valuation.confidence));
+  const identityComplete =
+    /^[A-HJ-NPR-Z0-9]{17}$/i.test(String(input.vin || "").trim()) &&
+    typeof input.mileage === "number" &&
+    Number.isFinite(input.mileage) &&
+    input.mileage >= 0;
+  // Legacy scores and seller claims cannot establish completed purchase checks.
+  const gates: PurchaseEvidenceGates = analysis.evidenceGates || {};
+  const missingChecks = [
+    gates.priceMeaningConfirmed !== true
+      ? "Confirm the purchase price and terms."
+      : null,
+    gates.titleReviewed !== true
+      ? "Review title documents and purchase eligibility."
+      : null,
+    gates.conditionInspected !== true
+      ? "Get an inspection and resolve condition findings."
+      : null,
+    gates.costsConfirmed !== true
+      ? "Confirm repair, transport, fees and holding costs."
+      : null,
+  ].filter(Boolean);
 
   if (priceAnomaly) {
     return {
@@ -83,7 +112,9 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
       state: "auction_watch",
       label: repairable ? "Repairable auction watch" : "Auction watch",
       summary:
-        "The displayed amount is a current auction price, not a final all-in purchase price.",
+        Number(input.buyNowPrice) > 0
+          ? "A buy-now price is reported, but fees, eligibility and condition still need verification. A buy-now amount does not establish all-in cost."
+          : "The displayed amount is a current auction price, not a final all-in purchase price.",
       nextCheck: repairable
         ? "Verify title, damage photos, repair quote, auction fees, and final bid before deciding."
         : "Verify auction fees, final bid, title, condition, and comparable sales before deciding.",
@@ -106,7 +137,8 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   if (
     input.dealVerdict !== "go" ||
     !hasComparableEvidence ||
-    !identityComplete
+    !identityComplete ||
+    missingChecks.length > 0
   ) {
     return {
       state: "needs_evidence",
@@ -115,16 +147,19 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
         "The current information is not sufficient for a purchase recommendation.",
       nextCheck: !identityComplete
         ? "Verify VIN and mileage, then confirm title and condition."
-        : "Confirm comparable sales, title, condition, and all-in costs before deciding.",
+        : !hasComparableEvidence
+          ? "Find relevant dated comparisons; asking prices are not confirmed sale prices."
+          : missingChecks[0] ||
+            "Review the economics and your buying requirements before deciding.",
       acquisitionReady: false,
     };
   }
 
   return {
     state: "verified",
-    label: "Evidence-backed buy",
+    label: "Buy candidate",
     summary:
-      "The valuation and listing details meet the current purchase recommendation threshold.",
+      "The recorded evidence meets the current research threshold. This is a candidate, not a guarantee or purchase approval.",
     nextCheck:
       "Review the source listing and confirm the final transaction terms before purchase.",
     acquisitionReady: true,
