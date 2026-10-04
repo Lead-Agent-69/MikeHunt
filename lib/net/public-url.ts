@@ -26,7 +26,12 @@ export function isBlockedIp(address: string): boolean {
   const mapped = ipv4FromMapped(raw);
   if (mapped) return isBlockedIp(mapped);
   if (isIP(raw) === 4) return isBlockedV4(raw.split(".").map(Number) as Quad);
-  if (raw.includes(":")) return isBlockedV6(raw);
+  if (raw.includes(":")) {
+    const embedded = ipv4EmbeddedInV6(raw);
+    if (embedded === "malformed") return true;
+    if (embedded) return isBlockedIp(embedded);
+    return isBlockedV6(raw);
+  }
   return false;
 }
 
@@ -54,6 +59,81 @@ function isBlockedV6(ip: string): boolean {
   if (norm.startsWith("fc") || norm.startsWith("fd")) return true;
   if (/^fe[89ab]/.test(norm)) return true;
   return false;
+}
+
+/**
+ * IPv4 hidden in IPv6. 6to4 is 2002::/16 (RFC 3056). NAT64 well-known prefixes
+ * are 64:ff9b::/96 (RFC 6052) and 64:ff9b:1::/48 (RFC 8215). "malformed" fails closed.
+ */
+export function ipv4EmbeddedInV6(address: string): string | "malformed" | null {
+  const bytes = parseIpv6(address);
+  if (!bytes) return null;
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+    return quad(bytes[2], bytes[3], bytes[4], bytes[5]);
+  }
+  const nat64 =
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b;
+  if (!nat64) return null;
+  const wkp = bytes.slice(4, 12).every((b) => b === 0);
+  if (wkp) return quad(bytes[12], bytes[13], bytes[14], bytes[15]);
+  if (bytes[4] === 0x00 && bytes[5] === 0x01) {
+    if (bytes[8] !== 0) return "malformed";
+    return quad(bytes[6], bytes[7], bytes[9], bytes[10]);
+  }
+  return null;
+}
+
+function quad(a: number, b: number, c: number, d: number): string {
+  return [a, b, c, d].join(".");
+}
+
+function parseIpv6(address: string): Uint8Array | null {
+  let ip = address.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  const zone = ip.indexOf("%");
+  if (zone >= 0) ip = ip.slice(0, zone);
+  if (!ip.includes(":")) return null;
+
+  const lastColon = ip.lastIndexOf(":");
+  const dotted = ip.slice(lastColon + 1);
+  if (dotted.includes(".")) {
+    const nums = dotted.split(".").map((part) => Number(part));
+    if (
+      nums.length !== 4 ||
+      nums.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+    ) {
+      return null;
+    }
+    const hex = nums.map((n) => n.toString(16).padStart(2, "0")).join("");
+    ip = `${ip.slice(0, lastColon + 1)}${hex.slice(0, 4)}:${hex.slice(4)}`;
+  }
+
+  if (ip.split("::").length > 2) return null;
+  const halves = ip.split("::");
+  const side = (value: string) => (value ? value.split(":") : []);
+  const head = side(halves[0]);
+  const tail = halves.length === 2 ? side(halves[1]) : [];
+  if (![...head, ...tail].every((part) => /^[0-9a-f]{1,4}$/.test(part))) {
+    return null;
+  }
+  let groups: string[];
+  if (halves.length === 1) {
+    if (head.length !== 8) return null;
+    groups = head;
+  } else {
+    const missing = 8 - head.length - tail.length;
+    if (missing < 1) return null;
+    groups = [...head, ...Array(missing).fill("0"), ...tail];
+  }
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 8; i++) {
+    const value = parseInt(groups[i], 16);
+    bytes[i * 2] = value >> 8;
+    bytes[i * 2 + 1] = value & 255;
+  }
+  return bytes;
 }
 
 function ipv4FromMapped(ip: string): string | null {
