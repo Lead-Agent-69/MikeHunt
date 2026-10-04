@@ -215,6 +215,14 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth before any plan. previewOnly used to return the source plan with no session,
+    // and a signed-in session must not enqueue a scrape by itself.
+    const denied = await denyUnauthed(request, {
+      allowAdminSession: true,
+      allowLocalhostUi: true,
+    });
+    if (denied) return denied;
+
     const body = await request.json().catch(() => ({}));
     const orchestrator: OrchestratorType = body.orchestrator || "concurrent";
     const smartPlan = body.scope ? planScrapeForBuyerScope(body.scope) : null;
@@ -397,12 +405,6 @@ export async function POST(request: NextRequest) {
     }
 
     const queueEnabled = isRemoteScrapeQueueEnabled();
-    const denied = await denyUnauthed(request, {
-      allowAdminSession: true,
-      allowAuthenticatedSession: queueEnabled,
-      allowLocalhostUi: true,
-    });
-    if (denied) return denied;
 
     const scopedRunScope = smartPlan
       ? {
