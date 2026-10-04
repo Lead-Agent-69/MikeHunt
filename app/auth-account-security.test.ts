@@ -20,10 +20,25 @@ describe("account creation security", () => {
 
   it("preserves refreshed session cookies while middleware redirects", () => {
     // Windows runners may check out CRLF; normalize before multiline asserts.
-    const middleware = readFileSync("middleware.ts", "utf8").replace(/\r\n/g, "\n");
+    const middleware = readFileSync("middleware.ts", "utf8").replace(
+      /\r\n/g,
+      "\n",
+    );
     expect(middleware).toContain("supabase.auth.getClaims");
     expect(middleware).toContain("redirectWithAuthCookies");
     expect(middleware).toContain("supabaseResponse.cookies\n      .getAll()");
+  });
+
+  it("server-gates the admin workspace and keeps automation secrets off the client", () => {
+    const admin = readFileSync("lib/auth/admin.ts", "utf8");
+    const operations = readFileSync("lib/auth/admin-operations.ts", "utf8");
+    expect(admin).toContain('"/admin"');
+    expect(operations).toContain("canManageOperations");
+    expect(operations).toContain("process.env.INGEST_SECRET");
+
+    const adminPage = readFileSync("app/(dashboard)/admin/page.tsx", "utf8");
+    expect(adminPage).not.toContain("INGEST_SECRET");
+    expect(adminPage).not.toContain("SCRAPE_SECRET");
   });
 
   it("returns OAuth session cookies on the callback redirect", () => {

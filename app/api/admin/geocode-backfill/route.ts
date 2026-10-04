@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { resolvePlaces, placeKey } from "@/lib/geo/geocode";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // POST /api/admin/geocode-backfill — backfill lat/lng for deals that have a usable location but no
 // coordinates. New scrapes geocode inline; this catches existing inventory so the map and radius
@@ -24,15 +25,7 @@ function admin() {
 }
 
 export async function POST(req: Request) {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production") {
-      return NextResponse.json(
-        { error: "Backfill disabled: set INGEST_SECRET to enable." },
-        { status: 503, headers: CORS },
-      );
-    }
-  } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await canManageOperations(req))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: CORS },

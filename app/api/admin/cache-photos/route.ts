@@ -4,6 +4,7 @@ export const maxDuration = 300;
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cacheVehiclePhotos } from "@/lib/images/cache";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // POST /api/admin/cache-photos — download + permanently host the photos of top deals in Supabase
 // Storage, then point deals.images at our own URLs. GO + highest-profit first. Gated by INGEST_SECRET.
@@ -20,14 +21,7 @@ function admin() {
 }
 
 export async function POST(req: Request) {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production")
-      return NextResponse.json(
-        { error: "Disabled: set INGEST_SECRET." },
-        { status: 503, headers: CORS },
-      );
-  } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await canManageOperations(req))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: CORS },

@@ -39,4 +39,4 @@ export function isAdminConfigured(): boolean {
 // Admin-only PAGES, enforced server-side in middleware. (APIs keep their own secret/key auth so CI &
 // cron — which have no user session — still work; we don't email-gate machine callers.) /status is
 // intentionally public because it is the setup/readiness checklist when auth is not configured.
-export const ADMIN_ROUTES = ["/developer", "/orchestrator"];
+export const ADMIN_ROUTES = ["/admin", "/developer", "/orchestrator"];

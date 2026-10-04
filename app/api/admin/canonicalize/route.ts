@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { titleCaseMake, canonicalModel } from "@/lib/vehicle/canonical";
 import { decodeVin } from "@/lib/vehicle/nhtsa";
 import { isValidVin } from "@/lib/vehicle/vin";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // POST /api/admin/canonicalize — clean up deal make/model using the authoritative NHTSA decodes
 // (vin_decodes). VIN is ground truth, so where the decode resolved a make/model we set the deal to
@@ -21,14 +22,7 @@ function admin() {
 }
 
 export async function POST(req: Request) {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production")
-      return NextResponse.json(
-        { error: "Disabled: set INGEST_SECRET." },
-        { status: 503, headers: CORS },
-      );
-  } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await canManageOperations(req))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: CORS },

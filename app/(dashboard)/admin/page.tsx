@@ -1,387 +1,484 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
+import useSWR from "swr";
+import { toast } from "sonner";
 import {
-  Database, Zap, TrendingUp, BarChart2, Users, Crown, UserPlus,
-  CheckCircle, Shield, RefreshCw, Activity
+  Activity,
+  ArrowRight,
+  CheckCircle2,
+  Database,
+  ImageIcon,
+  MapPinned,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  Workflow,
+  Wrench,
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
 
-interface AdminStats {
+type AdminStats = {
   totalDeals: number;
   activeDeals: number;
-  dealsBySource: Array<{ source: string; count: number; last_scraped: string }>;
   totalUsers: number;
-  proUsers: number;
   recentSignups: number;
   outcomeCount: number;
-  scrapeHealth: Array<{ source: string; status: string; deals_last_24h: number }>;
-  topDeals: Array<{ id: string; year: number; make: string; model: string; true_net_profit: number; deal_verdict: string }>;
-  avgProfitScore: number;
   goDealsCount: number;
+  topDeals: Array<{
+    id: string;
+    year: number;
+    make: string;
+    model: string;
+    true_net_profit: number;
+    deal_verdict: string;
+  }>;
+};
+
+type SourceHealth = {
+  enabled: number;
+  due: number;
+  healthy: number;
+  sources: Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    lastRunAt: string | null;
+    lastStatus: string;
+    successRate: number;
+    failedRuns: number;
+  }>;
+};
+
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Could not load operations data.");
+  return response.json();
+};
+
+function relativeTime(value: string | null) {
+  if (!value) return "No verified run";
+  const minutes = Math.max(
+    0,
+    Math.round((Date.now() - new Date(value).getTime()) / 60000),
+  );
+  if (minutes < 2) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`;
+  return `${Math.round(minutes / 1440)}d ago`;
 }
 
-function StatCard({
+function sourceState(source: SourceHealth["sources"][number]) {
+  if (!source.enabled)
+    return { label: "Paused", tone: "text-[var(--t4)] bg-[var(--s2)]" };
+  if (source.lastStatus === "error")
+    return { label: "Attention", tone: "text-[var(--red)] bg-[var(--rlo)]" };
+  if (!source.lastRunAt)
+    return {
+      label: "Awaiting run",
+      tone: "text-[var(--amber)] bg-[var(--alo)]",
+    };
+  if (source.successRate >= 80)
+    return {
+      label: "Healthy",
+      tone: "text-[var(--green)] bg-[var(--glo)]",
+    };
+  return {
+    label: "Needs review",
+    tone: "text-[var(--amber)] bg-[var(--alo)]",
+  };
+}
+
+function Metric({
   label,
   value,
-  sub,
-  color = "var(--amber)",
-  LucideIcon,
+  hint,
+  icon: Icon,
 }: {
   label: string;
   value: string | number;
-  sub?: string;
-  color?: string;
-  LucideIcon?: React.ElementType;
+  hint: string;
+  icon: typeof Database;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass-panel p-5 relative overflow-hidden"
-    >
-      <div
-        className="absolute top-0 left-0 h-0.5 w-full"
-        style={{ background: color }}
-      />
-      {LucideIcon && (
-        <LucideIcon size={18} className="mb-2" style={{ color }} />
-      )}
-      <div className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-        {label}
+    <div className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-4">
+      <div className="flex items-center justify-between text-[var(--t4)]">
+        <span className="text-xs font-medium">{label}</span>
+        <Icon size={16} aria-hidden="true" />
       </div>
-      <Mono className="text-3xl font-black text-[var(--t1)]">
+      <Mono className="mt-3 block text-2xl font-bold text-[var(--t1)]">
         {typeof value === "number" ? value.toLocaleString() : value}
       </Mono>
-      {sub && <p className="text-xs text-[var(--t4)] mt-1">{sub}</p>}
-    </motion.div>
+      <p className="mt-1 text-xs text-[var(--t4)]">{hint}</p>
+    </div>
   );
 }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [rescoring, setRescoring] = useState(false);
-  const [rescoreLog, setRescoreLog] = useState<string[]>([]);
+  const {
+    data: stats,
+    error: statsError,
+    isLoading: statsLoading,
+    mutate: refreshStats,
+  } = useSWR<AdminStats>("/api/admin/stats", fetcher, {
+    refreshInterval: 60000,
+  });
+  const {
+    data: health,
+    error: healthError,
+    isLoading: healthLoading,
+    mutate: refreshHealth,
+  } = useSWR<SourceHealth>("/api/scrape/health", fetcher, {
+    refreshInterval: 60000,
+  });
+  const [activeOperation, setActiveOperation] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshStats(), refreshHealth()]);
+    toast.success("Operations data refreshed");
+  }, [refreshHealth, refreshStats]);
 
-  async function fetchStats() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/stats");
-      if (res.status === 403) {
-        setError("Access denied. Admin accounts only.");
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to load stats");
-      const data = await res.json();
-      setStats(data);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleRescore() {
-    setRescoring(true);
-    setRescoreLog(["Starting rescore..."]);
-    try {
-      for (let page = 0; page <= 20; page++) {
-        const res = await fetch("/api/admin/rescore", {
+  const runOperation = useCallback(
+    async (
+      id: string,
+      endpoint: string,
+      body: Record<string, unknown> = {},
+    ) => {
+      setActiveOperation(id);
+      try {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ page, pageSize: 100 }),
+          body: JSON.stringify(body),
         });
-        const data = await res.json();
-        setRescoreLog((prev) => [
-          ...prev,
-          `Page ${page}: rescored ${data.rescored ?? 0} deals`,
-        ]);
-        if (!data.hasMore) {
-          setRescoreLog((prev) => [...prev, "✓ Rescore complete!"]);
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 500));
+        if (!response.ok) throw new Error();
+        const result = await response.json();
+        const count =
+          result.updated ??
+          result.cachedDeals ??
+          result.rescored ??
+          result.scanned ??
+          0;
+        toast.success(`${id} finished`, {
+          description: count
+            ? `${count.toLocaleString()} records processed.`
+            : "There was nothing waiting.",
+        });
+        await Promise.all([refreshStats(), refreshHealth()]);
+      } catch {
+        toast.error(`${id} could not finish`, {
+          description:
+            "No changes were confirmed. Check the operational logs and try again.",
+        });
+      } finally {
+        setActiveOperation(null);
       }
-    } catch (e: any) {
-      setRescoreLog((prev) => [...prev, `Error: ${e.message}`]);
-    } finally {
-      setRescoring(false);
-      fetchStats();
-    }
-  }
+    },
+    [refreshHealth, refreshStats],
+  );
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-[var(--t3)]">Loading admin stats...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-xl mx-auto mt-16 glass-panel p-8 text-center">
-        <Shield size={32} className="text-[var(--red)] mx-auto mb-3" />
-        <h2 className="text-xl font-bold text-[var(--t1)] mb-2">Access Restricted</h2>
-        <p className="text-[var(--t3)]">{error}</p>
-      </div>
-    );
-  }
-
-  const sourceColors: Record<string, string> = {
-    craigslist: "#FF6B35",
-    cars_com: "#4A90E2",
-    cargurus: "#27AE60",
-    autotrader: "#9B59B6",
-    facebook: "#3498DB",
-    copart: "#E74C3C",
-    iaai: "#F39C12",
-  };
+  const attentionSources = useMemo(
+    () =>
+      (health?.sources ?? [])
+        .filter(
+          (source) =>
+            source.lastStatus === "error" ||
+            (!source.lastRunAt && source.enabled) ||
+            (source.successRate > 0 && source.successRate < 80),
+        )
+        .slice(0, 6),
+    [health],
+  );
+  const loading = statsLoading || healthLoading;
+  const unavailable = statsError || healthError;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <section className="mx-auto max-w-7xl space-y-6 pb-10">
+      <header className="flex flex-col gap-4 border-b border-[var(--b1)] pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-black text-[var(--t1)]">
-            Admin Dashboard
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--blue)]">
+            <ShieldCheck size={15} /> Operations
+          </div>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-[var(--t1)]">
+            MIKEHUNT control room
           </h1>
-          <p className="text-[var(--t4)] text-sm mt-1">
-            Platform health &amp; operations
+          <p className="mt-2 max-w-2xl text-sm text-[var(--t3)]">
+            Live inventory quality, source reliability, and bounded maintenance
+            controls. Buyer-facing data remains separate from this workspace.
           </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={fetchStats}
-            className="px-4 py-2 text-sm font-bold rounded-xl bg-[var(--s1)] text-[var(--t2)] border border-[var(--b2)] hover:text-[var(--t1)] transition-colors"
-          >
-            Refresh
-          </button>
-          <button
-            onClick={handleRescore}
-            disabled={rescoring}
-            className="px-4 py-2 text-sm font-bold rounded-xl text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-            style={{ background: "var(--grad)" }}
-          >
-            {rescoring ? "Rescoring..." : "Run Rescore"}
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={loading}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[var(--b2)] px-4 text-sm font-semibold text-[var(--t2)] transition-colors hover:bg-[var(--s2)] disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          Refresh status
+        </button>
+      </header>
 
-      {/* Rescore Log */}
-      {rescoreLog.length > 0 && (
-        <div className="glass-panel p-4 font-mono text-xs text-[var(--green)] space-y-1 max-h-40 overflow-auto">
-          {rescoreLog.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
+      {unavailable && (
+        <div
+          role="alert"
+          className="rounded-lg border border-[var(--rlo)] bg-[var(--rlo)] px-4 py-3 text-sm text-[var(--t2)]"
+        >
+          Operations data is temporarily unavailable. No maintenance task has
+          been started.
         </div>
       )}
 
-      {/* Deal Stats */}
-      <div>
-        <h2 className="text-xs uppercase tracking-widest text-[var(--t4)] font-bold mb-4">
-          Deal Inventory
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Total Deals"
-            value={stats?.totalDeals ?? 0}
-            LucideIcon={Database}
-          />
-          <StatCard
-            label="Active Deals"
-            value={stats?.activeDeals ?? 0}
-            color="var(--green)"
-            LucideIcon={Zap}
-          />
-          <StatCard
-            label="GO Deals"
-            value={stats?.goDealsCount ?? 0}
-            color="var(--green)"
-            LucideIcon={TrendingUp}
-            sub="Profit-positive buys"
-          />
-          <StatCard
-            label="Avg Profit Score"
-            value={stats?.avgProfitScore ? `${stats.avgProfitScore}/130` : "—"}
-            color="var(--purple)"
-            LucideIcon={BarChart2}
-          />
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric
+          label="Active inventory"
+          value={stats?.activeDeals ?? "--"}
+          hint={`${stats?.totalDeals?.toLocaleString() ?? "--"} total records`}
+          icon={Database}
+        />
+        <Metric
+          label="Source health"
+          value={health ? `${health.healthy}/${health.enabled}` : "--"}
+          hint={
+            health?.due
+              ? `${health.due} source${health.due === 1 ? "" : "s"} due`
+              : "No queued source runs"
+          }
+          icon={Activity}
+        />
+        <Metric
+          label="Accounts"
+          value={stats?.totalUsers ?? "--"}
+          hint={`${stats?.recentSignups ?? 0} new in seven days`}
+          icon={Users}
+        />
+        <Metric
+          label="Decision feedback"
+          value={stats?.outcomeCount ?? "--"}
+          hint={`${stats?.goDealsCount ?? 0} current buy candidates`}
+          icon={CheckCircle2}
+        />
       </div>
 
-      {/* User Stats */}
-      <div>
-        <h2 className="text-xs uppercase tracking-widest text-[var(--t4)] font-bold mb-4">
-          Users
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Total Users"
-            value={stats?.totalUsers ?? 0}
-            LucideIcon={Users}
-          />
-          <StatCard
-            label="Pro Subscribers"
-            value={stats?.proUsers ?? 0}
-            color="var(--amber)"
-            LucideIcon={Crown}
-          />
-          <StatCard
-            label="Signups (7d)"
-            value={stats?.recentSignups ?? 0}
-            color="var(--cyan)"
-            LucideIcon={UserPlus}
-          />
-          <StatCard
-            label="Outcomes Logged"
-            value={stats?.outcomeCount ?? 0}
-            color="var(--purple)"
-            LucideIcon={CheckCircle}
-            sub="Calibration data points"
-          />
-        </div>
-      </div>
-
-      {/* Deals by Source */}
-      <div>
-        <h2 className="text-xs uppercase tracking-widest text-[var(--t4)] font-bold mb-4">
-          Deal Sources
-        </h2>
-        <div className="glass-panel p-5">
-          <div className="space-y-3">
-            {(stats?.dealsBySource ?? []).map((src) => {
-              const color = sourceColors[src.source] ?? "var(--amber)";
-              const maxCount = Math.max(
-                ...(stats?.dealsBySource ?? []).map((s) => s.count),
-                1
-              );
-              const pct = (src.count / maxCount) * 100;
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="rounded-lg border border-[var(--b1)] bg-[var(--s1)]">
+          <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4">
+            <div>
+              <h2 className="font-semibold text-[var(--t1)]">Source watch</h2>
+              <p className="mt-1 text-xs text-[var(--t4)]">
+                Only verified run history is shown here.
+              </p>
+            </div>
+            <a
+              href="/orchestrator"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--blue)] hover:underline"
+            >
+              Open operations <ArrowRight size={15} />
+            </a>
+          </div>
+          <div className="divide-y divide-[var(--b1)]">
+            {loading && (
+              <div className="p-5 text-sm text-[var(--t4)]">
+                Loading source status...
+              </div>
+            )}
+            {!loading && attentionSources.length === 0 && (
+              <div className="flex items-center gap-3 p-5 text-sm text-[var(--t3)]">
+                <CheckCircle2 className="text-[var(--green)]" size={18} />
+                No sources need an immediate review.
+              </div>
+            )}
+            {attentionSources.map((source) => {
+              const state = sourceState(source);
               return (
-                <div key={src.source}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-[var(--t2)] capitalize">
-                      {src.source.replace(/_/g, " ")}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-[var(--t4)]">
-                        {src.last_scraped
-                          ? `Last scraped ${new Date(src.last_scraped).toLocaleString()}`
-                          : "Never scraped"}
-                      </span>
-                      <Mono className="text-sm font-bold text-[var(--t1)]">
-                        {src.count.toLocaleString()}
-                      </Mono>
-                    </div>
+                <div
+                  key={source.id}
+                  className="flex flex-wrap items-center gap-3 px-5 py-4"
+                >
+                  <div className="min-w-[170px] flex-1">
+                    <p className="text-sm font-semibold text-[var(--t1)]">
+                      {source.name}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--t4)]">
+                      Last verified {relativeTime(source.lastRunAt)} ·{" "}
+                      {source.failedRuns} failed run
+                      {source.failedRuns === 1 ? "" : "s"}
+                    </p>
                   </div>
-                  <div className="h-2 bg-[var(--s2)] rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                      className="h-full rounded-full"
-                      style={{ background: color }}
-                    />
-                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${state.tone}`}
+                  >
+                    {state.label}
+                  </span>
                 </div>
               );
             })}
           </div>
         </div>
+
+        <aside className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-5">
+          <div className="flex items-center gap-2">
+            <Workflow size={17} className="text-[var(--blue)]" />
+            <h2 className="font-semibold text-[var(--t1)]">
+              Maintenance queue
+            </h2>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-[var(--t4)]">
+            Each task is bounded, uses your authenticated owner session, and
+            refreshes the workspace when it completes.
+          </p>
+          <div className="mt-5 space-y-3">
+            {[
+              {
+                id: "Recalculate decisions",
+                detail:
+                  "Refresh pricing, costs, ceilings, and verdicts for active inventory.",
+                icon: Sparkles,
+                endpoint: "/api/admin/rescore",
+                body: { page: 0, pageSize: 500 },
+              },
+              {
+                id: "Normalize vehicles",
+                detail:
+                  "Correct make and model data using available VIN evidence.",
+                icon: Wrench,
+                endpoint: "/api/admin/canonicalize",
+                body: { maxDecode: 40 },
+              },
+              {
+                id: "Cache listing photos",
+                detail:
+                  "Preserve source photos for high-confidence buy candidates.",
+                icon: ImageIcon,
+                endpoint: "/api/admin/cache-photos",
+                body: { limit: 25, goOnly: true },
+              },
+              {
+                id: "Improve map coverage",
+                detail:
+                  "Resolve unplaced active inventory by distinct location.",
+                icon: MapPinned,
+                endpoint: "/api/admin/geocode-backfill",
+                body: { maxLookups: 30 },
+              },
+            ].map((operation) => {
+              const Icon = operation.icon;
+              const running = activeOperation === operation.id;
+              return (
+                <div
+                  key={operation.id}
+                  className="rounded-md border border-[var(--b1)] p-3"
+                >
+                  <div className="flex gap-3">
+                    <Icon
+                      size={16}
+                      className="mt-0.5 shrink-0 text-[var(--blue)]"
+                    />
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--t1)]">
+                        {operation.id}
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-[var(--t4)]">
+                        {operation.detail}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={Boolean(activeOperation)}
+                    onClick={() =>
+                      runOperation(
+                        operation.id,
+                        operation.endpoint,
+                        operation.body,
+                      )
+                    }
+                    className="mt-3 inline-flex h-8 w-full items-center justify-center rounded-md border border-[var(--b2)] text-xs font-semibold text-[var(--t2)] transition-colors hover:border-[var(--blue)] hover:text-[var(--blue)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {running ? "Working..." : "Run task"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
       </div>
 
-      {/* Top Deals */}
-      <div>
-        <h2 className="text-xs uppercase tracking-widest text-[var(--t4)] font-bold mb-4">
-          Top Profit Deals
-        </h2>
-        <div className="glass-panel overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--b1)]">
-                <th className="text-left px-5 py-3 text-[var(--t4)] font-bold text-xs uppercase tracking-wide">
-                  Vehicle
-                </th>
-                <th className="text-right px-5 py-3 text-[var(--t4)] font-bold text-xs uppercase tracking-wide">
-                  Net Profit
-                </th>
-                <th className="text-center px-5 py-3 text-[var(--t4)] font-bold text-xs uppercase tracking-wide">
-                  Verdict
-                </th>
+      <div className="rounded-lg border border-[var(--b1)] bg-[var(--s1)]">
+        <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-[var(--t1)]">
+              High-confidence buys
+            </h2>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              Live rows ranked by the current decision model.
+            </p>
+          </div>
+          <a
+            href="/scan"
+            className="text-sm font-semibold text-[var(--blue)] hover:underline"
+          >
+            Review inventory
+          </a>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left text-sm">
+            <thead className="text-xs text-[var(--t4)]">
+              <tr>
+                <th className="px-5 py-3 font-medium">Vehicle</th>
+                <th className="px-5 py-3 font-medium">Net estimate</th>
+                <th className="px-5 py-3 font-medium">Decision</th>
+                <th className="px-5 py-3 text-right font-medium">Open</th>
               </tr>
             </thead>
-            <tbody>
-              {(stats?.topDeals ?? []).map((deal, i) => {
-                const vColor =
-                  deal.deal_verdict === "go"
-                    ? "var(--green)"
-                    : deal.deal_verdict === "hold"
-                      ? "var(--amber)"
-                      : "var(--red)";
-                return (
-                  <tr
-                    key={deal.id}
-                    className="border-b border-[var(--b1)] hover:bg-[var(--s1)] transition-colors cursor-pointer"
-                    onClick={() => (window.location.href = `/deal/${deal.id}`)}
+            <tbody className="divide-y divide-[var(--b1)]">
+              {(stats?.topDeals ?? []).slice(0, 6).map((deal) => (
+                <tr key={deal.id}>
+                  <td className="px-5 py-3 font-medium text-[var(--t1)]">
+                    {deal.year} {deal.make} {deal.model}
+                  </td>
+                  <td className="px-5 py-3">
+                    <Mono
+                      className={
+                        deal.true_net_profit >= 0
+                          ? "text-[var(--green)]"
+                          : "text-[var(--red)]"
+                      }
+                    >
+                      ${Math.round(deal.true_net_profit || 0).toLocaleString()}
+                    </Mono>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className="rounded-full bg-[var(--glo)] px-2.5 py-1 text-xs font-semibold text-[var(--green)]">
+                      {deal.deal_verdict === "go"
+                        ? "Buy candidate"
+                        : deal.deal_verdict}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    <a
+                      href={`/deal/${deal.id}`}
+                      className="text-sm font-semibold text-[var(--blue)] hover:underline"
+                    >
+                      Deal Check
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {!loading && !stats?.topDeals?.length && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-5 py-8 text-center text-sm text-[var(--t4)]"
                   >
-                    <td className="px-5 py-3 font-semibold text-[var(--t1)]">
-                      {deal.year} {deal.make} {deal.model}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Mono
-                        className="font-bold"
-                        style={{
-                          color:
-                            deal.true_net_profit > 0
-                              ? "var(--green)"
-                              : "var(--red)",
-                        }}
-                      >
-                        ${Math.round(deal.true_net_profit).toLocaleString()}
-                      </Mono>
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <span
-                        className="px-2 py-0.5 rounded text-xs font-bold uppercase text-white"
-                        style={{ background: vColor }}
-                      >
-                        {deal.deal_verdict === "go" ? "BUY" : deal.deal_verdict}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+                    No ranked buy candidates are available yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* Quick Links */}
-      <div className="flex flex-wrap gap-3 pb-8">
-        {[
-          { label: "Scraper Health", href: "/api/system/health" },
-          { label: "Run Scrapers", href: "/api/admin/scrape" },
-          { label: "View All Deals", href: "/scan" },
-          { label: "Changelog", href: "/changelog" },
-        ].map((link) => (
-          <a
-            key={link.label}
-            href={link.href}
-            target={link.href.startsWith("/api") ? "_blank" : undefined}
-            rel="noopener noreferrer"
-            className="px-4 py-2 text-sm font-bold rounded-xl bg-[var(--s1)] text-[var(--t2)] border border-[var(--b2)] hover:text-[var(--t1)] hover:border-[var(--b3)] transition-all"
-          >
-            {link.label}
-          </a>
-        ))}
-      </div>
-    </div>
+    </section>
   );
 }

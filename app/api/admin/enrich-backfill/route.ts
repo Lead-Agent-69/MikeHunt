@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enrichCraigslistDetail } from "@/lib/scrapers/sources/index";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // POST /api/admin/enrich-backfill — fetch the REAL Craigslist detail page for active deals that are
 // missing photos and pull their actual images/VIN/mileage. New scrapes enrich inline (capped), but
@@ -22,14 +23,7 @@ function admin() {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: Request) {
-  const secret = process.env.INGEST_SECRET;
-  if (!secret) {
-    if (process.env.NODE_ENV === "production")
-      return NextResponse.json(
-        { error: "Backfill disabled: set INGEST_SECRET." },
-        { status: 503, headers: CORS },
-      );
-  } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+  if (!(await canManageOperations(req))) {
     return NextResponse.json(
       { error: "Unauthorized" },
       { status: 401, headers: CORS },
