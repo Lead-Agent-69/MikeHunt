@@ -5,7 +5,11 @@ function defaultSources(): string[] {
   const src = readFileSync("scripts/scrape-ci.ts", "utf8");
   const block = src.match(/const DEFAULT_SOURCES = \[([\s\S]*?)\];/);
   if (!block) throw new Error("DEFAULT_SOURCES missing");
-  return [...block[1].matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]);
+  const ids: string[] = [];
+  const re = /"([a-z0-9_]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(block[1])) !== null) ids.push(m[1]);
+  return ids;
 }
 
 function runnerEnabled(): Map<string, boolean> {
