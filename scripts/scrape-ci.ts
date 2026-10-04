@@ -278,6 +278,10 @@ async function canonicalizeNew(limit: number): Promise<void> {
 
 // Permanently host top GO deals' photos in Supabase Storage (instant, no hotlink/proxy, no expiry).
 async function cacheGoPhotos(limit: number): Promise<void> {
+  if (!Number.isFinite(limit) || limit <= 0) {
+    console.log("photo hosting skipped - CACHE_PHOTOS_MAX=0");
+    return;
+  }
   const { createClient } = await import("@supabase/supabase-js");
   const { cacheVehiclePhotos } = await import("../lib/images/cache");
   const sb = createClient(
@@ -402,7 +406,7 @@ async function main() {
       console.warn("canonicalize skipped:", (e as Error).message);
     }
     try {
-      await cacheGoPhotos(parseInt(process.env.CACHE_PHOTOS_MAX || "12", 10));
+      await cacheGoPhotos(parseInt(process.env.CACHE_PHOTOS_MAX || "0", 10));
     } catch (e) {
       console.warn("photo hosting skipped:", (e as Error).message);
     }

@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { NextResponse } from "next/server";
 
 const ALLOWED_IMAGE_DOMAINS = [
@@ -26,6 +24,10 @@ const ALLOWED_IMAGE_HOSTS = new Set([
   "gsa-prod-ppms-attachments-prod.s3.amazonaws.com",
 ]);
 
+/** ~1 day at the CDN / edge; browsers may refresh a bit sooner. */
+const CACHE_CONTROL =
+  "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+
 export function isAllowedImageUrl(value: string) {
   try {
     const parsed = new URL(value);
@@ -45,7 +47,8 @@ export function isAllowedImageUrl(value: string) {
 /**
  * GET /api/image/proxy?url=...
  * Proxy external images that block hotlinks (Craigslist, Facebook, etc.)
- * by fetching them server-side and streaming back.
+ * by fetching them server-side and streaming back. CDN-cacheable — clients
+ * should prefer direct source URLs and only hit this for hotlink hosts.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -62,7 +65,6 @@ export async function GET(req: Request) {
       return new NextResponse("Domain not allowed", { status: 403 });
     }
 
-    // Fetch the image with proper headers to avoid blocks
     const response = await fetch(url, {
       headers: {
         "User-Agent":
@@ -72,8 +74,8 @@ export async function GET(req: Request) {
         "Accept-Language": "en-US,en;q=0.9",
         Referer: parsed.origin + "/",
       },
-      // Don't cache too aggressively since listings can change
-      cache: "no-store",
+      // Edge/CDN may reuse for a day; listing photos are stable enough.
+      next: { revalidate: 86400 },
     });
 
     if (!response.ok) {
@@ -82,13 +84,12 @@ export async function GET(req: Request) {
       });
     }
 
-    // Stream the image back
     const contentType = response.headers.get("content-type") || "image/jpeg";
 
     return new NextResponse(response.body, {
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "public, max-age=3600", // Cache for 1 hour
+        "Cache-Control": CACHE_CONTROL,
         "Access-Control-Allow-Origin": "*",
       },
     });

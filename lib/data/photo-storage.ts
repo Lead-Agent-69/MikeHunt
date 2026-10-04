@@ -1,14 +1,23 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { Deal } from "./deals-service";
 
+function photoCacheMax(): number {
+  const raw = process.env.CACHE_PHOTOS_MAX;
+  if (raw === undefined || raw === "") return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
 /**
  * Downloads the primary photo for a deal from its external source,
  * uploads it to Supabase Storage, and returns the permanent public URL.
+ * Free-tier: CACHE_PHOTOS_MAX=0 (default) is a no-op so Storage cannot fill.
  */
 export async function syncDealPhotos(
   supabase: SupabaseClient,
   deal: Pick<Deal, "id" | "images">,
 ): Promise<string | null> {
+  if (photoCacheMax() <= 0) return null;
   if (!deal.images || deal.images.length === 0) return null;
 
   const primaryPhoto = deal.images[0];
