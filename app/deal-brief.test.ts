@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aiBriefWriteDecision,
   buildBriefModeMetadata,
   buildDeterministicDealBrief,
 } from "@/app/api/deals/[id]/brief/route";
@@ -57,5 +58,32 @@ describe("deterministic deal brief", () => {
       mode: "provider",
       reason: "Cached provider brief.",
     });
+  });
+});
+
+describe("aiBrief write ownership", () => {
+  it("lets only the owning user create or overwrite a brief", () => {
+    expect(aiBriefWriteDecision(null, "user-a")).toBe("create");
+    expect(aiBriefWriteDecision({}, "user-a")).toBe("create");
+    expect(
+      aiBriefWriteDecision(
+        { aiBrief: "owned", aiBriefUserId: "user-a" },
+        "user-a",
+      ),
+    ).toBe("overwrite");
+    expect(
+      aiBriefWriteDecision(
+        { aiBrief: "owned", aiBriefUserId: "user-a" },
+        "user-b",
+      ),
+    ).toBe("reject");
+    expect(aiBriefWriteDecision({ aiBrief: "legacy" }, "user-b")).toBe(
+      "reject",
+    );
+    expect(
+      aiBriefWriteDecision({ aiBrief: "owned", aiBriefUserId: "user-a" }, "cron"),
+    ).toBe("reject");
+    expect(aiBriefWriteDecision(null, "cron")).toBe("reject");
+    expect(aiBriefWriteDecision(null, null)).toBe("reject");
   });
 });
