@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyBuyingForIntent,
   buildBuyerIntentQuery,
   buyerIntentLabel,
+  discoverQueryForBuyingFor,
   normalizeBuyerIntent,
   scanHrefForBuyerIntent,
 } from "@/hooks/useBuyerIntent";
@@ -101,5 +103,26 @@ describe("buyer intent profile", () => {
     expect(href).toContain("dealerSourceIds=ae-of-miami%2Cstjames-auto");
     expect(href).toContain("sellerType=dealer");
     expect(href).toContain("titleType=salvage");
+  });
+
+  it("rewrites a Discover query for make, budget, lane, and state", () => {
+    const next = applyBuyingForIntent(
+      { vehicle: "SUVs", buyerMode: "personal", makes: ["Honda"] },
+      { make: "Ford", maxPrice: 18000, laneValue: "clean-retail", state: "tx" },
+    );
+    const params = discoverQueryForBuyingFor(next, "TX");
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.get("maxPrice")).toBe("18000");
+    expect(params.get("lane")).toBe("clean-retail");
+    expect(params.get("state")).toBe("TX");
+    expect(params.get("mode")).toBe("personal");
+    expect(params.has("states")).toBe(false);
+
+    const nationwide = discoverQueryForBuyingFor(
+      applyBuyingForIntent(null, { state: "NATIONWIDE", laneValue: "all" }),
+      "NATIONWIDE",
+    );
+    expect(nationwide.get("state")).toBe("NATIONWIDE");
+    expect(nationwide.has("makes")).toBe(false);
   });
 });

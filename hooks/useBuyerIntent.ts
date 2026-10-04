@@ -310,6 +310,45 @@ export function buyerIntentLabel(
     .join(" · ");
 }
 
+export function applyBuyingForIntent(
+  current: BuyerIntent | null,
+  input: {
+    make?: string;
+    maxPrice?: number;
+    laneValue?: string;
+    state?: string;
+  },
+): BuyerIntent | null {
+  const make = String(input.make || "").trim();
+  const laneValue = String(input.laneValue || "all").trim() || "all";
+  const stateRaw = String(input.state || "").trim().toUpperCase();
+  const state =
+    !stateRaw || stateRaw === "NATIONWIDE" ? "Nationwide" : stateRaw;
+  const maxPrice = Number(input.maxPrice || 0);
+  return normalizeBuyerIntent({
+    ...(current || {}),
+    makes: make ? [make] : [],
+    preferredMakes: make ? [make] : [],
+    maxPrice: Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
+    lane: LANE_VALUE_TO_LABEL[laneValue] || laneValue,
+    laneValue,
+    state,
+  });
+}
+
+/** Discover query for the inline Buying-for form. Nationwide stays on Discover as state=NATIONWIDE. */
+export function discoverQueryForBuyingFor(
+  intent: BuyerIntent | null,
+  state?: string,
+) {
+  const stateRaw = String(state || intent?.state || "").trim().toUpperCase();
+  const nationwide = !stateRaw || stateRaw === "NATIONWIDE";
+  const params = buildBuyerIntentQuery(intent, nationwide ? "" : stateRaw);
+  params.delete("states");
+  if (nationwide) params.set("state", "NATIONWIDE");
+  return params;
+}
+
 export function scanHrefForBuyerIntent(intent: BuyerIntent | null) {
   const params = buildBuyerIntentQuery(intent);
   params.set("sort", "profit");
