@@ -975,8 +975,8 @@ function FleetSetupState({ signedIn }: { signedIn: boolean }) {
           ? "Fleet tracks vehicles you acquire: transport, repairs, carrying costs, list price, offers, and the final outcome. Add one from your saved vehicles when you are ready."
           : "Fleet is personal operating data. Sign in first, then add a vehicle from Scan or Saved when you purchase it."
       }
-      primaryHref={signedIn ? "/sources" : "/login"}
-      primaryLabel={signedIn ? "Explore markets" : "Sign in"}
+      primaryHref={signedIn ? "/scan?sort=profit" : "/login"}
+      primaryLabel={signedIn ? "Find vehicles" : "Sign in"}
       secondaryHref="/scan?sort=profit"
       secondaryLabel="Find vehicles"
       compact

@@ -18,8 +18,8 @@ export function DataSetupState({
   message = "Find a vehicle, save it, and MIKEHUNT will keep the next decision and open checks together here.",
   primaryHref = "/discover",
   primaryLabel = "Find vehicles",
-  secondaryHref = "/sources",
-  secondaryLabel = "Explore markets",
+  secondaryHref = "/scan",
+  secondaryLabel = "Refine search",
   compact = false,
 }: DataSetupStateProps) {
   const steps = [

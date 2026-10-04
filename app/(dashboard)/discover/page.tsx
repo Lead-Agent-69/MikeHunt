@@ -374,17 +374,15 @@ export default function DiscoverPage() {
             title="Nothing to discover yet"
             message={
               data?.configured === false
-                ? "Connect Supabase inventory and source ingestion to populate real salvage, wholesale, private, retail, repo, and specialty deals."
+                ? "We don't have matching vehicles ready to review yet. Adjust your market, vehicle, or budget to broaden the search."
                 : state
                   ? `No active deals in ${state} right now. Try nationwide or adjust your search.`
-                  : "No active deals to browse yet. Adjust your search or connect source ingestion."
+                  : "No active deals to browse yet. Adjust your search to see more matches."
             }
             action={{
               label:
-                data?.configured === false
-                  ? "Open data sources"
-                  : "Open scanner",
-              href: data?.configured === false ? "/sources" : "/scan",
+                data?.configured === false ? "Refine search" : "Open scanner",
+              href: "/scan",
             }}
           />
         </div>

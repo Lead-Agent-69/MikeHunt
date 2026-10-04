@@ -235,23 +235,6 @@ export const MORE_GROUPS: NavGroup[] = [
     ],
   },
   {
-    group: "Sources",
-    items: [
-      {
-        name: "Sources",
-        href: "/sources",
-        icon: Store,
-        description: "Coverage, freshness, status, and recovery actions.",
-      },
-      {
-        name: "System status",
-        href: "/status",
-        icon: Activity,
-        description: "Account connections and service readiness.",
-      },
-    ],
-  },
-  {
     group: "Account",
     items: [
       {
@@ -383,6 +366,19 @@ export const ADMIN_GROUP: NavGroup = {
   group: "Admin",
   items: [
     { name: "Admin Dashboard", href: "/admin", icon: Shield },
+    {
+      name: "Source operations",
+      href: "/sources",
+      icon: Store,
+      description: "Coverage, freshness, source status, and recovery actions.",
+    },
+    {
+      name: "System health",
+      href: "/status",
+      icon: Activity,
+      description:
+        "Account connections, deployment readiness, and diagnostics.",
+    },
     {
       name: "Developer API",
       href: "/developer",

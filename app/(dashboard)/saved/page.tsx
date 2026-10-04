@@ -400,12 +400,6 @@ export default function SavedCarsPage() {
             >
               Check login
             </a>
-            <a
-              href="/status"
-              className="rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--amber-d)]"
-            >
-              Readiness
-            </a>
           </div>
         )}
       </div>

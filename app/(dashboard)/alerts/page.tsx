@@ -439,9 +439,8 @@ function LocalWatchInbox({
               this device.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These came from live preview saves. Connect Supabase and Google
-              login to turn them into server-side alerts, price tracking, and
-              cross-device watchlists.
+              These vehicles are saved on this device. Sign in to keep your
+              watchlist available across devices.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -452,10 +451,10 @@ function LocalWatchInbox({
               Open watchlist
             </Link>
             <Link
-              href="/status"
+              href="/login"
               className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
             >
-              Setup sync
+              Sign in
             </Link>
           </div>
         </div>

@@ -210,8 +210,8 @@ export default function FeedPage() {
               message="Try Texas government trucks, Florida dealer SUVs, or salvage vehicles. When matching listings are available, Feed becomes a fast, photo-first review list."
               primaryHref="/discover"
               primaryLabel="Choose buyer scope"
-              secondaryHref="/sources"
-              secondaryLabel="Explore markets"
+              secondaryHref="/scan"
+              secondaryLabel="Refine search"
             />
           </div>
         </div>

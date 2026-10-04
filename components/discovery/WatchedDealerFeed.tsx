@@ -202,10 +202,10 @@ export function WatchedDealerFeed() {
             Open watch scan
           </Link>
           <Link
-            href="/sources"
+            href={`/scan?dealers=${encodeURIComponent(watch.hosts.join(","))}&sort=newest`}
             className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-bold text-[var(--t2)]"
           >
-            Source proof
+            Find matches
           </Link>
         </div>
       </div>
@@ -230,10 +230,10 @@ export function WatchedDealerFeed() {
                 {readinessLabel[readiness] || readiness}
               </span>
               <Link
-                href="/sources?source=curated_dealers"
+                href={`/scan?dealers=${encodeURIComponent(watch.hosts.join(","))}&sort=newest`}
                 className="rounded-full border border-[var(--b2)] bg-[var(--s0)] px-3 py-1 text-[10px] font-black text-[var(--t3)] hover:text-[var(--t1)]"
               >
-                proof
+                search
               </Link>
             </div>
           </div>

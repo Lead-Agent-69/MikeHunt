@@ -56,7 +56,7 @@ function SystemPulse() {
       label: f?.stale ? "data stale" : "data fresh",
       value: f?.stale ? "•" : "LIVE",
       tone: f?.stale ? "var(--red)" : "var(--green)",
-      href: "/status",
+      href: "/scan?sort=newest",
     },
   ];
 
@@ -67,7 +67,7 @@ function SystemPulse() {
           System pulse
         </p>
         <Link
-          href="/status"
+          href="/scan?sort=newest"
           className="text-[11px] text-[var(--t4)] hover:text-[var(--t1)]"
         >
           details →
@@ -111,7 +111,6 @@ function BuyerIntentToday() {
   const query = params.toString();
   const label = buyerIntentLabel(intent);
   const scanHref = `/scan?${query ? `${query}&` : ""}sort=profit`;
-  const sourcesHref = `/sources${query ? `?${query}` : ""}`;
   const { data, isLoading } = useSWR(
     `/api/scrape/health${query ? `?${query}` : ""}`,
     fetcher,
@@ -203,10 +202,8 @@ function BuyerIntentToday() {
                     rows === 1 ? "" : "s"
                   }, ${photos.toLocaleString()} photo-backed, ${quality}/100 average detail quality.`
                 : action.length
-                  ? `${action.length} matching source${
-                      action.length === 1 ? "" : "s"
-                    } need setup, a run, login, or broader filters before Today can recommend from this exact scope.`
-                  : "No scoped source proof has returned yet. Start from Discover or Source Proof to pick a lane, state, budget, seller type, and watched dealers."}
+                  ? `We need a broader search before we can recommend vehicles for this exact scope.`
+                  : "No matching vehicles are ready to review yet. Start from Discover to choose a lane, state, budget, seller type, and watched dealers."}
             {weakFields.length
               ? ` Verify before bidding: ${weakFields
                   .map((item) => `${item.label.toLowerCase()} ${item.value}%`)
@@ -220,12 +217,6 @@ function BuyerIntentToday() {
             className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
           >
             Open today&apos;s matches
-          </Link>
-          <Link
-            href={sourcesHref}
-            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
-          >
-            Source proof
           </Link>
           <Link
             href="/discover"

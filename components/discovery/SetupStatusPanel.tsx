@@ -61,18 +61,18 @@ export function SetupStatusPanel({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
             {hasPreviewRows
-              ? "Users can browse public live listings now. Connect Supabase to save rows, run imports, personalize feeds, and track freshness over time."
+              ? "Listings are ready to browse. Save a vehicle to keep the decision, evidence, and next steps together."
               : previewMode
-                ? "The app is checking real public sources and keeping the result honest. Connect Supabase and gated sources to expand coverage beyond the public preview."
-                : "The app can organize and filter deals now, but results will stay empty until live vehicle data is feeding the database."}
+                ? "This search has no matching vehicles ready to review yet. Try a nearby market, a wider budget, or another vehicle type."
+                : "Choose a market and vehicle type to see matching vehicles as they become available."}
           </p>
         </div>
         <Link
-          href="/sources"
+          href="/scan"
           className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)]"
         >
           <Settings size={15} />
-          Data sources
+          Refine search
         </Link>
       </div>
 

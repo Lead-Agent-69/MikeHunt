@@ -618,7 +618,7 @@ export default function DealPage({
     return sources.find((source) => source.id === healthId);
   }, [serverDeal, sourceHealthData?.sources]);
   const proofLinks = React.useMemo(() => {
-    if (!serverDeal) return { scan: "/scan", sources: "/sources" };
+    if (!serverDeal) return { scan: "/scan", sources: "/scan" };
     const params = new URLSearchParams();
     if (serverDeal.make || serverDeal.model) {
       params.set(
@@ -643,7 +643,7 @@ export default function DealPage({
     const query = params.toString();
     return {
       scan: `/scan${query ? `?${query}` : ""}`,
-      sources: `/sources${query ? `?${query}` : ""}`,
+      sources: `/scan${query ? `?${query}` : ""}`,
     };
   }, [serverDeal, sourceHealth?.id]);
   const detailQuality = React.useMemo(() => {

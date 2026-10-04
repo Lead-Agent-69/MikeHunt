@@ -245,14 +245,6 @@ export function PublicLayout({
                     Security
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="/status"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Status
-                  </Link>
-                </li>
               </ul>
             </div>
           </div>

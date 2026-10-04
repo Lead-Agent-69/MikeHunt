@@ -45,7 +45,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("activeJob === item.name");
     expect(topNav).not.toContain("More dropdown");
     expect(accountMenu).toContain("LogOut");
-    expect(accountMenu).toContain('router.push("/sources")');
+    expect(accountMenu).not.toContain('router.push("/sources")');
     expect(accountMenu).not.toContain("⚙ Settings");
     expect(accountMenu).not.toContain("⎋ Log out");
   });

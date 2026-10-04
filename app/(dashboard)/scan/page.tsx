@@ -1326,7 +1326,7 @@ function SmartDataPlanCard({
   const hasScopeNoMatch =
     hasNoMatchingSources || scopeStatus?.status === "no_match";
   const hasScopeEmpty = scopeStatus?.status === "empty";
-  const plannedSourceHref = `/sources?${new URLSearchParams({
+  const plannedSearchHref = `/scan?${new URLSearchParams({
     lane: String(plan.scope.lane || "all"),
     ...(plan.filters.state ? { state: plan.filters.state } : {}),
     ...(plan.filters.q ? { q: plan.filters.q } : {}),
@@ -1438,27 +1438,27 @@ function SmartDataPlanCard({
           </p>
           <h2 className="text-lg font-black text-[var(--t1)]">
             {hasScopeNoMatch
-              ? "This buyer scope has no safe source match."
+              ? "This search needs broader criteria."
               : hasScopeEmpty
-                ? scopeStatus?.label || "No ready source rows yet."
+                ? scopeStatus?.label || "No matching vehicles are ready yet."
                 : ready
-                  ? "Live inventory is being filtered by your buying intent."
+                  ? "Matching vehicles are being filtered for your buying intent."
                   : showingPreview
-                    ? "Showing real public preview rows while setup is pending."
+                    ? "Showing available matching vehicles while results refresh."
                     : configured
-                      ? "Connected, but this search has no matching live rows yet."
-                      : "Real data is waiting on provider setup."}
+                      ? "This search has no matching vehicles ready to review yet."
+                      : "This search is not ready to return vehicles yet."}
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
             {scopeStatus?.message ||
-              "MikeHunt searches only the sources that match this market, lane, seller type, and dealer target, then turns the results into photo-backed deal cards."}
+              "MIKEHUNT searches only the markets that match your location, vehicle, budget, and seller preferences, then turns results into photo-backed deal cards."}
           </p>
           {!configured && (
             <Link
-              href="/status"
+              href={plannedSearchHref}
               className="mt-2 inline-flex text-xs font-bold text-[var(--amber-d)] hover:underline"
             >
-              Open readiness checklist
+              Refine search
             </Link>
           )}
         </div>
@@ -1612,10 +1612,10 @@ function SmartDataPlanCard({
             </p>
           </div>
           <Link
-            href={plannedSourceHref}
+            href={plannedSearchHref}
             className="shrink-0 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t2)] hover:text-[var(--accent)]"
           >
-            Source details
+            Search details
           </Link>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1790,7 +1790,7 @@ function SmartDataPlanCard({
               View matching rows
             </Link>
             <Link
-              href={plannedSourceHref}
+              href={plannedSearchHref}
               className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)] hover:text-[var(--accent)]"
             >
               Inspect source proof
@@ -1931,7 +1931,7 @@ function SmartDataPlanCard({
               </p>
             </div>
             <Link
-              href={plannedSourceHref}
+              href={plannedSearchHref}
               className="text-xs font-bold text-[var(--accent)] hover:underline"
             >
               Source details
@@ -2080,10 +2080,10 @@ function SmartDataPlanCard({
               </p>
             </div>
             <Link
-              href="/status"
+              href={plannedSearchHref}
               className="text-xs font-bold text-[var(--accent)] hover:underline"
             >
-              Setup
+              Refine search
             </Link>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
@@ -2139,10 +2139,10 @@ function SmartDataPlanCard({
                 </p>
               </div>
               <Link
-                href={nextImportGate?.verifyPath || "/status"}
+                href={plannedSearchHref}
                 className="shrink-0 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--amber-d)]"
               >
-                {nextImportGate?.actionLabel || "Verify data access"}
+                Refine search
               </Link>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
@@ -2170,17 +2170,17 @@ function SmartDataPlanCard({
               </p>
             </div>
             <Link
-              href={plannedSourceHref}
+              href={plannedSearchHref}
               className="text-xs font-bold text-[var(--accent)] hover:underline"
             >
-              All sources
+              Search details
             </Link>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {proof.map((item) => (
               <Link
                 key={item.id}
-                href={`/sources?${new URLSearchParams({
+                href={`/scan?${new URLSearchParams({
                   source: item.id,
                   filter: item.status === "working" ? "ready" : item.status,
                 }).toString()}`}
@@ -2224,16 +2224,16 @@ function SmartDataPlanCard({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href={plannedSourceHref}
+                href={plannedSearchHref}
                 className="text-xs font-bold text-[var(--accent)] hover:underline"
               >
-                Source proof
+                Search details
               </Link>
               <Link
-                href="/status"
+                href={plannedSearchHref}
                 className="text-xs font-bold text-[var(--accent)] hover:underline"
               >
-                Run health
+                Search details
               </Link>
             </div>
           </div>

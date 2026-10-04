@@ -248,9 +248,9 @@ export default function PartsPage() {
         <div className="glass-panel" style={{ padding: 0 }}>
           <EmptyState
             icon="settings"
-            title="Connect inventory to unlock Parts & Repair"
-            message="Parts ROI, repair estimates, and saved teardown records need the Supabase inventory tables before they can use real vehicles."
-            action={{ label: "Open data sources", href: "/sources" }}
+            title="Choose a vehicle to unlock Parts & Repair"
+            message="Parts estimates and repair planning appear when matching vehicle details are available. Browse vehicles and open one to start a repair review."
+            action={{ label: "Browse vehicles", href: "/discover" }}
           />
         </div>
       )}

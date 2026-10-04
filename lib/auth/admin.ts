@@ -22,7 +22,7 @@ export function isAdminEmail(email?: string | null): boolean {
     if (!warnedMissingAdminEmail) {
       warnedMissingAdminEmail = true;
       console.error(
-        "[auth] ADMIN_EMAIL is not set — admin-only routes (/developer, /status, /orchestrator) are locked for every user.",
+        "[auth] ADMIN_EMAIL is not set — admin-only routes are locked for every user.",
       );
     }
     return false;
@@ -36,7 +36,13 @@ export function isAdminConfigured(): boolean {
   return ADMIN_EMAIL.length > 0;
 }
 
-// Admin-only PAGES, enforced server-side in middleware. (APIs keep their own secret/key auth so CI &
-// cron — which have no user session — still work; we don't email-gate machine callers.) /status is
-// intentionally public because it is the setup/readiness checklist when auth is not configured.
-export const ADMIN_ROUTES = ["/admin", "/developer", "/orchestrator"];
+// Admin-only pages, enforced server-side in middleware. APIs keep their own
+// secret/key auth so CI and cron callers without a user session continue to work.
+// Source operations and system diagnostics are intentionally kept off customer pages.
+export const ADMIN_ROUTES = [
+  "/admin",
+  "/developer",
+  "/orchestrator",
+  "/sources",
+  "/status",
+];

@@ -12,7 +12,7 @@ import {
 export function GoogleButton({
   next = "/discover",
   label = "Continue with Google",
-  setupHref = "/status",
+  setupHref = "/login",
   previewHref = "/scan?sort=score",
 }: {
   next?: string;
@@ -122,7 +122,7 @@ export function GoogleButton({
             href={setupHref}
             className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
           >
-            View system status
+            Return to sign in
           </Link>
           <span className="mx-2 text-xs text-[var(--t5)]">·</span>
           <Link

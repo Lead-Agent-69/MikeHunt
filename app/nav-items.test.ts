@@ -47,8 +47,8 @@ describe("primaryJobForPath", () => {
     ).toBe(true);
     expect(
       navItemMatchesPath(
-        { name: "Sources", href: "/sources", icon: (() => null) as any },
-        "/sources?sellerType=dealer",
+        { name: "Discover", href: "/discover", icon: (() => null) as any },
+        "/discover?state=FL",
       ),
     ).toBe(false);
   });
@@ -104,7 +104,6 @@ describe("primaryJobForPath", () => {
       "Auction Lane",
       "Pipeline",
       "Saved",
-      "Sources",
       "Account",
     ]);
     expect(MORE_GROUPS.every((group) => allowedGroups.has(group.group))).toBe(
