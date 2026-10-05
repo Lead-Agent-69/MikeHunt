@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
+import { matchesAnyRoute } from "@/lib/auth/route-match";
 
 // Protected routes that require authentication.
 // Note: '/' is intentionally PUBLIC — the landing page handles its own
@@ -80,7 +81,6 @@ function isSupabaseConfigured(): boolean {
   );
 }
 
-
 function guestProfileOnboarded(request: NextRequest): boolean {
   const raw = request.cookies.get("mh_guest_profile")?.value;
   if (!raw) return false;
@@ -107,14 +107,13 @@ export async function middleware(request: NextRequest) {
   const isCronEndpoint =
     pathname === "/api/alerts/process" ||
     pathname === "/api/alerts/profit-sniper";
+  // Segment-aware: "/deal" must not swallow the public "/dealer-network".
   const isProtectedRoute =
-    !isCronEndpoint &&
-    protectedRoutes.some((route) => pathname.startsWith(route));
+    !isCronEndpoint && matchesAnyRoute(pathname, protectedRoutes);
   const isSetupGatedRoute =
-    isProtectedRoute ||
-    publicBuyerRoutes.some((route) => pathname.startsWith(route));
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
-  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+    isProtectedRoute || matchesAnyRoute(pathname, publicBuyerRoutes);
+  const isAuthRoute = matchesAnyRoute(pathname, authRoutes);
+  const isAdminRoute = matchesAnyRoute(pathname, ADMIN_ROUTES);
 
   if (!isSupabaseConfigured()) {
     const demoUser = request.cookies.get("mh_demo_user")?.value;
