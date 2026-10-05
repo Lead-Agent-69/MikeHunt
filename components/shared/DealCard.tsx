@@ -102,6 +102,7 @@ export const DealCard = memo(function DealCard({
   onClick,
   isSaved,
   onSave,
+  flipDesk = true,
 }: DealCardProps) {
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
@@ -124,14 +125,27 @@ export const DealCard = memo(function DealCard({
     bidCount != null ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : null,
     seller ? seller : sellerType ? `${sellerType} seller` : null,
   ].filter(Boolean);
-  const whyShown = [
-    profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
-    recommendedMaxBid != null
-      ? `$${recommendedMaxBid.toLocaleString()} max bid`
-      : null,
-    sellEstimate != null ? `$${sellEstimate.toLocaleString()} resale` : null,
-  ].filter(Boolean);
   const resaleBasis = sellEstimate || mmrValue || 0;
+  // Flip economics (net profit, max bid, resale spread) are reseller/dealer
+  // only. Non-flip buyers see the ask against the market estimate instead.
+  const belowMarket =
+    resaleBasis > 0 && askPrice > 0 ? resaleBasis - askPrice : 0;
+  const whyShown = flipDesk
+    ? [
+        profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
+        recommendedMaxBid != null
+          ? `$${recommendedMaxBid.toLocaleString()} max bid`
+          : null,
+        sellEstimate != null
+          ? `$${sellEstimate.toLocaleString()} resale`
+          : null,
+      ].filter(Boolean)
+    : [
+        belowMarket > 0
+          ? `$${belowMarket.toLocaleString()} under market est.`
+          : null,
+        resaleBasis > 0 ? `$${resaleBasis.toLocaleString()} market est.` : null,
+      ].filter(Boolean);
   const valuationBasis =
     valuation?.basis || sellBasis || (mmrValue ? "market" : "baseline");
   const valuationSource =
@@ -349,9 +363,15 @@ export const DealCard = memo(function DealCard({
         ? "text-[var(--amber-d)]"
         : "text-[var(--red)]";
   const decisionReasons = [
-    profitEstimate > 0
-      ? `$${profitEstimate.toLocaleString()} estimated spread`
-      : "no positive spread yet",
+    flipDesk
+      ? profitEstimate > 0
+        ? `$${profitEstimate.toLocaleString()} estimated spread`
+        : "no positive spread yet"
+      : belowMarket > 0
+        ? `asking $${belowMarket.toLocaleString()} under market est.`
+        : resaleBasis > 0
+          ? "asking at or above market est."
+          : "market value not on file yet",
     mathConfidence === "Low"
       ? `low confidence until ${weakAssumption} is known`
       : `${mathConfidence.toLowerCase()} math confidence`,
@@ -916,28 +936,32 @@ export const DealCard = memo(function DealCard({
           </div>
         </div>
 
-        {/* Big profit */}
+        {/* Big profit (flip desk only) */}
         <div className="flex items-end justify-between mt-auto pt-1 gap-2">
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              Net Profit Est.
-            </p>
-            <Mono
-              className="text-2xl font-black leading-none"
-              style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
-            >
-              {isPositive ? "+" : "-"}$
-              {Math.abs(profitEstimate).toLocaleString()}
-            </Mono>
-            {recommendedMaxBid != null && (
-              <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
-                Max bid{" "}
-                <Mono className="text-[var(--t2)] font-bold">
-                  ${recommendedMaxBid.toLocaleString()}
-                </Mono>
+          {flipDesk ? (
+            <div data-testid="dealcard-flip-economics">
+              <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
+                Net Profit Est.
               </p>
-            )}
-          </div>
+              <Mono
+                className="text-2xl font-black leading-none"
+                style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
+              >
+                {isPositive ? "+" : "-"}$
+                {Math.abs(profitEstimate).toLocaleString()}
+              </Mono>
+              {recommendedMaxBid != null && (
+                <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
+                  Max bid{" "}
+                  <Mono className="text-[var(--t2)] font-bold">
+                    ${recommendedMaxBid.toLocaleString()}
+                  </Mono>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div />
+          )}
 
           {(condition || damageType) && (
             <span

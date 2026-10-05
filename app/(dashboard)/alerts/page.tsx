@@ -256,6 +256,7 @@ function ServerAlertGrid({
                 </button>
               </div>
               <DealCard
+                flipDesk={flipDesk}
                 id={deal.id}
                 source={deal.source}
                 year={deal.year}

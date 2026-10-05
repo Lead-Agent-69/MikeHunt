@@ -1,4 +1,10 @@
 export interface DealCardProps {
+  /**
+   * Reseller/dealer desk. When false, net profit, max bid, and resale-spread
+   * copy are hidden (callers derive this with isFlipBuyerMode, so unknown
+   * modes count as personal). Defaults to true for legacy flip-only pages.
+   */
+  flipDesk?: boolean;
   id: string;
   source: string;
   year: number;
