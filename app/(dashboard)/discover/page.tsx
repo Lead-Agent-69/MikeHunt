@@ -14,6 +14,7 @@ import {
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { hiddenRailKeysForMode } from "@/lib/discovery/desk-rails";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
@@ -347,12 +348,8 @@ export default function DiscoverPage() {
   // Personal, DIY, and parts are not flip desks — hide wholesale flip rails.
   // Reseller/dealer keep roi / salvage / auctionLots / fresh.
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
-  const partsBuyer = buyerScope?.buyerMode === "parts";
-  const hiddenNonFlipRails = new Set(
-    partsBuyer
-      ? ["roi", "auctionLots", "fresh"] // parts buyers still want salvage/teardown
-      : ["roi", "salvage", "auctionLots", "fresh"],
-  );
+  // Same table the API enforces (lib/discovery/desk-rails); parts keeps salvage/teardown.
+  const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode);
   const visibleRails = (data?.rails || []).filter(
     (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
   );

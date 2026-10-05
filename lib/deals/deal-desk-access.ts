@@ -6,6 +6,10 @@
 // listing. Fail closed.
 
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import {
+  discoverDeskForMode,
+  type DiscoverDesk,
+} from "@/lib/discovery/desk-rails";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
@@ -122,21 +126,29 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
 }
 
 /**
- * Is the CURRENT request from a saved reseller / dealer desk? Signed out, no prefs, any other mode,
- * or any lookup error → false (fail closed).
+ * The CURRENT request's saved desk: "flip" (reseller / dealer), "parts", or "personal". Signed out,
+ * no prefs, any other mode, or any lookup error → "personal" (fail closed).
  */
-export async function resolveCallerFlipDesk(): Promise<boolean> {
+export async function resolveCallerDesk(): Promise<DiscoverDesk> {
   try {
     const {
       data: { user },
     } = await getServerUser();
-    if (!user?.id) return false;
+    if (!user?.id) return "personal";
     const mode = await readSavedBuyerMode(
       createServerComponentClient(),
       user.id,
     );
-    return isFlipDeskMode(mode);
+    return discoverDeskForMode(mode);
   } catch {
-    return false;
+    return "personal";
   }
+}
+
+/**
+ * Is the CURRENT request from a saved reseller / dealer desk? Signed out, no prefs, any other mode,
+ * or any lookup error → false (fail closed).
+ */
+export async function resolveCallerFlipDesk(): Promise<boolean> {
+  return (await resolveCallerDesk()) === "flip";
 }
