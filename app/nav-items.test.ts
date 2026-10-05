@@ -11,6 +11,7 @@ import {
   primaryNavForMode,
   navItemMatchesPath,
   primaryJobForPath,
+  scanHrefForMode,
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
@@ -230,5 +231,37 @@ describe("primaryJobForPath", () => {
     expect(account).toMatch(
       /\{showAuctionLane && \(\s*<button[\s\S]{0,200}router\.push\("\/lane"\)/,
     );
+  });
+});
+
+describe("scanHrefForMode", () => {
+  it("sorts Scan by profit only for flip desks", () => {
+    expect(scanHrefForMode("reseller")).toBe("/scan?sort=profit");
+    expect(scanHrefForMode("dealer")).toBe("/scan?sort=profit");
+    expect(scanHrefForMode(undefined)).toBe("/scan?sort=profit");
+    for (const mode of ["personal", "diy", "parts"]) {
+      expect(scanHrefForMode(mode)).toBe("/scan?sort=score");
+    }
+  });
+});
+
+describe("alerts page", () => {
+  const source = readFileSync("app/(dashboard)/alerts/page.tsx", "utf8");
+
+  it("uses buyer-facing copy instead of internal scraper jargon", () => {
+    expect(source).not.toMatch(/Scrape Inbox/);
+    expect(source).not.toMatch(/account sync is being/);
+    expect(source).toMatch(/No alerts yet/);
+  });
+
+  it("routes Scan by buyer mode and hides profit targets for non-flip desks", () => {
+    expect(source).not.toContain('href="/scan?sort=profit"');
+    expect(source).toContain("scanHrefForMode(intent?.buyerMode)");
+    expect(source).toContain("showProfitTarget && search.target_profit");
+  });
+
+  it("keeps the dismiss control reachable on touch screens", () => {
+    expect(source).not.toMatch(/"absolute -top-3 -right-3 z-20 opacity-0 group-hover/);
+    expect(source).toContain('aria-label="Dismiss alert"');
   });
 });
