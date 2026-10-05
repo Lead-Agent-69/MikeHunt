@@ -5,6 +5,7 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const flipDesk = await resolveCallerFlipDesk();
   const points = (data || [])
     .map((d: any) => {
       let lat: number | null = null;
@@ -83,6 +85,15 @@ export async function GET(req: NextRequest) {
         }
       }
       if (lat == null || lng == null) return null;
+      const place = d.location_city
+        ? ` · ${d.location_city}, ${d.location_state || ""}`
+        : d.location_state
+          ? ` · ${d.location_state}`
+          : "";
+      // Profit only in the label for a flip desk; personal buyers see ask + place.
+      const label = flipDesk
+        ? `${money(d.ask_price)} · ${Number(d.true_net_profit) >= 0 ? "+" : ""}${money(d.true_net_profit)} profit${place}`
+        : `${money(d.ask_price)}${place}`;
       return {
         id: d.id,
         name: `${d.year} ${d.make} ${d.model}`.trim(),
@@ -91,10 +102,14 @@ export async function GET(req: NextRequest) {
         approx,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
         type: typeForVerdict(d.deal_verdict),
-        label: `${money(d.ask_price)} · ${Number(d.true_net_profit) >= 0 ? "+" : ""}${money(d.true_net_profit)} profit${d.location_city ? ` · ${d.location_city}, ${d.location_state || ""}` : d.location_state ? ` · ${d.location_state}` : ""}`,
+        label,
       };
     })
     .filter(Boolean);
 
-  return NextResponse.json({ points, count: points.length });
+  return NextResponse.json({
+    points,
+    count: points.length,
+    deskAccess: flipDesk ? "flip" : "personal",
+  });
 }

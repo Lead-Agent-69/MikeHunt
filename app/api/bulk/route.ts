@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // /api/bulk — multi-unit sourcing for fleet/wholesale buyers. Groups currently-active deals by
 // make+model so a buyer can spot "5 Transit vans under $15k across 3 sources" in one place — a
@@ -111,8 +115,10 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.totalProfit - a.totalProfit || b.count - a.count)
       .slice(0, 100);
 
+    const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json({
-      groups: out,
+      groups: listingsForDesk(out, flipDesk),
+      deskAccess: flipDesk ? "flip" : "personal",
       count: out.length,
       state: state || "nationwide",
     });

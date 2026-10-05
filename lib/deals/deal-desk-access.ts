@@ -93,17 +93,34 @@ export function redactDealForNonFlipDesk<T extends Record<string, any>>(
 
 // Card-level flip economics and seller contact. Market value (sellEstimate) and the listing itself
 // stay: a personal buyer still needs "ask vs market" to judge a price.
+// Flip economics and seller contact, every key name the feeds use. Market value
+// (sellEstimate / estimated_resale / askPrice) stays: a personal buyer still needs
+// ask-vs-market. Alias names (snake_case, bulk `profit`, group totals) share this
+// one list so /api/scan, best-buy, flash, mispricing, bulk, explore, public/v1,
+// map, and find-similar cannot drift from Discover/Feed.
 const CARD_FLIP_ONLY_FIELDS = [
   "true_net_profit",
   "trueNetProfit",
   "netProfit",
+  "profit",
   "profitEstimate",
   "profitScore",
+  "profit_score",
   "score",
   "recommendedMaxBid",
+  "recommended_max_bid",
+  "estimated_net_profit",
+  "roi",
+  "roiPct",
+  "totalProfit",
+  "downsideBuffer",
+  "avgRoi",
+  "maxProfit",
+  "rankScore",
   "ai_wholesale_estimate",
   "ai_retail_estimate",
   "ai_rationale",
+  "aiRationale",
   "is_arbitrage_opportunity",
   "contact",
   "sellerPhone",
@@ -122,7 +139,23 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
       o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
     );
   }
+  // Bulk groups nest listing rows under `deals`; redact those the same way.
+  if (Array.isArray(card?.deals)) {
+    out.deals = card.deals.map((o: Record<string, any>) =>
+      o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
+    );
+  }
   return out;
+}
+
+/** Apply the desk gate to a list. Flip desks get the input; everyone else gets redacted copies. */
+export function listingsForDesk<T extends Record<string, any>>(
+  items: T[],
+  flipDesk: boolean,
+): Array<T | Record<string, any>> {
+  return flipDesk
+    ? items
+    : items.map((item) => redactListingForNonFlipDesk(item));
 }
 
 /**
