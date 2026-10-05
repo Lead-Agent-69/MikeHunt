@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { BarChart3, ExternalLink, Flame, Heart, MapPin } from "lucide-react";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
+import { savedScopeStates } from "@/lib/preferences/location-form";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
 import {
   EditorialCard,
@@ -47,7 +48,7 @@ const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
 
 export default function FeedPage() {
-  const { prefs } = usePreferences();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -59,7 +60,9 @@ export default function FeedPage() {
   const busy = useRef(false);
 
   const loadMore = useCallback(async () => {
-    if (busy.current || done) return;
+    // The infinite-scroll observer can fire before the saved scope is known; an unscoped
+    // first page would then win the race and ignore the user's states.
+    if (busy.current || done || scope === null) return;
     busy.current = true;
     setLoading(true);
     try {
@@ -88,10 +91,13 @@ export default function FeedPage() {
     }
   }, [offset, done, scope]);
 
-  // Seed the scope from prefs once loaded (carsStates). Null = not-yet-known; [] = explicitly all.
+  // Seed the scope from prefs once loaded (carsStates mirror, else home + search locations).
+  // Null = not-yet-known; [] = explicitly all.
   useEffect(() => {
-    if (scope === null && prefs) setScope((prefs.carsStates as string[]) || []);
-  }, [prefs, scope]);
+    // Wait for /api/preferences: before it loads, prefs is {} and would seed "all states".
+    if (scope === null && !prefsLoading)
+      setScope(savedScopeStates(prefs) || []);
+  }, [prefs, prefsLoading, scope]);
 
   // Re-scope the feed when the chosen states change (reset the stream, refetch from the top).
   const rescope = useCallback((states: string[]) => {

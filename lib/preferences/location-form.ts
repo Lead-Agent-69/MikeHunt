@@ -7,6 +7,8 @@ import {
   MAX_SEARCH_LOCATIONS,
   MIN_RADIUS_MI,
   cleanState,
+  effectiveHome,
+  effectiveSearchLocations,
   type HomeLocation,
   type SearchLocation,
 } from "./locations";
@@ -179,4 +181,26 @@ export function searchLocationsFromStates(
     out.push({ id: searchLocationKey({ state }), state, addedAt: now });
   }
   return out.slice(0, MAX_SEARCH_LOCATIONS);
+}
+
+type ScopePrefs = Parameters<typeof effectiveHome>[0] & {
+  carsStates?: unknown;
+};
+
+/**
+ * Saved state scope for "which states am I looking at" readers (nav chip, feed, Discover):
+ * the carsStates mirror first (it also records an explicit "All states" = []), then the #66
+ * home + search locations for prefs written without the mirror. undefined = nothing saved.
+ */
+export function savedScopeStates(
+  prefs: ScopePrefs | null | undefined,
+): string[] | undefined {
+  if (!prefs) return undefined;
+  if (Array.isArray(prefs.carsStates))
+    return prefs.carsStates.filter((s): s is string => typeof s === "string");
+  const hasLocationPrefs =
+    prefs.homeLocation != null || Array.isArray(prefs.searchLocations);
+  return hasLocationPrefs
+    ? legacyStatesMirror(effectiveHome(prefs), effectiveSearchLocations(prefs))
+    : undefined;
 }

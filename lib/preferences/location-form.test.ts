@@ -6,6 +6,7 @@ import {
   legacyStatesMirror,
   locationLabel,
   removeSearchLocation,
+  savedScopeStates,
   searchLocationsFromStates,
   searchLocationsPatch,
 } from "./location-form";
@@ -160,5 +161,33 @@ describe("searchLocationsFromStates (nav chip picks)", () => {
       "HI",
     ];
     expect(searchLocationsFromStates(states, null, [], NOW)).toHaveLength(10);
+  });
+});
+
+describe("savedScopeStates (feed / Discover / chip scope)", () => {
+  it("prefers the carsStates mirror, including an explicit all-states []", () => {
+    expect(
+      savedScopeStates({
+        carsStates: ["MO", "KS"],
+        homeLocation: { state: "TX" },
+      }),
+    ).toEqual(["MO", "KS"]);
+    expect(
+      savedScopeStates({ carsStates: [], homeLocation: { state: "TX" } }),
+    ).toEqual([]);
+  });
+
+  it("falls back to home + search locations when no mirror was written", () => {
+    expect(
+      savedScopeStates({
+        homeLocation: { state: "TX" },
+        searchLocations: [{ id: "OK|", state: "OK", addedAt: NOW }],
+      }),
+    ).toEqual(["TX", "OK"]);
+  });
+
+  it("returns undefined when nothing location-related is saved", () => {
+    expect(savedScopeStates({ carsState: "MO" })).toBeUndefined();
+    expect(savedScopeStates(null)).toBeUndefined();
   });
 });
