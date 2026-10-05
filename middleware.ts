@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
 import { matchesAnyRoute } from "@/lib/auth/route-match";
+import { loginRedirectUrl } from "@/lib/auth/login-redirect";
 
 // Protected routes that require authentication.
 // Note: '/' is intentionally PUBLIC — the landing page handles its own
@@ -119,9 +120,7 @@ export async function middleware(request: NextRequest) {
     const demoUser = request.cookies.get("mh_demo_user")?.value;
 
     if (isProtectedRoute && !demoUser) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
     }
 
     if (
@@ -139,8 +138,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isAdminRoute) {
+      if (!demoUser) {
+        return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
+      }
       const url = request.nextUrl.clone();
-      url.pathname = demoUser ? "/discover" : "/login";
+      url.pathname = "/discover";
       return NextResponse.redirect(url);
     }
 
@@ -203,21 +205,16 @@ export async function middleware(request: NextRequest) {
   // Authorization: Bearer CRON_SECRET header in their route handlers instead.
 
   if (isProtectedRoute && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
-    url.searchParams.set(
-      "next",
-      `${request.nextUrl.pathname}${request.nextUrl.search}`,
-    );
-    return redirectWithAuthCookies(url);
+    return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
   }
 
   // ADMIN GATE: dev/ops surfaces are for the single admin only. Anyone else (incl. logged-in
   // dealers) is bounced — they never reach the developer API, system status, or the orchestrator.
   if (isAdminRoute && !isAdminEmail(user?.email)) {
+    if (!user)
+      return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
     const url = request.nextUrl.clone();
-    url.pathname = user ? "/discover" : "/login";
+    url.pathname = "/discover";
     return redirectWithAuthCookies(url);
   }
 
