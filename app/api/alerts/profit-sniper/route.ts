@@ -52,11 +52,13 @@ async function handleSniperEvaluation(req: NextRequest) {
   // 1. Fetch live active GO deals
   const { data: deals, error } = await supabase
     .from("deals")
-    .select(`
+    .select(
+      `
       id, year, make, model, trim, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, location_state,
       source, source_url, created_at
-    `)
+    `,
+    )
     .eq("active", true)
     .eq("deal_verdict", "go")
     .gt("true_net_profit", 0)
@@ -112,9 +114,15 @@ async function handleSniperEvaluation(req: NextRequest) {
   for (const candidate of sniperCandidates) {
     // Check specific searches
     for (const search of savedSearches || []) {
-      const matchesMake = !search.make || search.make.toLowerCase() === candidate.make.toLowerCase();
-      const matchesState = !search.location_state || search.location_state === candidate.locationState;
-      const meetsTarget = !search.target_profit || candidate.trueNetProfit >= Number(search.target_profit);
+      const matchesMake =
+        !search.make ||
+        search.make.toLowerCase() === candidate.make.toLowerCase();
+      const matchesState =
+        !search.location_state ||
+        search.location_state === candidate.locationState;
+      const meetsTarget =
+        !search.target_profit ||
+        candidate.trueNetProfit >= Number(search.target_profit);
 
       if (matchesMake && matchesState && meetsTarget) {
         matchedAlerts.push({
