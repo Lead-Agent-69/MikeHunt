@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import {
@@ -24,9 +25,11 @@ function admin() {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ vin: string }> },
 ) {
+  const rl = rateLimit(req, { key: "vin-specs", limit: 30, windowMs: 60_000 });
+  if (!rl.allowed) return tooManyRequests(rl);
   const { vin: raw } = await params;
   const vin = normalizeVin(raw);
   if (!isValidVin(vin))

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -39,6 +40,13 @@ function sanitizeReferrer(raw: unknown): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Unauthenticated insert: cap per client so it can't be used to flood page_views.
+  const rl = rateLimit(request, {
+    key: "pageview",
+    limit: 60,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
   let body: unknown;
   try {
     body = await request.json();

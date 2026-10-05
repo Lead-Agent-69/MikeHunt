@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { cached } from "@/lib/cache";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
@@ -217,7 +219,18 @@ function sourceMatchesSellerType(source: PreviewSource, sellerType: string) {
   return false;
 }
 
+// Public and unauthenticated, and every candidate is a live upstream fetch from our IP. Cache each
+// source's preview rows briefly and rate-limit per client so the route can't be used to hammer
+// Copart / GovDeals / PublicSurplus / Municibid (or burn our IP reputation).
+const PREVIEW_CACHE_MS = 5 * 60_000;
+
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "scan-live-preview",
+    limit: 10,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
   try {
     const { searchParams } = new URL(req.url);
     const lane = searchParams.get("lane") || "damaged";
@@ -282,7 +295,12 @@ export async function GET(req: NextRequest) {
     }[] = [];
     for (const candidate of candidates) {
       try {
-        const lots = await candidate.fetchRows();
+        const lots = await cached(
+          `scan:live-preview:${candidate.id}`,
+          PREVIEW_CACHE_MS,
+          candidate.fetchRows,
+          (rows) => Array.isArray(rows) && rows.length > 0,
+        );
         const tagged = lots.map((row: any) => ({
           ...row,
           source: candidate.id,
