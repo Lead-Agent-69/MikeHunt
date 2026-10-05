@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { sanitizeWatchListPatch } from "@/lib/preferences/watched-dealers";
+import { sanitizeLocationPatch } from "@/lib/preferences/locations";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,10 @@ export async function PUT(req: NextRequest) {
   if ("error" in sanitized)
     return NextResponse.json({ error: sanitized.error }, { status: 400 });
   patch = sanitized.patch;
+  const located = sanitizeLocationPatch(patch);
+  if ("error" in located)
+    return NextResponse.json({ error: located.error }, { status: 400 });
+  patch = located.patch;
 
   if (!isSupabaseConfigured()) {
     return guestPrefsResponse({ ...readGuestPrefs(req), ...patch });
