@@ -17,6 +17,8 @@ import {
   type SavedCarStatus,
 } from "@/components/saved/SavedCarCard";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { hidesFlipNav, scanHrefForMode } from "@/components/layout/nav-items";
 
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
@@ -121,17 +123,18 @@ export default function AlertsPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
-            Scrape Inbox
+            Alerts
           </h1>
           <p className="text-[var(--t3)]">
-            Matches from your automated background searches.
+            New matches for your saved searches and the cars you&apos;re
+            watching.
           </p>
         </div>
       </div>
 
       {loading || savedLoading ? (
         <div className="text-center py-12 text-[var(--t3)]">
-          Loading your inbox...
+          Loading alerts...
         </div>
       ) : !hasAnyWatchItem ? (
         <div className="text-center py-16 glass-panel">
@@ -141,19 +144,26 @@ export default function AlertsPage() {
             className="mx-auto text-[var(--t4)] mb-3"
           />
           <h3 className="text-lg font-bold text-[var(--t1)] mb-1">
-            Inbox Empty
+            No alerts yet
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            You don't have any new matches yet. Save a search scope and open
-            matching Scan or Source Proof from here while account sync is being
-            configured.
+            Save a search or watch a car, and new matches and price changes
+            show up here.
           </p>
-          <Link
-            href="/searches"
-            className="mt-4 inline-flex rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
-          >
-            Create saved search
-          </Link>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/searches"
+              className="inline-flex rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+            >
+              Create saved search
+            </Link>
+            <Link
+              href="/discover"
+              className="inline-flex rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+            >
+              Browse Discover
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
@@ -189,6 +199,8 @@ function ServerAlertGrid({
   alerts: any[];
   onDismiss: (id: string) => void;
 }) {
+  const { intent } = useBuyerIntent();
+  const scanHref = scanHrefForMode(intent?.buyerMode);
   return (
     <div className="space-y-4">
       <div className="glass-panel p-5">
@@ -201,12 +213,12 @@ function ServerAlertGrid({
               {alerts.length} fresh alert{alerts.length === 1 ? "" : "s"} ready.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These came from server-side matching. Review source proof and
-              buyer math before acting.
+              Matched to your saved searches. Check the source listing and
+              price evidence before you act.
             </p>
           </div>
           <Link
-            href="/scan?sort=profit"
+            href={scanHref}
             className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
           >
             Open Scan
@@ -222,8 +234,11 @@ function ServerAlertGrid({
               {alert.status === "unread" && (
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--amber)] rounded-full shadow-[0_0_8px_var(--amber)] z-10" />
               )}
-              <div className="absolute -top-3 -right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Always visible on touch; hover-reveal only where a pointer can hover. */}
+              <div className="absolute -top-3 -right-3 z-20 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 <button
+                  type="button"
+                  aria-label="Dismiss alert"
                   onClick={() => onDismiss(alert.id)}
                   className="p-1.5 bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--red)] hover:text-white rounded-full shadow-lg border border-[var(--b2)]"
                   title="Dismiss alert"
@@ -256,6 +271,8 @@ function ServerAlertGrid({
 }
 
 function LocalSearchInbox({ searches }: { searches: any[] }) {
+  const { intent } = useBuyerIntent();
+  const showProfitTarget = !hidesFlipNav(intent?.buyerMode);
   return (
     <div className="space-y-4">
       <div className="glass-panel p-5">
@@ -329,7 +346,7 @@ function LocalSearchInbox({ searches }: { searches: any[] }) {
                       Min: ${Number(search.min_price).toLocaleString()}
                     </span>
                   )}
-                  {search.target_profit && (
+                  {showProfitTarget && search.target_profit && (
                     <span>
                       Min profit: $
                       {Number(search.target_profit).toLocaleString()}
@@ -386,7 +403,7 @@ function ServerWatchInbox({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
               No new price-drop alert yet. These saved vehicles are being
-              tracked with source proof, data quality, and buyer math.
+              tracked with source proof, data quality, and price evidence.
             </p>
           </div>
           <Link

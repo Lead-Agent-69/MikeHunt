@@ -113,6 +113,14 @@ export function mobileNavForMode(buyerMode: unknown): NavItem[] {
   return MOBILE_PRIMARY.map((item) => (isFlipOnly(item) ? ALERTS_TAB : item));
 }
 
+/**
+ * Scan entry point for the saved buyer mode. Flip desks sort by profit; other
+ * desks sort by trust score, since profit is not their goal.
+ */
+export function scanHrefForMode(buyerMode: unknown): string {
+  return hidesFlipNav(buyerMode) ? "/scan?sort=score" : "/scan?sort=profit";
+}
+
 /** Grouped "More" routes for the saved buyer mode. */
 export function moreGroupsForMode(buyerMode: unknown): NavGroup[] {
   if (!hidesFlipNav(buyerMode)) return MORE_GROUPS;
