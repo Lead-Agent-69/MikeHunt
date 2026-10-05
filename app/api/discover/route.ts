@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { filterRailsForDesk } from "@/lib/discovery/desk-rails";
 import {
   categorize,
   auctionHeat,
@@ -41,7 +42,7 @@ import {
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
   redactListingForNonFlipDesk,
-  resolveCallerFlipDesk,
+  resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
@@ -982,16 +983,17 @@ export async function GET(request: NextRequest) {
 
     // Net profit, max bid, profit score, and seller contact only go to a saved reseller / dealer
     // desk. Everyone else (signed out, personal, diy, parts, unknown, prefs error) gets redacted
-    // cards and no "Top Flips" rail. Cards are copied, never mutated, because `merged` is cached.
-    const flipDesk = await resolveCallerFlipDesk();
+    // cards, and the wholesale flip rails (Top Flips, Auction Lots, Just Listed, and Salvage
+    // except for parts) are dropped here, not just hidden by the page. Cards are copied, never
+    // mutated, because `merged` is cached.
+    const desk = await resolveCallerDesk();
+    const flipDesk = desk === "flip";
     const deskRails = flipDesk
       ? rails
-      : rails
-          .filter((r) => r.key !== "roi")
-          .map((r) => ({
-            ...r,
-            deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
-          }));
+      : filterRailsForDesk(rails, desk).map((r) => ({
+          ...r,
+          deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
+        }));
 
     return NextResponse.json({
       rails: deskRails,

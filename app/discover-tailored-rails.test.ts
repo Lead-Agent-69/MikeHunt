@@ -4,16 +4,21 @@ import { describe, expect, it } from "vitest";
 describe("discover tailored rails by buyer mode", () => {
   it("hides flip rails for every non-flip desk, not only personal", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+    const rails = readFileSync("lib/discovery/desk-rails.ts", "utf8");
+    const api = readFileSync("app/api/discover/route.ts", "utf8");
     expect(page).toContain("isFlipBuyerMode");
     expect(page).toContain("hiddenNonFlipRails");
+    expect(page).toContain("hiddenRailKeysForMode");
     expect(page).not.toContain('buyerMode === "personal"');
+    // The API enforces the same table server-side.
+    expect(api).toContain("filterRailsForDesk");
     // DIY and personal share the same non-flip hide set (includes salvage).
-    expect(page).toContain('"roi"');
-    expect(page).toContain('"salvage"');
-    expect(page).toContain('"auctionLots"');
+    expect(rails).toContain(
+      'PERSONAL_HIDDEN = ["roi", "salvage", "auctionLots", "fresh"]',
+    );
     // Parts keeps salvage / teardown, still drops wholesale flip rails.
-    expect(page).toContain('buyerMode === "parts"');
-    expect(page).toContain('? ["roi", "auctionLots", "fresh"]');
+    expect(rails).toContain('normalized === "parts"');
+    expect(rails).toContain('PARTS_HIDDEN = ["roi", "auctionLots", "fresh"]');
   });
 
   it("exposes parts as a real buyer mode that maps to the parts desk", () => {

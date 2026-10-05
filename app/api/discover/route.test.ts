@@ -106,6 +106,39 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(ids).toContain("dealer-car");
     expect(ids).not.toContain("deal-1");
   }, 15_000);
+  it.each([
+    ["signed out", null, null, ["roi", "salvage", "auctionLots", "fresh"]],
+    [
+      "personal",
+      "u-personal",
+      "personal",
+      ["roi", "salvage", "auctionLots", "fresh"],
+    ],
+    ["diy", "u-diy", "diy", ["roi", "salvage", "auctionLots", "fresh"]],
+    ["parts", "u-parts", "parts", ["roi", "auctionLots", "fresh"]],
+  ])(
+    "never ships flip rails to a %s caller",
+    async (_label, userId, buyerMode, hidden) => {
+      rpc.mockResolvedValueOnce({ data: [baseRow], error: null });
+      if (userId) {
+        getServerUser.mockImplementation(async () => ({
+          data: { user: { id: userId } },
+        }));
+        savedPrefs.value = { buyerScope: { buyerMode } };
+      }
+      const { GET } = await import("./route");
+      const res = await GET(
+        req("/api/discover?lane=government&sellerType=auction"),
+      );
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body.deskAccess).toBe("personal");
+      const keys = body.rails.map((rail: any) => rail.key);
+      for (const key of hidden as string[]) expect(keys).not.toContain(key);
+    },
+    15_000,
+  );
+
   // First import of the route is heavy under CI parallelism; 5s default flakes on Windows runners.
   it("keeps gov_auction government rows and maps trust/cost fields", async () => {
     rpc.mockResolvedValueOnce({
@@ -122,6 +155,12 @@ describe("GET /api/discover scoped feed contract", () => {
       error: null,
     });
 
+    // A saved dealer desk receives the Auction Lots rail; non-flip desks never do (below).
+    getServerUser.mockImplementation(async () => ({
+      data: { user: { id: "dealer-1" } },
+    }));
+    savedPrefs.value = { buyerScope: { buyerMode: "dealer" } };
+
     const { GET } = await import("./route");
     const res = await GET(
       req("/api/discover?lane=government&sellerType=auction"),
@@ -132,6 +171,7 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(res.status).toBe(200);
     expect(body.totalListings).toBe(1);
     expect(body.sellerType).toBe("auction");
+    expect(body.deskAccess).toBe("flip");
     expect(body.rails.map((rail: any) => rail.key)).toContain("auctionLots");
     expect(firstDeal).toMatchObject({
       id: "deal-1",
