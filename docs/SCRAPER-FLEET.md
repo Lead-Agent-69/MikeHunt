@@ -23,6 +23,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ENABLE_HEADED_SCRAPERS=1        # turn on the headed tier (xvfb is in the image)
 SCRAPE_INTERVAL_MS=1800000      # 30 min
+# Optional micro-AI dealer crawl producer (default OFF). See docs/AI-SCRAPER.md.
+# Needs Redis + free-tier Gemini. Invent consumer stays disabled — this only enqueues.
+# ENABLE_AI_DEALER_CRAWL=1
+# AI_CRAWL_SITES_MAX=8
+# AI_CRAWL_VDP_CAP=12
+# GOOGLE_GENERATIVE_AI_API_KEY=...
 # optional: dedicate a node to the walled trio
 # SCRAPE_SOURCES=cars_com,autotrader,truecar
 ```

@@ -30,6 +30,11 @@ function supabaseConnectSources() {
 const nextConfig = {
   reactStrictMode: false,
   output: "standalone",
+  // Pin the workspace root to THIS directory. A stray package-lock.json under the user home
+  // can make Next infer the home folder as the workspace root (multiple-lockfiles warning) and,
+  // with output:'standalone', try to file-trace far too much into the server bundle.
+  turbopack: { root: __dirname },
+  outputFileTracingRoot: __dirname,
   transpilePackages: ["@supabase/supabase-js"],
   serverExternalPackages: [
     "playwright",

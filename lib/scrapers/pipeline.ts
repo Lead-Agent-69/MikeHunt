@@ -331,6 +331,29 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   const SELECT_COLS =
     "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng";
   const sb = getSupabase();
+  // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
+  // salvage below still run; this only adds throttle beside them.
+  async function upsertWithBackoff(batch: unknown[]) {
+    let attempt = 0;
+    for (;;) {
+      const res = await sb
+        .from("deals")
+        .upsert(batch as never[], {
+          onConflict: "source,source_deal_id",
+          ignoreDuplicates: false,
+        })
+        .select(SELECT_COLS);
+      const status = (res.error as { status?: number } | null)?.status;
+      if (!res.error || (status !== 429 && (status || 0) < 500) || attempt >= 1)
+        return res;
+      attempt++;
+      console.warn(
+        `[upsertDeals] Supabase throttled (${status}) — pausing 60s before retry`,
+      );
+      await new Promise((r) => setTimeout(r, 60_000));
+    }
+  }
+  const sleep2s = () => new Promise((r) => setTimeout(r, 2000));
   let upsertedRows: any[] | null = null;
   let error: { message: string } | null = null;
   let localPriceChangedKeys: Set<string> | null = null;
@@ -347,15 +370,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         "[LocalCache] daily write threshold reached; new source jobs will pause",
       );
   } else {
-    const response = await sb
-      .from("deals")
-      .upsert(rows, {
-        onConflict: "source,source_deal_id",
-        ignoreDuplicates: false,
-      })
-      .select(SELECT_COLS);
+    const response = await upsertWithBackoff(rows);
     upsertedRows = response.data;
     error = response.error;
+    if (!error) await sleep2s();
   }
 
   // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
@@ -378,15 +396,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       delete c[bad];
       return c;
     });
-    const retry = await sb
-      .from("deals")
-      .upsert(healedRows, {
-        onConflict: "source,source_deal_id",
-        ignoreDuplicates: false,
-      })
-      .select(SELECT_COLS);
+    const retry = await upsertWithBackoff(healedRows);
     error = retry.error;
     upsertedRows = retry.data;
+    if (!error) await sleep2s();
   }
 
   if (error) {

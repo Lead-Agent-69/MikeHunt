@@ -3654,7 +3654,14 @@ function ScanPageInner() {
     }
   }, [swrData, swrLoading]);
 
-  // Realtime subscription
+  // Live pill: count fresh arrivals since the user last looked; tapping refreshes.
+  const [newCount, setNewCount] = useState(0);
+  const clearNew = useCallback(() => {
+    setNewCount(0);
+    mutate();
+  }, [mutate]);
+
+  // Realtime subscription (active rows only — dead/inactive writes never reach the UI)
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
 
@@ -3663,7 +3670,7 @@ function ScanPageInner() {
       .channel("scan-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "deals" },
+        { event: "INSERT", schema: "public", table: "deals", filter: "active=eq.true" },
         (payload) => {
           const d = payload.new;
           if (
@@ -3713,6 +3720,7 @@ function ScanPageInner() {
           };
 
           // Optimistically add to SWR cache (same shape as other `vehicles` entries)
+          setNewCount((n) => n + 1);
           mutate((current: any) => {
             const vehicles = current?.vehicles || [];
             if (vehicles.some((x: any) => x.id === d.id)) return current;
@@ -3849,6 +3857,16 @@ function ScanPageInner() {
     >
       {/* ── Search bar ── */}
       <div className="glass-panel flex flex-col items-center gap-3 p-4 sm:flex-row md:sticky md:top-4 md:z-20">
+        {newCount > 0 && (
+          <button
+            onClick={clearNew}
+            className="w-full shrink-0 rounded-full px-4 py-2 text-sm font-semibold animate-pulse sm:w-auto"
+            style={{ background: "var(--amber)", color: "#111" }}
+            aria-live="polite"
+          >
+            {newCount} new — tap to refresh
+          </button>
+        )}
         <div className="relative flex-1 w-full">
           <Ico
             name="search"
