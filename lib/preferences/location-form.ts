@@ -156,3 +156,27 @@ export function locationLabel(loc: {
   const name = loc.label ? `${loc.label} (${place})` : place;
   return loc.radiusMi ? `${name} · ${loc.radiusMi} mi` : name;
 }
+
+/**
+ * Map a state list picked in the nav chip (StatePicker) onto search markets: the home state is not a
+ * search market, saved entries (ZIP / radius) survive for states still picked, and newly picked
+ * states become bare whole-state markets. Capped at MAX_SEARCH_LOCATIONS.
+ */
+export function searchLocationsFromStates(
+  states: string[],
+  home: HomeLocation | null | undefined,
+  existing: SearchLocation[],
+  now = new Date().toISOString(),
+): SearchLocation[] {
+  const picked = states
+    .map((s) => cleanState(s))
+    .filter((s): s is string => Boolean(s));
+  const kept = existing.filter((loc) => picked.includes(loc.state));
+  const out = [...kept];
+  for (const state of picked) {
+    if (state === home?.state) continue;
+    if (out.some((loc) => loc.state === state)) continue;
+    out.push({ id: searchLocationKey({ state }), state, addedAt: now });
+  }
+  return out.slice(0, MAX_SEARCH_LOCATIONS);
+}
