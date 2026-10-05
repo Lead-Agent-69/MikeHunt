@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -8,7 +9,14 @@ import {
 
 // GET /api/market/pulse — "what the market's doing": the make/models with the most live GO deals,
 // their avg profit and days-on-market. Powers the home-screen intelligence cards.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "market-pulse",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ rows: [], configured: false });
   }

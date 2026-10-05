@@ -3,6 +3,7 @@ import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -56,6 +57,13 @@ function mapFlashDeal(d: any) {
 }
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "flash-deals",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const { searchParams } = new URL(request.url);
     const state = searchParams.get("state")?.toUpperCase();
@@ -78,8 +86,7 @@ export async function GET(request: NextRequest) {
     if (state) q = q.eq("location_state", state);
 
     const { data, error } = await q;
-    if (error)
-      return internalError("flash-deals", error);
+    if (error) return internalError("flash-deals", error);
 
     const deals = (data || [])
       .filter((row) => !isAuctionChannel(row.source))

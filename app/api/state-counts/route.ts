@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 
@@ -24,7 +25,14 @@ async function countByState(
   return out;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "state-counts",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const counts = await cached(`state-counts:cars`, 300_000, () =>
     countByState("deals", "location_state"),
   );

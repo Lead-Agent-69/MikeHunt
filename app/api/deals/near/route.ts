@@ -101,7 +101,11 @@ export async function GET(req: NextRequest) {
   if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
   // An explicit radius narrows inside the locked state. It never adds neighbor states.
   if (lock.radius > 0 && canMeasure) {
-    const bb = boundingBox(centerLat as number, centerLng as number, lock.radius);
+    const bb = boundingBox(
+      centerLat as number,
+      centerLng as number,
+      lock.radius,
+    );
     q = q
       .not("lat", "is", null)
       .gte("lat", bb.minLat)

@@ -1,11 +1,19 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 
 // GET /api/market/ticker — items for the scrolling home ticker. New GO today, biggest movers,
 // flash count. All derived from data we already have.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "market-ticker",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const supabase = createServerComponentClient();
   const since = new Date(Date.now() - 86400000).toISOString();
 

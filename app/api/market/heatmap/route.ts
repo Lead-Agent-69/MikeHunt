@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 
@@ -9,7 +10,14 @@ import { cached } from "@/lib/cache";
 // (GO/HOLD) inventory per state: how many opportunities + the profit they carry. Powers the US tile
 // heatmap so a dealer sees the whole-country opportunity distribution at a glance. GO/HOLD is a small
 // set (hundreds), so this is one cheap pass — no full-table scan.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "market-heatmap",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     // Global aggregate — cache 90s so the map paints instantly on every visit.
     const payload = await cached("market:heatmap", 90_000, async () => {

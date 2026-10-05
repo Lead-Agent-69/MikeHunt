@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -26,6 +27,9 @@ function typeForVerdict(v: string): "private" | "auction" | "dealer" {
 }
 
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "deals-map", limit: 30, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const sp = new URL(req.url).searchParams;
   const verdict = sp.get("verdict") || "go";
   const limit = Math.min(
