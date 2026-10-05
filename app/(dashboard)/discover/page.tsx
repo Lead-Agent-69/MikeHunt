@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
+import { savedScopeStates } from "@/lib/preferences/location-form";
 import {
   applyBuyingForIntent,
   buildBuyerIntentQuery,
@@ -269,7 +271,7 @@ export default function DiscoverPage() {
   }, [urlScope, prefs.buyerScope]);
 
   const chosenState = searchParams.get("state");
-  const savedStates = prefs.carsStates;
+  const savedStates = savedScopeStates(prefs);
   const selectedStates =
     searchParams.get("states") ??
     (chosenState === null && savedStates && savedStates.length > 1
@@ -286,7 +288,7 @@ export default function DiscoverPage() {
           ? savedStates[0] || ""
           : buyerScope?.state && buyerScope.state !== "Nationwide"
             ? buyerScope.state
-            : prefs.carsState || "";
+            : effectiveHome(prefs)?.state || "";
   const scopeParams = buildBuyerIntentQuery(buyerScope, state);
   if (selectedStates) {
     scopeParams.delete("state");

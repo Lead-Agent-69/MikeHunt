@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
 import { zipToState } from "@/lib/geo/zip-state";
 import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
 import { proxiedImage } from "@/lib/image-url";
@@ -34,7 +35,8 @@ function placeName(code: string) {
 
 export function NearbyDeals() {
   const { prefs, authed } = usePreferences();
-  const home = (prefs.carsState || "").toUpperCase();
+  // Home location (#66) first; effectiveHome falls back to legacy carsState / buyerScope.state.
+  const home = (effectiveHome(prefs)?.state || "").toUpperCase();
   const [zip, setZip] = useState("");
   const zipMode = /^\d{5}$/.test(zip);
   const center = (zipMode ? zipToState(zip) : home) || "";
