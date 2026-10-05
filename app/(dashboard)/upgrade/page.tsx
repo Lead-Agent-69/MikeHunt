@@ -9,6 +9,8 @@ import {
   Spotlight,
 } from "@/components/ui/premium-visuals";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 // Static plan display (amounts/features). Checkout resolves price IDs server-side from the plan id.
 const PLANS = [
@@ -73,6 +75,7 @@ const cardVariants: Variants = {
 };
 
 export default function UpgradePage() {
+  const { intent } = useBuyerIntent();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,7 +121,9 @@ export default function UpgradePage() {
           <GradientText>Upgrade MikeHunt Pro</GradientText>
         </h1>
         <p className="text-[var(--t3)]">
-          Every plan profits you more than it costs. Cancel anytime.
+          {isFlipBuyerMode(intent?.buyerMode)
+            ? "Every plan profits you more than it costs. Cancel anytime."
+            : "Pick the plan that fits how you buy. Cancel anytime."}
         </p>
       </motion.div>
 
