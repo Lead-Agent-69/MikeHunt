@@ -17,9 +17,9 @@ primary_region = "iad"
   ENABLE_HEADED_SCRAPERS = "1"
   SCRAPE_INTERVAL_MS = "1800000"
   NODE_ENV = "production"
-  # Headed worker only. truecar is not in scrape-ci DEFAULT_SOURCES (CI stays off it).
+  # Fly path is unused (Zeus Docker is the free fleet). Do not bake SCRAPE_SOURCES —
+  # terms-safe defaults live in code; opt-in only via runtime secrets if Fly is ever revived.
   # Photo sync into deals-photos is the Railway maintenance worker (workers/index.ts), not this app.
-  SCRAPE_SOURCES = "craigslist,offerup,carvana,autotempest,ebay_sold,ebay_motors,cars_com,autotrader,carparts_com,publicsurplus,govdeals,allsurplus,municibid,gsa_auctions,curated_dealers,copart,truecar"
   CACHE_PHOTOS_MAX = "0"
 
 # No [http_service] — this is a background worker, not a web server. It loops scrapes on its own.

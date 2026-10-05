@@ -25,12 +25,6 @@ function runnerEnabled(): Map<string, boolean> {
   return out;
 }
 
-function scrapeSourcesEnv(file: string): string[] {
-  const src = readFileSync(file, "utf8");
-  const m = src.match(/SCRAPE_SOURCES\s*=\s*"?([a-z0-9_,]+)"?/);
-  if (!m) throw new Error(`SCRAPE_SOURCES missing in ${file}`);
-  return m[1].split(",").filter(Boolean);
-}
 
 describe("scrape-ci DEFAULT_SOURCES", () => {
   it("runs open enabled feeds, drops dead ids, and keeps truecar headed-only", () => {
@@ -63,13 +57,12 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
       expect(enabled.get(id)).toBe(true);
     }
     expect(enabled.get("truecar")).toBe(true);
+    // Image/fleet configs must not bake SCRAPE_SOURCES — terms-safe defaults are code-side;
+    // operators opt in at runtime only (see docs/SCRAPER-FLEET.md / #85).
     for (const file of ["fly.toml", "Dockerfile.scraper"]) {
-      const headed = scrapeSourcesEnv(file);
-      expect(headed).toContain("truecar");
-      for (const id of defaults) expect(headed).toContain(id);
-      expect(
-        headed.filter((id) => !defaults.includes(id) && id !== "truecar"),
-      ).toEqual([]);
+      const src = readFileSync(file, "utf8");
+      expect(src).not.toMatch(/^\s*ENV\s+SCRAPE_SOURCES\s*=/m);
+      expect(src).not.toMatch(/^\s*SCRAPE_SOURCES\s*=/m);
     }
   });
 
