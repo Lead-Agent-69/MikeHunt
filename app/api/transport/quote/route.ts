@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { STATE_COORDS } from "@/lib/geo";
 import { roadRoute, type LatLng } from "@/lib/geo/routing";
 
@@ -72,6 +73,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error("Transport Quote Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("transport:quote", error);
   }
 }

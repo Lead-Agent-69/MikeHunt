@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Registry GET failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Registry GET failed" },
+      { error: "Registry GET failed" },
       { status: 500 },
     );
   }

@@ -45,8 +45,9 @@ export async function PUT(
     return NextResponse.json(data);
   } catch (error: any) {
     console.error("[SAVED-CARS-ID] PUT error:", error);
+    console.error("[saved-cars/id]", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to update saved car" },
+      { error: "Failed to update saved car" },
       { status: 500 },
     );
   }
@@ -79,8 +80,9 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[SAVED-CARS-ID] DELETE error:", error);
+    console.error("[saved-cars/id]", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to delete saved car" },
+      { error: "Failed to delete saved car" },
       { status: 500 },
     );
   }

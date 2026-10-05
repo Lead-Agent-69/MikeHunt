@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await q;
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("flash-deals", error);
 
     const deals = (data || [])
       .filter((row) => !isAuctionChannel(row.source))
@@ -100,6 +101,6 @@ export async function GET(request: NextRequest) {
       },
     );
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("flash-deals", e);
   }
 }

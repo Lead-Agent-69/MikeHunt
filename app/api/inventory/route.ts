@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { InventoryService } from "@/lib/data/inventory-service";
 import {
   isSupabaseConfigured,
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("inventory", error);
     }
 
     // Close-the-loop, step 1: snapshot the engine's prediction into deal_outcomes (open/purchased

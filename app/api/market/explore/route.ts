@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import {
   listingsForDesk,
@@ -236,6 +237,6 @@ export async function GET(req: NextRequest) {
           },
     );
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("market:explore", e);
   }
 }

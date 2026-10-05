@@ -86,11 +86,13 @@ export async function GET(req: NextRequest) {
   if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
 
   const { data, error } = await q;
-  if (error)
+  if (error) {
+    console.error("[public/v1/deals]", error.message);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Something went wrong" },
       { status: 500, headers: CORS },
     );
+  }
 
   const rows = (data || []).map((d: any) => ({
     id: d.id,

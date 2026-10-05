@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   isSupabaseConfigured,
   createServerComponentClient,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data || []);
   } catch (err: any) {
     console.error("Failed to fetch parts estimates:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("parts", err);
   }
 }
 
@@ -115,6 +116,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
   } catch (err: any) {
     console.error("Failed to save parts estimate:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("parts", err);
   }
 }

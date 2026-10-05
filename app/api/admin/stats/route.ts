@@ -123,9 +123,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: any) {
     console.error("[admin/stats] error:", e);
-    return NextResponse.json(
-      { error: "Internal error", details: e.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

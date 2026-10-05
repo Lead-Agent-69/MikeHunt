@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 
@@ -190,6 +191,6 @@ export async function GET(
     return NextResponse.json({ ...out, source: "live" });
   } catch (error: any) {
     console.error("VIN Decode Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("vin:[vin]", error);
   }
 }

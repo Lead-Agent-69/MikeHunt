@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await q;
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("bulk", error);
 
     // Group by make + normalized model.
     const groups = new Map<string, any[]>();
@@ -123,6 +124,6 @@ export async function GET(req: NextRequest) {
       state: state || "nationwide",
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("bulk", e);
   }
 }

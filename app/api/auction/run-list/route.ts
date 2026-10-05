@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("auction:run-list", error);
     }
 
     // Match inline against our REAL inventory — a single fast VIN IN-query, so no Redis/queue is needed
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
       .single();
     return NextResponse.json(done ?? data);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("auction:run-list", err);
   }
 }
 
@@ -125,11 +126,11 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("auction:run-list", error);
     }
 
     return NextResponse.json(data);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("auction:run-list", err);
   }
 }

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     { onConflict: "user_id,endpoint" },
   );
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("push:subscribe", error);
   return NextResponse.json({ ok: true });
 }
 

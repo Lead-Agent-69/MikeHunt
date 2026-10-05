@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
@@ -45,6 +46,6 @@ export async function PUT(
       { onConflict: "user_id,deal_id" },
     );
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("deals:[id]:notes", error);
   return NextResponse.json({ note });
 }
