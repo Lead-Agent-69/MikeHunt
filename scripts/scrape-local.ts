@@ -26,13 +26,22 @@ import {
 import type { LocalWriteContext } from "../lib/scrapers/local-write-context";
 import {
   loadRotation,
-  planSweepStates,
   recordSweepPlan,
   resolveSweepStatesPerRun,
   resolveSweepZipsPerState,
   saveRotation,
   withSweepPlan,
 } from "../lib/scrapers/sweep-plan";
+import {
+  type DemandRow,
+  loadSourceHealth,
+  planDemandSweep,
+  recordSourceYield,
+  saveSourceHealth,
+  sourcesForSweep,
+  startSweep,
+  summarizeDemand,
+} from "../lib/scrapers/sweep-demand";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -95,6 +104,7 @@ interface Status {
     total?: number;
     nextAt?: string;
     states?: string[];
+    demandStates?: string[];
   };
   accessBarriers: {
     host: string;
@@ -339,13 +349,20 @@ async function runSweepTick(
     return Boolean(source && source.enabled && !source.requiresAuth);
   });
   const prior = await loadSweepState();
-  const step = nextSweepStep(prior, sources, resolveSweepIntervalMs());
+  const health = await loadSourceHealth();
+  // Sources that keep coming back empty sit out some sweeps (2, 4, then 8). Only used for a new sweep.
+  const step = nextSweepStep(
+    prior,
+    sourcesForSweep(sources, health),
+    resolveSweepIntervalMs(),
+  );
   if (step.kind === "idle") {
     currentStatus.sweep = { nextAt: step.nextAt };
     return false;
   }
   if (!step.state.plan) {
-    // New sweep: pick the least-recently-swept states, fewest listings first on ties.
+    // New sweep: signed-in users' home/search states get demand slots; every other state keeps a
+    // least-recently-swept baseline floor so nothing starves.
     const rotation = await loadRotation();
     const counts: Record<string, number> = {};
     try {
@@ -358,14 +375,35 @@ async function runSweepTick(
     } catch {
       // Counts only break ties. Rotation alone still covers every state.
     }
-    const plan = planSweepStates(rotation, {
+    let demandRows: DemandRow[] = [];
+    try {
+      const { data, error } = await supabase.rpc("scrape_demand", {
+        p_active_days: 30,
+      });
+      if (error) throw error;
+      demandRows = (data || []) as DemandRow[];
+    } catch (error) {
+      // Missing RPC (not applied yet) or a network blip: plain rotation still covers every state.
+      console.warn(
+        `[sweep] demand unavailable, rotation only: ${(error as Error).message}`,
+      );
+    }
+    const plan = planDemandSweep(rotation, {
       perSweep: resolveSweepStatesPerRun(),
       zipsPerState: resolveSweepZipsPerState(),
       counts,
+      demand: summarizeDemand(demandRows),
     });
-    step.state.plan = plan;
+    step.state.plan = { states: plan.states, zipsByState: plan.zipsByState };
     await saveRotation(recordSweepPlan(rotation, plan));
-    console.log(`[sweep] states this sweep: ${plan.states.join(", ")}`);
+    await saveSourceHealth(startSweep(health));
+    currentStatus.sweep = {
+      ...currentStatus.sweep,
+      demandStates: plan.demandStates,
+    };
+    console.log(
+      `[sweep] states this sweep: ${plan.states.join(", ")}${plan.demandStates.length ? ` (demand: ${plan.demandStates.join(", ")})` : ""}`,
+    );
   }
   await saveSweepState(step.state);
   currentStatus.state = "running";
@@ -376,6 +414,7 @@ async function runSweepTick(
     position: step.state.index + 1,
     total: step.state.sources.length,
     states: step.state.plan?.states,
+    demandStates: currentStatus.sweep?.demandStates,
   };
   currentStatus.lastRun = new Date().toISOString();
   await writeStatus();
@@ -397,6 +436,15 @@ async function runSweepTick(
       ...results,
       ...currentStatus.results.filter((r) => r.source !== step.source),
     ].slice(0, 50);
+    let nextHealth = await loadSourceHealth();
+    for (const result of results)
+      nextHealth = recordSourceYield(
+        nextHealth,
+        result.source,
+        Number(result.dealsFound) || 0,
+        Boolean(result.success),
+      );
+    await saveSourceHealth(nextHealth);
     for (const result of results)
       console.log(
         `[sweep] ${result.source}: ${result.success ? "ok" : "failed"}, ${result.dealsFound} rows${result.error ? ` (${result.error})` : ""}`,
