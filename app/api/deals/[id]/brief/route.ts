@@ -12,6 +12,7 @@ import {
 } from "@/lib/ai/text-model";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 
 // GET /api/deals/[id]/brief — a short, plain-English dealer brief for a deal: why the verdict, the
 // real risks, and what to verify before bidding. Generated from the deal's own structured numbers
@@ -123,6 +124,22 @@ export async function GET(
       windowMs: 60_000,
     });
     if (!genRl.allowed) return tooManyRequests(genRl);
+  }
+
+  // The brief is a flip CFO memo (net profit, max bid, holding cost). Only a saved reseller /
+  // dealer desk gets it; everyone else gets a hidden widget and generation is refused (fail closed).
+  if (!(await resolveCallerFlipDesk())) {
+    if (wantGenerate) {
+      return NextResponse.json(
+        { error: "The deal brief is part of the dealer desk." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json({
+      brief: null,
+      canGenerate: false,
+      deskAccess: "personal",
+    });
   }
   const supabase = createServerComponentClient();
 
