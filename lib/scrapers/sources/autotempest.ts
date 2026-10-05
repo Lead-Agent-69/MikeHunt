@@ -12,6 +12,7 @@
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 
 const API = "https://www.autotempest.com/api/search";
 const UA =
@@ -194,6 +195,24 @@ const REGIONAL_MAKES = ["ford", "chevrolet", "toyota"];
 const REGIONAL_RADIUS = 250; // miles — pulls state-local + neighboring inventory
 const ZIPS_PER_RUN = 12; // rotate a window of state zips so all 50 are covered every ~4 runs
 
+/**
+ * Regional-pass search centers: every planned metro during a Docker sweep (so the rotation reaches
+ * every state), else a random window of ZIPS_PER_RUN state seeds (the old behavior).
+ */
+export function autotempestRegionalZips(
+  plan: SweepPlan | undefined = getSweepPlan(),
+  random = Math.random,
+): string[] {
+  const planned = sweepPlanZips(plan);
+  if (planned.length) return planned;
+  const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+  const start = Math.floor(random() * stateZips.length);
+  return Array.from(
+    { length: Math.min(ZIPS_PER_RUN, stateZips.length) },
+    (_, i) => stateZips[(start + i) % stateZips.length],
+  );
+}
+
 export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
   console.log("[Autotempest] Starting aggregator scrape...");
   const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
@@ -214,11 +233,9 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
     }
   }
 
-  // Pass 2 — REGIONAL: rotate a window of state seed zips with a tight radius so EVERY state
-  // (incl. sparse rural ones) gets local inventory. The window start rotates each run.
-  const start = Math.floor(Math.random() * stateZips.length);
-  for (let i = 0; i < ZIPS_PER_RUN; i++) {
-    const zip = stateZips[(start + i) % stateZips.length];
+  // Pass 2 — REGIONAL: tight-radius local inventory. In a Docker sweep this follows the state
+  // rotation (every planned metro); otherwise a random window of state seeds.
+  for (const zip of autotempestRegionalZips()) {
     for (const make of REGIONAL_MAKES) {
       try {
         await harvestQuery({ make }, zip, byId, 1, REGIONAL_RADIUS);

@@ -22,6 +22,7 @@ import {
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
+import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import pLimit from "p-limit";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
@@ -201,6 +202,26 @@ const CL_CITIES: string[] = (() => {
   return cap > 0 ? all.slice(0, cap) : all;
 })();
 
+/**
+ * Craigslist sites for this run. CL_CITIES (operator override) wins. In a Docker sweep, every
+ * site in the planned states, so each run covers a rotating slice of all 50 states. Otherwise
+ * the full (optionally sharded/capped) list.
+ */
+export function craigslistSitesForRun(
+  plan: SweepPlan | undefined = getSweepPlan(),
+  envCities: string | undefined = process.env.CL_CITIES,
+): string[] {
+  if (envCities?.trim()) return CL_CITIES;
+  if (plan?.states?.length) {
+    const wanted = new Set(plan.states.map((s) => s.toUpperCase()));
+    const sites = CRAIGSLIST_SITES.filter((s) => wanted.has(s.state)).map(
+      (s) => s.site,
+    );
+    if (sites.length) return sites;
+  }
+  return CL_CITIES;
+}
+
 export const CL_CONFIG: ScraperConfig = {
   name: "Craigslist",
   baseUrl: "https://craigslist.org",
@@ -224,15 +245,24 @@ export async function scrapeCraigslist(
   minPrice = 500,
   maxPrice = 35000,
 ) {
+  const plan = getSweepPlan();
+  const cities = craigslistSitesForRun(plan);
+  // A sweep covers many sites. Keep each one shallow (CL_SWEEP_PAGES, default 2 x 120 rows).
+  const config: ScraperConfig = plan
+    ? {
+        ...CL_CONFIG,
+        maxPages: Math.max(1, parseInt(process.env.CL_SWEEP_PAGES || "2") || 2),
+      }
+    : CL_CONFIG;
   console.log(
-    `[Craigslist] Scanning ${CL_CITIES.length} cities × ${CL_CHANNELS.length} channels...`,
+    `[Craigslist] Scanning ${cities.length} cities × ${CL_CHANNELS.length} channels...`,
   );
   const allDeals: Partial<Deal>[] = [];
 
-  for (const city of CL_CITIES) {
+  for (const city of cities) {
     for (const channel of CL_CHANNELS) {
       const gen = paginate<Partial<Deal>>(
-        CL_CONFIG,
+        config,
         (page) =>
           `https://${city}.craigslist.org/search/${channel.path}?` +
           `query=${query}&min_price=${minPrice}&max_price=${maxPrice}&s=${(page - 1) * 120}`,

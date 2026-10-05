@@ -21,19 +21,25 @@ export function resolveScraperExecutionMode(
   return "direct";
 }
 
-/** Free, unauthenticated sources a broad sweep walks, in order. */
+/**
+ * Free, unauthenticated sources a broad sweep walks, in order. Retail sources with a VIN and a
+ * listing location go first because the daily insert budget is spent in this order. Auction and
+ * surplus feeds take what is left.
+ */
 export const DEFAULT_SWEEP_SOURCES = [
-  "craigslist",
-  "carvana",
-  "autotempest",
-  "ebay_sold",
-  "publicsurplus",
   "cars_com",
   "autotrader",
-  "cargurus",
+  "autotempest",
+  "carvana",
+  "craigslist",
   "ebay_motors",
-  "independent_dealer",
   "curated_dealers",
+  "ebay_sold",
+  "cargurus",
+  "independent_dealer",
+  "publicsurplus",
+  "govdeals",
+  "gsa_auctions",
   "copart",
 ] as const;
 
@@ -65,6 +71,8 @@ export interface SweepState {
   sources: string[];
   /** Index of the next source to run in `sources`. */
   index: number;
+  /** States and search ZIPs this sweep covers. Fixed at sweep start so a resume keeps them. */
+  plan?: { states: string[]; zipsByState: Record<string, string[]> };
   lastCompletedAt?: string;
 }
 
