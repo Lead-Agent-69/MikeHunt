@@ -7,10 +7,19 @@ import { createWriteStream } from "node:fs";
 import { format } from "node:util";
 import { LocalScraperCache } from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
+import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
 import {
-  claimNextScopedScrapeJob,
-  isRemoteScrapeQueueEnabled,
-} from "../lib/scrapers/job-queue";
+  advanceSweep,
+  claimBackoffMs,
+  loadSweepState,
+  nextSweepStep,
+  resolveScraperExecutionMode,
+  resolveSweepIntervalMs,
+  resolveSweepSources,
+  saveSweepState,
+  type ScraperExecutionMode,
+} from "../lib/scrapers/sweep-schedule";
+import type { LocalWriteContext } from "../lib/scrapers/local-write-context";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -25,20 +34,6 @@ if (
   );
 }
 
-const DEFAULT_SOURCES = [
-  "craigslist",
-  "carvana",
-  "autotempest",
-  "ebay_sold",
-  "publicsurplus",
-  "cars_com",
-  "autotrader",
-  "cargurus",
-  "ebay_motors",
-  "independent_dealer",
-  "curated_dealers",
-  "copart",
-];
 const MAX_PARALLEL = Math.max(
   1,
   Math.min(3, Number(process.env.MAX_PARALLEL_SOURCES || 3)),
@@ -80,6 +75,13 @@ interface Status {
     requestedAt: string;
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
+  sweep?: {
+    startedAt?: string;
+    source?: string;
+    position?: number;
+    total?: number;
+    nextAt?: string;
+  };
   accessBarriers: {
     host: string;
     status: number;
@@ -280,6 +282,98 @@ async function initializeRuntime(): Promise<void> {
   };
 }
 
+function buildLocalContext(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+): LocalWriteContext {
+  return {
+    cache,
+    supabase,
+    cacheOnly: currentStatus.cacheOnly,
+    beforeWrite: waitUntilWritable,
+    respectAccessBlocks: true,
+    onAccessBarrier: (barrier: {
+      host: string;
+      status: number;
+      reason: string;
+    }) => {
+      currentStatus.accessBarriers = [
+        { ...barrier, at: new Date().toISOString() },
+        ...currentStatus.accessBarriers,
+      ].slice(0, 100);
+      void writeStatus();
+    },
+  };
+}
+
+/**
+ * Hybrid idle tick: run ONE source of the broad sweep, through the local quota cache, then return
+ * to the buyer queue. Returns false when no sweep work is due.
+ */
+async function runSweepTick(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+): Promise<boolean> {
+  if (quotaReached()) return false;
+  const { createScraperRegistry, runScrapers } =
+    await import("../lib/scrapers/runner");
+  const registry = createScraperRegistry();
+  const sources = resolveSweepSources().filter((id) => {
+    const source = registry.get(id);
+    return Boolean(source && source.enabled && !source.requiresAuth);
+  });
+  const prior = await loadSweepState();
+  const step = nextSweepStep(prior, sources, resolveSweepIntervalMs());
+  if (step.kind === "idle") {
+    currentStatus.sweep = { nextAt: step.nextAt };
+    return false;
+  }
+  await saveSweepState(step.state);
+  currentStatus.state = "running";
+  currentStatus.currentSources = [step.source];
+  currentStatus.sweep = {
+    startedAt: step.state.startedAt,
+    source: step.source,
+    position: step.state.index + 1,
+    total: step.state.sources.length,
+  };
+  currentStatus.lastRun = new Date().toISOString();
+  await writeStatus();
+  console.log(
+    `[sweep] ${step.state.index + 1}/${step.state.sources.length} ${step.source}`,
+  );
+  try {
+    const results = await withLocalWriteContext(
+      buildLocalContext(supabase),
+      () =>
+        runScrapers({
+          orchestrator: "sequential",
+          sourceIds: [step.source],
+        }),
+    );
+    currentStatus.results = [
+      ...results,
+      ...currentStatus.results.filter((r) => r.source !== step.source),
+    ].slice(0, 50);
+    for (const result of results)
+      console.log(
+        `[sweep] ${result.source}: ${result.success ? "ok" : "failed"}, ${result.dealsFound} rows${result.error ? ` (${result.error})` : ""}`,
+      );
+  } catch (error) {
+    // One broken source must not stall the sweep or the buyer queue.
+    console.error(`[sweep] ${step.source} threw:`, (error as Error).message);
+  } finally {
+    const next = advanceSweep(step.state);
+    await saveSweepState(next);
+    if (!next.startedAt) {
+      const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
+      await closeSmartFetch().catch(() => {});
+      console.log(`[sweep] complete at ${next.lastCompletedAt}`);
+    }
+    currentStatus.currentSources = [];
+    await writeStatus();
+  }
+  return true;
+}
+
 async function runCycle(): Promise<void> {
   const [
     { createScraperRegistry },
@@ -300,13 +394,7 @@ async function runCycle(): Promise<void> {
     auth: { autoRefreshToken: false, persistSession: false },
   });
   const explicitSources = Boolean(process.env.SCRAPE_SOURCES?.trim());
-  const requested = explicitSources
-    ? process.env
-        .SCRAPE_SOURCES!.split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : DEFAULT_SOURCES;
-  const sourceIds = Array.from(new Set(requested));
+  const sourceIds = resolveSweepSources();
   const unavailable = sourceIds.filter((id) => {
     const source = registry.get(id);
     return !source || !source.enabled || source.requiresAuth;
@@ -367,24 +455,7 @@ async function runCycle(): Promise<void> {
     },
   });
 
-  const localContext = {
-    cache,
-    supabase,
-    cacheOnly: currentStatus.cacheOnly,
-    beforeWrite: waitUntilWritable,
-    respectAccessBlocks: true,
-    onAccessBarrier: (barrier: {
-      host: string;
-      status: number;
-      reason: string;
-    }) => {
-      currentStatus.accessBarriers = [
-        { ...barrier, at: new Date().toISOString() },
-        ...currentStatus.accessBarriers,
-      ].slice(0, 100);
-      void writeStatus();
-    },
-  };
+  const localContext = buildLocalContext(supabase);
   try {
     await withLocalWriteContext(localContext, () =>
       orchestrator.run(enabledSourceIds),
@@ -405,7 +476,7 @@ async function runCycle(): Promise<void> {
   await writeStatus();
 }
 
-async function runQueuedJobLoop(): Promise<void> {
+async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   const { createClient } = await import("@supabase/supabase-js");
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -419,10 +490,34 @@ async function runQueuedJobLoop(): Promise<void> {
   const { runScrapers } = await import("../lib/scrapers/runner");
 
   console.log(
-    `[scrape-queue] ${WORKER_ID} polling buyer-scoped jobs every ${QUEUE_POLL_MS}ms`,
+    `[scrape-queue] ${WORKER_ID} polling buyer-scoped jobs every ${QUEUE_POLL_MS}ms (${mode})`,
   );
+  let claimFailures = 0;
   while (!stopRequested) {
-    const job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+    let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
+    try {
+      job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+      claimFailures = 0;
+    } catch (error) {
+      // A dropped connection to Supabase is transient. Back off and keep polling instead of
+      // crashing the container into a restart loop.
+      claimFailures += 1;
+      const wait = claimBackoffMs(claimFailures);
+      currentStatus.lastError = (error as Error).message;
+      console.warn(
+        `[scrape-queue] claim failed (${claimFailures}x), retrying in ${Math.round(wait / 1000)}s: ${(error as Error).message}`,
+      );
+      await writeStatus().catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      continue;
+    }
+    if (!job && mode === "hybrid" && !manualPaused) {
+      try {
+        if (await runSweepTick(supabase)) continue;
+      } catch (error) {
+        console.error("[sweep] tick failed:", (error as Error).message);
+      }
+    }
     if (!job) {
       currentStatus.state = manualPaused ? "paused" : "running";
       currentStatus.currentSources = [];
@@ -588,7 +683,8 @@ void initializeRuntime()
     server.listen(PORT, "0.0.0.0", () =>
       console.log(`[local-scraper] dashboard listening on ${PORT}`),
     );
-    return isRemoteScrapeQueueEnabled() ? runQueuedJobLoop() : main();
+    const mode = resolveScraperExecutionMode();
+    return mode === "direct" ? main() : runQueuedJobLoop(mode);
   })
   .catch((error) => {
     if (currentStatus) {
