@@ -34,18 +34,27 @@ describe("narrate-only text model", () => {
     expect(HAIKU_NARRATIVE_MODEL.toLowerCase()).not.toContain("opus");
   });
 
-  it("uses a non-Opus ANTHROPIC_MODEL override and otherwise falls back", () => {
+  it("uses a non-Opus ANTHROPIC_MODEL override", () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
     process.env.ANTHROPIC_MODEL = "claude-haiku-4-5";
     const model = getTextModel() as { modelId?: string };
     expect(model.modelId).toBe("claude-haiku-4-5");
+  });
 
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_MODEL;
+  it("has no OpenAI or Gemini fallback", () => {
     process.env.OPENAI_API_KEY = "openai-key";
-    expect(activeProvider()).toBe("openai");
-    delete process.env.OPENAI_API_KEY;
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "gemini-key";
     expect(activeProvider()).toBe("none");
     expect(hasTextModel()).toBe(false);
+    const model = getTextModel() as { provider?: string };
+    expect(model.provider).toBe("anthropic.messages");
+  });
+
+  it("returns a model spec version the installed ai SDK can run", () => {
+    // ai@6 only accepts v2/v3 language models; @ai-sdk/anthropic@4 (v4) throws
+    // UnsupportedModelVersionError at generateText time.
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const model = getTextModel() as { specificationVersion?: string };
+    expect(["v2", "v3"]).toContain(model.specificationVersion);
   });
 });

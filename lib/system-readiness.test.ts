@@ -26,8 +26,9 @@ describe("systemReadiness", () => {
       SCRAPE_SECRET: "scrape-secret",
       GOOGLE_OAUTH_VERIFIED: "",
       SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET: "",
-      OPENAI_API_KEY: "",
-      GOOGLE_GENERATIVE_AI_API_KEY: "",
+      ANTHROPIC_API_KEY: "",
+      OPENAI_API_KEY: "openai-key-is-ignored",
+      GOOGLE_GENERATIVE_AI_API_KEY: "gemini-key-is-ignored",
     };
     const { systemReadiness } = await import("./system-readiness");
 
@@ -71,12 +72,12 @@ describe("systemReadiness", () => {
     });
     expect(ai?.userImpact).toContain("deterministic buy/pass math");
     expect(ai?.userImpact).toContain("provider AI is the upgrade");
-    expect(ai?.envStatus).toEqual(
-      expect.arrayContaining([
-        { key: "OPENAI_API_KEY", present: false },
-        { key: "GOOGLE_GENERATIVE_AI_API_KEY", present: false },
-      ]),
-    );
+    // OpenAI / Gemini keys no longer count as an AI provider (no fallback).
+    expect(ai?.envStatus).toEqual([
+      { key: "ANTHROPIC_API_KEY", present: false },
+    ]);
+    expect(JSON.stringify(ai)).not.toContain("OPENAI_API_KEY");
+    expect(JSON.stringify(ai)).not.toContain("GOOGLE_GENERATIVE_AI_API_KEY");
     expect(readiness.summary).toMatchObject({
       readyCount: 3,
       total: 5,
