@@ -25,7 +25,7 @@ export type BuyerIntent = {
   watchedDealerSourceIds?: string[];
 };
 
-export type BuyerMode = "personal" | "diy" | "reseller" | "dealer";
+export type BuyerMode = "personal" | "diy" | "parts" | "reseller" | "dealer";
 
 export const BUYER_MODES: Record<
   BuyerMode,
@@ -53,6 +53,16 @@ export const BUYER_MODES: Record<
       "Tools and workspace",
       "Parts",
       "Repair uncertainty",
+    ],
+  },
+  parts: {
+    label: "Parts / teardown",
+    question: "Is this worth parting out?",
+    priorities: [
+      "High-value cores",
+      "Title and salvage risk",
+      "Yard time",
+      "Parts demand",
     ],
   },
   reseller: {
@@ -83,6 +93,8 @@ export function normalizeBuyerMode(value: unknown): BuyerMode | undefined {
     .trim();
   if (raw === "personal" || raw === "personal-buyer") return "personal";
   if (raw === "diy" || raw === "enthusiast") return "diy";
+  if (raw === "parts" || raw === "parts-buyer" || raw === "teardown")
+    return "parts";
   if (raw === "reseller" || raw === "independent-reseller") return "reseller";
   if (raw === "dealer" || raw === "team" || raw === "dealer-team") {
     return "dealer";

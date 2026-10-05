@@ -1,7 +1,12 @@
-// Personal and DIY buyers should not see an ask-haircut called profit.
+// Personal, DIY, and parts buyers should not see an ask-haircut called profit.
 // Reseller and dealer modes keep the flip lead. A missing mode is personal.
 
-export type FlipLeadMode = "personal" | "diy" | "reseller" | "dealer";
+export type FlipLeadMode =
+  | "personal"
+  | "diy"
+  | "parts"
+  | "reseller"
+  | "dealer";
 
 export function normalizeFlipLeadMode(
   value: unknown,
@@ -11,6 +16,8 @@ export function normalizeFlipLeadMode(
     .trim();
   if (raw === "personal" || raw === "personal-buyer") return "personal";
   if (raw === "diy" || raw === "enthusiast") return "diy";
+  if (raw === "parts" || raw === "parts-buyer" || raw === "teardown")
+    return "parts";
   if (raw === "reseller" || raw === "independent-reseller") return "reseller";
   if (raw === "dealer" || raw === "team" || raw === "dealer-team")
     return "dealer";

@@ -14,6 +14,12 @@ describe("saved buyer mode desk", () => {
     expect(isPersonalDeskMode(undefined)).toBe(true);
   });
 
+  it("opens parts as the parts desk, not the dealer console", () => {
+    expect(userTypeFromSavedBuyerMode("parts")).toBe("parts");
+    expect(userTypeFromSavedBuyerMode("teardown")).toBe("parts");
+    expect(isPersonalDeskMode("parts")).toBe(true);
+  });
+
   it("keeps reseller and dealer on the command desk", () => {
     expect(userTypeFromSavedBuyerMode("reseller")).toBe("dealer");
     expect(userTypeFromSavedBuyerMode("dealer")).toBe("dealer");
