@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest } from "next/server";
 
 /**
@@ -14,5 +15,14 @@ export function isAuthorizedCron(request: NextRequest): boolean {
   if (!expected) return false;
 
   const authHeader = request.headers.get("authorization");
-  return authHeader === `Bearer ${expected}`;
+  if (!authHeader) return false;
+  return bearerMatches(authHeader, expected);
+}
+
+/** Constant-time compare. Length mismatch returns before timingSafeEqual, which requires equal buffers. */
+function bearerMatches(presented: string, secret: string): boolean {
+  const left = Buffer.from(presented);
+  const right = Buffer.from(`Bearer ${secret}`);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
 }
