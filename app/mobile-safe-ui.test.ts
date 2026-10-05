@@ -25,7 +25,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain("right-4 top-20");
     expect(aiFeatures).toContain("lg:top-auto lg:bottom-6");
     expect(aiFeatures).toContain("open-mikehunt-copilot");
-    expect(bottomNav).toContain("MOBILE_PRIMARY");
+    expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain(
       'layoutId={reducedMotion ? undefined : "bottom-nav-active-pill"}',
     );

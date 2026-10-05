@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
-  MOBILE_PRIMARY,
+  mobileNavForMode,
   navItemMatchesPath,
   primaryJobForPath,
 } from "@/components/layout/nav-items";
@@ -18,6 +19,8 @@ export function BottomNav() {
   const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
   const activeJob = primaryJobForPath(pathname);
+  const { intent } = useBuyerIntent();
+  const tabs = mobileNavForMode(intent?.buyerMode);
   const watchScopeCount = localSaved.count + localSearches.count;
 
   const tapFeedback = () => {
@@ -40,7 +43,7 @@ export function BottomNav() {
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      {MOBILE_PRIMARY.map((item) => {
+      {tabs.map((item) => {
         const isActive =
           navItemMatchesPath(item, pathname) ||
           (item.name === "Discover" && pathname === "/") ||

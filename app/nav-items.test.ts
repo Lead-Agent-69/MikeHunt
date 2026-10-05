@@ -5,6 +5,10 @@ import {
   MORE_GROUPS,
   PRIMARY,
   navJobCoverage,
+  hidesFlipNav,
+  mobileNavForMode,
+  moreGroupsForMode,
+  primaryNavForMode,
   navItemMatchesPath,
   primaryJobForPath,
 } from "@/components/layout/nav-items";
@@ -175,5 +179,48 @@ describe("primaryJobForPath", () => {
     expect(discoverPage).toContain("View all matches & filters");
     expect(discoverPage).not.toContain("<BuyerScopeBuilder");
     expect(discoverPage).not.toContain("<SetupStatusPanel");
+  });
+
+  it("drops auction, pipeline, and arbitrage tabs for non-flip desks", () => {
+    for (const mode of ["personal", "diy", "parts"]) {
+      expect(hidesFlipNav(mode)).toBe(true);
+      expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
+        "Discover",
+        "Deal Check",
+        "Saved",
+        "Alerts",
+      ]);
+      expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
+        "Discover",
+        "Deal Check",
+        "Saved",
+        "Alerts",
+        "Account",
+      ]);
+      const more = moreGroupsForMode(mode).flatMap((group) =>
+        group.items.map((item) => item.href),
+      );
+      expect(more).not.toContain("/auctions");
+      expect(more).not.toContain("/arbitrage");
+      expect(more).toContain("/parts");
+    }
+  });
+
+  it("keeps the full nav for flip desks and an unknown mode", () => {
+    for (const mode of ["reseller", "dealer", undefined, ""]) {
+      expect(hidesFlipNav(mode)).toBe(false);
+      expect(primaryNavForMode(mode)).toBe(PRIMARY);
+      expect(mobileNavForMode(mode)).toBe(MOBILE_PRIMARY);
+      expect(moreGroupsForMode(mode)).toBe(MORE_GROUPS);
+    }
+  });
+
+  it("reads the saved buyer mode in both navs", () => {
+    const top = readFileSync("components/layout/TopNav.tsx", "utf8");
+    const bottom = readFileSync("components/BottomNav.tsx", "utf8");
+    expect(top).toContain("primaryNavForMode(intent?.buyerMode)");
+    expect(bottom).toContain("mobileNavForMode(intent?.buyerMode)");
+    expect(top).not.toContain("{PRIMARY.map(");
+    expect(bottom).not.toContain("{MOBILE_PRIMARY.map(");
   });
 });
