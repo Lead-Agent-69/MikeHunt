@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { LocalScraperCache, listingHash } from "./local-cache";
+import { LocalScraperCache, listingHash, touchIsDue } from "./local-cache";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -27,11 +27,25 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
     initial.map((row) => [`${row.source}|${row.source_deal_id}`, { ...row }]),
   );
   const writes: Record<string, any>[][] = [];
+  const touches: { source: string; ids: string[]; patch: any }[] = [];
   return {
     rows,
     writes,
+    touches,
     client: {
       from: () => ({
+        update: (patch: Record<string, any>) => ({
+          eq: (_column: string, source: string) => ({
+            in: async (_idColumn: string, ids: string[]) => {
+              touches.push({ source, ids, patch });
+              for (const id of ids) {
+                const stored = rows.get(`${source}|${id}`);
+                if (stored) Object.assign(stored, patch);
+              }
+              return { data: null, error: null };
+            },
+          }),
+        }),
         select: () => {
           let source = "";
           return {
@@ -195,5 +209,80 @@ describe("LocalScraperCache", () => {
       inserts: 0,
       updates: 0,
     });
+  });
+
+  it("bumps last_seen_at for unchanged rows once the touch interval passes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-05T00:00:00.000Z"));
+    const { cache } = await makeCache({ touchIntervalMs: 12 * 3600_000 });
+    const db = fakeSupabase();
+    await cache.persistRows([row("a"), row("b")], db.client, "*");
+    expect(db.touches).toHaveLength(0);
+
+    vi.setSystemTime(new Date("2026-10-05T06:00:00.000Z"));
+    const early = await cache.persistRows([row("a"), row("b")], db.client, "*");
+    expect(early.touches).toBe(0);
+    expect(db.touches).toHaveLength(0);
+
+    vi.setSystemTime(new Date("2026-10-05T13:00:00.000Z"));
+    const due = await cache.persistRows([row("a"), row("b")], db.client, "*");
+    expect(due.touches).toBe(2);
+    expect(due.saved).toBe(0);
+    expect(db.writes).toHaveLength(1); // no extra full upsert
+    expect(db.touches).toEqual([
+      {
+        source: "test",
+        ids: ["a", "b"],
+        patch: { last_seen_at: "2026-10-05T13:00:00.000Z" },
+      },
+    ]);
+    expect(cache.getQuota().touches).toBe(2);
+  });
+
+  it("touches a matching remote row the cache has never written", async () => {
+    const { cache } = await makeCache();
+    const remote = { ...row("r"), last_seen_at: "2026-09-01T00:00:00.000Z" };
+    const db = fakeSupabase([remote]);
+    const result = await cache.persistRows([row("r")], db.client, "*");
+    expect(result.saved).toBe(0);
+    expect(result.touches).toBe(1);
+    expect(db.touches[0].ids).toEqual(["r"]);
+  });
+
+  it("stops touching at the daily touch cap", async () => {
+    const { cache } = await makeCache({ maxDailyTouches: 1 });
+    const db = fakeSupabase([
+      { ...row("x"), last_seen_at: "2026-09-01T00:00:00.000Z" },
+      { ...row("y"), last_seen_at: "2026-09-01T00:00:00.000Z" },
+    ]);
+    const result = await cache.persistRows(
+      [row("x"), row("y")],
+      db.client,
+      "*",
+    );
+    expect(result.touches).toBe(1);
+  });
+
+  it("only treats synced entries as touchable", () => {
+    const now = Date.parse("2026-10-05T12:00:00.000Z");
+    expect(touchIsDue(undefined, 1000, now)).toBe(false);
+    expect(
+      touchIsDue({ hash: "h", synced: false, lastSeenAt: "" }, 1000, now),
+    ).toBe(false);
+    expect(
+      touchIsDue({ hash: "h", synced: true, lastSeenAt: "" }, 1000, now),
+    ).toBe(true);
+    expect(
+      touchIsDue(
+        {
+          hash: "h",
+          synced: true,
+          lastSeenAt: "",
+          dbSeenAt: "2026-10-05T11:59:59.500Z",
+        },
+        1000,
+        now,
+      ),
+    ).toBe(false);
   });
 });
