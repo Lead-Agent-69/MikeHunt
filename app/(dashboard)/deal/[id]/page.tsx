@@ -26,6 +26,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/shared/ErrorState";
+import {
+  DealFetchError,
+  classifyDealLoadError,
+  dealLoadErrorCopy,
+} from "@/lib/deals/deal-load-error";
 import { Button } from "@/components/ui/button";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
@@ -421,7 +426,7 @@ const fetcher = async (url: string) => {
   // 402 = free-plan daily limit reached. Return the payload (locked:true) so the page can show an
   // upgrade prompt instead of a generic error.
   if (res.status === 402) return res.json();
-  if (!res.ok) throw new Error("Failed to fetch");
+  if (!res.ok) throw new DealFetchError(res.status);
   return res.json();
 };
 
@@ -819,15 +824,24 @@ export default function DealPage({
   }
 
   if (authError || error) {
+    const copy = authError
+      ? dealLoadErrorCopy("auth")
+      : dealLoadErrorCopy(classifyDealLoadError(error));
     return (
       <div className="max-w-5xl mx-auto mt-12">
         <ErrorState
-          title="Couldn't load deal"
-          message={
-            authError ||
-            `Error loading deal: ${error?.message || "Unknown error"}`
-          }
-          onRetry={() => window.location.reload()}
+          title={copy.title}
+          message={authError || copy.message}
+          icon={copy.action === "discover" ? "car" : "alert-triangle"}
+          retryLabel={copy.actionLabel}
+          onRetry={() => {
+            if (copy.action === "discover") window.location.assign("/discover");
+            else if (copy.action === "login")
+              window.location.assign(
+                `/login?next=${encodeURIComponent(window.location.pathname)}`,
+              );
+            else window.location.reload();
+          }}
         />
       </div>
     );
