@@ -10,7 +10,8 @@ import { Bell } from "lucide-react";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
-import { PRIMARY, primaryJobForPath } from "./nav-items";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { primaryNavForMode, primaryJobForPath } from "./nav-items";
 
 function IconBtn({
   href,
@@ -84,6 +85,8 @@ function TopNavContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeJob = primaryJobForPath(pathname);
+  const { intent } = useBuyerIntent();
+  const primaryNav = primaryNavForMode(intent?.buyerMode);
   const localSearches = useLocalSavedSearches();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
@@ -208,7 +211,7 @@ function TopNavContent() {
       {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
           overlap them as the window narrows. */}
       <nav className="hidden md:flex items-center gap-0.5 shrink-0">
-        {PRIMARY.map((item) => {
+        {primaryNav.map((item) => {
           const active =
             pathname === item.href ||
             (item.href === "/discover" && pathname === "/") ||

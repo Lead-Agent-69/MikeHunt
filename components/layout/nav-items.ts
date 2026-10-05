@@ -31,6 +31,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
 
 export type NavItem = {
   name: string;
@@ -70,6 +71,56 @@ export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Account", href: "/settings", icon: CircleUserRound },
 ];
+
+/**
+ * Wholesale flip tools: auction lanes, the dealer pipeline, and arbitrage.
+ * Personal, DIY, and parts buyers do not get these as tabs. The routes still
+ * work if opened directly; they are just not offered in the nav.
+ */
+export const FLIP_ONLY_HREFS: readonly string[] = [
+  "/lane",
+  "/auctions",
+  "/fleet",
+  "/arbitrage",
+];
+
+const ALERTS_TAB: NavItem = { name: "Alerts", href: "/alerts", icon: BellRing };
+
+/**
+ * Hide flip tools only for a known non-flip desk. A missing mode keeps the
+ * full nav so a dealer on a new device does not lose Auction or Pipeline.
+ */
+export function hidesFlipNav(buyerMode: unknown): boolean {
+  return (
+    normalizeFlipLeadMode(buyerMode) !== undefined &&
+    !isFlipBuyerMode(buyerMode)
+  );
+}
+
+function isFlipOnly(item: NavItem) {
+  return FLIP_ONLY_HREFS.includes(item.href);
+}
+
+/** Desktop primary nav for the saved buyer mode. */
+export function primaryNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return PRIMARY;
+  return [...PRIMARY.filter((item) => !isFlipOnly(item)), ALERTS_TAB];
+}
+
+/** Mobile tabs for the saved buyer mode. Keeps five tabs: Pipeline becomes Alerts. */
+export function mobileNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return MOBILE_PRIMARY;
+  return MOBILE_PRIMARY.map((item) => (isFlipOnly(item) ? ALERTS_TAB : item));
+}
+
+/** Grouped "More" routes for the saved buyer mode. */
+export function moreGroupsForMode(buyerMode: unknown): NavGroup[] {
+  if (!hidesFlipNav(buyerMode)) return MORE_GROUPS;
+  return MORE_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !isFlipOnly(item)),
+  })).filter((group) => group.items.length > 0);
+}
 
 export const MORE_GROUPS: NavGroup[] = [
   {
