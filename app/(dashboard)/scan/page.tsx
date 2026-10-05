@@ -66,6 +66,7 @@ import {
   buildBuyerIntentQuery,
   readLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import { defaultScanSort } from "@/lib/buyer/scan-sort";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -2622,6 +2623,12 @@ function ScanPageInner() {
     }
     if (modelParam) setModel(modelParam);
     if (sortParam) setSort(sortParam);
+    else
+      setSort(
+        defaultScanSort(
+          urlParams.get("mode") || readLocalBuyerIntent()?.buyerMode,
+        ),
+      );
     if (maxPriceParam) setMaxPrice(normalizeMaxPriceFilter(maxPriceParam));
     if (verdictParam) setVerdict(verdictParam);
     if (dealersParam) {
