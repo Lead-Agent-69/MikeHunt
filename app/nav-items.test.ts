@@ -223,4 +223,12 @@ describe("primaryJobForPath", () => {
     expect(top).not.toContain("{PRIMARY.map(");
     expect(bottom).not.toContain("{MOBILE_PRIMARY.map(");
   });
+
+  it("keeps the account menu's mobile Auction Lane shortcut off non-flip desks", () => {
+    const account = readFileSync("components/home/AccountMenu.tsx", "utf8");
+    expect(account).toContain("hidesFlipNav(intent?.buyerMode)");
+    expect(account).toMatch(
+      /\{showAuctionLane && \(\s*<button[\s\S]{0,200}router\.push\("\/lane"\)/,
+    );
+  });
 });
