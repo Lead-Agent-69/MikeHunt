@@ -4,7 +4,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
 import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
-import { buyTerms, dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
+import { dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
 
@@ -184,6 +185,8 @@ export function DealTable({
     flipDesk ? "profitEstimate" : null,
   );
   const [dir, setDir] = React.useState<"asc" | "desc">("desc");
+  // Same desk wording as DealCard: auction "Current bid" reads "Current price" off the flip desk.
+  const priceCopy = dealCardCopy(flipDesk);
   const sortKey =
     chosenSortKey && !flipDesk && FLIP_ONLY_SORT_KEYS.has(chosenSortKey)
       ? null
@@ -408,7 +411,7 @@ export function DealTable({
                     {fmt(r.askPrice)}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
-                    {buyTerms(r.source).priceLabel}
+                    {priceCopy.priceLabel(r.source)}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
