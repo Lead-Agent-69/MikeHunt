@@ -36,6 +36,7 @@ SCRAPE_INTERVAL_MS=1800000      # 30 min
 # AI_CRAWL_VDP_CAP=12
 # GOOGLE_GENERATIVE_AI_API_KEY=...
 # optional: dedicate a node to the walled trio
+# Dockerfile.scraper does not bake SCRAPE_SOURCES — leave unset for terms-safe defaults; set only to explicitly opt in (logs a warning each sweep).
 # SCRAPE_SOURCES=cars_com,autotrader,truecar
 ```
 
