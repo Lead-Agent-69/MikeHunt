@@ -207,12 +207,29 @@ describe("primaryJobForPath", () => {
     }
   });
 
-  it("keeps the full nav for flip desks and an unknown mode", () => {
-    for (const mode of ["reseller", "dealer", undefined, ""]) {
+  it("keeps the full nav for flip desks only", () => {
+    for (const mode of ["reseller", "dealer"]) {
       expect(hidesFlipNav(mode)).toBe(false);
       expect(primaryNavForMode(mode)).toBe(PRIMARY);
       expect(mobileNavForMode(mode)).toBe(MOBILE_PRIMARY);
       expect(moreGroupsForMode(mode)).toBe(MORE_GROUPS);
+    }
+  });
+
+  it("treats an unknown mode (signed out, no prefs) as personal", () => {
+    for (const mode of [undefined, null, "", "unknown"]) {
+      expect(hidesFlipNav(mode)).toBe(true);
+      const top = primaryNavForMode(mode).map((item) => item.href);
+      const mobile = mobileNavForMode(mode).map((item) => item.href);
+      expect(top).toEqual(
+        primaryNavForMode("personal").map((item) => item.href),
+      );
+      expect(mobile).toEqual(
+        mobileNavForMode("personal").map((item) => item.href),
+      );
+      expect(top).not.toContain("/lane");
+      expect(top).not.toContain("/fleet");
+      expect(mobile).not.toContain("/fleet");
     }
   });
 
@@ -238,8 +255,7 @@ describe("scanHrefForMode", () => {
   it("sorts Scan by profit only for flip desks", () => {
     expect(scanHrefForMode("reseller")).toBe("/scan?sort=profit");
     expect(scanHrefForMode("dealer")).toBe("/scan?sort=profit");
-    expect(scanHrefForMode(undefined)).toBe("/scan?sort=profit");
-    for (const mode of ["personal", "diy", "parts"]) {
+    for (const mode of ["personal", "diy", "parts", undefined, ""]) {
       expect(scanHrefForMode(mode)).toBe("/scan?sort=score");
     }
   });
@@ -261,7 +277,9 @@ describe("alerts page", () => {
   });
 
   it("keeps the dismiss control reachable on touch screens", () => {
-    expect(source).not.toMatch(/"absolute -top-3 -right-3 z-20 opacity-0 group-hover/);
+    expect(source).not.toMatch(
+      /"absolute -top-3 -right-3 z-20 opacity-0 group-hover/,
+    );
     expect(source).toContain('aria-label="Dismiss alert"');
   });
 });

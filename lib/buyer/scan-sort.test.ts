@@ -3,14 +3,23 @@ import { describe, expect, it } from "vitest";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 
 describe("defaultScanSort", () => {
-  it("sorts by trust score for personal, diy, and parts buyers", () => {
-    for (const mode of ["personal", "diy", "parts", "enthusiast", "teardown"]) {
+  it("sorts by trust score for personal, diy, parts, and unknown modes", () => {
+    for (const mode of [
+      "personal",
+      "diy",
+      "parts",
+      "enthusiast",
+      "teardown",
+      undefined,
+      "",
+      "unknown",
+    ]) {
       expect(defaultScanSort(mode)).toBe("score");
     }
   });
 
-  it("keeps profit for flip desks and unknown modes", () => {
-    for (const mode of ["reseller", "dealer", undefined, "", "unknown"]) {
+  it("keeps profit for flip desks only", () => {
+    for (const mode of ["reseller", "dealer", "team", "independent-reseller"]) {
       expect(defaultScanSort(mode)).toBe("profit");
     }
   });
