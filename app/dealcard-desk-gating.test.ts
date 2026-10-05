@@ -75,12 +75,30 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("Net Profit Est.");
     expect(html).not.toContain("Pass for now");
   });
+
+  it("does not show placeholder flip economics on unanalyzed live-preview rows", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        id: "live-copart-123",
+        flipDesk: true,
+        profitEstimate: 0,
+        recommendedMaxBid: undefined,
+      }),
+    );
+    expect(html).not.toContain("Net Profit Est.");
+    expect(html).not.toContain("+$0");
+    expect(html).not.toMatch(/spread/i);
+  });
 });
 
 describe("DealCard callers pass the buyer desk", () => {
-  it("Scan passes its isFlipBuyerMode-derived flipDesk", () => {
+  it("Scan passes flipDesk only when the server sent flip economics", () => {
     const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
-    expect(scan).toMatch(/<DealCard\s+flipDesk=\{flipDesk\}/);
+    expect(scan).toContain(
+      'const flipEconomics = flipDesk && swrData?.deskAccess !== "personal";',
+    );
+    expect(scan).toMatch(/<DealCard\s+flipDesk=\{flipEconomics\}/);
   });
 
   it("Alerts passes the server deskAccess", () => {

@@ -30,7 +30,7 @@ describe("Scan flip copy by buyer desk", () => {
   });
 
   it("gives the review strip price-first wording for non-flip desks", () => {
-    expect(scan).toContain("flipDesk={flipDesk}");
+    expect(scan).toMatch(/<ScanReviewStrip[\s\S]{0,300}flipDesk=\{flipEconomics\}/);
     expect(scan).toContain('label: "Avg asking"');
     expect(scan).toContain('"Check the price"');
     expect(scan).toMatch(/flipDesk\s*\?\s*\[\s*"2",\s*"Verify max bid"/);
