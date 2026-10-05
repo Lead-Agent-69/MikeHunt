@@ -51,6 +51,11 @@ const protectedRoutes = [
   "/api/saved-cars",
 ];
 
+// Pages that stay open to signed-out visitors but are still part of the
+// buyer app. A signed-in buyer who has not finished setup is sent to
+// onboarding from these too, so setup cannot be skipped through them.
+const publicBuyerRoutes = ["/scan", "/dealer-network"];
+
 // Auth routes
 const authRoutes = ["/login", "/register"];
 
@@ -105,6 +110,9 @@ export async function middleware(request: NextRequest) {
   const isProtectedRoute =
     !isCronEndpoint &&
     protectedRoutes.some((route) => pathname.startsWith(route));
+  const isSetupGatedRoute =
+    isProtectedRoute ||
+    publicBuyerRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
   const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
 
@@ -119,7 +127,7 @@ export async function middleware(request: NextRequest) {
 
     if (
       demoUser &&
-      isProtectedRoute &&
+      isSetupGatedRoute &&
       !isAdminRoute &&
       !pathname.startsWith("/onboarding") &&
       !pathname.startsWith("/api/") &&
@@ -239,7 +247,7 @@ export async function middleware(request: NextRequest) {
   if (
     user &&
     userId &&
-    isProtectedRoute &&
+    isSetupGatedRoute &&
     !isAdminRoute &&
     !pathname.startsWith("/onboarding") &&
     !pathname.startsWith("/api/")
