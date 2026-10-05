@@ -501,7 +501,9 @@ export default function DiscoverPage() {
         </summary>
         {showInsights && (
           <div className="mt-4 space-y-6">
-            {hasLiveListings && <EdgeBanner />}
+            {/* Flip-economics widgets (profit on the board, highest-margin spotlight, best flip,
+                avg profit by model, "deals like your winners") are for reseller/dealer desks only. */}
+            {hasLiveListings && flipDesk && <EdgeBanner />}
             {/* Always show the saved dealer intent. Even before database import is live, this confirms the
           shops being watched and gives the user a direct path to source proof. */}
             <WatchedDealerFeed />
@@ -527,8 +529,9 @@ export default function DiscoverPage() {
                     Personalize your feed
                   </p>
                   <p className="text-xs text-[var(--t4)]">
-                    Set your states, budget & profit target in Settings to get a
-                    “For You” rail tuned to how you buy.
+                    {flipDesk
+                      ? "Set your states, budget & profit target in Settings to get a “For You” rail tuned to how you buy."
+                      : "Set your states and budget in Settings to get a “For You” rail tuned to how you buy."}
                   </p>
                 </div>
                 <span className="text-xs font-bold text-[var(--amber)]">
@@ -537,7 +540,7 @@ export default function DiscoverPage() {
               </a>
             )}
 
-            {hasLiveListings && (
+            {hasLiveListings && flipDesk && (
               <>
                 {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
                 <NextBestBuySpotlight initialState={state || undefined} />
@@ -545,14 +548,18 @@ export default function DiscoverPage() {
                 {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
                 <DiscoverHero state={state || undefined} />
 
+                {/* What the market's doing — top GO make/models by avg profit */}
+                <MarketPulse />
+              </>
+            )}
+
+            {hasLiveListings && (
+              <>
                 {/* Live ticker (Visor marquee) */}
                 <DealTicker />
 
                 {/* Market summary — at-a-glance intelligence (hides when empty) */}
                 <MarketSummary />
-
-                {/* What the market's doing — top GO make/models */}
-                <MarketPulse />
               </>
             )}
 
@@ -562,11 +569,13 @@ export default function DiscoverPage() {
                 <FlashRail state={state || undefined} />
 
                 {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
-                <IntelRail
-                  endpoint="/api/recommendations"
-                  title="Deals like your winners"
-                  subtitle="Matched to the make/models you've actually profited on"
-                />
+                {flipDesk && (
+                  <IntelRail
+                    endpoint="/api/recommendations"
+                    title="Deals like your winners"
+                    subtitle="Matched to the make/models you've actually profited on"
+                  />
+                )}
                 <IntelRail
                   endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
                   title="Underpriced vs peers"
