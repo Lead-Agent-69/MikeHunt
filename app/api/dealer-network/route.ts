@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { CURATED_SITES, SITE_TYPE_META } from "@/lib/scrapers/curated-sites";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -42,7 +43,14 @@ function service() {
   );
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "dealer-network",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const now = Date.now();
   const configured = isSupabaseConfigured();
   let map = cache && now - cache.at < 15 * 60 * 1000 ? cache.map : null;

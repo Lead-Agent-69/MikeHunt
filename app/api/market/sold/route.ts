@@ -45,19 +45,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ comps: [], count: 0, avg: null });
 
   return NextResponse.json({
-    comps: rows
-      .slice(0, 10)
-      .map((r: any) => ({
-        price: Number(r.sold_price),
-        soldAt: r.sold_at,
-        mileage: r.mileage,
-        state: r.location_state,
-        source: r.source,
-        sourceUrl:
-          typeof r.source_url === "string" && /^https?:\/\//i.test(r.source_url)
-            ? r.source_url
-            : null,
-      })),
+    comps: rows.slice(0, 10).map((r: any) => ({
+      price: Number(r.sold_price),
+      soldAt: r.sold_at,
+      mileage: r.mileage,
+      state: r.location_state,
+      source: r.source,
+      sourceUrl:
+        typeof r.source_url === "string" && /^https?:\/\//i.test(r.source_url)
+          ? r.source_url
+          : null,
+    })),
     count: prices.length,
     avg: Math.round(prices.reduce((s, x) => s + x, 0) / prices.length),
     low: Math.min(...prices),

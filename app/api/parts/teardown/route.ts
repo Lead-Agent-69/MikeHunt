@@ -6,6 +6,13 @@ import { PartsCalculator } from "@/lib/parts/parts-calculator";
 import { createServerComponentClient } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "parts-teardown-post",
+    limit: 20,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const partsCalculator = new PartsCalculator();
     const body = await request.json();

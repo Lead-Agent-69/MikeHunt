@@ -1,16 +1,17 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
-import {
-  summarizeCleanSold,
-  soldTitleLane,
-} from "@/lib/scoring/market-value";
+import { summarizeCleanSold, soldTitleLane } from "@/lib/scoring/market-value";
 
 // GET /api/sold?make=Ford&model=F-150&year=2018 — completed-sale prices.
 // A clean median is published only at n >= 3 clean titles. Salvage titles are
 // counted and called out; they are not mixed into that price. No invented prices.
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "sold", limit: 60, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const sp = new URL(req.url).searchParams;
   const make = (sp.get("make") || "").trim();
   const model = (sp.get("model") || "").trim();

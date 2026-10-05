@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   buildBuyerScopeLinks,
   planScrapeForBuyerScope,
@@ -134,6 +135,13 @@ function sourceStatus(source: any): {
 }
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "scrape-plan",
+    limit: 30,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const body = await request.json().catch(() => ({}));
     const plan = planScrapeForBuyerScope(body.scope || body);

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import {
   listingsForDesk,
@@ -30,6 +31,13 @@ function csv(p: string | null): string[] {
 }
 
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "market-explore",
+    limit: 30,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const sp = new URL(req.url).searchParams;
     const states = csv(sp.get("states")).map((s) => s.toUpperCase());

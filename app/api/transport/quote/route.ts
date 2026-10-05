@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { STATE_COORDS } from "@/lib/geo";
 import { roadRoute, type LatLng } from "@/lib/geo/routing";
 
@@ -30,6 +31,13 @@ function stateCoord(code: string | null): LatLng | null {
 }
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "transport-quote",
+    limit: 60,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const sp = new URL(request.url).searchParams;
 

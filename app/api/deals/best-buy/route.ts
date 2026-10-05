@@ -3,6 +3,7 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -39,6 +40,9 @@ function dealerNeedles(ids: string[]) {
 // GET /api/deals/best-buy
 // Finds the #1 highest-margin, highest-velocity flip based on dealer capital and strategy.
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "best-buy", limit: 30, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const searchParams = req.nextUrl.searchParams;
   const capital = parseFloat(searchParams.get("capital") || "0");
   const state = searchParams.get("state")?.trim().toUpperCase() || "";
