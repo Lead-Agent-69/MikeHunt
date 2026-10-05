@@ -2,7 +2,6 @@
 
 import useSWR from "swr";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
-import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import type {
   DiscoverResponse,
@@ -15,13 +14,8 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export function WatchedDealerFeed() {
   const watch = useDealerWatch();
-  const sourceIds = Array.from(
-    new Set(
-      watch.hosts
-        .map((host) => dealerSourceIdForHost(host))
-        .filter((id): id is string => Boolean(id)),
-    ),
-  );
+  // prefs.watchedDealerSourceIds (server-side), plus ids derived from watched hosts.
+  const sourceIds = watch.sourceIds;
   const key = sourceIds.length
     ? `/api/discover?dealerSourceIds=${encodeURIComponent(sourceIds.join(","))}`
     : null;
