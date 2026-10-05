@@ -7,6 +7,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { sanitizeWatchListPatch } from "@/lib/preferences/watched-dealers";
 
 export const dynamic = "force-dynamic";
 
@@ -62,20 +63,39 @@ export async function GET(req: NextRequest) {
     .select("prefs")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[preferences]", error.message);
+    return NextResponse.json(
+      { error: "Preferences unavailable" },
+      { status: 500 },
+    );
+  }
   return NextResponse.json({ prefs: data?.prefs || {}, authed: true });
 }
 
+const MAX_PREFS_BODY_BYTES = 32 * 1024;
+
 export async function PUT(req: NextRequest) {
   let patch: Record<string, unknown> = {};
+  let raw = "";
   try {
-    patch = (await req.json()) || {};
+    raw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
+  if (raw.length > MAX_PREFS_BODY_BYTES)
+    return NextResponse.json({ error: "Body too large" }, { status: 413 });
+  try {
+    patch = raw ? JSON.parse(raw) || {} : {};
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   if (typeof patch !== "object" || Array.isArray(patch))
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  const sanitized = sanitizeWatchListPatch(patch);
+  if ("error" in sanitized)
+    return NextResponse.json({ error: sanitized.error }, { status: 400 });
+  patch = sanitized.patch;
 
   if (!isSupabaseConfigured()) {
     return guestPrefsResponse({ ...readGuestPrefs(req), ...patch });
@@ -104,8 +124,13 @@ export async function PUT(req: NextRequest) {
     },
     { onConflict: "user_id" },
   );
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[preferences]", error.message);
+    return NextResponse.json(
+      { error: "Preferences unavailable" },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ prefs: merged });
 }
