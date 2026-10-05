@@ -54,6 +54,17 @@ describe("Scan table flip columns by buyer desk", () => {
     expect(html.indexOf("Camry")).toBeLessThan(html.indexOf("Civic"));
   });
 
+  it("labels auction prices by desk", () => {
+    const auction = [{ ...rows[0], source: "copart" }];
+    const html = (flipDesk: boolean) =>
+      renderToStaticMarkup(
+        createElement(DealTable, { rows: auction, flipDesk }),
+      );
+    expect(html(true)).toContain("Current bid");
+    expect(html(false)).toContain("Current price");
+    expect(html(false)).not.toContain("Current bid");
+  });
+
   it("hides Max buy and Net profit from non-flip buyers and keeps Scan order", () => {
     for (const html of [render(false), render()]) {
       expect(html).not.toContain("Net profit");
