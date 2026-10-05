@@ -6,6 +6,7 @@ import {
   legacyStatesMirror,
   locationLabel,
   removeSearchLocation,
+  searchLocationsFromStates,
   searchLocationsPatch,
 } from "./location-form";
 import { sanitizeLocationPatch, type SearchLocation } from "./locations";
@@ -125,4 +126,39 @@ it("labels locations for chips", () => {
     locationLabel({ state: "TX", city: "Austin", zip: "78701", radiusMi: 100 }),
   ).toBe("Austin, TX 78701 · 100 mi");
   expect(locationLabel({ state: "OK" })).toBe("OK");
+});
+
+describe("searchLocationsFromStates (nav chip picks)", () => {
+  const existing = [
+    { id: "OK|73101", state: "OK", zip: "73101", radiusMi: 100, addedAt: NOW },
+    { id: "LA|", state: "LA", addedAt: NOW },
+  ];
+
+  it("keeps saved entries for picked states, adds new ones, drops unpicked and home", () => {
+    expect(
+      searchLocationsFromStates(
+        ["TX", "OK", "ar", "ZZ"],
+        { state: "TX" },
+        existing,
+        NOW,
+      ),
+    ).toEqual([existing[0], { id: "AR|", state: "AR", addedAt: NOW }]);
+  });
+
+  it("caps at 10 markets", () => {
+    const states = [
+      "AL",
+      "AK",
+      "AZ",
+      "AR",
+      "CA",
+      "CO",
+      "CT",
+      "DE",
+      "FL",
+      "GA",
+      "HI",
+    ];
+    expect(searchLocationsFromStates(states, null, [], NOW)).toHaveLength(10);
+  });
 });
