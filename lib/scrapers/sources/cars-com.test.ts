@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseCarsComHtml, resolveCarsComStates } from "./cars-com";
+import {
+  carsComZipsForState,
+  parseCarsComHtml,
+  resolveCarsComStates,
+} from "./cars-com";
+import { withSweepPlan } from "../sweep-plan";
 import { withScrapeRunScope } from "../run-scope-context";
 
 function card(v: Record<string, unknown>, body = ""): string {
@@ -113,9 +118,12 @@ describe("resolveCarsComStates", () => {
   });
 
   it("uses one saved buyer state", async () => {
-    await withScrapeRunScope({ state: "fl", states: ["GA", "AL"] }, async () => {
-      expect(resolveCarsComStates("")).toEqual(["FL"]);
-    });
+    await withScrapeRunScope(
+      { state: "fl", states: ["GA", "AL"] },
+      async () => {
+        expect(resolveCarsComStates("")).toEqual(["FL"]);
+      },
+    );
     await withScrapeRunScope({ states: ["ok", "tx"] }, async () => {
       expect(resolveCarsComStates(undefined)).toEqual(["OK"]);
     });
@@ -125,5 +133,30 @@ describe("resolveCarsComStates", () => {
     await withScrapeRunScope({ state: "FL" }, async () => {
       expect(resolveCarsComStates("tx, no, ok")).toEqual(["TX", "OK"]);
     });
+  });
+
+  it("uses the sweep plan's rotating states when no buyer scope is set", async () => {
+    const plan = {
+      states: ["SD", "tx", "ND"],
+      zipsByState: { SD: ["57104"], TX: ["75201", "77002"], ND: ["58102"] },
+    };
+    await withSweepPlan(plan, async () => {
+      expect(resolveCarsComStates("")).toEqual(["SD", "TX", "ND"]);
+      expect(carsComZipsForState("TX")).toEqual(["75201", "77002"]);
+    });
+    await withSweepPlan(plan, () =>
+      withScrapeRunScope({ state: "FL" }, async () => {
+        // A buyer job inside a sweep context still searches only the buyer's state.
+        expect(resolveCarsComStates("")).toEqual(["FL"]);
+      }),
+    );
+  });
+});
+
+describe("carsComZipsForState", () => {
+  it("falls back to the first metro ZIPs and starts at the original seed", () => {
+    expect(carsComZipsForState("TX", undefined, 2)).toEqual(["75201", "77002"]);
+    expect(carsComZipsForState("RI", undefined, 3)).toEqual(["02903"]);
+    expect(carsComZipsForState("ZZ", undefined, 2)).toEqual([]);
   });
 });

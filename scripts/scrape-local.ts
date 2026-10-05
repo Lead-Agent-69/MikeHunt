@@ -20,6 +20,15 @@ import {
   type ScraperExecutionMode,
 } from "../lib/scrapers/sweep-schedule";
 import type { LocalWriteContext } from "../lib/scrapers/local-write-context";
+import {
+  loadRotation,
+  planSweepStates,
+  recordSweepPlan,
+  resolveSweepStatesPerRun,
+  resolveSweepZipsPerState,
+  saveRotation,
+  withSweepPlan,
+} from "../lib/scrapers/sweep-plan";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -81,6 +90,7 @@ interface Status {
     position?: number;
     total?: number;
     nextAt?: string;
+    states?: string[];
   };
   accessBarriers: {
     host: string;
@@ -326,6 +336,29 @@ async function runSweepTick(
     currentStatus.sweep = { nextAt: step.nextAt };
     return false;
   }
+  if (!step.state.plan) {
+    // New sweep: pick the least-recently-swept states, fewest listings first on ties.
+    const rotation = await loadRotation();
+    const counts: Record<string, number> = {};
+    try {
+      const { data } = await supabase.rpc("count_by_state", {
+        p_table: "deals",
+        p_col: "location_state",
+      });
+      for (const row of (data || []) as { state: string; n: number }[])
+        counts[String(row.state)] = Number(row.n) || 0;
+    } catch {
+      // Counts only break ties. Rotation alone still covers every state.
+    }
+    const plan = planSweepStates(rotation, {
+      perSweep: resolveSweepStatesPerRun(),
+      zipsPerState: resolveSweepZipsPerState(),
+      counts,
+    });
+    step.state.plan = plan;
+    await saveRotation(recordSweepPlan(rotation, plan));
+    console.log(`[sweep] states this sweep: ${plan.states.join(", ")}`);
+  }
   await saveSweepState(step.state);
   currentStatus.state = "running";
   currentStatus.currentSources = [step.source];
@@ -334,6 +367,7 @@ async function runSweepTick(
     source: step.source,
     position: step.state.index + 1,
     total: step.state.sources.length,
+    states: step.state.plan?.states,
   };
   currentStatus.lastRun = new Date().toISOString();
   await writeStatus();
@@ -344,10 +378,12 @@ async function runSweepTick(
     const results = await withLocalWriteContext(
       buildLocalContext(supabase),
       () =>
-        runScrapers({
-          orchestrator: "sequential",
-          sourceIds: [step.source],
-        }),
+        withSweepPlan(step.state.plan, () =>
+          runScrapers({
+            orchestrator: "sequential",
+            sourceIds: [step.source],
+          }),
+        ),
     );
     currentStatus.results = [
       ...results,
