@@ -40,4 +40,53 @@ describe("deal page personal desk", () => {
     expect(store).toContain('userType: "private"');
     expect(page).not.toContain("app/(dashboard)/scan/page.tsx");
   });
+
+  it("keeps flip economics off personal, DIY, and parts desks (G1/G2)", () => {
+    const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+
+    // G1: the engine decision block (net profit, ROI, score, max bid) is flip-desk only.
+    expect(page).toMatch(
+      /store\.userType === "dealer" &&\s*dealData\?\.deal\?\.dealVerdict &&[\s\S]{0,1600}The Decision/,
+    );
+    // The 60-second readout (Net Profit / ROI / Deal Score) is flip-desk only.
+    expect(page).toMatch(
+      /store\.userType === "dealer" && \(\s*<motion\.div[\s\S]{0,1200}Net Profit/,
+    );
+    expect(page).not.toContain("Savings vs Market");
+    expect(page).not.toContain("Part-out ROI");
+
+    // G2: max bid, valuation breakdown, and outcome logging are flip-desk only.
+    expect(page).toMatch(
+      /store\.userType === "dealer" && \(\s*<div className="lg:col-span-2">\s*<MaxBidWidget/,
+    );
+    expect(page).toMatch(
+      /store\.userType === "dealer" &&\s*dealData\?\.deal\?\.dealAnalysis\?\.valuation &&[\s\S]{0,400}<ValuationBreakdown/,
+    );
+    expect(page).toMatch(
+      /store\.userType === "dealer" && serverDeal && \(\s*<LogOutcome/,
+    );
+    expect(page).toMatch(
+      /store\.userType === "dealer" && serverDeal && \(\s*<FloorPlanCalculator/,
+    );
+    // The widget-grid copies of max-bid math and outcome logging are flip-only too.
+    expect(page).toMatch(
+      /\.\.\.\(store\.userType === "dealer"\s*\?\s*\[[\s\S]{0,200}id: "max-bid-calc"[\s\S]{0,1600}id: "log-outcome"[\s\S]{0,1400}: \[\]\)/,
+    );
+
+    // Every MaxBidWidget / ValuationBreakdown / LogOutcome render sits behind a dealer gate.
+    for (const tag of ["<MaxBidWidget", "<ValuationBreakdown", "<LogOutcome"]) {
+      let from = 0;
+      for (;;) {
+        const at = page.indexOf(tag, from);
+        if (at < 0) break;
+        const before = page.slice(Math.max(0, at - 2000), at);
+        expect(before).toContain('store.userType === "dealer"');
+        from = at + tag.length;
+      }
+    }
+
+    // Personal still gets the verify-list lead and price history.
+    expect(page).toContain("<PersonalListingLead");
+    expect(page).toContain("<PriceSparkline dealId={id} />");
+  });
 });
