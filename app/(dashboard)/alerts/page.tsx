@@ -33,37 +33,27 @@ export default function AlertsPage() {
     markAllRead();
   }, [supabase.auth]);
 
-  const fetchAlerts = async (uid: string) => {
-    try {
-      const { data } = await supabase
-        .from("user_feed_inbox")
-        .select(
-          `
-          id,
-          status,
-          created_at,
-          deal_id,
-          deals (*)
-        `,
-        )
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
-    } catch (err) {
-      console.warn("Table might not exist yet");
-      return [];
-    }
-  };
-
+  // Server redacts flip economics for non-flip desks — never join deals from the browser.
   const {
-    data: alerts = [],
+    data: alertsPayload,
+    error: _alertsError,
     error,
     isLoading: loading,
     mutate,
-  } = useSWR(userId ? ["alerts", userId] : null, ([, uid]) =>
-    fetchAlerts(uid as string),
+  } = useSWR(
+    userId ? ["alerts", userId] : null,
+    async () => {
+      const res = await fetch("/api/alerts");
+      if (res.status === 401) return { alerts: [], deskAccess: "personal" };
+      if (!res.ok) throw new Error("Alerts unavailable");
+      return res.json();
+    },
+    { revalidateOnFocus: false },
   );
+  const alerts = Array.isArray(alertsPayload?.alerts)
+    ? alertsPayload.alerts
+    : [];
+  const deskAccess = alertsPayload?.deskAccess === "flip" ? "flip" : "personal";
   const {
     data: savedCars = [],
     isLoading: savedLoading,
@@ -88,9 +78,12 @@ export default function AlertsPage() {
   }
 
   async function dismissAlert(id: string) {
-    await supabase.from("user_feed_inbox").delete().eq("id", id);
+    await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: "DELETE" });
     mutate(
-      alerts.filter((a: any) => a.id !== id),
+      {
+        alerts: alerts.filter((a: any) => a.id !== id),
+        deskAccess,
+      },
       false,
     );
   }
@@ -122,9 +115,7 @@ export default function AlertsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
-            Alerts
-          </h1>
+          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">Alerts</h1>
           <p className="text-[var(--t3)]">
             New matches for your saved searches and the cars you&apos;re
             watching.
@@ -147,8 +138,8 @@ export default function AlertsPage() {
             No alerts yet
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            Save a search or watch a car, and new matches and price changes
-            show up here.
+            Save a search or watch a car, and new matches and price changes show
+            up here.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
@@ -168,7 +159,11 @@ export default function AlertsPage() {
       ) : (
         <div className="space-y-6">
           {alerts.length > 0 && (
-            <ServerAlertGrid alerts={alerts} onDismiss={dismissAlert} />
+            <ServerAlertGrid
+              alerts={alerts}
+              deskAccess={deskAccess}
+              onDismiss={dismissAlert}
+            />
           )}
           {savedCars.length > 0 && (
             <ServerWatchInbox
@@ -194,11 +189,14 @@ export default function AlertsPage() {
 
 function ServerAlertGrid({
   alerts,
+  deskAccess,
   onDismiss,
 }: {
   alerts: any[];
+  deskAccess: "flip" | "personal";
   onDismiss: (id: string) => void;
 }) {
+  const flipDesk = deskAccess === "flip";
   const { intent } = useBuyerIntent();
   const scanHref = scanHrefForMode(intent?.buyerMode);
   return (
@@ -213,8 +211,8 @@ function ServerAlertGrid({
               {alerts.length} fresh alert{alerts.length === 1 ? "" : "s"} ready.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              Matched to your saved searches. Check the source listing and
-              price evidence before you act.
+              Matched to your saved searches. Check the source listing and price
+              evidence before you act.
             </p>
           </div>
           <Link
@@ -252,10 +250,17 @@ function ServerAlertGrid({
                 year={deal.year}
                 make={deal.make}
                 model={deal.model}
-                askPrice={deal.ask_price}
-                mmrValue={deal.mmr_value}
-                profitEstimate={deal.profit_estimate}
-                profitScore={deal.profit_score}
+                askPrice={Number(deal.ask_price) || 0}
+                mmrValue={Number(deal.mmr_value) || 0}
+                // Server already stripped these for non-flip; never re-derive from the client.
+                profitEstimate={
+                  flipDesk ? Number(deal.profit_estimate) || 0 : 0
+                }
+                profitScore={
+                  flipDesk && deal.profit_score != null
+                    ? Number(deal.profit_score)
+                    : undefined
+                }
                 locationCity={deal.location_city}
                 locationState={deal.location_state}
                 mileage={deal.mileage}
