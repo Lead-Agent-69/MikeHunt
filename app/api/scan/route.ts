@@ -14,6 +14,7 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import {
   listingsForDesk,
+  redactListingForNonFlipDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
@@ -29,9 +30,9 @@ const SCAN_SELECT =
   "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options";
 
 const SCAN_CACHE_HEADERS = {
-  // Scan results are public inventory, not account data. A short shared cache removes repeat
-  // database work while stale-while-revalidate keeps browsing responsive during refreshes.
-  "Cache-Control": "public, s-maxage=15, stale-while-revalidate=60",
+  // Response is desk-scoped (flip economics redacted for non-flip / signed-out). A public
+  // CDN cache would let a flip-desk payload leak to everyone else — never share across users.
+  "Cache-Control": "private, no-store",
 };
 
 // LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
@@ -897,9 +898,12 @@ async function publicPreviewFallback(args: {
   const effectiveRows = unique.length > 0 ? unique : cachedRows;
   const start = args.page * args.pageSize;
   const pageRows = effectiveRows.slice(start, start + args.pageSize);
+  // Same desk gate as the live path — preview rows include analyzeDeal profit/max-bid.
+  const flipDesk = await resolveCallerFlipDesk();
   return {
     configured: false,
-    vehicles: pageRows,
+    vehicles: listingsForDesk(pageRows, flipDesk),
+    deskAccess: flipDesk ? "flip" : "personal",
     total: effectiveRows.length,
     state: args.state || "nationwide",
     page: args.page,
@@ -1231,10 +1235,21 @@ export async function GET(req: NextRequest) {
     : ranked;
 
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
+  // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields
+  // (e.g. "$2,500 estimated spread" / "recommended max buy").
   const flipDesk = await resolveCallerFlipDesk();
+  const vehicles = flipDesk
+    ? sorted
+    : sorted.map((row) => {
+        const redacted = redactListingForNonFlipDesk(row);
+        return {
+          ...redacted,
+          trustExplanation: buildTrustExplanation(redacted, scanFilters),
+        };
+      });
   return NextResponse.json(
     {
-      vehicles: listingsForDesk(sorted, flipDesk),
+      vehicles,
       deskAccess: flipDesk ? "flip" : "personal",
       total: count || 0,
       state: state || "nationwide",

@@ -68,6 +68,20 @@ describe("redactListingForNonFlipDesk covers every listing-feed key name", () =>
     expect(out.deals[0].askPrice).toBe(100);
   });
 
+  it("strips nested dealAnalysis profit / max-bid, keeps repair costs", () => {
+    const out = redactListingForNonFlipDesk({
+      id: "1",
+      askPrice: 9,
+      dealAnalysis: {
+        profit: 99,
+        recommendedMaxBid: 8,
+        costs: { repair: 1, transport: 2, selling: 3 },
+      },
+    });
+    expect(out.dealAnalysis).toEqual({ costs: { repair: 1, transport: 2 } });
+    expect(out).not.toHaveProperty("deal_analysis");
+  });
+
   it("listingsForDesk is a no-op for flip desks", () => {
     const items = [{ id: "1", trueNetProfit: 9 }];
     expect(listingsForDesk(items, true)).toBe(items);
