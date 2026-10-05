@@ -108,8 +108,11 @@ export const DealCard = memo(function DealCard({
   const tier = dom != null ? domTier(dom) : null;
   // /api/scan strips profit/max bid for non-flip desks; never render "$NaN" if the client
   // desk (e.g. ?mode=dealer) disagrees with the server's redaction.
+  // Live-preview rows ("live-*") are unanalyzed public listings with a placeholder profit of 0;
+  // a "+$0 net profit" / "no positive spread" readout would be fake precision.
   const showFlipEconomics =
     flipDesk &&
+    !id.startsWith("live-") &&
     typeof profitEstimate === "number" &&
     Number.isFinite(profitEstimate);
   const isPositive = profitEstimate >= 0;
