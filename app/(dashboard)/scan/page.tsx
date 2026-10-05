@@ -67,6 +67,7 @@ import {
   readLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
+import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -4493,7 +4494,7 @@ function ScanPageInner() {
         <ScanReviewStrip
           results={filteredResults as ScanResult[]}
           sourceHealthById={tableSourceHealthById}
-          href={swrKey || "/scan?sort=profit"}
+          href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
         />
       )}
 
