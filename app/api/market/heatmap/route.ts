@@ -3,7 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 
 // /api/market/heatmap — where the actionable money is, by state. Aggregates the engine-vetted
@@ -17,6 +20,15 @@ export async function GET(req: NextRequest) {
     windowMs: 60000,
   });
   if (!rl.allowed) return tooManyRequests(rl);
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      states: {},
+      maxN: 1,
+      total: 0,
+      configured: false,
+    });
+  }
 
   try {
     // Global aggregate — cache 90s so the map paints instantly on every visit.

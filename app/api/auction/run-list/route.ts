@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { matchRunList } from "@/lib/auction/run-list-processor";
@@ -23,6 +26,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = user.id;
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Database unavailable", configured: false },
+        { status: 503 },
+      );
+    }
 
     let body: any;
     try {
@@ -118,6 +127,9 @@ export async function GET(request: NextRequest) {
     }
     const userId = user.id;
 
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ lists: [], configured: false });
+    }
     const supabase = createServerComponentClient();
     const { data, error } = await supabase
       .from("auction_run_lists")
