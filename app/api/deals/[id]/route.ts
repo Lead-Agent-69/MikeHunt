@@ -7,6 +7,11 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { getUserPlan, meterDealView } from "@/lib/auth/plan";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
+import {
+  isFlipDeskMode,
+  readSavedBuyerMode,
+  redactDealForNonFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 export async function GET(
   request: NextRequest,
@@ -38,13 +43,20 @@ export async function GET(
       limit: number | null;
       plan: string;
     } | null = null;
+    // Resolve the session once. A failed lookup is treated as signed out (redacted payload).
+    let user: { id?: string } | null = null;
+    try {
+      const {
+        data: { user: sessionUser },
+      } = await getServerUser();
+      user = sessionUser ?? null;
+    } catch {
+      user = null;
+    }
     try {
       // Gating ships OFF by default so the single pre-launch user isn't metered mid-demo. Flip on
       // for launch by setting GATING_ENABLED=true in the environment.
       const gatingOn = process.env.GATING_ENABLED === "true";
-      const {
-        data: { user },
-      } = await getServerUser();
       if (gatingOn && user?.id) {
         const supabase = createServerComponentClient();
         const plan = await getUserPlan(supabase, user.id);
@@ -75,7 +87,24 @@ export async function GET(
       !evidence.acquisitionReady && deal.dealVerdict === "go"
         ? { ...deal, dealVerdict: "hold", decisionEvidence: evidence }
         : { ...deal, decisionEvidence: evidence };
-    return NextResponse.json({ deal: safeDeal, meter });
+    // Flip economics and seller contact only go to a saved reseller / dealer desk. The client desk
+    // toggle is a preview; this is the boundary. Unknown, parts, diy, personal, or a failed prefs
+    // read all get the redacted listing (fail closed).
+    let savedMode: unknown = undefined;
+    if (user?.id) {
+      try {
+        savedMode = await readSavedBuyerMode(
+          createServerComponentClient(),
+          user.id,
+        );
+      } catch {
+        savedMode = undefined;
+      }
+    }
+    const payload = isFlipDeskMode(savedMode)
+      ? { ...safeDeal, deskAccess: "flip" as const }
+      : redactDealForNonFlipDesk(safeDeal);
+    return NextResponse.json({ deal: payload, meter });
   } catch (error) {
     console.error("Error in single deal API:", error);
     return NextResponse.json(
