@@ -1,6 +1,7 @@
 // lib/scrapers/sources/index.ts
 // ─── Per-source scraper implementations ──────────────────────────────────────
 
+import { createRobotsGate, policyBlockFor } from "../source-compliance";
 import type { Deal } from "@/types";
 import {
   fetchBrowser,
@@ -838,7 +839,19 @@ export async function scrapeCuratedSites(
       ),
     );
   };
-  const sites = CURATED_SITES.filter(matchesRequestedDealer).slice(0, maxSites);
+  // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
+  const candidates = CURATED_SITES.filter(matchesRequestedDealer);
+  const blocked = candidates.filter((site) => policyBlockFor(site.url));
+  if (blocked.length)
+    console.log(
+      `[CuratedSites] skipping ${blocked.length} by site policy: ${blocked
+        .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
+        .join(", ")}`,
+    );
+  const sites = candidates
+    .filter((site) => !policyBlockFor(site.url))
+    .slice(0, maxSites);
+  const robotsAllowed = createRobotsGate();
   console.log(
     `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites${
       requestedDealers.size
@@ -853,6 +866,27 @@ export async function scrapeCuratedSites(
     const d = SITE_TYPE_DEFAULTS[site.type];
     try {
       const cdgDealer = cdgDealerForSite(site.url);
+      const firstPages = [
+        site.url,
+        site.inventoryUrl
+          ? new URL(site.inventoryUrl, site.url).toString()
+          : cdgDealer?.inventoryUrl,
+      ].filter(Boolean) as string[];
+      const disallowed = [];
+      for (const page of firstPages)
+        if (!(await robotsAllowed(page))) disallowed.push(page);
+      if (disallowed.length) {
+        console.log(
+          `[CuratedSites] ${site.name}: robots.txt disallows ${disallowed.join(", ")} (skipped)`,
+        );
+        yields.push({
+          name: site.name,
+          state: site.state,
+          type: site.type,
+          n: 0,
+        });
+        continue;
+      }
       const n = site.url.toLowerCase().includes("aeofmiami.com")
         ? await scrapeAeOfMiami(scope)
         : cdgDealer

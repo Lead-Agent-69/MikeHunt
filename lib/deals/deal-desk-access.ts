@@ -67,24 +67,31 @@ const FLIP_ONLY_FIELDS = [
  * analysis blob: only the buyer-facing repair and transport estimates survive, so new profit keys
  * added to deal_analysis later stay hidden by default.
  */
-export function redactDealForNonFlipDesk<T extends Record<string, any>>(
-  deal: T,
-): Record<string, any> {
-  const out: Record<string, any> = { ...deal };
-  for (const key of FLIP_ONLY_FIELDS) delete out[key];
-
-  const costs = deal?.dealAnalysis?.costs;
+/** Keep only buyer-safe repair/transport estimates from an analysis blob. */
+function safeDealAnalysis(
+  dealAnalysis: unknown,
+): Record<string, any> | undefined {
+  if (!dealAnalysis || typeof dealAnalysis !== "object") return undefined;
+  const costs = (dealAnalysis as { costs?: Record<string, unknown> }).costs;
   const safeCosts: Record<string, number> = {};
   if (costs && typeof costs === "object") {
     if (typeof costs.repair === "number") safeCosts.repair = costs.repair;
     if (typeof costs.transport === "number")
       safeCosts.transport = costs.transport;
   }
-  if (Object.keys(safeCosts).length > 0) {
-    out.dealAnalysis = { costs: safeCosts };
-  } else {
-    delete out.dealAnalysis;
-  }
+  return Object.keys(safeCosts).length > 0 ? { costs: safeCosts } : undefined;
+}
+
+export function redactDealForNonFlipDesk<T extends Record<string, any>>(
+  deal: T,
+): Record<string, any> {
+  const out: Record<string, any> = { ...deal };
+  for (const key of FLIP_ONLY_FIELDS) delete out[key];
+
+  const safe = safeDealAnalysis(deal?.dealAnalysis ?? deal?.deal_analysis);
+  if (safe) out.dealAnalysis = safe;
+  else delete out.dealAnalysis;
+  delete out.deal_analysis;
   out.deskAccess = "personal";
   return out;
 }
@@ -135,6 +142,13 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
 ): Record<string, any> {
   const out: Record<string, any> = { ...card };
   for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
+  // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
+  const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);
+  if (safe) out.dealAnalysis = safe;
+  else {
+    delete out.dealAnalysis;
+    delete out.deal_analysis;
+  }
   if (Array.isArray(card?.alsoOn)) {
     out.alsoOn = card.alsoOn.map((o: Record<string, any>) =>
       o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
