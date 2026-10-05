@@ -73,7 +73,11 @@ async function aiVdpFilter(links: string[]): Promise<string[]> {
  * Intelligent crawler that uses the adaptive engine (static first, browser fallback)
  * and deterministic VDP detection before invoking AI. Reduces AI cost by 60-90%.
  */
-export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?: string) {
+export async function crawlInventoryAndQueueVDPs(
+  inventoryUrl: string,
+  dealerId?: string,
+  maxVdps?: number,
+) {
   console.log(`[AI Crawler] Navigating to inventory page: ${inventoryUrl}`);
 
   const engine = new AdaptiveEngine({ maxBrowserPages: 1 });
@@ -117,8 +121,15 @@ export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?
       console.log(`[AI Crawler] AI filter found ${vdpUrls.length} VDPs.`);
     }
 
+    // Cost gate: cap how many VDPs per site reach the AI parse queue. Unlimited when maxVdps is unset
+    // (preserves prior behavior for the manual save-from-url path); the batch dealer producer passes a
+    // small cap so a full curated-site sweep never floods Gemini.
+    const toQueue =
+      typeof maxVdps === "number" && maxVdps >= 0 ? vdpUrls.slice(0, maxVdps) : vdpUrls;
+    console.log(`[AI Crawler] Queueing ${toQueue.length} VDPs (cap=${maxVdps ?? "none"}).`);
+
     let queuedCount = 0;
-    for (const vdpUrl of vdpUrls) {
+    for (const vdpUrl of toQueue) {
       await queueForAIParsing(vdpUrl, dealerId, 'independent_dealer');
       console.log(`[AI Crawler] Queued VDP: ${vdpUrl}`);
       queuedCount++;

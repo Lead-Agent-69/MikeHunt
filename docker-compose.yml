@@ -61,11 +61,21 @@ services:
       - ENABLE_HEADED_SCRAPERS=1
       - SCRAPE_INTERVAL_MS=1800000
       - LOCAL_CACHE_PATH=/app/cache
+      # Redis for optional AI parse queue (producer enqueues; invent consumer stays disabled).
+      - REDIS_URL=redis://redis:6379
+      # Micro-AI dealer producer — OFF by default. Uncomment to enqueue curated VDPs.
+      # Invent consumer remains disabled in workers/scrape-worker.ts; do not re-enable lightly.
+      # - ENABLE_AI_DEALER_CRAWL=1
+      # - AI_CRAWL_SITES_MAX=8
+      # - AI_CRAWL_VDP_CAP=12
+      # - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
       # Reserve tier — smartFetch falls to FlareSolverr only after static→stealth→headed all fail.
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
       # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
       # - SCRAPE_SOURCES=cars_com,autotrader,truecar
     depends_on:
+      redis:
+        condition: service_healthy
       flaresolverr:
         condition: service_healthy
     volumes:
