@@ -67,6 +67,6 @@ describe("Scan table flip columns by buyer desk", () => {
 
   it("Scan passes its flipDesk to the table", () => {
     const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
-    expect(scan).toMatch(/<DealTable[\s\S]{0,200}flipDesk=\{flipDesk\}/);
+    expect(scan).toMatch(/<DealTable[\s\S]{0,200}flipDesk=\{flipEconomics\}/);
   });
 });

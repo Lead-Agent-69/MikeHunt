@@ -3510,6 +3510,10 @@ function ScanPageInner() {
     [swrData, livePreviewRows, extra],
   );
   const total = (swrData?.total || 0) + livePreviewRows.length;
+  // /api/scan strips profit / max bid unless the caller's SAVED desk is reseller/dealer. A flip
+  // intent from ?mode= or a guest cookie can disagree; then the rows carry no economics, so show
+  // the price-first result view instead of "$0 net" / "no positive spread" on every row.
+  const flipEconomics = flipDesk && swrData?.deskAccess !== "personal";
   const loading = swrLoading;
   const scanConfigured =
     swrData?.configured === false ? false : isSupabaseConfigured();
@@ -4541,7 +4545,7 @@ function ScanPageInner() {
           results={filteredResults as ScanResult[]}
           sourceHealthById={tableSourceHealthById}
           href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
-          flipDesk={flipDesk}
+          flipDesk={flipEconomics}
         />
       )}
 
@@ -4573,7 +4577,7 @@ function ScanPageInner() {
         <DealTable
           rows={filteredResults as any}
           sourceHealthById={tableSourceHealthById}
-          flipDesk={flipDesk}
+          flipDesk={flipEconomics}
         />
       )}
 
@@ -4607,7 +4611,7 @@ function ScanPageInner() {
               }}
             >
               <DealCard
-                flipDesk={flipDesk}
+                flipDesk={flipEconomics}
                 id={car.id}
                 source={car.source}
                 year={car.year}
