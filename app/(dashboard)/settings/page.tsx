@@ -10,6 +10,8 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { EnablePush } from "@/components/EnablePush";
 
 // Fetcher function for SWR
@@ -89,6 +91,12 @@ function CarsViewPrefs() {
 
 export default function SettingsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
+  const { intent } = useBuyerIntent();
+  const { prefs } = usePreferences();
+  // UI only: the stored target_profit is untouched. Unknown mode = personal.
+  const showProfitTarget = isFlipBuyerMode(
+    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [homeZip, setHomeZip] = useState("");
@@ -433,18 +441,20 @@ export default function SettingsPage() {
                 }
               />
 
-              <Field
-                label="Target Profit Threshold ($)"
-                type="number"
-                inputMode="numeric"
-                value={profile.target_profit}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    target_profit: Number(e.target.value),
-                  }))
-                }
-              />
+              {showProfitTarget && (
+                <Field
+                  label="Target Profit Threshold ($)"
+                  type="number"
+                  inputMode="numeric"
+                  value={profile.target_profit}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      target_profit: Number(e.target.value),
+                    }))
+                  }
+                />
+              )}
             </div>
           </div>
 
