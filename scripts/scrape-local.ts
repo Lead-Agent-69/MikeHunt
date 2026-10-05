@@ -5,7 +5,11 @@ import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createWriteStream } from "node:fs";
 import { format } from "node:util";
-import { LocalScraperCache } from "../lib/scrapers/local-cache";
+import {
+  DEFAULT_MAX_DAILY_INSERTS,
+  DEFAULT_MAX_DAILY_UPDATES,
+  LocalScraperCache,
+} from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
 import {
@@ -257,8 +261,12 @@ async function initializeRuntime(): Promise<void> {
   cache = new LocalScraperCache({
     path: process.env.LOCAL_CACHE_PATH || "/app/cache",
     batchSize: Number(process.env.BATCH_SIZE || 50),
-    maxDailyInserts: Number(process.env.MAX_DAILY_INSERTS || 400),
-    maxDailyUpdates: Number(process.env.MAX_DAILY_UPDATES || 600),
+    maxDailyInserts: Number(
+      process.env.MAX_DAILY_INSERTS || DEFAULT_MAX_DAILY_INSERTS,
+    ),
+    maxDailyUpdates: Number(
+      process.env.MAX_DAILY_UPDATES || DEFAULT_MAX_DAILY_UPDATES,
+    ),
     cacheOnly: process.env.CACHE_ONLY_MODE === "true",
     onQuota: (_quota, paused) => {
       quotaPaused = paused;

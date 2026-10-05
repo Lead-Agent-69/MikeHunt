@@ -45,6 +45,23 @@ export interface PersistResult {
 
 const TOUCH_CHUNK = 100;
 
+/**
+ * Daily write budgets for the thin free-tier Supabase project. Writes pause at 80% of each.
+ * ~1,000 effective new rows/day at ~4 KB/row on disk (row + indexes) keeps the 60-day retention
+ * window near 60k rows / ~240 MB, under the 500 MB free database.
+ */
+export const DEFAULT_MAX_DAILY_INSERTS = 1250;
+export const DEFAULT_MAX_DAILY_UPDATES = 2500;
+
+/** Columns needed to compare stored rows with incoming ones. Never `*` (embeddings are large). */
+export function classifyColumns(rows: Record<string, any>[]): string {
+  const cols = new Set<string>(["source", "source_deal_id", "last_seen_at"]);
+  for (const row of rows)
+    for (const key of Object.keys(row))
+      if (/^[a-z_][a-z0-9_]*$/.test(key)) cols.add(key);
+  return Array.from(cols).join(",");
+}
+
 /** Unchanged rows whose deals.last_seen_at is due for a bump. */
 export function touchIsDue(
   entry: CachedListing | undefined,
@@ -169,8 +186,14 @@ export class LocalScraperCache {
       "local-scraper-cache.json",
     );
     this.batchSize = Math.min(50, Math.max(1, options.batchSize || 50));
-    this.maxDailyInserts = Math.max(1, options.maxDailyInserts || 400);
-    this.maxDailyUpdates = Math.max(1, options.maxDailyUpdates || 600);
+    this.maxDailyInserts = Math.max(
+      1,
+      options.maxDailyInserts || DEFAULT_MAX_DAILY_INSERTS,
+    );
+    this.maxDailyUpdates = Math.max(
+      1,
+      options.maxDailyUpdates || DEFAULT_MAX_DAILY_UPDATES,
+    );
     this.maxDailyTouches = Math.max(
       0,
       options.maxDailyTouches ??
@@ -351,16 +374,24 @@ export class LocalScraperCache {
           const ids = sourceRows
             .slice(offset, offset + 500)
             .map((row) => row.source_deal_id);
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from("deals")
-            .select("*")
+            .select(classifyColumns(sourceRows))
             .eq("source", source)
             .in("source_deal_id", ids);
+          if (error) {
+            // An unexpected key on a scraped row must not block classification. Fall back to *.
+            ({ data, error } = await supabase
+              .from("deals")
+              .select("*")
+              .eq("source", source)
+              .in("source_deal_id", ids));
+          }
           if (error)
             throw new Error(
               `Could not classify existing deals for ${source}: ${error.message}`,
             );
-          for (const row of data || [])
+          for (const row of (data || []) as unknown as Record<string, any>[])
             existing.set(`${row.source}|${row.source_deal_id}`, row);
         }
       }

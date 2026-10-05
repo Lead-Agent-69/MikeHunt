@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { LocalScraperCache, listingHash, touchIsDue } from "./local-cache";
+import {
+  DEFAULT_MAX_DAILY_INSERTS,
+  LocalScraperCache,
+  classifyColumns,
+  listingHash,
+  touchIsDue,
+} from "./local-cache";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -284,5 +290,30 @@ describe("LocalScraperCache", () => {
         now,
       ),
     ).toBe(false);
+  });
+
+  it("classifies with only the incoming columns, never select *", () => {
+    const cols = classifyColumns([
+      { source: "a", source_deal_id: "1", ask_price: 1, "bad key": 2 },
+      { source: "a", source_deal_id: "2", mileage: 5 },
+    ]).split(",");
+    expect(cols).toEqual(
+      expect.arrayContaining([
+        "source",
+        "source_deal_id",
+        "last_seen_at",
+        "ask_price",
+        "mileage",
+      ]),
+    );
+    expect(cols).not.toContain("*");
+    expect(cols).not.toContain("embedding");
+    expect(cols).not.toContain("bad key");
+  });
+
+  it("defaults to the free-tier daily budget", async () => {
+    const { cache } = await makeCache();
+    expect(cache.getQuota().maxInserts).toBe(DEFAULT_MAX_DAILY_INSERTS);
+    expect(DEFAULT_MAX_DAILY_INSERTS).toBe(1250);
   });
 });
