@@ -6,16 +6,18 @@ scores them for profit potential, and surfaces deals, fleet management, transpor
 quotes, parts/teardown estimates, and price alerts.
 
 **Stack:** Next.js (App Router) · Supabase (Postgres + Auth + Realtime) ·
-TypeScript · Tailwind · SWR · Playwright/patchright scrapers · Gemini (AI valuation).
+TypeScript · Tailwind · SWR · Playwright/patchright scrapers. AI is optional and
+narrate-only: it never sets a price.
 
 ## Architecture
 
-- **Web app + API** — Next.js on Vercel. Supabase for DB/Auth/Realtime/Storage.
-- **Scraping engine** — runs on the **Fly.io scraper fleet** (`fly.toml`,
-  `Dockerfile.scraper`, see `docs/SCRAPER-FLEET.md`), not Vercel serverless (which
-  can't run a browser) and no longer on GitHub Actions (private-repo minutes). Each
-  Fly machine gets its own IP; scale across regions for the distinct IPs anti-bot
-  walls require. See `lib/scrapers/` (sources, pipeline, orchestrators, tools).
+- **Web app + API** — Next.js on **Vercel Hobby** (2 crons). Thin **Supabase** for
+  Postgres + Auth: listing rows and photo URLs only, never photo bytes.
+- **Scraping engine** — **Zeus Docker** (`docker-compose.local.yml`,
+  `Dockerfile.scraper`, see `docs/LOCAL-SCRAPER.md` and `docs/SCRAPER-FLEET.md`), on a
+  residential IP. Not Vercel serverless (can't run a browser), not GitHub Actions
+  (private-repo minutes), and not Fly.io (free stack only; nothing deploys from `fly.toml`).
+  See `lib/scrapers/` (sources, pipeline, orchestrators, tools).
 - **Pipeline** — scrape → normalize → quality-control → score → upsert to `deals`
   (dedupe by `source`+`source_deal_id` and by VIN) → record `price_history` →
   match against `user_saved_searches` → notify (Resend email / Twilio SMS).
@@ -36,10 +38,10 @@ npm run scrape:ci -- craigslist cars_com
 # or via env: SCRAPE_SOURCES="craigslist" CL_CITIES="dallas,houston" npm run scrape:ci
 ```
 
-The same entrypoint (`scripts/scrape-ci.ts`) runs continuously on the Fly.io fleet
-(`SCRAPE_INTERVAL_MS` loop). Fleet secrets: `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and optionally
-`GOOGLE_GENERATIVE_AI_API_KEY`, `RESEND_API_KEY`.
+The same scrapers run continuously in Zeus Docker (`docker-compose.local.yml`).
+Scraper env (`.env.local.scraper`): `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. No paid LLM key is
+required.
 
 ### Database
 

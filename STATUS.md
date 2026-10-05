@@ -16,20 +16,29 @@ Honest state of the app. Updated **2026-09-30** (supersedes the June docs -
 - CI (`ci.yml`) + weekly accuracy gate (`accuracy.yml`) re-enabled in
   `.github/workflows/` (branch filter fixed main->master).
 
-## Data pipeline (where scraping ACTUALLY runs)
+## Data pipeline (where scraping ACTUALLY runs) — updated 2026-10-04
 
-- **Fly.io scraper fleet** - app `dealerhunt-scraper` (`fly.toml`,
-  `Dockerfile.scraper`, `docs/SCRAPER-FLEET.md`), looping every 30 min
-  (`SCRAPE_INTERVAL_MS`). GitHub Actions scraping was intentionally parked
-  (`workflows-disabled/`) because scheduled Chromium scrapes exceed the
-  private-repo Actions minutes free tier. Verify fleet health with
-  `fly status` / `fly logs -a dealerhunt-scraper` (needs flyctl + `fly auth login`).
-- Vercel crons (`vercel.json`) — **as committed, 3 DAILY jobs**:
-  `profit-sniper` @08:00Z, `alerts` @09:00Z, `embeddings/backfill` @10:00Z.
-  **This is a live blocker:** the Vercel Hobby plan allows a maximum of **2**
-  cron jobs, so the third is rejected (and none of the hourly/10-minute cadences
-  the older docs claimed are actually scheduled). If these are meant to be
-  frequent, they belong on the Fly.io fleet loop instead. See "Known follow-ups".
+Free stack only: **Zeus Docker + Vercel Hobby + thin Supabase**. There is no Fly.io
+deployment; `fly.toml` and `scripts/deploy-fleet.sh` are leftovers nothing deploys from.
+
+- **Scrapers: Zeus Docker.** One Windows box (Zeus) runs
+  `docker compose -f docker-compose.local.yml up -d` (`Dockerfile.scraper`, Redis,
+  FlareSolverr; see `docs/LOCAL-SCRAPER.md`). Headed Patchright/Chrome under xvfb on a
+  residential IP, local write guardian (batched upserts, daily insert/update caps,
+  `CACHE_ONLY_MODE` dry runs), status dashboard on `:8787`. eBay sold comps
+  (`ebay_sold`) run here too. Vercel serverless never runs a browser, and GitHub
+  Actions scraping stays parked (`workflows-disabled/`, private-repo minutes).
+- **Web + API: Vercel Hobby.** Next.js app and API routes. `vercel.json` holds the
+  **2** crons Hobby allows: `/api/alerts/profit-sniper` @08:00Z and
+  `/api/alerts/process` @09:00Z. `/api/embeddings/backfill` runs from
+  `.github/workflows/embeddings-backfill.yml` (10:00Z, `CRON_SECRET`).
+- **Database: thin Supabase** (project `qupzqpezslsbobhugswp`). Rows carry listing
+  fields, last-seen time and photo **URLs only** — never photo bytes, no Storage
+  buckets for listing media. Auth + Postgres; migrations in `supabase/migrations/`.
+- **Verifying health:** `/status` (admin) shows rows on file per source with
+  last-seen age from `deals.last_seen_at`. That is stored-row age, not a live scrape
+  heartbeat. On Zeus: `docker compose -f docker-compose.local.yml logs -f scraper`
+  and the `:8787` dashboard.
 - Craigslist (incl. by-owner + by-dealer sections) proven nationwide; Cars.com
   is JS-rendered and eBay 403s datacenter IPs - retail-comp breadth still thin.
   Gated auction sources (Manheim/ACV/ADESA/IAA/FB Marketplace) remain
@@ -120,10 +129,9 @@ Honest state of the app. Updated **2026-09-30** (supersedes the June docs -
   supported trigger), plus `workflow_dispatch` for manual runs. **The workflow
   needs a `CRON_SECRET` repo secret**; without it the job fails closed with 401
   instead of running unauthenticated.
-- **Fly.io fleet unverified — STILL OPEN, blocked on tooling.** flyctl is not
-  installed and no `FLY_API_TOKEN` is present, so this needs an interactive
-  login by a human: install flyctl, `fly auth login`, then `fly status` and
-  `fly logs -a dealerhunt-scraper`.
+- ~~**Fly.io fleet unverified**~~ **CLOSED 2026-10-04 — no Fly.** The scraper
+  fleet is Zeus Docker (`docker-compose.local.yml`), not Fly.io. Nothing to verify
+  on Fly; nothing deploys from `fly.toml`.
 
 ### Maintenance / hygiene
 
