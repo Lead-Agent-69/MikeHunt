@@ -59,6 +59,21 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("$15,900");
     expect(html).toContain("$3,000 under market est.");
     expect(html).toContain("$15,000");
+    expect(html).toContain("Possible buy");
+  });
+
+  it("never renders $NaN when the server redacted profit for this desk", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: true,
+        profitEstimate: undefined as unknown as number,
+        recommendedMaxBid: undefined,
+      }),
+    );
+    expect(html).not.toContain("NaN");
+    expect(html).not.toContain("Net Profit Est.");
+    expect(html).not.toContain("Pass for now");
   });
 });
 

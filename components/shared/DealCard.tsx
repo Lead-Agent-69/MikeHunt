@@ -106,6 +106,12 @@ export const DealCard = memo(function DealCard({
 }: DealCardProps) {
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
+  // /api/scan strips profit/max bid for non-flip desks; never render "$NaN" if the client
+  // desk (e.g. ?mode=dealer) disagrees with the server's redaction.
+  const showFlipEconomics =
+    flipDesk &&
+    typeof profitEstimate === "number" &&
+    Number.isFinite(profitEstimate);
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
@@ -130,7 +136,7 @@ export const DealCard = memo(function DealCard({
   // only. Non-flip buyers see the ask against the market estimate instead.
   const belowMarket =
     resaleBasis > 0 && askPrice > 0 ? resaleBasis - askPrice : 0;
-  const whyShown = flipDesk
+  const whyShown = showFlipEconomics
     ? [
         profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
         recommendedMaxBid != null
@@ -251,7 +257,7 @@ export const DealCard = memo(function DealCard({
       ? 28
       : 8;
   const mathProofScore =
-    (profitEstimate > 0 ? 12 : 0) +
+    ((showFlipEconomics ? profitEstimate : belowMarket) > 0 ? 12 : 0) +
     (resaleBasis > 0 ? 12 : 0) +
     (knownCostTotal > 0 ? 8 : 0);
   const computedConfidenceScore = Math.min(
@@ -351,11 +357,16 @@ export const DealCard = memo(function DealCard({
       ? "Pass for now"
       : dealVerdict === "hold"
         ? "Watch closely"
-        : profitEstimate > 1500 && mathConfidence !== "Low"
-          ? "Possible buy"
-          : profitEstimate > 0
-            ? "Needs check"
-            : "Pass for now";
+        : !showFlipEconomics
+          ? // Non-flip: judge the ask against the market estimate, not a resale spread.
+            belowMarket > 0 && mathConfidence !== "Low"
+            ? "Possible buy"
+            : "Needs check"
+          : profitEstimate > 1500 && mathConfidence !== "Low"
+            ? "Possible buy"
+            : profitEstimate > 0
+              ? "Needs check"
+              : "Pass for now";
   const decisionTone =
     decisionLabel === "Possible buy"
       ? "text-[var(--green)]"
@@ -363,7 +374,7 @@ export const DealCard = memo(function DealCard({
         ? "text-[var(--amber-d)]"
         : "text-[var(--red)]";
   const decisionReasons = [
-    flipDesk
+    showFlipEconomics
       ? profitEstimate > 0
         ? `$${profitEstimate.toLocaleString()} estimated spread`
         : "no positive spread yet"
@@ -938,7 +949,7 @@ export const DealCard = memo(function DealCard({
 
         {/* Big profit (flip desk only) */}
         <div className="flex items-end justify-between mt-auto pt-1 gap-2">
-          {flipDesk ? (
+          {showFlipEconomics ? (
             <div data-testid="dealcard-flip-economics">
               <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
                 Net Profit Est.
