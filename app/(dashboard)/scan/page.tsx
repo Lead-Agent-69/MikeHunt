@@ -65,8 +65,10 @@ import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   buildBuyerIntentQuery,
   readLocalBuyerIntent,
+  useBuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -680,7 +682,7 @@ function ScopeQualityPanel({
               "The source is usable, but the buyer should verify weak fields before acting.",
             action: criticalMissing.length
               ? `Verify ${criticalMissing.slice(0, 3).join(", ")} on the original listing.`
-              : "Open the original listing and confirm title, fees, transport, and resale comps.",
+              : "Open the original listing and confirm title, fees, transport, and comparable prices.",
           }
         : {
             label: "Thin proof",
@@ -820,30 +822,42 @@ function ScanReviewStrip({
   results,
   sourceHealthById,
   href,
+  flipDesk,
 }: {
   results: ScanResult[];
   sourceHealthById: Map<string, SourceHealthItem>;
   href: string;
+  /** Reseller/dealer desk. Everyone else gets price-first wording, not profit or max bid. */
+  flipDesk: boolean;
 }) {
   if (!results.length) return null;
 
-  const best = results.reduce(
-    (winner, row) => {
-      if (!winner) return row;
-      if ((row.profitScore || 0) !== (winner.profitScore || 0)) {
-        return (row.profitScore || 0) > (winner.profitScore || 0)
-          ? row
-          : winner;
-      }
-      return (row.profitEstimate || 0) > (winner.profitEstimate || 0)
-        ? row
-        : winner;
-    },
-    null as ScanResult | null,
-  );
+  // Flip desks start with the highest modeled profit; other desks start with the
+  // top row of their chosen sort (trust score by default).
+  const best = !flipDesk
+    ? (results[0] ?? null)
+    : results.reduce(
+        (winner, row) => {
+          if (!winner) return row;
+          if ((row.profitScore || 0) !== (winner.profitScore || 0)) {
+            return (row.profitScore || 0) > (winner.profitScore || 0)
+              ? row
+              : winner;
+          }
+          return (row.profitEstimate || 0) > (winner.profitEstimate || 0)
+            ? row
+            : winner;
+        },
+        null as ScanResult | null,
+      );
   const avgProfit = Math.round(
     results.reduce((sum, row) => sum + (row.profitEstimate || 0), 0) /
       Math.max(results.length, 1),
+  );
+  const pricedRows = results.filter((row) => (row.askPrice || 0) > 0);
+  const avgAsk = Math.round(
+    pricedRows.reduce((sum, row) => sum + (row.askPrice || 0), 0) /
+      Math.max(pricedRows.length, 1),
   );
   const photoRows = results.filter((row) => Boolean(row.imageUrl)).length;
   const qualityRows = results.filter(
@@ -875,8 +889,8 @@ function ScanReviewStrip({
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
                 This strip summarizes the visible ranked set before you scroll:
-                profit signal, proof quality, source health, and the safest next
-                action.
+                {flipDesk ? " profit signal," : " asking prices,"} proof
+                quality, source health, and the safest next action.
               </p>
             </div>
             {best && (
@@ -898,12 +912,19 @@ function ScanReviewStrip({
                 detail: "after filters",
                 Icon: Sparkles,
               },
-              {
-                label: "Avg profit",
-                value: money(avgProfit),
-                detail: "modeled, verify",
-                Icon: TrendingUp,
-              },
+              flipDesk
+                ? {
+                    label: "Avg profit",
+                    value: money(avgProfit),
+                    detail: "modeled, verify",
+                    Icon: TrendingUp,
+                  }
+                : {
+                    label: "Avg asking",
+                    value: pricedRows.length ? money(avgAsk) : "—",
+                    detail: `${pricedRows.length}/${results.length} priced`,
+                    Icon: TrendingUp,
+                  },
               {
                 label: "Photo proof",
                 value: `${photoPct}%`,
@@ -952,11 +973,17 @@ function ScanReviewStrip({
                 "Open best match",
                 "Check photos, VIN, title, source proof.",
               ],
-              [
-                "2",
-                "Verify max bid",
-                "Confirm costs before bidding or calling.",
-              ],
+              flipDesk
+                ? [
+                    "2",
+                    "Verify max bid",
+                    "Confirm costs before bidding or calling.",
+                  ]
+                : [
+                    "2",
+                    "Check the price",
+                    "Compare similar listings and confirm fees before calling.",
+                  ],
               [
                 "3",
                 "Save or move on",
@@ -2406,6 +2433,11 @@ let _toastId = 0;
 function ScanPageInner() {
   const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
+  const { intent: savedBuyerIntent } = useBuyerIntent();
+  // Unknown mode is personal. Only reseller/dealer desks see flip tools and copy.
+  const flipDesk = isFlipBuyerMode(
+    urlParams.get("mode") || savedBuyerIntent?.buyerMode,
+  );
   const reviewMode = urlParams.get("review");
   const isFreshImportReview = reviewMode === "fresh-import";
   const { transitionTo } = useViewTransition();
@@ -3677,7 +3709,12 @@ function ScanPageInner() {
       .channel("scan-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "deals", filter: "active=eq.true" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "deals",
+          filter: "active=eq.true",
+        },
         (payload) => {
           const d = payload.new;
           if (
@@ -4013,29 +4050,31 @@ function ScanPageInner() {
             </>
           )}
         </button>
-        <button
-          onClick={() => setIsLaneModeOpen(true)}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold rounded-xl py-3.5 px-6 transition-all border hover:-translate-y-0.5"
-          style={{
-            background: "var(--s0)",
-            color: "var(--t2)",
-            borderColor: "var(--b2)",
-            boxShadow: "var(--shadow2)",
-          }}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
+        {flipDesk && (
+          <button
+            onClick={() => setIsLaneModeOpen(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold rounded-xl py-3.5 px-6 transition-all border hover:-translate-y-0.5"
+            style={{
+              background: "var(--s0)",
+              color: "var(--t2)",
+              borderColor: "var(--b2)",
+              boxShadow: "var(--shadow2)",
+            }}
           >
-            <path d="M4 7V4h16v3M9 20h6M12 4v16" />
-          </svg>
-          Lane Mode
-        </button>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+            </svg>
+            Lane Mode
+          </button>
+        )}
       </div>
 
       {/* ── Status strip ── */}
@@ -4183,7 +4222,10 @@ function ScanPageInner() {
             value={sort}
             onChange={setSort}
             options={[
-              { value: "profit", label: "Sort: Profit ↓" },
+              // Profit sort is a flip-desk tool; keep it listed if a URL already picked it.
+              ...(flipDesk || sort === "profit"
+                ? [{ value: "profit", label: "Sort: Profit ↓" }]
+                : []),
               { value: "score", label: "Sort: Score ↓" },
               { value: "price", label: "Sort: Price ↑" },
             ]}
@@ -4202,18 +4244,20 @@ function ScanPageInner() {
             More filters{advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsSimulatorOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
-            style={{
-              background: "var(--s0)",
-              color: "var(--t2)",
-              borderColor: "var(--b2)",
-            }}
-          >
-            Profit Simulator
-          </button>
+          {flipDesk && (
+            <button
+              type="button"
+              onClick={() => setIsSimulatorOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
+              style={{
+                background: "var(--s0)",
+                color: "var(--t2)",
+                borderColor: "var(--b2)",
+              }}
+            >
+              Profit Simulator
+            </button>
+          )}
           <button
             type="button"
             onClick={saveCurrentScanAsAlert}
@@ -4331,7 +4375,7 @@ function ScanPageInner() {
               />
             </FilterGroup>
 
-            <FilterGroup label="Price & profit">
+            <FilterGroup label={flipDesk ? "Price & profit" : "Price"}>
               <FilterSelect
                 label="Min Price"
                 value={minPrice}
@@ -4344,18 +4388,20 @@ function ScanPageInner() {
                   { value: "20k", label: "Over $20,000" },
                 ]}
               />
-              <FilterSelect
-                label="Min Profit"
-                value={minProfit}
-                onChange={setMinProfit}
-                options={[
-                  { value: "any", label: "Profit: Any" },
-                  { value: "1k", label: "Min $1,000" },
-                  { value: "2k", label: "Min $2,000" },
-                  { value: "3k", label: "Min $3,000" },
-                  { value: "5k", label: "Min $5,000" },
-                ]}
-              />
+              {flipDesk && (
+                <FilterSelect
+                  label="Min Profit"
+                  value={minProfit}
+                  onChange={setMinProfit}
+                  options={[
+                    { value: "any", label: "Profit: Any" },
+                    { value: "1k", label: "Min $1,000" },
+                    { value: "2k", label: "Min $2,000" },
+                    { value: "3k", label: "Min $3,000" },
+                    { value: "5k", label: "Min $5,000" },
+                  ]}
+                />
+              )}
             </FilterGroup>
 
             <FilterGroup label="Year">
@@ -4494,6 +4540,7 @@ function ScanPageInner() {
           results={filteredResults as ScanResult[]}
           sourceHealthById={tableSourceHealthById}
           href={swrKey || "/scan?sort=profit"}
+          flipDesk={flipDesk}
         />
       )}
 
@@ -4700,11 +4747,11 @@ function ScanPageInner() {
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       <LaneModeHUD
-        isOpen={isLaneModeOpen}
+        isOpen={flipDesk && isLaneModeOpen}
         onClose={() => setIsLaneModeOpen(false)}
       />
 
-      {isSimulatorOpen && (
+      {flipDesk && isSimulatorOpen && (
         <ProfitSimulatorDrawer
           isOpen={isSimulatorOpen}
           onClose={() => setIsSimulatorOpen(false)}
