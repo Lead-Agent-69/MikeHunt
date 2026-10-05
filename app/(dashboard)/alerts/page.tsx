@@ -23,13 +23,20 @@ import { hidesFlipNav, scanHrefForMode } from "@/components/layout/nav-items";
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
   const [userId, setUserId] = useState<string | null>(null);
+  // Only offer "Sign in" once we know there is no session; /alerts is normally behind auth.
+  const [authChecked, setAuthChecked] = useState(false);
+  const signedOut = authChecked && !userId;
   const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUserId(data.user.id);
-    });
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        if (data.user) setUserId(data.user.id);
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
     markAllRead();
   }, [supabase.auth]);
 
@@ -122,9 +129,7 @@ export default function AlertsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
-            Alerts
-          </h1>
+          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">Alerts</h1>
           <p className="text-[var(--t3)]">
             New matches for your saved searches and the cars you&apos;re
             watching.
@@ -147,8 +152,8 @@ export default function AlertsPage() {
             No alerts yet
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            Save a search or watch a car, and new matches and price changes
-            show up here.
+            Save a search or watch a car, and new matches and price changes show
+            up here.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
@@ -181,10 +186,14 @@ export default function AlertsPage() {
             <LocalWatchInbox
               items={localSaved.items}
               onRemove={localSaved.remove}
+              signedOut={signedOut}
             />
           )}
           {localSearches.count > 0 && (
-            <LocalSearchInbox searches={localSearches.items} />
+            <LocalSearchInbox
+              searches={localSearches.items}
+              signedOut={signedOut}
+            />
           )}
         </div>
       )}
@@ -213,8 +222,8 @@ function ServerAlertGrid({
               {alerts.length} fresh alert{alerts.length === 1 ? "" : "s"} ready.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              Matched to your saved searches. Check the source listing and
-              price evidence before you act.
+              Matched to your saved searches. Check the source listing and price
+              evidence before you act.
             </p>
           </div>
           <Link
@@ -270,7 +279,13 @@ function ServerAlertGrid({
   );
 }
 
-function LocalSearchInbox({ searches }: { searches: any[] }) {
+function LocalSearchInbox({
+  searches,
+  signedOut,
+}: {
+  searches: any[];
+  signedOut: boolean;
+}) {
   const { intent } = useBuyerIntent();
   const showProfitTarget = !hidesFlipNav(intent?.buyerMode);
   return (
@@ -354,8 +369,9 @@ function LocalSearchInbox({ searches }: { searches: any[] }) {
                   )}
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
-                  Stored locally. Sign in later to sync server alerts and
-                  background matching.
+                  {signedOut
+                    ? "Stored locally. Sign in later to sync server alerts and background matching."
+                    : "Stored on this device."}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -432,9 +448,11 @@ function ServerWatchInbox({
 function LocalWatchInbox({
   items,
   onRemove,
+  signedOut,
 }: {
   items: ReturnType<typeof useLocalSavedVehicles>["items"];
   onRemove: (id: string) => void;
+  signedOut: boolean;
 }) {
   const formatMoney = (value: number) =>
     new Intl.NumberFormat("en-US", {
@@ -456,8 +474,9 @@ function LocalWatchInbox({
               this device.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These vehicles are saved on this device. Sign in to keep your
-              watchlist available across devices.
+              {signedOut
+                ? "These vehicles are saved on this device. Sign in to keep your watchlist available across devices."
+                : "These vehicles are saved on this device."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -467,12 +486,14 @@ function LocalWatchInbox({
             >
               Open watchlist
             </Link>
-            <Link
-              href="/login"
-              className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
-            >
-              Sign in
-            </Link>
+            {signedOut && (
+              <Link
+                href="/login?next=%2Falerts"
+                className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </div>
       </div>
