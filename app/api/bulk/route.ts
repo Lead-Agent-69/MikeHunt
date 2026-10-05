@@ -1,8 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // /api/bulk — multi-unit sourcing for fleet/wholesale buyers. Groups currently-active deals by
 // make+model so a buyer can spot "5 Transit vans under $15k across 3 sources" in one place — a
@@ -56,7 +61,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await q;
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("bulk", error);
 
     // Group by make + normalized model.
     const groups = new Map<string, any[]>();
@@ -111,12 +116,14 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.totalProfit - a.totalProfit || b.count - a.count)
       .slice(0, 100);
 
+    const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json({
-      groups: out,
+      groups: listingsForDesk(out, flipDesk),
+      deskAccess: flipDesk ? "flip" : "personal",
       count: out.length,
       state: state || "nationwide",
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("bulk", e);
   }
 }

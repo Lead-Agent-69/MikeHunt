@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ vin, plate, state });
   } catch (e: any) {
     return NextResponse.json(
-      { error: e.message || "Plate lookup failed" },
+      { error: "Plate lookup failed" },
       { status: 502 },
     );
   }

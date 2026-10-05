@@ -222,6 +222,27 @@ export function craigslistSitesForRun(
   return CL_CITIES;
 }
 
+/**
+ * Craigslist search URL for one site, channel, and page. `query` is a full-text filter, so the old
+ * default "cars+trucks" only matched posts containing those words: 21 of 355 Dallas owner listings
+ * on 2026-10-04. No query returns the whole category.
+ */
+export function craigslistSearchUrl(
+  city: string,
+  channelPath: string,
+  page: number,
+  query = "",
+  minPrice = 500,
+  maxPrice = 35000,
+): string {
+  const params = new URLSearchParams();
+  if (query.trim()) params.set("query", query.trim());
+  params.set("min_price", String(minPrice));
+  params.set("max_price", String(maxPrice));
+  if (page > 1) params.set("s", String((page - 1) * 120));
+  return `https://${city}.craigslist.org/search/${channelPath}?${params.toString()}`;
+}
+
 export const CL_CONFIG: ScraperConfig = {
   name: "Craigslist",
   baseUrl: "https://craigslist.org",
@@ -240,8 +261,72 @@ const CL_CHANNELS: { path: string; source: string }[] = [
   { path: "ctd", source: "craigslist_dealer" }, // cars+trucks by dealer (retail)
 ];
 
+/** Parse one Craigslist search page (current static layout and the legacy result-row). */
+export async function parseCraigslistResults(
+  $raw: unknown,
+  city: string,
+  channel: { path: string; source: string },
+): Promise<{ items: Partial<Deal>[]; hasMore: boolean }> {
+  const cheerio = await import("cheerio");
+  const $ =
+    typeof $raw === "string"
+      ? cheerio.load($raw)
+      : ($raw as ReturnType<typeof cheerio.load>);
+  const items: Partial<Deal>[] = [];
+
+  $(".cl-static-search-result, .cl-search-result, li.result-row").each(
+    (_, el) => {
+      const row = $(el);
+      const title = row
+        .find(".title, .title-anchor, a.result-title")
+        .text()
+        .trim();
+      const priceText = row.find(".price").text().trim();
+      const url = row.find("a").attr("href");
+      const hood = row
+        .find(".location, .hood")
+        .text()
+        .replace(/[()]/g, "")
+        .trim();
+      const imgSrc = row.find("img").attr("src");
+
+      if (!title) return;
+
+      items.push({
+        source: channel.source,
+        source_deal_id: url?.split("/").pop()?.replace(".html", "") || "",
+        source_url: url
+          ? normalizeUrl(url, `https://${city}.craigslist.org`)
+          : "",
+        title,
+        year: extractYear(title),
+        make: title.split(" ").slice(1, 2).join("") || "",
+        model: title.split(" ").slice(2, 4).join(" ") || "",
+        ask_price: extractPrice(priceText) || 0,
+        mileage: mileageFromTitle(title),
+        condition: "run_drive",
+        location_city: hood || city,
+        location_state: CL_SITE_STATE.get(city),
+        seller_type:
+          channel.source === "craigslist_dealer" ? "dealer" : "private",
+        images: imgSrc ? [imgSrc] : [],
+      });
+    },
+  );
+
+  const totalText = $(".totalcount").text();
+  const total = parseInt(totalText) || 0;
+  const offset = parseInt(
+    new URL(
+      $('link[rel="next"]').attr("href") || "",
+      "https://craigslist.org",
+    ).searchParams.get("s") || "0",
+  );
+  return { items, hasMore: offset < total && items.length > 0 };
+}
+
 export async function scrapeCraigslist(
-  query = "cars+trucks",
+  query = process.env.CL_QUERY || "",
   minPrice = 500,
   maxPrice = 35000,
 ) {
@@ -264,67 +349,15 @@ export async function scrapeCraigslist(
       const gen = paginate<Partial<Deal>>(
         config,
         (page) =>
-          `https://${city}.craigslist.org/search/${channel.path}?` +
-          `query=${query}&min_price=${minPrice}&max_price=${maxPrice}&s=${(page - 1) * 120}`,
-        async ($raw) => {
-          const cheerio = await import("cheerio");
-          const $ =
-            typeof $raw === "string"
-              ? cheerio.load($raw)
-              : ($raw as ReturnType<typeof cheerio.load>);
-          const items: Partial<Deal>[] = [];
-
-          $(".cl-static-search-result, .cl-search-result, li.result-row").each(
-            (_, el) => {
-              const row = $(el);
-              const title = row
-                .find(".title, .title-anchor, a.result-title")
-                .text()
-                .trim();
-              const priceText = row.find(".price").text().trim();
-              const url = row.find("a").attr("href");
-              const hood = row
-                .find(".location, .hood")
-                .text()
-                .replace(/[()]/g, "")
-                .trim();
-              const imgSrc = row.find("img").attr("src");
-
-              if (!title) return;
-
-              items.push({
-                source: channel.source,
-                source_deal_id:
-                  url?.split("/").pop()?.replace(".html", "") || "",
-                source_url: url
-                  ? normalizeUrl(url, `https://${city}.craigslist.org`)
-                  : "",
-                title,
-                year: extractYear(title),
-                make: title.split(" ").slice(1, 2).join("") || "",
-                model: title.split(" ").slice(2, 4).join(" ") || "",
-                ask_price: extractPrice(priceText) || 0,
-                mileage: mileageFromTitle(title),
-                condition: "run_drive",
-                location_city: hood || city,
-                location_state: CL_SITE_STATE.get(city),
-                seller_type:
-                  channel.source === "craigslist_dealer" ? "dealer" : "private",
-                images: imgSrc ? [imgSrc] : [],
-              });
-            },
-          );
-
-          const totalText = $(".totalcount").text();
-          const total = parseInt(totalText) || 0;
-          const offset = parseInt(
-            new URL(
-              $('link[rel="next"]').attr("href") || "",
-              "https://craigslist.org",
-            ).searchParams.get("s") || "0",
-          );
-          return { items, hasMore: offset < total && items.length > 0 };
-        },
+          craigslistSearchUrl(
+            city,
+            channel.path,
+            page,
+            query,
+            minPrice,
+            maxPrice,
+          ),
+        ($raw) => parseCraigslistResults($raw, city, channel),
       );
 
       for await (const batch of gen) allDeals.push(...batch);

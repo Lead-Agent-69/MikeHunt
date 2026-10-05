@@ -174,8 +174,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data || []);
   } catch (error: any) {
     console.error("[SAVED-CARS-API] GET error:", error);
+    console.error("[saved-cars]", error.message);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch saved cars" },
+      { error: "Failed to fetch saved cars" },
       { status: 500 },
     );
   }
@@ -370,9 +371,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, id: data.id });
   } catch (error: any) {
     console.error("[SAVED-CARS-API] POST error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to save car" },
-      { status: 500 },
-    );
+    console.error("[saved-cars]", error.message);
+    return NextResponse.json({ error: "Failed to save car" }, { status: 500 });
   }
 }

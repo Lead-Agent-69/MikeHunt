@@ -51,8 +51,9 @@ export async function POST(req: Request) {
     .limit(5000);
 
   if (error) {
+    console.error("[admin/geocode-backfill]", error.message);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Request failed" },
       { status: 500, headers: CORS },
     );
   }

@@ -2,10 +2,15 @@ export const dynamic = "force-dynamic";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 import { categorize } from "@/lib/discovery/categorize";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 
@@ -74,14 +79,16 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await q;
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("flash-deals", error);
 
     const deals = (data || [])
       .filter((row) => !isAuctionChannel(row.source))
       .map(mapFlashDeal);
+    const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json(
       {
-        deals,
+        deals: listingsForDesk(deals, flipDesk),
+        deskAccess: flipDesk ? "flip" : "personal",
         count: deals.length,
         state: state || "nationwide",
       },
@@ -94,6 +101,6 @@ export async function GET(request: NextRequest) {
       },
     );
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("flash-deals", e);
   }
 }

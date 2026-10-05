@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
     .select("id")
     .single();
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("outcomes", error);
 
   return NextResponse.json({ success: true, id: data.id });
 }
@@ -103,6 +104,6 @@ export async function GET() {
     .limit(200);
 
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("outcomes", error);
   return NextResponse.json({ outcomes: data || [] });
 }

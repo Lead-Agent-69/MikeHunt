@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -11,6 +12,10 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { LocalScraperCache } from "@/lib/scrapers/local-cache";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import {
@@ -1192,7 +1197,7 @@ export async function GET(req: NextRequest) {
   const { data, count, error } = await query;
   if (error) {
     console.error("API scan error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("scan", error);
   }
 
   const scanFilters: ScanMatchFilters = {
@@ -1225,9 +1230,12 @@ export async function GET(req: NextRequest) {
     ? ranked.slice(page * pageSize, (page + 1) * pageSize)
     : ranked;
 
+  // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
+  const flipDesk = await resolveCallerFlipDesk();
   return NextResponse.json(
     {
-      vehicles: sorted,
+      vehicles: listingsForDesk(sorted, flipDesk),
+      deskAccess: flipDesk ? "flip" : "personal",
       total: count || 0,
       state: state || "nationwide",
       page,
@@ -1265,6 +1273,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Scan trigger error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("scan", error);
   }
 }

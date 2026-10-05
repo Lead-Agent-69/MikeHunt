@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -1016,6 +1017,6 @@ export async function GET(request: NextRequest) {
       previewMode: false,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("discover", e);
   }
 }

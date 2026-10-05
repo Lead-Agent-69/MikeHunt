@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   isSupabaseConfigured,
   createServerComponentClient,
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("profile", error);
   }
 
   return NextResponse.json({ profile });

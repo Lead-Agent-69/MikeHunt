@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { generateApiKey } from "@/lib/api-keys";
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     .insert({ user_id: user.id, name, key_hash: hash, key_prefix: prefix });
 
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("keys", error);
   // The ONLY time the plaintext is returned.
   return NextResponse.json({ key: raw, prefix, name });
 }

@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Queue GET failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Queue GET failed" },
+      { error: "Queue GET failed" },
       { status: 500 },
     );
   }
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Queue POST failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Queue POST failed" },
+      { error: "Queue POST failed" },
       { status: 500 },
     );
   }
@@ -117,7 +117,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Queue DELETE failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Queue DELETE failed" },
+      { error: "Queue DELETE failed" },
       { status: 500 },
     );
   }
@@ -172,7 +172,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Queue PATCH failed:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Queue PATCH failed" },
+      { error: "Queue PATCH failed" },
       { status: 500 },
     );
   }
