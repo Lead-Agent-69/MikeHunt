@@ -23,6 +23,24 @@ describe("isAuthorizedCron", () => {
     expect(isAuthorizedCron(query)).toBe(false);
   });
 
+  it("rejects a same-length bearer mismatch", () => {
+    process.env.CRON_SECRET = "cron-test-secret";
+    const request = new NextRequest("https://app.test/api/alerts/process", {
+      headers: { authorization: "Bearer cron-test-secreT" },
+    });
+    expect(isAuthorizedCron(request)).toBe(false);
+  });
+
+  it("rejects a different-length bearer without accepting it", () => {
+    process.env.CRON_SECRET = "cron-test-secret";
+    const request = new NextRequest("https://app.test/api/alerts/process", {
+      headers: { authorization: "Bearer cron-test-secret-extra" },
+    });
+    expect(isAuthorizedCron(request)).toBe(false);
+    const missing = new NextRequest("https://app.test/api/alerts/process");
+    expect(isAuthorizedCron(missing)).toBe(false);
+  });
+
   it("locks the endpoint when the secret is unset", () => {
     delete process.env.CRON_SECRET;
     const request = new NextRequest("https://app.test/api/orchestrator/run", {
