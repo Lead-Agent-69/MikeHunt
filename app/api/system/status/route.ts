@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -130,7 +131,7 @@ export function summarizeSourceHealth(sources: any[], realData?: any) {
 // GET /api/system/status — the app's self-awareness: data freshness, per-source health (with
 // self-heal flags), and data-quality coverage. Read-only; powers the status surface and lets the
 // system (and the dealer) see whether it's running itself.
-export async function GET() {
+async function computeFullStatus(): Promise<Record<string, any>> {
   const configured = isSupabaseConfigured();
   const authProviders = configured
     ? await cached(
@@ -161,7 +162,7 @@ export async function GET() {
       auctionDatePct: 0,
       decisionReady: false,
     });
-    return NextResponse.json({
+    return {
       configured: false,
       authProviders,
       readiness,
@@ -228,7 +229,7 @@ export async function GET() {
       },
       sources: [],
       recentRuns: [],
-    });
+    };
   }
 
   const sb = createServerComponentClient();
@@ -482,7 +483,7 @@ export async function GET() {
   const mergedSources = mergeStatusSources(health, sourceBreakdown);
   const sourceHealth = summarizeSourceHealth(mergedSources, realData);
 
-  return NextResponse.json({
+  return {
     configured: true,
     authProviders,
     readiness,
@@ -538,5 +539,87 @@ export async function GET() {
     },
     sources: mergedSources,
     recentRuns: recent,
+  };
+}
+
+const PUBLIC_READINESS_IDS = new Set([
+  "supabase",
+  "service-role",
+  "scrape-control",
+  "google-login",
+]);
+
+/**
+ * Public projection of the status payload. Anonymous and non-admin callers (register page, Google
+ * button, Today pulse, Scan) only need headline counts and sign-in readiness. Per-source health,
+ * scraper runs, env key presence, diagnostics, valuation backtests and learning internals stay
+ * admin-only.
+ */
+export function toPublicStatus(full: Record<string, any>) {
+  const auth = full?.authProviders || {};
+  const readiness = full?.readiness || {};
+  const items = Array.isArray(readiness.items) ? readiness.items : [];
+  const freshness = full?.freshness || {};
+  const quality = full?.quality || {};
+  return {
+    configured: Boolean(full?.configured),
+    scope: "public" as const,
+    authProviders: {
+      reachable: Boolean(auth.reachable),
+      google: typeof auth.google === "boolean" ? auth.google : null,
+      email: typeof auth.email === "boolean" ? auth.email : null,
+      checkedAt: auth.checkedAt ?? null,
+    },
+    readiness: {
+      ready: Boolean(readiness.ready),
+      items: items
+        .filter((item: any) => PUBLIC_READINESS_IDS.has(String(item?.id)))
+        .map((item: any) => ({
+          id: item.id,
+          label: item.label,
+          status: item.status,
+          nextStep: item.nextStep,
+          actionLabel: item.actionLabel,
+          userImpact: item.userImpact,
+        })),
+    },
+    buyerReady: Boolean(full?.buyerReady),
+    decisionReady: Boolean(full?.decisionReady),
+    activeDeals: Number(full?.activeDeals || 0),
+    sourceHealth: {
+      readySources: Number(full?.sourceHealth?.readySources || 0),
+      activeDeals: Number(full?.sourceHealth?.activeDeals || 0),
+    },
+    freshness: {
+      activeDeals: Number(freshness.activeDeals || 0),
+      newLast24h: Number(freshness.newLast24h || 0),
+      newestAgeHours:
+        typeof freshness.newestAgeHours === "number"
+          ? freshness.newestAgeHours
+          : null,
+      stale: freshness.stale !== false,
+    },
+    quality: {
+      goDeals: Number(quality.goDeals || 0),
+      watchCandidates: Number(quality.watchCandidates || 0),
+    },
+  };
+}
+
+// GET /api/system/status
+// Admin (ADMIN_EMAIL session or INGEST_SECRET bearer): full self-awareness payload for /status.
+// Everyone else: a cached public projection with headline counts only. The full build runs a
+// dozen count queries plus multi-page scans, so anonymous traffic only ever hits the cache.
+export async function GET(request: NextRequest) {
+  if (await canManageOperations(request)) {
+    return NextResponse.json(await computeFullStatus(), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+  const payload = await cached("status:public:v1", 120_000, async () =>
+    toPublicStatus(await computeFullStatus()),
+  );
+  return NextResponse.json(payload, {
+    headers: { "Cache-Control": "private, no-store" },
   });
 }
