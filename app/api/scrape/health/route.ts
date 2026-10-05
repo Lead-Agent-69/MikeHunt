@@ -514,20 +514,29 @@ function missingCoverageActions(row: any) {
   return missing;
 }
 
+/** Same wording as the status route. Rows on file are not a live scrape. */
+function lastSeenLabel(ageHours: number | null) {
+  if (ageHours == null || !Number.isFinite(ageHours)) return "Last seen unknown";
+  if (ageHours < 1) return "Seen just now";
+  if (ageHours < 24) return `Seen ${ageHours}h ago`;
+  const days = Math.max(1, Math.round(ageHours / 24));
+  return `Seen ${days}d ago`;
+}
+
 function readySourceAction(row: any) {
   const missing = missingCoverageActions(row);
   if (missing.length) {
-    return `Working, but thin on ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? `, +${missing.length - 3} more` : ""}. Use these rows for discovery, then verify weak fields before bidding.`;
+    return `Listings on file, but thin on ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? `, +${missing.length - 3} more` : ""}. Use these rows for discovery, then verify weak fields before bidding.`;
   }
-  return "Open Scan for this source and inspect detail quality.";
+  return "Open Scan to review stored listings. Last seen is not a live scrape.";
 }
 
 function readySourceImpact(row: any) {
   const missing = missingCoverageActions(row);
   if (missing.length) {
-    return `This source is returning live inventory, but buyer confidence is limited by missing ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? `, +${missing.length - 3} more` : ""}.`;
+    return `Listings are on file, but buyer confidence is limited by missing ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? `, +${missing.length - 3} more` : ""}.`;
   }
-  return "This source has returned vehicle rows that can be shown in Scan.";
+  return "Stored listings from this source can be reviewed in Scan. Last seen is not a live scrape.";
 }
 
 function explainSource(
@@ -539,8 +548,10 @@ function explainSource(
 ) {
   if (readiness === "ready") {
     return {
-      userStatus: "Working",
-      proofLevel: "live_rows",
+      userStatus: lastSeenLabel(
+        typeof row?.freshnessHours === "number" ? row.freshnessHours : null,
+      ),
+      proofLevel: "stored_rows",
       userImpact: readySourceImpact(row),
       nextAction: readySourceAction(row),
     };
@@ -612,27 +623,20 @@ export function enrichHealthRow(
   configured: boolean,
   scope?: HealthScope,
 ) {
-  const explanation = explainSource(
-    source,
-    row.readiness,
-    configured,
-    row,
-    scope,
-  );
   const photoCoveragePct = row.activeRows
     ? Math.round(((row.rowsWithPhotos || 0) / row.activeRows) * 100)
     : 0;
   const freshnessHours = row.lastSeenAt
     ? Math.round((Date.now() - new Date(row.lastSeenAt).getTime()) / 3600_000)
     : null;
-  const freshnessLabel =
-    freshnessHours == null
-      ? "freshness unknown"
-      : freshnessHours < 1
-        ? "seen this hour"
-        : freshnessHours < 24
-          ? `${freshnessHours}h fresh`
-          : `${Math.round(freshnessHours / 24)}d fresh`;
+  const explanation = explainSource(
+    source,
+    row.readiness,
+    configured,
+    { ...row, freshnessHours },
+    scope,
+  );
+  const freshnessLabel = lastSeenLabel(freshnessHours);
   const missing = missingCoverageActions(row);
   const proofBadges = [
     `${Number(row.activeRows || 0).toLocaleString()} rows`,
