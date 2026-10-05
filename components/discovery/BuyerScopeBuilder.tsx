@@ -18,6 +18,7 @@ import {
   BadgeDollarSign,
   UsersRound,
   Hammer,
+  Package,
 } from "lucide-react";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
@@ -195,6 +196,7 @@ const BUYER_MODE_CHOICES: Array<{
 }> = [
   { value: "personal", icon: UserRound },
   { value: "diy", icon: Hammer },
+  { value: "parts", icon: Package },
   { value: "reseller", icon: BadgeDollarSign },
   { value: "dealer", icon: UsersRound },
 ];

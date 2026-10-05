@@ -13,6 +13,7 @@ import {
   writeLocalBuyerIntent,
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
@@ -343,15 +344,17 @@ export default function DiscoverPage() {
     data?.marketListings && data.marketListings > data.totalListings
       ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
       : null;
-  const personalBuyer = buyerScope?.buyerMode === "personal";
-  const hiddenPersonalRails = new Set([
-    "roi",
-    "salvage",
-    "auctionLots",
-    "fresh",
-  ]);
+  // Personal, DIY, and parts are not flip desks — hide wholesale flip rails.
+  // Reseller/dealer keep roi / salvage / auctionLots / fresh.
+  const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
+  const partsBuyer = buyerScope?.buyerMode === "parts";
+  const hiddenNonFlipRails = new Set(
+    partsBuyer
+      ? ["roi", "auctionLots", "fresh"] // parts buyers still want salvage/teardown
+      : ["roi", "salvage", "auctionLots", "fresh"],
+  );
   const visibleRails = (data?.rails || []).filter(
-    (rail) => !personalBuyer || !hiddenPersonalRails.has(rail.key),
+    (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
   );
 
   return (

@@ -10,6 +10,7 @@ import {
   Wrench,
   TrendingUp,
   Building2,
+  Package,
   MapPin,
   ShieldCheck,
   Sparkles,
@@ -45,13 +46,19 @@ const MODE_VISUALS = {
   },
   diy: {
     icon: Wrench,
-    position: "33.333%",
+    position: "25%",
     caption: "For your next project",
     color: "#9b6014",
   },
+  parts: {
+    icon: Package,
+    position: "50%",
+    caption: "For cores and teardown",
+    color: "#7a4a1a",
+  },
   reseller: {
     icon: TrendingUp,
-    position: "66.667%",
+    position: "75%",
     caption: "For your next opportunity",
     color: "#126a89",
   },
@@ -179,9 +186,11 @@ export default function OnboardingPage() {
       ? "Your repair comfort guides the evidence we prioritize."
       : buyerMode === "personal"
         ? "Reliability, safety, and total ownership cost lead your decision."
-        : buyerMode === "reseller"
-          ? "Profit, repair risk, and time-to-sale lead your decision."
-          : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
+        : buyerMode === "parts"
+          ? "Core value, salvage title risk, and yard time lead your decision."
+          : buyerMode === "reseller"
+            ? "Profit, repair risk, and time-to-sale lead your decision."
+            : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
 
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
 
