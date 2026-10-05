@@ -4607,6 +4607,7 @@ function ScanPageInner() {
               }}
             >
               <DealCard
+                flipDesk={flipDesk}
                 id={car.id}
                 source={car.source}
                 year={car.year}
