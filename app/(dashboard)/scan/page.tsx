@@ -4573,6 +4573,7 @@ function ScanPageInner() {
         <DealTable
           rows={filteredResults as any}
           sourceHealthById={tableSourceHealthById}
+          flipDesk={flipDesk}
         />
       )}
 
