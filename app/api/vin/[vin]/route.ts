@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
@@ -88,10 +89,20 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ vin: string }> },
 ) {
+  const rl = rateLimit(request, {
+    key: "vin-decode",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
   try {
-    const { vin } = await params;
-
-    if (!vin || vin.length < 10) {
+    const { vin: rawVin } = await params;
+    // VIN alphabet only (no I/O/Q), 11–17 chars. The VIN is interpolated into upstream URLs, so
+    // anything else (slashes, ?, &, ..) is rejected rather than forwarded.
+    const vin = String(rawVin || "")
+      .toUpperCase()
+      .replace(/[\s-]/g, "");
+    if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(vin)) {
       return NextResponse.json({ error: "Invalid VIN" }, { status: 400 });
     }
 

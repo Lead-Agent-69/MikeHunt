@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { windowStickerUrl } from "@/lib/vehicle/window-sticker";
 
 // GET /api/window-sticker/{vin}?make=Ford
@@ -14,7 +15,16 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ vin: string }> },
 ) {
+  const rl = rateLimit(req, {
+    key: "window-sticker",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
   const { vin } = await ctx.params;
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/i.test(String(vin || ""))) {
+    return NextResponse.json({ error: "Invalid VIN" }, { status: 400 });
+  }
   const make = new URL(req.url).searchParams.get("make") || "";
   const url = windowStickerUrl(vin, make);
   if (!url) {
