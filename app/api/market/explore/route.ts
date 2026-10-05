@@ -3,6 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
+import {
   dealLane,
   LANE_COLORS,
   type DealLane,
@@ -217,7 +221,20 @@ export async function GET(req: NextRequest) {
         };
       },
     );
-    return NextResponse.json(payload);
+    // Cache is shared; redact AFTER so a personal caller never gets a flip-desk hit.
+    const flipDesk = await resolveCallerFlipDesk();
+    return NextResponse.json(
+      flipDesk
+        ? { ...payload, deskAccess: "flip" }
+        : {
+            ...payload,
+            rows: listingsForDesk(payload.rows || [], false),
+            facets: payload.facets
+              ? { ...payload.facets, laneProfit: {} }
+              : payload.facets,
+            deskAccess: "personal",
+          },
+    );
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

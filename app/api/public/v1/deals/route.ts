@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { hashApiKey } from "@/lib/api-keys";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  isFlipDeskMode,
+  listingsForDesk,
+  readSavedBuyerMode,
+} from "@/lib/deals/deal-desk-access";
 
 const CORS = { "Access-Control-Allow-Origin": "*" };
 
@@ -28,7 +33,7 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   const { data: keyRow } = await supabase
     .from("api_keys")
-    .select("id, revoked, request_count")
+    .select("id, user_id, revoked, request_count")
     .eq("key_hash", hashApiKey(key))
     .maybeSingle();
 
@@ -38,6 +43,10 @@ export async function GET(req: NextRequest) {
       { status: 401, headers: CORS },
     );
   }
+  // Any signed-in user can mint a key; only a flip desk (reseller/dealer) gets profit fields.
+  const flipDesk = isFlipDeskMode(
+    await readSavedBuyerMode(supabase, keyRow.user_id),
+  );
 
   // Best-effort usage tracking.
   supabase
@@ -83,24 +92,26 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: CORS },
     );
 
+  const rows = (data || []).map((d: any) => ({
+    id: d.id,
+    vin: d.vin,
+    year: d.year,
+    make: d.make,
+    model: d.model,
+    ask_price: d.ask_price,
+    estimated_resale: d.sell_estimate,
+    estimated_net_profit: d.true_net_profit,
+    recommended_max_bid: d.recommended_max_bid,
+    verdict: d.deal_verdict,
+    profit_score: d.profit_score,
+    location: { state: d.location_state, city: d.location_city },
+    source: d.source,
+    url: d.source_url,
+  }));
   return NextResponse.json(
     {
-      data: (data || []).map((d: any) => ({
-        id: d.id,
-        vin: d.vin,
-        year: d.year,
-        make: d.make,
-        model: d.model,
-        ask_price: d.ask_price,
-        estimated_resale: d.sell_estimate,
-        estimated_net_profit: d.true_net_profit,
-        recommended_max_bid: d.recommended_max_bid,
-        verdict: d.deal_verdict,
-        profit_score: d.profit_score,
-        location: { state: d.location_state, city: d.location_city },
-        source: d.source,
-        url: d.source_url,
-      })),
+      data: listingsForDesk(rows, flipDesk),
+      deskAccess: flipDesk ? "flip" : "personal",
       meta: { count: data?.length || 0, limit },
     },
     { headers: CORS },

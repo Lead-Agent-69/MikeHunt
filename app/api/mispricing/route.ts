@@ -14,6 +14,10 @@ import {
   isUnderpriced,
 } from "@/lib/intelligence/mispricing";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/mispricing — the mispricing radar. Clusters active deals by make/model/year-band, computes
 // each cluster's price distribution, and surfaces the statistical outliers priced well under their
@@ -115,5 +119,10 @@ export async function GET(req: NextRequest) {
 
   flagged.sort((a, b) => b._pct - a._pct);
   const deals = flagged.slice(0, 24).map(({ _pct, ...d }) => d);
-  return NextResponse.json({ deals, count: deals.length });
+  const flipDesk = await resolveCallerFlipDesk();
+  return NextResponse.json({
+    deals: listingsForDesk(deals, flipDesk),
+    deskAccess: flipDesk ? "flip" : "personal",
+    count: deals.length,
+  });
 }

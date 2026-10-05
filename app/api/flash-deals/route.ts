@@ -6,6 +6,10 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 import { categorize } from "@/lib/discovery/categorize";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 
@@ -79,9 +83,11 @@ export async function GET(request: NextRequest) {
     const deals = (data || [])
       .filter((row) => !isAuctionChannel(row.source))
       .map(mapFlashDeal);
+    const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json(
       {
-        deals,
+        deals: listingsForDesk(deals, flipDesk),
+        deskAccess: flipDesk ? "flip" : "personal",
         count: deals.length,
         state: state || "nationwide",
       },
