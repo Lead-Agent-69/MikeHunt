@@ -3,7 +3,10 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import {
   listingsForDesk,
   resolveCallerFlipDesk,
@@ -38,6 +41,18 @@ export async function GET(req: NextRequest) {
   });
   if (!rl.allowed) return tooManyRequests(rl);
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      rows: [],
+      total: 0,
+      capped: false,
+      mode: "curated",
+      page: 0,
+      pageSize: 50,
+      facets: {},
+      configured: false,
+    });
+  }
   try {
     const sp = new URL(req.url).searchParams;
     const states = csv(sp.get("states")).map((s) => s.toUpperCase());
