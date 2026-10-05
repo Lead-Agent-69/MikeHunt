@@ -12,14 +12,16 @@ because scheduled scrape jobs blow through the private-repo free tier (~2,000 mi
 a Chromium scrape every 30 min ≈ 2,880 runs × ~1-2 min each). The old scrape workflows
 are parked in `../workflows-disabled/` for reference only.
 
-The production scraper is the **Fly.io worker fleet** — see `fly.toml`
-(app `dealerhunt-scraper`) and `docs/SCRAPER-FLEET.md`:
+The production scraper is **Zeus Docker** — one residential Windows box running
+`docker-compose.local.yml` (see `docs/LOCAL-SCRAPER.md` and `docs/SCRAPER-FLEET.md`).
+There is no Fly.io deployment (free stack only):
 
-```bash
-fly deploy                      # build Dockerfile.scraper and ship
-fly scale count 3 --region iad,ord,sjc   # distinct IPs defeat single-IP rate walls
-fly logs -a dealerhunt-scraper  # verify the scrape loop is alive
+```powershell
+docker compose -f docker-compose.local.yml up -d          # start scraper + redis + flaresolverr
+docker compose -f docker-compose.local.yml logs -f scraper # verify the scrape loop is alive
 ```
 
-The Vercel-side crons (`vercel.json`: profit-sniper alerts, alert processing,
-embeddings backfill) are separate from scraping and unaffected.
+The self-hosted runner on Zeus also runs `ci.yml`.
+
+The Vercel Hobby crons (`vercel.json`: profit-sniper alerts, alert processing) and
+`embeddings-backfill.yml` are separate from scraping and unaffected.
