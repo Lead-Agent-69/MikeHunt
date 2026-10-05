@@ -31,7 +31,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 export type NavItem = {
   name: string;
@@ -87,14 +87,12 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
 const ALERTS_TAB: NavItem = { name: "Alerts", href: "/alerts", icon: BellRing };
 
 /**
- * Hide flip tools only for a known non-flip desk. A missing mode keeps the
- * full nav so a dealer on a new device does not lose Auction or Pipeline.
+ * Hide flip tools unless the desk is reseller or dealer. An unknown mode
+ * (signed out, no saved prefs) is treated as personal, matching
+ * lib/buyer/flip-lead.ts.
  */
 export function hidesFlipNav(buyerMode: unknown): boolean {
-  return (
-    normalizeFlipLeadMode(buyerMode) !== undefined &&
-    !isFlipBuyerMode(buyerMode)
-  );
+  return !isFlipBuyerMode(buyerMode);
 }
 
 function isFlipOnly(item: NavItem) {

@@ -2516,7 +2516,7 @@ function ScanPageInner() {
   const [availability, setAvailability] = useState("all");
   const [madeInUsa, setMadeInUsa] = useState(false);
   const [drivetrain, setDrivetrain] = useState("all");
-  const [sort, setSort] = useState("profit");
+  const [sort, setSort] = useState<string>(defaultScanSort(undefined));
   // New: verdict (GO-only), price floor, year ceiling, and an advanced-filters disclosure.
   const [verdict, setVerdict] = useState("all");
   const [category, setCategory] = useState("all"); // browsable one-tap lead category
