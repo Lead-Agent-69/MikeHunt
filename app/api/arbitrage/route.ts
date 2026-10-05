@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { DealsService } from "@/lib/data/deals-service";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import { getServerUser } from "@/lib/server-supabase";
@@ -213,6 +214,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(payload);
   } catch (error: any) {
     console.error("Error fetching arbitrage dashboard data:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("arbitrage", error);
   }
 }

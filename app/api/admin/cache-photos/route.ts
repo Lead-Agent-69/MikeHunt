@@ -77,11 +77,13 @@ export async function POST(req: Request) {
   if (goOnly) q = q.eq("deal_verdict", "go");
 
   const { data: deals, error } = await q;
-  if (error)
+  if (error) {
+    console.error("[admin/cache-photos]", error.message);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Request failed" },
       { status: 500, headers: CORS },
     );
+  }
   if (!deals?.length)
     return NextResponse.json({ scanned: 0, cached: 0 }, { headers: CORS });
 

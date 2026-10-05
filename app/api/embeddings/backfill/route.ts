@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import {
@@ -32,6 +33,6 @@ export async function GET(request: NextRequest) {
     const result = await backfillEmbeddings(supabase, limit);
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("embeddings:backfill", e);
   }
 }

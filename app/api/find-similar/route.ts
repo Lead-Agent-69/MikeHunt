@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("[FIND-SIMILAR-API] GET error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to find similar vehicles" },
+      { error: "Failed to find similar vehicles" },
       { status: 500 },
     );
   }

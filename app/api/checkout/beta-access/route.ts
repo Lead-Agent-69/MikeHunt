@@ -91,7 +91,7 @@ export async function GET(req: Request) {
   } catch (error: any) {
     console.error("[beta-checkout] Error:", error);
     return NextResponse.json(
-      { error: "Failed to create checkout session", details: error.message },
+      { error: "Failed to create checkout session" },
       { status: 500 },
     );
   }
@@ -199,7 +199,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("[beta-webhook] Error:", error);
     return NextResponse.json(
-      { error: "Webhook error", details: error.message },
+      { error: "Webhook error" },
       { status: 400 },
     );
   }

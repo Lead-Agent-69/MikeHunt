@@ -149,7 +149,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items: [],
       nextOffset: offset,
-      error: error.message,
+      /* error detail logged server-side */
+
+      error: "Feed unavailable",
     });
 
   const items = (data || [])

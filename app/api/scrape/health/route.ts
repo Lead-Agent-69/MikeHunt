@@ -2,6 +2,7 @@
 // Health dashboard API: source status, last run, failure rate, registry stats.
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createClient } from "@supabase/supabase-js";
 import { canSeeScrapeDetail } from "@/lib/auth/scrape-gate";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -516,7 +517,8 @@ function missingCoverageActions(row: any) {
 
 /** Same wording as the status route. Rows on file are not a live scrape. */
 function lastSeenLabel(ageHours: number | null) {
-  if (ageHours == null || !Number.isFinite(ageHours)) return "Last seen unknown";
+  if (ageHours == null || !Number.isFinite(ageHours))
+    return "Last seen unknown";
   if (ageHours < 1) return "Seen just now";
   if (ageHours < 24) return `Seen ${ageHours}h ago`;
   const days = Math.max(1, Math.round(ageHours / 24));
@@ -1107,7 +1109,7 @@ export async function GET(request: NextRequest) {
       .limit(1000);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return internalError("scrape:health", error);
     }
 
     const activeDeals: any[] = [];
@@ -1131,7 +1133,7 @@ export async function GET(request: NextRequest) {
 
       if (dealsError) {
         return NextResponse.json(
-          { error: dealsError.message },
+          { error: "Health check failed" },
           { status: 500 },
         );
       }
@@ -1302,9 +1304,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Health check failed:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Health check failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Health check failed" }, { status: 500 });
   }
 }

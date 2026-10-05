@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -85,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   const { data: rows, error } = await q;
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("mispricing", error);
 
   // Build per-cluster price arrays.
   const clusters = new Map<string, number[]>();

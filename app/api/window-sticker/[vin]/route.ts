@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { windowStickerUrl } from "@/lib/vehicle/window-sticker";
 
@@ -65,6 +66,6 @@ export async function GET(
       },
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return internalError("window-sticker:[vin]", e, "Upstream unavailable", 502);
   }
 }

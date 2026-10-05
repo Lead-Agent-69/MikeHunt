@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (e: any) {
     return NextResponse.json(
-      { error: e.message || "Checkout failed" },
+      { error: "Checkout failed" },
       { status: 500 },
     );
   }

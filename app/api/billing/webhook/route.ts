@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (e: any) {
     return NextResponse.json(
-      { error: `Webhook signature failed: ${e.message}` },
+      { error: "Webhook signature failed" },
       { status: 400 },
     );
   }

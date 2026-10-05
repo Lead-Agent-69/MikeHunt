@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   isSupabaseConfigured,
   createServerComponentClient,
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("finance:lenders", err);
   }
 }
 
@@ -82,6 +83,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return internalError("finance:lenders", err);
   }
 }

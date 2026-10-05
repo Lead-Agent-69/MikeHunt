@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -1192,7 +1193,7 @@ export async function GET(req: NextRequest) {
   const { data, count, error } = await query;
   if (error) {
     console.error("API scan error:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("scan", error);
   }
 
   const scanFilters: ScanMatchFilters = {
@@ -1265,6 +1266,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Scan trigger error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return internalError("scan", error);
   }
 }

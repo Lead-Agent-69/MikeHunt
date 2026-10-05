@@ -15,7 +15,7 @@ export async function GET() {
 
   const supabase = createServerComponentClient();
   const { data, error } = await supabase.rpc("get_market_pulse");
-  if (error) return NextResponse.json({ rows: [], error: error.message });
+  if (error) return NextResponse.json({ rows: [], error: "Market pulse unavailable" });
 
   const rows = (data || []).map((r: any) => ({
     make: r.make,
