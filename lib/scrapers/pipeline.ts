@@ -365,6 +365,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     );
     upsertedRows = result.rows;
     localPriceChangedKeys = result.priceChangedKeys;
+    if (result.touches)
+      console.log(
+        `[LocalCache] ${source}: last_seen_at bumped on ${result.touches} unchanged rows`,
+      );
     if (result.paused)
       console.warn(
         "[LocalCache] daily write threshold reached; new source jobs will pause",

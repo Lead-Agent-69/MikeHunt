@@ -7,13 +7,15 @@ export interface CachedListing {
   hash: string;
   synced: boolean;
   lastSeenAt: string;
+  /** Last time deals.last_seen_at was written for this row (insert, update, or touch). */
+  dbSeenAt?: string;
   data?: Record<string, unknown>;
 }
 
 interface CacheFile {
   version: 1;
   entries: Record<string, CachedListing>;
-  quota: { day: string; inserts: number; updates: number };
+  quota: { day: string; inserts: number; updates: number; touches?: number };
 }
 
 export interface LocalCacheOptions {
@@ -21,6 +23,10 @@ export interface LocalCacheOptions {
   batchSize?: number;
   maxDailyInserts?: number;
   maxDailyUpdates?: number;
+  /** Cheap last_seen_at bumps for unchanged rows. Default 20000/day. */
+  maxDailyTouches?: number;
+  /** Bump an unchanged row at most this often. Default 12h. */
+  touchIntervalMs?: number;
   cacheOnly?: boolean;
   onQuota?: (quota: CacheFile["quota"], paused: boolean) => void;
   beforeWrite?: () => Promise<boolean>;
@@ -32,8 +38,22 @@ export interface PersistResult {
   skipped: number;
   inserts: number;
   updates: number;
+  touches: number;
   priceChangedKeys: Set<string>;
   paused: boolean;
+}
+
+const TOUCH_CHUNK = 100;
+
+/** Unchanged rows whose deals.last_seen_at is due for a bump. */
+export function touchIsDue(
+  entry: CachedListing | undefined,
+  intervalMs: number,
+  now = Date.now(),
+): boolean {
+  if (!entry?.synced) return false;
+  const last = entry.dbSeenAt ? Date.parse(entry.dbSeenAt) : NaN;
+  return !Number.isFinite(last) || now - last >= intervalMs;
 }
 
 const VOLATILE_FIELDS = new Set([
@@ -126,6 +146,8 @@ export class LocalScraperCache {
   private batchSize: number;
   private maxDailyInserts: number;
   private maxDailyUpdates: number;
+  private maxDailyTouches: number;
+  private touchIntervalMs: number;
   private cacheOnly: boolean;
   private onQuota?: LocalCacheOptions["onQuota"];
   private beforeWrite?: LocalCacheOptions["beforeWrite"];
@@ -149,6 +171,15 @@ export class LocalScraperCache {
     this.batchSize = Math.min(50, Math.max(1, options.batchSize || 50));
     this.maxDailyInserts = Math.max(1, options.maxDailyInserts || 400);
     this.maxDailyUpdates = Math.max(1, options.maxDailyUpdates || 600);
+    this.maxDailyTouches = Math.max(
+      0,
+      options.maxDailyTouches ??
+        Number(process.env.MAX_DAILY_TOUCHES || 20_000),
+    );
+    this.touchIntervalMs = Math.max(
+      60_000,
+      options.touchIntervalMs ?? 12 * 60 * 60 * 1000,
+    );
     this.cacheOnly =
       options.cacheOnly ?? process.env.CACHE_ONLY_MODE === "true";
     this.onQuota = options.onQuota;
@@ -211,15 +242,17 @@ export class LocalScraperCache {
     this.rollDay();
     return {
       ...this.state.quota,
+      touches: this.state.quota.touches || 0,
       maxInserts: this.maxDailyInserts,
       maxUpdates: this.maxDailyUpdates,
+      maxTouches: this.maxDailyTouches,
     };
   }
 
   private rollDay(): void {
     const day = utcDay();
     if (this.state.quota.day !== day)
-      this.state.quota = { day, inserts: 0, updates: 0 };
+      this.state.quota = { day, inserts: 0, updates: 0, touches: 0 };
   }
 
   private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
@@ -253,12 +286,17 @@ export class LocalScraperCache {
         ...row,
         source_deal_id: stableListingId(row),
       }));
+      // Unchanged rows still prove the listing is live. They skip the full upsert, but
+      // deals.last_seen_at must still move or every unchanged car looks stale and the
+      // 30-day retention job deactivates listings that are still for sale.
+      const toTouch: Record<string, any>[] = [];
       const candidates = rows.filter((row) => {
         const key = `${row.source}|${row.source_deal_id}`;
         const entry = this.state.entries[key];
         const hash = listingHash(row);
         if (entry?.synced && entry.hash === hash) {
           entry.lastSeenAt = new Date().toISOString();
+          if (touchIsDue(entry, this.touchIntervalMs)) toTouch.push(row);
           return false;
         }
         return true;
@@ -281,12 +319,14 @@ export class LocalScraperCache {
           skipped: rows.length - candidates.length,
           inserts: 0,
           updates: 0,
+          touches: 0,
           priceChangedKeys: new Set(),
           paused: false,
         };
       }
 
       if (!candidates.length) {
+        const touches = await this.touchRows(toTouch, supabase);
         await this.save();
         return {
           rows: [],
@@ -294,6 +334,7 @@ export class LocalScraperCache {
           skipped: rows.length,
           inserts: 0,
           updates: 0,
+          touches,
           priceChangedKeys: new Set(),
           paused: false,
         };
@@ -351,11 +392,14 @@ export class LocalScraperCache {
         const oldEntry = this.state.entries[key];
         const hash = listingHash(row);
         if (prior && matchesStoredRow(prior, row)) {
-          this.state.entries[key] = {
+          const entry: CachedListing = {
             hash,
             synced: true,
             lastSeenAt: new Date().toISOString(),
+            dbSeenAt: oldEntry?.dbSeenAt || prior.last_seen_at || undefined,
           };
+          this.state.entries[key] = entry;
+          if (touchIsDue(entry, this.touchIntervalMs)) toTouch.push(row);
           continue;
         }
         const kind = prior ? "update" : "insert";
@@ -412,10 +456,12 @@ export class LocalScraperCache {
           const key = `${persisted.source}|${persisted.source_deal_id}`;
           const item = byKey.get(key);
           if (!item) continue;
+          const writtenAt = new Date().toISOString();
           this.state.entries[key] = {
             hash: listingHash(item.row),
             synced: true,
-            lastSeenAt: new Date().toISOString(),
+            lastSeenAt: writtenAt,
+            dbSeenAt: writtenAt,
           };
           if (item.kind === "insert") {
             inserts += 1;
@@ -434,6 +480,8 @@ export class LocalScraperCache {
         if (offset + this.batchSize < accepted.length)
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+
+      const touches = await this.touchRows(toTouch, supabase);
 
       for (const row of candidates) {
         const key = `${row.source}|${row.source_deal_id}`;
@@ -456,9 +504,64 @@ export class LocalScraperCache {
         skipped: rows.length - saved,
         inserts,
         updates,
+        touches,
         priceChangedKeys,
         paused,
       };
     });
+  }
+
+  /**
+   * Bump deals.last_seen_at for unchanged rows. One UPDATE per 100 ids, no returned rows,
+   * so egress stays near zero. Never writes price or content. Called inside exclusive().
+   */
+  private async touchRows(
+    rows: Record<string, any>[],
+    supabase: SupabaseClient,
+  ): Promise<number> {
+    if (!rows.length || this.cacheOnly) return 0;
+    let available = Math.max(
+      0,
+      this.maxDailyTouches - (this.state.quota.touches || 0),
+    );
+    let touched = 0;
+    const bySource = new Map<string, string[]>();
+    for (const row of rows) {
+      const list = bySource.get(String(row.source)) || [];
+      list.push(String(row.source_deal_id));
+      bySource.set(String(row.source), list);
+    }
+    for (const [source, ids] of Array.from(bySource.entries())) {
+      for (let offset = 0; offset < ids.length; offset += TOUCH_CHUNK) {
+        if (available <= 0) return touched;
+        if (this.beforeWrite && !(await this.beforeWrite())) return touched;
+        const chunk = ids.slice(
+          offset,
+          offset + Math.min(TOUCH_CHUNK, available),
+        );
+        const seenAt = new Date().toISOString();
+        const { error } = await supabase
+          .from("deals")
+          .update({ last_seen_at: seenAt })
+          .eq("source", source)
+          .in("source_deal_id", chunk);
+        if (error) {
+          // Freshness is best effort. A failed bump must not lose the batch's real writes.
+          console.warn(
+            `[LocalCache] last_seen_at bump failed for ${source}: ${error.message}`,
+          );
+          return touched;
+        }
+        for (const id of chunk) {
+          const entry = this.state.entries[`${source}|${id}`];
+          if (entry) entry.dbSeenAt = seenAt;
+        }
+        touched += chunk.length;
+        available -= chunk.length;
+        this.state.quota.touches =
+          (this.state.quota.touches || 0) + chunk.length;
+      }
+    }
+    return touched;
   }
 }
