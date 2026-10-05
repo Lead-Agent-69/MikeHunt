@@ -19,6 +19,7 @@ import {
   nextSweepStep,
   resolveScraperExecutionMode,
   resolveSweepIntervalMs,
+  optedInRestrictedSources,
   resolveSweepSources,
   saveSweepState,
   type ScraperExecutionMode,
@@ -401,6 +402,11 @@ async function runSweepTick(
       ...currentStatus.sweep,
       demandStates: plan.demandStates,
     };
+    const restricted = optedInRestrictedSources(step.state.sources);
+    if (restricted.length)
+      console.warn(
+        `[sweep] SCRAPE_SOURCES opts into sources whose terms ban automated access: ${restricted.join(", ")} (see TOS_RESTRICTED_SOURCES)`,
+      );
     console.log(
       `[sweep] states this sweep: ${plan.states.join(", ")}${plan.demandStates.length ? ` (demand: ${plan.demandStates.join(", ")})` : ""}`,
     );

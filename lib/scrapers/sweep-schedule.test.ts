@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SWEEP_SOURCES,
+  TOS_RESTRICTED_SOURCES,
+  optedInRestrictedSources,
   advanceSweep,
   claimBackoffMs,
   emptySweepState,
@@ -27,8 +29,19 @@ describe("scraper execution mode", () => {
 });
 
 describe("sweep sources and cadence", () => {
-  it("defaults to the free sweep set and honors SCRAPE_SOURCES", () => {
-    expect(resolveSweepSources(undefined)).toEqual([...DEFAULT_SWEEP_SOURCES]);
+  it("defaults to the free sweep set minus ToS-restricted sources, and honors SCRAPE_SOURCES", () => {
+    const defaults = resolveSweepSources(undefined);
+    expect(defaults).toEqual(
+      DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]),
+    );
+    expect(defaults).toEqual(
+      expect.arrayContaining(["curated_dealers", "gsa_auctions"]),
+    );
+    for (const id of ["cars_com", "craigslist", "copart", "autotempest"])
+      expect(defaults).not.toContain(id);
+    expect(optedInRestrictedSources(["copart", "gsa_auctions"])).toEqual([
+      "copart",
+    ]);
     expect(resolveSweepSources("cars_com, autotrader,cars_com")).toEqual([
       "cars_com",
       "autotrader",

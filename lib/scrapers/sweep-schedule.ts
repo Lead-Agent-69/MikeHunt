@@ -22,7 +22,8 @@ export function resolveScraperExecutionMode(
 }
 
 /**
- * Free, unauthenticated sources a broad sweep walks, in order. Retail sources with a VIN and a
+ * Free, unauthenticated sources a broad sweep could walk, in order. The default sweep drops
+ * TOS_RESTRICTED_SOURCES (below). The order is kept so that an explicit opt-in still runs in this order. Retail sources with a VIN and a
  * listing location go first because the daily insert budget is spent in this order. Auction and
  * surplus feeds take what is left.
  */
@@ -43,6 +44,34 @@ export const DEFAULT_SWEEP_SOURCES = [
   "copart",
 ] as const;
 
+/**
+ * Sources whose own terms ban automated access (robots, spiders, scrapers) without written
+ * permission. Reviewed 2026-10-05. They are left out of the default sweep. Running one takes an
+ * explicit SCRAPE_SOURCES opt-in by the operator, and the scraper logs that opt-in every sweep.
+ */
+export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
+  cars_com:
+    "cars.com/about/terms: no robots, crawlers or spiders to access, query, collect or scrape data",
+  autotrader:
+    "Autotrader terms: no automated means (robots, screen scrapers, spiders) to collect or index content",
+  autotempest:
+    "autotempest.com/legal: no bots, scrapers, crawlers or scripts without express written authorization",
+  carvana:
+    "carvana.com/terms-of-use: no bots, scripts, crawling, scraping or spidering unless expressly agreed",
+  cargurus:
+    "cargurus.com/about/terms-of-use: no scraping or data mining (crawlers only as its robots rules allow)",
+  craigslist:
+    "craigslist.org/about/terms.of.use: no collecting CL content via robots, spiders, scripts, scrapers or crawlers",
+  ebay_motors:
+    "eBay User Agreement: no robots, spiders or scrapers without permission. The licensed path is the Browse API (needs a key)",
+  ebay_sold:
+    "eBay User Agreement: no robots, spiders or scrapers without permission. The licensed path is the Browse API (needs a key)",
+  copart:
+    "Copart Member Terms (no spider/crawl/scrape) and Image & Data License (use the CSV download, not scraping)",
+  publicsurplus:
+    "publicsurplus.com terms: no robot, spider or automatic device to monitor or copy the site without written permission",
+};
+
 export function resolveSweepSources(
   raw: string | undefined = process.env.SCRAPE_SOURCES,
 ): string[] {
@@ -50,9 +79,13 @@ export function resolveSweepSources(
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  return Array.from(
-    new Set(explicit.length ? explicit : DEFAULT_SWEEP_SOURCES),
-  );
+  if (explicit.length) return Array.from(new Set(explicit));
+  return DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
+}
+
+/** Restricted sources the operator opted into through SCRAPE_SOURCES. */
+export function optedInRestrictedSources(sources: readonly string[]) {
+  return sources.filter((id) => TOS_RESTRICTED_SOURCES[id]);
 }
 
 /** Hours between the end of one sweep and the start of the next. Default 4h, floor 1h. */
