@@ -7,11 +7,16 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { hidesFlipNav } from "@/components/layout/nav-items";
 
 // The account menu present on every app surface — jump to settings and LOG OUT. `floating` (default) pins
 // it top-right; pass floating={false} to drop it inline into a nav bar's right side.
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
+  const { intent } = useBuyerIntent();
+  // Auction Lane is a flip tool. Personal, DIY, and parts desks don't get it here either.
+  const showAuctionLane = !hidesFlipNav(intent?.buyerMode);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -90,15 +95,17 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
           >
             <Bell className="h-4 w-4" aria-hidden="true" /> Activity
           </button>
-          <button
-            onClick={() => {
-              setOpen(false);
-              router.push("/lane");
-            }}
-            className={`${item} md:hidden`}
-          >
-            <Gavel className="h-4 w-4" aria-hidden="true" /> Auction Lane
-          </button>
+          {showAuctionLane && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                router.push("/lane");
+              }}
+              className={`${item} md:hidden`}
+            >
+              <Gavel className="h-4 w-4" aria-hidden="true" /> Auction Lane
+            </button>
+          )}
           <button
             onClick={() => {
               setOpen(false);
