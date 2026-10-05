@@ -49,12 +49,12 @@ describe("deterministic deal brief", () => {
     expect(
       buildBriefModeMetadata({
         hasProvider: true,
-        provider: "openai",
+        provider: "anthropic",
         cached: true,
       }),
     ).toMatchObject({
       deterministic: false,
-      provider: "openai",
+      provider: "anthropic",
       mode: "provider",
       reason: "Cached provider brief.",
     });
@@ -81,7 +81,10 @@ describe("aiBrief write ownership", () => {
       "reject",
     );
     expect(
-      aiBriefWriteDecision({ aiBrief: "owned", aiBriefUserId: "user-a" }, "cron"),
+      aiBriefWriteDecision(
+        { aiBrief: "owned", aiBriefUserId: "user-a" },
+        "cron",
+      ),
     ).toBe("reject");
     expect(aiBriefWriteDecision(null, "cron")).toBe("reject");
     expect(aiBriefWriteDecision(null, null)).toBe("reject");

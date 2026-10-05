@@ -305,7 +305,7 @@ export default function StatusPage() {
         readiness?.items?.find((item: any) => item.id === "ai-provider")
           ?.status === "ready"
           ? "A provider key is set. Briefs may explain fetched deals in words. Prices, MMR, and market value still come only from fetched data, never from the model."
-          : "Deterministic deal briefs and market pulse use saved buyer math and live deal data. Narration prefers ANTHROPIC_API_KEY (Haiku). OPENAI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks, and the model must not invent prices.",
+          : "Deterministic deal briefs and market pulse use saved buyer math and live deal data. Narration is optional (ANTHROPIC_API_KEY, Haiku), has no OpenAI or Gemini fallback, and the model must not invent prices.",
       href: "/status",
       action: "Provider checklist",
     },
@@ -400,7 +400,7 @@ export default function StatusPage() {
         readiness?.items?.find((item: any) => item.id === "ai-provider")
           ?.status === "ready"
           ? "Haiku (or the configured narrate fallback) can summarize why a deal is shown. It does not invent prices."
-          : "The app can rank and explain from live data now. Narration prefers an Anthropic Haiku key; OpenAI and Gemini are optional fallbacks.",
+          : "The app can rank and explain from live data now. Narration is optional and uses an Anthropic Haiku key only.",
       href: "/status",
       action: "Provider checklist",
       state:
@@ -440,8 +440,8 @@ export default function StatusPage() {
                 </p>
                 <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
                   Stored listings are ranked by last-seen age, not a live
-                  inventory scout, and the app is not yet a fully trusted
-                  buyer co-pilot.
+                  inventory scout, and the app is not yet a fully trusted buyer
+                  co-pilot.
                 </h2>
                 <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
                   A serious buyer expects three things: exact-fit inventory,
