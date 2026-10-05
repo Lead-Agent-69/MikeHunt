@@ -71,7 +71,7 @@ export const SITE_TYPE_META: Record<
 // prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
   // ── National salvage/rebuilder networks (multi-state inventory) ──
-  { url: "https://www.damage.com", name: "Damage.com", state: "FL", type: "salvage_yard" },
+  { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard" }, // 722 State Hwy H, Sikeston MO 63801 per its own footer (verified 2026-10-05)
   { url: "https://www.x2builders.com", name: "X2 Builders", type: "rebuilder_dealer" },
   { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction", type: "auction_proxy" },
   { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles", type: "rebuilder_dealer" },
