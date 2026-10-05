@@ -2,6 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import {
+  redactListingForNonFlipDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/deals/[id]/similar — semantically-similar deals via pgvector (similar_deals_by_id).
 // Falls back to attribute-based similarity (same make, near year/price) when embeddings aren't
@@ -35,6 +39,12 @@ export async function GET(
 ) {
   const { id } = await params;
   const supabase = createServerComponentClient();
+  // Net profit and profit score only go to a saved reseller / dealer desk (fail closed).
+  const flipDesk = await resolveCallerFlipDesk();
+  const shape = (d: any) => {
+    const card = mapRow(d);
+    return flipDesk ? card : redactListingForNonFlipDesk(card);
+  };
 
   // 1. Semantic path.
   try {
@@ -44,7 +54,7 @@ export async function GET(
     });
     if (!error && data && data.length > 0) {
       return NextResponse.json({
-        similar: data.map(mapRow),
+        similar: data.map(shape),
         basis: "semantic",
       });
     }
@@ -78,7 +88,7 @@ export async function GET(
 
   const { data: rows } = await q;
   return NextResponse.json({
-    similar: (rows || []).map(mapRow),
+    similar: (rows || []).map(shape),
     basis: "attribute",
   });
 }

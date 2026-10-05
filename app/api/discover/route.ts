@@ -39,6 +39,10 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContactFields } from "@/lib/data/deal-contact";
+import {
+  redactListingForNonFlipDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -530,7 +534,10 @@ export async function GET(request: NextRequest) {
                 title: "Live Public Preview",
                 subtitle:
                   "Real GovDeals and PublicSurplus rows while Supabase import is pending",
-                deals: previewDeals.deals,
+                // Preview has no saved desk: always the redacted card.
+                deals: previewDeals.deals.map((d: any) =>
+                  redactListingForNonFlipDesk(d),
+                ),
               },
             ]
           : [],
@@ -973,8 +980,22 @@ export async function GET(request: NextRequest) {
       },
     ].filter((r) => r.deals.length > 0);
 
+    // Net profit, max bid, profit score, and seller contact only go to a saved reseller / dealer
+    // desk. Everyone else (signed out, personal, diy, parts, unknown, prefs error) gets redacted
+    // cards and no "Top Flips" rail. Cards are copied, never mutated, because `merged` is cached.
+    const flipDesk = await resolveCallerFlipDesk();
+    const deskRails = flipDesk
+      ? rails
+      : rails
+          .filter((r) => r.key !== "roi")
+          .map((r) => ({
+            ...r,
+            deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
+          }));
+
     return NextResponse.json({
-      rails,
+      rails: deskRails,
+      deskAccess: flipDesk ? "flip" : "personal",
       totalListings: rowCount,
       uniqueVehicles: merged.length,
       marketListings: marketListingCount,

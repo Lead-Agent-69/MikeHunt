@@ -6,6 +6,8 @@
 // listing. Fail closed.
 
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { createServerComponentClient } from "@/lib/supabase";
+import { getServerUser } from "@/lib/server-supabase";
 
 type PrefsClient = {
   from: (table: string) => any;
@@ -81,4 +83,60 @@ export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   }
   out.deskAccess = "personal";
   return out;
+}
+
+// ── Listing cards (Discover, Feed, Similar) ──────────────────────────────────────────────────────
+
+// Card-level flip economics and seller contact. Market value (sellEstimate) and the listing itself
+// stay: a personal buyer still needs "ask vs market" to judge a price.
+const CARD_FLIP_ONLY_FIELDS = [
+  "true_net_profit",
+  "trueNetProfit",
+  "netProfit",
+  "profitEstimate",
+  "profitScore",
+  "score",
+  "recommendedMaxBid",
+  "ai_wholesale_estimate",
+  "ai_retail_estimate",
+  "ai_rationale",
+  "is_arbitrage_opportunity",
+  "contact",
+  "sellerPhone",
+  "sellerEmail",
+  "sellerContactUrl",
+] as const;
+
+/** Copy of a listing card without flip economics or seller contact. Never mutates the input. */
+export function redactListingForNonFlipDesk<T extends Record<string, any>>(
+  card: T,
+): Record<string, any> {
+  const out: Record<string, any> = { ...card };
+  for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
+  if (Array.isArray(card?.alsoOn)) {
+    out.alsoOn = card.alsoOn.map((o: Record<string, any>) =>
+      o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
+    );
+  }
+  return out;
+}
+
+/**
+ * Is the CURRENT request from a saved reseller / dealer desk? Signed out, no prefs, any other mode,
+ * or any lookup error → false (fail closed).
+ */
+export async function resolveCallerFlipDesk(): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await getServerUser();
+    if (!user?.id) return false;
+    const mode = await readSavedBuyerMode(
+      createServerComponentClient(),
+      user.id,
+    );
+    return isFlipDeskMode(mode);
+  } catch {
+    return false;
+  }
 }
