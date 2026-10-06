@@ -81,3 +81,18 @@ No paid hosts (Fly.io, VPS, proxies): the stack stays free.
   live heartbeat.
 - `/status` → "Valuation accuracy" + "Price knowledge base" climb as data flows.
 - `docker compose -f docker-compose.local.yml logs -f scraper` → `[smartFetch] www.autotrader.com → solved via "headed"`.
+
+## State arsenal (catalog + operator enable list)
+
+`lib/scrapers/arsenal.ts` lists, per state, every source MikeHunt knows and whether it may run:
+`live` (default sweep), `restricted` (TOS_RESTRICTED_SOURCES; needs `SCRAPE_SOURCES`),
+`operator_enabled`, `blocked` (source-compliance policy block), `candidate` (researched, not reviewed).
+
+- View: `GET /api/scrape/arsenal?state=TX` (catalog only; never fetches a site).
+- Probe candidates from Zeus: `docker compose exec scraper npx tsx scripts/arsenal-probe.ts TX` →
+  robots.txt + the site's own sitemaps only; report in `cache/arsenal/TX.json` on the Zeus volume.
+- Enable after reviewing the site's terms: add exact ids to `ARSENAL_ENABLE` in the scraper's runtime
+  env (`research-tx-...`). Enabled candidates ride the curated crawler with the same policy and
+  robots.txt gates. There is no "enable a whole state" switch on purpose.
+- Copart / IAAI / OfferUp / Municibid / GovDeals / AllSurplus / CarParts stay off unless named in
+  `SCRAPE_SOURCES`.
