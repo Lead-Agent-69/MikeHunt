@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Lock } from "lucide-react";
+import { PurchasePipeline } from "@/components/saved/PurchasePipeline";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
 import {
@@ -46,6 +47,7 @@ export function FlipDeskGate({
       </div>
     );
   }
+  if (route === "/fleet") return <PurchasePipeline />;
   return <FlipToolBlocked tool={FLIP_TOOL_ROUTES[route]} />;
 }
 

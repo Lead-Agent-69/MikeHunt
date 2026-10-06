@@ -296,11 +296,13 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       ),
     sb
       .from("deals")
-      .select("created_at")
-      .order("created_at", { ascending: false })
+      .select("last_seen_at")
+      .eq("active", true)
+      .not("last_seen_at", "is", null)
+      .order("last_seen_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then((r: any) => r.data?.created_at ?? null),
+      .then((r: any) => r.data?.last_seen_at ?? null),
     sb
       .from("deals")
       .select(
@@ -542,12 +544,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   };
 }
 
-const PUBLIC_READINESS_IDS = new Set([
-  "supabase",
-  "service-role",
-  "scrape-control",
-  "google-login",
-]);
+const PUBLIC_READINESS_IDS = new Set(["google-login"]);
 
 /**
  * Public projection of the status payload. Anonymous and non-admin callers (register page, Google
@@ -578,9 +575,11 @@ export function toPublicStatus(full: Record<string, any>) {
           id: item.id,
           label: item.label,
           status: item.status,
-          nextStep: item.nextStep,
-          actionLabel: item.actionLabel,
-          userImpact: item.userImpact,
+          nextStep:
+            item.status === "ready"
+              ? "Google sign-in is available."
+              : "Use email sign-in while Google sign-in is unavailable.",
+          actionLabel: "Sign in",
         })),
     },
     buyerReady: Boolean(full?.buyerReady),

@@ -509,7 +509,7 @@ function StatusStrip({
             ? "Couldn't update vehicles"
             : loading
               ? "Updating vehicles..."
-              : "Vehicles updated"}
+              : "Saved inventory loaded"}
         </span>
       </span>
 
@@ -1117,7 +1117,7 @@ function EmptyState({
             <div className="font-black text-[var(--t1)]">
               {checkedSources.length}
             </div>
-            <div className="text-[var(--t5)]">sources checked</div>
+            <div className="text-[var(--t5)]">listing sites searched</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
@@ -1129,7 +1129,7 @@ function EmptyState({
             <div className="font-black text-[var(--t1)]">
               {blockedSources.length}
             </div>
-            <div className="text-[var(--t5)]">sources unavailable</div>
+            <div className="text-[var(--t5)]">sites could not be checked</div>
           </div>
         </div>
       )}

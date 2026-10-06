@@ -1,11 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import useSWR from "swr";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
+import { useSearchParams } from "next/navigation";
+import { VehicleComparison } from "@/components/saved/VehicleComparison";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { usePreferences } from "@/hooks/usePreferences";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok)
+    throw new Error("Market comparison is temporarily unavailable.");
+  return response.json();
+};
 const money = (v: any) =>
   v == null
     ? "—"
@@ -42,7 +52,7 @@ const ROWS: {
   },
   {
     key: "avgDaysOnMarket",
-    label: "Avg days on market",
+    label: "Average days observed here",
     fmt: (v) => (v == null ? "—" : `${v}d`),
     best: "low",
   },
@@ -60,13 +70,39 @@ const ROWS: {
 ];
 
 export default function ComparePage() {
+  return (
+    <Suspense
+      fallback={
+        <p role="status" className="p-6">
+          Loading comparison...
+        </p>
+      }
+    >
+      <CompareContent />
+    </Suspense>
+  );
+}
+
+function CompareContent() {
+  const params = useSearchParams();
+  const ids = (params.get("ids") || "")
+    .split(",")
+    .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+    .slice(0, 4);
+  const { intent } = useBuyerIntent();
+  const { prefs } = usePreferences();
+  const flipDesk = isFlipBuyerMode(
+    intent?.buyerMode || prefs.buyerScope?.buyerMode,
+  );
   const [specs, setSpecs] = useState<Spec[]>([
     { make: "", model: "", year: "" },
   ]);
   const [submitted, setSubmitted] = useState<string>("");
 
-  const { data, isLoading } = useSWR(
-    submitted ? `/api/market/compare?vehicles=${submitted}` : null,
+  const { data, error, isLoading } = useSWR(
+    submitted && flipDesk
+      ? `/api/market/compare?vehicles=${encodeURIComponent(submitted)}`
+      : null,
     fetcher,
     { revalidateOnFocus: false },
   );
@@ -109,105 +145,123 @@ export default function ComparePage() {
           Compare Vehicles
         </h1>
         <p className="text-[var(--t3)]">
-          Which type is the better stock right now? Side-by-side profit, turn,
-          and depreciation.
+          Compare costs, listing claims and outstanding checks for your saved
+          vehicles.
         </p>
       </div>
 
-      <div className="glass-panel p-5 space-y-3">
-        {specs.map((s, i) => (
-          <div key={i} className="grid grid-cols-3 gap-2">
-            <input
-              className={input}
-              placeholder="Make (Ford)"
-              value={s.make}
-              onChange={(e) => update(i, "make", e.target.value)}
-            />
-            <input
-              className={input}
-              placeholder="Model (F-150)"
-              value={s.model}
-              onChange={(e) => update(i, "model", e.target.value)}
-            />
-            <input
-              className={input}
-              placeholder="Year (opt)"
-              value={s.year}
-              onChange={(e) => update(i, "year", e.target.value)}
-            />
+      <VehicleComparison ids={ids} />
+      {flipDesk && (
+        <>
+          <h2 className="text-lg font-bold">Market segment research</h2>
+          <p className="text-sm text-[var(--t3)]">
+            Listing-based estimates, not confirmed sales. Year filters include
+            the adjacent model years.
+          </p>
+          <div className="glass-panel p-5 space-y-3">
+            {specs.map((s, i) => (
+              <div key={i} className="grid grid-cols-3 gap-2">
+                <input
+                  className={input}
+                  placeholder="Make (Ford)"
+                  aria-label={`Vehicle ${i + 1} make`}
+                  value={s.make}
+                  onChange={(e) => update(i, "make", e.target.value)}
+                />
+                <input
+                  className={input}
+                  placeholder="Model (F-150)"
+                  aria-label={`Vehicle ${i + 1} model`}
+                  value={s.model}
+                  onChange={(e) => update(i, "model", e.target.value)}
+                />
+                <input
+                  className={input}
+                  placeholder="Year (opt)"
+                  aria-label={`Vehicle ${i + 1} year`}
+                  value={s.year}
+                  onChange={(e) => update(i, "year", e.target.value)}
+                />
+              </div>
+            ))}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={add}
+                disabled={specs.length >= 4}
+                className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--amber)] disabled:opacity-40 flex items-center gap-1"
+              >
+                <Ico name="plus" size={14} /> Add vehicle
+              </button>
+              <button
+                onClick={compare}
+                className="px-5 py-2 rounded-[var(--r3)] font-bold text-sm text-white"
+                style={{ background: "var(--amber)" }}
+              >
+                Compare
+              </button>
+            </div>
           </div>
-        ))}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={add}
-            disabled={specs.length >= 4}
-            className="text-sm font-semibold text-[var(--t3)] hover:text-[var(--amber)] disabled:opacity-40 flex items-center gap-1"
-          >
-            <Ico name="plus" size={14} /> Add vehicle
-          </button>
-          <button
-            onClick={compare}
-            className="px-5 py-2 rounded-[var(--r3)] font-bold text-sm text-white"
-            style={{ background: "var(--amber)" }}
-          >
-            Compare
-          </button>
-        </div>
-      </div>
 
-      {isLoading && (
-        <div className="text-center py-8 text-[var(--t3)]">Comparing…</div>
-      )}
+          {isLoading && (
+            <div className="text-center py-8 text-[var(--t3)]">Comparing…</div>
+          )}
+          {error && (
+            <p role="alert">
+              Market comparison couldn't be loaded. Please try again.
+            </p>
+          )}
 
-      {cols.length > 0 && (
-        <div className="glass-panel p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--b1)]">
-                <th className="text-left p-3 text-[var(--t4)] font-bold text-xs uppercase tracking-wider">
-                  Metric
-                </th>
-                {cols.map((c, i) => (
-                  <th
-                    key={i}
-                    className="text-right p-3 text-[var(--t1)] font-bold capitalize"
-                  >
-                    {c.make} {c.model}
-                    {c.year ? ` '${String(c.year).slice(2)}` : ""}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ROWS.map((row) => (
-                <tr
-                  key={row.key}
-                  className="border-b border-[var(--b1)] last:border-0"
-                >
-                  <td className="p-3 text-[var(--t3)] font-semibold">
-                    {row.label}
-                  </td>
-                  {cols.map((c, i) => {
-                    const best = isBest(row.key, c[row.key], row.best);
-                    return (
-                      <td key={i} className="p-3 text-right">
-                        <Mono
-                          className="font-bold"
-                          style={{
-                            fontFamily: "var(--fm)",
-                            color: best ? "var(--green)" : "var(--t1)",
-                          }}
-                        >
-                          {row.fmt(c[row.key])}
-                        </Mono>
+          {cols.length > 0 && (
+            <div className="glass-panel p-0 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--b1)]">
+                    <th className="text-left p-3 text-[var(--t4)] font-bold text-xs uppercase tracking-wider">
+                      Metric
+                    </th>
+                    {cols.map((c, i) => (
+                      <th
+                        key={i}
+                        className="text-right p-3 text-[var(--t1)] font-bold capitalize"
+                      >
+                        {c.make} {c.model}
+                        {c.year ? ` '${String(c.year).slice(2)}` : ""}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ROWS.map((row) => (
+                    <tr
+                      key={row.key}
+                      className="border-b border-[var(--b1)] last:border-0"
+                    >
+                      <td className="p-3 text-[var(--t3)] font-semibold">
+                        {row.label}
                       </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      {cols.map((c, i) => {
+                        const best = isBest(row.key, c[row.key], row.best);
+                        return (
+                          <td key={i} className="p-3 text-right">
+                            <Mono
+                              className="font-bold"
+                              style={{
+                                fontFamily: "var(--fm)",
+                                color: best ? "var(--green)" : "var(--t1)",
+                              }}
+                            >
+                              {row.fmt(c[row.key])}
+                            </Mono>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

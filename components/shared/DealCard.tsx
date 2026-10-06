@@ -11,6 +11,7 @@ import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { evidenceConfidence } from "@/lib/valuation/evidence-confidence";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -233,12 +234,13 @@ export const DealCard = memo(function DealCard({
       : null,
   ].filter(Boolean) as { label: string; value: number }[];
   const knownCostTotal = costStack.reduce((sum, item) => sum + item.value, 0);
-  const mathConfidence =
-    (dataQuality?.score || 0) >= 78 && resaleBasis > 0
-      ? "High"
-      : (dataQuality?.score || 0) >= 58 || resaleBasis > 0
-        ? "Medium"
-        : "Low";
+  const mathConfidence = evidenceConfidence({
+    source: valuationSource,
+    confidence: valuationConfidence,
+    compCount: valuationCompCount,
+    soldCount: valuationSoldCount,
+    soldAnchored: Boolean(soldAnchored),
+  });
   const sourceProofScore = sourceHealth
     ? (sourceHealth.readiness === "ready" ||
       sourceHealth.readiness === "needs_run"
@@ -378,7 +380,7 @@ export const DealCard = memo(function DealCard({
           : "market value not on file yet",
     mathConfidence === "Low"
       ? `low confidence until ${weakAssumption} is known`
-      : `${mathConfidence.toLowerCase()} math confidence`,
+      : `${mathConfidence.toLowerCase()} valuation confidence`,
     trustSignals.length >= 4
       ? "source proof is usable"
       : "source proof is thin",

@@ -9,6 +9,38 @@ import {
 } from "./for-you-rank";
 
 describe("buyer scope match", () => {
+  it("accepts any selected vehicle category while retaining model terms", () => {
+    expect(
+      rowMatchesBuyerQuery(
+        { make: "Ford", model: "Explorer", segment: "suv" },
+        "suv truck",
+      ),
+    ).toBe(true);
+    expect(
+      rowMatchesBuyerQuery(
+        { make: "Ford", model: "F-150", segment: "truck" },
+        "suv truck",
+      ),
+    ).toBe(true);
+    expect(
+      rowMatchesBuyerQuery(
+        { make: "Honda", model: "Civic", segment: "sedan" },
+        "suv truck",
+      ),
+    ).toBe(false);
+    expect(
+      rowMatchesBuyerQuery(
+        { make: "Ford", model: "Explorer", segment: "suv" },
+        "suv truck explorer",
+      ),
+    ).toBe(true);
+    expect(
+      rowMatchesBuyerQuery(
+        { make: "Ford", model: "F-150", segment: "truck" },
+        "suv truck explorer",
+      ),
+    ).toBe(false);
+  });
   it("matches SUVs by segment, not the word suvs in the title", () => {
     const tahoe = {
       make: "Chevrolet",

@@ -152,7 +152,7 @@ function CarryingClock({ item, now }: CarryingClockProps) {
                 animation: "pulse 1.5s ease-in-out infinite",
               }}
             >
-              ⚠ PAST BREAK-EVEN
+              CARRYING COST EXCEEDS PURCHASE COST
             </span>
           )}
           <Mono
@@ -179,7 +179,7 @@ function CarryingClock({ item, now }: CarryingClockProps) {
       </div>
 
       <p className="text-[10px]" style={{ color: "var(--t4)" }}>
-        Break-even: day {breakEven} · ${rate}/day floor rate
+        Carrying cost equals purchase cost on day {breakEven} · ${rate}/day
       </p>
     </div>
   );

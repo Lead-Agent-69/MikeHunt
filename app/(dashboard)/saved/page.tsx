@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
@@ -36,6 +37,10 @@ import {
 } from "@/hooks/useLocalSavedVehicles";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { usePreferences } from "@/hooks/usePreferences";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { sourceMeta } from "@/lib/sources/source-meta";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -77,6 +82,11 @@ function sourceFromUrl(url: string) {
 }
 
 export default function SavedCarsPage() {
+  const { intent } = useBuyerIntent();
+  const { prefs } = usePreferences();
+  const flipDesk = isFlipBuyerMode(
+    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
+  );
   const { dealerId, loading: dealerLoading } = useDealerId();
   const localSaved = useLocalSavedVehicles();
   const [filter, setFilter] = useState<
@@ -84,6 +94,16 @@ export default function SavedCarsPage() {
   >("all");
   const [adding, setAdding] = useState(false);
   const [inputUrl, setInputUrl] = useState("");
+  const [comparisonIds, setComparisonIds] = useState<string[]>([]);
+  function toggleComparison(id: string) {
+    setComparisonIds((current) =>
+      current.includes(id)
+        ? current.filter((value) => value !== id)
+        : current.length < 4
+          ? [...current, id]
+          : current,
+    );
+  }
   // Use SWR for data fetching with automatic revalidation
   const {
     data: saves,
@@ -272,6 +292,29 @@ export default function SavedCarsPage() {
   return (
     <div className="space-y-8 pb-20">
       {/* HEADER SECTION */}
+      {comparisonIds.length > 0 && (
+        <div className="sticky top-16 z-20 flex flex-wrap items-center gap-3 border border-[var(--b1)] bg-[var(--s0)] p-3 rounded-lg">
+          <span>{comparisonIds.length} of 4 selected</span>
+          {comparisonIds.length >= 2 ? (
+            <Link
+              className="font-bold text-[var(--blue)]"
+              href={`/compare?ids=${encodeURIComponent(comparisonIds.join(","))}`}
+            >
+              Compare selected vehicles
+            </Link>
+          ) : (
+            <span className="text-sm text-[var(--t3)]">
+              Select one more vehicle
+            </span>
+          )}
+          <button
+            onClick={() => setComparisonIds([])}
+            className="ml-auto text-sm"
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-[var(--t1)] tracking-tight">
@@ -344,19 +387,19 @@ export default function SavedCarsPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-              Watch readiness
+              Saved vehicles
             </p>
             <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
               {cloudSyncReady
-                ? "Cloud alerts are ready for this account."
+                ? "Your account watchlist is connected."
                 : canShowLocalSaves
-                  ? "Local watchlist is working; cloud sync still needs account setup."
+                  ? "Your watchlist is saved on this device."
                   : "Save a vehicle to start watching locally."}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               {cloudSyncReady
-                ? "This account is syncing watchlist changes, alerts, and price tracking across devices. A local backup keeps recent saves resilient during brief network issues."
-                : "Saved vehicles stay usable on this device immediately. Sign in with email or Google to sync alerts, notes, and price tracking across devices."}
+                ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
+                : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -402,9 +445,9 @@ export default function SavedCarsPage() {
         {!cloudSyncReady && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
             <p className="text-xs leading-relaxed text-[var(--amber-d)]">
-              Cloud alerts are not fully proven yet. Use local watching now;
-              finish Google OAuth to sync alerts, notes, and price tracking
-              across devices.
+              {loading
+                ? "Checking your account watchlist..."
+                : "Your local saves remain available. Sign in or retry the connection to access account saves."}
             </p>
             <a
               href="/login"
@@ -478,6 +521,13 @@ export default function SavedCarsPage() {
                       <SavedCarCard
                         key={saveItem.id}
                         save={saveItem}
+                        flipDesk={flipDesk}
+                        comparisonSelected={comparisonIds.includes(
+                          saveItem.deal_id,
+                        )}
+                        onToggleComparison={() =>
+                          toggleComparison(saveItem.deal_id)
+                        }
                         onDelete={handleDelete}
                         onUpdateStatus={handleUpdateStatus}
                       />
@@ -497,6 +547,13 @@ export default function SavedCarsPage() {
                       <SavedCarCard
                         key={saveItem.id}
                         save={saveItem}
+                        flipDesk={flipDesk}
+                        comparisonSelected={comparisonIds.includes(
+                          saveItem.deal_id,
+                        )}
+                        onToggleComparison={() =>
+                          toggleComparison(saveItem.deal_id)
+                        }
                         onDelete={handleDelete}
                         onUpdateStatus={handleUpdateStatus}
                       />
@@ -516,6 +573,13 @@ export default function SavedCarsPage() {
                       <SavedCarCard
                         key={saveItem.id}
                         save={saveItem}
+                        flipDesk={flipDesk}
+                        comparisonSelected={comparisonIds.includes(
+                          saveItem.deal_id,
+                        )}
+                        onToggleComparison={() =>
+                          toggleComparison(saveItem.deal_id)
+                        }
                         onDelete={handleDelete}
                         onUpdateStatus={handleUpdateStatus}
                       />
@@ -535,6 +599,13 @@ export default function SavedCarsPage() {
                       <SavedCarCard
                         key={saveItem.id}
                         save={saveItem}
+                        flipDesk={flipDesk}
+                        comparisonSelected={comparisonIds.includes(
+                          saveItem.deal_id,
+                        )}
+                        onToggleComparison={() =>
+                          toggleComparison(saveItem.deal_id)
+                        }
                         onDelete={handleDelete}
                         onUpdateStatus={handleUpdateStatus}
                       />
@@ -565,8 +636,8 @@ export default function SavedCarsPage() {
                   Local backup included
                 </p>
                 <p className="mt-1">
-                  A recent copy remains on this device while cloud sync handles
-                  cross-device alerts and tracking.
+                  A recent copy remains on this device when the connection is
+                  interrupted.
                 </p>
               </div>
               <p>
@@ -590,6 +661,11 @@ function LocalSavedSection({
   onRemove: (id: string) => void;
   syncUnavailableMessage?: string;
 }) {
+  const { intent } = useBuyerIntent();
+  const { prefs } = usePreferences();
+  const flipDesk = isFlipBuyerMode(
+    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
+  );
   const formatMoney = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -651,7 +727,7 @@ function LocalSavedSection({
                       className="border-none text-[10px] font-bold uppercase"
                       style={{ background: "var(--s1)", color: "var(--t3)" }}
                     >
-                      {item.source}
+                      {sourceMeta(item.source).label}
                       {item.sellerType ? ` · ${item.sellerType}` : ""}
                       {item.locationState ? ` · ${item.locationState}` : ""}
                     </Badge>
@@ -735,13 +811,13 @@ function LocalSavedSection({
                       item.recommendedMaxBid ||
                       item.sellEstimate) && (
                       <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-[var(--t3)]">
-                        {item.sellEstimate ? (
+                        {flipDesk && item.sellEstimate ? (
                           <span className="rounded-full bg-[var(--s1)] px-2 py-1">
                             Sell $
                             {Math.round(item.sellEstimate).toLocaleString()}
                           </span>
                         ) : null}
-                        {item.recommendedMaxBid ? (
+                        {flipDesk && item.recommendedMaxBid ? (
                           <span className="rounded-full bg-[var(--glo)] px-2 py-1 text-[var(--green)]">
                             Max $
                             {Math.round(
@@ -776,11 +852,13 @@ function LocalSavedSection({
                     <p className="font-mono text-lg font-black text-[var(--t1)]">
                       {formatMoney(item.askPrice)}
                     </p>
-                    {item.estimatedProfit && item.estimatedProfit > 0 && (
-                      <p className="text-xs font-bold text-[var(--green)]">
-                        +{formatMoney(item.estimatedProfit)} est.
-                      </p>
-                    )}
+                    {flipDesk &&
+                      item.estimatedProfit &&
+                      item.estimatedProfit > 0 && (
+                        <p className="text-xs font-bold text-[var(--green)]">
+                          +{formatMoney(item.estimatedProfit)} est.
+                        </p>
+                      )}
                   </div>
 
                   {item.sourceUrl && (

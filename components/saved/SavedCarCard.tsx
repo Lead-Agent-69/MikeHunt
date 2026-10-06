@@ -35,6 +35,9 @@ export type SavedCarStatus =
   | "archived";
 
 interface SavedCarCardProps {
+  flipDesk?: boolean;
+  comparisonSelected?: boolean;
+  onToggleComparison?: () => void;
   save: {
     id: string;
     deal_id: string;
@@ -98,6 +101,9 @@ interface SavedCarCardProps {
 
 export const SavedCarCard = React.memo(function SavedCarCard({
   save,
+  flipDesk = false,
+  comparisonSelected = false,
+  onToggleComparison,
   onDelete,
   onUpdateStatus,
 }: SavedCarCardProps) {
@@ -108,7 +114,9 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const currentPrice = Number(last_price_seen || 0);
   const priceDiff = currentPrice - originalPrice;
   const profitValue = Number(snapshot.estimatedProfit ?? profit_at_save ?? 0);
-  const lastSeenTime = new Date(snapshot.lastSeenAt || save.saved_at).getTime();
+  const lastSeenTime = snapshot.lastSeenAt
+    ? new Date(snapshot.lastSeenAt).getTime()
+    : NaN;
   const freshnessHours = Number.isFinite(lastSeenTime)
     ? Math.max(0, Math.round((Date.now() - lastSeenTime) / 3_600_000))
     : null;
@@ -121,7 +129,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const weakQuality =
     snapshot.dataQuality != null &&
     Number(snapshot.dataQuality.score || 0) < 68;
-  const staleListing = freshnessHours != null && freshnessHours > 72;
+  const staleListing = freshnessHours == null || freshnessHours > 24;
   const missingSourceLink = !save.source_url && !snapshot.sourceUrl;
   const sourceHref = snapshot.sourceUrl || save.source_url;
   const contactHref = snapshot.sellerContactUrl || sourceHref;
@@ -131,14 +139,21 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const trustSummary =
     snapshot.trustExplanation?.summary ||
     snapshot.trustExplanation?.reasons?.slice(0, 3).join(" · ");
-  const nextTrustChecks = snapshot.trustExplanation?.nextChecks || [];
+  const auctionListing = ["auction", "salvage", "wholesale", "gov"].includes(
+    sourceMeta(save.source_name).channel,
+  );
+  const nextTrustChecks = (snapshot.trustExplanation?.nextChecks || []).filter(
+    (check) => auctionListing || !/auction|bidding/i.test(check),
+  );
   const trustIssues = [
     weakQuality ? `${snapshot.dataQuality?.label || "Thin"} data` : null,
     staleListing
-      ? `last seen ${Math.round((freshnessHours || 0) / 24)}d ago`
+      ? freshnessHours == null
+        ? "last verified time unknown"
+        : `last seen ${Math.round(freshnessHours / 24)}d ago`
       : null,
     missingSourceLink ? "source link missing" : null,
-    !hasEconomics ? "bid math incomplete" : null,
+    flipDesk && !hasEconomics ? "cost estimate incomplete" : null,
   ].filter(Boolean) as string[];
   const trustState =
     status === "unavailable"
@@ -151,7 +166,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         ? {
             label: "Ready to review",
             detail:
-              "Fresh source proof, usable data quality, and saved economics are present.",
+              "Listing details were seen recently. Confirm availability, title, condition, and final costs before purchase.",
             tone: "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]",
           }
         : {
@@ -231,6 +246,16 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         }`}
         style={{ boxShadow: "var(--shadow2)", borderRadius: "var(--r4)" }}
       >
+        {onToggleComparison && (
+          <label className="flex min-h-11 items-center gap-2 px-3 text-sm">
+            <input
+              type="checkbox"
+              checked={comparisonSelected}
+              onChange={onToggleComparison}
+            />
+            Compare this vehicle
+          </label>
+        )}
         {/* Banner for price_drop, ending_soon, unavailable */}
         {status === "price_drop" && (
           <div
@@ -311,7 +336,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                   : ""}
                 {snapshot.sellerType ? ` · ${snapshot.sellerType}` : ""}
               </Badge>
-              {snapshot.profitScore && (
+              {flipDesk && snapshot.profitScore && (
                 <Badge
                   className="text-white text-[10px] px-2 py-0.5 border-none font-bold"
                   style={{ background: "var(--grad)" }}
@@ -334,7 +359,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             <p className="text-[11px] leading-relaxed text-[var(--t4)]">
               Source proof:{" "}
               {sourceHref ? "original link saved" : "source link missing"} ·{" "}
-              {formatFreshness(snapshot.lastSeenAt || save.saved_at)}
+              {formatFreshness(snapshot.lastSeenAt)}
             </p>
             {(snapshot.seller || hasSellerContact) && (
               <div className="flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] text-[var(--t3)]">
@@ -387,7 +412,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 {freshnessHours != null ? (
                   <span className="font-mono">
                     {freshnessHours < 24
-                      ? `${freshnessHours}h fresh`
+                      ? `seen ${freshnessHours}h ago`
                       : `${Math.round(freshnessHours / 24)}d old`}
                   </span>
                 ) : null}
@@ -400,7 +425,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                   className="border-none text-[10px] font-bold uppercase"
                   style={{ background: "var(--s1)", color: "var(--t3)" }}
                 >
-                  {snapshot.titleType}
+                  {snapshot.titleType.replace(/_/g, " ")} reported by listing
                 </Badge>
               )}
               {snapshot.damageType && (
@@ -428,12 +453,13 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               <p className="text-[11px] leading-relaxed text-[var(--t4)]">
                 Missing{" "}
                 {snapshot.dataQuality.missing
+                  .filter((field) => auctionListing || !/auction/i.test(field))
                   .slice(0, 3)
                   .map(qualityFieldLabel)
                   .join(", ")}
               </p>
             ) : null}
-            {trustSummary ? (
+            {flipDesk && trustSummary ? (
               <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] leading-relaxed text-[var(--t3)]">
                 <span className="font-black uppercase tracking-wide text-[var(--t5)]">
                   Trust proof
@@ -456,7 +482,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               snapshot.repairEstimate ||
               snapshot.transportEstimate) && (
               <div className="flex flex-wrap gap-1.5">
-                {snapshot.sellEstimate ? (
+                {flipDesk && snapshot.sellEstimate ? (
                   <Badge
                     className="border-none text-[10px] font-bold uppercase"
                     style={{ background: "var(--glo)", color: "var(--green)" }}
@@ -464,7 +490,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     Sell {formatMoney(snapshot.sellEstimate)}
                   </Badge>
                 ) : null}
-                {snapshot.recommendedMaxBid ? (
+                {flipDesk && snapshot.recommendedMaxBid ? (
                   <Badge
                     className="border-none text-[10px] font-bold uppercase"
                     style={{ background: "var(--blo)", color: "var(--blue)" }}
@@ -528,16 +554,18 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                       {formatMoney(currentPrice)}
                     </span>
                   </div>
-                  <span
-                    className={`text-xs font-bold block mt-0.5 ${
-                      profitValue >= 0
-                        ? "text-[var(--green)]"
-                        : "text-[var(--red)]"
-                    }`}
-                  >
-                    Est. Profit: {profitValue >= 0 ? "+" : ""}
-                    {formatMoney(profitValue)}
-                  </span>
+                  {flipDesk && (
+                    <span
+                      className={`text-xs font-bold block mt-0.5 ${
+                        profitValue >= 0
+                          ? "text-[var(--green)]"
+                          : "text-[var(--red)]"
+                      }`}
+                    >
+                      Est. Profit: {profitValue >= 0 ? "+" : ""}
+                      {formatMoney(profitValue)}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -563,7 +591,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     className="text-[var(--purple)] font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
                     style={{ background: "var(--plo)" }}
                   >
-                    View in Fleet
+                    {flipDesk ? "View in Fleet" : "View purchase"}
                   </Button>
                 </Link>
               ) : (
@@ -582,7 +610,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     </Button>
                   </Link>
 
-                  {profitValue > 0 ? (
+                  {flipDesk && profitValue > 0 ? (
                     <Button
                       size="sm"
                       onClick={handleAcquire}
@@ -590,11 +618,13 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                       style={{ background: "var(--grad)" }}
                     >
                       <CheckSquare className="w-3.5 h-3.5" />
-                      Buy
+                      Record purchase
                     </Button>
                   ) : (
                     <span className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-[10px] font-black text-[var(--amber-d)]">
-                      Wait for a lower price
+                      {flipDesk
+                        ? "Review price and costs"
+                        : "Check condition and total cost"}
                     </span>
                   )}
                 </>
@@ -629,6 +659,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
       </Card>
 
       <FindSimilarModal
+        flipDesk={flipDesk}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         snapshot={snapshot as any}

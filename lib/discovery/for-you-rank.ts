@@ -99,26 +99,31 @@ export function rowMatchesBuyerQuery(row: Rankable, q: string): boolean {
   if (!q) return true;
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
   const text: string[] = [];
-  let want: Segment | "luxury" | null = null;
+  const wanted = new Set<Segment | "luxury">();
   for (let i = 0; i < terms.length; i++) {
     const term = terms[i];
     if (term === "hybrid" && terms[i + 1] === "ev") {
-      want = "ev";
+      wanted.add("ev");
       i++;
       continue;
     }
     const seg = TOKEN_SEGMENT[term];
     if (seg) {
-      want = seg;
+      wanted.add(seg);
       continue;
     }
     // These are buyer-intent words, not title text. Don't require them as a substring.
     if (term === "performance" || term === "diesel") continue;
     text.push(term);
   }
-  if (want === "luxury") {
-    if (!isLuxury(row.make, row.model) && !row.luxury) return false;
-  } else if (want && dealSegment(row) !== want) {
+  if (
+    wanted.size &&
+    !Array.from(wanted).some((segment) =>
+      segment === "luxury"
+        ? isLuxury(row.make, row.model) || row.luxury
+        : dealSegment(row) === segment,
+    )
+  ) {
     return false;
   }
   if (!text.length) return true;

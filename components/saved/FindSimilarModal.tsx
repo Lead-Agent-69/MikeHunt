@@ -7,6 +7,7 @@ import { X, Search, ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface FindSimilarModalProps {
+  flipDesk?: boolean;
   isOpen: boolean;
   onClose: () => void;
   snapshot: {
@@ -23,6 +24,7 @@ interface FindSimilarModalProps {
 }
 
 export function FindSimilarModal({
+  flipDesk = false,
   isOpen,
   onClose,
   snapshot,
@@ -33,6 +35,7 @@ export function FindSimilarModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    const controller = new AbortController();
 
     setLoading(true);
     setError(null);
@@ -45,21 +48,26 @@ export function FindSimilarModal({
       mileage: String(snapshot.odometer || 0),
     });
 
-    fetch(`/api/find-similar?${params.toString()}`)
+    fetch(`/api/find-similar?${params.toString()}`, {
+      signal: controller.signal,
+    })
       .then((res) => {
         if (!res.ok) throw new Error("Failed to fetch comparables");
         return res.json();
       })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setComparables(data);
       })
       .catch((err) => {
+        if (controller.signal.aborted) return;
         console.error(err);
         setError("Could not search for similar vehicles. Please try again.");
       })
       .finally(() => {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
+    return () => controller.abort();
   }, [isOpen, snapshot]);
 
   if (!isOpen) return null;
@@ -176,14 +184,16 @@ export function FindSimilarModal({
 
                   {/* Actions */}
                   <div className="flex items-center space-x-3">
-                    <div className="text-right hidden sm:block">
-                      <span className="text-xs text-[var(--t4)] block uppercase font-bold tracking-wider">
-                        Est. Profit
-                      </span>
-                      <span className="text-sm font-black text-[var(--green)]">
-                        +{formatMoney(comp.profit_estimate)}
-                      </span>
-                    </div>
+                    {flipDesk && (
+                      <div className="text-right hidden sm:block">
+                        <span className="text-xs text-[var(--t4)] block uppercase font-bold tracking-wider">
+                          Est. Profit
+                        </span>
+                        <span className="text-sm font-black text-[var(--green)]">
+                          +{formatMoney(comp.profit_estimate)}
+                        </span>
+                      </div>
+                    )}
                     <Link
                       href={`/deal/${comp.id}`}
                       onClick={onClose}

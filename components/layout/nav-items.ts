@@ -73,26 +73,27 @@ export const MOBILE_PRIMARY: NavItem[] = [
 ];
 
 /**
- * Wholesale flip tools: auction lanes, the dealer pipeline, and arbitrage.
+ * Wholesale flip tools: auction lanes and arbitrage.
  * Personal, DIY, and parts buyers do not get these as tabs. The routes still
  * open only for reseller and dealer desks (see lib/buyer/flip-tool-access.ts);
- * other desks get an in-page notice. They are also not offered in the nav.
+ * other desks get an in-page notice. Pipeline has a personal purchase checklist.
  */
 export const FLIP_ONLY_HREFS: readonly string[] = [
   "/lane",
   "/auctions",
-  "/fleet",
   "/arbitrage",
 ];
-
-const ALERTS_TAB: NavItem = { name: "Alerts", href: "/alerts", icon: BellRing };
 
 /**
  * Nav tabs that only work with an account. Middleware sends a signed-out
  * visitor on these to /login, so the nav says so up front instead of the tab
  * silently bouncing them.
  */
-export const SIGN_IN_REQUIRED_HREFS: readonly string[] = ["/saved", "/alerts"];
+export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
+  "/saved",
+  "/alerts",
+  "/fleet",
+];
 
 export type ViewerNavItem = NavItem & { signInRequired?: boolean };
 
@@ -129,13 +130,12 @@ function isFlipOnly(item: NavItem) {
 /** Desktop primary nav for the saved buyer mode. */
 export function primaryNavForMode(buyerMode: unknown): NavItem[] {
   if (!hidesFlipNav(buyerMode)) return PRIMARY;
-  return [...PRIMARY.filter((item) => !isFlipOnly(item)), ALERTS_TAB];
+  return PRIMARY.filter((item) => !isFlipOnly(item));
 }
 
-/** Mobile tabs for the saved buyer mode. Keeps five tabs: Pipeline becomes Alerts. */
-export function mobileNavForMode(buyerMode: unknown): NavItem[] {
-  if (!hidesFlipNav(buyerMode)) return MOBILE_PRIMARY;
-  return MOBILE_PRIMARY.map((item) => (isFlipOnly(item) ? ALERTS_TAB : item));
+/** Purchase planning is available to every buyer mode. */
+export function mobileNavForMode(_buyerMode: unknown): NavItem[] {
+  return MOBILE_PRIMARY;
 }
 
 /**

@@ -12,7 +12,11 @@ describe("onboarding goal scope", () => {
     expect(source).not.toContain('fetch("/api/scrape/run"');
     expect(source).toContain("onboarding-buyers.webp");
     expect(source).toContain("aria-pressed={buyerMode === mode}");
-    expect(source).toContain('useState("All vehicle types")');
+    expect(source).toContain("useState<string[]>([])");
+    expect(source).toContain("vehicles.includes(item)");
+    expect(source.indexOf("if (!profileResult.ok")).toBeLessThan(
+      source.indexOf("writeLocalBuyerIntent(intent)"),
+    );
     expect(source).toContain('"Coupes"');
     expect(source).toContain('"Convertibles"');
     expect(source).toContain('get("edit") === "1"');

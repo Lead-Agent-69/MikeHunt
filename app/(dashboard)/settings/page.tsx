@@ -14,6 +14,7 @@ import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { EnablePush } from "@/components/EnablePush";
 import { LocationPrefs } from "@/components/settings/LocationPrefs";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -54,8 +55,8 @@ function CarsViewPrefs() {
         <div className="min-w-0">
           <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
           <p className="text-[12px] text-[var(--t4)]">
-            Get a push the instant a hot deal matching your saved searches drops
-            — even when the app is closed.
+            Enable notifications for changes to your saved searches and
+            vehicles.
           </p>
         </div>
         <div className="shrink-0">
@@ -76,6 +77,8 @@ export default function SettingsPage() {
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationSaved, setNotificationSaved] = useState(false);
   const [homeZip, setHomeZip] = useState("");
   const [locating, setLocating] = useState(false);
 
@@ -180,6 +183,28 @@ export default function SettingsPage() {
     }
   };
 
+  async function savePriceNotifications(enabled: boolean) {
+    const previous = profile.notify_price_drops;
+    setNotificationSaving(true);
+    setNotificationSaved(false);
+    setProfile((p) => ({ ...p, notify_price_drops: enabled }));
+    try {
+      const response = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notify_price_drops: enabled }),
+      });
+      if (!response.ok)
+        throw new Error("Notification preferences could not be saved.");
+      setNotificationSaved(true);
+    } catch (error) {
+      setProfile((p) => ({ ...p, notify_price_drops: previous }));
+      toast.error(userFacingErrorMessage(error));
+    } finally {
+      setNotificationSaving(false);
+    }
+  }
+
   // Home location → unlocks radius "near me" + nearest-deals (saved-search radius too).
   const saveHomeZip = async () => {
     if (!/^\d{5}$/.test(homeZip.trim())) {
@@ -277,16 +302,18 @@ export default function SettingsPage() {
           {/* Profile Section */}
           <div className="glass-panel p-6 animate-popIn">
             <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-              Dealer Profile
+              {showProfitTarget ? "Business profile" : "Contact details"}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field
-                label="Dealership Name"
+                label={showProfitTarget ? "Business name" : "Name"}
                 value={profile.name}
                 onChange={(e) =>
                   setProfile((p) => ({ ...p, name: e.target.value }))
                 }
-                placeholder="Your dealership name"
+                placeholder={
+                  showProfitTarget ? "Your business name" : "Your name"
+                }
               />
               <Field
                 label="Phone"
@@ -296,150 +323,156 @@ export default function SettingsPage() {
                 }
                 placeholder="(555) 123-4567"
               />
-              <Field
-                label="City"
-                value={profile.city}
-                onChange={(e) =>
-                  setProfile((p) => ({ ...p, city: e.target.value }))
-                }
-                placeholder="Austin"
-              />
-              <Field
-                label="State"
-                value={profile.state}
-                onChange={(e) =>
-                  setProfile((p) => ({ ...p, state: e.target.value }))
-                }
-                placeholder="TX"
-              />
+              {showProfitTarget && (
+                <>
+                  <Field
+                    label="Business city"
+                    value={profile.city}
+                    onChange={(e) =>
+                      setProfile((p) => ({ ...p, city: e.target.value }))
+                    }
+                    placeholder="Austin"
+                  />
+                  <Field
+                    label="Business state"
+                    value={profile.state}
+                    onChange={(e) =>
+                      setProfile((p) => ({ ...p, state: e.target.value }))
+                    }
+                    placeholder="TX"
+                  />
+                </>
+              )}
             </div>
           </div>
 
           {/* Dealer Defaults Section */}
-          <div
-            className="glass-panel p-6 animate-popIn"
-            style={{ animationDelay: "100ms" }}
-          >
-            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-              Dealer Defaults
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-medium text-[var(--t2)]">
-                  Home State (for transport calculation)
-                </label>
-                <select
-                  value={profile.home_state}
-                  onChange={(e) =>
-                    setProfile((p) => ({ ...p, home_state: e.target.value }))
-                  }
-                  className="w-full text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none transition-all border-none"
-                  style={{ background: "var(--s2)" }}
-                >
-                  <option value="">No state picked</option>
-                  {US_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Home location — unlocks "near me" radius + nearest-deals rails */}
-              <div className="space-y-1.5 sm:col-span-2">
-                <label className="block text-xs font-medium text-[var(--t2)]">
-                  Home location (enables “near me” radius + nearest deals)
-                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    value={homeZip}
-                    onChange={(e) => setHomeZip(e.target.value)}
-                    placeholder="ZIP code"
-                    inputMode="numeric"
-                    maxLength={5}
-                    className="w-28 text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none border-none"
+          {showProfitTarget && (
+            <div
+              className="glass-panel p-6 animate-popIn"
+              style={{ animationDelay: "100ms" }}
+            >
+              <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+                Dealer Defaults
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-[var(--t2)]">
+                    Home State (for transport calculation)
+                  </label>
+                  <select
+                    value={profile.home_state}
+                    onChange={(e) =>
+                      setProfile((p) => ({ ...p, home_state: e.target.value }))
+                    }
+                    className="w-full text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none transition-all border-none"
                     style={{ background: "var(--s2)" }}
-                  />
-                  <button
-                    type="button"
-                    onClick={saveHomeZip}
-                    className="text-sm font-semibold rounded-lg px-3 py-2.5 border"
-                    style={{
-                      background: "var(--s0)",
-                      borderColor: "var(--b2)",
-                      color: "var(--t2)",
-                    }}
                   >
-                    Set ZIP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={useMyLocation}
-                    disabled={locating}
-                    className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2.5 text-white border-none disabled:opacity-60"
-                    style={{ background: "var(--grad)" }}
-                  >
-                    <Ico name={locating ? "refresh" : "map"} size={15} />
-                    {locating ? "Locating…" : "Use my location"}
-                  </button>
+                    <option value="">No state picked</option>
+                    {US_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <Field
-                label="Default Auction Fee ($)"
-                type="number"
-                inputMode="numeric"
-                value={profile.auction_fee_default}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    auction_fee_default: Number(e.target.value),
-                  }))
-                }
-              />
+                {/* Home location — unlocks "near me" radius + nearest-deals rails */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-medium text-[var(--t2)]">
+                    Home location (enables “near me” radius + nearest deals)
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={homeZip}
+                      onChange={(e) => setHomeZip(e.target.value)}
+                      placeholder="ZIP code"
+                      inputMode="numeric"
+                      maxLength={5}
+                      className="w-28 text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none border-none"
+                      style={{ background: "var(--s2)" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={saveHomeZip}
+                      className="text-sm font-semibold rounded-lg px-3 py-2.5 border"
+                      style={{
+                        background: "var(--s0)",
+                        borderColor: "var(--b2)",
+                        color: "var(--t2)",
+                      }}
+                    >
+                      Set ZIP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={useMyLocation}
+                      disabled={locating}
+                      className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2.5 text-white border-none disabled:opacity-60"
+                      style={{ background: "var(--grad)" }}
+                    >
+                      <Ico name={locating ? "refresh" : "map"} size={15} />
+                      {locating ? "Locating…" : "Use my location"}
+                    </button>
+                  </div>
+                </div>
 
-              <Field
-                label="Default Recon Cost ($)"
-                type="number"
-                inputMode="numeric"
-                value={profile.recon_cost_default}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    recon_cost_default: Number(e.target.value),
-                  }))
-                }
-              />
-
-              <Field
-                label="Daily Floor Rate ($/day)"
-                type="number"
-                inputMode="numeric"
-                value={profile.daily_floor_rate}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    daily_floor_rate: Number(e.target.value),
-                  }))
-                }
-              />
-
-              {showProfitTarget && (
                 <Field
-                  label="Target Profit Threshold ($)"
+                  label="Default Auction Fee ($)"
                   type="number"
                   inputMode="numeric"
-                  value={profile.target_profit}
+                  value={profile.auction_fee_default}
                   onChange={(e) =>
                     setProfile((p) => ({
                       ...p,
-                      target_profit: Number(e.target.value),
+                      auction_fee_default: Number(e.target.value),
                     }))
                   }
                 />
-              )}
+
+                <Field
+                  label="Default Recon Cost ($)"
+                  type="number"
+                  inputMode="numeric"
+                  value={profile.recon_cost_default}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      recon_cost_default: Number(e.target.value),
+                    }))
+                  }
+                />
+
+                <Field
+                  label="Daily Floor Rate ($/day)"
+                  type="number"
+                  inputMode="numeric"
+                  value={profile.daily_floor_rate}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      daily_floor_rate: Number(e.target.value),
+                    }))
+                  }
+                />
+
+                {showProfitTarget && (
+                  <Field
+                    label="Target Profit Threshold ($)"
+                    type="number"
+                    inputMode="numeric"
+                    value={profile.target_profit}
+                    onChange={(e) =>
+                      setProfile((p) => ({
+                        ...p,
+                        target_profit: Number(e.target.value),
+                      }))
+                    }
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Preferences Section */}
           <div
@@ -453,24 +486,27 @@ export default function SettingsPage() {
               <input
                 type="checkbox"
                 checked={profile.notify_price_drops}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    notify_price_drops: e.target.checked,
-                  }))
-                }
+                disabled={notificationSaving}
+                onChange={(e) => void savePriceNotifications(e.target.checked)}
                 className="w-5 h-5 accent-[var(--green)]"
               />
               <span className="text-sm font-semibold text-[var(--t1)]">
                 Email me when a saved car drops in price
               </span>
             </label>
+            <p role="status" className="mt-2 text-xs text-[var(--t4)]">
+              {notificationSaving
+                ? "Saving..."
+                : notificationSaved
+                  ? "Saved"
+                  : "Notification changes save automatically."}
+            </p>
           </div>
 
           {/* Save Button */}
-          <div className="sticky bottom-20 sm:bottom-6 flex items-center justify-between glass-panel p-4">
+          <div className="flex items-center justify-between border-t border-[var(--b1)] pt-4">
             <span className="text-sm text-[var(--t4)] font-medium hidden sm:inline">
-              Changes apply immediately.
+              Save changes to your profile.
             </span>
             <div className="flex items-center gap-4 w-full sm:w-auto">
               {saved && (
@@ -485,7 +521,7 @@ export default function SettingsPage() {
                 style={{ background: "var(--grad)" }}
               >
                 {saving && <Ico name="refresh" className="animate-spin" />}
-                Save Settings
+                Save profile
               </button>
             </div>
           </div>

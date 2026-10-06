@@ -188,20 +188,20 @@ describe("primaryJobForPath", () => {
     expect(discoverPage).not.toContain("<SetupStatusPanel");
   });
 
-  it("drops auction, pipeline, and arbitrage tabs for non-flip desks", () => {
+  it("keeps purchase planning but drops auction and arbitrage tabs for non-flip desks", () => {
     for (const mode of ["personal", "diy", "parts"]) {
       expect(hidesFlipNav(mode)).toBe(true);
       expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
         "Deal Check",
+        "Pipeline",
         "Saved",
-        "Alerts",
       ]);
       expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
         "Deal Check",
         "Saved",
-        "Alerts",
+        "Pipeline",
         "Account",
       ]);
       const more = moreGroupsForMode(mode).flatMap((group) =>
@@ -234,8 +234,8 @@ describe("primaryJobForPath", () => {
         mobileNavForMode("personal").map((item) => item.href),
       );
       expect(top).not.toContain("/lane");
-      expect(top).not.toContain("/fleet");
-      expect(mobile).not.toContain("/fleet");
+      expect(top).toContain("/fleet");
+      expect(mobile).toContain("/fleet");
     }
   });
 

@@ -7,18 +7,18 @@ import {
 } from "@/components/layout/nav-items";
 
 describe("signed-out nav", () => {
-  it("sends Saved and Alerts straight to sign-in with a return path", () => {
+  it("sends Saved and Pipeline straight to sign-in with a return path", () => {
     const desktop = primaryNavForMode("personal").map((item) =>
       navItemForViewer(item, true),
     );
     const saved = desktop.find((item) => item.name === "Saved");
-    const alerts = desktop.find((item) => item.name === "Alerts");
+    const pipeline = desktop.find((item) => item.name === "Pipeline");
     expect(saved).toMatchObject({
       href: "/login?next=%2Fsaved",
       signInRequired: true,
     });
-    expect(alerts).toMatchObject({
-      href: "/login?next=%2Falerts",
+    expect(pipeline).toMatchObject({
+      href: "/login?next=%2Ffleet",
       signInRequired: true,
     });
     expect(desktop.find((item) => item.name === "Discover")).not.toHaveProperty(
@@ -33,7 +33,7 @@ describe("signed-out nav", () => {
     expect(tabs).toHaveLength(5);
     expect(
       tabs.filter((item) => item.signInRequired).map((item) => item.name),
-    ).toEqual(["Saved", "Alerts"]);
+    ).toEqual(["Saved", "Pipeline"]);
   });
 
   it("leaves signed-in (or still checking) visitors untouched", () => {

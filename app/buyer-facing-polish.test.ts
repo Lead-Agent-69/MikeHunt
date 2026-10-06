@@ -27,7 +27,9 @@ describe("buyer-facing polish", () => {
     expect(source).not.toContain("<SetupStatusPanel");
     expect(source).not.toContain("Scanning the market");
     expect(source).not.toContain("Open scanner");
-    expect(source).toContain("Widen the state or raise the budget");
+    expect(source).toContain(
+      "Clean-title-only is enabled; listings with unknown or repairable titles are excluded.",
+    );
     expect(source).toContain(
       "Distance not available until a listing has real miles.",
     );

@@ -308,10 +308,7 @@ export default function DiscoverPage() {
     setMakeDraft(makes[0] || "");
     setBudgetDraft(buyerScope?.maxPrice ? String(buyerScope.maxPrice) : "");
     setLaneDraft(buyerScope?.laneValue || "all");
-    const scoped =
-      buyerScope?.state && buyerScope.state !== "Nationwide"
-        ? buyerScope.state
-        : state;
+    const scoped = state;
     setStateDraft(/^[A-Z]{2}$/.test(scoped) ? scoped : "");
   }, [buyerScope, state]);
 
@@ -344,7 +341,7 @@ export default function DiscoverPage() {
   const budgetText = buyerScope?.maxPrice
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
-  const emptyScopeMessage = `No ${vehicleName} in ${placeName}${budgetText} yet. Widen the state or raise the budget.`;
+  const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or repairable titles are excluded. " : ""}Review your filters or try another market.`;
   const marketContext =
     data?.marketListings && data.marketListings > data.totalListings
       ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`

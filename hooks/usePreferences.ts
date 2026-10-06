@@ -17,6 +17,7 @@ export interface Prefs {
   buyerScope?: {
     buyerMode?: "personal" | "diy" | "reseller" | "dealer";
     vehicle?: string;
+    vehicles?: string[];
     lane?: string;
     laneValue?: string;
     state?: string;

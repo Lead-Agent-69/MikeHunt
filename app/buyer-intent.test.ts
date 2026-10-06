@@ -10,6 +10,18 @@ import {
 import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
 
 describe("buyer intent profile", () => {
+  it("retains multiple categories alongside make filters and an explicit nationwide override", () => {
+    const intent = normalizeBuyerIntent({
+      vehicles: ["SUVs", "Trucks"],
+      state: "MO",
+      makes: ["Ford"],
+    });
+    const params = buildBuyerIntentQuery(intent, "");
+    expect(intent?.vehicles).toEqual(["SUVs", "Trucks"]);
+    expect(params.get("q")).toBe("suv truck");
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.has("state")).toBe(false);
+  });
   it("treats an empty preference payload as no saved buying scope", () => {
     expect(normalizeBuyerIntent({})).toBeNull();
     expect(normalizeBuyerIntent(null)).toBeNull();

@@ -115,7 +115,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
-  const [vehicle, setVehicle] = useState("All vehicle types");
+  const [vehicles, setVehicles] = useState<string[]>([]);
+  const vehicle = vehicles.length ? vehicles.join(", ") : "All vehicle types";
   const [state, setState] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [titleType, setTitleType] = useState("all");
@@ -148,7 +149,13 @@ export default function OnboardingPage() {
         if (homeState) setState(homeState);
         if (!saved) return;
         setBuyerMode(saved.buyerMode || "personal");
-        setVehicle(saved.vehicle || "All vehicle types");
+        setVehicles(
+          saved.vehicles?.length
+            ? saved.vehicles
+            : saved.vehicle && saved.vehicle !== "All vehicle types"
+              ? [saved.vehicle]
+              : [],
+        );
         setMaxPrice(saved.maxPrice ? String(saved.maxPrice) : "");
         setTitleType(saved.titleType || "all");
         setTimeline(saved.timeline || "now");
@@ -167,6 +174,7 @@ export default function OnboardingPage() {
     () => ({
       buyerMode,
       vehicle,
+      vehicles,
       vehicleType:
         vehicle === "All vehicle types"
           ? undefined
@@ -181,7 +189,7 @@ export default function OnboardingPage() {
       laneValue: titleType === "salvage" ? "damaged" : "all",
       lane: titleType === "salvage" ? "Salvage & repairable" : "All deals",
     }),
-    [buyerMode, maxPrice, state, targetProfit, titleType, vehicle],
+    [buyerMode, maxPrice, state, targetProfit, titleType, vehicle, vehicles],
   );
 
   const previewHref = useMemo(() => {
@@ -205,7 +213,6 @@ export default function OnboardingPage() {
   async function finish() {
     if (!buyerMode || !vehicle || !scopeChosen) return;
     setSaving(true);
-    writeLocalBuyerIntent(intent);
     const preferences = {
       buyerScope: {
         ...intent,
@@ -216,31 +223,34 @@ export default function OnboardingPage() {
       ...onboardingLocationPatch(state, savedPrefs),
     };
     try {
-      const [profileResult, preferenceResult] = await Promise.all([
-        fetch("/api/profile", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            onboarded: true,
-            home_state: state && state !== "Nationwide" ? state : undefined,
-            state: state && state !== "Nationwide" ? state : undefined,
-            budget_max: maxPrice ? Number(maxPrice) : undefined,
-            target_profit:
-              buyerMode === "reseller" || buyerMode === "dealer"
-                ? Number(targetProfit || 0) || undefined
-                : undefined,
-          }),
+      const preferenceResult = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(preferences),
+      });
+      if (!preferenceResult.ok)
+        throw new Error(
+          "We could not save your buying profile. Please try again.",
+        );
+      const profileResult = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          onboarded: true,
+          home_state: state && state !== "Nationwide" ? state : undefined,
+          state: state && state !== "Nationwide" ? state : undefined,
+          budget_max: maxPrice ? Number(maxPrice) : undefined,
+          target_profit:
+            buyerMode === "reseller" || buyerMode === "dealer"
+              ? Number(targetProfit || 0) || undefined
+              : undefined,
         }),
-        fetch("/api/preferences", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(preferences),
-        }),
-      ]);
+      });
       if (!profileResult.ok || !preferenceResult.ok) {
         throw new Error("We could not save your buying profile.");
       }
       toast.success("Your buying profile is ready");
+      writeLocalBuyerIntent(intent);
       router.push(previewHref);
       router.refresh();
     } catch (error) {
@@ -327,8 +337,20 @@ export default function OnboardingPage() {
             {VEHICLES.map((item) => (
               <ChoiceButton
                 key={item}
-                active={vehicle === item}
-                onClick={() => setVehicle(item)}
+                active={
+                  item === "All vehicle types"
+                    ? vehicles.length === 0
+                    : vehicles.includes(item)
+                }
+                onClick={() =>
+                  setVehicles((selected) =>
+                    item === "All vehicle types"
+                      ? []
+                      : selected.includes(item)
+                        ? selected.filter((value) => value !== item)
+                        : [...selected, item],
+                  )
+                }
               >
                 {item}
               </ChoiceButton>

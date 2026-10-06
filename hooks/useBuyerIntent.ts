@@ -8,6 +8,7 @@ export const BUYER_INTENT_EVENT = "mh-buyer-scope-change";
 export type BuyerIntent = {
   buyerMode?: BuyerMode;
   vehicle?: string;
+  vehicles?: string[];
   vehicleType?: string;
   lane?: string;
   laneValue?: string;
@@ -181,6 +182,9 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
         : undefined;
   const normalized: BuyerIntent = {
     buyerMode: normalizeBuyerMode(raw.buyerMode || raw.mode),
+    vehicles: compactStrings(raw.vehicles).filter(
+      (label) => label in VEHICLE_TO_QUERY && !isAnyVehicle(label),
+    ),
     vehicle,
     vehicleType: isAnyVehicle(raw.vehicleType)
       ? undefined
@@ -224,6 +228,7 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
   };
   const hasScope = Boolean(
     normalized.vehicle ||
+    normalized.vehicles?.length ||
     normalized.vehicleType ||
     normalized.lane ||
     normalized.laneValue ||
@@ -268,14 +273,18 @@ export function buildBuyerIntentQuery(
 ) {
   const params = new URLSearchParams();
   const state =
-    stateOverride ||
-    (intent?.state && intent.state !== "Nationwide" ? intent.state : "");
+    stateOverride !== undefined
+      ? stateOverride
+      : intent?.state && intent.state !== "Nationwide"
+        ? intent.state
+        : "";
   const laneValue = intent?.laneValue || "";
-  const vehicleQuery =
-    intent?.vehicleType ??
-    (intent?.vehicle
-      ? (VEHICLE_TO_QUERY[intent.vehicle] ?? intent.vehicle)
-      : "");
+  const vehicleQuery = intent?.vehicles?.length
+    ? intent.vehicles.map((label) => VEHICLE_TO_QUERY[label] || label).join(" ")
+    : (intent?.vehicleType ??
+      (intent?.vehicle
+        ? (VEHICLE_TO_QUERY[intent.vehicle] ?? intent.vehicle)
+        : ""));
   const makes = intent?.makes?.length
     ? intent.makes
     : intent?.preferredMakes || [];
@@ -292,7 +301,7 @@ export function buildBuyerIntentQuery(
     params.set("titleType", intent.titleType);
   }
   if (makes.length) params.set("makes", makes.join(","));
-  else if (vehicleQuery) {
+  if (vehicleQuery) {
     const laneQuery = laneValue ? LANE_QUERY[laneValue] : "";
     params.set("q", [vehicleQuery, laneQuery].filter(Boolean).join(" "));
   }

@@ -132,6 +132,7 @@ export default function DealCheckPage() {
       <div className="glass-panel p-1 rounded-2xl border border-[var(--b2)]">
         <form onSubmit={handleTextSubmit} className="flex flex-col relative">
           <textarea
+            aria-label="Listing link or vehicle details"
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Paste a URL or raw text from a deal sheet..."

@@ -77,9 +77,8 @@ describe("toPublicStatus", () => {
         id: "google-login",
         label: "Google",
         status: "ready",
-        nextStep: "ok",
-        actionLabel: undefined,
-        userImpact: undefined,
+        nextStep: "Google sign-in is available.",
+        actionLabel: "Sign in",
       },
     ]);
     expect(out).not.toHaveProperty("sources");
