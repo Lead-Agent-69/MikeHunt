@@ -106,13 +106,13 @@ export function expandDemandRings(
     if (base <= 0 || !KNOWN_STATES.has(anchor)) continue;
     for (let r = 1; r <= cap; r++) {
       // nearbyStates(n) is inclusive of self; take n = r+1 closest then drop nearer rings.
-      const near = [...nearbyStates(anchor, r + 1)].filter((s) => s !== anchor);
+      const near = Array.from(nearbyStates(anchor, r + 1)).filter((s) => s !== anchor);
       // States whose closest ring to this anchor is exactly r: in nearby(r+1) but not nearby(r).
       const closer =
         r === 1
           ? new Set<string>()
           : new Set(
-              [...nearbyStates(anchor, r)].filter((s) => s !== anchor),
+              Array.from(nearbyStates(anchor, r)).filter((s) => s !== anchor),
             );
       for (const st of near) {
         if (!KNOWN_STATES.has(st) || closer.has(st)) continue;
@@ -143,9 +143,9 @@ export function wantHitRatio(input: {
   minRows?: number;
 }): { wantHit: number; covered: number; demanded: number; gaps: string[] } {
   const minRows = Math.max(1, Math.floor(input.minRows ?? 5));
-  const anchors = [...new Set(input.anchors.map((s) => s.toUpperCase()))].filter(
-    (s) => KNOWN_STATES.has(s),
-  );
+  const anchors = Array.from(
+    new Set(input.anchors.map((s) => s.toUpperCase())),
+  ).filter((s) => KNOWN_STATES.has(s));
   if (!anchors.length)
     return { wantHit: 1, covered: 0, demanded: 0, gaps: [] };
   const gaps: string[] = [];

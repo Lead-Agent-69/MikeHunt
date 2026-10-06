@@ -879,7 +879,8 @@ export function buildScopeStatus({
 
 
 async function buildDemandCoverage(
-  supabase: ReturnType<typeof createClient>,
+  // Loosely typed: hosted DB types may not include scrape_demand yet.
+  supabase: { rpc: (...args: any[]) => Promise<{ data: any; error: any }> },
   activeDeals: readonly any[],
 ) {
   let demandRows: DemandRow[] = [];
@@ -1377,7 +1378,7 @@ export async function GET(request: NextRequest) {
 
     const userHealth = userFacingHealthRows(health, scope);
     const summary = buildHealthSummary(userHealth);
-    const demandCoverage = await buildDemandCoverage(supabase, activeDeals);
+    const demandCoverage = await buildDemandCoverage(supabase as any, activeDeals);
 
     return NextResponse.json({
       configured: true,
