@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useDealStore } from "@/lib/store/dealStore";
 import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
 import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
 import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
@@ -1914,11 +1915,11 @@ export default function DealPage({
           />
         )}
 
-        {/* Buyer proof module: transport and tax planning estimate */}
+        {/* Transport: a road-routed quote when the API has one, otherwise no numbers */}
         {serverDeal && (
           <FreightAndTaxCalculator
-            buyState={serverDeal.locationState ?? "TX"}
-            purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
+            buyState={serverDeal.locationState}
+            homeState={effectiveHome(prefs)?.state}
           />
         )}
 
