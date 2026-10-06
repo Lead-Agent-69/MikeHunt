@@ -1,11 +1,24 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 
 // GET /api/dashboard/summary — at-a-glance market intelligence for the home/discover top.
 // "17 new GO deals today · avg 18d to sell · F-150 +6% (buy now)". All from data we already have.
 export async function GET() {
+  // No database (local / preview without env): an honest empty summary, not a 500.
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      newGoToday: 0,
+      activeGo: 0,
+      avgDaysToSell: null,
+      topMover: null,
+    });
+  }
   const supabase = createServerComponentClient();
   const since = new Date(Date.now() - 86400000).toISOString();
 
