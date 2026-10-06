@@ -89,4 +89,16 @@ describe("deal page personal desk", () => {
     expect(page).toContain("<PersonalListingLead");
     expect(page).toContain("<PriceSparkline dealId={id} />");
   });
+
+  it("keeps the initial vehicle read focused and defers deeper investigation", () => {
+    const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+
+    expect(page).toContain("function DetailDisclosure");
+    expect(page).toContain("Vehicle examination");
+    expect(page).toContain("Market evidence");
+    expect(page).toContain("Plan and record");
+    expect(page).toContain("Advanced workspace");
+    expect(page).toContain("Expensive children do");
+    expect(page).toMatch(/\{expanded \?\s*\(/);
+  });
 });
