@@ -9,7 +9,7 @@
  * Source selection (in priority order):
  *   1. CLI args:           npm run scrape:ci -- craigslist cars_com
  *   2. SCRAPE_SOURCES env: SCRAPE_SOURCES="craigslist,cars_com"
- *   3. Default curated $0-friendly set (no paid auth / proxies required).
+ *   3. Terms-safe default set (lib/scrapers/ci-sources.ts): $0 sources minus TOS_RESTRICTED_SOURCES.
  *
  * Exit codes: 0 on any success (partial blocks are expected for some sources);
  * 1 only if every requested source failed, which signals a real breakage.
@@ -17,6 +17,7 @@
 import "../workers/polyfill";
 import * as dotenv from "dotenv";
 import path from "path";
+import { resolveCiSources } from "../lib/scrapers/ci-sources";
 
 // Load env BEFORE importing the scraper — the Craigslist module resolves its city list at import,
 // so adaptive selection (below) must set CL_CITIES first. Hence runScrapers is imported dynamically.
@@ -33,40 +34,23 @@ process.on("unhandledRejection", (reason) => {
   process.exit(1);
 });
 
-// $0-friendly defaults: runner-enabled open sources only. Explicit ids bypass the registry
-// `enabled` flag (lib/scrapers/runner.ts), so this list must not name disabled sources.
-// Gov surplus siblings share the public-surplus path (govdeals, allsurplus, municibid, gsa).
-// Not listed (enabled:false): cargurus, independent_dealer, iaa, manheim, acv, adesa,
-// facebook_marketplace, vroom, auto_discover.
-// truecar is enabled but headed-only: the Fly/Docker worker sets SCRAPE_SOURCES (see
-// Dockerfile.scraper / fly.toml). CI and any process without that env do not hit it.
-const DEFAULT_SOURCES = [
-  "craigslist",
-  "offerup",
-  "carvana", // open JSON API (apik.carvana.io v2) — clean retail comps, NO FlareSolverr
-  "autotempest", // meta-aggregator — Cars.com/CarGurus/eBay/TrueCar/CarMax in one API, NO FlareSolverr
-  "ebay_sold", // completed-sale prices -> sold_listings (via system curl), NO FlareSolverr
-  "ebay_motors",
-  "cars_com",
-  "autotrader",
-  "carparts_com",
-  "publicsurplus", // open gov-surplus auctions
-  "govdeals",
-  "allsurplus",
-  "municibid",
-  "gsa_auctions",
-  "curated_dealers", // salvage-rebuilder + dealer network (absolute-URL sites only)
-  "copart",
-];
-
+// Source selection lives in lib/scrapers/ci-sources.ts. The default set is the runner-enabled
+// $0 candidates minus TOS_RESTRICTED_SOURCES (same rule as the Zeus sweep and the public preview
+// routes). A restricted source runs only when named in CLI args or SCRAPE_SOURCES, and that
+// opt-in is logged every run.
 function resolveSources(): string[] {
-  const fromArgs = process.argv.slice(2).filter(Boolean);
-  if (fromArgs.length) return fromArgs;
-  const fromEnv = process.env.SCRAPE_SOURCES?.split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  if (fromEnv?.length) return fromEnv;
-  return DEFAULT_SOURCES;
+  const selection = resolveCiSources(process.argv.slice(2).filter(Boolean));
+  if (selection.optedInRestricted.length) {
+    console.warn(
+      `[scrape-ci] ${selection.origin === "args" ? "CLI args opt" : "SCRAPE_SOURCES opts"} into sources whose terms ban automated access: ${selection.optedInRestricted.join(", ")} (see TOS_RESTRICTED_SOURCES)`,
+    );
+  }
+  if (selection.origin === "default") {
+    console.log(
+      `[scrape-ci] terms-safe default sources: ${selection.sources.join(", ")}`,
+    );
+  }
+  return selection.sources;
 }
 
 // Fetch real detail-page photos/VIN/mileage for active GO deals that still lack images.

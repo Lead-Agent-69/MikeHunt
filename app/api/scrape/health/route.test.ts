@@ -304,8 +304,61 @@ describe("GET /api/scrape/health lane scoping", () => {
       activeRows: 1,
       rowsWithPhotos: 1,
       photoCoveragePct: 100,
+      termsOff: 2,
     });
     expect(body.healthy).toBe(1);
+  });
+
+  it("labels terms-restricted sources off for site terms and never probes them", async () => {
+    const prior = process.env.SCRAPE_SOURCES;
+    delete process.env.SCRAPE_SOURCES;
+    previewPublicSurplus.mockClear();
+    previewMunicibid.mockClear();
+    try {
+      const { GET } = await import("./route");
+      const res = await GET(req("/api/scrape/health?lane=government&state=FL"));
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      for (const id of ["publicsurplus", "municibid"]) {
+        const row = body.sources.find((source: any) => source.id === id);
+        expect(row).toMatchObject({
+          readiness: "disabled",
+          termsRestricted: true,
+          userStatus: "Off for site terms",
+          proofLevel: "off",
+          isDue: false,
+        });
+        expect(row.termsReason).toMatch(/automat|robot/i);
+        expect(row.nextAction).toContain("SCRAPE_SOURCES");
+        expect(row.userStatus).not.toBe("Needs run");
+      }
+      expect(
+        body.sources.find((source: any) => source.id === "govdeals"),
+      ).not.toHaveProperty("termsRestricted");
+      expect(previewPublicSurplus).not.toHaveBeenCalled();
+      expect(previewMunicibid).not.toHaveBeenCalled();
+    } finally {
+      if (prior === undefined) delete process.env.SCRAPE_SOURCES;
+      else process.env.SCRAPE_SOURCES = prior;
+    }
+  });
+
+  it("an explicit SCRAPE_SOURCES opt-in lifts the terms label", async () => {
+    const prior = process.env.SCRAPE_SOURCES;
+    process.env.SCRAPE_SOURCES = "municibid";
+    previewMunicibid.mockClear();
+    try {
+      const { GET } = await import("./route");
+      const res = await GET(req("/api/scrape/health?lane=government&state=FL"));
+      const body = await res.json();
+      const row = body.sources.find((source: any) => source.id === "municibid");
+      expect(row).not.toHaveProperty("termsRestricted");
+      expect(row.readiness).not.toBe("disabled");
+      expect(previewMunicibid).toHaveBeenCalled();
+    } finally {
+      if (prior === undefined) delete process.env.SCRAPE_SOURCES;
+      else process.env.SCRAPE_SOURCES = prior;
+    }
   });
 
   it("does not run public government probes for damaged-lane health", async () => {

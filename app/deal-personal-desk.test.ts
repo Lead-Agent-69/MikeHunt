@@ -104,4 +104,23 @@ describe("deal page personal desk", () => {
       /store\.userType === "dealer"\s*\?\s*"\/api\/calibration"\s*:\s*null/,
     );
   });
+
+  it("does not mistake source fields or source inventory for inspected vehicle proof", () => {
+    const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+
+    expect(page).toContain("All-in cost is not confirmed.");
+    expect(page).toContain("listing photo");
+    expect(page).toContain(
+      "source-provided and are not a mechanic inspection.",
+    );
+    expect(page).toContain("Listing completeness");
+    expect(page).toContain("field coverage");
+    expect(page).toContain("damage reported");
+    expect(page).toContain(
+      "This counts source-provided fields, not inspection findings.",
+    );
+    expect(page).toContain("Source inventory:");
+    expect(page).toContain("Source last checked:");
+    expect(page).toContain("of source rows include photos.");
+  });
 });
