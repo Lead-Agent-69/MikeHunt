@@ -257,6 +257,26 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://rickcasehonda.com", name: "Rick Case Honda", state: "FL", city: "Davie", type: "clean_retail" },
   { url: "https://www.samgallowayford.com", name: "Sam Galloway Ford", state: "FL", city: "Fort Myers", type: "clean_retail" },
   { url: "https://www.sarasotaford.com", name: "Sarasota Ford", state: "FL", city: "Sarasota", type: "clean_retail" },
+
+  // ════ Wave 7 — densify gap anchors IA/IL/KY toward ≥12 (Jonah 2026-10-06) ════
+  // Curl-verified 2026-10-06: homepage (and inventoryUrl when set) return 200 with vehicle
+  // inventory signals; robots.txt does not Disallow: / for *; geo confirmed from page/footer.
+  // Wrong-state false friends skipped (karlchevy=CT, landmarkford=OR, zeiglerford=MI).
+  // ── Iowa ──
+  { url: "https://donsautotruck.com", name: "Don's Auto & Truck", state: "IA", city: "Des Moines", type: "salvage_yard", inventoryUrl: "https://donsautotruck.com/inventory" },
+  { url: "https://www.sunlinecedarrapids.com", name: "Sunline Cedar Rapids", state: "IA", city: "Cedar Rapids", type: "salvage_yard" },
+  { url: "https://www.autosportsimports.com", name: "Habhab's Auto Sports & Imports", state: "IA", city: "Cedar Rapids", type: "independent_dealer" },
+  { url: "https://www.davewrightnissan.com", name: "Dave Wright Nissan", state: "IA", city: "Hiawatha", type: "clean_retail" },
+  // ── Illinois ──
+  { url: "https://www.springfieldselectautos.com", name: "Springfield Select Autos", state: "IL", city: "Springfield", type: "independent_dealer", inventoryUrl: "https://www.springfieldselectautos.com/cars-for-sale" },
+  { url: "https://rhodesautosss.com", name: "Rhodes Auto S/S/S", state: "IL", city: "Streator", type: "salvage_yard" },
+  { url: "https://www.continentaltoyota.com", name: "Continental Toyota", state: "IL", city: "Countryside", type: "clean_retail", inventoryUrl: "https://www.continentaltoyota.com/used-inventory/index.htm" },
+  // ── Kentucky ──
+  { url: "https://www.bobhook.com", name: "Bob Hook Chevrolet", state: "KY", city: "Louisville", type: "clean_retail", inventoryUrl: "https://www.bobhook.com/used-inventory/index.htm" },
+  { url: "https://nkyauto.com", name: "NKY Auto", state: "KY", city: "Cold Spring", type: "rebuilder_dealer" },
+  { url: "http://kyautosales.com", name: "Kentuckiana Auto Sales", state: "KY", city: "Louisville", type: "rebuilder_dealer" },
+  { url: "https://www.4thstreetauto.com", name: "4th Street Auto", state: "KY", city: "Louisville", type: "independent_dealer" },
+  { url: "https://www.neilhuffmanchevrolet.com", name: "Neil Huffman Chevrolet", state: "KY", city: "Frankfort", type: "clean_retail", inventoryUrl: "https://www.neilhuffmanchevrolet.com/used-inventory/index.htm" },
 ];
 
 /**
