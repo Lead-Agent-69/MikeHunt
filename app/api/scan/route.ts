@@ -13,10 +13,11 @@ import { LocalScraperCache } from "@/lib/scrapers/local-cache";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import {
-  listingsForDesk,
   redactListingForNonFlipDesk,
-  resolveCallerFlipDesk,
+  resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
+import type { DiscoverDesk } from "@/lib/discovery/desk-rails";
+import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import {
@@ -204,10 +205,43 @@ export function buildScanMatchExplanation(
   return reasons.slice(0, 7);
 }
 
+/** What /api/scan tells the client about economics: only a saved reseller/dealer desk is "flip". */
+export type ScanDeskAccess = "flip" | "personal";
+
+export function deskAccessFor(desk: DiscoverDesk): ScanDeskAccess {
+  return desk === "flip" ? "flip" : "personal";
+}
+
+function valuationReason(valuation: any, flipDesk: boolean) {
+  // Flip desks read the number as a resale target; everyone else reads it as market value.
+  const noun = flipDesk ? "Resale estimate" : "Market value";
+  if (valuation?.source === "comparables" || valuation?.basis === "comps")
+    return `${noun} is comp-backed`;
+  if (valuation?.source === "third_party")
+    return `${noun} uses a third-party market anchor`;
+  if (valuation?.source === "historical_estimate")
+    return `${noun} uses active-listing history, not sold comps`;
+  if (valuation?.source === "asking_price")
+    return `${noun} is anchored to the seller asking price`;
+  if (valuation?.basis === "market")
+    return `${noun} uses a market signal that still needs comp verification`;
+  if (valuation?.basis === "baseline") return `${noun} uses a modeled baseline`;
+  return null;
+}
+
+/**
+ * Why a row is shown and what to check next. `desk` decides the wording: flip desks get resale,
+ * spread, and max-bid language; personal / diy / parts desks (and signed-out callers) get
+ * buyer language and never a profit, verdict, or max-bid line, even if the row still carries one.
+ * Defaults to "flip" only for back-compat with direct callers; the route always passes the
+ * caller's resolved desk.
+ */
 export function buildTrustExplanation(
   row: any,
   filters: ScanMatchFilters = {},
+  desk: DiscoverDesk = "flip",
 ) {
+  const flipDesk = desk === "flip";
   const qualityScore = Number(row?.dataQuality?.score || 0);
   const profit = Number(row?.profitEstimate ?? row?.true_net_profit ?? 0);
   const profitScore = Number(row?.profitScore || 0);
@@ -230,8 +264,7 @@ export function buildTrustExplanation(
     row?.dealVerdict || row?.deal_verdict || "",
   ).toLowerCase();
   const matchReasons = buildScanMatchExplanation(row, filters);
-  const reasons = [
-    ...matchReasons,
+  const flipReasons = [
     verdict === "go"
       ? "BUY verdict from profit and proof scoring"
       : verdict === "hold" || verdict === "watch"
@@ -242,22 +275,14 @@ export function buildTrustExplanation(
     recommendedMaxBid > 0
       ? `$${Math.round(recommendedMaxBid).toLocaleString()} recommended max buy`
       : null,
+  ];
+  const reasons = [
+    ...matchReasons,
+    ...(flipDesk ? flipReasons : []),
     compCount > 0 || soldCount > 0
       ? `${compCount + soldCount} valuation comp${compCount + soldCount === 1 ? "" : "s"}`
       : null,
-    valuation?.source === "comparables" || valuation?.basis === "comps"
-      ? "Resale estimate is comp-backed"
-      : valuation?.source === "third_party"
-        ? "Resale estimate uses a third-party market anchor"
-        : valuation?.source === "historical_estimate"
-          ? "Resale estimate uses active-listing history, not sold comps"
-          : valuation?.source === "asking_price"
-            ? "Resale estimate is anchored to the seller asking price"
-            : valuation?.basis === "market"
-              ? "Resale estimate uses a market signal that still needs comp verification"
-              : valuation?.basis === "baseline"
-                ? "Resale estimate uses a modeled baseline"
-                : null,
+    valuationReason(valuation, flipDesk),
     row?.sourceUrl ? "Original source link is present" : null,
     repairEstimate > 0
       ? `$${Math.round(repairEstimate).toLocaleString()} repair estimate`
@@ -273,25 +298,41 @@ export function buildTrustExplanation(
       : null,
     row?.auctionEndAt ? "Auction end is known" : null,
     row?.seller || row?.sellerType ? "Seller/source is identified" : null,
-    profit > 0
+    flipDesk && profit > 0
       ? `$${Math.round(profit).toLocaleString()} estimated spread`
       : null,
   ].filter(Boolean) as string[];
   const missing = (row?.dataQuality?.missing || []).slice(0, 4);
-  const nextChecks = [
-    row?.vin ? null : "verify VIN",
-    row?.mileage ? null : "verify mileage",
-    repairEstimate > 0 ? null : "verify repair estimate",
-    transportEstimate > 0 ? null : "confirm transport quote",
-    compCount || soldCount ? null : "verify comparable resale comps",
-    row?.titleType ? null : "confirm title type",
-    row?.sellerPhone || row?.sellerEmail || row?.sellerContactUrl
-      ? null
-      : "find seller contact path",
-    row?.auctionEndAt ? null : "confirm auction timing",
-    profitScore || profit ? null : "validate resale and fee math",
-    recommendedMaxBid > 0 ? null : "set max bid before contacting seller",
-  ].filter(Boolean) as string[];
+  const nextChecks = (
+    flipDesk
+      ? [
+          row?.vin ? null : "verify VIN",
+          row?.mileage ? null : "verify mileage",
+          repairEstimate > 0 ? null : "verify repair estimate",
+          transportEstimate > 0 ? null : "confirm transport quote",
+          compCount || soldCount ? null : "verify comparable resale comps",
+          row?.titleType ? null : "confirm title type",
+          row?.sellerPhone || row?.sellerEmail || row?.sellerContactUrl
+            ? null
+            : "find seller contact path",
+          row?.auctionEndAt ? null : "confirm auction timing",
+          profitScore || profit ? null : "validate resale and fee math",
+          recommendedMaxBid > 0 ? null : "set max bid before contacting seller",
+        ]
+      : [
+          row?.vin ? null : "ask the seller for the VIN",
+          row?.mileage ? null : "confirm mileage",
+          row?.titleType ? null : "confirm title type",
+          desk === "parts"
+            ? "confirm which parts are usable before you buy"
+            : "get a pre-purchase inspection",
+          compCount || soldCount ? null : "compare against similar listings",
+          row?.auctionEndAt ? "check the auction end time" : null,
+          row?.sourceUrl
+            ? "contact the seller through the original listing"
+            : "find the original listing before contacting anyone",
+        ]
+  ).filter(Boolean) as string[];
   // Complete listing fields are useful, but they are not the same as a verified
   // resale basis. Do not present an asking-price estimate as a high-confidence buy.
   const hasIndependentValuation =
@@ -304,7 +345,7 @@ export function buildTrustExplanation(
         : "low";
   return {
     confidence,
-    score: scanTrustScore(row),
+    score: scanTrustScore(row, { includeProfit: flipDesk }),
     reasons: reasons.slice(0, 10),
     missing,
     nextChecks: nextChecks.slice(0, 5),
@@ -431,9 +472,10 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
       missing: quality.missing,
     },
   };
+  // Placeholder only: GET rebuilds trustExplanation with the caller's desk and filters.
   return {
     ...normalized,
-    trustExplanation: buildTrustExplanation(normalized),
+    trustExplanation: buildTrustExplanation(normalized, {}, "personal"),
   };
 }
 
@@ -541,6 +583,14 @@ export function normalizeScanSort(value: string | null): ScanSort {
   return "profit";
 }
 
+/**
+ * Profit sort ranks rows by true_net_profit, a flip-only number. Off the flip desk the ordering
+ * itself would leak it, so a non-flip caller asking for profit gets the trust/proof ranking.
+ */
+export function scanSortForDesk(sort: ScanSort, flipDesk: boolean): ScanSort {
+  return !flipDesk && sort === "profit" ? "score" : sort;
+}
+
 export function scanSortOrder(sort: ScanSort) {
   if (sort === "price") {
     return { column: "ask_price", ascending: true, nullsFirst: false };
@@ -551,9 +601,14 @@ export function scanSortOrder(sort: ScanSort) {
   return { column: "true_net_profit", ascending: false, nullsFirst: false };
 }
 
-export function scanTrustScore(row: any) {
+export function scanTrustScore(
+  row: any,
+  options: { includeProfit?: boolean } = {},
+) {
+  const includeProfit = options.includeProfit ?? true;
   const qualityScore = Number(row?.dataQuality?.score || 0);
-  const profitScore = Number(row?.profitScore || 0);
+  // profitScore is flip economics; non-flip ranking must not depend on it.
+  const profitScore = includeProfit ? Number(row?.profitScore || 0) : 0;
   const proofScore =
     (row?.vin ? 14 : 0) +
     (row?.mileage ? 12 : 0) +
@@ -565,7 +620,12 @@ export function scanTrustScore(row: any) {
   return qualityScore * 0.55 + profitScore * 0.25 + proofScore * 0.2;
 }
 
-export function sortScanRows(rows: any[], sort: ScanSort, state?: string) {
+export function sortScanRows(
+  rows: any[],
+  sort: ScanSort,
+  state?: string,
+  options: { includeProfit?: boolean } = {},
+) {
   const stateCode = state?.toUpperCase();
   const sorted = [...rows].sort((a, b) => {
     if (stateCode) {
@@ -574,7 +634,8 @@ export function sortScanRows(rows: any[], sort: ScanSort, state?: string) {
       if (aState !== bState) return aState ? -1 : 1;
     }
 
-    if (sort === "score") return scanTrustScore(b) - scanTrustScore(a);
+    if (sort === "score")
+      return scanTrustScore(b, options) - scanTrustScore(a, options);
     return 0;
   });
   return sorted;
@@ -663,7 +724,11 @@ function matchesVehicleScope(
   );
 }
 
-function publicRowToVehicle(row: any, sourceId?: string) {
+function publicRowToVehicle(
+  row: any,
+  sourceId?: string,
+  desk: DiscoverDesk = "personal",
+) {
   const canonicalSource = sourceId || row.source;
   const sellerProof = inferredSeller({
     ...row,
@@ -766,7 +831,7 @@ function publicRowToVehicle(row: any, sourceId?: string) {
   };
   return {
     ...mapped,
-    trustExplanation: buildTrustExplanation(mapped),
+    trustExplanation: buildTrustExplanation(mapped, {}, desk),
   };
 }
 
@@ -780,7 +845,10 @@ async function publicPreviewFallback(args: {
   page: number;
   pageSize: number;
   sellerType?: string;
+  desk: DiscoverDesk;
 }) {
+  const flipDesk = args.desk === "flip";
+  const deskAccess = deskAccessFor(args.desk);
   const plan = planScrapeForBuyerScope({
     lane: args.lane || "all",
     q: args.q,
@@ -792,6 +860,9 @@ async function publicPreviewFallback(args: {
     { id: "publicsurplus", fetchRows: () => previewPublicSurplus(1) },
     { id: "municibid", fetchRows: () => previewMunicibid(1) },
   ].filter((source) => {
+    // Public, unauthenticated route: never live-fetch a source whose terms ban automated access
+    // (Copart, PublicSurplus, ...) unless the operator opted in through SCRAPE_SOURCES.
+    if (!isAutomationAllowedSource(source.id)) return false;
     if (
       !wantsAuctionInventory({
         lane: args.lane,
@@ -809,6 +880,7 @@ async function publicPreviewFallback(args: {
     return {
       configured: false,
       vehicles: [],
+      deskAccess,
       total: 0,
       state: args.state || "nationwide",
       page: args.page,
@@ -856,14 +928,17 @@ async function publicPreviewFallback(args: {
         rows: raw.length,
         matchedRows: matched.length,
       });
-      rows.push(...matched.map((row) => publicRowToVehicle(row, source.id)));
+      rows.push(
+        ...matched.map((row) => publicRowToVehicle(row, source.id, args.desk)),
+      );
     } catch (error) {
+      console.warn(`scan preview ${source.id} failed:`, error);
       proof.push({
         id: source.id,
         status: "blocked",
         rows: 0,
         matchedRows: 0,
-        detail: error instanceof Error ? error.message : "Preview failed",
+        detail: "Source did not respond to the preview request.",
       });
     }
   }
@@ -898,12 +973,30 @@ async function publicPreviewFallback(args: {
   const effectiveRows = unique.length > 0 ? unique : cachedRows;
   const start = args.page * args.pageSize;
   const pageRows = effectiveRows.slice(start, start + args.pageSize);
-  // Same desk gate as the live path — preview rows include analyzeDeal profit/max-bid.
-  const flipDesk = await resolveCallerFlipDesk();
+  // Same desk gate as the live path — preview rows include analyzeDeal profit/max-bid. Rebuild the
+  // trust copy after redaction so it cannot quote stripped economics (cached rows may predate it).
+  const filters: ScanMatchFilters = {
+    q: args.q,
+    lane: args.lane,
+    state: args.state,
+    source: args.source,
+    minPrice: args.minPrice,
+    maxPrice: args.maxPrice,
+    sellerType: args.sellerType,
+  };
+  const vehicles = flipDesk
+    ? pageRows
+    : pageRows.map((row) => {
+        const redacted = redactListingForNonFlipDesk(row);
+        return {
+          ...redacted,
+          trustExplanation: buildTrustExplanation(redacted, filters, args.desk),
+        };
+      });
   return {
     configured: false,
-    vehicles: listingsForDesk(pageRows, flipDesk),
-    deskAccess: flipDesk ? "flip" : "personal",
+    vehicles,
+    deskAccess,
     total: effectiveRows.length,
     state: args.state || "nationwide",
     page: args.page,
@@ -985,7 +1078,13 @@ export async function GET(req: NextRequest) {
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   const drivetrain = searchParams.get("drivetrain") || "";
-  const sort = normalizeScanSort(searchParams.get("sort"));
+  // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
+  // filters all read flip-only columns, so they are flip-desk only (fail closed to personal).
+  const desk = await resolveCallerDesk();
+  const flipDesk = desk === "flip";
+  const deskAccess = deskAccessFor(desk);
+  const requestedSort = normalizeScanSort(searchParams.get("sort"));
+  const sort = scanSortForDesk(requestedSort, flipDesk);
   const page = parseInt(searchParams.get("page") || "0");
   // Bigger page + client-driven infinite scroll (append) so the grid surfaces ALL matching inventory,
   // not just the first screen. Capped to keep any single payload reasonable.
@@ -1002,8 +1101,9 @@ export async function GET(req: NextRequest) {
       minPrice,
       page,
       pageSize,
+      desk,
     });
-    return NextResponse.json(preview);
+    return NextResponse.json(preview, { headers: SCAN_CACHE_HEADERS });
   }
 
   const supabase = db();
@@ -1068,7 +1168,9 @@ export async function GET(req: NextRequest) {
     query = query.eq("options->>drivetrain", drivetrain);
   }
 
-  if (verdict && verdict !== "all") {
+  // deal_verdict and true_net_profit are flip economics. Filtering on them off the flip desk would
+  // leak them through which rows come back, so non-flip callers ignore these params.
+  if (flipDesk && verdict && verdict !== "all") {
     if (isWatchCandidateVerdict(verdict)) {
       query = query
         .gte("ask_price", 3000)
@@ -1180,7 +1282,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  if (minProfit > 0) {
+  if (flipDesk && minProfit > 0) {
     query = query.gte("true_net_profit", minProfit);
   }
 
@@ -1225,11 +1327,13 @@ export async function GET(req: NextRequest) {
     const normalized = normalizeRow(r, "deals");
     return {
       ...normalized,
-      trustExplanation: buildTrustExplanation(normalized, scanFilters),
+      trustExplanation: buildTrustExplanation(normalized, scanFilters, desk),
     };
   });
   const ranked =
-    trustRanked || state ? sortScanRows(dRows, sort, state) : dRows;
+    trustRanked || state
+      ? sortScanRows(dRows, sort, state, { includeProfit: flipDesk })
+      : dRows;
   const sorted = trustRanked
     ? ranked.slice(page * pageSize, (page + 1) * pageSize)
     : ranked;
@@ -1237,20 +1341,19 @@ export async function GET(req: NextRequest) {
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
   // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields
   // (e.g. "$2,500 estimated spread" / "recommended max buy").
-  const flipDesk = await resolveCallerFlipDesk();
   const vehicles = flipDesk
     ? sorted
     : sorted.map((row) => {
         const redacted = redactListingForNonFlipDesk(row);
         return {
           ...redacted,
-          trustExplanation: buildTrustExplanation(redacted, scanFilters),
+          trustExplanation: buildTrustExplanation(redacted, scanFilters, desk),
         };
       });
   return NextResponse.json(
     {
       vehicles,
-      deskAccess: flipDesk ? "flip" : "personal",
+      deskAccess,
       total: count || 0,
       state: state || "nationwide",
       page,

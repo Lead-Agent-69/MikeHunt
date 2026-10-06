@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const getServerUser = vi.hoisted(() => vi.fn());
 const savedMode = vi.hoisted(() => ({ value: null as string | null }));
+const supa = vi.hoisted(() => ({ configured: true }));
 
 const ROW = {
   id: "scan-1",
@@ -63,7 +64,7 @@ vi.mock("@/lib/rate-limit", () => ({
   tooManyRequests: () => new Response("rate", { status: 429 }),
 }));
 vi.mock("@/lib/supabase", () => ({
-  isSupabaseConfigured: () => true,
+  isSupabaseConfigured: () => supa.configured,
   createServerComponentClient: () => ({
     from: (table: string) =>
       table === "user_preferences"
@@ -100,13 +101,13 @@ const FLIP_LEAK_KEYS = [
   "sellerContactUrl",
 ];
 
-async function load(mode: string | null, signedIn = true) {
+async function load(mode: string | null, signedIn = true, query = "state=TX") {
   getServerUser.mockResolvedValue({
     data: { user: signedIn ? { id: "user-1" } : null },
     error: null,
   });
   savedMode.value = mode;
-  const res = await GET(new NextRequest("https://app.test/api/scan?state=TX"));
+  const res = await GET(new NextRequest(`https://app.test/api/scan?${query}`));
   expect(res.status).toBe(200);
   expect(res.headers.get("cache-control") || "").toMatch(/private|no-store/i);
   const body = await res.json();
@@ -117,6 +118,7 @@ describe("GET /api/scan desk redaction", () => {
   beforeEach(() => {
     getServerUser.mockReset();
     savedMode.value = null;
+    supa.configured = true;
   });
 
   it.each(["dealer", "reseller"])(
@@ -159,6 +161,50 @@ describe("GET /api/scan desk redaction", () => {
       );
       expect(JSON.stringify(v)).not.toContain("2700");
       expect(JSON.stringify(v)).not.toContain("11000");
+    },
+  );
+});
+
+describe("GET /api/scan desk-aware sort and empty responses", () => {
+  beforeEach(() => {
+    getServerUser.mockReset();
+    savedMode.value = null;
+    supa.configured = true;
+  });
+
+  it.each([
+    ["personal", "personal", true],
+    ["parts", "parts", true],
+    ["signed out", null, false],
+  ] as const)(
+    "serves trust ranking, not profit ranking, to %s",
+    async (_label, mode, signedIn) => {
+      const body = await load(mode, signedIn, "states=TX&sort=profit");
+      expect(body.sort).toBe("score");
+      expect(body.deskAccess).toBe("personal");
+      expect(JSON.stringify(body.vehicles[0].trustExplanation)).not.toMatch(
+        /Resale estimate|BUY verdict|max bid|resale and fee math/i,
+      );
+    },
+  );
+
+  it("keeps profit ranking for a saved dealer desk", async () => {
+    const body = await load("dealer", true, "states=TX&sort=profit");
+    expect(body.sort).toBe("profit");
+    expect(body.deskAccess).toBe("flip");
+  });
+
+  it.each([
+    ["guest (signed out)", null, false, "personal"],
+    ["saved personal", "personal", true, "personal"],
+    ["saved dealer", "dealer", true, "flip"],
+  ] as const)(
+    "always returns deskAccess on an empty unconfigured response: %s",
+    async (_label, mode, signedIn, expected) => {
+      supa.configured = false;
+      const body = await load(mode, signedIn, "q=camry");
+      expect(body.vehicles).toEqual([]);
+      expect(body.deskAccess).toBe(expected);
     },
   );
 });
