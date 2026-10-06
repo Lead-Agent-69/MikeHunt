@@ -35,16 +35,22 @@ function publicLookup(
     });
 }
 
-const httpAgent = new http.Agent({
+/**
+ * Agents whose DNS lookup re-checks every resolved address, so the socket can
+ * only connect to a public IP even if DNS changes after assertPublicHttpUrl.
+ */
+export const publicHttpAgent = new http.Agent({
   keepAlive: false,
   lookup: publicLookup as never,
 });
-const httpsAgent = new https.Agent({
+export const publicHttpsAgent = new https.Agent({
   keepAlive: false,
   lookup: publicLookup as never,
 });
+const httpAgent = publicHttpAgent;
+const httpsAgent = publicHttpsAgent;
 
-function locationHeader(headers: Record<string, unknown>): string | null {
+export function locationHeader(headers: Record<string, unknown>): string | null {
   const value = headers.location ?? headers.Location;
   if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : null;
   return typeof value === "string" ? value : null;

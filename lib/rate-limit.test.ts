@@ -53,3 +53,16 @@ describe("clientIp", () => {
     ).toBe("203.0.113.9");
   });
 });
+
+describe("rateLimit identity buckets", () => {
+  it("buckets by identity instead of IP when given", async () => {
+    const { rateLimit } = await import("./rate-limit");
+    const opts = { key: "rl-identity-test", limit: 2, windowMs: 60_000, identity: "user:z" };
+    expect(rateLimit(req({ "x-real-ip": "198.51.100.1" }), opts).allowed).toBe(true);
+    expect(rateLimit(req({ "x-real-ip": "198.51.100.2" }), opts).allowed).toBe(true);
+    expect(rateLimit(req({ "x-real-ip": "198.51.100.3" }), opts).allowed).toBe(false);
+    expect(
+      rateLimit(req({ "x-real-ip": "198.51.100.3" }), { ...opts, identity: "user:y" }).allowed,
+    ).toBe(true);
+  });
+});
