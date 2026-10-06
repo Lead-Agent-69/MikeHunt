@@ -43,7 +43,6 @@ export default function AlertsPage() {
   // Server redacts flip economics for non-flip desks — never join deals from the browser.
   const {
     data: alertsPayload,
-    error: _alertsError,
     error,
     isLoading: loading,
     mutate,
@@ -129,6 +128,25 @@ export default function AlertsPage() {
           </p>
         </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm text-[var(--t2)]"
+        >
+          <span>
+            Server alerts couldn&apos;t load right now. Anything saved on this
+            device still shows below.
+          </span>
+          <button
+            type="button"
+            onClick={() => mutate()}
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t2)]"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {loading || savedLoading ? (
         <div className="text-center py-12 text-[var(--t3)]">
