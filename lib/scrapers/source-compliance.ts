@@ -97,6 +97,16 @@ export const SITE_POLICY_BLOCKS: Record<string, PolicyBlock> = {
     kind: "bot_challenge",
     reason: "Serves a Cloudflare challenge. We will not bypass it.",
   },
+  "billionauto.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Terms: data-mining and using a robot, spider, or automated device of any kind to monitor or copy the site is strictly prohibited (reviewed 2026-10-06).",
+  },
+  "craigandlandrethcars.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Terms: no robot, spider, site search/retrieval application or other device to scrape, data mine or collect content (reviewed 2026-10-06).",
+  },
 };
 
 function hostOf(url: string) {

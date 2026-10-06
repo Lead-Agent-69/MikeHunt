@@ -2,7 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { SWEEP_STATE_CODES } from "@/lib/geo/metro-zips";
+import { STATE_METRO_ZIPS, SWEEP_STATE_CODES } from "@/lib/geo/metro-zips";
 import { emptyRotation, planSweepStates, recordSweepPlan } from "./sweep-plan";
 import {
   baselineSlots,
@@ -18,6 +18,7 @@ import {
   startSweep,
   stateScore,
   summarizeDemand,
+  wantHitGapStates,
   wantHitRatio,
 } from "./sweep-demand";
 
@@ -37,7 +38,12 @@ describe("summarizeDemand", () => {
     expect(out.zip3s).toEqual({ MO: ["658", "631"] });
     expect(out.anchors).toEqual(["MO"]);
     expect(out.rings).toEqual({ MO: 0 });
-    expect(summarizeDemand(null)).toEqual({ weights: {}, zip3s: {}, rings: {}, anchors: [] });
+    expect(summarizeDemand(null)).toEqual({
+      weights: {},
+      zip3s: {},
+      rings: {},
+      anchors: [],
+    });
   });
 });
 
@@ -210,7 +216,9 @@ describe("demand rings and want-hit", () => {
     expect(expanded.weights.MO).toBeCloseTo(10, 5);
     expect(expanded.rings?.MO).toBe(0);
     // At least one ring-1 neighbor carries half weight.
-    const ring1 = Object.entries(expanded.rings || {}).filter(([, r]) => r === 1);
+    const ring1 = Object.entries(expanded.rings || {}).filter(
+      ([, r]) => r === 1,
+    );
     expect(ring1.length).toBeGreaterThan(0);
     for (const [st, r] of ring1) {
       expect(expanded.weights[st]).toBeCloseTo(10 / (1 + r), 5);
@@ -248,8 +256,118 @@ describe("demand rings and want-hit", () => {
       demanded: 2,
       gaps: ["FL"],
     });
+    expect(wantHitRatio({ anchors: [], primaryCounts: {} }).wantHit).toBe(1);
+  });
+});
+
+describe("want-hit gap-first bias", () => {
+  const demandRows = [
+    { state: "MO", weight: 12, users: 4 },
+    { state: "FL", weight: 2, users: 1 },
+    { state: "IA", weight: 0.5 },
+    { state: "IL", weight: 0.5 },
+    { state: "KY", weight: 0.5 },
+  ];
+
+  it("returns gaps only while want-hit is under target", () => {
     expect(
-      wantHitRatio({ anchors: [], primaryCounts: {} }).wantHit,
-    ).toBe(1);
+      wantHitGapStates({
+        anchors: ["MO", "FL", "IA", "IL", "KY"],
+        primaryCounts: { MO: 300, FL: 40, IA: 1 },
+      }),
+    ).toEqual(["IA", "IL", "KY"]);
+    // 9/10 covered = 0.9 → at target, no gap bias.
+    const anchors = [
+      "MO",
+      "FL",
+      "IA",
+      "IL",
+      "KY",
+      "TX",
+      "CA",
+      "NY",
+      "GA",
+      "OH",
+    ];
+    const counts = Object.fromEntries(anchors.map((s) => [s, 10]));
+    counts.OH = 0;
+    expect(wantHitGapStates({ anchors, primaryCounts: counts })).toEqual([]);
+    expect(wantHitGapStates({ anchors: [], primaryCounts: {} })).toEqual([]);
+  });
+
+  it("puts gap anchors at the front of the plan ahead of heavier covered demand", () => {
+    const demand = summarizeDemand(demandRows);
+    const plan = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      maxRing: 3,
+      gaps: ["IA", "IL", "KY"],
+      now: NOW,
+    });
+    expect(plan.states.slice(0, 3).sort()).toEqual(["IA", "IL", "KY"]);
+    expect(plan.gapStates?.sort()).toEqual(["IA", "IL", "KY"]);
+    // Covered heavy demand is still planned right after the gaps.
+    expect(plan.states).toContain("MO");
+    expect(plan.states.indexOf("MO")).toBeLessThan(plan.states.length - 1);
+    // Gap anchors get +2 ZIP depth (capped by metros on file), covered anchors +1.
+    for (const st of ["IA", "IL", "KY"])
+      expect(plan.zipsByState[st].length).toBe(
+        Math.min(4, (STATE_METRO_ZIPS[st] || []).length),
+      );
+    expect(plan.zipsByState.MO.length).toBe(3);
+  });
+
+  it("without gaps the plan is unchanged (score order)", () => {
+    const demand = summarizeDemand(demandRows);
+    const a = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      now: NOW,
+    });
+    const b = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      gaps: [],
+      now: NOW,
+    });
+    expect(b.states).toEqual(a.states);
+    expect(b.zipsByState).toEqual(a.zipsByState);
+    expect(a.states[0]).toBe("MO");
+  });
+
+  it("keeps the baseline floor while chasing gaps (no state starves)", () => {
+    const demand = summarizeDemand(demandRows);
+    let rotation = emptyRotation();
+    const seen = new Set<string>();
+    const perSweep = 10;
+    const sweeps = Math.ceil(
+      SWEEP_STATE_CODES.length / baselineSlots(perSweep),
+    );
+    for (let i = 0; i < sweeps; i++) {
+      const at = new Date(NOW.getTime() + i * 4 * 3_600_000);
+      const plan = planDemandSweep(rotation, {
+        perSweep,
+        zipsPerState: 2,
+        demand,
+        gaps: ["IA", "IL", "KY"],
+        now: at,
+      });
+      for (const st of ["IA", "IL", "KY"]) expect(plan.states).toContain(st);
+      plan.states.forEach((s) => seen.add(s));
+      rotation = recordSweepPlan(rotation, plan, at);
+    }
+    expect(seen.size).toBe(SWEEP_STATE_CODES.length);
+  });
+
+  it("sourcesForSweep still runs primary before secondary", () => {
+    expect(
+      sourcesForSweep(
+        ["gsa_auctions", "curated_dealers", "publicsurplus"],
+        emptySourceHealth(),
+      ),
+    ).toEqual(["curated_dealers", "gsa_auctions", "publicsurplus"]);
   });
 });

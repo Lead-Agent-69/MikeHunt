@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CURATED_SITES } from "./curated-sites";
+import { CURATED_SITES, orderCuratedSitesForPlan } from "./curated-sites";
 import {
   createRobotsGate,
   policyBlockFor,
@@ -92,5 +92,41 @@ describe("policyBlockFor", () => {
     const blocked = CURATED_SITES.filter((s) => policyBlockFor(s.url));
     for (const site of blocked)
       expect(policyBlockFor(site.url)?.reason.length).toBeGreaterThan(20);
+  });
+});
+
+describe("curated demand-ring density", () => {
+  const crawlable = CURATED_SITES.filter((s) => !policyBlockFor(s.url));
+  const perState = (st: string) =>
+    crawlable.filter((s) => s.state === st).length;
+
+  it("gap anchor states each have at least 8 crawlable curated dealers", () => {
+    for (const st of ["IA", "IL", "KY", "FL"])
+      expect(perState(st), st).toBeGreaterThanOrEqual(8);
+    expect(perState("MO")).toBeGreaterThanOrEqual(12);
+  });
+
+  it("has no duplicate hosts in the curated list", () => {
+    const hosts = CURATED_SITES.map((s) =>
+      new URL(s.url).hostname.replace(/^www\./, "").toLowerCase(),
+    );
+    const dupes = hosts.filter((h, i) => hosts.indexOf(h) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  it("orders planned (gap-first) states ahead of the rest, national sites next", () => {
+    const sites = [
+      { state: "MO", n: 1 },
+      { state: undefined, n: 2 },
+      { state: "KY", n: 3 },
+      { state: "TX", n: 4 },
+      { state: "IA", n: 5 },
+    ];
+    expect(
+      orderCuratedSitesForPlan(sites, ["IA", "KY", "MO"]).map((s) => s.n),
+    ).toEqual([5, 3, 1, 2, 4]);
+    expect(orderCuratedSitesForPlan(sites, []).map((s) => s.n)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
   });
 });

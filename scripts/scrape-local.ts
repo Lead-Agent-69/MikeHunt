@@ -22,6 +22,7 @@ import {
   optedInRestrictedSources,
   resolveSweepSources,
   saveSweepState,
+  SWEEP_SOURCE_TIER,
   type ScraperExecutionMode,
 } from "../lib/scrapers/sweep-schedule";
 import type { LocalWriteContext } from "../lib/scrapers/local-write-context";
@@ -42,6 +43,7 @@ import {
   sourcesForSweep,
   startSweep,
   summarizeDemand,
+  wantHitGapStates,
 } from "../lib/scrapers/sweep-demand";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
@@ -106,6 +108,7 @@ interface Status {
     nextAt?: string;
     states?: string[];
     demandStates?: string[];
+    gapStates?: string[];
   };
   accessBarriers: {
     host: string;
@@ -389,11 +392,42 @@ async function runSweepTick(
         `[sweep] demand unavailable, rotation only: ${(error as Error).message}`,
       );
     }
+    const demand = summarizeDemand(demandRows);
+    // Want-hit gaps: anchor states with < 5 active PRIMARY rows. One head-count per anchor per
+    // sweep (a handful of cheap queries every few hours — Free-tier safe). Failure = no gap bias.
+    let gaps: string[] = [];
+    try {
+      const primary = Object.entries(SWEEP_SOURCE_TIER)
+        .filter(([, tier]) => tier === "primary")
+        .map(([id]) => id);
+      const anchors = (demand.anchors || []).slice(0, 12);
+      const primaryCounts: Record<string, number> = {};
+      for (const st of anchors) {
+        const { count, error } = await supabase
+          .from("deals")
+          .select("id", { count: "exact", head: true })
+          .eq("active", true)
+          .eq("location_state", st)
+          .in("source", primary);
+        if (error) throw error;
+        primaryCounts[st] = count || 0;
+      }
+      gaps = wantHitGapStates({ anchors, primaryCounts, minRows: 5 });
+      if (anchors.length)
+        console.log(
+          `[sweep] want-hit primary rows: ${anchors.map((st) => `${st}=${primaryCounts[st]}`).join(" ")}${gaps.length ? ` → gap-first: ${gaps.join(", ")}` : ""}`,
+        );
+    } catch (error) {
+      console.warn(
+        `[sweep] want-hit counts unavailable, no gap bias: ${(error as Error).message}`,
+      );
+    }
     const plan = planDemandSweep(rotation, {
       perSweep: resolveSweepStatesPerRun(),
       zipsPerState: resolveSweepZipsPerState(),
       counts,
-      demand: summarizeDemand(demandRows),
+      demand,
+      gaps,
     });
     step.state.plan = { states: plan.states, zipsByState: plan.zipsByState };
     await saveRotation(recordSweepPlan(rotation, plan));
@@ -401,6 +435,7 @@ async function runSweepTick(
     currentStatus.sweep = {
       ...currentStatus.sweep,
       demandStates: plan.demandStates,
+      gapStates: plan.gapStates || [],
     };
     const restricted = optedInRestrictedSources(step.state.sources);
     if (restricted.length)
@@ -421,6 +456,7 @@ async function runSweepTick(
     total: step.state.sources.length,
     states: step.state.plan?.states,
     demandStates: currentStatus.sweep?.demandStates,
+    gapStates: currentStatus.sweep?.gapStates,
   };
   currentStatus.lastRun = new Date().toISOString();
   await writeStatus();
