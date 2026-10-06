@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import useSWR from "swr";
+import { signalDismiss, signalUnsave } from "@/components/reco/deal-signals";
 import Link from "next/link";
 import { createClientComponentClient } from "@/lib/supabase";
 import { Ico } from "@/components/shared/Ico";
@@ -86,7 +87,12 @@ export default function AlertsPage() {
   }
 
   async function dismissAlert(id: string) {
-    await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const dealId = alerts.find((a: any) => a.id === id)?.deals?.id;
+    const res = await fetch(`/api/alerts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    // Reco: dismissing an alert dismisses its listing (best-effort, only if the delete worked).
+    if (res.ok) signalDismiss(dealId);
     mutate(
       {
         alerts: alerts.filter((a: any) => a.id !== id),
@@ -97,7 +103,11 @@ export default function AlertsPage() {
   }
 
   async function deleteSavedCar(id: string) {
-    await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
+    const dealId = savedCars.find((item: any) => item.id === id)?.deal_id;
+    const res = await fetch(`/api/saved-cars/${id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) signalUnsave(dealId);
     mutateSavedCars(
       savedCars.filter((item: any) => item.id !== id),
       false,

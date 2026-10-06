@@ -3,6 +3,7 @@
 
 import React, { useState } from "react";
 import useSWR from "swr";
+import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
 import {
@@ -127,6 +128,7 @@ export default function SavedCarsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this saved vehicle?")) return;
 
+    const dealId = saves?.find((item: any) => item.id === id)?.deal_id;
     try {
       // Optimistic update
       mutate(
@@ -136,6 +138,8 @@ export default function SavedCarsPage() {
 
       const res = await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
       if (res.ok) {
+        // Reco: the save was logged server-side; record the unsave (best-effort).
+        signalUnsave(dealId);
         // Revalidate from server
         mutate();
       } else {
