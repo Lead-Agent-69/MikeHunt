@@ -59,7 +59,7 @@ describe("search markets", () => {
       error: "That market is already on your list.",
     });
     expect(addSearchLocation(list, { state: "TX" }, home, NOW)).toEqual({
-      error: "TX is already your home market.",
+      error: "TX is already your home state.",
     });
     expect(
       "list" in
