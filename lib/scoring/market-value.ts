@@ -399,6 +399,34 @@ export type SoldObservation = {
 
 type SoldBucket = { prices: number[]; soldAt: string | null };
 
+/**
+ * Completed sales older than this do not count toward a sold median. Used-vehicle prices move
+ * month to month, so a price from years back is not "what it sells for" today. 180 days is wide
+ * enough to reach n >= 3 for common make/model/year bands and short enough to stay current.
+ * Rows with no sold date, or a date in the future, are left out too: their age is unknown.
+ */
+export const SOLD_MEDIAN_WINDOW_DAYS = 180;
+const DAY_MS = 86_400_000;
+/** Allow a little clock skew between the scraper and this server before calling a date "future". */
+const SOLD_FUTURE_SKEW_MS = DAY_MS;
+
+/** ISO cutoff for queries: sales on or after this instant are inside the window. */
+export function soldWindowCutoffIso(now: number = Date.now()): string {
+  return new Date(now - SOLD_MEDIAN_WINDOW_DAYS * DAY_MS).toISOString();
+}
+
+/** Is this sale date inside the sold-median window? Missing or unparseable dates are not. */
+export function isWithinSoldWindow(
+  soldAt: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (!soldAt) return false;
+  const t = Date.parse(soldAt);
+  if (!Number.isFinite(t)) return false;
+  if (t > now + SOLD_FUTURE_SKEW_MS) return false;
+  return now - t <= SOLD_MEDIAN_WINDOW_DAYS * DAY_MS;
+}
+
 function pushSold(
   buckets: Map<string, SoldBucket>,
   bucketKey: string,
@@ -429,8 +457,14 @@ function finalizeSold(buckets: Map<string, SoldBucket>) {
   return idx;
 }
 
-/** Split completed sales by title. Untitled rows are dropped so they cannot pose as clean. */
-export function buildSoldIndexes(rows: SoldObservation[]) {
+/**
+ * Split completed sales by title. Untitled rows are dropped so they cannot pose as clean, and sales
+ * outside SOLD_MEDIAN_WINDOW_DAYS are dropped so an old price cannot pose as current.
+ */
+export function buildSoldIndexes(
+  rows: SoldObservation[],
+  now: number = Date.now(),
+) {
   const clean = new Map<string, SoldBucket>();
   const cleanState = new Map<string, SoldBucket>();
   const salvage = new Map<string, SoldBucket>();
@@ -438,6 +472,8 @@ export function buildSoldIndexes(rows: SoldObservation[]) {
   for (const row of rows || []) {
     const price = Number(row.sold_price);
     if (!(row.make && row.model && price > 0)) continue;
+    // Outside SOLD_MEDIAN_WINDOW_DAYS (or undated): not a current sold price.
+    if (!isWithinSoldWindow(row.sold_at, now)) continue;
     const lane = soldTitleLane(row.title);
     if (lane === "unknown") continue;
     const national = lane === "clean" ? clean : salvage;
@@ -459,13 +495,21 @@ export function buildSoldIndexes(rows: SoldObservation[]) {
   };
 }
 
-export function summarizeCleanSold(rows: SoldObservation[]) {
+export function summarizeCleanSold(
+  rows: SoldObservation[],
+  now: number = Date.now(),
+) {
   const clean: SoldObservation[] = [];
   let salvageCount = 0;
   let unknownCount = 0;
+  let staleCount = 0;
   for (const row of rows || []) {
     const price = Number(row.sold_price);
     if (!(price > 0)) continue;
+    if (!isWithinSoldWindow(row.sold_at, now)) {
+      staleCount += 1;
+      continue;
+    }
     const lane = soldTitleLane(row.title);
     if (lane === "clean") clean.push(row);
     else if (lane === "salvage") salvageCount += 1;
@@ -494,7 +538,9 @@ export function summarizeCleanSold(rows: SoldObservation[]) {
           ? "Sold rows have no title, so they are not used as a clean price."
           : salvageCount > 0
             ? "Only salvage titles on file. Not a clean price."
-            : null;
+            : staleCount > 0
+              ? `No sales in the last ${SOLD_MEDIAN_WINDOW_DAYS} days. Older sales are not used as a current price.`
+              : null;
   return {
     median: value == null ? null : Math.round(value),
     count: prices.length,
@@ -503,6 +549,8 @@ export function summarizeCleanSold(rows: SoldObservation[]) {
     high: publish ? prices[prices.length - 1] : null,
     salvageCount,
     unknownCount,
+    staleCount,
+    windowDays: SOLD_MEDIAN_WINDOW_DAYS,
     mixed: salvageCount > 0 && prices.length < 3,
     note,
   };
@@ -519,6 +567,7 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
         .eq("currency_code", "USD")
         .eq("country_code", "US")
         .gt("sold_price", 0)
+        .gte("sold_at", soldWindowCutoffIso())
         .range(from, from + PAGE - 1);
       if (error || !data || data.length === 0) break;
       rows.push(...data);

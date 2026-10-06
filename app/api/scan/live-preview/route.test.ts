@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
+import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 
 vi.mock("@/lib/deals/deal-desk-access", async (importOriginal) => {
   const actual =
@@ -59,7 +60,22 @@ function req(path: string) {
   return new NextRequest(`http://localhost:3000${path}`);
 }
 
+// GovDeals is terms-restricted (Liquidity Services User Agreement), so these preview-path tests run
+// with the operator opt-in. The honesty block below checks the default (no opt-in) refuses it.
+let prevSources: string | undefined;
+function optInGovDeals() {
+  prevSources = process.env.SCRAPE_SOURCES;
+  process.env.SCRAPE_SOURCES = "govdeals";
+}
+function restoreSources() {
+  if (prevSources === undefined) delete process.env.SCRAPE_SOURCES;
+  else process.env.SCRAPE_SOURCES = prevSources;
+}
+
 describe("GET /api/scan/live-preview", () => {
+  beforeEach(optInGovDeals);
+  afterEach(restoreSources);
+
   it("does not preview an explicit source outside the buyer lane", async () => {
     const { GET } = await import("./route");
     const res = await GET(
@@ -131,20 +147,44 @@ describe("GET /api/scan/live-preview honesty", () => {
     }
   });
 
+  it("never live-fetches GovDeals without an operator opt-in", async () => {
+    const prev = process.env.SCRAPE_SOURCES;
+    delete process.env.SCRAPE_SOURCES;
+    vi.mocked(previewGovDeals).mockClear();
+    try {
+      const { GET } = await import("./route");
+      const res = await GET(
+        req(
+          "/api/scan/live-preview?lane=government&source=govdeals&state=FL&maxPrice=10000&q=mercedes",
+        ),
+      );
+      const body = await res.json();
+      expect(previewGovDeals).not.toHaveBeenCalled();
+      expect(body.vehicles).toEqual([]);
+    } finally {
+      if (prev !== undefined) process.env.SCRAPE_SOURCES = prev;
+    }
+  });
+
   it("returns deskAccess and no seller contact or fake profit to a personal desk", async () => {
-    const { GET } = await import("./route");
-    const res = await GET(
-      req(
-        "/api/scan/live-preview?lane=government&source=govdeals&state=FL&maxPrice=10000&q=mercedes",
-      ),
-    );
-    const body = await res.json();
-    expect(res.headers.get("cache-control") || "").toMatch(/no-store/);
-    expect(body.deskAccess).toBe("personal");
-    const v = body.vehicles[0];
-    expect(v).not.toHaveProperty("sellerPhone");
-    expect(v).not.toHaveProperty("profitEstimate");
-    expect(v).not.toHaveProperty("profitScore");
-    expect(v.askPrice).toBe(9990);
+    optInGovDeals();
+    try {
+      const { GET } = await import("./route");
+      const res = await GET(
+        req(
+          "/api/scan/live-preview?lane=government&source=govdeals&state=FL&maxPrice=10000&q=mercedes",
+        ),
+      );
+      const body = await res.json();
+      expect(res.headers.get("cache-control") || "").toMatch(/no-store/);
+      expect(body.deskAccess).toBe("personal");
+      const v = body.vehicles[0];
+      expect(v).not.toHaveProperty("sellerPhone");
+      expect(v).not.toHaveProperty("profitEstimate");
+      expect(v).not.toHaveProperty("profitScore");
+      expect(v.askPrice).toBe(9990);
+    } finally {
+      restoreSources();
+    }
   });
 });

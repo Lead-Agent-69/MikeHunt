@@ -146,7 +146,11 @@ describe("automation allow-list for public preview routes", () => {
     expect(isAutomationAllowedSource("copart", "craigslist, copart")).toBe(
       true,
     );
-    expect(isAutomationAllowedSource("govdeals", "")).toBe(true);
+    expect(isAutomationAllowedSource("gsa_auctions", "")).toBe(true);
+    expect(isAutomationAllowedSource("govdeals", "")).toBe(false);
+    expect(isAutomationAllowedSource("govdeals", "govdeals")).toBe(true);
+    expect(isAutomationAllowedSource("allsurplus", "")).toBe(false);
+    expect(isAutomationAllowedSource("carparts_com", undefined)).toBe(false);
     expect(isAutomationAllowedSource("municibid", "")).toBe(false);
     expect(isAutomationAllowedSource("offerup", undefined)).toBe(false);
     expect(isAutomationAllowedSource("municibid", "municibid")).toBe(true);
@@ -157,5 +161,17 @@ describe("automation allow-list for public preview routes", () => {
     expect(TOS_RESTRICTED_SOURCES.offerup).toMatch(/automated/);
     expect(resolveSweepSources("")).not.toContain("municibid");
     expect(resolveSweepSources("")).not.toContain("offerup");
+  });
+
+  it("keeps Liquidity Services sites (govdeals, allsurplus) and carparts_com out of the default sweep", () => {
+    expect(TOS_RESTRICTED_SOURCES.govdeals).toMatch(/spiders|robots/);
+    expect(TOS_RESTRICTED_SOURCES.allsurplus).toMatch(/spiders|robots/);
+    expect(TOS_RESTRICTED_SOURCES.carparts_com).toMatch(/automated|scrap/);
+    expect(resolveSweepSources("")).not.toContain("govdeals");
+    expect(resolveSweepSources("")).toEqual([
+      "curated_dealers",
+      "independent_dealer",
+      "gsa_auctions",
+    ]);
   });
 });

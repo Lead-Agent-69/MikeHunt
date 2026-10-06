@@ -113,4 +113,36 @@ describe("listing feeds wire the shared desk redaction", () => {
       /listingsForDesk|redactListingForNonFlipDesk|flipDesk \?/,
     );
   });
+
+  it("keeps market forecasts but drops flip urgency and ROI from a card prediction", () => {
+    const card = {
+      id: "p",
+      askPrice: 9000,
+      prediction: {
+        daysToSell: 12,
+        velocity: "fast",
+        priceDropChance: 0.3,
+        urgency: "act_now",
+        projectedRoiPct: 22.5,
+        reasons: [
+          "Sells fast — ~12d (scarce supply)",
+          "Act now — a fresh deal in a fast market won't last",
+          "Projected ROI 22.5%",
+        ],
+      },
+    };
+    const out = redactListingForNonFlipDesk(card);
+    expect(out.prediction).toEqual({
+      daysToSell: 12,
+      velocity: "fast",
+      priceDropChance: 0.3,
+      urgency: "none",
+      projectedRoiPct: null,
+      reasons: ["Sells fast — ~12d (scarce supply)"],
+    });
+    expect(card.prediction.urgency).toBe("act_now");
+    expect(redactListingForNonFlipDesk({ id: "n" })).not.toHaveProperty(
+      "prediction",
+    );
+  });
 });

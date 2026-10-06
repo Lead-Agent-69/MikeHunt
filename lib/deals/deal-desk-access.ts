@@ -136,12 +136,37 @@ const CARD_FLIP_ONLY_FIELDS = [
   "sellerContactUrl",
 ] as const;
 
+/**
+ * Buyer-safe copy of a card's forecast. Days-to-sell, velocity and price-drop odds are market facts
+ * a personal buyer can use. Urgency is keyed off the flip BUY verdict and projected ROI is flip
+ * margin, so both go, along with the reasons that narrate them.
+ */
+function safePrediction(prediction: unknown): Record<string, any> | null {
+  if (!prediction || typeof prediction !== "object") return null;
+  const p = prediction as Record<string, any>;
+  const reasons = Array.isArray(p.reasons)
+    ? p.reasons.filter(
+        (r: unknown) =>
+          typeof r === "string" && !/\bROI\b|act now|won't last/i.test(r),
+      )
+    : [];
+  return {
+    daysToSell: p.daysToSell ?? null,
+    velocity: p.velocity ?? "unknown",
+    priceDropChance: p.priceDropChance ?? null,
+    urgency: "none",
+    projectedRoiPct: null,
+    reasons,
+  };
+}
+
 /** Copy of a listing card without flip economics or seller contact. Never mutates the input. */
 export function redactListingForNonFlipDesk<T extends Record<string, any>>(
   card: T,
 ): Record<string, any> {
   const out: Record<string, any> = { ...card };
   for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
+  if ("prediction" in out) out.prediction = safePrediction(card.prediction);
   // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
   const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);
   if (safe) out.dealAnalysis = safe;

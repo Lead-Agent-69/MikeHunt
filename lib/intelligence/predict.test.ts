@@ -45,6 +45,15 @@ describe("predict (forecasting layer)", () => {
     expect(predict({ isBuy: false, marketSupply: 4 }).urgency).toBe("none");
   });
 
+  it("does not treat an unknown listing age as fresh", () => {
+    // No days-on-market: a fast market can still say "soon", never "act now".
+    const p = predict({ isBuy: true, marketSupply: 4 });
+    expect(p.urgency).toBe("soon");
+    expect(p.reasons.join(" ")).not.toMatch(/Act now/i);
+    // Slow market and unknown age: watch, not soon.
+    expect(predict({ isBuy: true, marketSupply: 300 }).urgency).toBe("watch");
+  });
+
   it("projects ROI from net profit and cost", () => {
     expect(predict({ netProfit: 5000, cost: 20000 }).projectedRoiPct).toBe(25);
     expect(predict({ netProfit: 5000, cost: 0 }).projectedRoiPct).toBeNull();
