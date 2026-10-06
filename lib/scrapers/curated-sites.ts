@@ -214,4 +214,70 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.familyautonv.com", name: "Family Auto LLC", state: "NV", type: "rebuilder_dealer" },
   { url: "https://www.columbia-motors.com", name: "Columbia Motors", state: "OR", type: "rebuilder_dealer", inventoryUrl: "https://www.columbia-motors.com/view-inventory" },
   { url: "https://www.sandiegototalcars.com", name: "San Diego Total Cars", state: "CA", type: "rebuilder_dealer" },
+
+  // ════ Wave 6 — demand-ring density for IA / IL / KY / FL (Jonah 2026-10-06) ════
+  // Gap anchors from /api/scrape/health demandCoverage. Each entry checked 2026-10-06: homepage +
+  // inventory page return 200 without a bot challenge, robots.txt allows both for `*`, the inventory
+  // page lists year/make vehicles, and no terms page found bans automated access. Sites whose terms
+  // ban bots (Billion Auto, Craig & Landreth, Willis Nissan, Jeff Wyler, Robert's Auto, Rick's Auto,
+  // Florida Fine Cars, Chicago Motor Cars, Paducah Ford, Kelley Autoplex) were left out on purpose.
+  // ── Iowa ──
+  { url: "https://iowaautoexchange.com", name: "Iowa Auto Exchange", state: "IA", city: "Des Moines", type: "independent_dealer", inventoryUrl: "https://iowaautoexchange.com/inventory/" },
+  { url: "https://www.tomsautosales.com", name: "Tom's Auto Sales", state: "IA", city: "Des Moines", type: "independent_dealer" },
+  { url: "https://www.tomsbudgetcars.com", name: "Tom's Budget Cars", state: "IA", city: "Des Moines", type: "independent_dealer" },
+  { url: "https://www.amesford.com", name: "Ames Ford Lincoln", state: "IA", city: "Ames", type: "clean_retail", inventoryUrl: "https://www.amesford.com/used-inventory/index.htm" },
+  { url: "https://www.karlchevrolet.com", name: "Karl Chevrolet", state: "IA", city: "Ankeny", type: "clean_retail", inventoryUrl: "https://www.karlchevrolet.com/used-inventory/index.htm" },
+  { url: "https://www.carouselmotors.com", name: "Carousel Motors", state: "IA", city: "Iowa City", type: "clean_retail", inventoryUrl: "https://www.carouselmotors.com/all-inventory/index.htm" },
+  // ── Illinois ──
+  { url: "https://www.fordofpeoria.net", name: "Ford of Peoria", state: "IL", city: "Peoria", type: "clean_retail", inventoryUrl: "https://www.fordofpeoria.net/used-inventory/index.htm" },
+  { url: "https://www.greentoyota.com", name: "Green Toyota", state: "IL", city: "Springfield", type: "clean_retail", inventoryUrl: "https://www.greentoyota.com/used-inventory/index.htm" },
+  { url: "https://www.isringhausen.com", name: "Isringhausen Imports", state: "IL", city: "Springfield", type: "clean_retail" },
+  { url: "https://www.fieldsauto.com", name: "Fields Auto", state: "IL", city: "Glenview", type: "clean_retail" },
+  { url: "https://www.elgintoyota.com", name: "Elgin Toyota", state: "IL", city: "Elgin", type: "clean_retail", inventoryUrl: "https://www.elgintoyota.com/used-inventory/index.htm" },
+  { url: "https://www.bredemanntoyota.com", name: "Bredemann Toyota", state: "IL", city: "Park Ridge", type: "clean_retail", inventoryUrl: "https://www.bredemanntoyota.com/used-inventory/index.htm" },
+  { url: "https://www.gurneevw.com", name: "Gurnee Volkswagen", state: "IL", city: "Gurnee", type: "clean_retail", inventoryUrl: "https://www.gurneevw.com/used-inventory/index.htm" },
+  { url: "https://www.auffenberg.com", name: "Auffenberg Dealer Group", state: "IL", city: "Shiloh", type: "clean_retail" },
+  // ── Kentucky ──
+  { url: "https://www.autohouselex.com", name: "Auto House of Lexington", state: "KY", city: "Lexington", type: "independent_dealer", inventoryUrl: "https://www.autohouselex.com/inventory" },
+  { url: "https://www.glennauto.com", name: "Glenn Auto", state: "KY", city: "Crestwood", type: "independent_dealer" },
+  { url: "https://www.neilhuffman.com", name: "Neil Huffman Auto Group", state: "KY", city: "Louisville", type: "clean_retail", inventoryUrl: "https://www.neilhuffman.com/used-inventory/index.htm" },
+  { url: "https://www.billcollinsford.net", name: "Bill Collins Ford", state: "KY", city: "Louisville", type: "clean_retail" },
+  { url: "https://www.toyotaofbowlinggreen.com", name: "Toyota of Bowling Green", state: "KY", city: "Bowling Green", type: "clean_retail", inventoryUrl: "https://www.toyotaofbowlinggreen.com/used-inventory/index.htm" },
+  { url: "https://www.toyotasouth.com", name: "Toyota South", state: "KY", city: "Richmond", type: "clean_retail" },
+  { url: "https://www.dancummins.com", name: "Dan Cummins", state: "KY", city: "Paris", type: "clean_retail" },
+  // ── Florida ──
+  { url: "https://www.fermanauto.com", name: "Ferman", state: "FL", city: "Tampa", type: "clean_retail" },
+  { url: "https://brandonhonda.com", name: "Brandon Honda", state: "FL", city: "Tampa", type: "clean_retail" },
+  { url: "https://www.alanjay.com", name: "Alan Jay Automotive", state: "FL", city: "Sebring", type: "clean_retail", inventoryUrl: "https://www.alanjay.com/used" },
+  { url: "https://www.hollerhonda.com", name: "Holler Honda", state: "FL", city: "Orlando", type: "clean_retail" },
+  { url: "https://www.toyotaoforlando.com", name: "Toyota of Orlando", state: "FL", city: "Orlando", type: "clean_retail" },
+  { url: "https://www.tamiamiford.com", name: "Tamiami Ford", state: "FL", city: "Naples", type: "clean_retail" },
+  { url: "https://www.jarrettforddadecity.com", name: "Jarrett Ford Dade City", state: "FL", city: "Dade City", type: "clean_retail", inventoryUrl: "https://www.jarrettforddadecity.com/used" },
+  { url: "https://www.lakelandtoyota.com", name: "Lakeland Toyota", state: "FL", city: "Lakeland", type: "clean_retail" },
+  { url: "https://rickcasehonda.com", name: "Rick Case Honda", state: "FL", city: "Davie", type: "clean_retail" },
+  { url: "https://www.samgallowayford.com", name: "Sam Galloway Ford", state: "FL", city: "Fort Myers", type: "clean_retail" },
+  { url: "https://www.sarasotaford.com", name: "Sarasota Ford", state: "FL", city: "Sarasota", type: "clean_retail" },
 ];
+
+/**
+ * Crawl order for one sweep: sites in planned states first, in plan order (demand / want-hit gap
+ * states lead the plan), then national / untagged sites, then everything else. Stable within a
+ * group. The crawl is time-boxed per job, so order decides which states actually get fresh rows.
+ */
+export function orderCuratedSitesForPlan<T extends Pick<CuratedSite, "state">>(
+  sites: readonly T[],
+  plannedStates: readonly string[] = [],
+): T[] {
+  if (!plannedStates.length) return [...sites];
+  const rank = new Map(plannedStates.map((s, i) => [s.toUpperCase(), i]));
+  const n = plannedStates.length;
+  const key = (site: T) => {
+    const st = String(site.state || "").toUpperCase();
+    if (!st) return n; // national networks right after planned states
+    return rank.get(st) ?? n + 1;
+  };
+  return sites
+    .map((site, i) => ({ site, i, k: key(site) }))
+    .sort((a, b) => a.k - b.k || a.i - b.i)
+    .map((x) => x.site);
+}

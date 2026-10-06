@@ -25,6 +25,8 @@ import {
 import {
   summarizeDemand,
   wantHitRatio,
+  wantHitGapStates,
+  WANT_HIT_TARGET,
   type DemandRow,
 } from "@/lib/scrapers/sweep-demand";
 
@@ -877,11 +879,11 @@ export function buildScopeStatus({
   };
 }
 
-
 async function buildDemandCoverage(
   // Loosely typed: hosted DB types may not include scrape_demand yet.
   supabase: { rpc: (...args: any[]) => Promise<{ data: any; error: any }> },
   activeDeals: readonly any[],
+  detail = false,
 ) {
   let demandRows: DemandRow[] = [];
   try {
@@ -909,13 +911,31 @@ async function buildDemandCoverage(
     primaryCounts,
     minRows: 5,
   });
+  const gapStates = wantHitGapStates({
+    anchors: demand.anchors || [],
+    primaryCounts,
+    minRows: 5,
+  });
+  const aggregate = {
+    wantHit: hit.wantHit,
+    covered: hit.covered,
+    demanded: hit.demanded,
+    target: WANT_HIT_TARGET,
+    gapBias: gapStates.length > 0,
+  };
+  // Per-state demand (where users live / search) is ops-only: anonymous callers get the ratio.
+  if (!detail) return aggregate;
   return {
-    ...hit,
-    target: 0.9,
+    ...aggregate,
+    gaps: hit.gaps,
+    gapStates,
     anchors: demand.anchors || [],
     weights: demand.weights,
-    primaryCounts,
-    note: "want-hit = fraction of ring-0 demand states with ≥5 active primary-source rows",
+    primaryCounts: Object.fromEntries(
+      (demand.anchors || []).map((st) => [st, primaryCounts[st] || 0]),
+    ),
+    primaryCountsAll: primaryCounts,
+    note: "want-hit = fraction of ring-0 demand states with ≥5 active primary-source rows; gapStates lead the Zeus sweep plan while wantHit < target",
   };
 }
 
@@ -1378,7 +1398,11 @@ export async function GET(request: NextRequest) {
 
     const userHealth = userFacingHealthRows(health, scope);
     const summary = buildHealthSummary(userHealth);
-    const demandCoverage = await buildDemandCoverage(supabase as any, activeDeals);
+    const demandCoverage = await buildDemandCoverage(
+      supabase as any,
+      activeDeals,
+      showInternalErrors,
+    );
 
     return NextResponse.json({
       configured: true,

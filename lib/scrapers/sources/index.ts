@@ -20,6 +20,7 @@ import { enrichPriority } from "@/lib/scrapers/enrich-priority";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import {
   CURATED_SITES,
+  orderCuratedSitesForPlan,
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
@@ -852,9 +853,13 @@ export async function scrapeCuratedSites(
         .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
         .join(", ")}`,
     );
-  const sites = candidates
-    .filter((site) => !policyBlockFor(site.url))
-    .slice(0, maxSites);
+  // Demand / want-hit gap states lead the sweep plan; crawl their dealers first so a time-boxed
+  // job spends its budget where users are actually looking.
+  const plannedStates = getSweepPlan()?.states || [];
+  const sites = orderCuratedSitesForPlan(
+    candidates.filter((site) => !policyBlockFor(site.url)),
+    plannedStates,
+  ).slice(0, maxSites);
   const robotsAllowed = createRobotsGate();
   console.log(
     `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites${

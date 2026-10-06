@@ -96,9 +96,8 @@ export function expandDemandRings(
   const cap = Math.max(0, Math.min(8, Math.floor(maxRing)));
   const weights: Record<string, number> = { ...demand.weights };
   const rings: Record<string, number> = {
-    ...(demand.rings || Object.fromEntries(
-      Object.keys(demand.weights).map((s) => [s, 0]),
-    )),
+    ...(demand.rings ||
+      Object.fromEntries(Object.keys(demand.weights).map((s) => [s, 0]))),
   };
   const anchors = demand.anchors || Object.keys(demand.weights);
   for (const anchor of anchors) {
@@ -106,7 +105,9 @@ export function expandDemandRings(
     if (base <= 0 || !KNOWN_STATES.has(anchor)) continue;
     for (let r = 1; r <= cap; r++) {
       // nearbyStates(n) is inclusive of self; take n = r+1 closest then drop nearer rings.
-      const near = Array.from(nearbyStates(anchor, r + 1)).filter((s) => s !== anchor);
+      const near = Array.from(nearbyStates(anchor, r + 1)).filter(
+        (s) => s !== anchor,
+      );
       // States whose closest ring to this anchor is exactly r: in nearby(r+1) but not nearby(r).
       const closer =
         r === 1
@@ -146,8 +147,7 @@ export function wantHitRatio(input: {
   const anchors = Array.from(
     new Set(input.anchors.map((s) => s.toUpperCase())),
   ).filter((s) => KNOWN_STATES.has(s));
-  if (!anchors.length)
-    return { wantHit: 1, covered: 0, demanded: 0, gaps: [] };
+  if (!anchors.length) return { wantHit: 1, covered: 0, demanded: 0, gaps: [] };
   const gaps: string[] = [];
   let covered = 0;
   for (const st of anchors) {
@@ -160,6 +160,24 @@ export function wantHitRatio(input: {
     demanded: anchors.length,
     gaps,
   };
+}
+
+/** Want-hit target (Jonah 2026-10-06): ~90% of demanded anchor states well covered by primary sources. */
+export const WANT_HIT_TARGET = 0.9;
+
+/**
+ * Gap anchors the planner should chase first. Empty once want-hit reaches the target, so a healthy
+ * demand map goes back to plain score order (rings + staleness).
+ */
+export function wantHitGapStates(input: {
+  anchors: readonly string[];
+  primaryCounts: Record<string, number>;
+  minRows?: number;
+  target?: number;
+}): string[] {
+  const hit = wantHitRatio(input);
+  const target = input.target ?? WANT_HIT_TARGET;
+  return hit.demanded && hit.wantHit < target ? hit.gaps : [];
 }
 
 export function isPrimarySource(id: string) {
@@ -208,6 +226,8 @@ export function demandZipsForState(
 export interface DemandSweepPlan extends SweepPlan {
   /** States picked for demand (subset of `states`, listed first). */
   demandStates: string[];
+  /** Want-hit gap anchors in this plan (lead the plan). Empty when want-hit is at target. */
+  gapStates?: string[];
 }
 
 export function planDemandSweep(
@@ -219,6 +239,11 @@ export function planDemandSweep(
     demand?: DemandSummary;
     /** Expand home/search anchors through nearbyStates. Default 3. Set 0 to disable. */
     maxRing?: number;
+    /**
+     * Want-hit gap anchors (see wantHitGapStates). While want-hit is under target these take the
+     * demand slots first and get extra ZIP depth; the baseline floor is unchanged.
+     */
+    gaps?: readonly string[];
     states?: readonly string[];
     now?: Date;
   },
@@ -264,10 +289,22 @@ export function planDemandSweep(
       hoursSinceSwept: hours(s),
       active: counts[s] ?? 0,
     });
+  const gapSet = new Set(
+    (options.gaps || [])
+      .map((s) => String(s || "").toUpperCase())
+      .filter((s) => pool.includes(s)),
+  );
   const demandStates = demanded
     .filter((s) => !baseline.includes(s))
-    .sort((a, b) => score(b) - score(a) || a.localeCompare(b))
+    .sort(
+      (a, b) =>
+        Number(gapSet.has(b)) - Number(gapSet.has(a)) ||
+        score(b) - score(a) ||
+        a.localeCompare(b),
+    )
     .slice(0, k - baseline.length);
+  // A gap state that landed in the baseline still leads the plan (crawl order follows plan order).
+  const gapFirst = baseline.filter((s) => gapSet.has(s));
   // Demand-tagged baseline states still count as demand for ZIP depth.
   const demandSet = new Set([
     ...demandStates,
@@ -276,28 +313,36 @@ export function planDemandSweep(
   const filler = order.filter(
     (s) => !baseline.includes(s) && !demandStates.includes(s),
   );
-  const states = [...demandStates, ...baseline, ...filler].slice(0, k);
+  const leading = [
+    ...demandStates.filter((s) => gapSet.has(s)),
+    ...gapFirst,
+    ...demandStates.filter((s) => !gapSet.has(s)),
+  ];
+  const states = [
+    ...leading,
+    ...baseline.filter((s) => !gapFirst.includes(s)),
+    ...filler,
+  ].slice(0, k);
 
   const zipsByState: Record<string, string[]> = {};
   for (const state of states) {
     const offset = (rotation.sweeps[state] || 0) * options.zipsPerState;
     // Extra ZIP depth + zip3 preference only for ring-0 anchors (real user homes/searches).
     const anchor = anchors.has(state);
-    zipsByState[state] = anchor
-      ? demandZipsForState(
-          state,
-          options.zipsPerState + 1,
-          offset,
-          zip3s[state],
-        )
-      : demandSet.has(state)
-        ? metroZipsForState(state, options.zipsPerState + 1, offset)
-        : metroZipsForState(state, options.zipsPerState, offset);
+    // Gap anchors spread one metro wider still, so more dealer markets get seeded.
+    const depth = options.zipsPerState + (gapSet.has(state) ? 2 : 1);
+    zipsByState[state] =
+      anchor || gapSet.has(state)
+        ? demandZipsForState(state, depth, offset, zip3s[state])
+        : demandSet.has(state)
+          ? metroZipsForState(state, options.zipsPerState + 1, offset)
+          : metroZipsForState(state, options.zipsPerState, offset);
   }
   return {
     states,
     zipsByState,
-    demandStates: states.filter((s) => demandSet.has(s)),
+    demandStates: states.filter((s) => demandSet.has(s) || gapSet.has(s)),
+    gapStates: states.filter((s) => gapSet.has(s)),
   };
 }
 
