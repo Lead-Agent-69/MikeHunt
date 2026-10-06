@@ -5,6 +5,7 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { recordDealSignal } from "@/lib/reco/signals";
 import { getUserPlan, meterDealView } from "@/lib/auth/plan";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 import {
@@ -101,6 +102,14 @@ export async function GET(
         savedMode = undefined;
       }
     }
+    // Recommendation signal: a signed-in deal open. Best-effort, never blocks the response.
+    if (user?.id)
+      await recordDealSignal(
+        createServerComponentClient(),
+        user.id,
+        "open",
+        deal,
+      );
     const payload = isFlipDeskMode(savedMode)
       ? { ...safeDeal, deskAccess: "flip" as const }
       : redactDealForNonFlipDesk(safeDeal);
