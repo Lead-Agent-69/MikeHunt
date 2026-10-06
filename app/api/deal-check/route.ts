@@ -9,6 +9,7 @@ import { fetchWithPatchright } from "@/lib/scrapers/tools/patchright-engine";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
 
 // POST /api/deal-check  { image: <data URL> }
 // Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
@@ -65,9 +66,26 @@ export async function POST(req: NextRequest) {
     inputText &&
     (inputText.startsWith("http://") || inputText.startsWith("https://"))
   ) {
+    // SSRF guard: a pasted URL must be public http(s). Never let the server-side browser reach
+    // localhost, RFC1918, link-local, or cloud metadata.
+    let target: URL;
     try {
-      // Use stealth browser to bypass Cloudflare/bot-protection on Copart/IAA etc.
-      const html = await fetchWithPatchright(inputText);
+      target = await assertPublicHttpUrl(inputText.trim());
+    } catch (e) {
+      if (e instanceof UrlNotAllowedError) {
+        return NextResponse.json(
+          {
+            error:
+              "That URL is not allowed. Paste a public http(s) listing link.",
+          },
+          { status: 400 },
+        );
+      }
+      throw e;
+    }
+    try {
+      // Headless browser read of the pasted public page.
+      const html = await fetchWithPatchright(target.toString());
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
       contentText = $("body")
