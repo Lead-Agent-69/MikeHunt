@@ -61,17 +61,33 @@ export async function GET(req: NextRequest) {
   if (!user?.id) return NextResponse.json({ deals: [] });
 
   const supabase = createServerComponentClient();
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("home_lat, home_lng, home_state, home_zip")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, prefsRes] = await Promise.all([
+    supabase
+      .from("user_profiles")
+      .select("home_lat, home_lng, home_state, home_zip")
+      .eq("id", user.id)
+      .maybeSingle(),
+    Promise.resolve(
+      supabase
+        .from("user_preferences")
+        .select("prefs")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+  ]);
+  // Settings/onboarding write "where you live" to prefs.homeLocation; it wins over the
+  // legacy user_profiles columns.
+  const prefsHomeLocation = (
+    (prefsRes as { data?: { prefs?: { homeLocation?: unknown } } | null })
+      ?.data?.prefs ?? null
+  )?.homeLocation;
 
   const sp = new URL(req.url).searchParams;
   const verdict = sp.get("verdict") || "go";
   const zip = sp.get("zip");
   const lock = nearQueryLock({
     zip,
+    prefsHomeLocation,
     radiusParam: sp.get("radius"),
     homeState: profile?.home_state,
     homeZip: profile?.home_zip,
@@ -82,10 +98,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ deals: [], needsState: true });
   }
 
-  let centerLat = profile?.home_lat != null ? Number(profile.home_lat) : null;
-  let centerLng = profile?.home_lng != null ? Number(profile.home_lng) : null;
-  if (zip) {
-    const c = await geocodeZip(supabase, { zip });
+  // Distance center: the query ZIP, else the saved prefs home ZIP, else the profile pin —
+  // but only when that pin is in the locked state (never measure from an old home elsewhere).
+  const profileState = String(profile?.home_state || "").trim().toUpperCase();
+  const profilePinUsable =
+    lock.from === "profile" ||
+    (lock.from === "prefs" && !lock.homeZip && profileState === lock.state);
+  let centerLat =
+    profilePinUsable && profile?.home_lat != null ? Number(profile.home_lat) : null;
+  let centerLng =
+    profilePinUsable && profile?.home_lng != null ? Number(profile.home_lng) : null;
+  const centerZip = zip || (lock.from === "prefs" ? lock.homeZip : undefined);
+  if (centerZip) {
+    const c = await geocodeZip(supabase, { zip: centerZip });
     if (c) {
       centerLat = c.lat;
       centerLng = c.lng;

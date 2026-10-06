@@ -17,8 +17,26 @@ import { sellerContactFields } from "@/lib/data/deal-contact";
 
 // /api/flash-deals — the Booking.com "urgency" feed: deals fresh to market (< 24h), engine-verdict
 // GO, and at least 10% below the resale estimate. Backed by the flash_deals SQL view (computed on
-// read, so the countdown is always live). Returns DiscoveryCard-shaped rows + countdown fields.
-function mapFlashDeal(d: any) {
+// read). Returns DiscoveryCard-shaped rows.
+//
+// Honesty (Eva P0):
+// - secondsRemaining is always null. The view's countdown is "24h since we first saw it", not a
+//   deadline the seller set, so showing it as a timer is fake urgency.
+// - Rows whose "below market" is measured against the seller's own asking price or a modeled
+//   baseline are dropped: that gap is our haircut, not a market comparison.
+// - Desk-scoped payload → private, no-store (same as /api/scan), never a shared CDN cache.
+const FLASH_CACHE_HEADERS = { "Cache-Control": "private, no-store" };
+
+export function hasRealMarketBasis(d: any): boolean {
+  const a = d?.deal_analysis;
+  const source = a?.valuation?.source;
+  const basis = a?.sellBasis ?? a?.valuation?.basis;
+  if (source === "asking_price") return false;
+  if (basis === "baseline") return false;
+  return true;
+}
+
+export function mapFlashDeal(d: any) {
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
   return {
     id: d.id,
@@ -46,11 +64,8 @@ function mapFlashDeal(d: any) {
     ...tags,
     alsoOn: [],
     listingCount: 1,
-    // Flash-specific fields
-    secondsRemaining:
-      d.seconds_remaining != null
-        ? Math.max(0, Math.round(Number(d.seconds_remaining)))
-        : null,
+    // Flash-specific fields. No invented countdown (see header).
+    secondsRemaining: null,
     belowMarketPct:
       d.below_market_pct != null ? Number(d.below_market_pct) : null,
   };
@@ -73,12 +88,15 @@ export async function GET(request: NextRequest) {
     );
 
     if (!isSupabaseConfigured()) {
-      return NextResponse.json({
-        deals: [],
-        count: 0,
-        state: state || "nationwide",
-        configured: false,
-      });
+      return NextResponse.json(
+        {
+          deals: [],
+          count: 0,
+          state: state || "nationwide",
+          configured: false,
+        },
+        { headers: FLASH_CACHE_HEADERS },
+      );
     }
 
     const supabase = createServerComponentClient();
@@ -90,6 +108,7 @@ export async function GET(request: NextRequest) {
 
     const deals = (data || [])
       .filter((row) => !isAuctionChannel(row.source))
+      .filter(hasRealMarketBasis)
       .map(mapFlashDeal);
     const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json(
@@ -99,13 +118,8 @@ export async function GET(request: NextRequest) {
         count: deals.length,
         state: state || "nationwide",
       },
-      {
-        // D2: this feed is global (no per-user data), so let the CDN serve it for 60s and
-        // revalidate in the background — read-heavy route, much faster repeat loads.
-        headers: {
-          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
-        },
-      },
+      // Desk-scoped (flip economics redacted per caller) — never share across users.
+      { headers: FLASH_CACHE_HEADERS },
     );
   } catch (e: any) {
     return internalError("flash-deals", e);

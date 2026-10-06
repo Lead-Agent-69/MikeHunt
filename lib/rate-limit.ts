@@ -41,6 +41,8 @@ export function clientIp(req: Request): string {
  * Returns { allowed, remaining, retryAfter }. Call at the top of a route handler.
  *   const rl = rateLimit(req, { limit: 60, windowMs: 60_000 })
  *   if (!rl.allowed) return tooMany(rl)
+ * Pass `identity` (e.g. `user:<id>`) to bucket by a signed-in user instead of
+ * client IP, so one account can't dodge the limit by rotating IPs.
  */
 export function rateLimit(
   req: Request,
@@ -48,7 +50,13 @@ export function rateLimit(
     limit = 60,
     windowMs = 60_000,
     key,
-  }: { limit?: number; windowMs?: number; key?: string } = {},
+    identity,
+  }: {
+    limit?: number;
+    windowMs?: number;
+    key?: string;
+    identity?: string;
+  } = {},
 ): { allowed: boolean; remaining: number; retryAfter: number; limit: number } {
   const now = Date.now();
 
@@ -60,7 +68,7 @@ export function rateLimit(
     lastSweep = now;
   }
 
-  const id = `${key || "default"}:${clientIp(req)}`;
+  const id = `${key || "default"}:${identity ? `id:${identity}` : clientIp(req)}`;
   let b = buckets.get(id);
   if (!b || b.resetAt <= now) {
     b = { count: 0, resetAt: now + windowMs };
