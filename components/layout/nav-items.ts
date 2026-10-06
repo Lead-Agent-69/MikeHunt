@@ -75,7 +75,8 @@ export const MOBILE_PRIMARY: NavItem[] = [
 /**
  * Wholesale flip tools: auction lanes, the dealer pipeline, and arbitrage.
  * Personal, DIY, and parts buyers do not get these as tabs. The routes still
- * work if opened directly; they are just not offered in the nav.
+ * open only for reseller and dealer desks (see lib/buyer/flip-tool-access.ts);
+ * other desks get an in-page notice. They are also not offered in the nav.
  */
 export const FLIP_ONLY_HREFS: readonly string[] = [
   "/lane",
