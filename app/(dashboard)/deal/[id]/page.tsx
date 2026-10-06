@@ -159,6 +159,7 @@ function money(value?: number | null) {
 function PersonalListingLead({ deal }: { deal: any }) {
   const ask = Number(deal?.ask_price || deal?.askPrice || 0);
   const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
+  const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
   const checks = [
     "VIN matches the listing",
     "Mileage and title status",
@@ -177,6 +178,10 @@ function PersonalListingLead({ deal }: { deal: any }) {
         Asking price
       </p>
       <p className="mt-1 text-2xl font-black text-[var(--t1)]">{money(ask)}</p>
+      <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
+        <span className="font-black">All-in cost is not confirmed.</span>{" "}
+        Repair, transport, taxes, and registration still need to be checked.
+      </div>
       <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
         What to verify
       </p>
@@ -186,15 +191,22 @@ function PersonalListingLead({ deal }: { deal: any }) {
         ))}
       </ul>
       {deal?.sourceUrl ? (
-        <a
-          href={deal.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
-        >
-          Original listing
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
+        <div className="mt-4">
+          <a
+            href={deal.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
+          >
+            Original listing
+            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+          <p className="mt-1 text-xs text-[var(--t5)]">
+            {lastSeen
+              ? `Listing ${relativeFreshness(lastSeen)}. Open the source to confirm it is still available.`
+              : "Open the source to confirm this listing is still available."}
+          </p>
+        </div>
       ) : (
         <p className="mt-4 text-sm text-[var(--t4)]">
           Original listing link is not on this row yet.
@@ -1071,11 +1083,18 @@ export default function DealPage({
 
       {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
       {serverDeal?.images && serverDeal.images.length > 0 && (
-        <ImageGallery
-          images={serverDeal.images}
-          title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
-          sourceUrl={serverDeal.sourceUrl}
-        />
+        <div>
+          <ImageGallery
+            images={serverDeal.images}
+            title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
+            sourceUrl={serverDeal.sourceUrl}
+          />
+          <p className="mt-2 text-xs text-[var(--t5)]">
+            {serverDeal.images.length} listing photo
+            {serverDeal.images.length === 1 ? "" : "s"}. Photos are
+            source-provided and are not a mechanic inspection.
+          </p>
+        </div>
       )}
 
       {serverDeal && detailQuality && (
@@ -1118,14 +1137,14 @@ export default function DealPage({
             <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-                  Completeness
+                  Listing completeness
                 </span>
                 <span className="text-xs font-black text-[var(--t1)]">
                   {detailQuality.score}
                 </span>
               </div>
               <p className="mt-1 text-xs font-bold text-[var(--t3)]">
-                {detailQuality.label} listing data
+                {detailQuality.label} field coverage
               </p>
               <div className="mt-3 grid grid-cols-2 gap-1.5">
                 {detailQuality.present.slice(0, 6).map((field) => (
@@ -1133,7 +1152,7 @@ export default function DealPage({
                     key={field}
                     className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--glo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--green)]"
                   >
-                    {fieldLabel(field)}
+                    {field === "damage" ? "damage reported" : fieldLabel(field)}
                   </span>
                 ))}
               </div>
@@ -1169,23 +1188,33 @@ export default function DealPage({
                         color: present ? "var(--green)" : "var(--amber-d)",
                       }}
                     >
-                      <span>{fieldLabel(field as any)}</span>
-                      <span>{present ? "yes" : "check"}</span>
+                      <span>
+                        {field === "damage"
+                          ? "damage reported"
+                          : fieldLabel(field as any)}
+                      </span>
+                      <span>
+                        {present
+                          ? field === "damage"
+                            ? "reported"
+                            : "provided"
+                          : "check"}
+                      </span>
                     </span>
                   );
                 })}
               </div>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
-                Use this checklist before bidding. Missing VIN, mileage, seller
-                contact, or auction timing means verify from the original
-                listing before money moves.
+                This counts source-provided fields, not inspection findings.
+                Missing VIN, mileage, seller contact, or auction timing means
+                verify from the original listing before money moves.
               </p>
             </div>
 
             <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-                  Source proof
+                  Source status
                 </span>
                 <span
                   className="text-[10px] font-black uppercase"
@@ -1206,21 +1235,21 @@ export default function DealPage({
               </div>
               <p className="mt-1 text-xs text-[var(--t3)]">
                 {sourceHealth
-                  ? `${Number(sourceHealth.activeRows || 0).toLocaleString()} scoped rows · ${Number(
+                  ? `Source inventory: ${Number(sourceHealth.activeRows || 0).toLocaleString()} active rows · ${Number(
                       sourceHealth.rowsWithPhotos || 0,
-                    ).toLocaleString()} photos`
-                  : "Source health is loading for this listing."}
+                    ).toLocaleString()} rows with photos`
+                  : "Source status is loading for this listing."}
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
                 {sourceHealth
-                  ? `${Number(sourceHealth.photoCoveragePct || 0)}% photo coverage · ${
+                  ? `Source last checked: ${
                       typeof sourceHealth.freshnessHours === "number"
                         ? sourceHealth.freshnessHours < 24
-                          ? `${sourceHealth.freshnessHours}h fresh`
-                          : `${Math.round(sourceHealth.freshnessHours / 24)}d fresh`
+                          ? `${sourceHealth.freshnessHours}h ago`
+                          : `${Math.round(sourceHealth.freshnessHours / 24)}d ago`
                         : relativeFreshness(sourceHealth.lastSeenAt)
-                    }`
-                  : "The page will show row count, photo count, and freshness once returned."}
+                    } · ${Number(sourceHealth.photoCoveragePct || 0)}% of source rows include photos.`
+                  : "The page will show source inventory and last-checked time once returned."}
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t5)]">
                 {sourceHealth?.nextAction ||

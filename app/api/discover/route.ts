@@ -28,7 +28,14 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
+import { discoverHomeState } from "@/lib/discovery/home-state";
+import {
+  buildDiscoverCoverage,
+  unavailableCoverage,
+  type DiscoverCoverage,
+} from "@/lib/discovery/coverage";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
+import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
 import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
@@ -331,6 +338,9 @@ async function publicPreviewDeals(
     { id: "municibid", fetchRows: () => previewMunicibid(1) },
   ].filter(
     (source) =>
+      // Same terms gate as the sweep and /api/scan: never fetch a TOS-restricted site from an
+      // anonymous preview unless the operator opted in through SCRAPE_SOURCES.
+      isAutomationAllowedSource(source.id) &&
       wantsAuctionInventory({ lane, sellerType, sources: selectedSources }) &&
       plan.sourceIds.includes(source.id) &&
       (!selectedSources.length || selectedSources.includes(source.id)),
@@ -560,19 +570,24 @@ export async function GET(request: NextRequest) {
         configured: false,
         previewMode: true,
         previewProof: previewDeals.proof,
+        coverage: unavailableCoverage(
+          "Listings database is not connected; preview rows are live samples, not stored coverage.",
+        ),
       });
     }
 
     // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
-    const { merged, rowCount, marketListingCount } = await cached(
+    const DISCOVER_ROW_CAP = 10000;
+    const { merged, rowCount, marketListingCount, coverage } = await cached(
       `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
       45_000,
       async (): Promise<{
         merged: any[];
         rowCount: number;
         marketListingCount: number;
+        coverage: DiscoverCoverage;
       }> => {
         const supabase = createServerComponentClient();
         // ONE index-driven pull via the discover_deals RPC. The old approach paged .range() up to 24k rows
@@ -586,7 +601,7 @@ export async function GET(request: NextRequest) {
             p_state: scopeStates.length ? null : (state ?? null),
             p_states: scopeStates.length ? scopeStates : null,
             p_max_price: maxPrice || 0,
-            p_limit: 10000,
+            p_limit: DISCOVER_ROW_CAP,
           },
         );
         if (rpcErr) throw new Error(rpcErr.message);
@@ -702,6 +717,15 @@ export async function GET(request: NextRequest) {
           merged: m,
           rowCount: rows.length,
           marketListingCount: marketRows.length,
+          // Fresh rows (last 7 days) in the requested states, by source. Counted from the same
+          // RPC rows, never estimated, so the UI can say when coverage is thin.
+          coverage: buildDiscoverCoverage({
+            marketRows,
+            feedRows: rows,
+            states: scopeStates.length ? scopeStates : state ? [state] : [],
+            maxPrice: maxPrice || 0,
+            rowCap: DISCOVER_ROW_CAP,
+          }),
         };
       },
     );
@@ -826,11 +850,12 @@ export async function GET(request: NextRequest) {
         const scope = ((
           prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
         )?.buyerScope || {}) as BuyerScopePrefs;
-        const homeState = String(profile?.home_state || "")
-          .trim()
-          .toUpperCase();
-        const usableHome =
-          /^[A-Z]{2}$/.test(homeState) && homeState !== "NA" ? homeState : "";
+        // "Where you live": prefs.homeLocation (Settings/onboarding) first, then the legacy
+        // user_profiles.home_state column.
+        const usableHome = discoverHomeState(
+          (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
+          profile?.home_state,
+        );
         const makes = [
           ...((profile?.preferred_makes as string[] | null) || []),
           ...((scope as { makes?: string[] }).makes || []),
@@ -1015,6 +1040,7 @@ export async function GET(request: NextRequest) {
       personalized,
       configured: true,
       previewMode: false,
+      coverage,
     });
   } catch (e: any) {
     return internalError("discover", e);

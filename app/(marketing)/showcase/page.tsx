@@ -99,9 +99,9 @@ const stackDriftItems: StackDriftItem[] = [
 ];
 
 const videoDeckItems: VideoDeckItem[] = [
-  { id: "vd1", video: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Walkaround", subtitle: "Full exterior and interior tour", category: "Video", description: "Complete walkaround of this immaculate 911 Carrera.", duration: "3:24" },
-  { id: "vd2", video: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Test Drive", subtitle: "On-track performance review", category: "Video", description: "Experience the M4 Competition on the track.", duration: "5:12" },
-  { id: "vd3", video: "https://www.w3schools.com/html/mov_bbb.mp4", poster: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Review", subtitle: "Daily driver meets supercar", category: "Video", description: "The ultimate wagon for every occasion.", duration: "4:45" },
+  { id: "vd1", poster: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Walkaround", subtitle: "Full exterior and interior tour", category: "Video", description: "Complete walkaround of this immaculate 911 Carrera." },
+  { id: "vd2", poster: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Test Drive", subtitle: "On-track performance review", category: "Video", description: "Experience the M4 Competition on the track." },
+  { id: "vd3", poster: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Review", subtitle: "Daily driver meets supercar", category: "Video", description: "The ultimate wagon for every occasion." },
 ];
 
 const drawerCardItems: DrawerCardItem[] = [
@@ -306,7 +306,7 @@ export default function ShowcasePage() {
 
           {/* Video Deck Carousel */}
           {(activeTab === "all" || activeTab === "video") && (
-            <ShowcaseSection title="Video Deck Carousel" subtitle="Video showcase with autoplay and thumbnail navigation.">
+            <ShowcaseSection title="Video Deck Carousel" subtitle="Poster deck with autoplay and thumbnail navigation. Items play only when they carry a hosted video.">
               <div className="glass-panel p-6 md:p-10">
                 <VideoDeckCarousel items={videoDeckItems} autoPlay={true} autoPlaySpeed={6000} />
               </div>
