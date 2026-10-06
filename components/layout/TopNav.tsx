@@ -6,12 +6,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell } from "lucide-react";
+import { Bell, Lock } from "lucide-react";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
-import { primaryNavForMode, primaryJobForPath } from "./nav-items";
+import { useDealerId } from "@/hooks/useDealerId";
+import {
+  navItemForViewer,
+  primaryNavForMode,
+  primaryJobForPath,
+} from "./nav-items";
 
 function IconBtn({
   href,
@@ -86,7 +91,15 @@ function TopNavContent() {
   const router = useRouter();
   const activeJob = primaryJobForPath(pathname);
   const { intent } = useBuyerIntent();
-  const primaryNav = primaryNavForMode(intent?.buyerMode);
+  const { dealerId, loading: authLoading } = useDealerId();
+  const signedOut = !authLoading && !dealerId;
+  const primaryNav = primaryNavForMode(intent?.buyerMode).map((item) =>
+    navItemForViewer(item, signedOut),
+  );
+  const alertsLink = navItemForViewer(
+    { name: "Alerts", href: "/alerts", icon: Bell },
+    signedOut,
+  );
   const localSearches = useLocalSavedSearches();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
@@ -220,6 +233,9 @@ function TopNavContent() {
             <Link
               key={item.name}
               href={item.href}
+              title={
+                item.signInRequired ? `Sign in to use ${item.name}` : undefined
+              }
               aria-current={active ? "page" : undefined}
               className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
                 active
@@ -233,6 +249,16 @@ function TopNavContent() {
                 strokeWidth={active ? 2.5 : 2}
               />
               <span className="relative z-10">{item.name}</span>
+              {item.signInRequired && (
+                <>
+                  <Lock
+                    aria-hidden
+                    className="relative z-10 h-3 w-3 opacity-70"
+                    strokeWidth={2.25}
+                  />
+                  <span className="sr-only">(sign in required)</span>
+                </>
+              )}
             </Link>
           );
         })}
@@ -248,17 +274,19 @@ function TopNavContent() {
           />
           <ThemeToggle />
           <IconBtn
-            href="/alerts"
+            href={alertsLink.href}
             title={
-              totalAlertCount
-                ? `${totalAlertCount} alert source${
-                    totalAlertCount === 1 ? "" : "s"
-                  }: ${alertCount} unread, ${localSearches.count} saved search${
-                    localSearches.count === 1 ? "" : "es"
-                  }`
-                : "Activity"
+              alertsLink.signInRequired
+                ? "Sign in to see activity and alerts"
+                : totalAlertCount
+                  ? `${totalAlertCount} alert source${
+                      totalAlertCount === 1 ? "" : "s"
+                    }: ${alertCount} unread, ${localSearches.count} saved search${
+                      localSearches.count === 1 ? "" : "es"
+                    }`
+                  : "Activity"
             }
-            badge={totalAlertCount}
+            badge={alertsLink.signInRequired ? undefined : totalAlertCount}
           >
             <Bell style={{ width: 17, height: 17 }} />
           </IconBtn>
