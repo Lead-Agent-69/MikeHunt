@@ -1,7 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // GET /api/market/overview?make=Honda&model=Accord — everything the /overview/[make]/[model] page
@@ -19,6 +23,17 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      configured: false,
+      make,
+      model,
+      stats: { goDeals: 0, totalActive: 0 },
+      trims: [],
+      scatter: [],
+      regional: [],
+    });
+  }
   const supabase = createServerComponentClient();
   const token = model.split(" ")[0];
 
@@ -59,7 +74,7 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.avgProfit - a.avgProfit)
     .slice(0, 8);
 
-  return NextResponse.json({
+  const payload = {
     make,
     model,
     stats: { goDeals: go.length, avgProfit, totalActive: rows.length },
@@ -76,5 +91,42 @@ export async function GET(req: NextRequest) {
         price: Number(d.ask_price),
       })),
     regional,
-  });
+  };
+  const flipDesk = await resolveCallerFlipDesk();
+  return NextResponse.json(
+    flipDesk
+      ? { ...payload, deskAccess: "flip" }
+      : redactMarketOverviewForNonFlip(payload),
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+
+/** Average profit is flip economics: personal / diy / parts / signed-out callers get counts and asks only. */
+export function redactMarketOverviewForNonFlip(payload: {
+  make: string;
+  model: string;
+  stats: { goDeals: number; avgProfit?: number; totalActive: number };
+  trims: Array<{
+    trim: string;
+    goDeals: number;
+    avgProfit?: number;
+    avgAsk: number;
+  }>;
+  scatter: Array<{ mileage: number; price: number }>;
+  regional: Array<{ state: string; avgProfit?: number; count: number }>;
+}) {
+  return {
+    make: payload.make,
+    model: payload.model,
+    stats: {
+      goDeals: payload.stats.goDeals,
+      totalActive: payload.stats.totalActive,
+    },
+    trims: payload.trims.map(({ avgProfit: _p, ...rest }) => rest),
+    scatter: payload.scatter,
+    regional: payload.regional
+      .map(({ avgProfit: _p, ...rest }) => rest)
+      .sort((a, b) => b.count - a.count),
+    deskAccess: "personal" as const,
+  };
 }

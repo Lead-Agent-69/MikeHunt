@@ -9,6 +9,10 @@ import { categorize } from "@/lib/discovery/categorize";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import { haversineMiles, boundingBox } from "@/lib/geo/distance";
 import { geocodeZip } from "@/lib/geo/geocode";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/deals/near?verdict=go&radius=
 // State-locked. A ZIP or saved home state is required. Miles never cross that
@@ -142,6 +146,15 @@ export async function GET(req: NextRequest) {
     return a.miles - b.miles;
   });
 
-  const deals = withDist.slice(0, 24).map(({ d, miles }) => mapDeal(d, miles));
-  return NextResponse.json({ deals, state: lock.state });
+  // NearbyDeals is mostly personal buyers: flip economics and seller contact only for a saved
+  // reseller / dealer desk.
+  const flipDesk = await resolveCallerFlipDesk();
+  const deals = listingsForDesk(
+    withDist.slice(0, 24).map(({ d, miles }) => mapDeal(d, miles)),
+    flipDesk,
+  );
+  return NextResponse.json(
+    { deals, state: lock.state, deskAccess: flipDesk ? "flip" : "personal" },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
