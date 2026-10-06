@@ -109,8 +109,9 @@ describe("deal page personal desk", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
 
     expect(page).toContain("All-in cost is not confirmed.");
+    expect(page).toContain("listing photo");
     expect(page).toContain(
-      "Photos are source-provided and are not a mechanic inspection.",
+      "source-provided and are not a mechanic inspection.",
     );
     expect(page).toContain("Listing completeness");
     expect(page).toContain("field coverage");
