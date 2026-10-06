@@ -17,7 +17,7 @@ describe("matchesRoute", () => {
   });
 });
 
-describe("middleware route gates (preview mode, no Supabase env)", () => {
+describe("proxy route gates (preview mode, no Supabase env)", () => {
   const saved = { ...process.env };
   beforeEach(() => {
     vi.resetModules();
@@ -29,8 +29,8 @@ describe("middleware route gates (preview mode, no Supabase env)", () => {
   });
 
   async function run(path: string) {
-    const { middleware } = await import("@/middleware");
-    const res = await middleware(new NextRequest(`https://app.test${path}`));
+    const { proxy } = await import("@/proxy");
+    const res = await proxy(new NextRequest(`https://app.test${path}`));
     const location = res.headers.get("location");
     return location ? new URL(location).pathname : null;
   }

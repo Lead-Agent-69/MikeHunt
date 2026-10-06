@@ -18,15 +18,12 @@ describe("account creation security", () => {
     expect(bootstrap).toContain("status: 401");
   });
 
-  it("preserves refreshed session cookies while middleware redirects", () => {
+  it("preserves refreshed session cookies while proxy redirects", () => {
     // Windows runners may check out CRLF; normalize before multiline asserts.
-    const middleware = readFileSync("middleware.ts", "utf8").replace(
-      /\r\n/g,
-      "\n",
-    );
-    expect(middleware).toContain("supabase.auth.getClaims");
-    expect(middleware).toContain("redirectWithAuthCookies");
-    expect(middleware).toContain("supabaseResponse.cookies\n      .getAll()");
+    const proxy = readFileSync("proxy.ts", "utf8").replace(/\r\n/g, "\n");
+    expect(proxy).toContain("supabase.auth.getClaims");
+    expect(proxy).toContain("redirectWithAuthCookies");
+    expect(proxy).toContain("supabaseResponse.cookies\n      .getAll()");
   });
 
   it("server-gates the admin workspace and keeps automation secrets off the client", () => {
