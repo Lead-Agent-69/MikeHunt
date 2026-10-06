@@ -871,7 +871,22 @@ export async function scrapeCuratedSites(
   let total = 0;
   const yields: { name: string; state?: string; type: string; n: number }[] =
     [];
+  // Inside a Zeus sweep the curated crawl is one idle tick; cap it so buyer jobs never wait behind
+  // a 180-site walk. Plan order (gap/demand states first) decides what fits; the rest rotates in
+  // as the plan's states change sweep to sweep. Outside a sweep (CI, smoke) there is no cap.
+  const budgetMs = plannedStates.length
+    ? Math.max(
+        60_000,
+        Number(process.env.CURATED_SWEEP_BUDGET_MS) || 20 * 60_000,
+      )
+    : Infinity;
+  const startedAt = Date.now();
+  let skippedForBudget = 0;
   for (const site of sites) {
+    if (Date.now() - startedAt > budgetMs) {
+      skippedForBudget += 1;
+      continue;
+    }
     const d = SITE_TYPE_DEFAULTS[site.type];
     try {
       const cdgDealer = cdgDealerForSite(site.url);
@@ -934,6 +949,10 @@ export async function scrapeCuratedSites(
   );
   if (dead.length)
     console.log(`[CuratedSites] no yield (check/prune): ${dead.join(", ")}`);
+  if (skippedForBudget)
+    console.log(
+      `[CuratedSites] sweep budget reached; ${skippedForBudget} lower-priority sites wait for a later sweep`,
+    );
   return total;
 }
 

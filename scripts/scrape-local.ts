@@ -403,19 +403,23 @@ async function runSweepTick(
       const anchors = (demand.anchors || []).slice(0, 12);
       const primaryCounts: Record<string, number> = {};
       for (const st of anchors) {
-        const { count, error } = await supabase
+        // Only "≥ 5 rows?" matters, so read at most 5 ids instead of an exact count (a HEAD
+        // count on the big deals table can time out on Free tier and returns no error body).
+        const { data, error } = await supabase
           .from("deals")
-          .select("id", { count: "exact", head: true })
+          .select("id")
           .eq("active", true)
           .eq("location_state", st)
-          .in("source", primary);
-        if (error) throw error;
-        primaryCounts[st] = count || 0;
+          .in("source", primary)
+          .limit(5);
+        if (error)
+          throw new Error(error.message || error.code || JSON.stringify(error));
+        primaryCounts[st] = (data || []).length;
       }
       gaps = wantHitGapStates({ anchors, primaryCounts, minRows: 5 });
       if (anchors.length)
         console.log(
-          `[sweep] want-hit primary rows: ${anchors.map((st) => `${st}=${primaryCounts[st]}`).join(" ")}${gaps.length ? ` → gap-first: ${gaps.join(", ")}` : ""}`,
+          `[sweep] want-hit primary rows (capped at 5): ${anchors.map((st) => `${st}=${primaryCounts[st]}`).join(" ")}${gaps.length ? ` → gap-first: ${gaps.join(", ")}` : ""}`,
         );
     } catch (error) {
       console.warn(
