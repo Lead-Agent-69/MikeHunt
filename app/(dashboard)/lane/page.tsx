@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Ico } from "@/components/shared/Ico";
-import { createClientComponentClient } from "@/lib/supabase";
+import {
+  createClientComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { scanVINFromCamera } from "@/lib/api/vin";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { toast } from "sonner";
@@ -10,6 +13,9 @@ import Link from "next/link";
 
 export default function LaneModePage() {
   const supabase = createClientComponentClient();
+  // Without Supabase env the client points at a placeholder host that never resolves, so every
+  // query would fail with ERR_NAME_NOT_RESOLVED. Skip the queries and say why the lane is empty.
+  const databaseConfigured = isSupabaseConfigured();
   const [listId, setListId] = useState<string | null>(null);
   const [runListName, setRunListName] = useState<string>("All Vehicles");
   const [deals, setDeals] = useState<any[]>([]);
@@ -75,6 +81,7 @@ export default function LaneModePage() {
     }
 
     // Online Mode
+    if (!databaseConfigured) return;
     try {
       if (listId) {
         const { data: runList } = await supabase
@@ -262,7 +269,9 @@ export default function LaneModePage() {
         <div className="flex-1 overflow-y-auto divide-y divide-[var(--b3)]">
           {filteredDeals.length === 0 ? (
             <div className="text-center py-12 text-[var(--t3)] text-xs">
-              No matching vehicles found.
+              {databaseConfigured || deals.length > 0
+                ? "No matching vehicles found."
+                : "Run lists are not available in this preview."}
             </div>
           ) : (
             filteredDeals.map((deal) => {
