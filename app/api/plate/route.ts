@@ -2,12 +2,30 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { getServerUser } from "@/lib/server-supabase";
 
 // GET /api/plate?plate=ABC1234&state=TX — decode a license plate to a VIN (auction floors often only
 // show a plate). Uses Plate2VIN when PLATE2VIN_KEY is set; otherwise returns a clear 503 (Pro feature).
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "plate", limit: 30, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl);
+
+  // Paid third-party lookup (PLATE2VIN_KEY): signed-in callers only, so anonymous traffic cannot
+  // burn the key or use us as a free plate-to-VIN proxy.
+  let userId: string | null = null;
+  try {
+    const {
+      data: { user },
+    } = await getServerUser();
+    userId = user?.id ?? null;
+  } catch {
+    userId = null;
+  }
+  if (!userId)
+    return NextResponse.json(
+      { error: "Sign in to use plate lookup.", signInRequired: true },
+      { status: 401 },
+    );
 
   const { searchParams } = new URL(req.url);
   const plate = (searchParams.get("plate") || "").trim();
