@@ -22,7 +22,7 @@ import {
   optedInRestrictedSources,
   resolveSweepSources,
   saveSweepState,
-  SWEEP_SOURCE_TIER,
+  PRIMARY_DEAL_SOURCES,
   type ScraperExecutionMode,
 } from "../lib/scrapers/sweep-schedule";
 import type { LocalWriteContext } from "../lib/scrapers/local-write-context";
@@ -397,9 +397,7 @@ async function runSweepTick(
     // sweep (a handful of cheap queries every few hours — Free-tier safe). Failure = no gap bias.
     let gaps: string[] = [];
     try {
-      const primary = Object.entries(SWEEP_SOURCE_TIER)
-        .filter(([, tier]) => tier === "primary")
-        .map(([id]) => id);
+      const primary = [...PRIMARY_DEAL_SOURCES];
       const anchors = (demand.anchors || []).slice(0, 12);
       const primaryCounts: Record<string, number> = {};
       for (const st of anchors) {

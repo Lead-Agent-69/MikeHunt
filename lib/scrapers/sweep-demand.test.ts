@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { STATE_METRO_ZIPS, SWEEP_STATE_CODES } from "@/lib/geo/metro-zips";
 import { emptyRotation, planSweepStates, recordSweepPlan } from "./sweep-plan";
+import { PRIMARY_DEAL_SOURCES, sourceTier } from "./sweep-schedule";
 import {
   baselineSlots,
   demandZipsForState,
@@ -360,6 +361,12 @@ describe("want-hit gap-first bias", () => {
       rotation = recordSweepPlan(rotation, plan, at);
     }
     expect(seen.size).toBe(SWEEP_STATE_CODES.length);
+  });
+
+  it("PRIMARY_DEAL_SOURCES are deal_source enum values in the primary tier", () => {
+    for (const id of PRIMARY_DEAL_SOURCES)
+      expect(sourceTier(id)).toBe("primary");
+    expect(PRIMARY_DEAL_SOURCES).not.toContain("curated_dealers" as never);
   });
 
   it("sourcesForSweep still runs primary before secondary", () => {

@@ -58,8 +58,29 @@ export const SWEEP_SOURCE_TIER: Record<string, SweepSourceTier> = {
   municibid: "secondary",
 };
 
+/**
+ * PRIMARY-tier values of the `deals.source` enum (deal_source). Scraper ids like `curated_dealers`
+ * or `autotempest` are not enum values (curated rows land as `independent_dealer`), so DB filters
+ * must use this list, never SWEEP_SOURCE_TIER keys.
+ */
+export const PRIMARY_DEAL_SOURCES = [
+  "independent_dealer",
+  "craigslist",
+  "carvana",
+  "cars_com",
+  "autotrader",
+  "ebay_motors",
+  "cargurus",
+] as const;
+
 export function sourceTier(id: string): SweepSourceTier {
-  return SWEEP_SOURCE_TIER[String(id || "").trim().toLowerCase()] || "secondary";
+  return (
+    SWEEP_SOURCE_TIER[
+      String(id || "")
+        .trim()
+        .toLowerCase()
+    ] || "secondary"
+  );
 }
 
 /** Stable primary-then-secondary order. Unknown ids sort as secondary, preserving input order. */
