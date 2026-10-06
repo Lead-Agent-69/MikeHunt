@@ -5,8 +5,13 @@ import {
   MORE_GROUPS,
   PRIMARY,
   navJobCoverage,
+  hidesFlipNav,
+  mobileNavForMode,
+  moreGroupsForMode,
+  primaryNavForMode,
   navItemMatchesPath,
   primaryJobForPath,
+  scanHrefForMode,
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
@@ -175,5 +180,106 @@ describe("primaryJobForPath", () => {
     expect(discoverPage).toContain("View all matches & filters");
     expect(discoverPage).not.toContain("<BuyerScopeBuilder");
     expect(discoverPage).not.toContain("<SetupStatusPanel");
+  });
+
+  it("drops auction, pipeline, and arbitrage tabs for non-flip desks", () => {
+    for (const mode of ["personal", "diy", "parts"]) {
+      expect(hidesFlipNav(mode)).toBe(true);
+      expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
+        "Discover",
+        "Deal Check",
+        "Saved",
+        "Alerts",
+      ]);
+      expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
+        "Discover",
+        "Deal Check",
+        "Saved",
+        "Alerts",
+        "Account",
+      ]);
+      const more = moreGroupsForMode(mode).flatMap((group) =>
+        group.items.map((item) => item.href),
+      );
+      expect(more).not.toContain("/auctions");
+      expect(more).not.toContain("/arbitrage");
+      expect(more).toContain("/parts");
+    }
+  });
+
+  it("keeps the full nav for flip desks only", () => {
+    for (const mode of ["reseller", "dealer"]) {
+      expect(hidesFlipNav(mode)).toBe(false);
+      expect(primaryNavForMode(mode)).toBe(PRIMARY);
+      expect(mobileNavForMode(mode)).toBe(MOBILE_PRIMARY);
+      expect(moreGroupsForMode(mode)).toBe(MORE_GROUPS);
+    }
+  });
+
+  it("treats an unknown mode (signed out, no prefs) as personal", () => {
+    for (const mode of [undefined, null, "", "unknown"]) {
+      expect(hidesFlipNav(mode)).toBe(true);
+      const top = primaryNavForMode(mode).map((item) => item.href);
+      const mobile = mobileNavForMode(mode).map((item) => item.href);
+      expect(top).toEqual(
+        primaryNavForMode("personal").map((item) => item.href),
+      );
+      expect(mobile).toEqual(
+        mobileNavForMode("personal").map((item) => item.href),
+      );
+      expect(top).not.toContain("/lane");
+      expect(top).not.toContain("/fleet");
+      expect(mobile).not.toContain("/fleet");
+    }
+  });
+
+  it("reads the saved buyer mode in both navs", () => {
+    const top = readFileSync("components/layout/TopNav.tsx", "utf8");
+    const bottom = readFileSync("components/BottomNav.tsx", "utf8");
+    expect(top).toContain("primaryNavForMode(intent?.buyerMode)");
+    expect(bottom).toContain("mobileNavForMode(intent?.buyerMode)");
+    expect(top).not.toContain("{PRIMARY.map(");
+    expect(bottom).not.toContain("{MOBILE_PRIMARY.map(");
+  });
+
+  it("keeps the account menu's mobile Auction Lane shortcut off non-flip desks", () => {
+    const account = readFileSync("components/home/AccountMenu.tsx", "utf8");
+    expect(account).toContain("hidesFlipNav(intent?.buyerMode)");
+    expect(account).toMatch(
+      /\{showAuctionLane && \(\s*<button[\s\S]{0,200}router\.push\("\/lane"\)/,
+    );
+  });
+});
+
+describe("scanHrefForMode", () => {
+  it("sorts Scan by profit only for flip desks", () => {
+    expect(scanHrefForMode("reseller")).toBe("/scan?sort=profit");
+    expect(scanHrefForMode("dealer")).toBe("/scan?sort=profit");
+    for (const mode of ["personal", "diy", "parts", undefined, ""]) {
+      expect(scanHrefForMode(mode)).toBe("/scan?sort=score");
+    }
+  });
+});
+
+describe("alerts page", () => {
+  const source = readFileSync("app/(dashboard)/alerts/page.tsx", "utf8");
+
+  it("uses buyer-facing copy instead of internal scraper jargon", () => {
+    expect(source).not.toMatch(/Scrape Inbox/);
+    expect(source).not.toMatch(/account sync is being/);
+    expect(source).toMatch(/No alerts yet/);
+  });
+
+  it("routes Scan by buyer mode and hides profit targets for non-flip desks", () => {
+    expect(source).not.toContain('href="/scan?sort=profit"');
+    expect(source).toContain("scanHrefForMode(intent?.buyerMode)");
+    expect(source).toContain("showProfitTarget && search.target_profit");
+  });
+
+  it("keeps the dismiss control reachable on touch screens", () => {
+    expect(source).not.toMatch(
+      /"absolute -top-3 -right-3 z-20 opacity-0 group-hover/,
+    );
+    expect(source).toContain('aria-label="Dismiss alert"');
   });
 });

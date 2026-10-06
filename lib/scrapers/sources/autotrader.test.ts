@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { listingStateCode, parseAutotraderNextData } from "./autotrader";
+import {
+  listingStateCode,
+  parseAutotraderNextData,
+  autotraderSearchZips,
+} from "./autotrader";
 
 function page(inventory: Record<string, unknown>): string {
   const nd = { props: { pageProps: { __eggsState: { inventory } } } };
@@ -84,7 +88,7 @@ describe("parseAutotraderNextData", () => {
     expect(d[0].location_state).toBe("TX");
   });
 
-    it("does not stamp the search ZIP state when the listing has no location", () => {
+  it("does not stamp the search ZIP state when the listing has no location", () => {
     const html = page({
       y: {
         listingType: "USED",
@@ -119,7 +123,7 @@ describe("parseAutotraderNextData", () => {
     expect(d[0].location_state).toBe("GA");
   });
 
-it("returns [] when there is no __NEXT_DATA__", () => {
+  it("returns [] when there is no __NEXT_DATA__", () => {
     expect(parseAutotraderNextData("<html>nope</html>")).toEqual([]);
   });
 });
@@ -151,5 +155,25 @@ describe("listingStateCode", () => {
       listingStateCode(d.location_state),
     );
     expect(kept.map((d) => d.vin)).toEqual(["USED222"]);
+  });
+});
+
+describe("autotraderSearchZips", () => {
+  it("keeps an explicit ZIP", () => {
+    expect(autotraderSearchZips("63101")).toEqual(["63101"]);
+  });
+
+  it("uses one metro per planned state during a sweep", () => {
+    const plan = {
+      states: ["TX", "SD"],
+      zipsByState: { TX: ["79901", "79401"], SD: ["57701"] },
+    };
+    expect(autotraderSearchZips("", plan)).toEqual(["79901", "57701"]);
+  });
+
+  it("falls back to one random seed ZIP outside a sweep", () => {
+    const zips = autotraderSearchZips("", undefined, () => 0);
+    expect(zips).toHaveLength(1);
+    expect(zips[0]).toMatch(/^\d{5}$/);
   });
 });

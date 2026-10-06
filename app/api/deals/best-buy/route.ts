@@ -3,11 +3,17 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  listingsForDesk,
+  redactListingForNonFlipDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 
 function csvParam(value: string | null) {
@@ -34,6 +40,9 @@ function dealerNeedles(ids: string[]) {
 // GET /api/deals/best-buy
 // Finds the #1 highest-margin, highest-velocity flip based on dealer capital and strategy.
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "best-buy", limit: 30, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const searchParams = req.nextUrl.searchParams;
   const capital = parseFloat(searchParams.get("capital") || "0");
   const state = searchParams.get("state")?.trim().toUpperCase() || "";
@@ -357,19 +366,27 @@ export async function GET(req: NextRequest) {
   const avgRoi = Math.round((totalRoi / scoredDeals.length) * 10) / 10;
   const maxProfit = Math.max(...scoredDeals.map((d) => d.trueNetProfit));
 
+  const flipDesk = await resolveCallerFlipDesk();
+  const bestBuy = {
+    ...best,
+    aiRationale,
+    opportunityMode: isVerifiedBuy ? "buy" : "watchlist",
+  };
   return NextResponse.json({
-    bestBuy: {
-      ...best,
-      aiRationale,
-      opportunityMode: isVerifiedBuy ? "buy" : "watchlist",
-    },
-    runnerUps,
-    stats: {
-      totalConsidered: scoredDeals.length,
-      avgRoi,
-      maxProfit,
-      strategyUsed: strategy,
-    },
+    bestBuy: flipDesk ? bestBuy : redactListingForNonFlipDesk(bestBuy),
+    runnerUps: listingsForDesk(runnerUps as any[], flipDesk),
+    stats: flipDesk
+      ? {
+          totalConsidered: scoredDeals.length,
+          avgRoi,
+          maxProfit,
+          strategyUsed: strategy,
+        }
+      : {
+          totalConsidered: scoredDeals.length,
+          strategyUsed: strategy,
+        },
+    deskAccess: flipDesk ? "flip" : "personal",
     mode: isVerifiedBuy ? "buy" : "watchlist",
   });
 }

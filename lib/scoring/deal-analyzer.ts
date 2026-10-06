@@ -17,6 +17,7 @@ import {
   lookupMarketAggregate,
   lookupSupply,
   lookupRealSold,
+  lookupSalvageSold,
 } from "./market-value";
 import { estimateBaselineValue } from "./baseline-value";
 import {
@@ -206,6 +207,8 @@ export interface ValuationBreakdown {
   compConfidence: "high" | "medium" | "low" | "none";
   cleanComp: number | null;
   soldCount: number;
+  soldAt?: string | null;
+  soldLane?: "clean" | "salvage";
   soldAnchored: boolean;
   kbbValue: number | null;
   mileageMult: number;
@@ -302,13 +305,15 @@ export function analyzeDeal(
   // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
   // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed
   // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
-  const realSold = lookupRealSold(
+  const titleCut = titleSeverityMultiplier(deal);
+  const conditionTag = titleCut.tag;
+  const salvageLane = titleCut.mult < 0.95;
+  const realSold = (salvageLane ? lookupSalvageSold : lookupRealSold)(
     deal.make,
     deal.model,
     deal.year,
     deal.location_state,
   );
-  const conditionTag = titleSeverityMultiplier(deal).tag;
   // Comps: anchor the mileage adjustment to the comp pool's actual median mileage (precise).
   const compAdj = comps?.retail
     ? conditionAdjustedSell(
@@ -651,6 +656,8 @@ export function analyzeDeal(
       compConfidence: comps?.confidence ?? "none",
       cleanComp: comps?.retail ?? null,
       soldCount: realSold?.n ?? 0,
+      soldAt: realSold?.soldAt ?? null,
+      soldLane: salvageLane ? "salvage" : "clean",
       soldAnchored,
       kbbValue: deal.mmr_value || null,
       mileageMult: (compAdj ?? mmrAdj ?? aggAdj)?.mileageMult ?? 1,

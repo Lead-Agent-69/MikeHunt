@@ -26,6 +26,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/shared/ErrorState";
+import {
+  DealFetchError,
+  classifyDealLoadError,
+  dealLoadErrorCopy,
+} from "@/lib/deals/deal-load-error";
 import { Button } from "@/components/ui/button";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
@@ -421,7 +426,7 @@ const fetcher = async (url: string) => {
   // 402 = free-plan daily limit reached. Return the payload (locked:true) so the page can show an
   // upgrade prompt instead of a generic error.
   if (res.status === 402) return res.json();
-  if (!res.ok) throw new Error("Failed to fetch");
+  if (!res.ok) throw new DealFetchError(res.status);
   return res.json();
 };
 
@@ -819,15 +824,24 @@ export default function DealPage({
   }
 
   if (authError || error) {
+    const copy = authError
+      ? dealLoadErrorCopy("auth")
+      : dealLoadErrorCopy(classifyDealLoadError(error));
     return (
       <div className="max-w-5xl mx-auto mt-12">
         <ErrorState
-          title="Couldn't load deal"
-          message={
-            authError ||
-            `Error loading deal: ${error?.message || "Unknown error"}`
-          }
-          onRetry={() => window.location.reload()}
+          title={copy.title}
+          message={authError || copy.message}
+          icon={copy.action === "discover" ? "car" : "alert-triangle"}
+          retryLabel={copy.actionLabel}
+          onRetry={() => {
+            if (copy.action === "discover") window.location.assign("/discover");
+            else if (copy.action === "login")
+              window.location.assign(
+                `/login?next=${encodeURIComponent(window.location.pathname)}`,
+              );
+            else window.location.reload();
+          }}
         />
       </div>
     );
@@ -929,26 +943,28 @@ export default function DealPage({
           )}
         </div>
 
-        {/* Buyer mode toggle */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div
-            className="flex p-1 rounded-xl"
-            style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
-          >
-            {(["dealer", "private", "parts"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => store.setUserType(t)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
-                style={
-                  store.userType === t ? { background: "var(--grad)" } : {}
-                }
-              >
-                {t}
-              </button>
-            ))}
+        {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
+        {store.userType === "dealer" && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              className="flex p-1 rounded-xl"
+              style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
+            >
+              {(["dealer", "private", "parts"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => store.setUserType(t)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
+                  style={
+                    store.userType === t ? { background: "var(--grad)" } : {}
+                  }
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
@@ -1243,8 +1259,10 @@ export default function DealPage({
         </Card>
       )}
 
-      {/* ENGINE DECISION (authoritative, server-computed from comps + full cost model) */}
-      {dealData?.deal?.dealVerdict &&
+      {/* ENGINE DECISION — flip desk only. Personal, DIY, and parts buyers do not get net profit,
+          ROI, or a max bid. The API also redacts these fields for non-flip saved modes. */}
+      {store.userType === "dealer" &&
+        dealData?.deal?.dealVerdict &&
         serverDeal?.decisionEvidence?.acquisitionReady === true &&
         (() => {
           const d = dealData.deal;
@@ -1371,8 +1389,9 @@ export default function DealPage({
           );
         })()}
 
-      {/* THE MONEY — one-glance profit visual (buy + costs → your cut), the hero of the page */}
-      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
+      {/* THE MONEY — dealer desk only. Personal buyers do not get the profit console. */}
+      {store.userType === "dealer" &&
+        serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealVerdict &&
         serverDeal.dealAnalysis?.costs && (
           <DealEconomics
@@ -1394,8 +1413,9 @@ export default function DealPage({
           />
         )}
 
-      {/* PREDICTIVE — what's about to happen: time-to-sell, price-drop odds, urgency, projected ROI */}
-      {serverDeal?.decisionEvidence?.acquisitionReady === true &&
+      {/* PREDICTIVE — dealer desk only. */}
+      {store.userType === "dealer" &&
+        serverDeal?.decisionEvidence?.acquisitionReady === true &&
         serverDeal?.dealAnalysis?.prediction && (
           <details className="border-t border-[var(--b2)] py-4">
             <summary className="cursor-pointer text-sm font-bold text-[var(--t2)]">
@@ -1407,8 +1427,8 @@ export default function DealPage({
           </details>
         )}
 
-      {/* CONTACT SELLER — Call / Text / Email in-app + original listing, so the dealer never leaves */}
-      {serverDeal && (
+      {/* CONTACT SELLER — dealer desk only. */}
+      {store.userType === "dealer" && serverDeal && (
         <ContactSeller
           contact={serverDeal.contact}
           sourceUrl={serverDeal.sourceUrl}
@@ -1437,8 +1457,8 @@ export default function DealPage({
         />
       )}
 
-      {/* LOG OUTCOME — the loop that activates per-dealer calibration from real flips */}
-      {serverDeal && (
+      {/* LOG OUTCOME — flip desk only: the loop that activates per-dealer calibration from real flips */}
+      {store.userType === "dealer" && serverDeal && (
         <LogOutcome
           dealId={id}
           year={serverDeal.year ?? store.year}
@@ -1473,7 +1493,7 @@ export default function DealPage({
         </div>
       </details>
 
-      {/* MAX BID ENGINE + PRICE HISTORY (Name-your-price / price-trend) */}
+      {/* MAX BID ENGINE (flip desk only) + PRICE HISTORY (everyone) */}
       <motion.div
         variants={{
           hidden: { opacity: 0, y: 20 },
@@ -1481,21 +1501,24 @@ export default function DealPage({
         }}
         className="grid grid-cols-1 lg:grid-cols-3 gap-4"
       >
-        <div className="lg:col-span-2">
-          <MaxBidWidget
-            sellEstimate={dealData?.deal?.sellEstimate}
-            source={dealData?.deal?.source}
-            askPrice={dealData?.deal?.askPrice ?? store.askPrice}
-            costs={dealData?.deal?.dealAnalysis?.costs}
-            defaultTargetProfit={savedTargetProfit}
-            calibration={calibration}
-          />
-        </div>
+        {store.userType === "dealer" && (
+          <div className="lg:col-span-2">
+            <MaxBidWidget
+              sellEstimate={dealData?.deal?.sellEstimate}
+              source={dealData?.deal?.source}
+              askPrice={dealData?.deal?.askPrice ?? store.askPrice}
+              costs={dealData?.deal?.dealAnalysis?.costs}
+              defaultTargetProfit={savedTargetProfit}
+              calibration={calibration}
+            />
+          </div>
+        )}
         <PriceSparkline dealId={id} />
       </motion.div>
 
-      {/* HOW WE VALUED THIS — the moat made transparent (evidence + adjustments behind the resale #) */}
-      {dealData?.deal?.dealAnalysis?.valuation &&
+      {/* HOW WE VALUED THIS — flip desk only (evidence + adjustments behind the resale #) */}
+      {store.userType === "dealer" &&
+        dealData?.deal?.dealAnalysis?.valuation &&
         dealData?.deal?.sellEstimate != null && (
           <motion.div
             variants={{
@@ -1523,164 +1546,163 @@ export default function DealPage({
         />
       </motion.div>
 
-      {/* TOP READOUT (The 60-Second Decision) */}
-      <motion.div
-        variants={{
-          hidden: { opacity: 0, y: 20 },
-          visible: { opacity: 1, y: 0 },
-        }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-4"
-      >
-        <Card
-          className="col-span-1 lg:col-span-2 border-none bg-[var(--s0)]"
-          style={{ boxShadow: "var(--shadow2)" }}
+      {/* TOP READOUT (The 60-Second Decision) — flip desk only. Net profit, ROI, and the deal
+          score are flip economics; personal / DIY / parts stay on verify-list + ask. */}
+      {store.userType === "dealer" && (
+        <motion.div
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: { opacity: 1, y: 0 },
+          }}
+          className="grid grid-cols-1 lg:grid-cols-3 gap-4"
         >
-          <CardContent className="p-6 flex flex-col justify-center h-full">
-            <div className="flex justify-between items-end">
-              <div>
-                <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
-                  {store.userType === "parts"
-                    ? "Part-out ROI"
-                    : store.userType === "private"
-                      ? "Savings vs Market"
-                      : "Net Profit"}
-                </p>
-                <div className="text-5xl font-bold text-[var(--t1)] flex items-center gap-3 serif">
-                  {formatMoney(engineNetProfit)}
-                  <Badge
-                    className="text-white border-none px-2 py-1 text-sm"
-                    style={{ background: "var(--green)" }}
-                  >
-                    {engineRoi}% ROI
-                  </Badge>
-                </div>
-                {/* The interactive ledger below is a what-if sandbox; show its result only as
-                    a secondary "adjusted" figure so it never competes with the engine verdict. */}
-                {store.netProfit !== engineNetProfit && (
-                  <p className="text-[11px] text-[var(--t4)] mt-1.5">
-                    Your adjusted estimate:{" "}
-                    <span className="font-bold text-[var(--t3)]">
-                      {formatMoney(store.netProfit)}
-                    </span>
+          <Card
+            className="col-span-1 lg:col-span-2 border-none bg-[var(--s0)]"
+            style={{ boxShadow: "var(--shadow2)" }}
+          >
+            <CardContent className="p-6 flex flex-col justify-center h-full">
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
+                    Net Profit
                   </p>
-                )}
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
-                  Verdict
-                </p>
-                <div
-                  className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : "text-[var(--red)]"}`}
-                >
-                  {engineVerdict === "GO" ? "BUY" : engineVerdict}
+                  <div className="text-5xl font-bold text-[var(--t1)] flex items-center gap-3 serif">
+                    {formatMoney(engineNetProfit)}
+                    <Badge
+                      className="text-white border-none px-2 py-1 text-sm"
+                      style={{ background: "var(--green)" }}
+                    >
+                      {engineRoi}% ROI
+                    </Badge>
+                  </div>
+                  {/* The interactive ledger below is a what-if sandbox; show its result only as
+                    a secondary "adjusted" figure so it never competes with the engine verdict. */}
+                  {store.netProfit !== engineNetProfit && (
+                    <p className="text-[11px] text-[var(--t4)] mt-1.5">
+                      Your adjusted estimate:{" "}
+                      <span className="font-bold text-[var(--t3)]">
+                        {formatMoney(store.netProfit)}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
+                    Verdict
+                  </p>
+                  <div
+                    className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : "text-[var(--red)]"}`}
+                  >
+                    {engineVerdict === "GO" ? "BUY" : engineVerdict}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* The EDGE Features Row */}
-            <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-[var(--b1)]">
-              {/* Carrying Cost Clock */}
-              {store.userType === "dealer" && (
-                <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
-                  <Ico name="clock" size={14} className="text-[var(--t4)]" />
-                  Break-even: Day{" "}
-                  {Math.floor(store.netProfit / store.floorRate)} of{" "}
-                  {store.estimatedDaysToSell}-day target
-                </div>
-              )}
-              {/* Geo-Arbitrage */}
-              {store.transportCost < 1000 &&
-                store.netProfit > 2500 &&
-                store.userType === "dealer" && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
-                    <Ico name="trending-up" size={14} />
-                    {dealData?.deal?.locationState
-                      ? `Geo-Arbitrage: low transport from ${dealData.deal.locationState}`
-                      : "Geo-Arbitrage: low transport opportunity"}
+              {/* The EDGE Features Row */}
+              <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-[var(--b1)]">
+                {/* Carrying Cost Clock */}
+                {store.userType === "dealer" && (
+                  <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
+                    <Ico name="clock" size={14} className="text-[var(--t4)]" />
+                    Break-even: Day{" "}
+                    {Math.floor(store.netProfit / store.floorRate)} of{" "}
+                    {store.estimatedDaysToSell}-day target
                   </div>
                 )}
-              {/* Recalls */}
-              {store.openRecalls > 0 ? (
-                <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--red)] px-3 py-1.5 rounded-md shadow-sm">
-                  <Ico name="alert-triangle" size={14} />
-                  {store.openRecalls} Open NHTSA Recalls
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
-                  <Ico
-                    name="check-circle"
-                    size={14}
-                    className="text-[var(--green)]"
-                  />
-                  0 Open Recalls
-                </div>
-              )}
-
-              {/* Salvage Teardown */}
-              {store.titleType === "salvage" &&
-                store.marketValue > 0 &&
-                store.userType === "dealer" && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--amber)] px-3 py-1.5 rounded-md shadow-sm">
-                    <Ico name="wrench" size={14} />
-                    Est. Parts Value: $
-                    {estimateTeardownValue(
-                      store.marketValue,
-                      store.make,
-                      store.model,
-                    ).total.toLocaleString()}
+                {/* Geo-Arbitrage */}
+                {store.transportCost < 1000 &&
+                  store.netProfit > 2500 &&
+                  store.userType === "dealer" && (
+                    <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
+                      <Ico name="trending-up" size={14} />
+                      {dealData?.deal?.locationState
+                        ? `Geo-Arbitrage: low transport from ${dealData.deal.locationState}`
+                        : "Geo-Arbitrage: low transport opportunity"}
+                    </div>
+                  )}
+                {/* Recalls */}
+                {store.openRecalls > 0 ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--red)] px-3 py-1.5 rounded-md shadow-sm">
+                    <Ico name="alert-triangle" size={14} />
+                    {store.openRecalls} Open NHTSA Recalls
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
+                    <Ico
+                      name="check-circle"
+                      size={14}
+                      className="text-[var(--green)]"
+                    />
+                    0 Open Recalls
                   </div>
                 )}
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* The Algorithm Score */}
-        <Card className="col-span-1 border-[var(--b2)] bg-[var(--s0)] shadow-sm flex flex-col justify-center items-center p-6 text-center">
-          <p className="text-sm font-bold text-[var(--t3)] uppercase tracking-widest mb-2">
-            Deal Score
-          </p>
-          <div className="relative inline-flex items-center justify-center w-32 h-32 mb-2">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke="var(--s2)"
-                strokeWidth="8"
-                fill="transparent"
-              />
-              <circle
-                cx="64"
-                cy="64"
-                r="56"
-                stroke={
-                  engineScore >= 80
-                    ? "var(--green)"
-                    : engineScore >= 60
-                      ? "var(--amber)"
-                      : "var(--red)"
-                }
-                strokeWidth="8"
-                fill="transparent"
-                strokeDasharray="351.8"
-                strokeDashoffset={
-                  351.8 -
-                  (351.8 * Math.max(0, Math.min(100, engineScore))) / 100
-                }
-                className="transition-all duration-500 ease-out"
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-[var(--t1)]">
-              {engineScore}
+                {/* Salvage Teardown */}
+                {store.titleType === "salvage" &&
+                  store.marketValue > 0 &&
+                  store.userType === "dealer" && (
+                    <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--amber)] px-3 py-1.5 rounded-md shadow-sm">
+                      <Ico name="wrench" size={14} />
+                      Est. Parts Value: $
+                      {estimateTeardownValue(
+                        store.marketValue,
+                        store.make,
+                        store.model,
+                      ).total.toLocaleString()}
+                    </div>
+                  )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* The Algorithm Score */}
+          <Card className="col-span-1 border-[var(--b2)] bg-[var(--s0)] shadow-sm flex flex-col justify-center items-center p-6 text-center">
+            <p className="text-sm font-bold text-[var(--t3)] uppercase tracking-widest mb-2">
+              Deal Score
+            </p>
+            <div className="relative inline-flex items-center justify-center w-32 h-32 mb-2">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke="var(--s2)"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="56"
+                  stroke={
+                    engineScore >= 80
+                      ? "var(--green)"
+                      : engineScore >= 60
+                        ? "var(--amber)"
+                        : "var(--red)"
+                  }
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray="351.8"
+                  strokeDashoffset={
+                    351.8 -
+                    (351.8 * Math.max(0, Math.min(100, engineScore))) / 100
+                  }
+                  className="transition-all duration-500 ease-out"
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-[var(--t1)]">
+                {engineScore}
+              </div>
             </div>
-          </div>
-          <ScoreBreakdown
-            netProfit={engineNetProfit}
-            roi={engineRoi}
-            breakdown={serverDeal?.dealAnalysis?.scoreBreakdown}
-          />
-        </Card>
-      </motion.div>
+            <ScoreBreakdown
+              netProfit={engineNetProfit}
+              roi={engineRoi}
+              breakdown={serverDeal?.dealAnalysis?.scoreBreakdown}
+            />
+          </Card>
+        </motion.div>
+      )}
 
       {/* MIDDLE SECTION (The Interactive Ledger — secondary) */}
       <div className="pt-2">
@@ -1875,8 +1897,8 @@ export default function DealPage({
         />
       )}
 
-      {/* AI PHASE 5: FLOOR PLAN FINANCING & CARRY COST CALCULATOR */}
-      {serverDeal && (
+      {/* AI PHASE 5: FLOOR PLAN FINANCING & CARRY COST CALCULATOR — flip desk only */}
+      {store.userType === "dealer" && serverDeal && (
         <FloorPlanCalculator
           purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
           expectedProfit={serverDeal.trueNetProfit ?? store.netProfit ?? 0}
@@ -1896,43 +1918,53 @@ export default function DealPage({
           { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
           { id: "ai-brief", content: <AIBrief dealId={id} /> },
           { id: "similar-deals", content: <SimilarDeals dealId={id} /> },
-          {
-            id: "max-bid-calc",
-            content: (
-              <MaxBidCalculator
-                deal={{
-                  year: serverDeal?.year ?? store.year,
-                  make: serverDeal?.make ?? store.make,
-                  model: serverDeal?.model ?? store.model,
-                  askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
-                  sellEstimate: serverDeal?.sellEstimate ?? store.marketValue,
-                  recommendedMaxBid: serverDeal?.recommendedMaxBid,
-                  repairEstimate: store.repairCost,
-                  transportEstimate: store.transportCost,
-                }}
-              />
-            ),
-          },
-          {
-            id: "log-outcome",
-            content: (
-              <LogOutcome
-                dealId={id}
-                year={serverDeal?.year ?? store.year}
-                make={serverDeal?.make ?? store.make}
-                model={serverDeal?.model ?? store.model}
-                defaultPurchase={
-                  serverDeal?.recommendedMaxBid ??
-                  serverDeal?.askPrice ??
-                  store.askPrice
-                }
-                predictedProfit={serverDeal?.trueNetProfit ?? store.netProfit}
-                predictedSell={serverDeal?.sellEstimate ?? store.marketValue}
-                predictedTransport={store.transportCost}
-                predictedRecon={store.reconCost}
-              />
-            ),
-          },
+          // Max-bid math and outcome logging are flip-desk tools.
+          ...(store.userType === "dealer"
+            ? [
+                {
+                  id: "max-bid-calc",
+                  content: (
+                    <MaxBidCalculator
+                      deal={{
+                        year: serverDeal?.year ?? store.year,
+                        make: serverDeal?.make ?? store.make,
+                        model: serverDeal?.model ?? store.model,
+                        askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
+                        sellEstimate:
+                          serverDeal?.sellEstimate ?? store.marketValue,
+                        recommendedMaxBid: serverDeal?.recommendedMaxBid,
+                        repairEstimate: store.repairCost,
+                        transportEstimate: store.transportCost,
+                      }}
+                    />
+                  ),
+                },
+                {
+                  id: "log-outcome",
+                  content: (
+                    <LogOutcome
+                      dealId={id}
+                      year={serverDeal?.year ?? store.year}
+                      make={serverDeal?.make ?? store.make}
+                      model={serverDeal?.model ?? store.model}
+                      defaultPurchase={
+                        serverDeal?.recommendedMaxBid ??
+                        serverDeal?.askPrice ??
+                        store.askPrice
+                      }
+                      predictedProfit={
+                        serverDeal?.trueNetProfit ?? store.netProfit
+                      }
+                      predictedSell={
+                        serverDeal?.sellEstimate ?? store.marketValue
+                      }
+                      predictedTransport={store.transportCost}
+                      predictedRecon={store.reconCost}
+                    />
+                  ),
+                },
+              ]
+            : []),
         ]}
       />
 

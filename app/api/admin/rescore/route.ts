@@ -51,11 +51,13 @@ export async function POST(req: Request) {
     .order("id", { ascending: true })
     .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  if (error)
+  if (error) {
+    console.error("[admin/rescore]", error.message);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Request failed" },
       { status: 500, headers: CORS },
     );
+  }
   if (!deals?.length)
     return NextResponse.json(
       { page, updated: 0, hasMore: false },

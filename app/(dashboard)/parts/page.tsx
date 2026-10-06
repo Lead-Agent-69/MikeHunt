@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 import { Tag } from "@/components/shared/Tag";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
 
 const PARTS = [
   { name: "Engine (Complete)", value: 3800 },
@@ -80,6 +82,13 @@ export default function PartsPage() {
   const [activeTab, setActiveTab] = useState<"teardown" | "repair" | "sources">(
     "teardown",
   );
+  const { intent } = useBuyerIntent();
+  // Teardown ROI is a parts-buyer and flip-desk tool. Personal/DIY (and unknown) start on repair.
+  const showTeardown =
+    isFlipBuyerMode(intent?.buyerMode) ||
+    normalizeFlipLeadMode(intent?.buyerMode) === "parts";
+  const visibleTab =
+    !showTeardown && activeTab === "teardown" ? "repair" : activeTab;
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [selectedParts, setSelectedParts] = useState<string[]>([
     "Engine (Complete)",
@@ -189,7 +198,9 @@ export default function PartsPage() {
               Parts & Repair
             </h1>
             <p className="text-xs md:text-sm text-[var(--t4)] mt-0.5 md:mt-1">
-              Teardown ROI, damage estimates, and parts sourcing.
+              {showTeardown
+                ? "Teardown ROI, damage estimates, and parts sourcing."
+                : "Repair estimates and parts sourcing."}
             </p>
           </div>
         </div>
@@ -198,7 +209,9 @@ export default function PartsPage() {
           style={{ scrollbarWidth: "none" }}
         >
           {[
-            { id: "teardown", label: "Teardown ROI" },
+            ...(showTeardown
+              ? [{ id: "teardown", label: "Teardown ROI" }]
+              : []),
             { id: "repair", label: "Repair Estimates" },
             { id: "sources", label: "Parts Directory" },
           ].map((tab) => (
@@ -206,12 +219,12 @@ export default function PartsPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`whitespace-nowrap px-4 py-2 rounded-lg text-sm font-bold transition-all border-none ${
-                activeTab === tab.id
+                visibleTab === tab.id
                   ? "text-white"
                   : "text-[var(--t4)] hover:text-[var(--t1)]"
               }`}
               style={
-                activeTab === tab.id
+                visibleTab === tab.id
                   ? { background: "var(--grad)" }
                   : { background: "var(--s0)", boxShadow: "var(--shadow2)" }
               }
@@ -257,7 +270,7 @@ export default function PartsPage() {
 
       {configured && !loading && !error && (
         <div className="space-y-4 md:space-y-6">
-          {activeTab === "teardown" && (
+          {visibleTab === "teardown" && (
             <>
               <div className="glass-panel p-4 md:p-6 animate-popIn">
                 <h2 className="text-xs md:text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-3 md:mb-4">
@@ -423,7 +436,7 @@ export default function PartsPage() {
             </>
           )}
 
-          {activeTab === "repair" && (
+          {visibleTab === "repair" && (
             <div className="glass-panel p-4 md:p-6 animate-popIn">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -468,7 +481,7 @@ export default function PartsPage() {
             </div>
           )}
 
-          {activeTab === "sources" && (
+          {visibleTab === "sources" && (
             <div className="glass-panel p-4 md:p-6 animate-popIn">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -476,7 +489,7 @@ export default function PartsPage() {
                     25 Preferred Parts Sources
                   </h2>
                   <p className="text-sm text-[var(--t3)]">
-                    Recommended suppliers for arbitrage and recon projects.
+                    Recommended suppliers for repair and recon projects.
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-[var(--s3)] flex items-center justify-center border border-[var(--b1)]">

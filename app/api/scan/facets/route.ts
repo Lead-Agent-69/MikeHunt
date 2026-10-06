@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -213,8 +214,7 @@ export async function GET(req: NextRequest) {
     mq = applyBuyerFacetScope(mq, { lane, maxPrice, minPrice });
     if (state) mq = mq.eq("location_state", state);
     const { data, error } = await mq;
-    if (error)
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return internalError("scan:facets", error);
     const models = new Map<string, number>();
     for (const r of data || [])
       if (r.model) models.set(r.model, (models.get(r.model) || 0) + 1);
@@ -240,8 +240,7 @@ export async function GET(req: NextRequest) {
   if (state) q = q.eq("location_state", state);
 
   const { data, error } = await q;
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return internalError("scan:facets", error);
 
   return NextResponse.json(buildScanFacetSummary(data || []));
 }

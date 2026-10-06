@@ -1,22 +1,37 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
+import { summarizeCleanSold, soldTitleLane } from "@/lib/scoring/market-value";
 
-// GET /api/sold?make=Ford&model=F-150&year=2018 — REAL recent completed-sale prices (eBay sold etc.)
-// for this make/model, year-banded. Surfacing actual transactions = trust ("here's what these really
-// sell for"), and finally uses the sold_listings data the valuation already anchors to.
+// GET /api/sold?make=Ford&model=F-150&year=2018 — completed-sale prices.
+// A clean median is published only at n >= 3 clean titles. Salvage titles are
+// counted and called out; they are not mixed into that price. No invented prices.
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, { key: "sold", limit: 60, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   const sp = new URL(req.url).searchParams;
   const make = (sp.get("make") || "").trim();
   const model = (sp.get("model") || "").trim();
   const year = parseInt(sp.get("year") || "0", 10) || 0;
-  if (!make || !model) return NextResponse.json({ sales: [], median: null });
+  if (!make || !model)
+    return NextResponse.json({
+      sales: [],
+      median: null,
+      count: 0,
+      soldAt: null,
+      mixed: false,
+      note: null,
+    });
 
   const supabase = createServerComponentClient();
   let q = supabase
     .from("sold_listings")
-    .select("year, make, model, trim, mileage, sold_price, sold_at, source, source_url, currency_code, country_code")
+    .select(
+      "year, make, model, trim, mileage, sold_price, sold_at, title, source, source_url, currency_code, country_code",
+    )
     .ilike("make", make)
     .ilike("model", `%${model.split(" ")[0]}%`)
     .eq("currency_code", "USD")
@@ -27,33 +42,50 @@ export async function GET(req: NextRequest) {
   if (year > 0) q = q.gte("year", year - 2).lte("year", year + 2);
 
   const { data, error } = await q;
-  if (error) return NextResponse.json({ sales: [], median: null });
+  if (error)
+    return NextResponse.json({
+      sales: [],
+      median: null,
+      count: 0,
+      soldAt: null,
+      mixed: false,
+      note: null,
+    });
 
-  const prices = (data || [])
-    .map((d: any) => Number(d.sold_price))
-    .filter((n) => n > 0)
-    .sort((a, b) => a - b);
-  const median = prices.length ? prices[Math.floor(prices.length / 2)] : null;
+  const summary = summarizeCleanSold(data || []);
 
   return NextResponse.json({
-    median,
-    count: prices.length,
-    low: prices[0] ?? null,
-    high: prices[prices.length - 1] ?? null,
-    sales: (data || []).slice(0, 6).map((d: any) => ({
-      year: d.year,
-      title: `${d.year || ""} ${d.make || ""} ${d.model || ""} ${d.trim || ""}`
-        .replace(/\s+/g, " ")
-        .trim(),
-      price: Math.round(Number(d.sold_price)),
-      mileage: d.mileage || null,
-      soldAt: d.sold_at,
-      source: d.source,
-      sourceUrl:
-        typeof d.source_url === "string" && /^https?:\/\//i.test(d.source_url)
-          ? d.source_url
-          : null,
-      currency: d.currency_code,
-    })),
+    median: summary.median,
+    count: summary.count,
+    soldAt: summary.soldAt,
+    low: summary.low,
+    high: summary.high,
+    salvageCount: summary.salvageCount,
+    unknownCount: summary.unknownCount,
+    mixed: summary.mixed,
+    note: summary.note,
+    sales: (data || []).slice(0, 6).map((d: any) => {
+      const lane = soldTitleLane(d.title);
+      const stored =
+        typeof d.title === "string" ? d.title.replace(/\s+/g, " ").trim() : "";
+      return {
+        year: d.year,
+        title:
+          stored ||
+          `${d.year || ""} ${d.make || ""} ${d.model || ""} ${d.trim || ""}`
+            .replace(/\s+/g, " ")
+            .trim(),
+        lane,
+        price: Math.round(Number(d.sold_price)),
+        mileage: d.mileage || null,
+        soldAt: d.sold_at,
+        source: d.source,
+        sourceUrl:
+          typeof d.source_url === "string" && /^https?:\/\//i.test(d.source_url)
+            ? d.source_url
+            : null,
+        currency: d.currency_code,
+      };
+    }),
   });
 }

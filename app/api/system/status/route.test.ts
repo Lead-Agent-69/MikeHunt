@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mergeStatusSources, summarizeSourceHealth } from "./route";
+import {
+  lastSeenLabel,
+  mergeStatusSources,
+  sourceListingStatus,
+  summarizeSourceHealth,
+} from "./route";
 
 describe("mergeStatusSources", () => {
   it("adds buyer-facing readiness and row proof from live source breakdown", () => {
@@ -34,7 +39,7 @@ describe("mergeStatusSources", () => {
       source: "govdeals",
       id: "govdeals",
       readiness: "ready",
-      userStatus: "Working",
+      userStatus: "Seen just now",
       activeRows: 1094,
       rowsWithPhotos: 1094,
       photoCoveragePct: 100,
@@ -43,9 +48,61 @@ describe("mergeStatusSources", () => {
     expect(sources[1]).toMatchObject({
       source: "publicsurplus",
       readiness: "ready",
+      userStatus: "Seen 1h ago",
       activeRows: 142,
       rowsWithPhotos: 125,
     });
+    expect(sources.every((source) => source.userStatus !== "Working")).toBe(
+      true,
+    );
+  });
+
+  it("does not treat a 72h window or status live as a working scrape", () => {
+    const sources = mergeStatusSources(
+      [],
+      [
+        {
+          source: "cars",
+          active: 12,
+          photoPct: 50,
+          ageHours: 72,
+          status: "live",
+        },
+        {
+          source: "empty",
+          active: 0,
+          photoPct: 0,
+          ageHours: 1,
+          status: "live",
+        },
+      ],
+    );
+    expect(sources.find((source) => source.source === "cars")).toMatchObject({
+      readiness: "ready",
+      userStatus: "Seen 3d ago",
+    });
+    expect(sources.find((source) => source.source === "empty")).toMatchObject({
+      readiness: "no_rows",
+      userStatus: "No rows",
+    });
+  });
+});
+
+describe("sourceListingStatus", () => {
+  it("never marks stored rows live just because they are younger than 72h", () => {
+    expect(sourceListingStatus(10, 1)).toBe("stored");
+    expect(sourceListingStatus(10, 72)).toBe("stored");
+    expect(sourceListingStatus(10, 73)).toBe("stale");
+    expect(sourceListingStatus(0, 1)).toBe("idle");
+    expect(sourceListingStatus(10, null)).toBe("stored");
+    expect(
+      ["stored", "stale", "idle"].includes(sourceListingStatus(10, 0)),
+    ).toBe(true);
+    expect(sourceListingStatus(10, 0)).not.toBe("live");
+    expect(lastSeenLabel(0)).toBe("Seen just now");
+    expect(lastSeenLabel(5)).toBe("Seen 5h ago");
+    expect(lastSeenLabel(48)).toBe("Seen 2d ago");
+    expect(lastSeenLabel(null)).toBe("Last seen unknown");
   });
 });
 

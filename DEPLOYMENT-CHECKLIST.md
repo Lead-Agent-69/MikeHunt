@@ -36,7 +36,7 @@
 
 **Intentionally NOT set — do not add placeholders:**
 
-- [ ] `FLARESOLVERR_URL` — scrapers run on Fly.io / locally, not in Vercel's serverless
+- [ ] `FLARESOLVERR_URL` — scrapers run in Zeus Docker, not in Vercel's serverless
       functions. A placeholder here would only ever be read by code that can't reach it.
 - [ ] `RESEND_API_KEY`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` — no value exists yet.
       Feature-specific code degrades gracefully when they are absent; a fake value would
@@ -204,6 +204,6 @@ If deployment fails:
 - [ ] Monitoring active
 - [ ] Team notified
 
-**Deployed by:** ******\_\_\_******
-**Date:** ******\_\_\_******
-**Version:** ******\_\_\_******
+**Deployed by:** **\*\***\_\_\_**\*\***
+**Date:** **\*\***\_\_\_**\*\***
+**Version:** **\*\***\_\_\_**\*\***

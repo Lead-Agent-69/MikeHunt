@@ -4,10 +4,14 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import { Lock } from "lucide-react";
+import { useDealerId } from "@/hooks/useDealerId";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
-  MOBILE_PRIMARY,
+  mobileNavForMode,
+  navItemForViewer,
   navItemMatchesPath,
   primaryJobForPath,
 } from "@/components/layout/nav-items";
@@ -18,6 +22,12 @@ export function BottomNav() {
   const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
   const activeJob = primaryJobForPath(pathname);
+  const { intent } = useBuyerIntent();
+  const { dealerId, loading: authLoading } = useDealerId();
+  const signedOut = !authLoading && !dealerId;
+  const tabs = mobileNavForMode(intent?.buyerMode).map((item) =>
+    navItemForViewer(item, signedOut),
+  );
   const watchScopeCount = localSaved.count + localSearches.count;
 
   const tapFeedback = () => {
@@ -40,7 +50,7 @@ export function BottomNav() {
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      {MOBILE_PRIMARY.map((item) => {
+      {tabs.map((item) => {
         const isActive =
           navItemMatchesPath(item, pathname) ||
           (item.name === "Discover" && pathname === "/") ||
@@ -57,11 +67,13 @@ export function BottomNav() {
               WebkitTapHighlightColor: "transparent",
             }}
             title={
-              item.name === "Saved" && watchScopeCount
-                ? `${watchScopeCount} active watch scope${
-                    watchScopeCount === 1 ? "" : "s"
-                  }`
-                : item.name
+              item.signInRequired
+                ? `Sign in to use ${item.name}`
+                : item.name === "Saved" && watchScopeCount
+                  ? `${watchScopeCount} active watch scope${
+                      watchScopeCount === 1 ? "" : "s"
+                    }`
+                  : item.name
             }
           >
             {isActive && (
@@ -99,14 +111,25 @@ export function BottomNav() {
                 }}
               />
             </motion.span>
-            {item.name === "Saved" && watchScopeCount > 0 && (
+            {item.signInRequired && (
               <span
-                className="absolute top-1.5 left-1/2 ml-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white"
-                style={{ background: "var(--accent)", lineHeight: 1 }}
+                className="absolute top-1.5 left-1/2 ml-2.5 z-10 grid h-4 w-4 place-items-center rounded-full"
+                style={{ background: "var(--s2)", color: "var(--t3)" }}
+                aria-hidden="true"
               >
-                {watchScopeCount > 99 ? "99+" : watchScopeCount}
+                <Lock style={{ width: 10, height: 10 }} strokeWidth={2.5} />
               </span>
             )}
+            {!item.signInRequired &&
+              item.name === "Saved" &&
+              watchScopeCount > 0 && (
+                <span
+                  className="absolute top-1.5 left-1/2 ml-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white"
+                  style={{ background: "var(--accent)", lineHeight: 1 }}
+                >
+                  {watchScopeCount > 99 ? "99+" : watchScopeCount}
+                </span>
+              )}
             <span
               className="relative z-10"
               style={{
@@ -116,6 +139,9 @@ export function BottomNav() {
               }}
             >
               {item.name}
+              {item.signInRequired && (
+                <span className="sr-only"> (sign in required)</span>
+              )}
             </span>
           </Link>
         );

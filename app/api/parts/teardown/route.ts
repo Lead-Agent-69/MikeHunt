@@ -1,10 +1,18 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { PartsCalculator } from "@/lib/parts/parts-calculator";
 import { createServerComponentClient } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "parts-teardown-post",
+    limit: 20,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   try {
     const partsCalculator = new PartsCalculator();
     const body = await request.json();
@@ -59,6 +67,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, {
+    key: "parts-teardown",
+    limit: 20,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
   try {
     const partsCalculator = new PartsCalculator();
     const { searchParams } = new URL(request.url);

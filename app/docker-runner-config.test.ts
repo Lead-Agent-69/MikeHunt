@@ -28,7 +28,7 @@ describe("local Docker scraper runner config", () => {
     expect(compose).toContain("STATUS_PORT: 8787");
     expect(compose).toContain("127.0.0.1:8787:8787");
     expect(compose).toContain(
-      'SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-queue}"',
+      'SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-hybrid}"',
     );
     expect(compose).toContain('CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-false}"');
   });

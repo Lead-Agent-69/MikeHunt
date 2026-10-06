@@ -2,6 +2,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +66,12 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json(data || []);
+    const flipDesk = await resolveCallerFlipDesk();
+    return NextResponse.json(listingsForDesk(data || [], flipDesk));
   } catch (error: any) {
     console.error("[FIND-SIMILAR-API] GET error:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to find similar vehicles" },
+      { error: "Failed to find similar vehicles" },
       { status: 500 },
     );
   }

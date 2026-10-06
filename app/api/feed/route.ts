@@ -9,6 +9,11 @@ import { getServerUser } from "@/lib/server-supabase";
 import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
 import { scoreInterest } from "@/lib/intelligence/interest-patterns";
+import {
+  isFlipDeskMode,
+  readSavedBuyerMode,
+  redactListingForNonFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/feed?offset=0&limit=12 — the full-screen TikTok-style stream. Active, in-stock, photo-having cars.
 // SIGNED-IN users get a "For You" ranking: a taste-ranked pool (quality + interest affinity from their
@@ -66,6 +71,14 @@ export async function GET(req: NextRequest) {
   const {
     data: { user },
   } = await getServerUser();
+  // Net profit and profit score only go to a saved reseller / dealer desk. Anon, personal, diy,
+  // parts, unknown, or a failed prefs read get redacted cards (fail closed). Ranking still uses the
+  // score internally; it just isn't sent.
+  const flipDesk = user?.id
+    ? isFlipDeskMode(await readSavedBuyerMode(supabase, user.id))
+    : false;
+  const forDesk = (items: ReturnType<typeof mapItem>[]) =>
+    flipDesk ? items : items.map((it) => redactListingForNonFlipDesk(it));
 
   // ── FOR YOU (signed in): a taste-ranked pool, cached per user for 60s and paginated over. ──
   if (user?.id) {
@@ -112,7 +125,7 @@ export async function GET(req: NextRequest) {
       },
     );
     return NextResponse.json({
-      items: ranked.slice(offset, offset + limit),
+      items: forDesk(ranked.slice(offset, offset + limit)),
       nextOffset: offset + limit,
       personalized: true,
     });
@@ -136,11 +149,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       items: [],
       nextOffset: offset,
-      error: error.message,
+      /* error detail logged server-side */
+
+      error: "Feed unavailable",
     });
 
   const items = (data || [])
     .filter((d: any) => Array.isArray(d.images) && d.images[0])
     .map(mapItem);
-  return NextResponse.json({ items, nextOffset: offset + limit });
+  return NextResponse.json({
+    items: forDesk(items),
+    nextOffset: offset + limit,
+  });
 }

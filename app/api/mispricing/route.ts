@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -14,6 +15,10 @@ import {
   isUnderpriced,
 } from "@/lib/intelligence/mispricing";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/mispricing — the mispricing radar. Clusters active deals by make/model/year-band, computes
 // each cluster's price distribution, and surfaces the statistical outliers priced well under their
@@ -84,8 +89,7 @@ export async function GET(req: NextRequest) {
   if (state) q = q.eq("location_state", state);
 
   const { data: rows, error } = await q;
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return internalError("mispricing", error);
 
   // Build per-cluster price arrays.
   const clusters = new Map<string, number[]>();
@@ -115,5 +119,10 @@ export async function GET(req: NextRequest) {
 
   flagged.sort((a, b) => b._pct - a._pct);
   const deals = flagged.slice(0, 24).map(({ _pct, ...d }) => d);
-  return NextResponse.json({ deals, count: deals.length });
+  const flipDesk = await resolveCallerFlipDesk();
+  return NextResponse.json({
+    deals: listingsForDesk(deals, flipDesk),
+    deskAccess: flipDesk ? "flip" : "personal",
+    count: deals.length,
+  });
 }

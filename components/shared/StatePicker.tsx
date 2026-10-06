@@ -10,11 +10,17 @@ import {
   nearbyStates,
 } from "@/lib/geo/us-states";
 import { usePreferences } from "@/hooks/usePreferences";
+import {
+  effectiveHome,
+  effectiveSearchLocations,
+} from "@/lib/preferences/locations";
+import { searchLocationsFromStates } from "@/lib/preferences/location-form";
 import { Check, MapPin, Plus, X } from "lucide-react";
 
 // "My States" — the location-aware, multi-state curation control. Apple-clean sheet with a spring entrance,
 // a drag handle, selected-state tokens, a "Suggested" quick-add row (your location + nearby + most stock),
-// and a searchable grid where every state shows its LIVE inventory count. Saves carsStates.
+// and a searchable grid where every state shows its LIVE inventory count. Saves carsStates and
+// mirrors the picks into prefs.searchLocations (home state excluded).
 
 const ALL_CODES = Object.keys(US_STATES).sort((a, b) =>
   stateName(a).localeCompare(stateName(b)),
@@ -167,7 +173,19 @@ export function StatePicker({
     setBusy(true);
     try {
       const states = Array.from(selected);
-      await save({ [key]: states } as any);
+      // Keep prefs.searchLocations (#66) in step with the picked states. An empty pick means
+      // "show everywhere" for this view, so saved search markets are left alone.
+      const searchLocations = states.length
+        ? searchLocationsFromStates(
+            states,
+            effectiveHome(prefs),
+            effectiveSearchLocations(prefs),
+          )
+        : undefined;
+      await save({
+        [key]: states,
+        ...(searchLocations ? { searchLocations } : {}),
+      } as any);
       onSaved?.(states);
       toast.success(
         states.length

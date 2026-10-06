@@ -1,7 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import { internalError } from "@/lib/api/http-error";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
 // /api/outcomes — dealers log what ACTUALLY happened on a deal. This is the feedback the verdict
@@ -13,6 +17,12 @@ export async function POST(req: NextRequest) {
   } = await getServerUser();
   if (!user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Database unavailable", configured: false },
+      { status: 503 },
+    );
+  }
 
   let body: any;
   try {
@@ -81,8 +91,7 @@ export async function POST(req: NextRequest) {
     .insert(row)
     .select("id")
     .single();
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return internalError("outcomes", error);
 
   return NextResponse.json({ success: true, id: data.id });
 }
@@ -93,6 +102,9 @@ export async function GET() {
   } = await getServerUser();
   if (!user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ outcomes: [], configured: false });
+  }
 
   const supabase = createServerComponentClient();
   const { data, error } = await supabase
@@ -102,7 +114,6 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return internalError("outcomes", error);
   return NextResponse.json({ outcomes: data || [] });
 }

@@ -57,10 +57,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sources, count: sources.length });
   } catch (error) {
     console.error("Registry GET failed:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Registry GET failed" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Registry GET failed" }, { status: 500 });
   }
 }
 

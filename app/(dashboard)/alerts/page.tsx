@@ -17,51 +17,49 @@ import {
   type SavedCarStatus,
 } from "@/components/saved/SavedCarCard";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { hidesFlipNav, scanHrefForMode } from "@/components/layout/nav-items";
 
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
   const [userId, setUserId] = useState<string | null>(null);
+  // Only offer "Sign in" once we know there is no session; /alerts is normally behind auth.
+  const [authChecked, setAuthChecked] = useState(false);
+  const signedOut = authChecked && !userId;
   const localSaved = useLocalSavedVehicles();
   const localSearches = useLocalSavedSearches();
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) setUserId(data.user.id);
-    });
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        if (data.user) setUserId(data.user.id);
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
     markAllRead();
   }, [supabase.auth]);
 
-  const fetchAlerts = async (uid: string) => {
-    try {
-      const { data } = await supabase
-        .from("user_feed_inbox")
-        .select(
-          `
-          id,
-          status,
-          created_at,
-          deal_id,
-          deals (*)
-        `,
-        )
-        .eq("user_id", uid)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      return data || [];
-    } catch (err) {
-      console.warn("Table might not exist yet");
-      return [];
-    }
-  };
-
+  // Server redacts flip economics for non-flip desks — never join deals from the browser.
   const {
-    data: alerts = [],
+    data: alertsPayload,
     error,
     isLoading: loading,
     mutate,
-  } = useSWR(userId ? ["alerts", userId] : null, ([, uid]) =>
-    fetchAlerts(uid as string),
+  } = useSWR(
+    userId ? ["alerts", userId] : null,
+    async () => {
+      const res = await fetch("/api/alerts");
+      if (res.status === 401) return { alerts: [], deskAccess: "personal" };
+      if (!res.ok) throw new Error("Alerts unavailable");
+      return res.json();
+    },
+    { revalidateOnFocus: false },
   );
+  const alerts = Array.isArray(alertsPayload?.alerts)
+    ? alertsPayload.alerts
+    : [];
+  const deskAccess = alertsPayload?.deskAccess === "flip" ? "flip" : "personal";
   const {
     data: savedCars = [],
     isLoading: savedLoading,
@@ -86,9 +84,12 @@ export default function AlertsPage() {
   }
 
   async function dismissAlert(id: string) {
-    await supabase.from("user_feed_inbox").delete().eq("id", id);
+    await fetch(`/api/alerts/${encodeURIComponent(id)}`, { method: "DELETE" });
     mutate(
-      alerts.filter((a: any) => a.id !== id),
+      {
+        alerts: alerts.filter((a: any) => a.id !== id),
+        deskAccess,
+      },
       false,
     );
   }
@@ -120,18 +121,36 @@ export default function AlertsPage() {
     <div className="max-w-5xl mx-auto px-4 py-8 animate-fadeUp">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
-            Scrape Inbox
-          </h1>
+          <h1 className="text-2xl font-black text-[var(--t1)] mb-1">Alerts</h1>
           <p className="text-[var(--t3)]">
-            Matches from your automated background searches.
+            New matches for your saved searches and the cars you&apos;re
+            watching.
           </p>
         </div>
       </div>
 
+      {error && (
+        <div
+          role="alert"
+          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm text-[var(--t2)]"
+        >
+          <span>
+            Server alerts couldn&apos;t load right now. Anything saved on this
+            device still shows below.
+          </span>
+          <button
+            type="button"
+            onClick={() => mutate()}
+            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t2)]"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {loading || savedLoading ? (
         <div className="text-center py-12 text-[var(--t3)]">
-          Loading your inbox...
+          Loading alerts...
         </div>
       ) : !hasAnyWatchItem ? (
         <div className="text-center py-16 glass-panel">
@@ -141,24 +160,35 @@ export default function AlertsPage() {
             className="mx-auto text-[var(--t4)] mb-3"
           />
           <h3 className="text-lg font-bold text-[var(--t1)] mb-1">
-            Inbox Empty
+            No alerts yet
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            You don't have any new matches yet. Save a search scope and open
-            matching Scan or Source Proof from here while account sync is being
-            configured.
+            Save a search or watch a car, and new matches and price changes show
+            up here.
           </p>
-          <Link
-            href="/searches"
-            className="mt-4 inline-flex rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
-          >
-            Create saved search
-          </Link>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/searches"
+              className="inline-flex rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+            >
+              Create saved search
+            </Link>
+            <Link
+              href="/discover"
+              className="inline-flex rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
+            >
+              Browse Discover
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
           {alerts.length > 0 && (
-            <ServerAlertGrid alerts={alerts} onDismiss={dismissAlert} />
+            <ServerAlertGrid
+              alerts={alerts}
+              deskAccess={deskAccess}
+              onDismiss={dismissAlert}
+            />
           )}
           {savedCars.length > 0 && (
             <ServerWatchInbox
@@ -171,10 +201,14 @@ export default function AlertsPage() {
             <LocalWatchInbox
               items={localSaved.items}
               onRemove={localSaved.remove}
+              signedOut={signedOut}
             />
           )}
           {localSearches.count > 0 && (
-            <LocalSearchInbox searches={localSearches.items} />
+            <LocalSearchInbox
+              searches={localSearches.items}
+              signedOut={signedOut}
+            />
           )}
         </div>
       )}
@@ -184,11 +218,16 @@ export default function AlertsPage() {
 
 function ServerAlertGrid({
   alerts,
+  deskAccess,
   onDismiss,
 }: {
   alerts: any[];
+  deskAccess: "flip" | "personal";
   onDismiss: (id: string) => void;
 }) {
+  const flipDesk = deskAccess === "flip";
+  const { intent } = useBuyerIntent();
+  const scanHref = scanHrefForMode(intent?.buyerMode);
   return (
     <div className="space-y-4">
       <div className="glass-panel p-5">
@@ -201,12 +240,12 @@ function ServerAlertGrid({
               {alerts.length} fresh alert{alerts.length === 1 ? "" : "s"} ready.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These came from server-side matching. Review source proof and
-              buyer math before acting.
+              Matched to your saved searches. Check the source listing and price
+              evidence before you act.
             </p>
           </div>
           <Link
-            href="/scan?sort=profit"
+            href={scanHref}
             className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
           >
             Open Scan
@@ -222,8 +261,11 @@ function ServerAlertGrid({
               {alert.status === "unread" && (
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-[var(--amber)] rounded-full shadow-[0_0_8px_var(--amber)] z-10" />
               )}
-              <div className="absolute -top-3 -right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Always visible on touch; hover-reveal only where a pointer can hover. */}
+              <div className="absolute -top-3 -right-3 z-20 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 <button
+                  type="button"
+                  aria-label="Dismiss alert"
                   onClick={() => onDismiss(alert.id)}
                   className="p-1.5 bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--red)] hover:text-white rounded-full shadow-lg border border-[var(--b2)]"
                   title="Dismiss alert"
@@ -232,15 +274,23 @@ function ServerAlertGrid({
                 </button>
               </div>
               <DealCard
+                flipDesk={flipDesk}
                 id={deal.id}
                 source={deal.source}
                 year={deal.year}
                 make={deal.make}
                 model={deal.model}
-                askPrice={deal.ask_price}
-                mmrValue={deal.mmr_value}
-                profitEstimate={deal.profit_estimate}
-                profitScore={deal.profit_score}
+                askPrice={Number(deal.ask_price) || 0}
+                mmrValue={Number(deal.mmr_value) || 0}
+                // Server already stripped these for non-flip; never re-derive from the client.
+                profitEstimate={
+                  flipDesk ? Number(deal.profit_estimate) || 0 : 0
+                }
+                profitScore={
+                  flipDesk && deal.profit_score != null
+                    ? Number(deal.profit_score)
+                    : undefined
+                }
                 locationCity={deal.location_city}
                 locationState={deal.location_state}
                 mileage={deal.mileage}
@@ -255,7 +305,15 @@ function ServerAlertGrid({
   );
 }
 
-function LocalSearchInbox({ searches }: { searches: any[] }) {
+function LocalSearchInbox({
+  searches,
+  signedOut,
+}: {
+  searches: any[];
+  signedOut: boolean;
+}) {
+  const { intent } = useBuyerIntent();
+  const showProfitTarget = !hidesFlipNav(intent?.buyerMode);
   return (
     <div className="space-y-4">
       <div className="glass-panel p-5">
@@ -329,7 +387,7 @@ function LocalSearchInbox({ searches }: { searches: any[] }) {
                       Min: ${Number(search.min_price).toLocaleString()}
                     </span>
                   )}
-                  {search.target_profit && (
+                  {showProfitTarget && search.target_profit && (
                     <span>
                       Min profit: $
                       {Number(search.target_profit).toLocaleString()}
@@ -337,8 +395,9 @@ function LocalSearchInbox({ searches }: { searches: any[] }) {
                   )}
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
-                  Stored locally. Sign in later to sync server alerts and
-                  background matching.
+                  {signedOut
+                    ? "Stored locally. Sign in later to sync server alerts and background matching."
+                    : "Stored on this device."}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -386,7 +445,7 @@ function ServerWatchInbox({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
               No new price-drop alert yet. These saved vehicles are being
-              tracked with source proof, data quality, and buyer math.
+              tracked with source proof, data quality, and price evidence.
             </p>
           </div>
           <Link
@@ -415,9 +474,11 @@ function ServerWatchInbox({
 function LocalWatchInbox({
   items,
   onRemove,
+  signedOut,
 }: {
   items: ReturnType<typeof useLocalSavedVehicles>["items"];
   onRemove: (id: string) => void;
+  signedOut: boolean;
 }) {
   const formatMoney = (value: number) =>
     new Intl.NumberFormat("en-US", {
@@ -439,8 +500,9 @@ function LocalWatchInbox({
               this device.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These vehicles are saved on this device. Sign in to keep your
-              watchlist available across devices.
+              {signedOut
+                ? "These vehicles are saved on this device. Sign in to keep your watchlist available across devices."
+                : "These vehicles are saved on this device."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -450,12 +512,14 @@ function LocalWatchInbox({
             >
               Open watchlist
             </Link>
-            <Link
-              href="/login"
-              className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
-            >
-              Sign in
-            </Link>
+            {signedOut && (
+              <Link
+                href="/login?next=%2Falerts"
+                className="rounded-[var(--r2)] bg-[var(--t1)] px-3 py-2 text-xs font-black text-[var(--s0)]"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </div>
       </div>

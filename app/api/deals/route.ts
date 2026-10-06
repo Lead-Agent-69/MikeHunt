@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { DealsService, DealFilters } from "@/lib/data/deals-service";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -29,6 +30,9 @@ function parseFilters(searchParams: URLSearchParams): DealFilters {
 }
 
 export async function GET(request: NextRequest) {
+  const rl = rateLimit(request, { key: "deals", limit: 60, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json({
       configured: false,

@@ -171,12 +171,15 @@ describe("GET /api/scrape/health lane scoping", () => {
     );
 
     expect(row).toMatchObject({
-      userStatus: "Working",
-      proofLevel: "live_rows",
+      userStatus: "Seen just now",
+      proofLevel: "stored_rows",
       photoCoveragePct: 100,
       qualityLabel: "Thin",
       freshnessHours: 0,
     });
+    expect(row.userStatus).not.toBe("Working");
+    expect(row.userImpact).not.toMatch(/live inventory/i);
+    expect(row.nextAction).not.toMatch(/^Working/);
     expect(row.proofBadges).toEqual(
       expect.arrayContaining([
         "3 rows",
@@ -189,6 +192,43 @@ describe("GET /api/scrape/health lane scoping", () => {
       "AE of Miami returned 3 active rows with 3 photo-backed rows",
     );
     expect(row.nextAction).toContain("verify weak fields");
+    expect(row.nextAction).toContain("Listings on file");
+  });
+
+  it("labels older ready rows by last-seen age instead of a live scrape", async () => {
+    const { enrichHealthRow } = await import("./route");
+    const row = enrichHealthRow(
+      {
+        id: "ae-of-miami",
+        name: "AE of Miami",
+        type: "dealer",
+        enabled: true,
+        requiresAuth: false,
+      },
+      {
+        readiness: "ready",
+        activeRows: 3,
+        rowsWithPhotos: 3,
+        averageQuality: 90,
+        completeness: {
+          vinPct: 100,
+          mileagePct: 100,
+          auctionDatePct: 100,
+          sellerPct: 100,
+          sellerContactPct: 100,
+          sourceLinkPct: 100,
+          photosPct: 100,
+        },
+        lastSeenAt: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      },
+      true,
+    );
+
+    expect(row.userStatus).toBe("Seen 5h ago");
+    expect(row.proofLevel).toBe("stored_rows");
+    expect(row.userImpact).toMatch(/not a live scrape/i);
+    expect(row.nextAction).toMatch(/not a live scrape/i);
+    expect(row.proofBadges).toContain("Seen 5h ago");
   });
 
   it("turns empty scoped proof into a clear buyer next action", async () => {

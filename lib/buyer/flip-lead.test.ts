@@ -7,6 +7,7 @@ describe("flip lead gate", () => {
     expect(isFlipBuyerMode("reseller")).toBe(true);
     expect(isFlipBuyerMode("personal")).toBe(false);
     expect(isFlipBuyerMode("diy")).toBe(false);
+    expect(isFlipBuyerMode("parts")).toBe(false);
     expect(isFlipBuyerMode("enthusiast")).toBe(false);
     expect(isFlipBuyerMode(undefined)).toBe(false);
   });

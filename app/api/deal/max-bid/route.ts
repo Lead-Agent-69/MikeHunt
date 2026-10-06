@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { computeMaxBid, type MaxBidCosts } from "@/lib/scoring/max-bid";
 
 // POST /api/deal/max-bid
@@ -8,6 +9,9 @@ import { computeMaxBid, type MaxBidCosts } from "@/lib/scoring/max-bid";
 //
 // Body: { sellEstimate | market_price, targetProfit | target_profit, costs?, source? }
 export async function POST(req: NextRequest) {
+  const rl = rateLimit(req, { key: "max-bid", limit: 60, windowMs: 60000 });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   let body: any;
   try {
     body = await req.json();

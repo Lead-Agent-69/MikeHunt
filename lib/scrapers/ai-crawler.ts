@@ -1,12 +1,16 @@
-import { generateObject } from 'ai';
-import { z } from 'zod';
-import { defaultModel } from '../ai/config';
-import { queueForAIParsing } from '../ai/queue';
-import { AdaptiveEngine } from './adaptive-engine';
-import { HumanBehavior } from './tools/human-behavior';
+import { generateObject } from "ai";
+import { z } from "zod";
+import { defaultModel } from "../ai/config";
+import { queueForAIParsing } from "../ai/queue";
+import { AdaptiveEngine } from "./adaptive-engine";
+import { HumanBehavior } from "./tools/human-behavior";
 
 const VdpLinksSchema = z.object({
-  vdpUrls: z.array(z.string()).describe('A list of URLs that point to individual vehicle detail pages (VDPs)'),
+  vdpUrls: z
+    .array(z.string())
+    .describe(
+      "A list of URLs that point to individual vehicle detail pages (VDPs)",
+    ),
 });
 
 const VDP_PATH_PATTERNS = [
@@ -33,8 +37,11 @@ const EXCLUDE_PATTERNS = [
 ];
 
 function looksLikeVdp(url: string): boolean {
-  if (EXCLUDE_PATTERNS.some(p => p.test(url))) return false;
-  return VDP_PATH_PATTERNS.some(p => p.test(url)) || /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(url);
+  if (EXCLUDE_PATTERNS.some((p) => p.test(url))) return false;
+  return (
+    VDP_PATH_PATTERNS.some((p) => p.test(url)) ||
+    /\b[A-HJ-NPR-Z0-9]{17}\b/i.test(url)
+  );
 }
 
 function deterministicVdpFilter(links: string[]): string[] {
@@ -43,11 +50,13 @@ function deterministicVdpFilter(links: string[]): string[] {
 
 function extractLinksFromHtml(html: string): string[] {
   const matches = html.match(/href="([^"]+)"/g) || [];
-  return Array.from(new Set(
-    matches
-      .map(m => m.replace('href="', '').replace('"', ''))
-      .filter(href => href.startsWith('http'))
-  ));
+  return Array.from(
+    new Set(
+      matches
+        .map((m) => m.replace('href="', "").replace('"', ""))
+        .filter((href) => href.startsWith("http")),
+    ),
+  );
 }
 
 async function aiVdpFilter(links: string[]): Promise<string[]> {
@@ -62,8 +71,8 @@ async function aiVdpFilter(links: string[]): Promise<string[]> {
       Exclude: pagination, contact, privacy, financing, about, service, parts, blog, generic inventory index pages.
 
       URLs:
-      ${links.join('\n')}
-    `
+      ${links.join("\n")}
+    `,
   });
 
   return object.vdpUrls;
@@ -73,7 +82,11 @@ async function aiVdpFilter(links: string[]): Promise<string[]> {
  * Intelligent crawler that uses the adaptive engine (static first, browser fallback)
  * and deterministic VDP detection before invoking AI. Reduces AI cost by 60-90%.
  */
-export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?: string) {
+export async function crawlInventoryAndQueueVDPs(
+  inventoryUrl: string,
+  dealerId?: string,
+  maxVdps?: number,
+) {
   console.log(`[AI Crawler] Navigating to inventory page: ${inventoryUrl}`);
 
   const engine = new AdaptiveEngine({ maxBrowserPages: 1 });
@@ -81,9 +94,9 @@ export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?
 
   try {
     const { html, page, close } = await engine.fetch(inventoryUrl, {
-      name: 'ai-crawler',
+      name: "ai-crawler",
       baseUrl: inventoryUrl,
-      renderMode: 'adaptive',
+      renderMode: "adaptive",
       requestDelay: 0,
       concurrency: 1,
       useProxies: true,
@@ -99,17 +112,23 @@ export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?
 
     const links: string[] = page
       ? await page.evaluate(() => {
-          const anchors = Array.from(document.querySelectorAll('a[href]'));
-          return Array.from(new Set(anchors.map(a => (a as HTMLAnchorElement).href))).filter(href => href.startsWith('http'));
+          const anchors = Array.from(document.querySelectorAll("a[href]"));
+          return Array.from(
+            new Set(anchors.map((a) => (a as HTMLAnchorElement).href)),
+          ).filter((href) => href.startsWith("http"));
         })
       : extractLinksFromHtml(html);
 
     await close();
 
-    console.log(`[AI Crawler] Found ${links.length} unique links. Detecting VDPs...`);
+    console.log(
+      `[AI Crawler] Found ${links.length} unique links. Detecting VDPs...`,
+    );
 
     let vdpUrls = deterministicVdpFilter(links);
-    console.log(`[AI Crawler] Deterministic filter found ${vdpUrls.length} VDPs.`);
+    console.log(
+      `[AI Crawler] Deterministic filter found ${vdpUrls.length} VDPs.`,
+    );
 
     // Only ask AI if deterministic filter is weak or ambiguous
     if (vdpUrls.length === 0 || vdpUrls.length / links.length < 0.05) {
@@ -117,9 +136,20 @@ export async function crawlInventoryAndQueueVDPs(inventoryUrl: string, dealerId?
       console.log(`[AI Crawler] AI filter found ${vdpUrls.length} VDPs.`);
     }
 
+    // Cost gate: cap how many VDPs per site reach the AI parse queue. Unlimited when maxVdps is unset
+    // (preserves prior behavior for the manual save-from-url path); the batch dealer producer passes a
+    // small cap so a full curated-site sweep never floods Gemini.
+    const toQueue =
+      typeof maxVdps === "number" && maxVdps >= 0
+        ? vdpUrls.slice(0, maxVdps)
+        : vdpUrls;
+    console.log(
+      `[AI Crawler] Queueing ${toQueue.length} VDPs (cap=${maxVdps ?? "none"}).`,
+    );
+
     let queuedCount = 0;
-    for (const vdpUrl of vdpUrls) {
-      await queueForAIParsing(vdpUrl, dealerId, 'independent_dealer');
+    for (const vdpUrl of toQueue) {
+      await queueForAIParsing(vdpUrl, dealerId, "independent_dealer");
       console.log(`[AI Crawler] Queued VDP: ${vdpUrl}`);
       queuedCount++;
     }

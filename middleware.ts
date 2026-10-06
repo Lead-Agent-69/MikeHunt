@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_ROUTES, isAdminEmail } from "@/lib/auth/admin";
+import { matchesAnyRoute } from "@/lib/auth/route-match";
+import { loginRedirectUrl } from "@/lib/auth/login-redirect";
 
 // Protected routes that require authentication.
 // Note: '/' is intentionally PUBLIC — the landing page handles its own
@@ -51,6 +53,11 @@ const protectedRoutes = [
   "/api/saved-cars",
 ];
 
+// Pages that stay open to signed-out visitors but are still part of the
+// buyer app. A signed-in buyer who has not finished setup is sent to
+// onboarding from these too, so setup cannot be skipped through them.
+const publicBuyerRoutes = ["/scan", "/dealer-network"];
+
 // Auth routes
 const authRoutes = ["/login", "/register"];
 
@@ -74,7 +81,6 @@ function isSupabaseConfigured(): boolean {
     !isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
   );
 }
-
 
 function guestProfileOnboarded(request: NextRequest): boolean {
   const raw = request.cookies.get("mh_guest_profile")?.value;
@@ -102,24 +108,24 @@ export async function middleware(request: NextRequest) {
   const isCronEndpoint =
     pathname === "/api/alerts/process" ||
     pathname === "/api/alerts/profit-sniper";
+  // Segment-aware: "/deal" must not swallow the public "/dealer-network".
   const isProtectedRoute =
-    !isCronEndpoint &&
-    protectedRoutes.some((route) => pathname.startsWith(route));
-  const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
-  const isAdminRoute = ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+    !isCronEndpoint && matchesAnyRoute(pathname, protectedRoutes);
+  const isSetupGatedRoute =
+    isProtectedRoute || matchesAnyRoute(pathname, publicBuyerRoutes);
+  const isAuthRoute = matchesAnyRoute(pathname, authRoutes);
+  const isAdminRoute = matchesAnyRoute(pathname, ADMIN_ROUTES);
 
   if (!isSupabaseConfigured()) {
     const demoUser = request.cookies.get("mh_demo_user")?.value;
 
     if (isProtectedRoute && !demoUser) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
+      return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
     }
 
     if (
       demoUser &&
-      isProtectedRoute &&
+      isSetupGatedRoute &&
       !isAdminRoute &&
       !pathname.startsWith("/onboarding") &&
       !pathname.startsWith("/api/") &&
@@ -132,8 +138,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isAdminRoute) {
+      if (!demoUser) {
+        return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
+      }
       const url = request.nextUrl.clone();
-      url.pathname = demoUser ? "/discover" : "/login";
+      url.pathname = "/discover";
       return NextResponse.redirect(url);
     }
 
@@ -196,21 +205,16 @@ export async function middleware(request: NextRequest) {
   // Authorization: Bearer CRON_SECRET header in their route handlers instead.
 
   if (isProtectedRoute && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
-    url.searchParams.set(
-      "next",
-      `${request.nextUrl.pathname}${request.nextUrl.search}`,
-    );
-    return redirectWithAuthCookies(url);
+    return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
   }
 
   // ADMIN GATE: dev/ops surfaces are for the single admin only. Anyone else (incl. logged-in
   // dealers) is bounced — they never reach the developer API, system status, or the orchestrator.
   if (isAdminRoute && !isAdminEmail(user?.email)) {
+    if (!user)
+      return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
     const url = request.nextUrl.clone();
-    url.pathname = user ? "/discover" : "/login";
+    url.pathname = "/discover";
     return redirectWithAuthCookies(url);
   }
 
@@ -239,7 +243,7 @@ export async function middleware(request: NextRequest) {
   if (
     user &&
     userId &&
-    isProtectedRoute &&
+    isSetupGatedRoute &&
     !isAdminRoute &&
     !pathname.startsWith("/onboarding") &&
     !pathname.startsWith("/api/")

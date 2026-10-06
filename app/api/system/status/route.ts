@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { canManageOperations } from "@/lib/auth/admin-operations";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -22,6 +23,22 @@ function statusSource(row: any) {
   return sourceFromUrl(row.source_url) || row.source || "unknown";
 }
 
+/** Stored-row age from deals.last_seen_at. Never "live": rows on file are not a scrape heartbeat. */
+export function sourceListingStatus(active: number, ageHours: number | null) {
+  if (active <= 0) return "idle";
+  if (ageHours != null && ageHours > 72) return "stale";
+  return "stored";
+}
+
+/** Same wording as listing cards: Seen just now / Seen Nh ago / Seen Nd ago. */
+export function lastSeenLabel(ageHours: number | null) {
+  if (ageHours == null) return "Last seen unknown";
+  if (ageHours < 1) return "Seen just now";
+  if (ageHours < 24) return `Seen ${ageHours}h ago`;
+  const days = Math.max(1, Math.round(ageHours / 24));
+  return `Seen ${days}d ago`;
+}
+
 export function mergeStatusSources(runHealth: any[], sourceBreakdown: any[]) {
   const bySource = new Map<string, any>();
   for (const row of runHealth || []) {
@@ -34,23 +51,15 @@ export function mergeStatusSources(runHealth: any[], sourceBreakdown: any[]) {
     const photoCoveragePct = Number(row.photoPct || 0);
     const freshnessHours =
       typeof row.ageHours === "number" ? row.ageHours : null;
-    const readiness =
-      activeRows > 0 && row.status === "live"
-        ? "ready"
-        : activeRows > 0
-          ? "needs_run"
-          : "no_rows";
+    // Rows on file are ready whether or not they are fresh. Age is last-seen, not "Working"/"live".
+    const readiness = activeRows > 0 ? "ready" : "no_rows";
     bySource.set(source, {
       ...current,
       source,
       id: source,
       readiness,
       userStatus:
-        readiness === "ready"
-          ? "Working"
-          : readiness === "needs_run"
-            ? "Needs refresh"
-            : "No rows",
+        readiness === "ready" ? lastSeenLabel(freshnessHours) : "No rows",
       activeRows,
       rowsWithPhotos: Math.round((activeRows * photoCoveragePct) / 100),
       photoCoveragePct,
@@ -61,10 +70,8 @@ export function mergeStatusSources(runHealth: any[], sourceBreakdown: any[]) {
           : new Date(Date.now() - freshnessHours * 3600_000).toISOString(),
       nextAction:
         readiness === "ready"
-          ? "Open Scan for this source and inspect proof-ranked vehicles."
-          : readiness === "needs_run"
-            ? "Refresh this source and verify rows, photos, and freshness."
-            : "Run or broaden this source before expecting inventory.",
+          ? "Open Scan to review stored listings. Last seen is not a live scrape."
+          : "Run or broaden this source before expecting inventory.",
     });
   }
   return Array.from(bySource.values()).sort((a, b) => {
@@ -124,7 +131,7 @@ export function summarizeSourceHealth(sources: any[], realData?: any) {
 // GET /api/system/status — the app's self-awareness: data freshness, per-source health (with
 // self-heal flags), and data-quality coverage. Read-only; powers the status surface and lets the
 // system (and the dealer) see whether it's running itself.
-export async function GET() {
+async function computeFullStatus(): Promise<Record<string, any>> {
   const configured = isSupabaseConfigured();
   const authProviders = configured
     ? await cached(
@@ -155,7 +162,7 @@ export async function GET() {
       auctionDatePct: 0,
       decisionReady: false,
     });
-    return NextResponse.json({
+    return {
       configured: false,
       authProviders,
       readiness,
@@ -222,7 +229,7 @@ export async function GET() {
       },
       sources: [],
       recentRuns: [],
-    });
+    };
   }
 
   const sb = createServerComponentClient();
@@ -403,7 +410,7 @@ export async function GET() {
   // Per-source health, computed live and cached 5 min. Some sources share a DB enum
   // (`gov_auction`, `independent_dealer`), so group by source URL when we know the host.
   const sourceBreakdown = await cached(
-    "status:source-breakdown:v5",
+    "status:source-breakdown:v6",
     300_000,
     async () => {
       const pageSize = 1000;
@@ -457,12 +464,7 @@ export async function GET() {
               ? Math.round((group.withImages / group.active) * 100)
               : 0,
             ageHours,
-            status:
-              group.active === 0
-                ? "idle"
-                : ageHours == null || ageHours > 72
-                  ? "stale"
-                  : "live",
+            status: sourceListingStatus(group.active, ageHours),
           };
         })
         .filter((row) => row.active > 0)
@@ -481,7 +483,7 @@ export async function GET() {
   const mergedSources = mergeStatusSources(health, sourceBreakdown);
   const sourceHealth = summarizeSourceHealth(mergedSources, realData);
 
-  return NextResponse.json({
+  return {
     configured: true,
     authProviders,
     readiness,
@@ -537,5 +539,87 @@ export async function GET() {
     },
     sources: mergedSources,
     recentRuns: recent,
+  };
+}
+
+const PUBLIC_READINESS_IDS = new Set([
+  "supabase",
+  "service-role",
+  "scrape-control",
+  "google-login",
+]);
+
+/**
+ * Public projection of the status payload. Anonymous and non-admin callers (register page, Google
+ * button, Today pulse, Scan) only need headline counts and sign-in readiness. Per-source health,
+ * scraper runs, env key presence, diagnostics, valuation backtests and learning internals stay
+ * admin-only.
+ */
+export function toPublicStatus(full: Record<string, any>) {
+  const auth = full?.authProviders || {};
+  const readiness = full?.readiness || {};
+  const items = Array.isArray(readiness.items) ? readiness.items : [];
+  const freshness = full?.freshness || {};
+  const quality = full?.quality || {};
+  return {
+    configured: Boolean(full?.configured),
+    scope: "public" as const,
+    authProviders: {
+      reachable: Boolean(auth.reachable),
+      google: typeof auth.google === "boolean" ? auth.google : null,
+      email: typeof auth.email === "boolean" ? auth.email : null,
+      checkedAt: auth.checkedAt ?? null,
+    },
+    readiness: {
+      ready: Boolean(readiness.ready),
+      items: items
+        .filter((item: any) => PUBLIC_READINESS_IDS.has(String(item?.id)))
+        .map((item: any) => ({
+          id: item.id,
+          label: item.label,
+          status: item.status,
+          nextStep: item.nextStep,
+          actionLabel: item.actionLabel,
+          userImpact: item.userImpact,
+        })),
+    },
+    buyerReady: Boolean(full?.buyerReady),
+    decisionReady: Boolean(full?.decisionReady),
+    activeDeals: Number(full?.activeDeals || 0),
+    sourceHealth: {
+      readySources: Number(full?.sourceHealth?.readySources || 0),
+      activeDeals: Number(full?.sourceHealth?.activeDeals || 0),
+    },
+    freshness: {
+      activeDeals: Number(freshness.activeDeals || 0),
+      newLast24h: Number(freshness.newLast24h || 0),
+      newestAgeHours:
+        typeof freshness.newestAgeHours === "number"
+          ? freshness.newestAgeHours
+          : null,
+      stale: freshness.stale !== false,
+    },
+    quality: {
+      goDeals: Number(quality.goDeals || 0),
+      watchCandidates: Number(quality.watchCandidates || 0),
+    },
+  };
+}
+
+// GET /api/system/status
+// Admin (ADMIN_EMAIL session or INGEST_SECRET bearer): full self-awareness payload for /status.
+// Everyone else: a cached public projection with headline counts only. The full build runs a
+// dozen count queries plus multi-page scans, so anonymous traffic only ever hits the cache.
+export async function GET(request: NextRequest) {
+  if (await canManageOperations(request)) {
+    return NextResponse.json(await computeFullStatus(), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+  const payload = await cached("status:public:v1", 120_000, async () =>
+    toPublicStatus(await computeFullStatus()),
+  );
+  return NextResponse.json(payload, {
+    headers: { "Cache-Control": "private, no-store" },
   });
 }

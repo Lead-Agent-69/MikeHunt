@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { filterRailsForDesk } from "@/lib/discovery/desk-rails";
 import {
   categorize,
   auctionHeat,
@@ -39,6 +41,10 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContactFields } from "@/lib/data/deal-contact";
+import {
+  redactListingForNonFlipDesk,
+  resolveCallerDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -209,6 +215,29 @@ function normalizeDealerSourceIds(value: string | null) {
     .slice(0, 25);
 }
 
+function parseMakesParam(value: string | null) {
+  const seen = new Set<string>();
+  const makes: string[] = [];
+  for (const part of (value || "").split(",")) {
+    const make = part.trim().replace(/\s+/g, " ");
+    const key = make.toLowerCase();
+    if (!make || seen.has(key)) continue;
+    seen.add(key);
+    makes.push(make);
+    if (makes.length >= 12) break;
+  }
+  return makes;
+}
+
+function rowMatchesMakes(row: { make?: string | null }, makes: string[]) {
+  if (!makes.length) return true;
+  const make = String(row.make || "")
+    .trim()
+    .toLowerCase();
+  if (!make) return false;
+  return makes.some((wanted) => wanted.toLowerCase() === make);
+}
+
 function rowTitleSignal(row: any) {
   return [
     row.title_type,
@@ -287,6 +316,7 @@ async function publicPreviewDeals(
   lane = "all",
   sellerType = "all",
   selectedSources: string[] = [],
+  makes: string[] = [],
 ) {
   const plan = planScrapeForBuyerScope({
     lane: lane || "all",
@@ -346,6 +376,7 @@ async function publicPreviewDeals(
     const matched = source.rows.filter((row: any) => {
       if (state && row.location_state !== state) return false;
       if (maxPrice && Number(row.ask_price || 0) > maxPrice) return false;
+      if (!rowMatchesMakes(row, makes)) return false;
       if (!rowMatchesQuery(row, q)) return false;
       return true;
     });
@@ -368,6 +399,7 @@ async function publicPreviewDeals(
     .filter((row: any) => {
       if (state && row.location_state !== state) return false;
       if (maxPrice && Number(row.ask_price || 0) > maxPrice) return false;
+      if (!rowMatchesMakes(row, makes)) return false;
       if (!rowMatchesQuery(row, q)) return false;
       return true;
     });
@@ -478,10 +510,12 @@ export async function GET(request: NextRequest) {
         searchParams.get("sourceId") ||
         searchParams.get("source"),
     );
+    const makes = parseMakesParam(searchParams.get("makes"));
+    const makesKey = makes.map((make) => make.toLowerCase()).join(",") || "any";
 
     if (!isSupabaseConfigured()) {
       const previewDeals = await cached(
-        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}`,
+        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
         60_000,
         () =>
           publicPreviewDeals(
@@ -491,6 +525,7 @@ export async function GET(request: NextRequest) {
             lane || "all",
             sellerType || "all",
             dealerSourceIds,
+            makes,
           ),
       );
       return NextResponse.json({
@@ -501,7 +536,10 @@ export async function GET(request: NextRequest) {
                 title: "Live Public Preview",
                 subtitle:
                   "Real GovDeals and PublicSurplus rows while Supabase import is pending",
-                deals: previewDeals.deals,
+                // Preview has no saved desk: always the redacted card.
+                deals: previewDeals.deals.map((d: any) =>
+                  redactListingForNonFlipDesk(d),
+                ),
               },
             ]
           : [],
@@ -517,6 +555,7 @@ export async function GET(request: NextRequest) {
         minPrice: minPrice || undefined,
         maxPrice: maxPrice || undefined,
         dealerSourceIds,
+        makes: makes.length ? makes : undefined,
         personalized: false,
         configured: false,
         previewMode: true,
@@ -528,7 +567,7 @@ export async function GET(request: NextRequest) {
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
     const { merged, rowCount, marketListingCount } = await cached(
-      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}`,
+      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -579,6 +618,7 @@ export async function GET(request: NextRequest) {
             )
           )
             return false;
+          if (!rowMatchesMakes(row, makes)) return false;
           if (lane && lane !== "all") {
             const rowLane = dealLane(row);
             if (lane === "damaged") {
@@ -942,8 +982,23 @@ export async function GET(request: NextRequest) {
       },
     ].filter((r) => r.deals.length > 0);
 
+    // Net profit, max bid, profit score, and seller contact only go to a saved reseller / dealer
+    // desk. Everyone else (signed out, personal, diy, parts, unknown, prefs error) gets redacted
+    // cards, and the wholesale flip rails (Top Flips, Auction Lots, Just Listed, and Salvage
+    // except for parts) are dropped here, not just hidden by the page. Cards are copied, never
+    // mutated, because `merged` is cached.
+    const desk = await resolveCallerDesk();
+    const flipDesk = desk === "flip";
+    const deskRails = flipDesk
+      ? rails
+      : filterRailsForDesk(rails, desk).map((r) => ({
+          ...r,
+          deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
+        }));
+
     return NextResponse.json({
-      rails,
+      rails: deskRails,
+      deskAccess: flipDesk ? "flip" : "personal",
       totalListings: rowCount,
       uniqueVehicles: merged.length,
       marketListings: marketListingCount,
@@ -956,11 +1011,12 @@ export async function GET(request: NextRequest) {
       minPrice: minPrice || undefined,
       maxPrice: maxPrice || undefined,
       dealerSourceIds,
+      makes: makes.length ? makes : undefined,
       personalized,
       configured: true,
       previewMode: false,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("discover", e);
   }
 }

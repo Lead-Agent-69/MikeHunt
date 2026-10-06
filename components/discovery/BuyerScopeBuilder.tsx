@@ -18,6 +18,7 @@ import {
   BadgeDollarSign,
   UsersRound,
   Hammer,
+  Package,
 } from "lucide-react";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
@@ -195,6 +196,7 @@ const BUYER_MODE_CHOICES: Array<{
 }> = [
   { value: "personal", icon: UserRound },
   { value: "diy", icon: Hammer },
+  { value: "parts", icon: Package },
   { value: "reseller", icon: BadgeDollarSign },
   { value: "dealer", icon: UsersRound },
 ];
@@ -497,11 +499,16 @@ export function BuyerScopeBuilder({
       fetch("/api/preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          buyerScope,
-          watchedDealerHosts: dealerWatch.hosts,
-          watchedDealerSourceIds: dealerSourceIds,
-        }),
+        // Only write the watch list once prefs have loaded, or an empty pre-load list would wipe it.
+        body: JSON.stringify(
+          dealerWatch.ready
+            ? {
+                buyerScope,
+                watchedDealerHosts: dealerWatch.hosts,
+                watchedDealerSourceIds: dealerSourceIds,
+              }
+            : { buyerScope },
+        ),
       }).catch(() => {
         /* guest users still keep local scope */
       });
@@ -517,6 +524,7 @@ export function BuyerScopeBuilder({
     maxPrice,
     makes,
     dealerWatch.hosts,
+    dealerWatch.ready,
     dealerSourceIds,
     loaded,
   ]);

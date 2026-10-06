@@ -24,7 +24,9 @@ services:
       SCRAPER_LOG_PATH: /app/logs/scraper.log
       STATUS_PORT: 8787
       ENABLE_HEADED_SCRAPERS: "1"
-      SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-queue}"
+      # hybrid = buyer-scoped queue first, broad state sweep while the queue is idle.
+      SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-hybrid}"
+      SWEEP_INTERVAL_HOURS: "${SWEEP_INTERVAL_HOURS:-4}"
       CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-false}"
       REMOTE_QUEUE_POLL_MS: "${REMOTE_QUEUE_POLL_MS:-5000}"
     ports:

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
@@ -23,7 +24,6 @@ export async function DELETE(
     .eq("id", id)
     .eq("user_id", user.id);
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return internalError("keys:[id]", error);
   return NextResponse.json({ success: true });
 }

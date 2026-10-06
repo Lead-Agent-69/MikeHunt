@@ -10,6 +10,7 @@ import {
   Wrench,
   TrendingUp,
   Building2,
+  Package,
   MapPin,
   ShieldCheck,
   Sparkles,
@@ -24,6 +25,10 @@ import {
   type BuyerMode,
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import {
+  onboardingHomeState,
+  onboardingLocationPatch,
+} from "@/lib/preferences/onboarding-location";
 
 const VEHICLES = [
   "All vehicle types",
@@ -45,13 +50,19 @@ const MODE_VISUALS = {
   },
   diy: {
     icon: Wrench,
-    position: "33.333%",
+    position: "25%",
     caption: "For your next project",
     color: "#9b6014",
   },
+  parts: {
+    icon: Package,
+    position: "50%",
+    caption: "For cores and teardown",
+    color: "#7a4a1a",
+  },
   reseller: {
     icon: TrendingUp,
-    position: "66.667%",
+    position: "75%",
     caption: "For your next opportunity",
     color: "#126a89",
   },
@@ -111,6 +122,9 @@ export default function OnboardingPage() {
   const [timeline, setTimeline] = useState("now");
   const [repairCapability, setRepairCapability] = useState("none");
   const [targetProfit, setTargetProfit] = useState("3000");
+  const [savedPrefs, setSavedPrefs] = useState<Record<string, any> | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -127,13 +141,14 @@ export default function OnboardingPage() {
           router.replace("/discover");
           return;
         }
-        const saved = preferencesData?.prefs?.buyerScope as
-          | Partial<BuyerIntent>
-          | undefined;
+        const prefs = preferencesData?.prefs || null;
+        setSavedPrefs(prefs);
+        const saved = prefs?.buyerScope as Partial<BuyerIntent> | undefined;
+        const homeState = onboardingHomeState(prefs, saved?.state);
+        if (homeState) setState(homeState);
         if (!saved) return;
         setBuyerMode(saved.buyerMode || "personal");
         setVehicle(saved.vehicle || "All vehicle types");
-        setState(saved.state || preferencesData?.prefs?.carsState || "");
         setMaxPrice(saved.maxPrice ? String(saved.maxPrice) : "");
         setTitleType(saved.titleType || "all");
         setTimeline(saved.timeline || "now");
@@ -179,9 +194,11 @@ export default function OnboardingPage() {
       ? "Your repair comfort guides the evidence we prioritize."
       : buyerMode === "personal"
         ? "Reliability, safety, and total ownership cost lead your decision."
-        : buyerMode === "reseller"
-          ? "Profit, repair risk, and time-to-sale lead your decision."
-          : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
+        : buyerMode === "parts"
+          ? "Core value, salvage title risk, and yard time lead your decision."
+          : buyerMode === "reseller"
+            ? "Profit, repair risk, and time-to-sale lead your decision."
+            : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
 
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
 
@@ -195,9 +212,8 @@ export default function OnboardingPage() {
         timeline,
         repairCapability: buyerMode === "diy" ? repairCapability : undefined,
       },
-      ...(state && state !== "Nationwide"
-        ? { carsState: state, carsStates: [state] }
-        : {}),
+      // Home location (#66) + legacy mirrors; saved search markets are kept.
+      ...onboardingLocationPatch(state, savedPrefs),
     };
     try {
       const [profileResult, preferenceResult] = await Promise.all([
@@ -320,6 +336,9 @@ export default function OnboardingPage() {
           </div>
           <label className="block text-sm font-bold text-[var(--t2)]">
             Home state
+            <span className="mt-0.5 block text-xs font-medium text-[var(--t4)]">
+              Where you live. Add other markets to search in Settings.
+            </span>
             <select
               value={state}
               onChange={(event) => setState(event.target.value)}

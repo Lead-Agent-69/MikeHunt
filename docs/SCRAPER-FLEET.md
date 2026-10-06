@@ -1,5 +1,11 @@
 # Scraper fleet — deploying across multiple IPs
 
+> **Current production (2026-10-04): Zeus Docker only.** The live fleet is one residential Windows
+> box (Zeus) running `docker compose -f docker-compose.local.yml up -d` — see `docs/LOCAL-SCRAPER.md`.
+> It writes thin rows (listing fields + photo URLs, never photo bytes) to Supabase; the web app runs
+> on Vercel Hobby. **There is no Fly.io deployment** and none is planned (free stack only). The
+> sections below are how to add more residential/free hosts if one IP stops being enough.
+
 > **The single most important operational fact:** anti-bot walls (Cloudflare, DataDome, PerimeterX,
 > Akamai) score by **IP reputation**. One box hammering a host gets flagged — you watched a single
 > laptop IP get burned repeatedly in testing. The fleet only works as designed when its replicas run on
@@ -23,7 +29,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ENABLE_HEADED_SCRAPERS=1        # turn on the headed tier (xvfb is in the image)
 SCRAPE_INTERVAL_MS=1800000      # 30 min
+# Optional micro-AI dealer crawl producer (default OFF). See docs/AI-SCRAPER.md.
+# Needs Redis + free-tier Gemini. Invent consumer stays disabled — this only enqueues.
+# ENABLE_AI_DEALER_CRAWL=1
+# AI_CRAWL_SITES_MAX=8
+# AI_CRAWL_VDP_CAP=12
+# GOOGLE_GENERATIVE_AI_API_KEY=...
 # optional: dedicate a node to the walled trio
+# Dockerfile.scraper does not bake SCRAPE_SOURCES — leave unset for terms-safe defaults; set only to explicitly opt in (logs a warning each sweep).
 # SCRAPE_SOURCES=cars_com,autotrader,truecar
 ```
 
@@ -35,33 +48,24 @@ Residential IPs are _trusted_ by anti-bot vendors (datacenter IPs are suspected 
 2–3 machines on different home/office networks, that's the strongest free fleet.
 
 ```
-git pull && docker compose build scraper && docker compose up -d scraper
+git pull && docker compose -f docker-compose.local.yml build scraper && docker compose -f docker-compose.local.yml up -d
 ```
 
 Run it on each machine (each has its own residential IP). Done.
 
-### 2. Multiple cheap/free cloud VMs (different IPs)
+### 2. Free cloud VMs (different IPs)
 
-**Oracle Cloud Free Tier** gives 2–4 always-free VMs; **Fly.io / Hetzner / a few $4 VPS** also work. The
-point is **one container per VM** so each gets a distinct IP. On each VM:
-
-```
-git clone <repo> && cd Autoverse
-# put the env vars in a .env next to docker-compose.yml
-docker compose build scraper && docker compose up -d scraper
-```
-
-### 3. Fly.io multi-region (one machine per region = distinct IPs)
-
-Use the included `fly.toml` (builds `Dockerfile.scraper`). Each Fly _machine_ gets its own IP; spread
-across regions for IP + geographic diversity:
+**Oracle Cloud Free Tier** gives 2–4 always-free VMs. Datacenter IPs are suspected by anti-bot vendors
+by default, so these are weaker than a home PC, but they are free. The point is **one container per VM**
+so each gets a distinct IP. On each VM:
 
 ```
-fly launch --no-deploy            # once, to create the app
-fly secrets set NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... ENABLE_HEADED_SCRAPERS=1 ...
-fly deploy
-fly scale count 3 --region iad,ord,sjc   # 3 machines, 3 regions, 3 IPs
+git clone <repo> && cd MikeHunt
+# put the env vars in .env.local.scraper (see docs/LOCAL-SCRAPER.md)
+docker compose -f docker-compose.local.yml build scraper && docker compose -f docker-compose.local.yml up -d
 ```
+
+No paid hosts (Fly.io, VPS, proxies): the stack stays free.
 
 ## What NOT to do
 
@@ -72,7 +76,8 @@ fly scale count 3 --region iad,ord,sjc   # 3 machines, 3 regions, 3 IPs
 
 ## Verifying it's actually working
 
-- `/status` → "Live inventory by source": cars_com / autotrader / truecar should show **live** with
-  recent freshness once a headed host is running.
+- `/status` (admin) → per-source rows on file with **Seen Xh ago** from `deals.last_seen_at` for
+  cars_com / autotrader / truecar once a headed host is running. Last-seen is stored-row age, not a
+  live heartbeat.
 - `/status` → "Valuation accuracy" + "Price knowledge base" climb as data flows.
-- `docker compose logs -f scraper` → `[smartFetch] www.autotrader.com → solved via "headed"`.
+- `docker compose -f docker-compose.local.yml logs -f scraper` → `[smartFetch] www.autotrader.com → solved via "headed"`.

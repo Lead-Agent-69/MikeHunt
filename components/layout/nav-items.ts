@@ -31,6 +31,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 export type NavItem = {
   name: string;
@@ -70,6 +71,88 @@ export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Account", href: "/settings", icon: CircleUserRound },
 ];
+
+/**
+ * Wholesale flip tools: auction lanes, the dealer pipeline, and arbitrage.
+ * Personal, DIY, and parts buyers do not get these as tabs. The routes still
+ * work if opened directly; they are just not offered in the nav.
+ */
+export const FLIP_ONLY_HREFS: readonly string[] = [
+  "/lane",
+  "/auctions",
+  "/fleet",
+  "/arbitrage",
+];
+
+const ALERTS_TAB: NavItem = { name: "Alerts", href: "/alerts", icon: BellRing };
+
+/**
+ * Nav tabs that only work with an account. Middleware sends a signed-out
+ * visitor on these to /login, so the nav says so up front instead of the tab
+ * silently bouncing them.
+ */
+export const SIGN_IN_REQUIRED_HREFS: readonly string[] = ["/saved", "/alerts"];
+
+export type ViewerNavItem = NavItem & { signInRequired?: boolean };
+
+/**
+ * For a signed-out visitor, Saved and Alerts link straight to sign-in (with a
+ * return path) and are flagged so the nav can mark them. Pass `signedOut` only
+ * once the session check has finished, so signed-in users never see a flash.
+ */
+export function navItemForViewer(
+  item: NavItem,
+  signedOut: boolean,
+): ViewerNavItem {
+  if (!signedOut || !SIGN_IN_REQUIRED_HREFS.includes(item.href)) return item;
+  return {
+    ...item,
+    href: `/login?next=${encodeURIComponent(item.href)}`,
+    signInRequired: true,
+  };
+}
+
+/**
+ * Hide flip tools unless the desk is reseller or dealer. An unknown mode
+ * (signed out, no saved prefs) is treated as personal, matching
+ * lib/buyer/flip-lead.ts.
+ */
+export function hidesFlipNav(buyerMode: unknown): boolean {
+  return !isFlipBuyerMode(buyerMode);
+}
+
+function isFlipOnly(item: NavItem) {
+  return FLIP_ONLY_HREFS.includes(item.href);
+}
+
+/** Desktop primary nav for the saved buyer mode. */
+export function primaryNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return PRIMARY;
+  return [...PRIMARY.filter((item) => !isFlipOnly(item)), ALERTS_TAB];
+}
+
+/** Mobile tabs for the saved buyer mode. Keeps five tabs: Pipeline becomes Alerts. */
+export function mobileNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return MOBILE_PRIMARY;
+  return MOBILE_PRIMARY.map((item) => (isFlipOnly(item) ? ALERTS_TAB : item));
+}
+
+/**
+ * Scan entry point for the saved buyer mode. Flip desks sort by profit; other
+ * desks sort by trust score, since profit is not their goal.
+ */
+export function scanHrefForMode(buyerMode: unknown): string {
+  return hidesFlipNav(buyerMode) ? "/scan?sort=score" : "/scan?sort=profit";
+}
+
+/** Grouped "More" routes for the saved buyer mode. */
+export function moreGroupsForMode(buyerMode: unknown): NavGroup[] {
+  if (!hidesFlipNav(buyerMode)) return MORE_GROUPS;
+  return MORE_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !isFlipOnly(item)),
+  })).filter((group) => group.items.length > 0);
+}
 
 export const MORE_GROUPS: NavGroup[] = [
   {

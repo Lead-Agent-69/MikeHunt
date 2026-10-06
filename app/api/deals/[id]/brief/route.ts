@@ -12,6 +12,7 @@ import {
 } from "@/lib/ai/text-model";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 
 // GET /api/deals/[id]/brief — a short, plain-English dealer brief for a deal: why the verdict, the
 // real risks, and what to verify before bidding. Generated from the deal's own structured numbers
@@ -45,6 +46,19 @@ export function buildBriefModeMetadata({
         : "Cached brief shown while no AI provider key is configured."
       : undefined,
   };
+}
+
+/** Service-role writes must name a real user id. Cron is not an owner. */
+export function aiBriefWriteDecision(
+  analysis: { aiBrief?: unknown; aiBriefUserId?: unknown } | null | undefined,
+  userId: string | null | undefined,
+): "create" | "overwrite" | "reject" {
+  const actor = typeof userId === "string" ? userId.trim() : "";
+  if (!actor || actor === "cron") return "reject";
+  const existing = analysis?.aiBrief;
+  const hasBrief = typeof existing === "string" && existing.trim().length > 0;
+  if (!hasBrief) return "create";
+  return analysis?.aiBriefUserId === actor ? "overwrite" : "reject";
 }
 
 export function buildDeterministicDealBrief(d: any) {
@@ -99,15 +113,33 @@ export async function GET(
   const refresh = sp.get("refresh") === "1";
   // Generation is explicit (a click) so a plain page view never spends tokens.
   const wantGenerate = refresh || sp.get("generate") === "1";
+  let callerUserId: string | null = null;
   if (wantGenerate) {
     const caller = await requirePaidAiCaller(req);
     if (!caller.ok) return caller.response;
+    callerUserId = caller.userId;
     const genRl = rateLimit(req, {
       key: `brief:${caller.userId}`,
       limit: 10,
       windowMs: 60_000,
     });
     if (!genRl.allowed) return tooManyRequests(genRl);
+  }
+
+  // The brief is a flip CFO memo (net profit, max bid, holding cost). Only a saved reseller /
+  // dealer desk gets it; everyone else gets a hidden widget and generation is refused (fail closed).
+  if (!(await resolveCallerFlipDesk())) {
+    if (wantGenerate) {
+      return NextResponse.json(
+        { error: "The deal brief is part of the dealer desk." },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json({
+      brief: null,
+      canGenerate: false,
+      deskAccess: "personal",
+    });
   }
   const supabase = createServerComponentClient();
 
@@ -146,6 +178,16 @@ export async function GET(
         provider: activeProvider(),
       }),
     });
+  }
+
+  // The service-role client can update any deal. Bind the write to the session user
+  // and refuse a cross-user overwrite, including an unowned cached brief.
+  const writeDecision = aiBriefWriteDecision(d.deal_analysis, callerUserId);
+  if (writeDecision === "reject") {
+    return NextResponse.json(
+      { error: "Only the brief owner can write this brief." },
+      { status: 403 },
+    );
   }
 
   if (!hasTextModel()) {
@@ -213,6 +255,7 @@ Keep it under 110 words. Be direct, financial, and practical.`;
             ...(d.deal_analysis || {}),
             aiBrief: brief,
             aiBriefAt: new Date().toISOString(),
+            aiBriefUserId: callerUserId,
           },
         })
         .eq("id", id);

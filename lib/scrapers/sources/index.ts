@@ -1,6 +1,7 @@
 // lib/scrapers/sources/index.ts
 // ─── Per-source scraper implementations ──────────────────────────────────────
 
+import { createRobotsGate, policyBlockFor } from "../source-compliance";
 import type { Deal } from "@/types";
 import {
   fetchBrowser,
@@ -22,6 +23,7 @@ import {
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
+import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import pLimit from "p-limit";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
@@ -201,6 +203,47 @@ const CL_CITIES: string[] = (() => {
   return cap > 0 ? all.slice(0, cap) : all;
 })();
 
+/**
+ * Craigslist sites for this run. CL_CITIES (operator override) wins. In a Docker sweep, every
+ * site in the planned states, so each run covers a rotating slice of all 50 states. Otherwise
+ * the full (optionally sharded/capped) list.
+ */
+export function craigslistSitesForRun(
+  plan: SweepPlan | undefined = getSweepPlan(),
+  envCities: string | undefined = process.env.CL_CITIES,
+): string[] {
+  if (envCities?.trim()) return CL_CITIES;
+  if (plan?.states?.length) {
+    const wanted = new Set(plan.states.map((s) => s.toUpperCase()));
+    const sites = CRAIGSLIST_SITES.filter((s) => wanted.has(s.state)).map(
+      (s) => s.site,
+    );
+    if (sites.length) return sites;
+  }
+  return CL_CITIES;
+}
+
+/**
+ * Craigslist search URL for one site, channel, and page. `query` is a full-text filter, so the old
+ * default "cars+trucks" only matched posts containing those words: 21 of 355 Dallas owner listings
+ * on 2026-10-04. No query returns the whole category.
+ */
+export function craigslistSearchUrl(
+  city: string,
+  channelPath: string,
+  page: number,
+  query = "",
+  minPrice = 500,
+  maxPrice = 35000,
+): string {
+  const params = new URLSearchParams();
+  if (query.trim()) params.set("query", query.trim());
+  params.set("min_price", String(minPrice));
+  params.set("max_price", String(maxPrice));
+  if (page > 1) params.set("s", String((page - 1) * 120));
+  return `https://${city}.craigslist.org/search/${channelPath}?${params.toString()}`;
+}
+
 export const CL_CONFIG: ScraperConfig = {
   name: "Craigslist",
   baseUrl: "https://craigslist.org",
@@ -219,82 +262,103 @@ const CL_CHANNELS: { path: string; source: string }[] = [
   { path: "ctd", source: "craigslist_dealer" }, // cars+trucks by dealer (retail)
 ];
 
+/** Parse one Craigslist search page (current static layout and the legacy result-row). */
+export async function parseCraigslistResults(
+  $raw: unknown,
+  city: string,
+  channel: { path: string; source: string },
+): Promise<{ items: Partial<Deal>[]; hasMore: boolean }> {
+  const cheerio = await import("cheerio");
+  const $ =
+    typeof $raw === "string"
+      ? cheerio.load($raw)
+      : ($raw as ReturnType<typeof cheerio.load>);
+  const items: Partial<Deal>[] = [];
+
+  $(".cl-static-search-result, .cl-search-result, li.result-row").each(
+    (_, el) => {
+      const row = $(el);
+      const title = row
+        .find(".title, .title-anchor, a.result-title")
+        .text()
+        .trim();
+      const priceText = row.find(".price").text().trim();
+      const url = row.find("a").attr("href");
+      const hood = row
+        .find(".location, .hood")
+        .text()
+        .replace(/[()]/g, "")
+        .trim();
+      const imgSrc = row.find("img").attr("src");
+
+      if (!title) return;
+
+      items.push({
+        source: channel.source,
+        source_deal_id: url?.split("/").pop()?.replace(".html", "") || "",
+        source_url: url
+          ? normalizeUrl(url, `https://${city}.craigslist.org`)
+          : "",
+        title,
+        year: extractYear(title),
+        make: title.split(" ").slice(1, 2).join("") || "",
+        model: title.split(" ").slice(2, 4).join(" ") || "",
+        ask_price: extractPrice(priceText) || 0,
+        mileage: mileageFromTitle(title),
+        condition: "run_drive",
+        location_city: hood || city,
+        location_state: CL_SITE_STATE.get(city),
+        seller_type:
+          channel.source === "craigslist_dealer" ? "dealer" : "private",
+        images: imgSrc ? [imgSrc] : [],
+      });
+    },
+  );
+
+  const totalText = $(".totalcount").text();
+  const total = parseInt(totalText) || 0;
+  const offset = parseInt(
+    new URL(
+      $('link[rel="next"]').attr("href") || "",
+      "https://craigslist.org",
+    ).searchParams.get("s") || "0",
+  );
+  return { items, hasMore: offset < total && items.length > 0 };
+}
+
 export async function scrapeCraigslist(
-  query = "cars+trucks",
+  query = process.env.CL_QUERY || "",
   minPrice = 500,
   maxPrice = 35000,
 ) {
+  const plan = getSweepPlan();
+  const cities = craigslistSitesForRun(plan);
+  // A sweep covers many sites. Keep each one shallow (CL_SWEEP_PAGES, default 2 x 120 rows).
+  const config: ScraperConfig = plan
+    ? {
+        ...CL_CONFIG,
+        maxPages: Math.max(1, parseInt(process.env.CL_SWEEP_PAGES || "2") || 2),
+      }
+    : CL_CONFIG;
   console.log(
-    `[Craigslist] Scanning ${CL_CITIES.length} cities × ${CL_CHANNELS.length} channels...`,
+    `[Craigslist] Scanning ${cities.length} cities × ${CL_CHANNELS.length} channels...`,
   );
   const allDeals: Partial<Deal>[] = [];
 
-  for (const city of CL_CITIES) {
+  for (const city of cities) {
     for (const channel of CL_CHANNELS) {
       const gen = paginate<Partial<Deal>>(
-        CL_CONFIG,
+        config,
         (page) =>
-          `https://${city}.craigslist.org/search/${channel.path}?` +
-          `query=${query}&min_price=${minPrice}&max_price=${maxPrice}&s=${(page - 1) * 120}`,
-        async ($raw) => {
-          const cheerio = await import("cheerio");
-          const $ =
-            typeof $raw === "string"
-              ? cheerio.load($raw)
-              : ($raw as ReturnType<typeof cheerio.load>);
-          const items: Partial<Deal>[] = [];
-
-          $(".cl-static-search-result, .cl-search-result, li.result-row").each(
-            (_, el) => {
-              const row = $(el);
-              const title = row
-                .find(".title, .title-anchor, a.result-title")
-                .text()
-                .trim();
-              const priceText = row.find(".price").text().trim();
-              const url = row.find("a").attr("href");
-              const hood = row
-                .find(".location, .hood")
-                .text()
-                .replace(/[()]/g, "")
-                .trim();
-              const imgSrc = row.find("img").attr("src");
-
-              if (!title) return;
-
-              items.push({
-                source: channel.source,
-                source_deal_id:
-                  url?.split("/").pop()?.replace(".html", "") || "",
-                source_url: url
-                  ? normalizeUrl(url, `https://${city}.craigslist.org`)
-                  : "",
-                title,
-                year: extractYear(title),
-                make: title.split(" ").slice(1, 2).join("") || "",
-                model: title.split(" ").slice(2, 4).join(" ") || "",
-                ask_price: extractPrice(priceText) || 0,
-                mileage: mileageFromTitle(title),
-                condition: "run_drive",
-                location_city: hood || city,
-                location_state: CL_SITE_STATE.get(city),
-                seller_type:
-                  channel.source === "craigslist_dealer" ? "dealer" : "private",
-                images: imgSrc ? [imgSrc] : [],
-              });
-            },
-          );
-
-          const totalText = $(".totalcount").text();
-          const total = parseInt(totalText) || 0;
-          const offset = parseInt(
-            new URL(
-              $('link[rel="next"]').attr("href") || "",
-              "https://craigslist.org",
-            ).searchParams.get("s") || "0",
-          );
-          return { items, hasMore: offset < total && items.length > 0 };
-        },
+          craigslistSearchUrl(
+            city,
+            channel.path,
+            page,
+            query,
+            minPrice,
+            maxPrice,
+          ),
+        ($raw) => parseCraigslistResults($raw, city, channel),
       );
 
       for await (const batch of gen) allDeals.push(...batch);
@@ -775,7 +839,19 @@ export async function scrapeCuratedSites(
       ),
     );
   };
-  const sites = CURATED_SITES.filter(matchesRequestedDealer).slice(0, maxSites);
+  // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
+  const candidates = CURATED_SITES.filter(matchesRequestedDealer);
+  const blocked = candidates.filter((site) => policyBlockFor(site.url));
+  if (blocked.length)
+    console.log(
+      `[CuratedSites] skipping ${blocked.length} by site policy: ${blocked
+        .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
+        .join(", ")}`,
+    );
+  const sites = candidates
+    .filter((site) => !policyBlockFor(site.url))
+    .slice(0, maxSites);
+  const robotsAllowed = createRobotsGate();
   console.log(
     `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites${
       requestedDealers.size
@@ -790,6 +866,27 @@ export async function scrapeCuratedSites(
     const d = SITE_TYPE_DEFAULTS[site.type];
     try {
       const cdgDealer = cdgDealerForSite(site.url);
+      const firstPages = [
+        site.url,
+        site.inventoryUrl
+          ? new URL(site.inventoryUrl, site.url).toString()
+          : cdgDealer?.inventoryUrl,
+      ].filter(Boolean) as string[];
+      const disallowed = [];
+      for (const page of firstPages)
+        if (!(await robotsAllowed(page))) disallowed.push(page);
+      if (disallowed.length) {
+        console.log(
+          `[CuratedSites] ${site.name}: robots.txt disallows ${disallowed.join(", ")} (skipped)`,
+        );
+        yields.push({
+          name: site.name,
+          state: site.state,
+          type: site.type,
+          n: 0,
+        });
+        continue;
+      }
       const n = site.url.toLowerCase().includes("aeofmiami.com")
         ? await scrapeAeOfMiami(scope)
         : cdgDealer

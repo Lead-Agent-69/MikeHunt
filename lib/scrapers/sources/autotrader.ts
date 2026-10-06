@@ -9,6 +9,7 @@ import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
+import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 
 const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
 
@@ -143,48 +144,84 @@ export function parseAutotraderNextData(
   return items;
 }
 
+/**
+ * Search centers for one AutoTrader run: an explicit ZIP, else one metro per state in the Docker
+ * sweep plan, else one random state seed (the old behavior).
+ */
+export function autotraderSearchZips(
+  zip = "",
+  plan: SweepPlan | undefined = getSweepPlan(),
+  random = Math.random,
+): string[] {
+  if (zip) return [zip];
+  const planned = sweepPlanZips(plan, 1);
+  if (planned.length) return planned;
+  const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+  return [zips[Math.floor(random() * zips.length)] || "75201"];
+}
+
 export async function scrapeAutoTrader(
   searchTerm = "",
   zip = "",
   maxPages = AUTOTRADER_CONFIG.maxPages,
 ) {
-  // No zip → pick a random state seed ZIP so the rotation spreads geographic comp coverage
-  // instead of re-scraping Dallas every cycle.
-  if (!zip) {
-    const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
-    zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
-  }
-  console.log(`[AutoTrader] Starting scrape near ${zip}...`);
-  const allDeals: Partial<Deal>[] = [];
+  const zips = autotraderSearchZips(zip);
+  // A sweep spreads pages across many centers instead of 10 deep pages around one city.
+  const pagesPerZip =
+    zips.length > 1
+      ? Math.min(
+          maxPages,
+          Math.max(
+            1,
+            parseInt(process.env.AUTOTRADER_PAGES_PER_ZIP || "3") || 3,
+          ),
+        )
+      : maxPages;
+  console.log(
+    `[AutoTrader] Starting scrape near ${zips.join(", ")} (${pagesPerZip} pages each)...`,
+  );
+  const seen = new Set<string>();
+  let total = 0;
 
   // Akamai-walled — smartFetch escalates to the headed real-Chrome tier (Akamai detects headless) and
   // renders the full __NEXT_DATA__ inventory. Where no display exists (bare CI) smartFetch returns
   // blocked and we degrade to 0 — AutoTempest backstops the listings until xvfb is wired.
-  for (let page = 1; page <= maxPages; page++) {
-    const params = new URLSearchParams({
-      zip,
-      searchRadius: "100",
-      ...(searchTerm && { makeCodeList: searchTerm }),
-      startYear: "2010",
-      numRecords: "25",
-      firstRecord: String((page - 1) * 25),
-    });
-    const url = `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
-    const { html, blocked } = await smartFetch(url, {
-      validate: (h) => parseAutotraderNextData(h).length > 0,
-    });
-    if (blocked) {
-      console.warn(`[AutoTrader] blocked near ${zip} (no tier passed)`);
-      break;
+  for (const center of zips) {
+    const zipDeals: Partial<Deal>[] = [];
+    for (let page = 1; page <= pagesPerZip; page++) {
+      const params = new URLSearchParams({
+        zip: center,
+        searchRadius: "100",
+        ...(searchTerm && { makeCodeList: searchTerm }),
+        startYear: "2010",
+        numRecords: "25",
+        firstRecord: String((page - 1) * 25),
+      });
+      const url = `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
+      const { html, blocked } = await smartFetch(url, {
+        validate: (h) => parseAutotraderNextData(h).length > 0,
+      });
+      if (blocked) {
+        console.warn(`[AutoTrader] blocked near ${center} (no tier passed)`);
+        break;
+      }
+      const items = parseAutotraderNextData(html, center);
+      if (!items.length) break;
+      // Page length still paginates. Only listing-derived states are stored.
+      for (const d of items) {
+        if (!listingStateCode(d.location_state)) continue;
+        const key = String(d.source_deal_id || "");
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        zipDeals.push(d);
+      }
+      if (items.length < 20) break;
     }
-    const items = parseAutotraderNextData(html, zip);
-    if (!items.length) break;
-    // Page length still paginates. Only listing-derived states are stored.
-    allDeals.push(...items.filter((d) => listingStateCode(d.location_state)));
-    if (items.length < 20) break;
+    // Save per search center so a later block does not lose earlier pages.
+    if (zipDeals.length > 0) await upsertDeals(zipDeals);
+    total += zipDeals.length;
   }
 
-  console.log(`[AutoTrader] Found ${allDeals.length} deals`);
-  if (allDeals.length > 0) await upsertDeals(allDeals);
-  return allDeals.length;
+  console.log(`[AutoTrader] Found ${total} deals`);
+  return total;
 }

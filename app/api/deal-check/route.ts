@@ -12,8 +12,9 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // POST /api/deal-check  { image: <data URL> }
 // Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
-// (price, fees, add-ons, taxes, OTD, red flags) → compared to our market. Uses the existing
-// OpenAI/Google model. Auth + rate-limited; an explicit, cost-aware action.
+// (price, fees, add-ons, taxes, OTD, red flags) → compared to our market. Extraction only: the
+// model reads numbers printed on the document, never invents them. Needs ANTHROPIC_API_KEY (no
+// OpenAI/Gemini fallback); returns 503 without it. Auth + rate-limited.
 const PROMPT = `Extract every financial detail from this vehicle deal sheet / buyer's order / auction run sheet. Return ONLY JSON (no prose), with this shape:
 {
   "vehicle": { "year": number|null, "make": string|null, "model": string|null, "vin": string|null, "mileage": number|null },
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     );
   if (!hasTextModel())
     return NextResponse.json(
-      { error: "No AI provider key configured." },
+      { error: "Deal Check needs an AI key and is off on this deployment." },
       { status: 503 },
     );
 

@@ -1975,6 +1975,7 @@ export type Database = {
           source: string | null
           source_item_id: string | null
           source_url: string | null
+          title: string | null
           trim: string | null
           vin: string | null
           year: number | null
@@ -1993,6 +1994,7 @@ export type Database = {
           source?: string | null
           source_item_id?: string | null
           source_url?: string | null
+          title?: string | null
           trim?: string | null
           vin?: string | null
           year?: number | null
@@ -2011,6 +2013,7 @@ export type Database = {
           source?: string | null
           source_item_id?: string | null
           source_url?: string | null
+          title?: string | null
           trim?: string | null
           vin?: string | null
           year?: number | null

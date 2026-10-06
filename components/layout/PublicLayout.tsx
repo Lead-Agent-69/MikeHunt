@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { Ico } from "@/components/shared/Ico";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 
 interface PublicLayoutProps {
@@ -40,16 +39,10 @@ export function PublicLayout({
                 Home
               </Link>
               <Link
-                href="/#features"
+                href="/#how-it-works"
                 className="text-sm font-medium text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
               >
-                Features
-              </Link>
-              <Link
-                href="/#pricing"
-                className="text-sm font-medium text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
-              >
-                Pricing
+                How it works
               </Link>
               <Link
                 href="/privacy"
@@ -104,165 +97,34 @@ export function PublicLayout({
         {children}
       </main>
 
-      {/* Professional Footer */}
+      {/* Footer: only routes that exist. Mirrors the landing page footer. */}
       <footer className="border-t border-[var(--b1)] bg-[var(--s0)] mt-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            {/* Company */}
-            <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                <MikeHuntLogo size="sm" />
-              </div>
-              <p className="text-sm text-[var(--t4)] mb-4">
-                Vehicle sourcing intelligence for dealers. Find underpriced cars
-                with AI-powered market analysis.
-              </p>
-              <div className="flex gap-4">
-                <a
-                  href="#"
-                  className="text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  aria-label="Twitter"
-                >
-                  <Ico name="message" size={20} />
-                </a>
-                <a
-                  href="#"
-                  className="text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  aria-label="LinkedIn"
-                >
-                  <Ico name="users" size={20} />
-                </a>
-              </div>
-            </div>
-
-            {/* Product */}
-            <div>
-              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">
-                Product
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/#features"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/#pricing"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/#integrations"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Integrations
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/#api"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    API
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">
-                Company
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/about"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    About
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/blog"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/careers"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Careers
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/contact"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Contact
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h3 className="text-sm font-bold text-[var(--t1)] mb-4">Legal</h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/privacy"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/tos"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Terms of Service
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/security"
-                    className="text-sm text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  >
-                    Security
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-[var(--b1)] pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto flex flex-col gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
+          <div className="flex flex-col gap-2">
+            <MikeHuntLogo size="sm" />
             <p className="text-sm text-[var(--t4)]">
-              © {new Date().getFullYear()} MikeHunt. All rights reserved.
+              Used-car sourcing for personal buyers, builders, parts buyers,
+              resellers, and dealers.
             </p>
-            <div className="flex items-center gap-6">
-              <span className="text-sm text-[var(--t4)]">Made with</span>
-              <div className="flex items-center gap-1 text-[var(--t4)]">
-                <Ico name="car" size={16} />
-                <Ico name="dollar" size={16} />
-                <Ico name="star" size={16} />
-              </div>
-            </div>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-[var(--t3)]">
+            <Link href="/" className="hover:text-[var(--t1)]">
+              Home
+            </Link>
+            <Link href="/privacy" className="hover:text-[var(--t1)]">
+              Privacy
+            </Link>
+            <Link href="/tos" className="hover:text-[var(--t1)]">
+              Terms
+            </Link>
+            <Link href="/login" className="hover:text-[var(--t1)]">
+              Sign in
+            </Link>
           </div>
         </div>
+        <p className="border-t border-[var(--b1)] px-4 py-4 text-center text-xs text-[var(--t4)]">
+          © {new Date().getFullYear()} MikeHunt. All rights reserved.
+        </p>
       </footer>
     </div>
   );

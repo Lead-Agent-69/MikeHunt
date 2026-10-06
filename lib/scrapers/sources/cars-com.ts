@@ -4,6 +4,8 @@ import { enrichAndStore } from "./shared";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
 import { getScrapeRunScope } from "../run-scope-context";
+import { getSweepPlan, type SweepPlan } from "../sweep-plan";
+import { metroZipsForState } from "@/lib/geo/metro-zips";
 
 // cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
 // <fuse-card> carries a `data-vehicle-details="{JSON}"` attribute with clean structured data
@@ -76,11 +78,13 @@ function placeFromVehicle(v: any): { city?: string; state?: string } {
 /**
  * States Cars.com is allowed to search.
  * CARS_STATES (comma-separated) is an operator override.
- * Otherwise one saved buyer state. Never the full US list.
+ * Then one saved buyer state. Then the Docker sweep's planned states (a rotating slice).
+ * Never the full US list in one run.
  */
 export function resolveCarsComStates(
   env: string | undefined = process.env.CARS_STATES,
   scope = getScrapeRunScope(),
+  plan: SweepPlan | undefined = getSweepPlan(),
 ): string[] {
   const fromEnv = String(env || "")
     .split(",")
@@ -92,7 +96,30 @@ export function resolveCarsComStates(
     .map((s) => listingStateCode(s))
     .filter((s): s is string => Boolean(s));
   const unique = Array.from(new Set(saved));
-  return unique.length ? [unique[0]] : [];
+  if (unique.length) return [unique[0]];
+
+  const planned = (plan?.states || [])
+    .map((s) => listingStateCode(s))
+    .filter((s): s is string => Boolean(s));
+  return Array.from(new Set(planned));
+}
+
+/**
+ * Search-center ZIPs for one state. The sweep plan's rotated metros when present, else the
+ * first CARS_ZIPS_PER_STATE metros (default 2). Search centers only; never a row's state.
+ */
+export function carsComZipsForState(
+  state: string,
+  plan: SweepPlan | undefined = getSweepPlan(),
+  perState = Math.max(1, parseInt(process.env.CARS_ZIPS_PER_STATE || "2") || 2),
+): string[] {
+  const code = listingStateCode(state);
+  if (!code) return [];
+  const planned = plan?.zipsByState?.[code];
+  if (planned?.length) return planned;
+  const metros = metroZipsForState(code, perState);
+  if (metros.length) return metros;
+  return STATE_SEED_ZIPS[code] ? [STATE_SEED_ZIPS[code]] : [];
 }
 
 /** Parse cars.com SRP HTML. Rows without a listing state are dropped. */
@@ -168,48 +195,57 @@ export const CARS_COM_CONFIG: ScraperConfig = {
   maxPages: 10,
 };
 
-export async function scrapeCarsCom(
-  searchTerm = "",
-  state = "",
-  maxPages = 5,
-) {
+export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
   const code = listingStateCode(state);
-  const zip = code ? STATE_SEED_ZIPS[code] || "" : "";
-  if (!code || !zip) return 0;
-  console.log(`[Cars.com] Starting scrape for saved state ${code}...`);
+  const zips = code ? carsComZipsForState(code) : [];
+  if (!code || !zips.length) return 0;
+  console.log(
+    `[Cars.com] Starting scrape for ${code} around ${zips.join(", ")}...`,
+  );
 
+  // Overlapping 100mi circles return the same car twice. Store each listing once per run.
+  const seen = new Set<string>();
   let saved = 0;
-  for (let page = 1; page <= maxPages; page++) {
-    const q = searchTerm ? `&searchTerm=${encodeURIComponent(searchTerm)}` : "";
-    const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
-    const { html, blocked } = await smartFetch(url, {
-      // A page can be real even when every card lacks a listing state. Do not treat that as a block.
-      validate: (h) => /data-vehicle-details="/.test(h),
-    });
-    if (blocked) {
-      console.warn(`[Cars.com] ${code} blocked (no tier passed)`);
-      break;
+  for (const zip of zips) {
+    for (let page = 1; page <= maxPages; page++) {
+      const q = searchTerm
+        ? `&searchTerm=${encodeURIComponent(searchTerm)}`
+        : "";
+      const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
+      const { html, blocked } = await smartFetch(url, {
+        // A page can be real even when every card lacks a listing state. Do not treat that as a block.
+        validate: (h) => /data-vehicle-details="/.test(h),
+      });
+      if (blocked) {
+        console.warn(`[Cars.com] ${code} ${zip} blocked (no tier passed)`);
+        break;
+      }
+      const items = parseCarsComHtml(html, code);
+      if (!items.length) break;
+      for (const v of items) {
+        const key = String(v.external_id || v.vin || "");
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        await enrichAndStore(v);
+        saved++;
+      }
+      if (items.length < 8) break;
     }
-    const items = parseCarsComHtml(html, code);
-    if (!items.length) break;
-    for (const v of items) {
-      await enrichAndStore(v);
-      saved++;
-    }
-    if (items.length < 8) break;
   }
 
-  console.log(`[Cars.com] Stored ${saved} listings with a listing state (${code})`);
+  console.log(
+    `[Cars.com] Stored ${saved} listings with a listing state (${code}, ${zips.length} search centers)`,
+  );
   return saved;
 }
 
-// One saved buyer state, or CARS_STATES when an operator set it. Cap pages with CARS_MAX_PAGES.
-// Does not walk all 50 states when CARS_STATES is unset.
+// CARS_STATES, else one saved buyer state, else the sweep plan's rotating slice. Cap pages with
+// CARS_MAX_PAGES. Never walks all 50 states in one run.
 export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
   const states = resolveCarsComStates();
   if (!states.length) {
     console.warn(
-      "[Cars.com] CARS_STATES unset and no saved buyer state ? not walking every state",
+      "[Cars.com] no CARS_STATES, saved buyer state, or sweep plan; not walking every state",
     );
     return 0;
   }

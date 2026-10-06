@@ -118,9 +118,17 @@ const featuredDealerRows = FEATURED_SMALL_DEALERS.map((name) =>
   CURATED_SITES.find((site) => site.name === name),
 ).filter(Boolean);
 
+function lastSeenLabel(hours: number | null | undefined) {
+  if (hours == null) return "Last seen unknown";
+  if (hours < 1) return "Seen just now";
+  if (hours < 24) return `Seen ${hours}h ago`;
+  const days = Math.max(1, Math.round(hours / 24));
+  return `Seen ${days}d ago`;
+}
+
 function readinessLabel(value: string | undefined) {
   const labels: Record<string, string> = {
-    ready: "Working",
+    ready: "Listings on file",
     no_rows: "No matching inventory",
     blocked: "Unavailable",
     needs_run: "Needs refresh",
@@ -359,9 +367,8 @@ function IndependentDealerCoverage() {
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               AE of Miami, Damage.com, D&G Auto, ReCar, and St. James are
-              catalogued here. A shop becomes "Working" only after its scoped
-              listing evidence shows current listings, photos, and a last
-              verified time.
+              catalogued here. Listings on file means scoped evidence has stored
+              rows, photos, and a last-seen time. That is not a live scrape.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -538,7 +545,7 @@ const TITLE_TYPE_OPTIONS = [
 
 const SOURCE_PROOF_FILTERS = [
   { id: "all", label: "All" },
-  { id: "ready", label: "Working" },
+  { id: "ready", label: "Listings on file" },
   { id: "needs_login", label: "Sign-in required" },
   { id: "blocked", label: "Unavailable" },
   { id: "no_rows", label: "No matching inventory" },
@@ -1174,7 +1181,7 @@ function SourceProofPanel({
               <div>Photos</div>
               <div>Quality</div>
               <div>Vehicle details</div>
-              <div>Last verified</div>
+              <div>Last seen</div>
               <div>Next action</div>
               <div>Open</div>
             </div>
@@ -1241,13 +1248,11 @@ function SourceProofPanel({
                   <div>{weakestDetailProof(source)}</div>
                 </div>
                 <div className="text-[var(--t4)]">
-                  {source.lastSeenAt
-                    ? `${new Date(source.lastSeenAt).toLocaleDateString()}${
-                        source.freshnessHours != null
-                          ? ` · ${source.freshnessHours}h`
-                          : ""
-                      }`
-                    : "never"}
+                  {source.freshnessHours != null
+                    ? lastSeenLabel(source.freshnessHours)
+                    : source.lastSeenAt
+                      ? new Date(source.lastSeenAt).toLocaleDateString()
+                      : "Last seen unknown"}
                 </div>
                 <div className="text-[var(--t4)]">
                   {source.lastError
@@ -1282,7 +1287,7 @@ function SourceProofPanel({
             {visible.length === 0 && (
               <div className="px-3 py-8 text-center text-sm text-[var(--t4)]">
                 {loading
-                  ? "Loading live source proof..."
+                  ? "Loading source proof..."
                   : noScopeSources
                     ? noScopeMessage
                     : "No sources match this health filter."}

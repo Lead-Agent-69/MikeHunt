@@ -10,7 +10,10 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { EnablePush } from "@/components/EnablePush";
+import { LocationPrefs } from "@/components/settings/LocationPrefs";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -22,40 +25,16 @@ const fetcher = (url: string) =>
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function CarsViewPrefs() {
-  const { prefs, save, authed, isLoading } = usePreferences();
+  const { authed, isLoading } = usePreferences();
   if (isLoading || !authed) return null;
-  const set = async (patch: Parameters<typeof save>[0]) => {
-    await save(patch);
-    toast.success("Saved");
-  };
-  const selectCls =
-    "rounded-lg bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] text-sm font-semibold px-3 py-2 focus:outline-none focus:border-[var(--brand)]";
   return (
     <div className="glass-panel p-6 animate-popIn">
       <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-        Default View
+        Locations
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-xs font-bold text-[var(--t3)]">
-            Default market (state you open to)
-          </span>
-          <select
-            className={selectCls}
-            value={prefs.carsState || ""}
-            onChange={(e) => set({ carsState: e.target.value })}
-          >
-            <option value="">Nationwide</option>
-            {US_STATES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <LocationPrefs />
       <p className="text-[12px] text-[var(--t4)] mt-4">
-        Saves instantly to your account and syncs across devices.
+        Saved to your account and synced across devices.
       </p>
       <div className="mt-5 border-t border-[var(--b1)] pt-5">
         <p className="text-sm font-black text-[var(--t1)]">Buying profile</p>
@@ -89,6 +68,12 @@ function CarsViewPrefs() {
 
 export default function SettingsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
+  const { intent } = useBuyerIntent();
+  const { prefs } = usePreferences();
+  // UI only: the stored target_profit is untouched. Unknown mode = personal.
+  const showProfitTarget = isFlipBuyerMode(
+    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [homeZip, setHomeZip] = useState("");
@@ -433,18 +418,20 @@ export default function SettingsPage() {
                 }
               />
 
-              <Field
-                label="Target Profit Threshold ($)"
-                type="number"
-                inputMode="numeric"
-                value={profile.target_profit}
-                onChange={(e) =>
-                  setProfile((p) => ({
-                    ...p,
-                    target_profit: Number(e.target.value),
-                  }))
-                }
-              />
+              {showProfitTarget && (
+                <Field
+                  label="Target Profit Threshold ($)"
+                  type="number"
+                  inputMode="numeric"
+                  value={profile.target_profit}
+                  onChange={(e) =>
+                    setProfile((p) => ({
+                      ...p,
+                      target_profit: Number(e.target.value),
+                    }))
+                  }
+                />
+              )}
             </div>
           </div>
 

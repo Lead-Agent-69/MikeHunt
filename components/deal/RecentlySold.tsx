@@ -10,6 +10,17 @@ import { Mono } from "@/components/shared/Mono";
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const money = (n?: number | null) =>
   n == null ? "—" : `$${Math.round(n).toLocaleString()}`;
+const soldOn = (iso?: string | null) => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", {
+    timeZone: "America/Chicago",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 export function RecentlySold({
   make,
@@ -25,7 +36,11 @@ export function RecentlySold({
       ? `/api/sold?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${year ? `&year=${year}` : ""}`
       : null;
   const { data } = useSWR(key, fetcher, { revalidateOnFocus: false });
-  if (!data || !data.count || data.count < 2) return null;
+  const cleanCount = Number(data?.count || 0);
+  const showPrice = data?.median != null && cleanCount >= 3;
+  if (!data || (!showPrice && !data.note && !(data.sales || []).length))
+    return null;
+  if (!showPrice && !data.note) return null;
 
   return (
     <Card
@@ -42,43 +57,57 @@ export function RecentlySold({
           </span>
         </div>
 
-        <div className="flex items-end gap-5 mb-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
-              Median sold
+        {showPrice ? (
+          <div className="flex items-end gap-5 mb-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
+                Clean median
+              </p>
+              <Mono className="text-3xl font-black text-[var(--t1)] leading-none">
+                {money(data.median)}
+              </Mono>
+            </div>
+            <p className="text-xs text-[var(--t3)] font-semibold pb-1">
+              {cleanCount} clean sales
+              {soldOn(data.soldAt) ? ` · newest ${soldOn(data.soldAt)}` : ""}
+              {` · ${money(data.low)}–${money(data.high)}`}
             </p>
-            <Mono className="text-3xl font-black text-[var(--t1)] leading-none">
-              {money(data.median)}
-            </Mono>
           </div>
-          <p className="text-xs text-[var(--t3)] font-semibold pb-1">
-            {data.count} sales · {money(data.low)}–{money(data.high)}
+        ) : (
+          <p className="mb-4 text-sm leading-relaxed text-[var(--t3)]">
+            {data.note}
           </p>
-        </div>
+        )}
 
-        <div className="divide-y divide-[var(--b1)]">
-          {(data.sales || []).map((s: any, i: number) => (
-            <a
-              key={i}
-              href={s.sourceUrl || undefined}
-              target={s.sourceUrl ? "_blank" : undefined}
-              rel={s.sourceUrl ? "noopener noreferrer" : undefined}
-              className="flex items-center justify-between gap-3 py-2 text-sm"
-            >
-              <span className="truncate text-[var(--t2)]">{s.title}</span>
-              <div className="flex items-center gap-3 shrink-0">
-                {s.mileage ? (
-                  <Mono className="text-xs text-[var(--t4)]">
-                    {Math.round(s.mileage).toLocaleString()} mi
+        {showPrice ? (
+          <div className="divide-y divide-[var(--b1)]">
+            {(data.sales || []).map((s: any, i: number) => (
+              <a
+                key={i}
+                href={s.sourceUrl || undefined}
+                target={s.sourceUrl ? "_blank" : undefined}
+                rel={s.sourceUrl ? "noopener noreferrer" : undefined}
+                className="flex items-center justify-between gap-3 py-2 text-sm"
+              >
+                <span className="truncate text-[var(--t2)]">
+                  {s.lane === "salvage" ? "Salvage · " : ""}
+                  {s.title}
+                  {soldOn(s.soldAt) ? ` · ${soldOn(s.soldAt)}` : ""}
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  {s.mileage ? (
+                    <Mono className="text-xs text-[var(--t4)]">
+                      {Math.round(s.mileage).toLocaleString()} mi
+                    </Mono>
+                  ) : null}
+                  <Mono className="font-bold text-[var(--green)]">
+                    {money(s.price)}
                   </Mono>
-                ) : null}
-                <Mono className="font-bold text-[var(--green)]">
-                  {money(s.price)}
-                </Mono>
-              </div>
-            </a>
-          ))}
-        </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

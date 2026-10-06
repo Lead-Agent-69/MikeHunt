@@ -65,10 +65,7 @@ export function systemReadiness(): SystemReadinessResult {
   const serviceRole = supabase && serviceRoleSecret;
   const scrapeControl = Boolean(scrapeSecret());
   const anthropicNarrate = hasValue(process.env.ANTHROPIC_API_KEY);
-  const aiProvider =
-    anthropicNarrate ||
-    hasValue(process.env.OPENAI_API_KEY) ||
-    hasValue(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  const aiProvider = anthropicNarrate;
   const appUrl =
     hasValue(process.env.NEXT_PUBLIC_APP_URL) ||
     hasValue(process.env.VERCEL_URL);
@@ -281,23 +278,13 @@ export function systemReadiness(): SystemReadinessResult {
       status: aiProvider ? "ready" : "missing",
       blockerType: aiProvider ? "none" : "env",
       detail: aiProvider
-        ? anthropicNarrate
-          ? "Anthropic Haiku is set for narrate-only briefs. Prices still come from fetched data, not the model."
-          : "An OpenAI or Gemini key is set as a narrate fallback. Prefer ANTHROPIC_API_KEY (Haiku). Prices still come from fetched data."
-        : "Deterministic deal briefs and market pulse are available now. Narration prefers ANTHROPIC_API_KEY (Haiku); OpenAI and Gemini are optional fallbacks.",
+        ? "Anthropic Haiku is set for narrate-only briefs. Prices still come from fetched data, not the model."
+        : "Deterministic deal briefs and market pulse are available now. Narration is optional: set ANTHROPIC_API_KEY (Haiku). No paid key is required.",
       nextStep: aiProvider
-        ? "Verified. Narration can use the configured provider. Do not use the model to invent prices."
-        : "Set ANTHROPIC_API_KEY for Haiku narrate-only briefs. OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks.",
-      envKeys: [
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-      ],
-      envStatus: envStatus([
-        "ANTHROPIC_API_KEY",
-        "OPENAI_API_KEY",
-        "GOOGLE_GENERATIVE_AI_API_KEY",
-      ]),
+        ? "Verified. Narration can use Haiku. Do not use the model to invent prices."
+        : "Optional: set ANTHROPIC_API_KEY for Haiku narrate-only briefs. There is no OpenAI or Gemini fallback.",
+      envKeys: ["ANTHROPIC_API_KEY"],
+      envStatus: envStatus(["ANTHROPIC_API_KEY"]),
       unlocks:
         "Narrate-only deal briefs and market analyst wording on top of fetched deal data. Not price invention.",
       userImpact: aiProvider
@@ -308,7 +295,6 @@ export function systemReadiness(): SystemReadinessResult {
       setupUrl: "https://console.anthropic.com/settings/keys",
       setupSteps: [
         "Create an Anthropic API key and set ANTHROPIC_API_KEY. Optional ANTHROPIC_MODEL defaults to Haiku; Opus is refused.",
-        "OPENAI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY are optional fallbacks only.",
         "Restart the app so server routes can read the key.",
         "Verify briefs narrate fetched deals. Do not enable ENABLE_LLM_PRICE_INVENT.",
       ],

@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const rpc = vi.hoisted(() => vi.fn());
+const getServerUser = vi.hoisted(() =>
+  vi.fn(async () => ({ data: { user: null as { id: string } | null } })),
+);
+const savedPrefs = vi.hoisted(() => ({ value: null as unknown }));
 
 vi.mock("@/lib/cache", () => ({
   cached: vi.fn((_key: string, _ttl: number, run: () => unknown) => run()),
@@ -11,19 +15,28 @@ vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: vi.fn(() => true),
   createServerComponentClient: vi.fn(() => ({
     rpc,
-    from: vi.fn(() => ({
+    from: vi.fn((table: string) => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
-          maybeSingle: vi.fn(async () => ({ data: null })),
+          maybeSingle: vi.fn(async () => ({
+            data:
+              table === "user_preferences" && savedPrefs.value
+                ? { prefs: savedPrefs.value }
+                : null,
+          })),
         })),
       })),
     })),
   })),
 }));
 
-vi.mock("@/lib/server-supabase", () => ({
-  getServerUser: vi.fn(async () => ({ data: { user: null } })),
-}));
+vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
+
+afterEach(() => {
+  getServerUser.mockReset();
+  getServerUser.mockImplementation(async () => ({ data: { user: null } }));
+  savedPrefs.value = null;
+});
 
 function req(path: string) {
   return new NextRequest(`http://localhost:3000${path}`);
@@ -93,6 +106,39 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(ids).toContain("dealer-car");
     expect(ids).not.toContain("deal-1");
   }, 15_000);
+  it.each([
+    ["signed out", null, null, ["roi", "salvage", "auctionLots", "fresh"]],
+    [
+      "personal",
+      "u-personal",
+      "personal",
+      ["roi", "salvage", "auctionLots", "fresh"],
+    ],
+    ["diy", "u-diy", "diy", ["roi", "salvage", "auctionLots", "fresh"]],
+    ["parts", "u-parts", "parts", ["roi", "auctionLots", "fresh"]],
+  ])(
+    "never ships flip rails to a %s caller",
+    async (_label, userId, buyerMode, hidden) => {
+      rpc.mockResolvedValueOnce({ data: [baseRow], error: null });
+      if (userId) {
+        getServerUser.mockImplementation(async () => ({
+          data: { user: { id: userId } },
+        }));
+        savedPrefs.value = { buyerScope: { buyerMode } };
+      }
+      const { GET } = await import("./route");
+      const res = await GET(
+        req("/api/discover?lane=government&sellerType=auction"),
+      );
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body.deskAccess).toBe("personal");
+      const keys = body.rails.map((rail: any) => rail.key);
+      for (const key of hidden as string[]) expect(keys).not.toContain(key);
+    },
+    15_000,
+  );
+
   // First import of the route is heavy under CI parallelism; 5s default flakes on Windows runners.
   it("keeps gov_auction government rows and maps trust/cost fields", async () => {
     rpc.mockResolvedValueOnce({
@@ -109,6 +155,12 @@ describe("GET /api/discover scoped feed contract", () => {
       error: null,
     });
 
+    // A saved dealer desk receives the Auction Lots rail; non-flip desks never do (below).
+    getServerUser.mockImplementation(async () => ({
+      data: { user: { id: "dealer-1" } },
+    }));
+    savedPrefs.value = { buyerScope: { buyerMode: "dealer" } };
+
     const { GET } = await import("./route");
     const res = await GET(
       req("/api/discover?lane=government&sellerType=auction"),
@@ -119,6 +171,7 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(res.status).toBe(200);
     expect(body.totalListings).toBe(1);
     expect(body.sellerType).toBe("auction");
+    expect(body.deskAccess).toBe("flip");
     expect(body.rails.map((rail: any) => rail.key)).toContain("auctionLots");
     expect(firstDeal).toMatchObject({
       id: "deal-1",
@@ -196,9 +249,146 @@ describe("GET /api/discover scoped feed contract", () => {
     const aeDeal = body.rails
       .flatMap((rail: any) => rail.deals)
       .find((deal: any) => deal.id === "ae-1");
-    expect(aeDeal.sellerContactUrl).toBe(
+    // Signed out: seller contact is redacted from the card, but quality still counts it as present.
+    expect(aeDeal.sellerContactUrl).toBeUndefined();
+    expect(aeDeal.sourceUrl).toBe(
       "https://aeofmiami.com/product/2023-gmc-terrain",
     );
     expect(aeDeal.dataQuality.missing).not.toContain("seller contact");
+  });
+
+  it("honors the makes query the buyer intent already sends", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        {
+          ...baseRow,
+          id: "ford",
+          source: "independent_dealer",
+          source_url: "https://dealer.example/ford",
+          seller_type: "dealer",
+          condition: "clean",
+          damage_type: null,
+          make: "Ford",
+          ask_price: 15000,
+        },
+        {
+          ...baseRow,
+          id: "honda",
+          source: "independent_dealer",
+          source_url: "https://dealer.example/honda",
+          seller_type: "dealer",
+          condition: "clean",
+          damage_type: null,
+          make: "Honda",
+          ask_price: 14000,
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const res = await GET(
+      req("/api/discover?makes=ford&state=TX&maxPrice=20000"),
+    );
+    const body = await res.json();
+    const ids = body.rails.flatMap((rail: any) =>
+      rail.deals.map((deal: any) => deal.id),
+    );
+    expect(res.status).toBe(200);
+    expect(body.makes).toEqual(["ford"]);
+    expect(ids).toContain("ford");
+    expect(ids).not.toContain("honda");
+  });
+
+  describe("desk redaction", () => {
+    const rows = () => [
+      {
+        ...baseRow,
+        id: "flip-1",
+        source: "independent_dealer",
+        source_url: "https://aeofmiami.com/product/flip-1",
+        seller_type: "dealer",
+        condition: "clean",
+        damage_type: null,
+        ask_price: 9000,
+        sell_estimate: 16000,
+        true_net_profit: 4100,
+        recommended_max_bid: 10400,
+        profit_score: 95,
+        options: {
+          contact: { phone: "555-0199", email: "lot@aeofmiami.com" },
+        },
+      },
+    ];
+    const FLIP_KEYS = [
+      "trueNetProfit",
+      "recommendedMaxBid",
+      "profitScore",
+      "sellerPhone",
+      "sellerEmail",
+      "sellerContactUrl",
+    ];
+
+    async function load(mode: string | null, signedIn = true) {
+      getServerUser.mockImplementation(async () => ({
+        data: { user: signedIn ? { id: "user-1" } : null },
+      }));
+      savedPrefs.value = mode ? { buyerScope: { buyerMode: mode } } : null;
+      rpc.mockResolvedValueOnce({ data: rows(), error: null });
+      const { GET } = await import("./route");
+      const res = await GET(req("/api/discover"));
+      expect(res.status).toBe(200);
+      return res.json();
+    }
+
+    it.each(["dealer", "reseller"])(
+      "keeps flip economics and contact for a saved %s desk",
+      async (mode) => {
+        const body = await load(mode);
+        const card = body.rails
+          .flatMap((r: any) => r.deals)
+          .find((d: any) => d.id === "flip-1");
+        expect(body.deskAccess).toBe("flip");
+        expect(card).toMatchObject({
+          trueNetProfit: 4100,
+          recommendedMaxBid: 10400,
+          profitScore: 95,
+          sellerPhone: "555-0199",
+          sellerEmail: "lot@aeofmiami.com",
+        });
+      },
+    );
+
+    it.each([
+      ["personal", "personal", true],
+      ["diy", "diy", true],
+      ["parts", "parts", true],
+      ["unknown", "fleet-manager", true],
+      ["no saved mode", null, true],
+      ["signed out", null, false],
+    ] as const)(
+      "redacts cards and drops Top Flips for %s",
+      async (_label, mode, signedIn) => {
+        const body = await load(mode, signedIn);
+        expect(body.deskAccess).toBe("personal");
+        expect(body.rails.map((r: any) => r.key)).not.toContain("roi");
+        const cards = body.rails.flatMap((r: any) => r.deals);
+        expect(cards.length).toBeGreaterThan(0);
+        for (const card of cards) {
+          for (const key of FLIP_KEYS) expect(card).not.toHaveProperty(key);
+        }
+        const raw = JSON.stringify(body);
+        expect(raw).not.toContain("555-0199");
+        expect(raw).not.toContain("lot@aeofmiami.com");
+        expect(raw).not.toContain("4100");
+        expect(raw).not.toContain("10400");
+        // Market value and the listing link stay for the buyer.
+        expect(cards[0]).toMatchObject({
+          id: "flip-1",
+          askPrice: 9000,
+          sellEstimate: 16000,
+          sourceUrl: "https://aeofmiami.com/product/flip-1",
+        });
+      },
+    );
   });
 });

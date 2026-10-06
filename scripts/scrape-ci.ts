@@ -426,6 +426,24 @@ async function main() {
     }
   }
 
+  // Micro-AI dealer path (opt-in, default OFF): enqueue curated VDPs onto aiParsingQueue.
+  // Invent consumer stays DISABLED (workers/scrape-worker must not import ai-worker).
+  // Only runs when ENABLE_AI_DEALER_CRAWL=1; never starts the invent worker.
+  try {
+    const { maybeQueueCuratedDealerInventoryFromEnv } =
+      await import("../lib/scrapers/ai-dealer-producer");
+    const ai = await maybeQueueCuratedDealerInventoryFromEnv();
+    if (ai) {
+      console.log(
+        `AI dealer crawl: ${ai.sitesSucceeded}/${ai.sitesAttempted} sites → ${ai.vdpQueued} VDPs queued${
+          ai.errors.length ? ` (${ai.errors.length} skipped)` : ""
+        }`,
+      );
+    }
+  } catch (e) {
+    console.warn("AI dealer crawl skipped:", (e as Error).message);
+  }
+
   // Keep the DB bounded without ever touching saved data (runs every cycle).
   try {
     await pruneStaleDeals();

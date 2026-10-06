@@ -36,6 +36,8 @@ describe("buyer-scoped scrape queue", () => {
     expect(isRemoteScrapeQueueEnabled()).toBe(false);
     process.env.SCRAPER_EXECUTION_MODE = "queue";
     expect(isRemoteScrapeQueueEnabled()).toBe(true);
+    process.env.SCRAPER_EXECUTION_MODE = "hybrid";
+    expect(isRemoteScrapeQueueEnabled()).toBe(true);
     if (prior === undefined) delete process.env.SCRAPER_EXECUTION_MODE;
     else process.env.SCRAPER_EXECUTION_MODE = prior;
   });

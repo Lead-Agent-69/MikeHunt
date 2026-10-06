@@ -1,15 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
+import { savedScopeStates } from "@/lib/preferences/location-form";
 import {
+  applyBuyingForIntent,
   buildBuyerIntentQuery,
   buyerIntentLabel,
+  discoverQueryForBuyingFor,
   normalizeBuyerIntent,
   readLocalBuyerIntent,
+  writeLocalBuyerIntent,
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { hiddenRailKeysForMode } from "@/lib/discovery/desk-rails";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
@@ -188,6 +195,10 @@ export default function DiscoverPage() {
     const titleType = searchParams.get("titleType") || undefined;
     const sellerType = searchParams.get("sellerType") || undefined;
     const buyerMode = searchParams.get("mode") || undefined;
+    const makesParam = (searchParams.get("makes") || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
     const hasScope = Boolean(
       q ||
       (laneValue && laneValue !== "all") ||
@@ -196,7 +207,8 @@ export default function DiscoverPage() {
       maxPriceParam ||
       titleType ||
       sellerType ||
-      buyerMode,
+      buyerMode ||
+      makesParam.length,
     );
     if (!hasScope) return null;
     const savedBuyerScope =
@@ -227,10 +239,19 @@ export default function DiscoverPage() {
               Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
           }
         : {}),
+      ...(searchParams.has("makes")
+        ? { makes: makesParam, preferredMakes: makesParam }
+        : {}),
     });
   }, [searchParams, prefs.buyerScope]);
+  const router = useRouter();
+  const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
   const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
+  const [makeDraft, setMakeDraft] = useState("");
+  const [budgetDraft, setBudgetDraft] = useState("");
+  const [laneDraft, setLaneDraft] = useState("all");
+  const [stateDraft, setStateDraft] = useState("");
 
   useEffect(() => {
     const syncScope = () =>
@@ -250,7 +271,7 @@ export default function DiscoverPage() {
   }, [urlScope, prefs.buyerScope]);
 
   const chosenState = searchParams.get("state");
-  const savedStates = prefs.carsStates;
+  const savedStates = savedScopeStates(prefs);
   const selectedStates =
     searchParams.get("states") ??
     (chosenState === null && savedStates && savedStates.length > 1
@@ -267,7 +288,7 @@ export default function DiscoverPage() {
           ? savedStates[0] || ""
           : buyerScope?.state && buyerScope.state !== "Nationwide"
             ? buyerScope.state
-            : prefs.carsState || "";
+            : effectiveHome(prefs)?.state || "";
   const scopeParams = buildBuyerIntentQuery(buyerScope, state);
   if (selectedStates) {
     scopeParams.delete("state");
@@ -278,6 +299,19 @@ export default function DiscoverPage() {
   const scopeQuery = scopeParams.toString() ? `?${scopeParams.toString()}` : "";
   const marketLabel = selectedStates || state || "Nationwide";
   const activeScopeLabel = buyerIntentLabel(buyerScope, marketLabel);
+  useEffect(() => {
+    const makes = buyerScope?.makes?.length
+      ? buyerScope.makes
+      : buyerScope?.preferredMakes || [];
+    setMakeDraft(makes[0] || "");
+    setBudgetDraft(buyerScope?.maxPrice ? String(buyerScope.maxPrice) : "");
+    setLaneDraft(buyerScope?.laneValue || "all");
+    const scoped =
+      buyerScope?.state && buyerScope.state !== "Nationwide"
+        ? buyerScope.state
+        : state;
+    setStateDraft(/^[A-Z]{2}$/.test(scoped) ? scoped : "");
+  }, [buyerScope, state]);
 
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<DiscoverResponse>(`/api/discover${scopeQuery}`, fetcher, {
@@ -313,15 +347,13 @@ export default function DiscoverPage() {
     data?.marketListings && data.marketListings > data.totalListings
       ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
       : null;
-  const personalBuyer = buyerScope?.buyerMode === "personal";
-  const hiddenPersonalRails = new Set([
-    "roi",
-    "salvage",
-    "auctionLots",
-    "fresh",
-  ]);
+  // Personal, DIY, and parts are not flip desks — hide wholesale flip rails.
+  // Reseller/dealer keep roi / salvage / auctionLots / fresh.
+  const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
+  // Same table the API enforces (lib/discovery/desk-rails); parts keeps salvage/teardown.
+  const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode);
   const visibleRails = (data?.rails || []).filter(
-    (rail) => !personalBuyer || !hiddenPersonalRails.has(rail.key),
+    (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
   );
 
   return (
@@ -353,25 +385,113 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <section className="flex flex-col gap-3 border-y border-[var(--b1)] py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-            Buying for
-          </p>
-          <p className="mt-1 text-sm font-bold text-[var(--t1)]">
-            {activeScopeLabel}
-          </p>
-          <p className="mt-1 text-xs text-[var(--t4)]">
-            {marketContext ||
-              "Refine makes and budgets without leaving your live results."}
-          </p>
-        </div>
-        <a
-          href={`/scan${scopeQuery ? `${scopeQuery}&` : "?"}sort=profit`}
-          className="inline-flex items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+      <section className="border-y border-[var(--b1)] py-3">
+        <form
+          className="flex flex-col gap-3"
+          aria-label="Buying for"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
+            const next = applyBuyingForIntent(buyerScope, {
+              make: makeDraft,
+              maxPrice: Number.isFinite(budget) ? budget : 0,
+              laneValue: laneDraft,
+              state: stateDraft || "NATIONWIDE",
+            });
+            if (next) {
+              writeLocalBuyerIntent(next);
+              setBuyerScope(next);
+            }
+            const params = discoverQueryForBuyingFor(
+              next,
+              stateDraft || "NATIONWIDE",
+            );
+            const qs = params.toString();
+            router.replace(qs ? `${pathname}?${qs}` : pathname, {
+              scroll: false,
+            });
+          }}
         >
-          View all matches & filters
-        </a>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+              Buying for
+            </p>
+            <p className="mt-1 text-sm font-bold text-[var(--t1)]">
+              {activeScopeLabel}
+            </p>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              {marketContext ||
+                "Refine makes and budgets without leaving your live results."}
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="block text-xs font-semibold text-[var(--t3)]">
+              Make
+              <input
+                value={makeDraft}
+                onChange={(event) => setMakeDraft(event.target.value)}
+                placeholder="Any make"
+                aria-label="Make"
+                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-[var(--t3)]">
+              Budget
+              <input
+                inputMode="numeric"
+                value={budgetDraft}
+                onChange={(event) =>
+                  setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
+                }
+                placeholder="Max price"
+                aria-label="Budget"
+                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+              />
+            </label>
+            <label className="block text-xs font-semibold text-[var(--t3)]">
+              Lane
+              <select
+                value={laneDraft}
+                onChange={(event) => setLaneDraft(event.target.value)}
+                aria-label="Lane"
+                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+              >
+                {Object.entries(LANE_VALUE_TO_LABEL).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-semibold text-[var(--t3)]">
+              State
+              <select
+                value={stateDraft}
+                onChange={(event) => setStateDraft(event.target.value)}
+                aria-label="State"
+                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+              >
+                <option value="">Nationwide</option>
+                {Object.entries(STATE_NAMES)
+                  .map(([code, info]) => ({ code, name: info[0] }))
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(({ code, name }) => (
+                    <option key={code} value={code}>
+                      {name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
+          <div>
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+            >
+              View all matches & filters
+            </button>
+          </div>
+        </form>
       </section>
 
       <details
@@ -383,7 +503,9 @@ export default function DiscoverPage() {
         </summary>
         {showInsights && (
           <div className="mt-4 space-y-6">
-            {hasLiveListings && <EdgeBanner />}
+            {/* Flip-economics widgets (profit on the board, highest-margin spotlight, best flip,
+                avg profit by model, "deals like your winners") are for reseller/dealer desks only. */}
+            {hasLiveListings && flipDesk && <EdgeBanner />}
             {/* Always show the saved dealer intent. Even before database import is live, this confirms the
           shops being watched and gives the user a direct path to source proof. */}
             <WatchedDealerFeed />
@@ -409,8 +531,9 @@ export default function DiscoverPage() {
                     Personalize your feed
                   </p>
                   <p className="text-xs text-[var(--t4)]">
-                    Set your states, budget & profit target in Settings to get a
-                    “For You” rail tuned to how you buy.
+                    {flipDesk
+                      ? "Set your states, budget & profit target in Settings to get a “For You” rail tuned to how you buy."
+                      : "Set your states and budget in Settings to get a “For You” rail tuned to how you buy."}
                   </p>
                 </div>
                 <span className="text-xs font-bold text-[var(--amber)]">
@@ -419,7 +542,7 @@ export default function DiscoverPage() {
               </a>
             )}
 
-            {hasLiveListings && (
+            {hasLiveListings && flipDesk && (
               <>
                 {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
                 <NextBestBuySpotlight initialState={state || undefined} />
@@ -427,14 +550,18 @@ export default function DiscoverPage() {
                 {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
                 <DiscoverHero state={state || undefined} />
 
+                {/* What the market's doing — top GO make/models by avg profit */}
+                <MarketPulse />
+              </>
+            )}
+
+            {hasLiveListings && (
+              <>
                 {/* Live ticker (Visor marquee) */}
                 <DealTicker />
 
                 {/* Market summary — at-a-glance intelligence (hides when empty) */}
                 <MarketSummary />
-
-                {/* What the market's doing — top GO make/models */}
-                <MarketPulse />
               </>
             )}
 
@@ -444,11 +571,13 @@ export default function DiscoverPage() {
                 <FlashRail state={state || undefined} />
 
                 {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
-                <IntelRail
-                  endpoint="/api/recommendations"
-                  title="Deals like your winners"
-                  subtitle="Matched to the make/models you've actually profited on"
-                />
+                {flipDesk && (
+                  <IntelRail
+                    endpoint="/api/recommendations"
+                    title="Deals like your winners"
+                    subtitle="Matched to the make/models you've actually profited on"
+                  />
+                )}
                 <IntelRail
                   endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
                   title="Underpriced vs peers"

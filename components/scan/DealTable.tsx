@@ -4,7 +4,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
 import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
-import { buyTerms, dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
+import { dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
 
@@ -162,18 +163,37 @@ function sourceHealthForRow(
   return undefined;
 }
 
+/** Columns that expose flip economics; reseller/dealer desks only. */
+const FLIP_ONLY_SORT_KEYS: ReadonlySet<SortKey> = new Set<SortKey>([
+  "recommendedMaxBid",
+  "profitEstimate",
+]);
+
 export function DealTable({
   rows,
   sourceHealthById,
+  flipDesk = false,
 }: {
   rows: TableRow[];
   sourceHealthById?: Map<string, TableSourceHealth>;
+  /** Reseller/dealer desk (isFlipBuyerMode). Unknown = personal. */
+  flipDesk?: boolean;
 }) {
   const router = useRouter();
-  const [sortKey, setSortKey] = React.useState<SortKey>("profitEstimate");
+  // Non-flip desks keep the Scan order (score-first) instead of net profit.
+  const [chosenSortKey, setSortKey] = React.useState<SortKey | null>(
+    flipDesk ? "profitEstimate" : null,
+  );
   const [dir, setDir] = React.useState<"asc" | "desc">("desc");
+  // Same desk wording as DealCard: auction "Current bid" reads "Current price" off the flip desk.
+  const priceCopy = dealCardCopy(flipDesk);
+  const sortKey =
+    chosenSortKey && !flipDesk && FLIP_ONLY_SORT_KEYS.has(chosenSortKey)
+      ? null
+      : chosenSortKey;
 
   const sorted = React.useMemo(() => {
+    if (!sortKey) return rows;
     const val = (r: TableRow): number | string => {
       switch (sortKey) {
         case "vehicle":
@@ -258,9 +278,12 @@ export function DealTable({
             </th>
             <Th k="askPrice" label="Price" />
             <Th k="mileage" label="Miles" />
-            <Th k="sellEstimate" label="Sell est." />
-            <Th k="recommendedMaxBid" label="Max buy" />
-            <Th k="profitEstimate" label="Net profit" />
+            <Th
+              k="sellEstimate"
+              label={flipDesk ? "Sell est." : "Market est."}
+            />
+            {flipDesk && <Th k="recommendedMaxBid" label="Max buy" />}
+            {flipDesk && <Th k="profitEstimate" label="Net profit" />}
             <Th k="dataQuality" label="Proof" />
             <th
               className="sticky top-0 z-10 px-3 py-2.5 text-center text-[10px] font-bold uppercase tracking-wider"
@@ -388,7 +411,7 @@ export function DealTable({
                     {fmt(r.askPrice)}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
-                    {buyTerms(r.source).priceLabel}
+                    {priceCopy.priceLabel(r.source)}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">
@@ -399,20 +422,26 @@ export function DealTable({
                     {fmt(r.sellEstimate)}
                   </Mono>
                 </td>
-                <td className="px-3 py-2.5 text-right">
-                  <Mono className="text-[var(--t2)]">
-                    {fmt(r.recommendedMaxBid)}
-                  </Mono>
-                </td>
-                <td className="px-3 py-2.5 text-right">
-                  <Mono
-                    className="font-black"
-                    style={{ color: profitPos ? "var(--green)" : "var(--red)" }}
-                  >
-                    {profitPos ? "+" : ""}
-                    {fmt(r.profitEstimate)}
-                  </Mono>
-                </td>
+                {flipDesk && (
+                  <td className="px-3 py-2.5 text-right">
+                    <Mono className="text-[var(--t2)]">
+                      {fmt(r.recommendedMaxBid)}
+                    </Mono>
+                  </td>
+                )}
+                {flipDesk && (
+                  <td className="px-3 py-2.5 text-right">
+                    <Mono
+                      className="font-black"
+                      style={{
+                        color: profitPos ? "var(--green)" : "var(--red)",
+                      }}
+                    >
+                      {profitPos ? "+" : ""}
+                      {fmt(r.profitEstimate)}
+                    </Mono>
+                  </td>
+                )}
                 <td className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-1.5">
                     <span

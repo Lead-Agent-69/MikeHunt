@@ -15,11 +15,16 @@ import { FlashRail } from "@/components/discovery/FlashRail";
 import { IntelRail } from "@/components/discovery/IntelRail";
 import { CalibrationNudge } from "@/components/deal/CalibrationNudge";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
+import { defaultScanSort } from "@/lib/buyer/scan-sort";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 /** The one cohesive front door: the autonomous system's live pulse, then everything worth acting on. */
 function SystemPulse() {
+  const { intent } = useBuyerIntent();
+  // Profit sort is for reseller/dealer desks; everyone else (and unknown) sorts by score.
+  const sort = defaultScanSort(intent?.buyerMode);
   const { data } = useSWR("/api/system/status", fetcher, {
     refreshInterval: 300_000,
   });
@@ -34,7 +39,7 @@ function SystemPulse() {
       label: "live deals",
       value: (f?.activeDeals ?? 0).toLocaleString(),
       tone: "var(--t1)",
-      href: "/scan?sort=profit",
+      href: `/scan?sort=${sort}`,
     },
     {
       label: hasBuyDeals ? "BUY now" : "watch now",
@@ -43,14 +48,14 @@ function SystemPulse() {
         : (q?.watchCandidates ?? 0).toLocaleString(),
       tone: hasBuyDeals ? "var(--green)" : "var(--amber)",
       href: hasBuyDeals
-        ? "/scan?verdict=go&sort=profit"
-        : "/scan?verdict=watch&sort=profit",
+        ? `/scan?verdict=go&sort=${sort}`
+        : `/scan?verdict=watch&sort=${sort}`,
     },
     {
       label: "new today",
       value: (f?.newLast24h ?? 0).toLocaleString(),
       tone: "var(--amber)",
-      href: "/scan?sort=profit",
+      href: `/scan?sort=${sort}`,
     },
     {
       label: f?.stale ? "data stale" : "data fresh",
@@ -110,7 +115,8 @@ function BuyerIntentToday() {
   const params = buildBuyerIntentQuery(intent);
   const query = params.toString();
   const label = buyerIntentLabel(intent);
-  const scanHref = `/scan?${query ? `${query}&` : ""}sort=profit`;
+  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
+  const scanHref = `/scan?${query ? `${query}&` : ""}sort=${defaultScanSort(intent?.buyerMode)}`;
   const { data, isLoading } = useSWR(
     `/api/scrape/health${query ? `?${query}` : ""}`,
     fetcher,
@@ -205,7 +211,7 @@ function BuyerIntentToday() {
                   ? `We need a broader search before we can recommend vehicles for this exact scope.`
                   : "No matching vehicles are ready to review yet. Start from Discover to choose a lane, state, budget, seller type, and watched dealers."}
             {weakFields.length
-              ? ` Verify before bidding: ${weakFields
+              ? ` Verify before ${flipDesk ? "bidding" : "buying"}: ${weakFields
                   .map((item) => `${item.label.toLowerCase()} ${item.value}%`)
                   .join(", ")}.`
               : ""}
@@ -265,6 +271,10 @@ function BuyerIntentToday() {
 }
 
 export default function TodayPage() {
+  const { intent } = useBuyerIntent();
+  // Flip-economics widgets (highest-margin spotlight, avg profit by model,
+  // "deals like your winners") are for reseller/dealer desks only. Unknown = personal.
+  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   return (
     <div
       className="max-w-6xl mx-auto px-4 py-6 space-y-6"
@@ -281,17 +291,19 @@ export default function TodayPage() {
       <DealTicker />
       <BuyerIntentToday />
       <SystemPulse />
-      <NextBestBuySpotlight />
+      {flipDesk && <NextBestBuySpotlight />}
       <CalibrationNudge />
-      <MarketPulse />
+      {flipDesk && <MarketPulse />}
 
       {/* Everything worth acting on — each rail self-fetches and hides when empty */}
       <FlashRail />
-      <IntelRail
-        endpoint="/api/recommendations"
-        title="🏆 Deals like your winners"
-        subtitle="Matched to the make/models you've actually profited on"
-      />
+      {flipDesk && (
+        <IntelRail
+          endpoint="/api/recommendations"
+          title="🏆 Deals like your winners"
+          subtitle="Matched to the make/models you've actually profited on"
+        />
+      )}
       <IntelRail
         endpoint="/api/deals/near"
         title="📍 Near you"

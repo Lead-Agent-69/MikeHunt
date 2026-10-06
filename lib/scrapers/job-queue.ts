@@ -32,8 +32,10 @@ export interface ScopedScrapeJob {
   completed_at?: string | null;
 }
 
+/** Queue and hybrid both hand buyer-scoped jobs to the Docker worker. */
 export function isRemoteScrapeQueueEnabled() {
-  return process.env.SCRAPER_EXECUTION_MODE?.trim().toLowerCase() === "queue";
+  const mode = process.env.SCRAPER_EXECUTION_MODE?.trim().toLowerCase();
+  return mode === "queue" || mode === "hybrid";
 }
 
 export async function enqueueScopedScrapeJob(

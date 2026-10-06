@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error("[dealer/deals] Insert error:", error);
       return NextResponse.json(
-        { error: "Failed to save outcome", details: error.message },
+        { error: "Failed to save outcome" },
         { status: 500 },
       );
     }
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("[dealer/deals] Error:", error);
     return NextResponse.json(
-      { error: "Internal server error", details: error.message },
+      { error: "Internal server error" },
       { status: 500 },
     );
   }

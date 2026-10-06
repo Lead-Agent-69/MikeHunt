@@ -1,7 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import { internalError } from "@/lib/api/http-error";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 import {
   dealLane,
   LANE_COLORS,
@@ -25,6 +34,25 @@ function csv(p: string | null): string[] {
 }
 
 export async function GET(req: NextRequest) {
+  const rl = rateLimit(req, {
+    key: "market-explore",
+    limit: 30,
+    windowMs: 60000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({
+      rows: [],
+      total: 0,
+      capped: false,
+      mode: "curated",
+      page: 0,
+      pageSize: 50,
+      facets: {},
+      configured: false,
+    });
+  }
   try {
     const sp = new URL(req.url).searchParams;
     const states = csv(sp.get("states")).map((s) => s.toUpperCase());
@@ -217,8 +245,21 @@ export async function GET(req: NextRequest) {
         };
       },
     );
-    return NextResponse.json(payload);
+    // Cache is shared; redact AFTER so a personal caller never gets a flip-desk hit.
+    const flipDesk = await resolveCallerFlipDesk();
+    return NextResponse.json(
+      flipDesk
+        ? { ...payload, deskAccess: "flip" }
+        : {
+            ...payload,
+            rows: listingsForDesk(payload.rows || [], false),
+            facets: payload.facets
+              ? { ...payload.facets, laneProfit: {} }
+              : payload.facets,
+            deskAccess: "personal",
+          },
+    );
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return internalError("market:explore", e);
   }
 }

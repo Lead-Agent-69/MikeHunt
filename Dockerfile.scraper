@@ -29,9 +29,10 @@ ENV NODE_ENV=production
 # Turn on the headed real-Chrome tier; xvfb-run (below) gives it the display it needs.
 ENV ENABLE_HEADED_SCRAPERS=1
 ENV SCRAPE_INTERVAL_MS=1800000
-# truecar is headed-only. Unset SCRAPE_SOURCES (CI) uses DEFAULT_SOURCES, which omits it.
+# Do NOT bake SCRAPE_SOURCES here. Image default is terms-safe (code DEFAULT_SOURCES /
+# curated_dealers + govdeals + gsa_auctions). Opt into terms-restricted sources only via
+# runtime env (compose/.env.local.scraper); the scraper logs a warning each sweep if set.
 # CACHE_PHOTOS_MAX=0 leaves deals.images as source URLs (no vehicle-photos upload).
-ENV SCRAPE_SOURCES=craigslist,offerup,carvana,autotempest,ebay_sold,ebay_motors,cars_com,autotrader,carparts_com,publicsurplus,govdeals,allsurplus,municibid,gsa_auctions,curated_dealers,copart,truecar
 ENV CACHE_PHOTOS_MAX=0
 
 # Start Xvfb in the background and run the worker directly (bypasses xvfb-run signal hang when run as PID 1)

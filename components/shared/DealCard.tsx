@@ -9,7 +9,7 @@ import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
-import { buyTerm } from "@/lib/deal-terms";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { qualityFieldLabel } from "@/lib/data-quality";
 
 function relativeFreshness(value?: string | Date | null) {
@@ -102,9 +102,19 @@ export const DealCard = memo(function DealCard({
   onClick,
   isSaved,
   onSave,
+  flipDesk = true,
 }: DealCardProps) {
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
+  // /api/scan strips profit/max bid for non-flip desks; never render "$NaN" if the client
+  // desk (e.g. ?mode=dealer) disagrees with the server's redaction.
+  // Live-preview rows ("live-*") are unanalyzed public listings with a placeholder profit of 0;
+  // a "+$0 net profit" / "no positive spread" readout would be fake precision.
+  const showFlipEconomics =
+    flipDesk &&
+    !id.startsWith("live-") &&
+    typeof profitEstimate === "number" &&
+    Number.isFinite(profitEstimate);
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
@@ -124,14 +134,29 @@ export const DealCard = memo(function DealCard({
     bidCount != null ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : null,
     seller ? seller : sellerType ? `${sellerType} seller` : null,
   ].filter(Boolean);
-  const whyShown = [
-    profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
-    recommendedMaxBid != null
-      ? `$${recommendedMaxBid.toLocaleString()} max bid`
-      : null,
-    sellEstimate != null ? `$${sellEstimate.toLocaleString()} resale` : null,
-  ].filter(Boolean);
   const resaleBasis = sellEstimate || mmrValue || 0;
+  // Wording follows the flipDesk prop: reseller/dealer keep resale/bid copy, everyone else gets buyer copy.
+  const copy = dealCardCopy(flipDesk);
+  // Flip economics (net profit, max bid, resale spread) are reseller/dealer
+  // only. Non-flip buyers see the ask against the market estimate instead.
+  const belowMarket =
+    resaleBasis > 0 && askPrice > 0 ? resaleBasis - askPrice : 0;
+  const whyShown = showFlipEconomics
+    ? [
+        profitEstimate > 0 ? `+$${profitEstimate.toLocaleString()} net` : null,
+        recommendedMaxBid != null
+          ? `$${recommendedMaxBid.toLocaleString()} max bid`
+          : null,
+        sellEstimate != null
+          ? `$${sellEstimate.toLocaleString()} resale`
+          : null,
+      ].filter(Boolean)
+    : [
+        belowMarket > 0
+          ? `$${belowMarket.toLocaleString()} under market est.`
+          : null,
+        resaleBasis > 0 ? `$${resaleBasis.toLocaleString()} market est.` : null,
+      ].filter(Boolean);
   const valuationBasis =
     valuation?.basis || sellBasis || (mmrValue ? "market" : "baseline");
   const valuationSource =
@@ -161,33 +186,34 @@ export const DealCard = memo(function DealCard({
           valuationSource === "historical_estimate"
         ? "low"
         : "none");
-  const resaleBasisLabel = soldAnchored
-    ? "Comp-backed resale"
-    : resaleBasis
-      ? "Ask-based estimate"
-      : "Resale basis";
-  const resaleBasisTitle =
-    valuationSource === "comparables"
-      ? "Resale estimate backed by comparable listings"
-      : valuationSource === "third_party"
-        ? "Resale estimate anchored to an external market benchmark"
-        : valuationSource === "historical_estimate"
-          ? "Estimate derived from prior listing history, not completed-sale proof"
-          : valuationSource === "asking_price"
-            ? "Estimate anchored to the seller's asking price, not a completed sale"
-            : "Modeled resale estimate; verify with comparable sales before bidding";
+  const resaleBasisLabel = copy.basisLabel(
+    Boolean(soldAnchored),
+    resaleBasis > 0,
+  );
+  const resaleBasisTitle = copy.basisTitle(valuationSource);
   const valuationCompCount = Number(valuation?.compCount || 0);
   const valuationSoldCount = Number(valuation?.soldCount || 0);
   const valuationSampleCount = Number(valuation?.sampleCount || 0);
+  const soldOn =
+    valuationSoldCount >= 3 && valuation?.soldAt
+      ? new Date(valuation.soldAt).toLocaleDateString("en-US", {
+          timeZone: "America/Chicago",
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+  const soldLine =
+    valuationSoldCount >= 3
+      ? `${valuationSoldCount} ${
+          valuation?.soldLane === "salvage" ? "salvage" : "clean"
+        } sold${soldOn ? ` · ${soldOn}` : ""}`
+      : null;
   const valuationProof = [
     valuationCompCount > 0
       ? `${valuationCompCount} comparable${valuationCompCount === 1 ? "" : "s"}`
       : null,
-    valuationSoldCount > 0
-      ? `${valuationSoldCount} sold`
-      : soldAnchored
-        ? "sold anchored"
-        : null,
+    soldLine,
     valuationSource === "historical_estimate" && valuationSampleCount > 0
       ? `${valuationSampleCount} historical listing${valuationSampleCount === 1 ? "" : "s"}`
       : valuationSource === "third_party"
@@ -198,9 +224,7 @@ export const DealCard = memo(function DealCard({
     valuation?.titleTag ? valuation.titleTag : null,
   ].filter(Boolean);
   const costStack = [
-    askPrice > 0
-      ? { label: buyTerm(source).priceLabel, value: askPrice }
-      : null,
+    askPrice > 0 ? { label: copy.priceLabel(source), value: askPrice } : null,
     repairEstimate && repairEstimate > 0
       ? { label: "Repair", value: repairEstimate }
       : null,
@@ -226,7 +250,7 @@ export const DealCard = memo(function DealCard({
       ? 28
       : 8;
   const mathProofScore =
-    (profitEstimate > 0 ? 12 : 0) +
+    ((showFlipEconomics ? profitEstimate : belowMarket) > 0 ? 12 : 0) +
     (resaleBasis > 0 ? 12 : 0) +
     (knownCostTotal > 0 ? 8 : 0);
   const computedConfidenceScore = Math.min(
@@ -326,11 +350,16 @@ export const DealCard = memo(function DealCard({
       ? "Pass for now"
       : dealVerdict === "hold"
         ? "Watch closely"
-        : profitEstimate > 1500 && mathConfidence !== "Low"
-          ? "Possible buy"
-          : profitEstimate > 0
-            ? "Needs check"
-            : "Pass for now";
+        : !showFlipEconomics
+          ? // Non-flip: judge the ask against the market estimate, not a resale spread.
+            belowMarket > 0 && mathConfidence !== "Low"
+            ? "Possible buy"
+            : "Needs check"
+          : profitEstimate > 1500 && mathConfidence !== "Low"
+            ? "Possible buy"
+            : profitEstimate > 0
+              ? "Needs check"
+              : "Pass for now";
   const decisionTone =
     decisionLabel === "Possible buy"
       ? "text-[var(--green)]"
@@ -338,9 +367,15 @@ export const DealCard = memo(function DealCard({
         ? "text-[var(--amber-d)]"
         : "text-[var(--red)]";
   const decisionReasons = [
-    profitEstimate > 0
-      ? `$${profitEstimate.toLocaleString()} estimated spread`
-      : "no positive spread yet",
+    showFlipEconomics
+      ? profitEstimate > 0
+        ? `$${profitEstimate.toLocaleString()} estimated spread`
+        : "no positive spread yet"
+      : belowMarket > 0
+        ? `asking $${belowMarket.toLocaleString()} under market est.`
+        : resaleBasis > 0
+          ? "asking at or above market est."
+          : "market value not on file yet",
     mathConfidence === "Low"
       ? `low confidence until ${weakAssumption} is known`
       : `${mathConfidence.toLowerCase()} math confidence`,
@@ -358,8 +393,8 @@ export const DealCard = memo(function DealCard({
     (confidenceScore >= 82
       ? "Ready for a closer buyer review."
       : confidenceScore >= 62
-        ? "Worth reviewing, but verify weak fields before bidding."
-        : "Needs better proof before this should drive a bid.");
+        ? copy.confidenceReview
+        : copy.confidenceThin);
   const proxiedUrl = proxiedImage(imageUrl) || imageUrl;
 
   return (
@@ -439,14 +474,14 @@ export const DealCard = memo(function DealCard({
             : "Ask not listed"}
           {" · "}
           {soldAnchored && resaleBasis && valuationCompCount > 0
-            ? `Comp-backed resale $${resaleBasis.toLocaleString()} · ${valuationCompCount} comps`
+            ? `${copy.compBackedPrefix} $${resaleBasis.toLocaleString()} · ${valuationCompCount} comps`
             : resaleBasis && !soldAnchored
               ? `Ask-based estimate $${resaleBasis.toLocaleString()}${
                   valuationCompCount > 0
                     ? ` · ${valuationCompCount} listing asks`
                     : ""
                 }`
-              : "Resale basis not on file."}
+              : copy.basisMissing}
           {` · ${freshnessText}`}
           {source ? ` · ${source}` : ""}
           {sellerType === "dealer"
@@ -569,7 +604,7 @@ export const DealCard = memo(function DealCard({
           </p>
           {(explanationNextChecks.length > 0 || mathGaps.length > 0) && (
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--t5)]">
-              Tighten before bidding:{" "}
+              {copy.checksPrefix}{" "}
               {(explanationNextChecks.length ? explanationNextChecks : mathGaps)
                 .slice(0, 3)
                 .join(", ")}
@@ -606,7 +641,7 @@ export const DealCard = memo(function DealCard({
             </span>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-            <span className="text-[var(--t4)]">Resale basis</span>
+            <span className="text-[var(--t4)]">{copy.basisRowLabel}</span>
             <Mono className="text-right font-bold text-[var(--t2)]">
               {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
             </Mono>
@@ -851,8 +886,8 @@ export const DealCard = memo(function DealCard({
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
                 {resaleBasis
-                  ? `$${resaleBasis.toLocaleString()} resale basis`
-                  : "No resale basis yet"}
+                  ? `$${resaleBasis.toLocaleString()} ${copy.basisNoun}`
+                  : copy.basisMissingShort}
                 {" · "}
                 {valuationConfidence} confidence
                 {valuationProof.length
@@ -864,10 +899,10 @@ export const DealCard = memo(function DealCard({
                   {valuationSource === "third_party"
                     ? "One external benchmark helps, but title, mileage, and sold comps still need confirmation."
                     : valuationSource === "historical_estimate"
-                      ? "Built from prior active-listing estimates, not verified sale prices. Confirm sold comps before bidding."
+                      ? copy.historicalNote
                       : valuationSource === "asking_price"
                         ? "Anchored to the seller's ask, not a completed sale. Confirm with independent comps."
-                        : "Modeled estimates need sold or market comps before this should drive an aggressive bid."}
+                        : copy.modeledNote}
                 </p>
               )}
             </div>
@@ -881,7 +916,7 @@ export const DealCard = memo(function DealCard({
         >
           <div>
             <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              {buyTerm(source).priceLabel}
+              {copy.priceLabel(source)}
             </p>
             <Mono className="text-sm font-extrabold text-[var(--t1)]">
               ${askPrice.toLocaleString()}
@@ -905,28 +940,32 @@ export const DealCard = memo(function DealCard({
           </div>
         </div>
 
-        {/* Big profit */}
+        {/* Big profit (flip desk only) */}
         <div className="flex items-end justify-between mt-auto pt-1 gap-2">
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              Net Profit Est.
-            </p>
-            <Mono
-              className="text-2xl font-black leading-none"
-              style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
-            >
-              {isPositive ? "+" : "-"}$
-              {Math.abs(profitEstimate).toLocaleString()}
-            </Mono>
-            {recommendedMaxBid != null && (
-              <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
-                Max bid{" "}
-                <Mono className="text-[var(--t2)] font-bold">
-                  ${recommendedMaxBid.toLocaleString()}
-                </Mono>
+          {showFlipEconomics ? (
+            <div data-testid="dealcard-flip-economics">
+              <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
+                Net Profit Est.
               </p>
-            )}
-          </div>
+              <Mono
+                className="text-2xl font-black leading-none"
+                style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
+              >
+                {isPositive ? "+" : "-"}$
+                {Math.abs(profitEstimate).toLocaleString()}
+              </Mono>
+              {recommendedMaxBid != null && (
+                <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
+                  Max bid{" "}
+                  <Mono className="text-[var(--t2)] font-bold">
+                    ${recommendedMaxBid.toLocaleString()}
+                  </Mono>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div />
+          )}
 
           {(condition || damageType) && (
             <span
