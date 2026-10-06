@@ -5,6 +5,7 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { recordDealSignal } from "@/lib/reco/signals";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 
 export const dynamic = "force-dynamic";
@@ -367,6 +368,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertErr) throw insertErr;
+
+    // Recommendation signal: a save is the strongest positive. Best-effort.
+    await recordDealSignal(supabase, userId, "save", deal);
 
     return NextResponse.json({ success: true, id: data.id });
   } catch (error: any) {
