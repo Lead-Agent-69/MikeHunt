@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
 import * as cheerio from "cheerio";
-import { fetchWithPatchright } from "@/lib/scrapers/tools/patchright-engine";
+import { fetchPublicWithPatchright } from "@/lib/scrapers/tools/patchright-engine";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -84,8 +84,9 @@ export async function POST(req: NextRequest) {
       throw e;
     }
     try {
-      // Headless browser read of the pasted public page.
-      const html = await fetchWithPatchright(target.toString());
+      // Headless browser read of the pasted public page. Every redirect hop and
+      // sub-request is re-checked; private/metadata hops abort (UrlNotAllowedError).
+      const html = await fetchPublicWithPatchright(target.toString());
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
       contentText = $("body")
@@ -94,6 +95,15 @@ export async function POST(req: NextRequest) {
         .trim()
         .slice(0, 40000); // cap size
     } catch (e) {
+      if (e instanceof UrlNotAllowedError) {
+        return NextResponse.json(
+          {
+            error:
+              "That URL is not allowed. Paste a public http(s) listing link.",
+          },
+          { status: 400 },
+        );
+      }
       return NextResponse.json(
         {
           error:

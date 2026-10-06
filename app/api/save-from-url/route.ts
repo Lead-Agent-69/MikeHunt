@@ -10,6 +10,10 @@ import { upsertDeals } from "@/lib/scrapers/pipeline";
 import * as crypto from "crypto";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { scrapeOrParseListing } from "@/lib/save-from-url/scrape-listing";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+/** Each save can trigger an outbound fetch + pipeline upsert; cap per signed-in user. */
+const SAVE_FROM_URL_LIMIT = { limit: 10, windowMs: 60_000 } as const;
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +33,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = user.id;
+    const rl = rateLimit(request, {
+      key: "save-from-url",
+      identity: `user:${userId}`,
+      ...SAVE_FROM_URL_LIMIT,
+    });
+    if (!rl.allowed) return tooManyRequests(rl);
     const supabase = createServerComponentClient();
     // The dealer row is provisioned with id === auth user id (see /api/auth/provision).
     const dealerId: string = user.id;
