@@ -349,6 +349,7 @@ output is thrown away unless every field matches the page text. The invent consu
 | #80 | robots.txt + site-policy gate for curated sites                                                                  |
 | #83 | Damage.com location fixed (MO)                                                                                   |
 | #85 | Default sweep skips terms-restricted sources                                                                     |
+| —   | scrape-ci / scrape-worker default filtered through `TOS_RESTRICTED_SOURCES`; municibid + offerup restricted; health shows "Off for site terms"; `/api/discover` returns a `coverage` block |
 
 ### Zeus deploy (after merges)
 
