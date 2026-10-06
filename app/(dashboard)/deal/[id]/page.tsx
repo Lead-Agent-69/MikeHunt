@@ -37,6 +37,7 @@ import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { useDealerId } from "@/hooks/useDealerId";
 import { SimilarInterestPrompt } from "@/components/reco/SimilarInterestPrompt";
+import { useDealDwellSignal } from "@/hooks/useDealDwellSignal";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
@@ -537,6 +538,9 @@ export default function DealPage({
       dedupingInterval: 60000, // 1 minute
     },
   );
+
+  // Reco: one best-effort dwell signal per view, signed-in viewers of a loaded deal only.
+  useDealDwellSignal(id, Boolean(dealerId && dealData?.deal));
 
   const loading = isLoading || dealerLoading;
   const authError =
