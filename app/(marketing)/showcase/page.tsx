@@ -17,99 +17,102 @@ import { VideoDeckCarousel, type VideoDeckItem } from "@/components/ui/video-dec
 import { DrawerCardGrid, type DrawerCardItem } from "@/components/ui/ui-drawer-card";
 
 // ── Sample Data ──
+// Local, neutral poster so this public page loads nothing from third-party image hosts.
+const POSTER = "/images/car-placeholder.jpg";
+
 const showcaseItems: CarouselItem[] = [
-  { id: "1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", year: "2019", description: "Immaculate condition with full service history. Guards Red over Black leather.", cta: "View Deal" },
-  { id: "2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", year: "2021", description: "S58 twin-turbo inline-6. Portimao Blue with extended Merino leather.", cta: "View Deal" },
-  { id: "3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", year: "2020", description: "591hp twin-turbo V8 with quattro AWD.", cta: "View Deal" },
-  { id: "4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", year: "2018", description: "Handcrafted biturbo V8. Obsidian Black with Red Pepper interior.", cta: "View Deal" },
-  { id: "5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", year: "2022", description: "Tri-motor AWD. 0-60 in 1.99s. Full Self-Driving capability.", cta: "View Deal" },
+  { id: "1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", year: "2019", description: "Immaculate condition with full service history. Guards Red over Black leather.", cta: "View Deal" },
+  { id: "2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", year: "2021", description: "S58 twin-turbo inline-6. Portimao Blue with extended Merino leather.", cta: "View Deal" },
+  { id: "3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", year: "2020", description: "591hp twin-turbo V8 with quattro AWD.", cta: "View Deal" },
+  { id: "4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", year: "2018", description: "Handcrafted biturbo V8. Obsidian Black with Red Pepper interior.", cta: "View Deal" },
+  { id: "5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", year: "2022", description: "Tri-motor AWD. 0-60 in 1.99s. Full Self-Driving capability.", cta: "View Deal" },
 ];
 
 const verticalItems: VerticalCarouselItem[] = [
-  { id: "v1", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&q=80", title: "Ford Mustang GT", subtitle: "2020 · 18,200 miles", category: "Muscle", description: "5.0L V8 with active exhaust. Rapid Red with Recaro seats." },
-  { id: "v2", image: "https://images.unsplash.com/photo-1553440569-bcc63803a83d?w=800&q=80", title: "Chevrolet Corvette", subtitle: "2021 · 9,800 miles", category: "Sports Car", description: "Mid-engine LT2 V8. Torch Red with GT2 bucket seats." },
-  { id: "v3", image: "https://images.unsplash.com/photo-1607853202273-797f1c22a38e?w=800&q=80", title: "Dodge Challenger", subtitle: "2019 · 25,400 miles", category: "Muscle", description: "Supercharged Hellcat. 717hp. TorRed with Alcantara interior." },
-  { id: "v4", image: "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=800&q=80", title: "Nissan GT-R", subtitle: "2017 · 32,100 miles", category: "Performance", description: "Twin-turbo V6 with ATTESA E-TS AWD. Bayside Blue." },
-  { id: "v5", image: "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&q=80", title: "Lexus LC 500", subtitle: "2021 · 11,500 miles", category: "Grand Tourer", description: "5.0L V8 with 10-speed auto. Infrared with semi-aniline leather." },
+  { id: "v1", image: POSTER, title: "Ford Mustang GT", subtitle: "2020 · 18,200 miles", category: "Muscle", description: "5.0L V8 with active exhaust. Rapid Red with Recaro seats." },
+  { id: "v2", image: POSTER, title: "Chevrolet Corvette", subtitle: "2021 · 9,800 miles", category: "Sports Car", description: "Mid-engine LT2 V8. Torch Red with GT2 bucket seats." },
+  { id: "v3", image: POSTER, title: "Dodge Challenger", subtitle: "2019 · 25,400 miles", category: "Muscle", description: "Supercharged Hellcat. 717hp. TorRed with Alcantara interior." },
+  { id: "v4", image: POSTER, title: "Nissan GT-R", subtitle: "2017 · 32,100 miles", category: "Performance", description: "Twin-turbo V6 with ATTESA E-TS AWD. Bayside Blue." },
+  { id: "v5", image: POSTER, title: "Lexus LC 500", subtitle: "2021 · 11,500 miles", category: "Grand Tourer", description: "5.0L V8 with 10-speed auto. Infrared with semi-aniline leather." },
 ];
 
 const editorialItems: EditorialCardData[] = [
-  { id: "e1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", category: "Sports Car", year: "2019", description: "Immaculate condition with full service history. Guards Red over Black leather. This 992-generation 911 represents the pinnacle of sports car engineering.", cta: "View Details", ctaLink: "/deal/1" },
-  { id: "e2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", category: "Performance", year: "2021", description: "S58 twin-turbo inline-6 producing 503hp. Portimao Blue with extended Merino leather.", cta: "View Details", ctaLink: "/deal/2" },
-  { id: "e3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", category: "Wagon", year: "2020", description: "591hp twin-turbo V8 with quattro AWD. Combines supercar performance with wagon practicality.", cta: "View Details", ctaLink: "/deal/3" },
-  { id: "e4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", category: "Grand Tourer", year: "2018", description: "Handcrafted biturbo V8 producing 523hp. Obsidian Black with Red Pepper interior.", cta: "View Details", ctaLink: "/deal/4" },
-  { id: "e5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", category: "Electric", year: "2022", description: "Tri-motor AWD producing 1,020hp. 0-60 in 1.99s. Full Self-Driving capability.", cta: "View Details", ctaLink: "/deal/5" },
-  { id: "e6", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&q=80", title: "Ford Mustang GT", category: "Muscle", year: "2020", description: "5.0L V8 with active exhaust producing 460hp. Rapid Red with Recaro seats.", cta: "View Details", ctaLink: "/deal/6" },
+  { id: "e1", image: POSTER, title: "Porsche 911 Carrera", category: "Sports Car", year: "2019", description: "Immaculate condition with full service history. Guards Red over Black leather. This 992-generation 911 represents the pinnacle of sports car engineering.", cta: "View Details", ctaLink: "/deal/1" },
+  { id: "e2", image: POSTER, title: "BMW M4 Competition", category: "Performance", year: "2021", description: "S58 twin-turbo inline-6 producing 503hp. Portimao Blue with extended Merino leather.", cta: "View Details", ctaLink: "/deal/2" },
+  { id: "e3", image: POSTER, title: "Audi RS6 Avant", category: "Wagon", year: "2020", description: "591hp twin-turbo V8 with quattro AWD. Combines supercar performance with wagon practicality.", cta: "View Details", ctaLink: "/deal/3" },
+  { id: "e4", image: POSTER, title: "Mercedes-AMG GT", category: "Grand Tourer", year: "2018", description: "Handcrafted biturbo V8 producing 523hp. Obsidian Black with Red Pepper interior.", cta: "View Details", ctaLink: "/deal/4" },
+  { id: "e5", image: POSTER, title: "Tesla Model S Plaid", category: "Electric", year: "2022", description: "Tri-motor AWD producing 1,020hp. 0-60 in 1.99s. Full Self-Driving capability.", cta: "View Details", ctaLink: "/deal/5" },
+  { id: "e6", image: POSTER, title: "Ford Mustang GT", category: "Muscle", year: "2020", description: "5.0L V8 with active exhaust producing 460hp. Rapid Red with Recaro seats.", cta: "View Details", ctaLink: "/deal/6" },
 ];
 
 const fanCardItems: FanCardItem[] = [
-  { id: "f1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911", category: "Sports" },
-  { id: "f2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4", category: "Performance" },
-  { id: "f3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6", category: "Wagon" },
-  { id: "f4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "AMG GT", category: "GT" },
-  { id: "f5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Plaid", category: "Electric" },
+  { id: "f1", image: POSTER, title: "Porsche 911", category: "Sports" },
+  { id: "f2", image: POSTER, title: "BMW M4", category: "Performance" },
+  { id: "f3", image: POSTER, title: "Audi RS6", category: "Wagon" },
+  { id: "f4", image: POSTER, title: "AMG GT", category: "GT" },
+  { id: "f5", image: POSTER, title: "Tesla Plaid", category: "Electric" },
 ];
 
 const focusSliceItems: FocusSliceItem[] = [
-  { id: "fs1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history." },
-  { id: "fs2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue." },
-  { id: "fs3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
-  { id: "fs4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
-  { id: "fs5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
+  { id: "fs1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history." },
+  { id: "fs2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue." },
+  { id: "fs3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
+  { id: "fs4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
+  { id: "fs5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
 ];
 
 const cinemaItems: CinemaItem[] = [
-  { id: "c1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history.", year: "2019" },
-  { id: "c2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue.", year: "2021" },
-  { id: "c3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", year: "2020" },
-  { id: "c4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black.", year: "2018" },
-  { id: "c5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s.", year: "2022" },
+  { id: "c1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history.", year: "2019" },
+  { id: "c2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue.", year: "2021" },
+  { id: "c3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", year: "2020" },
+  { id: "c4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black.", year: "2018" },
+  { id: "c5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s.", year: "2022" },
 ];
 
 const polaroidItems: PolaroidFlipItem[] = [
-  { id: "p1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", backImage: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400&q=60", title: "Porsche 911", subtitle: "2019", category: "Sports Car", description: "Immaculate condition with full service history. Guards Red over Black leather." },
-  { id: "p2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", backImage: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400&q=60", title: "BMW M4", subtitle: "2021", category: "Performance", description: "S58 twin-turbo inline-6 producing 503hp. Portimao Blue." },
-  { id: "p3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", backImage: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=400&q=60", title: "Audi RS6", subtitle: "2020", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
-  { id: "p4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", backImage: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=400&q=60", title: "AMG GT", subtitle: "2018", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
-  { id: "p5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", backImage: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=400&q=60", title: "Tesla Plaid", subtitle: "2022", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
+  { id: "p1", image: POSTER, backImage: POSTER, title: "Porsche 911", subtitle: "2019", category: "Sports Car", description: "Immaculate condition with full service history. Guards Red over Black leather." },
+  { id: "p2", image: POSTER, backImage: POSTER, title: "BMW M4", subtitle: "2021", category: "Performance", description: "S58 twin-turbo inline-6 producing 503hp. Portimao Blue." },
+  { id: "p3", image: POSTER, backImage: POSTER, title: "Audi RS6", subtitle: "2020", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
+  { id: "p4", image: POSTER, backImage: POSTER, title: "AMG GT", subtitle: "2018", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
+  { id: "p5", image: POSTER, backImage: POSTER, title: "Tesla Plaid", subtitle: "2022", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
 ];
 
 const premiumItems: PremiumCarouselItem[] = [
-  { id: "pr1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history.", price: "$89,900", year: "2019", mileage: "12,400 mi", cta: "View Deal" },
-  { id: "pr2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue.", price: "$72,500", year: "2021", mileage: "8,200 mi", cta: "View Deal" },
-  { id: "pr3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", price: "$78,900", year: "2020", mileage: "15,800 mi", cta: "View Deal" },
-  { id: "pr4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black.", price: "$95,000", year: "2018", mileage: "22,100 mi", cta: "View Deal" },
-  { id: "pr5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s.", price: "$115,000", year: "2022", mileage: "5,400 mi", cta: "View Deal" },
+  { id: "pr1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history.", price: "$89,900", year: "2019", mileage: "12,400 mi", cta: "View Deal" },
+  { id: "pr2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue.", price: "$72,500", year: "2021", mileage: "8,200 mi", cta: "View Deal" },
+  { id: "pr3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", price: "$78,900", year: "2020", mileage: "15,800 mi", cta: "View Deal" },
+  { id: "pr4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black.", price: "$95,000", year: "2018", mileage: "22,100 mi", cta: "View Deal" },
+  { id: "pr5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s.", price: "$115,000", year: "2022", mileage: "5,400 mi", cta: "View Deal" },
 ];
 
 const hoverRevealItems: ImageHoverRevealItem[] = [
-  { id: "h1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", hoverImage: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80&sat=-100", title: "Porsche 911", category: "Sports" },
-  { id: "h2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", hoverImage: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80&sat=-100", title: "BMW M4", category: "Performance" },
-  { id: "h3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", hoverImage: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80&sat=-100", title: "Audi RS6", category: "Wagon" },
-  { id: "h4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", hoverImage: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80&sat=-100", title: "AMG GT", category: "GT" },
-  { id: "h5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", hoverImage: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80&sat=-100", title: "Tesla Plaid", category: "Electric" },
+  { id: "h1", image: POSTER, hoverImage: POSTER, title: "Porsche 911", category: "Sports" },
+  { id: "h2", image: POSTER, hoverImage: POSTER, title: "BMW M4", category: "Performance" },
+  { id: "h3", image: POSTER, hoverImage: POSTER, title: "Audi RS6", category: "Wagon" },
+  { id: "h4", image: POSTER, hoverImage: POSTER, title: "AMG GT", category: "GT" },
+  { id: "h5", image: POSTER, hoverImage: POSTER, title: "Tesla Plaid", category: "Electric" },
 ];
 
 const stackDriftItems: StackDriftItem[] = [
-  { id: "sd1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history." },
-  { id: "sd2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue." },
-  { id: "sd3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
-  { id: "sd4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
-  { id: "sd5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
+  { id: "sd1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history." },
+  { id: "sd2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue." },
+  { id: "sd3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD." },
+  { id: "sd4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black." },
+  { id: "sd5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s." },
 ];
 
 const videoDeckItems: VideoDeckItem[] = [
-  { id: "vd1", poster: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Walkaround", subtitle: "Full exterior and interior tour", category: "Video", description: "Complete walkaround of this immaculate 911 Carrera." },
-  { id: "vd2", poster: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Test Drive", subtitle: "On-track performance review", category: "Video", description: "Experience the M4 Competition on the track." },
-  { id: "vd3", poster: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Review", subtitle: "Daily driver meets supercar", category: "Video", description: "The ultimate wagon for every occasion." },
+  { id: "vd1", poster: POSTER, title: "Porsche 911 Walkaround", subtitle: "Full exterior and interior tour", category: "Video", description: "Complete walkaround of this immaculate 911 Carrera." },
+  { id: "vd2", poster: POSTER, title: "BMW M4 Test Drive", subtitle: "On-track performance review", category: "Video", description: "Experience the M4 Competition on the track." },
+  { id: "vd3", poster: POSTER, title: "Audi RS6 Review", subtitle: "Daily driver meets supercar", category: "Video", description: "The ultimate wagon for every occasion." },
 ];
 
 const drawerCardItems: DrawerCardItem[] = [
-  { id: "dc1", image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80", title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history. Guards Red over Black leather.", specs: [{ label: "Engine", value: "3.0L Twin-Turbo Flat-6" }, { label: "Power", value: "443 hp" }, { label: "Transmission", value: "8-speed PDK" }, { label: "0-60 mph", value: "3.2 sec" }, { label: "Top Speed", value: "191 mph" }] },
-  { id: "dc2", image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=800&q=80", title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue with extended Merino leather.", specs: [{ label: "Engine", value: "3.0L Twin-Turbo Inline-6" }, { label: "Power", value: "503 hp" }, { label: "Transmission", value: "8-speed Auto" }, { label: "0-60 mph", value: "3.8 sec" }, { label: "Top Speed", value: "180 mph" }] },
-  { id: "dc3", image: "https://images.unsplash.com/photo-1583121274602-3e2820c69888?w=800&q=80", title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", specs: [{ label: "Engine", value: "4.0L Twin-Turbo V8" }, { label: "Power", value: "591 hp" }, { label: "Transmission", value: "8-speed Auto" }, { label: "0-60 mph", value: "3.5 sec" }, { label: "Top Speed", value: "190 mph" }] },
-  { id: "dc4", image: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=800&q=80", title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black with Red Pepper interior.", specs: [{ label: "Engine", value: "4.0L Twin-Turbo V8" }, { label: "Power", value: "523 hp" }, { label: "Transmission", value: "7-speed DCT" }, { label: "0-60 mph", value: "3.7 sec" }, { label: "Top Speed", value: "193 mph" }] },
-  { id: "dc5", image: "https://images.unsplash.com/photo-1617531653332-bd46c24f2068?w=800&q=80", title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s. Full Self-Driving capability.", specs: [{ label: "Motors", value: "Tri-Motor AWD" }, { label: "Power", value: "1,020 hp" }, { label: "Range", value: "396 miles" }, { label: "0-60 mph", value: "1.99 sec" }, { label: "Top Speed", value: "200 mph" }] },
+  { id: "dc1", image: POSTER, title: "Porsche 911 Carrera", subtitle: "2019 · 12,400 miles", category: "Sports Car", description: "Immaculate condition with full service history. Guards Red over Black leather.", specs: [{ label: "Engine", value: "3.0L Twin-Turbo Flat-6" }, { label: "Power", value: "443 hp" }, { label: "Transmission", value: "8-speed PDK" }, { label: "0-60 mph", value: "3.2 sec" }, { label: "Top Speed", value: "191 mph" }] },
+  { id: "dc2", image: POSTER, title: "BMW M4 Competition", subtitle: "2021 · 8,200 miles", category: "Performance", description: "S58 twin-turbo inline-6. Portimao Blue with extended Merino leather.", specs: [{ label: "Engine", value: "3.0L Twin-Turbo Inline-6" }, { label: "Power", value: "503 hp" }, { label: "Transmission", value: "8-speed Auto" }, { label: "0-60 mph", value: "3.8 sec" }, { label: "Top Speed", value: "180 mph" }] },
+  { id: "dc3", image: POSTER, title: "Audi RS6 Avant", subtitle: "2020 · 15,800 miles", category: "Wagon", description: "591hp twin-turbo V8 with quattro AWD.", specs: [{ label: "Engine", value: "4.0L Twin-Turbo V8" }, { label: "Power", value: "591 hp" }, { label: "Transmission", value: "8-speed Auto" }, { label: "0-60 mph", value: "3.5 sec" }, { label: "Top Speed", value: "190 mph" }] },
+  { id: "dc4", image: POSTER, title: "Mercedes-AMG GT", subtitle: "2018 · 22,100 miles", category: "Grand Tourer", description: "Handcrafted biturbo V8. Obsidian Black with Red Pepper interior.", specs: [{ label: "Engine", value: "4.0L Twin-Turbo V8" }, { label: "Power", value: "523 hp" }, { label: "Transmission", value: "7-speed DCT" }, { label: "0-60 mph", value: "3.7 sec" }, { label: "Top Speed", value: "193 mph" }] },
+  { id: "dc5", image: POSTER, title: "Tesla Model S Plaid", subtitle: "2022 · 5,400 miles", category: "Electric", description: "Tri-motor AWD. 0-60 in 1.99s. Full Self-Driving capability.", specs: [{ label: "Motors", value: "Tri-Motor AWD" }, { label: "Power", value: "1,020 hp" }, { label: "Range", value: "396 miles" }, { label: "0-60 mph", value: "1.99 sec" }, { label: "Top Speed", value: "200 mph" }] },
 ];
 
 // ── Section Wrapper ──

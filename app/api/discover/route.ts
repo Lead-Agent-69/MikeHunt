@@ -9,6 +9,10 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { filterRailsForDesk } from "@/lib/discovery/desk-rails";
 import {
+  JUST_LISTED_WINDOW_HOURS,
+  justListedRail,
+} from "@/lib/discovery/just-listed";
+import {
   categorize,
   auctionHeat,
   dealLane,
@@ -797,12 +801,10 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (a.hoursLeft ?? 1e9) - (b.hoursLeft ?? 1e9))
       .slice(0, N);
 
-    const fresh = [...merged]
-      .sort(
-        (a, b) =>
-          new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime(),
-      )
-      .slice(0, N);
+    // "New to MikeHunt": first seen inside JUST_LISTED_WINDOW_HOURS, newest first. We do not know
+    // when the seller posted it, only when we first saw it, so the rail says that. Undated rows and
+    // rows first seen earlier stay out instead of padding the rail with old inventory.
+    const fresh = justListedRail(merged, Date.now(), N);
 
     // ── Channel lanes (the curated salvage-network payoff) — group by dealLane so a dealer can browse
     // the whole state by risk channel: branded/total-loss, fixable, and live auction lots, each sorted
@@ -952,7 +954,9 @@ export async function GET(request: NextRequest) {
       {
         key: "distressed",
         title: "Motivated Sellers",
-        subtitle: "Repos, estates & must-sells below market",
+        // isDistressed() is listing wording (repo, estate, must sell, OBO…) or a Great Deal grade.
+        // Wording alone says nothing about price, so the subtitle does not claim "below market".
+        subtitle: "Repo, estate or must-sell wording, or a Great Deal grade",
         deals: distressed,
       },
       {
@@ -1000,16 +1004,15 @@ export async function GET(request: NextRequest) {
       { key: "ev", title: "Electric", subtitle: "EVs & hybrids", deals: ev },
       {
         key: "fresh",
-        title: "Just Listed",
-        subtitle:
-          "Recently added listings; check each listing's last-seen time",
+        title: "New to MikeHunt",
+        subtitle: `First seen in the last ${JUST_LISTED_WINDOW_HOURS} hours`,
         deals: fresh,
       },
     ].filter((r) => r.deals.length > 0);
 
     // Net profit, max bid, profit score, and seller contact only go to a saved reseller / dealer
     // desk. Everyone else (signed out, personal, diy, parts, unknown, prefs error) gets redacted
-    // cards, and the wholesale flip rails (Top Flips, Auction Lots, Just Listed, and Salvage
+    // cards, and the wholesale flip rails (Top Flips, Auction Lots, New to MikeHunt, and Salvage
     // except for parts) are dropped here, not just hidden by the page. Cards are copied, never
     // mutated, because `merged` is cached.
     const desk = await resolveCallerDesk();

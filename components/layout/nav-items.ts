@@ -31,7 +31,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
 
 export type NavItem = {
   name: string;
@@ -75,7 +75,8 @@ export const MOBILE_PRIMARY: NavItem[] = [
 /**
  * Wholesale flip tools: auction lanes, the dealer pipeline, and arbitrage.
  * Personal, DIY, and parts buyers do not get these as tabs. The routes still
- * work if opened directly; they are just not offered in the nav.
+ * open only for reseller and dealer desks (see lib/buyer/flip-tool-access.ts);
+ * other desks get an in-page notice. They are also not offered in the nav.
  */
 export const FLIP_ONLY_HREFS: readonly string[] = [
   "/lane",
@@ -180,7 +181,7 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Swipe deals",
         href: "/swipe",
         icon: Layers,
-        description: "Fast yes/no review for today’s candidates.",
+        description: "Fast yes/no review of today’s listings.",
       },
       {
         name: "Map search",
@@ -209,7 +210,7 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Next Best Buy",
         href: "/best-buy",
         icon: Flame,
-        description: "Single best candidate after profit/risk scoring.",
+        description: "The one listing to check first.",
       },
     ],
   },
@@ -476,3 +477,41 @@ export const ADMIN_GROUP: NavGroup = {
     },
   ],
 };
+
+export type AccountMenuEntry = { name: string; href: string };
+
+/**
+ * Signed-in account menu, in order: Saved, Saved searches, Alerts, then a
+ * compact Tools section filtered by desk, then Settings and Help. Labels stay
+ * buyer-neutral (no profit or inventory wording). Flip tools appear only on a
+ * reseller or dealer desk. There is no admin entry here for anyone.
+ */
+export function accountMenuForMode(buyerMode: unknown): {
+  primary: AccountMenuEntry[];
+  tools: AccountMenuEntry[];
+  secondary: AccountMenuEntry[];
+} {
+  const flip = !hidesFlipNav(buyerMode);
+  const mode = normalizeFlipLeadMode(buyerMode);
+  const partsDesk = flip || mode === "parts" || mode === "diy";
+  const tools: AccountMenuEntry[] = [
+    { name: "Scan listings", href: scanHrefForMode(buyerMode) },
+  ];
+  if (partsDesk) tools.push({ name: "Parts", href: "/parts" });
+  if (flip) {
+    tools.push({ name: "Dealer network", href: "/dealer-network" });
+    tools.push({ name: "Auction Lane", href: "/lane" });
+  }
+  return {
+    primary: [
+      { name: "Saved", href: "/saved" },
+      { name: "Saved searches", href: "/searches" },
+      { name: "Alerts", href: "/alerts" },
+    ],
+    tools,
+    secondary: [
+      { name: "Settings", href: "/settings" },
+      { name: "Help & updates", href: "/changelog" },
+    ],
+  };
+}

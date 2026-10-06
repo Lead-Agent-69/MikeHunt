@@ -30,7 +30,7 @@ ENV NODE_ENV=production
 ENV ENABLE_HEADED_SCRAPERS=1
 ENV SCRAPE_INTERVAL_MS=1800000
 # Do NOT bake SCRAPE_SOURCES here. Image default is terms-safe (lib/scrapers/ci-sources.ts:
-# candidates minus TOS_RESTRICTED_SOURCES, i.e. carparts_com, govdeals, allsurplus, gsa_auctions,
+# candidates minus TOS_RESTRICTED_SOURCES, i.e. gsa_auctions and
 # curated_dealers). Opt into terms-restricted sources only via
 # runtime env (compose/.env.local.scraper); the scraper logs a warning each sweep if set.
 # CACHE_PHOTOS_MAX=0 leaves deals.images as source URLs (no vehicle-photos upload).

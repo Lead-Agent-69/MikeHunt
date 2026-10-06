@@ -15,7 +15,7 @@ const defaultValues: DealerDefaults = {
   reconCost: 500,
   dailyFloorRate: 35,
   targetProfit: 3500,
-  homeState: "CA",
+  homeState: "",
 };
 
 export default function useDealerDefaults() {

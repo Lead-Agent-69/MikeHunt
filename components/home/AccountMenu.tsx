@@ -2,21 +2,53 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Gavel, CircleHelp, LogOut, Settings } from "lucide-react";
+import {
+  Bell,
+  Bookmark,
+  CircleHelp,
+  Gavel,
+  LogIn,
+  LogOut,
+  ScanSearch,
+  Search,
+  Settings,
+  Store,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
-import { hidesFlipNav } from "@/components/layout/nav-items";
+import { useDealerId } from "@/hooks/useDealerId";
+import { accountMenuForMode } from "@/components/layout/nav-items";
+
+const MENU_ICONS: Record<string, LucideIcon> = {
+  "/saved": Bookmark,
+  "/searches": Search,
+  "/alerts": Bell,
+  "/parts": Wrench,
+  "/dealer-network": Store,
+  "/lane": Gavel,
+  "/settings": Settings,
+  "/changelog": CircleHelp,
+};
+
+function menuIcon(href: string): LucideIcon {
+  return MENU_ICONS[href.split("?")[0]] ?? ScanSearch;
+}
 
 // The account menu present on every app surface — jump to settings and LOG OUT. `floating` (default) pins
 // it top-right; pass floating={false} to drop it inline into a nav bar's right side.
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const { intent } = useBuyerIntent();
-  // Auction Lane is a flip tool. Personal, DIY, and parts desks don't get it here either.
-  const showAuctionLane = !hidesFlipNav(intent?.buyerMode);
+  // Entries come from accountMenuForMode: flip tools (Dealer network, Auction Lane) only on a
+  // reseller or dealer desk, Parts for parts/DIY/flip, and no admin entry for anyone.
+  const menu = accountMenuForMode(intent?.buyerMode);
+  const { dealerId, loading: authLoading } = useDealerId();
+  const signedOut = !authLoading && !dealerId;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -58,6 +90,26 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     router.push("/login");
   }
 
+  const go = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
+
+  function MenuLink({
+    entry,
+    icon,
+  }: {
+    entry: { name: string; href: string };
+    icon?: LucideIcon;
+  }) {
+    const Icon = icon ?? menuIcon(entry.href);
+    return (
+      <button onClick={() => go(entry.href)} className={item}>
+        <Icon className="h-4 w-4" aria-hidden="true" /> {entry.name}
+      </button>
+    );
+  }
+
   const item =
     "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
 
@@ -86,54 +138,46 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       </button>
       {open && (
         <div className="absolute top-11 right-0 w-52 p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur-md shadow-[var(--shadow)]">
-          <button
-            onClick={() => {
-              setOpen(false);
-              router.push("/alerts");
-            }}
-            className={item}
-          >
-            <Bell className="h-4 w-4" aria-hidden="true" /> Activity
-          </button>
-          {showAuctionLane && (
-            <button
-              onClick={() => {
-                setOpen(false);
-                router.push("/lane");
-              }}
-              className={`${item} md:hidden`}
-            >
-              <Gavel className="h-4 w-4" aria-hidden="true" /> Auction Lane
-            </button>
+          {signedOut ? (
+            <>
+              <MenuLink
+                entry={{ name: "Sign in", href: "/login" }}
+                icon={LogIn}
+              />
+              <MenuLink
+                entry={{ name: "Help & updates", href: "/changelog" }}
+              />
+            </>
+          ) : (
+            <>
+              {menu.primary.map((entry) => (
+                <MenuLink key={entry.href} entry={entry} />
+              ))}
+              <div className="my-1 border-t border-[var(--b1)]" />
+              <div className="px-3 pt-1 pb-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--t4)]">
+                Tools
+              </div>
+              {menu.tools.map((entry) => (
+                <MenuLink key={entry.href} entry={entry} />
+              ))}
+              <div className="my-1 border-t border-[var(--b1)]" />
+              {menu.secondary.map((entry) => (
+                <MenuLink key={entry.href} entry={entry} />
+              ))}
+            </>
           )}
-          <button
-            onClick={() => {
-              setOpen(false);
-              router.push("/settings");
-            }}
-            className={item}
-          >
-            <Settings className="h-4 w-4" aria-hidden="true" />
-            Settings
-          </button>
-          <button
-            onClick={() => {
-              setOpen(false);
-              router.push("/changelog");
-            }}
-            className={item}
-          >
-            <CircleHelp className="h-4 w-4" aria-hidden="true" />
-            Help &amp; updates
-          </button>
-          <div className="my-1 border-t border-[var(--b1)]" />
-          <button
-            onClick={logout}
-            className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
-          >
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            Log out
-          </button>
+          {!signedOut && (
+            <>
+              <div className="my-1 border-t border-[var(--b1)]" />
+              <button
+                onClick={logout}
+                className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Log out
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
