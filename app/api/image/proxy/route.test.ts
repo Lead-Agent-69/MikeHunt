@@ -25,3 +25,16 @@ describe("image proxy host safety", () => {
     expect(isAllowedImageUrl(url)).toBe(false);
   });
 });
+
+describe("GET /api/image/proxy hop safety", () => {
+  it("403s a non-allowlisted URL before any fetch", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      new Request(
+        "https://app.test/api/image/proxy?url=" +
+          encodeURIComponent("http://169.254.169.254/latest/meta-data"),
+      ),
+    );
+    expect(res.status).toBe(403);
+  });
+});

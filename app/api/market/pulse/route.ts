@@ -6,9 +6,15 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+
+// Desk-scoped → never a shared CDN cache.
+const PULSE_HEADERS = { "Cache-Control": "private, no-store" };
 
 // GET /api/market/pulse — "what the market's doing": the make/models with the most live GO deals,
 // their avg profit and days-on-market. Powers the home-screen intelligence cards.
+// Flip desks only (Eva P0): every row is a BUY count + avg profit, which is flip economics. A
+// personal / diy / parts / signed-out caller gets an empty list (the card hides), never a $0 profit.
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, {
     key: "market-pulse",
@@ -18,13 +24,27 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl);
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ rows: [], configured: false });
+    return NextResponse.json(
+      { rows: [], configured: false },
+      { headers: PULSE_HEADERS },
+    );
+  }
+
+  const flipDesk = await resolveCallerFlipDesk();
+  if (!flipDesk) {
+    return NextResponse.json(
+      { rows: [], deskAccess: "personal" },
+      { headers: PULSE_HEADERS },
+    );
   }
 
   const supabase = createServerComponentClient();
   const { data, error } = await supabase.rpc("get_market_pulse");
   if (error)
-    return NextResponse.json({ rows: [], error: "Market pulse unavailable" });
+    return NextResponse.json(
+      { rows: [], error: "Market pulse unavailable" },
+      { headers: PULSE_HEADERS },
+    );
 
   const rows = (data || []).map((r: any) => ({
     make: r.make,
@@ -34,5 +54,8 @@ export async function GET(req: NextRequest) {
     avgDays: Number(r.avg_days) || 0,
   }));
 
-  return NextResponse.json({ rows });
+  return NextResponse.json(
+    { rows, deskAccess: "flip" },
+    { headers: PULSE_HEADERS },
+  );
 }
