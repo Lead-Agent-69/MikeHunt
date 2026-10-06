@@ -106,7 +106,9 @@ describe("listing feeds wire the shared desk redaction", () => {
 
   it.each(files)("%s calls resolveCallerFlipDesk / desk gate", (file) => {
     const src = readFileSync(file, "utf8");
-    expect(src).toMatch(/resolveCallerFlipDesk|isFlipDeskMode/);
+    expect(src).toMatch(
+      /resolveCallerFlipDesk|resolveCallerDesk|isFlipDeskMode/,
+    );
     expect(src).toMatch(
       /listingsForDesk|redactListingForNonFlipDesk|flipDesk \?/,
     );

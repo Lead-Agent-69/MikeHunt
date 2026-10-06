@@ -8,6 +8,7 @@ import { effectiveHome } from "@/lib/preferences/locations";
 import { zipToState } from "@/lib/geo/zip-state";
 import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
 import { proxiedImage } from "@/lib/image-url";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 // State-scoped listings only. A saved state or a ZIP's state is not a mile
 // radius, and the CA dealer default is never treated as "near you".
@@ -41,7 +42,12 @@ export function NearbyDeals() {
   const zipMode = /^\d{5}$/.test(zip);
   const center = (zipMode ? zipToState(zip) : home) || "";
 
-  const key = center ? `/api/scan?states=${center}&sort=profit` : null;
+  // Profit ranking is flip-desk only (the server also downgrades it). Everyone else gets the
+  // trust/proof ranking so the order never encodes a hidden profit number.
+  const sort = isFlipBuyerMode(prefs?.buyerScope?.buyerMode)
+    ? "profit"
+    : "score";
+  const key = center ? `/api/scan?states=${center}&sort=${sort}` : null;
   const { data, isLoading } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,

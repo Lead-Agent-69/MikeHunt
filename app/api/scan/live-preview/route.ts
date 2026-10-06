@@ -8,6 +8,11 @@ import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { gradeDataQuality } from "@/lib/data-quality";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  redactListingForNonFlipDesk,
+  resolveCallerDesk,
+} from "@/lib/deals/deal-desk-access";
+import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -144,8 +149,7 @@ function rowToVehicle(row: any, sourceId?: string) {
     damageType: row.damage_type,
     askPrice: row.ask_price,
     mmrValue: row.metadata?.acv_estimate || 0,
-    profitEstimate: 0,
-    profitScore: 50,
+    // No profit model runs on preview rows. Leave profit unset instead of a fake $0 / score 50.
     images: row.images || [],
     locationCity: row.location_city,
     locationState: row.location_state,
@@ -224,6 +228,8 @@ function sourceMatchesSellerType(source: PreviewSource, sellerType: string) {
 // Copart / GovDeals / PublicSurplus / Municibid (or burn our IP reputation).
 const PREVIEW_CACHE_MS = 5 * 60_000;
 
+const NO_STORE = { "Cache-Control": "private, no-store" };
+
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, {
     key: "scan-live-preview",
@@ -231,6 +237,12 @@ export async function GET(req: NextRequest) {
     windowMs: 60_000,
   });
   if (!rl.allowed) return tooManyRequests(rl);
+  // Seller contact is flip-desk only, same as /api/scan. Fail closed to personal.
+  const desk = await resolveCallerDesk();
+  const flipDesk = desk === "flip";
+  const deskAccess = flipDesk ? "flip" : "personal";
+  const json = (body: Record<string, unknown>) =>
+    NextResponse.json({ ...body, deskAccess }, { headers: NO_STORE });
   try {
     const { searchParams } = new URL(req.url);
     const lane = searchParams.get("lane") || "damaged";
@@ -253,13 +265,18 @@ export async function GET(req: NextRequest) {
       maxMileage: maxMileage || undefined,
     });
 
-    let candidates = PREVIEW_SOURCES.filter(
+    // Never live-fetch a terms-restricted source (Copart, PublicSurplus, ...) from this public route
+    // unless the operator opted in through SCRAPE_SOURCES.
+    const allowedSources = PREVIEW_SOURCES.filter((source) =>
+      source.sourceIds.every((id) => isAutomationAllowedSource(id)),
+    );
+    let candidates = allowedSources.filter(
       (source) =>
         sourceMatchesPlan(source, plan.sourceIds) &&
         sourceMatchesSellerType(source, sellerType),
     );
     if (requestedSource && requestedSource !== "all") {
-      const exact = PREVIEW_SOURCES.find((source) =>
+      const exact = allowedSources.find((source) =>
         source.sourceIds.some((id) => cleanSource(id) === requestedSource),
       );
       candidates =
@@ -271,7 +288,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!candidates.length) {
-      return NextResponse.json({
+      return json({
         ok: true,
         isLivePreview: true,
         plan,
@@ -319,7 +336,10 @@ export async function GET(req: NextRequest) {
         });
         const vehicles = filtered
           .slice(0, 24)
-          .map((row) => rowToVehicle(row, candidate.id));
+          .map((row) => rowToVehicle(row, candidate.id))
+          .map((vehicle) =>
+            flipDesk ? vehicle : redactListingForNonFlipDesk(vehicle),
+          );
 
         proof.push({
           id: candidate.id,
@@ -333,7 +353,7 @@ export async function GET(req: NextRequest) {
         });
 
         if (vehicles.length) {
-          return NextResponse.json({
+          return json({
             ok: true,
             isLivePreview: true,
             previewSource: candidate.id,
@@ -346,19 +366,20 @@ export async function GET(req: NextRequest) {
           });
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : "failed";
+        // Log the upstream error; the client only learns that this source did not answer.
+        console.warn(`scan live-preview ${candidate.id} failed:`, error);
         proof.push({
           id: candidate.id,
           label: candidate.label,
           status: "blocked",
           rows: 0,
           matchedRows: 0,
-          detail: message,
+          detail: "Source did not respond to the preview request.",
         });
       }
     }
 
-    return NextResponse.json({
+    return json({
       ok: false,
       isLivePreview: true,
       attemptedSources: candidates.map((source) => source.id),
@@ -371,19 +392,14 @@ export async function GET(req: NextRequest) {
       detail: proof.map((item) => `${item.label}: ${item.detail}`).join("; "),
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Live preview failed.";
-    return NextResponse.json(
-      {
-        ok: false,
-        isLivePreview: true,
-        vehicles: [],
-        total: 0,
-        message:
-          "The public live preview source is temporarily unreachable from this network. Try again or connect Supabase and run imports.",
-        detail: message,
-      },
-      { status: 200 },
-    );
+    console.error("scan live-preview error:", error);
+    return json({
+      ok: false,
+      isLivePreview: true,
+      vehicles: [],
+      total: 0,
+      message:
+        "The public live preview source is temporarily unreachable from this network. Try again or connect Supabase and run imports.",
+    });
   }
 }

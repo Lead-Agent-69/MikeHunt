@@ -6,6 +6,7 @@ import {
   DEFAULT_SWEEP_SOURCES,
   TOS_RESTRICTED_SOURCES,
   optedInRestrictedSources,
+  isAutomationAllowedSource,
   advanceSweep,
   claimBackoffMs,
   emptySweepState,
@@ -135,5 +136,17 @@ describe("sweep state file", () => {
     };
     await saveSweepState(state, file);
     expect(await loadSweepState(file)).toEqual(state);
+  });
+});
+
+describe("automation allow-list for public preview routes", () => {
+  it("blocks terms-restricted sources unless SCRAPE_SOURCES opts in", () => {
+    expect(isAutomationAllowedSource("copart", "")).toBe(false);
+    expect(isAutomationAllowedSource("publicsurplus", undefined)).toBe(false);
+    expect(isAutomationAllowedSource("copart", "craigslist, copart")).toBe(
+      true,
+    );
+    expect(isAutomationAllowedSource("govdeals", "")).toBe(true);
+    expect(isAutomationAllowedSource("municibid", "")).toBe(true);
   });
 });

@@ -7,6 +7,7 @@ import {
   isWatchCandidateVerdict,
   normalizePageSize,
   normalizeScanSort,
+  scanSortForDesk,
   scanSortOrder,
   scanTrustScore,
   sellerTypeSourceValues,
@@ -260,5 +261,70 @@ describe("scan source filtering helpers", () => {
     expect(sellerTypeSourceValues("auction")).toContain("gov_auction");
     expect(sellerTypeSourceValues("private")).toContain("facebook_marketplace");
     expect(sellerTypeSourceValues("all")).toEqual([]);
+  });
+});
+
+describe("scan desk honesty", () => {
+  const RICH = {
+    profitEstimate: 2400,
+    profitScore: 78,
+    vin: "JN1AR5EF5EM270025",
+    mileage: 65000,
+    titleType: "clean",
+    seller: "Seller 26960",
+    sourceUrl: "https://www.govdeals.com/asset/2525/26960",
+    lastSeenAt: new Date().toISOString(),
+    images: ["photo.jpg"],
+    dealVerdict: "go",
+    recommendedMaxBid: 7200,
+    valuation: { basis: "comps", compCount: 4, soldCount: 2 },
+    dataQuality: { score: 88, missing: [] },
+  };
+
+  it("downgrades profit sort to trust ranking off the flip desk", () => {
+    expect(scanSortForDesk("profit", false)).toBe("score");
+    expect(scanSortForDesk("price", false)).toBe("price");
+    expect(scanSortForDesk("score", false)).toBe("score");
+    expect(scanSortForDesk("profit", true)).toBe("profit");
+  });
+
+  it("ranks non-flip rows without the flip-only profit score", () => {
+    const highProfit = { profitScore: 99, dataQuality: { score: 50 } };
+    const lowProfit = { profitScore: 1, dataQuality: { score: 50 } };
+    expect(scanTrustScore(highProfit, { includeProfit: false })).toBe(
+      scanTrustScore(lowProfit, { includeProfit: false }),
+    );
+    expect(scanTrustScore(highProfit)).toBeGreaterThan(
+      scanTrustScore(lowProfit),
+    );
+  });
+
+  it.each(["personal", "parts"] as const)(
+    "uses buyer wording, not flip wording, for a %s desk",
+    (desk) => {
+      const explanation = buildTrustExplanation(RICH, {}, desk);
+      const text = JSON.stringify(explanation);
+      expect(text).not.toMatch(
+        /BUY verdict|recommended max buy|estimated spread|Resale estimate|max bid|resale and fee math|transport quote|repair estimate/i,
+      );
+      expect(explanation.reasons).toContain("Market value is comp-backed");
+      expect(explanation.reasons).toContain("6 valuation comps");
+      expect(explanation.nextChecks).toContain(
+        "contact the seller through the original listing",
+      );
+      expect(explanation.nextChecks).toContain(
+        desk === "parts"
+          ? "confirm which parts are usable before you buy"
+          : "get a pre-purchase inspection",
+      );
+    },
+  );
+
+  it("keeps flip wording for the flip desk", () => {
+    const explanation = buildTrustExplanation(RICH, {}, "flip");
+    expect(explanation.reasons).toContain(
+      "BUY verdict from profit and proof scoring",
+    );
+    expect(explanation.reasons).toContain("Resale estimate is comp-backed");
   });
 });
