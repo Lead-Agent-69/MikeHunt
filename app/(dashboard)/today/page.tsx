@@ -306,8 +306,12 @@ export default function TodayPage() {
       )}
       <IntelRail
         endpoint="/api/deals/near"
-        title="📍 Near you"
-        subtitle="Closest BUY deals to your home base"
+        title={flipDesk ? "📍 Near you" : "Listings in your home state"}
+        subtitle={
+          flipDesk
+            ? "Closest BUY deals to your home base"
+            : "Listings in the state you live in"
+        }
       />
       <IntelRail
         endpoint="/api/mispricing"

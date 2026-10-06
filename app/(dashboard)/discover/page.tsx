@@ -585,7 +585,7 @@ export default function DiscoverPage() {
                 />
                 <IntelRail
                   endpoint="/api/deals/near"
-                  title="Near you"
+                  title={flipDesk ? "Near you" : "Listings in your home state"}
                   subtitle="Distance not available until a listing has real miles."
                 />
               </>

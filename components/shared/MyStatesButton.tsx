@@ -56,7 +56,11 @@ export function MyStatesButton({
           className ||
           "interactive-surface premium-focus inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3.5 py-2 text-[13px] font-bold text-[var(--t2)] shadow-[var(--shadow2)] hover:text-[var(--t1)]"
         }
-        title="Choose which states to see"
+        title={
+          states.length === 0
+            ? "Listings in all states"
+            : `Listings in ${states.join(", ")}`
+        }
         aria-label={`Choose location: ${label}`}
         aria-haspopup="dialog"
         aria-expanded={open}

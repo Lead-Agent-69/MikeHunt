@@ -83,7 +83,7 @@ export function addSearchLocation(
       error: `You can save up to ${MAX_SEARCH_LOCATIONS} search markets.`,
     };
   if (home?.state === state && !zip && !home.zip)
-    return { error: `${state} is already your home market.` };
+    return { error: `${state} is already your home state.` };
   const key = searchLocationKey({ state, zip });
   if (list.some((loc) => searchLocationKey(loc) === key))
     return { error: "That market is already on your list." };

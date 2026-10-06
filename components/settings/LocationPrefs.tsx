@@ -160,14 +160,16 @@ export function LocationPrefs() {
   const addMarket = async () => {
     const next = addSearchLocation(search, addForm, home);
     if ("error" in next) return toast.error(next.error);
-    if (await run(searchLocationsPatch(home, next.list), "Search market added"))
+    if (
+      await run(searchLocationsPatch(home, next.list), "Search location added")
+    )
       setAddForm(EMPTY_FORM);
   };
 
   const removeMarket = async (id: string) => {
     await run(
       searchLocationsPatch(home, removeSearchLocation(search, id)),
-      "Search market removed",
+      "Search location removed",
     );
   };
 
@@ -181,7 +183,7 @@ export function LocationPrefs() {
           Home location
         </h3>
         <p className="mt-1 mb-3 text-[12px] text-[var(--t4)]">
-          Where you live. Used for nearby deals and local comps.
+          The state you live in. Listings there come first.
           {home ? ` Currently ${locationLabel(home)}.` : " Not set yet."}
         </p>
         <LocationFields
@@ -228,7 +230,10 @@ export function LocationPrefs() {
           there include travel or shipping in the math.
         </p>
         {search.length > 0 ? (
-          <ul className="mb-3 flex flex-wrap gap-2" aria-label="Search markets">
+          <ul
+            className="mb-3 flex flex-wrap gap-2"
+            aria-label="Search locations"
+          >
             {search.map((loc) => (
               <li
                 key={loc.id}
@@ -249,7 +254,7 @@ export function LocationPrefs() {
           </ul>
         ) : (
           <p className="mb-3 text-[12px] font-semibold text-[var(--t3)]">
-            No extra markets yet. You will see your home market only.
+            No extra markets yet. You will see listings in your home state only.
           </p>
         )}
         {search.length < MAX_SEARCH_LOCATIONS && (
