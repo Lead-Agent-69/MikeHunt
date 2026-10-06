@@ -11,13 +11,33 @@ import { SWRProvider } from "@/components/providers/SWRProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
 import { PWARegister } from "@/components/PWARegister";
 import { InstallPrompt } from "@/components/InstallPrompt";
-import { Inter, Fraunces } from "next/font/google";
+import { Inter, Fraunces, Syne } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
+// Self-hosted at build time by next/font: no requests to fonts.googleapis.com or
+// fonts.gstatic.com. Same families and weights the old globals.css @import loaded.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-sans",
+});
+const syne = Syne({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-syne",
+});
+// Fraunces stays a variable font so it keeps the opsz axis; its wght range (100-900)
+// covers the 400-700 the old import asked for. next/font rejects axes with fixed weights.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  axes: ["opsz"],
+  display: "swap",
+  variable: "--font-serif",
+});
 
 export const metadata: Metadata = {
   title: "MikeHunt - Vehicle Sourcing Intelligence",
@@ -69,6 +89,7 @@ export default function RootLayout({
         "h-full bg-[var(--s1)]",
         "font-sans",
         inter.variable,
+        syne.variable,
         fraunces.variable,
       )}
     >

@@ -84,8 +84,14 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
-        serif: ["Fraunces", "Georgia", "serif"],
+        sans: [
+          "var(--font-sans)",
+          "Inter",
+          "system-ui",
+          "-apple-system",
+          "sans-serif",
+        ],
+        serif: ["var(--font-serif)", "Fraunces", "Georgia", "serif"],
         mono: ["Geist Mono", "ui-monospace", "monospace"],
       },
       keyframes: {
