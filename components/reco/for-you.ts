@@ -56,14 +56,20 @@ export interface ForYouResponse {
 export function forYouCards(
   res: ForYouResponse | null | undefined,
   flipDesk: boolean,
+  eligibleDeals?: DiscoveryDeal[],
 ): DiscoveryDeal[] {
   if (!res || res.configured === false || res.personalized !== true) return [];
   const items = Array.isArray(res.items) ? res.items : [];
+  // Recommendations cannot widen the active search or replace richer listing evidence.
+  const eligible = eligibleDeals
+    ? new Map(eligibleDeals.map((deal) => [deal.id, deal]))
+    : null;
   return items
     .filter(
       (d) =>
         d &&
         typeof d.id === "string" &&
+        (!eligible || eligible.has(d.id)) &&
         Array.isArray(d.images) &&
         d.images[0] &&
         Number(d.askPrice) > 0,
@@ -85,6 +91,7 @@ export function forYouCards(
         gradeLabel: "",
         alsoOn: [],
         listingCount: 1,
+        ...(eligible?.get(d.id) || {}),
       };
       if (!flipDesk) for (const k of FLIP_ONLY) delete card[k];
       return card as DiscoveryDeal;

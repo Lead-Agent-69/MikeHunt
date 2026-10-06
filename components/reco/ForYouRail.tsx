@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { fetchForYou } from "@/lib/reco/client";
 import { forYouCards } from "./for-you";
+import type { DiscoveryDeal } from "@/components/discovery/types";
 
 const loadForYou = (url: string) => {
   const m = /[?&]limit=(\d+)/.exec(url);
@@ -16,13 +17,19 @@ const loadForYou = (url: string) => {
  * entirely when empty, on any error, or when the backend isn't personalizing (cold start or
  * signalsAvailable:false). Non-flip desks never see profit or max-bid.
  */
-export function ForYouRail({ flipDesk }: { flipDesk: boolean }) {
+export function ForYouRail({
+  flipDesk,
+  eligibleDeals,
+}: {
+  flipDesk: boolean;
+  eligibleDeals: DiscoveryDeal[];
+}) {
   const { data } = useSWR("/api/reco/for-you?limit=12", loadForYou, {
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
     shouldRetryOnError: false,
   });
-  const cards = forYouCards(data, flipDesk);
+  const cards = forYouCards(data, flipDesk, eligibleDeals);
   if (cards.length === 0) return null;
 
   return (

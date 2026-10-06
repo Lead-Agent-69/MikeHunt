@@ -256,3 +256,13 @@ This is a broad product and implementation audit, not a claim that every control
 6. Responsive image/performance measurements, keyboard/contrast/physical-device QA and a single current release checklist.
 
 The product currently works best as a vehicle research and watchlist tool. Live acquisition recommendations require the collection, provenance, mode-consistency and verification work above before the product should present itself as a complete decision system.
+
+## Release Verification Follow-Up
+
+Implemented in this release: multi-category onboarding; preference-save failure handling before setup completion; conservative valuation confidence; mode-aware Saved and Settings; specific-vehicle comparison with incomplete-cost disclosure; personal acquisition tasks; honest source timestamps and collection-idle monitoring; and customer-safe public readiness copy.
+
+Local signed-in QA verified the personal Pipeline task survives reload (test change restored), personal Saved hides resale economics, and comparison shows real listing details without treating missing fees as zero. Screenshots are in `artifacts/release-qa/` and are not product assets.
+
+The merged release passed typecheck, lint (existing warnings), 1,273 tests across 251 files, and production build before pushing to main/master. Follow-up QA found and corrected browser-storage reads during Discover's initial render, recommended cars outside the active search, and corrupted card separators. Recommendations now intersect the current eligible discovery rows, preserving their richer evidence; they are withheld during refresh/failure.
+
+Still not certified: fresh Google/email/admin login and ownership isolation on production, actual scoped collection and current source cadence, alert delivery, installed-PWA updates, full responsive/device matrix for this final release, and valuation accuracy against actual outcomes. Collection was approximately 68 hours overdue at the audit; monitoring now reports this as failure rather than healthy. No 99% accuracy or complete-production-readiness claim is supported.

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { forYouCards } from "@/components/reco/for-you";
+import type { DiscoveryDeal } from "@/components/discovery/types";
 
 const item = {
   id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
@@ -90,6 +91,56 @@ describe("For You rail data", () => {
 
   it("Discover mounts the rail with the current desk", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
-    expect(page).toContain("<ForYouRail flipDesk={flipDesk} />");
+    expect(page).toContain("flipDesk={flipDesk}");
+    expect(page).toContain(
+      "eligibleDeals={visibleRails.flatMap((rail) => rail.deals)}",
+    );
+    expect(page).toContain("!isValidating && !error");
+  });
+
+  it("never widens the current search with auction, over-budget or wrong-state recommendations", () => {
+    const eligible = {
+      ...item,
+      titleClass: "salvage",
+      grade: "unknown",
+      discountPct: 0,
+      gradeLabel: "",
+      alsoOn: [],
+      listingCount: 1,
+      warnings: ["Inspection needed"],
+    } as DiscoveryDeal;
+    const cards = forYouCards(
+      {
+        personalized: true,
+        items: [
+          item,
+          { ...item, id: "auction", source: "copart" },
+          { ...item, id: "over-budget", askPrice: 90000 },
+          { ...item, id: "wrong-state", locationState: "MO" },
+        ],
+      },
+      false,
+      [eligible],
+    );
+    expect(cards.map((card) => card.id)).toEqual([item.id]);
+    expect(cards[0].titleClass).toBe("salvage");
+    expect(cards[0].warnings).toEqual(["Inspection needed"]);
+    expect(cards[0].trueNetProfit).toBeUndefined();
+    expect(
+      forYouCards({ personalized: true, items: [item] }, true, []),
+    ).toEqual([]);
+  });
+
+  it("does not read browser storage during the initial Discover render", () => {
+    const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+    const renderScope = page.slice(
+      page.indexOf("const urlScope ="),
+      page.indexOf("const router ="),
+    );
+    expect(renderScope).not.toContain("readLocalBuyerIntent()");
+    expect(renderScope).toContain(
+      "localIntent || normalizeBuyerIntent(prefs.buyerScope)",
+    );
+    expect(renderScope).toContain("vehicles: []");
   });
 });

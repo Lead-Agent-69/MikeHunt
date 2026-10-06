@@ -246,9 +246,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   ? { background: "var(--rlo)", color: "var(--red)" }
                   : { background: "var(--amber-lo)", color: "var(--amber-d)" }
               }
-              title={deal.vinFlags.join(" ┬╖ ")}
+              title={deal.vinFlags.join(" / ")}
             >
-              {deal.vinFlagSeverity === "high" ? "ΓÜá " : ""}
+              {deal.vinFlagSeverity === "high" ? "Warning: " : ""}
               {deal.vinFlags.find((f) =>
                 /washing|rollback|salvage|flood|fire/i.test(f),
               ) || deal.vinFlags[0]}
@@ -288,13 +288,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       : "Operability unconfirmed"
                 }
               >
-                {cond.runs === "yes"
-                  ? "Γ£ô "
-                  : cond.runs === "no"
-                    ? "Γ£ò "
-                    : ""}
                 {cond.label}
-                {cond.detail ? ` ┬╖ ${cond.detail}` : ""}
+                {cond.detail ? ` / ${cond.detail}` : ""}
               </span>
             )}
             {deal.mileage != null && Number.isFinite(deal.mileage) ? (
@@ -303,7 +298,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               </span>
             ) : null}
             {deal.mileage != null && location ? (
-              <span className="opacity-30">┬╖</span>
+              <span className="opacity-30" aria-hidden="true">
+                /
+              </span>
             ) : null}
             {location && (
               <span className="inline-flex items-center gap-1 truncate">
@@ -372,7 +369,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
-            {relativeFreshness(deal.lastSeenAt)} ┬╖{" "}
+            {relativeFreshness(deal.lastSeenAt)} /{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
           <p className="text-xs leading-relaxed text-[var(--t3)]">
@@ -454,9 +451,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                           background:
                             CONFIDENCE_META[deal.valueConfidence].color,
                         }}
-                        title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence ΓÇö ${CONFIDENCE_META[deal.valueConfidence].blurb}${
+                        title={`${CONFIDENCE_META[deal.valueConfidence].label} confidence: ${CONFIDENCE_META[deal.valueConfidence].blurb}${
                           deal.valueEvidence
-                            ? ` ┬╖ backed by ${deal.valueEvidence} real comps/sales`
+                            ? ` / backed by ${deal.valueEvidence} real comps/sales`
                             : ""
                         }`}
                       />
@@ -465,7 +462,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.sellEstimate
                       ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
-                      : "ΓÇö"}
+                      : "Not available"}
                   </span>
                 </div>
                 <div
@@ -478,7 +475,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--green)]">
                     {deal.recommendedMaxBid
                       ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
-                      : "ΓÇö"}
+                      : "Not available"}
                   </span>
                 </div>
               </div>
@@ -494,7 +491,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.repairEstimate
                       ? `$${Math.round(deal.repairEstimate).toLocaleString()}`
-                      : "ΓÇö"}
+                      : "Not available"}
                   </span>
                 </div>
                 <div
@@ -507,7 +504,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   <span className="font-mono font-bold text-[var(--t2)]">
                     {deal.transportEstimate
                       ? `$${Math.round(deal.transportEstimate).toLocaleString()}`
-                      : "ΓÇö"}
+                      : "Not available"}
                   </span>
                 </div>
               </div>
@@ -560,7 +557,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                               ? `inset 0 0 0 1px ${m.color}`
                               : undefined,
                           }}
-                          title={`${m.label}${isCheapest ? " ΓÇö cheapest" : ""}`}
+                          title={`${m.label}${isCheapest ? " - lowest reported price" : ""}`}
                         >
                           <span
                             className="inline-block h-1.5 w-1.5 rounded-full"

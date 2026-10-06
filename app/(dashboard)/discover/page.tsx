@@ -12,6 +12,7 @@ import {
   discoverQueryForBuyingFor,
   normalizeBuyerIntent,
   readLocalBuyerIntent,
+  useBuyerIntent,
   writeLocalBuyerIntent,
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
@@ -189,6 +190,7 @@ function RailSkeleton() {
 export default function DiscoverPage() {
   const searchParams = useSearchParams();
   const { prefs } = usePreferences();
+  const { intent: localIntent } = useBuyerIntent();
   const urlScope = React.useMemo(() => {
     const q = (searchParams.get("q") || "").toLowerCase().trim();
     const laneValue = (searchParams.get("lane") || "all").toLowerCase().trim();
@@ -214,12 +216,12 @@ export default function DiscoverPage() {
     );
     if (!hasScope) return null;
     const savedBuyerScope =
-      readLocalBuyerIntent() || normalizeBuyerIntent(prefs.buyerScope);
+      localIntent || normalizeBuyerIntent(prefs.buyerScope);
     const maxPrice = Number(maxPriceParam || 0);
     return normalizeBuyerIntent({
       ...savedBuyerScope,
       ...(searchParams.has("q")
-        ? { vehicle: undefined, vehicleType: q || undefined }
+        ? { vehicle: undefined, vehicles: [], vehicleType: q || undefined }
         : {}),
       ...(searchParams.has("lane")
         ? { lane: LANE_VALUE_TO_LABEL[laneValue], laneValue }
@@ -245,7 +247,7 @@ export default function DiscoverPage() {
         ? { makes: makesParam, preferredMakes: makesParam }
         : {}),
     });
-  }, [searchParams, prefs.buyerScope]);
+  }, [searchParams, prefs.buyerScope, localIntent]);
   const router = useRouter();
   const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
@@ -595,7 +597,12 @@ export default function DiscoverPage() {
         )}
       </details>
       {/* For You: personal reco rail, hidden unless the backend is personalizing */}
-      <ForYouRail flipDesk={flipDesk} />
+      {!isValidating && !error && (
+        <ForYouRail
+          flipDesk={flipDesk}
+          eligibleDeals={visibleRails.flatMap((rail) => rail.deals)}
+        />
+      )}
 
       {/* Body */}
       {isLoading && !data ? (
