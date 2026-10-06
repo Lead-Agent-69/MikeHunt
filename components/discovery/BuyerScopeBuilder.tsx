@@ -932,13 +932,13 @@ export function BuyerScopeBuilder({
           </p>
           <p className="mt-1 text-xs text-[var(--t5)]">
             {scopeHealthLoading
-              ? "Checking source proof for this scope..."
+              ? "Checking availability for this search..."
               : scopeStatus?.message ||
-                `Source check would use ${scrapePlan.sourceIds.length} source${
+                `This search checks ${scrapePlan.sourceIds.length} market${
                   scrapePlan.sourceIds.length === 1 ? "" : "s"
                 }: ${
                   hasNoMatchingSources
-                    ? "change the lane or seller type to find a matching source"
+                    ? "change the lane or seller type to find a matching market"
                     : formatSourceList(scrapePlan.sourceIds, 4)
                 }`}
             {dealerWatch.count
@@ -953,7 +953,7 @@ export function BuyerScopeBuilder({
             className="inline-flex items-center justify-center gap-2 rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)] transition-transform active:scale-[0.98] disabled:opacity-60"
           >
             <Sparkles size={15} />
-            {previewing ? "Checking..." : "Check sources"}
+            {previewing ? "Checking..." : "Check availability"}
           </button>
           <button
             onClick={runSmartImport}
@@ -962,21 +962,21 @@ export function BuyerScopeBuilder({
             title={
               hasScopeNoMatch
                 ? "Change lane or seller type before running."
-                : "Search only the sources that match this buyer scope"
+                : "Search only the markets that match this buyer scope"
             }
           >
             <ShieldCheck size={15} />
             {running
               ? "Searching..."
               : hasScopeNoMatch
-                ? "Choose a matching source"
-                : "Search matching sources"}
+                ? "Choose a matching market"
+                : "Find matching listings"}
           </button>
           <Link
             href={sourceSetupHref}
             className="inline-flex items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-bold text-[var(--t2)]"
           >
-            Source coverage
+            Search availability
           </Link>
           <Link
             href={href}
@@ -1032,16 +1032,15 @@ export function BuyerScopeBuilder({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Source-check results
+                Search results
               </p>
               <h3 className="mt-1 text-base font-black text-[var(--t1)]">
-                {runProof.successful}/{runProof.total} sources succeeded ·{" "}
-                {runProof.imported.toLocaleString()} rows found
+                {runProof.successful}/{runProof.total} markets checked ·{" "}
+                {runProof.imported.toLocaleString()} matching listings found
               </h3>
               <p className="mt-1 max-w-xl text-xs leading-relaxed text-[var(--t4)]">
-                Review the newest matching vehicles first, then check source
-                coverage for photos, listing details, freshness, and any source
-                that needs attention.
+                Review the newest matching vehicles first. Check the photos,
+                listing details, and freshness before you act.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -1055,7 +1054,7 @@ export function BuyerScopeBuilder({
                 href={runProof.sourceSetupHref || sourceSetupHref}
                 className="inline-flex items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
               >
-                View source coverage
+                Review availability
               </Link>
             </div>
           </div>
@@ -1081,7 +1080,7 @@ export function BuyerScopeBuilder({
                     </span>
                   </div>
                   <div className="mt-1 text-[11px] font-semibold text-[var(--t4)]">
-                    {result.dealsFound.toLocaleString()} rows ·{" "}
+                    {result.dealsFound.toLocaleString()} listings ·{" "}
                     {(result.duration / 1000).toFixed(1)}s
                   </div>
                   {result.error && (
@@ -1096,7 +1095,7 @@ export function BuyerScopeBuilder({
           {runProof.sourceHealth?.length ? (
             <div className="mt-3">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-                Fresh source proof
+                Listing availability
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {runProof.sourceHealth.map((source) => (
@@ -1133,7 +1132,7 @@ export function BuyerScopeBuilder({
                           {Number(source.activeRows || 0).toLocaleString()}
                         </div>
                         <div className="text-[9px] font-bold uppercase text-[var(--t5)]">
-                          rows
+                          listings
                         </div>
                       </div>
                       <div className="rounded-[var(--r1)] bg-[var(--s1)] px-2 py-1.5">

@@ -84,7 +84,8 @@ export function predict(input: PredictInput): Prediction {
   // Urgency = a fresh BUY in a fast, scarce market that others will grab first.
   let urgency: Prediction["urgency"] = "none";
   if (input.isBuy) {
-    const fresh = dom == null || dom <= 7;
+    // Unknown listing age is not "fresh": no first-seen date means no urgency claim from it.
+    const fresh = dom != null && dom >= 0 && dom <= 7;
     if (velocity === "fast" && fresh) urgency = "act_now";
     else if (velocity === "fast" || fresh) urgency = "soon";
     else urgency = "watch";

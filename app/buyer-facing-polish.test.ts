@@ -57,6 +57,12 @@ describe("buyer-facing polish", () => {
     expect(source).toContain("formatSourceList(scrapePlan.sourceIds, 4)");
     expect(source).toContain("sourceMeta(sourceId).label");
     expect(source).not.toContain('scrapePlan.sourceIds.slice(0, 4).join(", ")');
+    expect(source).toContain("Checking availability for this search...");
+    expect(source).toContain("Find matching listings");
+    expect(source).toContain("Search availability");
+    expect(source).toContain("matching listings found");
+    expect(source).not.toContain("Source-check results");
+    expect(source).not.toContain("Fresh source proof");
   });
 
   it("uses the active device scope before an older cloud fallback", () => {
