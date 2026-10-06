@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
+import { fetchPublicImage } from "@/lib/net/fetch-public-image";
 
 const ALLOWED_IMAGE_DOMAINS = [
   "craigslist.org",
@@ -47,8 +49,14 @@ export function isAllowedImageUrl(value: string) {
 /**
  * GET /api/image/proxy?url=...
  * Proxy external images that block hotlinks (Craigslist, Facebook, etc.)
- * by fetching them server-side and streaming back. CDN-cacheable — clients
+ * by fetching them server-side and returning the bytes. CDN-cacheable — clients
  * should prefer direct source URLs and only hit this for hotlink hosts.
+ *
+ * SSRF: the host allowlist alone isn't enough (an allowed host can redirect, or
+ * its DNS can point somewhere private). fetchPublicImage re-checks the allowlist
+ * and assertPublicHttpUrl on the first URL and on every redirect hop, follows
+ * redirects manually (max 3), and pins sockets to public IPs. Only raster image
+ * types are returned (no SVG/HTML), with nosniff and a sandbox CSP.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -58,42 +66,39 @@ export async function GET(req: Request) {
     return new NextResponse("Missing url parameter", { status: 400 });
   }
 
-  try {
-    // Validate URL to prevent SSRF. Keep this tied to verified listing-photo hosts.
-    const parsed = new URL(url);
-    if (!isAllowedImageUrl(url)) {
-      return new NextResponse("Domain not allowed", { status: 403 });
-    }
+  if (!isAllowedImageUrl(url)) {
+    return new NextResponse("Domain not allowed", { status: 403 });
+  }
 
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept:
-          "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        Referer: parsed.origin + "/",
-      },
-      // Edge/CDN may reuse for a day; listing photos are stable enough.
-      next: { revalidate: 86400 },
+  try {
+    const parsed = new URL(url);
+    const result = await fetchPublicImage(url, isAllowedImageUrl, {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+      Referer: parsed.origin + "/",
     });
 
-    if (!response.ok) {
+    if (!result.ok) {
       return new NextResponse("Failed to fetch image", {
-        status: response.status,
+        status: result.status,
       });
     }
 
-    const contentType = response.headers.get("content-type") || "image/jpeg";
-
-    return new NextResponse(response.body, {
+    return new NextResponse(new Uint8Array(result.body), {
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": result.contentType,
         "Cache-Control": CACHE_CONTROL,
         "Access-Control-Allow-Origin": "*",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
       },
     });
   } catch (error) {
+    if (error instanceof UrlNotAllowedError) {
+      return new NextResponse("Domain not allowed", { status: 403 });
+    }
     console.error("[image-proxy] Error:", error);
     return new NextResponse("Internal server error", { status: 500 });
   }

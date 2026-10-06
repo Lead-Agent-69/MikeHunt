@@ -1,4 +1,5 @@
 import type { DealGrade } from "./DealGradeBadge";
+import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 
 export interface AlsoOn {
   source: string;
@@ -122,4 +123,6 @@ export interface DiscoverResponse {
     matchedRows: number;
     detail?: string;
   }>;
+  /** Fresh-listing counts for the requested states (from /api/discover, never estimated). */
+  coverage?: DiscoverCoverage;
 }

@@ -21,6 +21,7 @@ import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
+import { CoverageNotice } from "@/components/discovery/CoverageNotice";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -384,6 +385,8 @@ export default function DiscoverPage() {
           </p>
         </div>
       </div>
+
+      <CoverageNotice coverage={data?.coverage} />
 
       <section className="border-y border-[var(--b1)] py-3">
         <form

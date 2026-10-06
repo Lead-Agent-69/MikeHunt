@@ -16,6 +16,8 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 # Pin CL_ADAPTIVE_COUNT to force a fixed size.
 LOG="${TMPDIR:-/tmp}/dhp-scrape.log"
 echo "[$(date '+%F %T')] start (adaptive)" >> "$LOG"
-SCRAPE_SOURCES=craigslist CL_ADAPTIVE=1 \
+# No baked SCRAPE_SOURCES: craigslist terms ban automated access (TOS_RESTRICTED_SOURCES), so this
+# runs the terms-safe default set unless the operator exports SCRAPE_SOURCES to opt in.
+CL_ADAPTIVE=1 \
   npm run scrape:ci >> "$LOG" 2>&1
 echo "[$(date '+%F %T')] done" >> "$LOG"
