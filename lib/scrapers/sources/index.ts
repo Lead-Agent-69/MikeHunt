@@ -25,6 +25,7 @@ import {
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import pLimit from "p-limit";
+import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
 // Listing CARDS lack VIN / true mileage / title status — those live on each detail page.
@@ -840,7 +841,10 @@ export async function scrapeCuratedSites(
     );
   };
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
-  const candidates = CURATED_SITES.filter(matchesRequestedDealer);
+  // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
+  const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
+    matchesRequestedDealer,
+  );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
     console.log(
