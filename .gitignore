@@ -77,3 +77,10 @@ Thumbs.db
 # local runner scripts
 /*.ps1
 /start_mikehunt_runners.bat
+
+# Local visual QA captures and unpacked design assets. These are useful while
+# validating a release, but are not application source or deployable assets.
+/tmp-*.png
+/tmp-*.jpg
+/tmp-mh-logo-video/
+/.tmp-mikehunt-loading-assets/
