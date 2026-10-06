@@ -1,9 +1,16 @@
 import { chromium, Browser, Page } from "patchright";
+import {
+  assertNavigationChainPublic,
+  guardPublicRoute,
+} from "@/lib/net/browser-guard";
+import { assertPublicHttpUrl } from "@/lib/net/public-url";
 
 export interface ScraperOptions {
   headless?: boolean;
   proxy?: string;
   userAgent?: string;
+  /** Block service workers (they can bypass route interception). */
+  blockServiceWorkers?: boolean;
 }
 
 /**
@@ -39,6 +46,7 @@ export async function createPatchrightBrowser(
     hasTouch: false,
     locale: "en-US",
     timezoneId: "America/New_York",
+    ...(options.blockServiceWorkers ? { serviceWorkers: "block" as const } : {}),
   });
 
   const page = await context.newPage();
@@ -141,5 +149,55 @@ export async function fetchWithPatchright(
     throw error;
   } finally {
     await browser.close();
+  }
+}
+
+/**
+ * Read a USER-PASTED public page with the stealth browser (e.g. /api/deal-check).
+ * SSRF-guarded, unlike fetchWithPatchright (which is for our own fixed scraper URLs):
+ * - the start URL must pass assertPublicHttpUrl;
+ * - every request the page makes (redirect hops, XHR, iframes, scripts) is
+ *   re-checked and aborted if it targets a private/loopback/link-local/metadata host;
+ * - service workers and WebSockets are blocked so they can't route around that;
+ * - the main-document redirect chain is capped (MAX_BROWSER_REDIRECTS) and every hop
+ *   plus the final URL is re-asserted before any HTML is returned.
+ * Throws UrlNotAllowedError when a hop is blocked.
+ */
+export async function fetchPublicWithPatchright(url: string): Promise<string> {
+  const start = await assertPublicHttpUrl(url);
+  const { browser, page } = await createPatchrightBrowser({
+    blockServiceWorkers: true,
+  });
+  try {
+    // Page routes run newest-first; this runs before the resource blocker and
+    // falls back to it for allowed requests. Context route covers popups/new pages.
+    await page.route("**/*", guardPublicRoute as never);
+    await page.context().route("**/*", guardPublicRoute as never);
+    const anyPage = page as unknown as {
+      routeWebSocket?: (
+        url: RegExp,
+        handler: (ws: { close: () => Promise<void> | void }) => void,
+      ) => Promise<void>;
+    };
+    if (typeof anyPage.routeWebSocket === "function") {
+      await anyPage.routeWebSocket(/.*/, (ws) => {
+        void ws.close();
+      });
+    }
+
+    const response = await page.goto(start.toString(), {
+      waitUntil: "domcontentloaded",
+      timeout: 30000,
+    });
+    await assertNavigationChainPublic(
+      response ? (response.request() as never) : null,
+      page.url(),
+    );
+    await page.waitForTimeout(3000);
+    // JS on the page may have navigated again; re-check where we ended up.
+    await assertNavigationChainPublic(null, page.url());
+    return await page.content();
+  } finally {
+    await browser.close().catch(() => {});
   }
 }
