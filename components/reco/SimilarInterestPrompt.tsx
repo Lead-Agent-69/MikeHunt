@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { sendDealSignal } from "@/lib/reco/client";
+import { fetchSimilarPrompt, sendDealSignal } from "@/lib/reco/client";
 
 /** Ask only after this much visible time on the listing (the backend's "meaningful" dwell). */
 export const PROMPT_AFTER_DWELL_MS = 15_000;
@@ -12,25 +12,16 @@ const closedKey = (facet: string) => `mh_reco_prompt_closed:${facet}`;
 
 type Prompt = { facet: string; label?: string; message: string };
 
-// lib/reco/client.ts has no reader for GET /api/reco/prompt yet, so this one GET lives here.
-// Any error, 401 or { prompt: null } means nothing is shown.
+// Uses fetchSimilarPrompt from lib/reco/client. Any error, 401 or { prompt: null } → nothing shown.
 async function readPrompt(): Promise<Prompt | null> {
-  try {
-    const res = await fetch("/api/reco/prompt", {
-      credentials: "same-origin",
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const p = (await res.json())?.prompt;
-    if (!p || !FACET_RE.test(String(p.facet)) || !p.message) return null;
-    return {
-      facet: String(p.facet),
-      label: p.label,
-      message: String(p.message),
-    };
-  } catch {
-    return null;
-  }
+  const body = await fetchSimilarPrompt();
+  const p = body?.prompt;
+  if (!p || !FACET_RE.test(String(p.facet)) || !p.message) return null;
+  return {
+    facet: String(p.facet),
+    label: p.label,
+    message: String(p.message),
+  };
 }
 
 /**

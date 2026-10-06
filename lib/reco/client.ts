@@ -43,3 +43,63 @@ export function sendDealSignal(input: DealSignalInput): void {
     /* never break the page */
   }
 }
+
+// Readers for the reco GET endpoints. Components used to inline these fetches; keep the
+// fire-and-forget sendDealSignal above, and use these when the UI needs a typed response.
+// Any error (401 guest, 5xx, network) resolves to null so callers can hide the UI quietly.
+
+export interface SimilarPrompt {
+  facet: string;
+  label?: string;
+  message: string;
+  basedOnListings?: number;
+}
+
+export interface SimilarPromptResponse {
+  prompt: SimilarPrompt | null;
+  /** false when deal_signals is missing or Supabase is not configured. */
+  signalsAvailable?: boolean;
+}
+
+export async function fetchSimilarPrompt(): Promise<SimilarPromptResponse | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch("/api/reco/prompt", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as SimilarPromptResponse;
+  } catch {
+    return null;
+  }
+}
+
+export interface ForYouApiResponse {
+  items?: Array<Record<string, unknown>>;
+  personalized?: boolean;
+  /** false when deal_signals is missing; true for cold start (table exists, no signals yet). */
+  signalsAvailable?: boolean;
+  basedOnSignals?: number;
+  configured?: boolean;
+  homeState?: string | null;
+  deskAccess?: string;
+}
+
+export async function fetchForYou(
+  limit = 12,
+): Promise<ForYouApiResponse | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const res = await fetch(
+      `/api/reco/for-you?limit=${Math.max(1, Math.min(48, limit))}`,
+      {
+        credentials: "same-origin",
+      },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as ForYouApiResponse;
+  } catch {
+    return null;
+  }
+}

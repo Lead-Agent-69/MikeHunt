@@ -3,26 +3,21 @@
 import React from "react";
 import useSWR from "swr";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
-import { forYouCards, type ForYouResponse } from "./for-you";
+import { fetchForYou } from "@/lib/reco/client";
+import { forYouCards } from "./for-you";
 
-// lib/reco/client.ts has no reader for GET /api/reco/for-you yet, so this one GET lives here.
-// Any error (401, 5xx, network) resolves to null and the rail stays hidden.
-const fetchForYou = async (url: string): Promise<ForYouResponse | null> => {
-  try {
-    const res = await fetch(url, { credentials: "same-origin" });
-    return res.ok ? ((await res.json()) as ForYouResponse) : null;
-  } catch {
-    return null;
-  }
+const loadForYou = (url: string) => {
+  const m = /[?&]limit=(\d+)/.exec(url);
+  return fetchForYou(m ? Number(m[1]) : 12);
 };
 
 /**
  * "For You" on Discover, ranked by /api/reco/for-you from the user's own view signals. Hidden
- * entirely when empty, on any error, or when the backend isn't personalizing (no signals yet or
- * the deal_signals table missing). Non-flip desks never see profit or max-bid.
+ * entirely when empty, on any error, or when the backend isn't personalizing (cold start or
+ * signalsAvailable:false). Non-flip desks never see profit or max-bid.
  */
 export function ForYouRail({ flipDesk }: { flipDesk: boolean }) {
-  const { data } = useSWR("/api/reco/for-you?limit=12", fetchForYou, {
+  const { data } = useSWR("/api/reco/for-you?limit=12", loadForYou, {
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
     shouldRetryOnError: false,

@@ -5,6 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const send = vi.fn();
 vi.mock("@/lib/reco/client", () => ({
   sendDealSignal: (i: unknown) => send(i),
+  // Component reads the prompt via the shared helper; still hits global fetch under the hood.
+  fetchSimilarPrompt: async () => {
+    try {
+      const res = await fetch("/api/reco/prompt", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    }
+  },
 }));
 
 import {

@@ -43,12 +43,15 @@ const FLIP_ONLY = [
 export interface ForYouResponse {
   items?: Array<Record<string, any>>;
   personalized?: boolean;
+  /** false = deal_signals missing / not configured; true = cold start or personalized. */
+  signalsAvailable?: boolean;
   configured?: boolean;
 }
 
 /**
  * Cards for the For You rail, or [] when the rail should stay hidden: no response, not
- * personalized (no signals yet, or the deal_signals table isn't there), or no usable items.
+ * personalized (cold start or signalsAvailable:false), or no usable items. The API sets
+ * signalsAvailable so callers can tell missing table apart from an empty cold start.
  */
 export function forYouCards(
   res: ForYouResponse | null | undefined,

@@ -93,12 +93,17 @@ export async function GET(req: NextRequest) {
   );
   if (!isSupabaseConfigured())
     return NextResponse.json(
-      { items: [], personalized: false, configured: false },
+      {
+        items: [],
+        personalized: false,
+        signalsAvailable: false,
+        configured: false,
+      },
       { headers },
     );
 
   const sb = createServerComponentClient();
-  const [rows, prefsRes] = await Promise.all([
+  const [signals, prefsRes] = await Promise.all([
     readUserSignals(sb, user.id),
     Promise.resolve(
       sb
@@ -108,6 +113,8 @@ export async function GET(req: NextRequest) {
         .maybeSingle(),
     ).catch(() => ({ data: null })),
   ]);
+  const rows = signals.rows;
+  const signalsAvailable = signals.available;
   const prefs = ((prefsRes as any)?.data?.prefs ?? null) as Record<
     string,
     any
@@ -187,6 +194,8 @@ export async function GET(req: NextRequest) {
     {
       items: listingsForDesk(cards, flipDesk),
       personalized: profile.signalCount > 0,
+      // Missing deal_signals ≠ cold start: UI can tell "table not there" from empty prefs.
+      signalsAvailable,
       basedOnSignals: profile.signalCount,
       homeState,
       deskAccess: flipDesk ? "flip" : "personal",
