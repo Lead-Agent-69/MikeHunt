@@ -12,6 +12,8 @@ import { Deal } from "@/lib/data/deals-service";
 import { US_STATES } from "@/lib/utils/titleRules";
 import { Btn } from "@/components/shared/Btn";
 import { useDealerId } from "@/hooks/useDealerId";
+import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import dynamic from "next/dynamic";
@@ -50,7 +52,11 @@ const fetcher = (url: string) =>
   });
 
 export default function ArbitrageDashboardPage() {
-  const [homeState, setHomeState] = useState("CA");
+  // No state picked until the user picks one or has a saved home. A silent California
+  // default showed the wrong market to everyone outside CA.
+  const { prefs } = usePreferences();
+  const [pickedState, setPickedState] = useState<string | null>(null);
+  const homeState = pickedState ?? effectiveHome(prefs)?.state ?? "";
   const [activeTab, setActiveTab] = useState<"national" | "local">("national");
   const { dealerId, loading: dealerLoading } = useDealerId();
 
@@ -63,7 +69,7 @@ export default function ArbitrageDashboardPage() {
 
   // Use SWR for data fetching with automatic revalidation
   const { data, error, isLoading } = useSWR<ArbitrageDashboard>(
-    dealerId && !dealerLoading
+    dealerId && !dealerLoading && homeState
       ? `/api/arbitrage?homeState=${homeState}&dealerId=${dealerId}`
       : null,
     fetcher,
@@ -95,9 +101,13 @@ export default function ArbitrageDashboardPage() {
         </div>
         <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
           <SelectField
-            options={US_STATES.map((s: string) => ({ value: s, label: s }))}
+            aria-label="Home state"
+            options={[
+              { value: "", label: "No state picked" },
+              ...US_STATES.map((s: string) => ({ value: s, label: s })),
+            ]}
             value={homeState}
-            onChange={(e) => setHomeState(e.target.value)}
+            onChange={(e) => setPickedState(e.target.value)}
             className="flex-1 md:flex-none md:w-32 bg-[var(--s2)] border-[var(--b2)] text-[var(--t1)] min-h-[44px]"
           />
           <Link href="/scan" className="flex-1 md:flex-none">
@@ -110,7 +120,22 @@ export default function ArbitrageDashboardPage() {
         </div>
       </div>
 
-      {loading ? (
+      {!homeState && !authError ? (
+        <div
+          className="glass-panel text-center py-12"
+          data-testid="find-pick-state"
+        >
+          <p className="font-bold text-[var(--t1)]">Pick your home state</p>
+          <p className="mt-1 text-sm text-[var(--t4)]">
+            Routes and local deals are measured from the state you live in.
+            Choose it above or set it in{" "}
+            <Link href="/settings" className="text-[var(--blue)] underline">
+              Settings
+            </Link>
+            .
+          </p>
+        </div>
+      ) : loading ? (
         <>
           {/* Route cards skeleton */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
