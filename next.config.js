@@ -158,9 +158,9 @@ const sentryOptions = {
   telemetry: false,
   widenClientFileUpload: true,
   hideSourceMaps: true,
-  disableLogger: true,
-  // NOTE: deliberately no `bundler` override — webpack is the bundler withSentryConfig targets,
-  // and Next 16 builds with Turbopack, which ignores this wrapper entirely.
+  // `disableLogger` was removed by the Sentry SDK and its replacement only
+  // applies to webpack. Next 16 uses Turbopack, so leave debug logging at the
+  // SDK default instead of passing an ignored, deprecated option.
 };
 
 module.exports = withSentryConfig(nextConfig, sentryOptions);
