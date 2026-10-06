@@ -87,6 +87,32 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
 const ALERTS_TAB: NavItem = { name: "Alerts", href: "/alerts", icon: BellRing };
 
 /**
+ * Nav tabs that only work with an account. Middleware sends a signed-out
+ * visitor on these to /login, so the nav says so up front instead of the tab
+ * silently bouncing them.
+ */
+export const SIGN_IN_REQUIRED_HREFS: readonly string[] = ["/saved", "/alerts"];
+
+export type ViewerNavItem = NavItem & { signInRequired?: boolean };
+
+/**
+ * For a signed-out visitor, Saved and Alerts link straight to sign-in (with a
+ * return path) and are flagged so the nav can mark them. Pass `signedOut` only
+ * once the session check has finished, so signed-in users never see a flash.
+ */
+export function navItemForViewer(
+  item: NavItem,
+  signedOut: boolean,
+): ViewerNavItem {
+  if (!signedOut || !SIGN_IN_REQUIRED_HREFS.includes(item.href)) return item;
+  return {
+    ...item,
+    href: `/login?next=${encodeURIComponent(item.href)}`,
+    signInRequired: true,
+  };
+}
+
+/**
  * Hide flip tools unless the desk is reseller or dealer. An unknown mode
  * (signed out, no saved prefs) is treated as personal, matching
  * lib/buyer/flip-lead.ts.
