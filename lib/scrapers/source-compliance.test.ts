@@ -100,9 +100,9 @@ describe("curated demand-ring density", () => {
   const perState = (st: string) =>
     crawlable.filter((s) => s.state === st).length;
 
-  it("gap anchor states each have at least 8 crawlable curated dealers", () => {
+  it("gap anchor states each have at least 12 crawlable curated dealers", () => {
     for (const st of ["IA", "IL", "KY", "FL"])
-      expect(perState(st), st).toBeGreaterThanOrEqual(8);
+      expect(perState(st), st).toBeGreaterThanOrEqual(12);
     expect(perState("MO")).toBeGreaterThanOrEqual(12);
   });
 

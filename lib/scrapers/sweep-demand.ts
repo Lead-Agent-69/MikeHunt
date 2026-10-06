@@ -197,9 +197,15 @@ export function stateScore(input: {
   return 10 * Math.log1p(d) + 2 * Math.min(h / 24, 4) + 1 / (1 + a / 100);
 }
 
-export function baselineSlots(perSweep: number) {
+export function baselineSlots(
+  perSweep: number,
+  options: { gapMode?: boolean } = {},
+) {
   const k = Math.max(1, Math.floor(perSweep) || 1);
   if (k === 1) return 1;
+  // While want-hit is under target, keep only a thin nationwide baseline so most slots chase
+  // gap anchors (free-tier safe: same perSweep cap, just redistributed).
+  if (options.gapMode) return Math.min(k - 1, Math.max(1, Math.ceil(0.2 * k)));
   return Math.min(k - 1, Math.max(3, Math.ceil(0.4 * k)));
 }
 
@@ -275,7 +281,15 @@ export function planDemandSweep(
     counts: options.counts,
     states: pool,
   }).states;
-  const baseline = order.slice(0, baselineSlots(k));
+  const gapSet = new Set(
+    (options.gaps || [])
+      .map((s) => String(s || "").toUpperCase())
+      .filter((s) => pool.includes(s)),
+  );
+  const baseline = order.slice(
+    0,
+    baselineSlots(k, { gapMode: gapSet.size > 0 }),
+  );
 
   const nowMs = (options.now || new Date()).getTime();
   const counts = options.counts || {};
@@ -289,11 +303,6 @@ export function planDemandSweep(
       hoursSinceSwept: hours(s),
       active: counts[s] ?? 0,
     });
-  const gapSet = new Set(
-    (options.gaps || [])
-      .map((s) => String(s || "").toUpperCase())
-      .filter((s) => pool.includes(s)),
-  );
   const demandStates = demanded
     .filter((s) => !baseline.includes(s))
     .sort(

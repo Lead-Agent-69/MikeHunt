@@ -67,6 +67,11 @@ describe("stateScore / baselineSlots", () => {
     expect(baselineSlots(20)).toBe(8);
     expect(baselineSlots(3)).toBe(2);
     expect(baselineSlots(1)).toBe(1);
+    // Gap mode: thinner nationwide floor so more slots chase want-hit gaps.
+    expect(baselineSlots(10, { gapMode: true })).toBe(2);
+    expect(baselineSlots(20, { gapMode: true })).toBe(4);
+    expect(baselineSlots(3, { gapMode: true })).toBe(1);
+    expect(baselineSlots(1, { gapMode: true })).toBe(1);
   });
 });
 
@@ -319,6 +324,30 @@ describe("want-hit gap-first bias", () => {
     expect(plan.zipsByState.MO.length).toBe(3);
   });
 
+  it("shrinks baseline while chasing want-hit gaps so more slots go to gap anchors", () => {
+    const demand = summarizeDemand(demandRows);
+    const withGaps = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      maxRing: 3,
+      gaps: ["IA", "IL", "KY"],
+      now: NOW,
+    });
+    const without = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      maxRing: 3,
+      now: NOW,
+    });
+    // Same perSweep budget; gap mode should place all three gaps and still include MO demand.
+    expect(withGaps.states).toHaveLength(10);
+    expect(without.states).toHaveLength(10);
+    for (const st of ["IA", "IL", "KY"]) expect(withGaps.states).toContain(st);
+    expect(withGaps.states).toContain("MO");
+  });
+
   it("without gaps the plan is unchanged (score order)", () => {
     const demand = summarizeDemand(demandRows);
     const a = planDemandSweep(emptyRotation(), {
@@ -344,8 +373,9 @@ describe("want-hit gap-first bias", () => {
     let rotation = emptyRotation();
     const seen = new Set<string>();
     const perSweep = 10;
+    // Gap mode uses the thinner baseline; budget enough sweeps to still rotate the nation.
     const sweeps = Math.ceil(
-      SWEEP_STATE_CODES.length / baselineSlots(perSweep),
+      SWEEP_STATE_CODES.length / baselineSlots(perSweep, { gapMode: true }),
     );
     for (let i = 0; i < sweeps; i++) {
       const at = new Date(NOW.getTime() + i * 4 * 3_600_000);
