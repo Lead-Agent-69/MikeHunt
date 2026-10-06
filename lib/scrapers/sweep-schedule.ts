@@ -83,6 +83,25 @@ export function resolveSweepSources(
   return DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
 }
 
+/**
+ * May this process make automated requests to `sourceId`? Unrestricted sources: yes. A source in
+ * TOS_RESTRICTED_SOURCES only when the operator named it in SCRAPE_SOURCES. Public preview routes
+ * use this so an anonymous request can never trigger a fetch the default sweep would refuse.
+ */
+export function isAutomationAllowedSource(
+  sourceId: string,
+  raw: string | undefined = process.env.SCRAPE_SOURCES,
+): boolean {
+  const id = String(sourceId || "")
+    .trim()
+    .toLowerCase();
+  if (!TOS_RESTRICTED_SOURCES[id]) return true;
+  return String(raw || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .includes(id);
+}
+
 /** Restricted sources the operator opted into through SCRAPE_SOURCES. */
 export function optedInRestrictedSources(sources: readonly string[]) {
   return sources.filter((id) => TOS_RESTRICTED_SOURCES[id]);
