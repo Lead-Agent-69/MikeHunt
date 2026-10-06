@@ -13,6 +13,7 @@ import {
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
 import {
+  isAutomationAllowedSource,
   advanceSweep,
   claimBackoffMs,
   loadSweepState,
@@ -676,9 +677,22 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       continue;
     }
 
-    const sourceIds = Array.isArray(job.source_ids)
+    const requestedIds = Array.isArray(job.source_ids)
       ? job.source_ids.filter(Boolean)
       : [];
+    // Hybrid buyer jobs must honor TOS_RESTRICTED_SOURCES the same way scrape-ci /
+    // resolveSweepSources do when SCRAPE_SOURCES is empty: restricted ids only run on
+    // explicit env opt-in, never because a lane plan named them.
+    const heldBack = requestedIds.filter(
+      (id) => !isAutomationAllowedSource(String(id)),
+    );
+    const sourceIds = requestedIds.filter((id) =>
+      isAutomationAllowedSource(String(id)),
+    );
+    if (heldBack.length)
+      console.warn(
+        `[scrape-queue] holding back terms-restricted sources (need SCRAPE_SOURCES opt-in): ${heldBack.join(", ")}`,
+      );
     currentStatus.state = "running";
     currentStatus.activeJob = {
       id: job.id,
@@ -695,7 +709,12 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     await writeStatus();
 
     try {
-      if (!sourceIds.length) throw new Error("Queued job has no source ids");
+      if (!sourceIds.length)
+        throw new Error(
+          heldBack.length
+            ? `Queued job only named terms-restricted sources (${heldBack.join(", ")}); set SCRAPE_SOURCES to opt in or pick terms-safe sources`
+            : "Queued job has no source ids",
+        );
       const results = await runScrapers({
         orchestrator: job.orchestrator || "concurrent",
         sourceIds,

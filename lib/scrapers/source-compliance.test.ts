@@ -83,6 +83,12 @@ describe("policyBlockFor", () => {
       "tos_bans_copying",
     );
     expect(policyBlockFor("https://www.damage.com/")).toBeUndefined();
+    expect(policyBlockFor("https://www.govdeals.com/")?.kind).toBe(
+      "tos_bans_bots",
+    );
+    expect(policyBlockFor("https://www.publicsurplus.com/")?.kind).toBe(
+      "tos_bans_bots",
+    );
     expect(policyBlockFor("not a url")).toBeUndefined();
   });
 

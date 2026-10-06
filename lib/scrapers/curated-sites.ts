@@ -71,7 +71,7 @@ export const SITE_TYPE_META: Record<
 // prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
   // ── National salvage/rebuilder networks (multi-state inventory) ──
-  { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard" }, // 722 State Hwy H, Sikeston MO 63801 per its own footer (verified 2026-10-05)
+  { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard", inventoryUrl: "https://www.damage.com/vehiclesList.php" }, // inventory path verified 2026-10-06 (homepage /inventory 404)
   { url: "https://www.x2builders.com", name: "X2 Builders", type: "rebuilder_dealer" },
   { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction", type: "auction_proxy" },
   { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles", type: "rebuilder_dealer" },
@@ -114,7 +114,7 @@ export const CURATED_SITES: CuratedSite[] = [
   // ── Northeast / Mid-Atlantic ──
   { url: "https://www.chayabrothers.com", name: "Chaya Brothers Auto & Salvage", state: "NH", type: "rebuilder_dealer" },
   { url: "https://www.argocycles.com", name: "Argo Cycles & Auto", state: "NH", type: "salvage_yard" },
-  { url: "https://www.salvagezone.com", name: "SalvageZone (Elite Motor Cars)", state: "NY", type: "rebuilder_dealer" },
+  { url: "https://www.salvagezone.com", name: "SalvageZone (Elite Motor Cars)", state: "NY", type: "rebuilder_dealer", inventoryUrl: "https://www.salvagezone.com/inventory" }, // verified 2026-10-06
   { url: "https://www.alpinerebuildablecars.com", name: "Alpine Rebuildable Cars", state: "NJ", type: "rebuilder_dealer" },
   { url: "https://ezfixercars.com", name: "EZ Fixer Cars", state: "NJ", type: "rebuilder_dealer" },
   { url: "https://route34.com", name: "Route 34 Auto", state: "NJ", type: "rebuilder_dealer" },
@@ -130,7 +130,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://robbinsrepairables.com", name: "Robbins Repairables", state: "NC", type: "rebuilder_dealer" },
   { url: "https://www.newbuildcars.com", name: "Newbuild Automotive", state: "GA", type: "rebuilder_dealer" },
   { url: "https://www.autoworldofamerica.com", name: "Autoworld of America", state: "FL", type: "rebuilder_dealer" },
-  { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" },
+  { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" }, // SITE_POLICY_BLOCKS tos_bans_bots — intentional skip, not a parser bug
   { url: "https://sperryauto.com", name: "Sperry Auto Sales", state: "KY", type: "rebuilder_dealer", inventoryUrl: "https://www.sperryauto.com/newandusedcars" },
   { url: "https://cullmanautorebuilders.com", name: "Cullman Auto Rebuilders", state: "AL", type: "rebuilder_dealer" },
   { url: "https://www.tennisonautosales.com", name: "Tennison Auto Sales & Salvage", state: "AR", type: "rebuilder_dealer" },
@@ -147,7 +147,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.starautous.com", name: "Star Auto", state: "MN", type: "rebuilder_dealer" },
   { url: "https://midwestrepairables.com", name: "Midwest Repairables", state: "MN", type: "rebuilder_dealer" },
   { url: "https://www.royaldriveautos.com", name: "Royal Drive", state: "MN", type: "rebuilder_dealer" },
-  { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", type: "salvage_yard" },
+  { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", city: "Des Moines", type: "salvage_yard", inventoryUrl: "https://www.samsriverside.com/vehicles.php" }, // verified 2026-10-06
   { url: "https://www.dgautollc.com", name: "D & G Auto", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard" },
   { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
@@ -223,8 +223,8 @@ export const CURATED_SITES: CuratedSite[] = [
   // Florida Fine Cars, Chicago Motor Cars, Paducah Ford, Kelley Autoplex) were left out on purpose.
   // ── Iowa ──
   { url: "https://iowaautoexchange.com", name: "Iowa Auto Exchange", state: "IA", city: "Des Moines", type: "independent_dealer", inventoryUrl: "https://iowaautoexchange.com/inventory/" },
-  { url: "https://www.tomsautosales.com", name: "Tom's Auto Sales", state: "IA", city: "Des Moines", type: "independent_dealer" },
-  { url: "https://www.tomsbudgetcars.com", name: "Tom's Budget Cars", state: "IA", city: "Des Moines", type: "independent_dealer" },
+  { url: "https://www.tomsautosales.com", name: "Tom's Auto Sales", state: "IA", city: "Des Moines", type: "independent_dealer", inventoryUrl: "https://www.tomsautosales.com/en/inventory.cfm" }, // verified 2026-10-06
+  { url: "https://www.tomsbudgetcars.com", name: "Tom's Budget Cars", state: "IA", city: "Des Moines", type: "independent_dealer", inventoryUrl: "https://www.tomsbudgetcars.com/en/inventory.cfm" }, // verified 2026-10-06
   { url: "https://www.amesford.com", name: "Ames Ford Lincoln", state: "IA", city: "Ames", type: "clean_retail", inventoryUrl: "https://www.amesford.com/used-inventory/index.htm" },
   { url: "https://www.karlchevrolet.com", name: "Karl Chevrolet", state: "IA", city: "Ankeny", type: "clean_retail", inventoryUrl: "https://www.karlchevrolet.com/used-inventory/index.htm" },
   { url: "https://www.carouselmotors.com", name: "Carousel Motors", state: "IA", city: "Iowa City", type: "clean_retail", inventoryUrl: "https://www.carouselmotors.com/all-inventory/index.htm" },
@@ -267,6 +267,11 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.sunlinecedarrapids.com", name: "Sunline Cedar Rapids", state: "IA", city: "Cedar Rapids", type: "salvage_yard" },
   { url: "https://www.autosportsimports.com", name: "Habhab's Auto Sports & Imports", state: "IA", city: "Cedar Rapids", type: "independent_dealer" },
   { url: "https://www.davewrightnissan.com", name: "Dave Wright Nissan", state: "IA", city: "Hiawatha", type: "clean_retail" },
+  // ════ Wave 8 — IA depth (want-hit ok but IA thin; curl-verified 2026-10-06) ════
+  { url: "https://www.shottenkirk.com", name: "Shottenkirk Automotive Group", state: "IA", type: "clean_retail", inventoryUrl: "https://www.shottenkirk.com/used-vehicles/" }, // IA multi-store group inventory hub
+  { url: "https://www.braddeeryford.com", name: "Brad Deery Ford", state: "IA", city: "Maquoketa", type: "clean_retail", inventoryUrl: "https://www.braddeeryford.com/searchused.aspx" },
+  { url: "https://pellamotors.com", name: "Pella Motors", state: "IA", city: "Pella", type: "independent_dealer", inventoryUrl: "https://pellamotors.com/inventory" },
+
   // ── Illinois ──
   { url: "https://www.springfieldselectautos.com", name: "Springfield Select Autos", state: "IL", city: "Springfield", type: "independent_dealer", inventoryUrl: "https://www.springfieldselectautos.com/cars-for-sale" },
   { url: "https://rhodesautosss.com", name: "Rhodes Auto S/S/S", state: "IL", city: "Streator", type: "salvage_yard" },
