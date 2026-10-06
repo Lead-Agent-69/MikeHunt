@@ -21,6 +21,7 @@ import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
+import { CoverageNotice } from "@/components/discovery/CoverageNotice";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -385,6 +386,8 @@ export default function DiscoverPage() {
         </div>
       </div>
 
+      <CoverageNotice coverage={data?.coverage} />
+
       <section className="border-y border-[var(--b1)] py-3">
         <form
           className="flex flex-col gap-3"
@@ -585,7 +588,7 @@ export default function DiscoverPage() {
                 />
                 <IntelRail
                   endpoint="/api/deals/near"
-                  title="Near you"
+                  title={flipDesk ? "Near you" : "Listings in your home state"}
                   subtitle="Distance not available until a listing has real miles."
                 />
               </>

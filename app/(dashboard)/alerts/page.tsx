@@ -33,11 +33,13 @@ export default function AlertsPage() {
     supabase.auth
       .getUser()
       .then(({ data }) => {
-        if (data.user) setUserId(data.user.id);
+        if (data.user) {
+          setUserId(data.user.id);
+          markAllRead();
+        }
       })
       .catch(() => {})
       .finally(() => setAuthChecked(true));
-    markAllRead();
   }, [supabase.auth]);
 
   // Server redacts flip economics for non-flip desks — never join deals from the browser.

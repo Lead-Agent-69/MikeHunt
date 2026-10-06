@@ -12,6 +12,7 @@ import {
   navItemMatchesPath,
   primaryJobForPath,
   scanHrefForMode,
+  accountMenuForMode,
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
@@ -22,8 +23,13 @@ describe("primaryJobForPath", () => {
     expect(top).toContain('aria-current={active ? "page" : undefined}');
     expect(dock).toContain("useReducedMotion");
     expect(dock).toContain("env(safe-area-inset-bottom)");
-    expect(account).toContain('router.push("/alerts")');
-    expect(account).toContain('router.push("/lane")');
+    expect(account).toContain("accountMenuForMode(intent?.buyerMode)");
+    expect(
+      accountMenuForMode("personal").primary.map((entry) => entry.href),
+    ).toContain("/alerts");
+    expect(
+      accountMenuForMode("dealer").tools.map((entry) => entry.href),
+    ).toContain("/lane");
   });
   it("keeps secondary pages under the five main jobs", () => {
     expect(primaryJobForPath("/")).toBe("Discover");
@@ -242,12 +248,12 @@ describe("primaryJobForPath", () => {
     expect(bottom).not.toContain("{MOBILE_PRIMARY.map(");
   });
 
-  it("keeps the account menu's mobile Auction Lane shortcut off non-flip desks", () => {
-    const account = readFileSync("components/home/AccountMenu.tsx", "utf8");
-    expect(account).toContain("hidesFlipNav(intent?.buyerMode)");
-    expect(account).toMatch(
-      /\{showAuctionLane && \(\s*<button[\s\S]{0,200}router\.push\("\/lane"\)/,
-    );
+  it("keeps the account menu's Auction Lane shortcut off non-flip desks", () => {
+    for (const mode of ["personal", "diy", "parts", undefined]) {
+      expect(
+        accountMenuForMode(mode).tools.map((entry) => entry.href),
+      ).not.toContain("/lane");
+    }
   });
 });
 
