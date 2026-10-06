@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const fetchWithPatchright = vi.hoisted(() =>
-  vi.fn(async () => "<html><body>hi</body></html>"),
+  vi.fn(async (_url: string) => "<html><body>hi</body></html>"),
 );
 const getServerUser = vi.hoisted(() =>
   vi.fn(async () => ({ data: { user: { id: "u1" } } })),
@@ -16,7 +16,7 @@ const generateText = vi.hoisted(() =>
 
 vi.mock("ai", () => ({ generateText }));
 vi.mock("@/lib/scrapers/tools/patchright-engine", () => ({
-  fetchWithPatchright,
+  fetchPublicWithPatchright: fetchWithPatchright,
 }));
 vi.mock("@/lib/ai/text-model", () => ({
   getTextModel: () => ({}),
@@ -81,6 +81,13 @@ describe("POST /api/deal-check URL paste SSRF guard", () => {
     expect(fetchWithPatchright).toHaveBeenCalledWith(
       "https://93.184.216.34/listing",
     );
+  });
+
+  it("400s when the browser hits a blocked redirect hop", async () => {
+    const { UrlNotAllowedError } = await import("@/lib/net/public-url");
+    fetchWithPatchright.mockRejectedValueOnce(new UrlNotAllowedError());
+    const res = await post("https://93.184.216.34/listing");
+    expect(res.status).toBe(400);
   });
 
   it("still requires sign-in", async () => {
