@@ -36,15 +36,21 @@ jobs:
         # curl.exe (ships with Windows 10+) needs nothing extra installed — same as ci.yml's `cmd`.
         shell: powershell
         env:
-          # Production (repo homepage). Override with a SITE_URL repo secret if the domain changes.
-          # Never point this at a per-deployment preview URL.
-          BASE_URL: ${{ secrets.SITE_URL || 'https://mikehunt-69.vercel.app' }}
+          # Real Vercel project is team/project mikehunt/mikehunt (NOT mikehunt-69).
+          # Production deploy URLs look like https://mikehunt-<id>-mikehunt.vercel.app and may rotate;
+          # set repo secret SITE_URL to the stable production domain/alias from
+          # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
+          BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           LIMIT: ${{ github.event.inputs.limit || '100' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:CRON_SECRET)) {
             Write-Output "::error::CRON_SECRET repo secret is not set - the endpoint fails closed with 401."
+            exit 1
+          }
+          if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) {
+            Write-Output "::error::SITE_URL repo secret is not set - set it to the mikehunt/mikehunt production domain from Vercel Domains (not mikehunt-69, not a preview URL)."
             exit 1
           }
           $base = $env:BASE_URL.TrimEnd('/')
