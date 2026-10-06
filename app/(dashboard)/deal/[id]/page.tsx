@@ -491,9 +491,13 @@ export default function DealPage({
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { targetProfit: savedTargetProfit } = useDealerDefaults();
   // The dealer's learned calibration (null until they've logged enough outcomes).
-  const { data: calData } = useSWR("/api/calibration", fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data: calData } = useSWR(
+    store.userType === "dealer" ? "/api/calibration" : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+    },
+  );
   const calibration = calData?.calibration ?? null;
   const { id } = React.use(params);
   const router = useRouter();

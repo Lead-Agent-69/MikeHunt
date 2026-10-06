@@ -100,5 +100,8 @@ describe("deal page personal desk", () => {
     expect(page).toContain("Advanced workspace");
     expect(page).toContain("Expensive children do");
     expect(page).toMatch(/\{expanded \?\s*\(/);
+    expect(page).toMatch(
+      /store\.userType === "dealer"\s*\?\s*"\/api\/calibration"\s*:\s*null/,
+    );
   });
 });
