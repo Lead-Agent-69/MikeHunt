@@ -13,7 +13,8 @@
 //
 // Config (env):
 //   SCRAPE_INTERVAL_MS  gap between cycle STARTS (default 30 min)
-//   SCRAPE_SOURCES      comma-separated source ids (blank = the enabled default set)
+//   SCRAPE_SOURCES      comma-separated source ids (blank = terms-safe default set, see lib/scrapers/ci-sources.ts;
+//                       naming a TOS_RESTRICTED_SOURCES id is an explicit operator opt-in and is logged)
 //   ENABLE_HEADED_SCRAPERS=1  + a display (xvfb) → headed tier on
 
 import "./polyfill";
@@ -43,7 +44,7 @@ function runCycle(): Promise<number> {
 async function loop(): Promise<void> {
   console.log(
     `[scrape-worker] up — interval=${Math.round(INTERVAL_MS / 60000)}m, sources="${
-      process.env.SCRAPE_SOURCES || "default set"
+      process.env.SCRAPE_SOURCES || "terms-safe default set"
     }", headed=${process.env.ENABLE_HEADED_SCRAPERS === "1" ? "on" : "off"}`,
   );
   // Startup jitter so fleet replicas DESYNC — without it, N workers booted together would hit the same
