@@ -28,6 +28,7 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
@@ -826,11 +827,12 @@ export async function GET(request: NextRequest) {
         const scope = ((
           prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
         )?.buyerScope || {}) as BuyerScopePrefs;
-        const homeState = String(profile?.home_state || "")
-          .trim()
-          .toUpperCase();
-        const usableHome =
-          /^[A-Z]{2}$/.test(homeState) && homeState !== "NA" ? homeState : "";
+        // "Where you live": prefs.homeLocation (Settings/onboarding) first, then the legacy
+        // user_profiles.home_state column.
+        const usableHome = discoverHomeState(
+          (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
+          profile?.home_state,
+        );
         const makes = [
           ...((profile?.preferred_makes as string[] | null) || []),
           ...((scope as { makes?: string[] }).makes || []),
