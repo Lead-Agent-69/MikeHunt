@@ -1,0 +1,95 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import { forYouCards } from "@/components/reco/for-you";
+
+const item = {
+  id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+  source: "craigslist",
+  title: "2018 Honda Civic",
+  year: 2018,
+  make: "Honda",
+  model: "Civic",
+  askPrice: 12000,
+  sellEstimate: 14000,
+  trueNetProfit: 1500,
+  profitScore: 72,
+  recommendedMaxBid: 11000,
+  sellerPhone: "555-0100",
+  dealAnalysis: { costs: { transport: 300 } },
+  images: ["https://img.example/1.jpg"],
+  locationState: "TX",
+  forYouReason: "You looked at 3 Honda Civic",
+  slot: "affinity",
+};
+
+describe("For You rail data", () => {
+  it("stays hidden unless the backend is personalizing", () => {
+    expect(forYouCards(null, false)).toEqual([]);
+    expect(forYouCards(undefined, true)).toEqual([]);
+    expect(
+      forYouCards({ items: [], personalized: false, configured: false }, true),
+    ).toEqual([]);
+    // deal_signals missing → no signals → personalized:false even with fresh items
+    expect(forYouCards({ items: [item], personalized: false }, true)).toEqual(
+      [],
+    );
+    expect(forYouCards({ items: [], personalized: true }, true)).toEqual([]);
+  });
+
+  it("drops rows without an id, photo or price", () => {
+    const cards = forYouCards(
+      {
+        personalized: true,
+        items: [
+          item,
+          { ...item, id: undefined },
+          { ...item, id: "b", images: [] },
+          { ...item, id: "c", askPrice: 0 },
+        ],
+      },
+      true,
+    );
+    expect(cards.map((c) => c.id)).toEqual([item.id]);
+  });
+
+  it("keeps flip economics for flip desks and shows the reason", () => {
+    const [card] = forYouCards({ personalized: true, items: [item] }, true);
+    expect(card.trueNetProfit).toBe(1500);
+    expect(card.recommendedMaxBid).toBe(11000);
+    expect(card.winReason).toBe("You looked at 3 Honda Civic");
+    expect(card.listingCount).toBe(1);
+  });
+
+  it("redacts profit, max bid, seller contact and analysis for non-flip desks", () => {
+    const [card] = forYouCards({ personalized: true, items: [item] }, false);
+    const c = card as unknown as Record<string, unknown>;
+    for (const k of [
+      "trueNetProfit",
+      "profitScore",
+      "recommendedMaxBid",
+      "sellerPhone",
+      "dealAnalysis",
+    ])
+      expect(c[k]).toBeUndefined();
+    expect(card.askPrice).toBe(12000);
+    expect(card.winReason).toBe("You looked at 3 Honda Civic");
+  });
+
+  it("the client field list matches the server's flip-only list", () => {
+    const server = readFileSync("lib/deals/deal-desk-access.ts", "utf8");
+    const block = server.slice(
+      server.indexOf("const CARD_FLIP_ONLY_FIELDS = ["),
+      server.indexOf("] as const;", server.indexOf("CARD_FLIP_ONLY_FIELDS")),
+    );
+    const fields = Array.from(block.matchAll(/"([a-zA-Z_]+)"/g)).map(
+      (m) => m[1],
+    );
+    const client = readFileSync("components/reco/for-you.ts", "utf8");
+    for (const f of fields) expect(client).toContain(`"${f}"`);
+  });
+
+  it("Discover mounts the rail with the current desk", () => {
+    const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+    expect(page).toContain("<ForYouRail flipDesk={flipDesk} />");
+  });
+});
