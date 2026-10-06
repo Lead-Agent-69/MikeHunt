@@ -61,10 +61,10 @@ describe("flip tool routes", () => {
     }
   });
 
-  it("all of them stay behind the signed-in middleware", () => {
-    const middleware = readFileSync("middleware.ts", "utf8");
+  it("all of them stay behind the signed-in proxy", () => {
+    const proxy = readFileSync("proxy.ts", "utf8");
     for (const route of Object.keys(FLIP_TOOL_ROUTES)) {
-      expect(middleware).toContain(`"${route}",`);
+      expect(proxy).toContain(`"${route}",`);
     }
   });
 

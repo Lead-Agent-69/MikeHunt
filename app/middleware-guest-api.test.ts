@@ -13,14 +13,14 @@ const ENV = { ...process.env };
 
 async function run(path: string, cookie?: string) {
   vi.resetModules();
-  const { middleware } = await import("@/middleware");
+  const { proxy } = await import("@/proxy");
   const req = new NextRequest(`https://mikehunt.test${path}`, {
     headers: cookie ? { cookie } : {},
   });
-  return middleware(req);
+  return proxy(req);
 }
 
-describe("middleware: signed-out API calls get JSON, not a login redirect", () => {
+describe("proxy: signed-out API calls get JSON, not a login redirect", () => {
   describe("with Supabase configured", () => {
     beforeEach(() => {
       process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcd.supabase.co";

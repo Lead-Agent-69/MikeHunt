@@ -32,7 +32,7 @@ describe("loginRedirectUrl", () => {
   });
 });
 
-describe("middleware keeps ?next= (preview/demo mode)", () => {
+describe("proxy keeps ?next= (preview/demo mode)", () => {
   const saved = { ...process.env };
   beforeEach(() => {
     vi.resetModules();
@@ -44,8 +44,8 @@ describe("middleware keeps ?next= (preview/demo mode)", () => {
   });
 
   async function redirectFor(path: string) {
-    const { middleware } = await import("@/middleware");
-    const res = await middleware(new NextRequest(`https://app.test${path}`));
+    const { proxy } = await import("@/proxy");
+    const res = await proxy(new NextRequest(`https://app.test${path}`));
     const location = res.headers.get("location");
     return location ? new URL(location) : null;
   }
