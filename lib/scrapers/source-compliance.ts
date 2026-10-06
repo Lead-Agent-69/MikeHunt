@@ -107,6 +107,24 @@ export const SITE_POLICY_BLOCKS: Record<string, PolicyBlock> = {
     reason:
       "Terms: no robot, spider, site search/retrieval application or other device to scrape, data mine or collect content (reviewed 2026-10-06).",
   },
+  // Marketplace hosts that also appear on CURATED_SITES as auction_proxy. Runner ids are already
+  // in TOS_RESTRICTED_SOURCES; without these blocks, curated_dealers could still crawl them when
+  // SCRAPE_SOURCES is empty (hybrid Zeus default).
+  "govdeals.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Liquidity Services User Agreement (GovDeals): no spiders, crawlers, robots or similar means to access the site, and no data mining (reviewed 2026-10-06).",
+  },
+  "allsurplus.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Liquidity Services User Agreement (AllSurplus): no spiders, crawlers, robots or similar means to access the site, and no data mining (reviewed 2026-10-06).",
+  },
+  "publicsurplus.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "publicsurplus.com terms: no robot, spider or automatic device to monitor or copy the site without written permission (reviewed 2026-10-06).",
+  },
 };
 
 function hostOf(url: string) {

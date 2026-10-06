@@ -20,6 +20,10 @@ import {
   catalogForRunnerId,
   IMPLEMENTED_SCRAPER_IDS,
 } from "@/lib/scrapers/source-index";
+import {
+  isAutomationAllowedSource,
+  TOS_RESTRICTED_SOURCES,
+} from "@/lib/scrapers/sweep-schedule";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -180,6 +184,9 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
       estimatedDealsPerRun: meta?.estimate || 100,
     };
     const status = sourceStatus(source);
+    const termsOff =
+      Boolean(TOS_RESTRICTED_SOURCES[source.id]) &&
+      !isAutomationAllowedSource(source.id);
     return {
       id: source.id,
       name: source.name,
@@ -189,13 +196,16 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
       requiresAuth: source.requiresAuth,
       stealthRequired: source.stealthRequired,
       estimatedDealsPerRun: source.estimatedDealsPerRun,
-      readiness: status.readiness,
+      readiness: termsOff ? ("disabled" as SourceReadiness) : status.readiness,
       runnable:
+        !termsOff &&
         source.enabled &&
         !source.requiresAuth &&
         status.readiness !== "disabled" &&
         status.readiness !== "blocked",
-      action: status.action,
+      action: termsOff
+        ? "Off for site terms unless the operator opts in through SCRAPE_SOURCES."
+        : status.action,
     };
   });
   const runnable = sources.filter((source) => source.runnable);
@@ -417,11 +427,30 @@ export async function POST(request: NextRequest) {
       const {
         data: { user },
       } = await getServerUser();
+      const runnableSourceIds = sourcePlan.sources
+        .filter((source) => source.runnable)
+        .map((source) => source.id);
+      if (!runnableSourceIds.length) {
+        return NextResponse.json(
+          {
+            ok: false,
+            queued: false,
+            error:
+              "No terms-safe runnable sources for this plan. Restricted marketplaces stay off unless SCRAPE_SOURCES opts in.",
+            sourcePlan,
+            sourceIds: sourceIds || [],
+            heldBackSourceIds: (sourceIds || []).filter(
+              (id) => !runnableSourceIds.includes(id),
+            ),
+          },
+          { status: 422 },
+        );
+      }
       const queued = await enqueueScopedScrapeJob(
         createServerComponentClient(),
         {
           requestedBy: user?.id || null,
-          sourceIds,
+          sourceIds: runnableSourceIds,
           scope: scopedRunScope,
           orchestrator,
           concurrency,
