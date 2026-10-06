@@ -23,7 +23,7 @@ Supabase holds thin URL / index rows only. Heavy artifacts live on Zeus (Docker 
 
 ## Zeus disk (`./cache` → `/app/cache` in the scraper)
 
-`janitor` service in `docker-compose.yml` runs `scripts/zeus-janitor.sh --loop` daily:
+`janitor` service in `docker-compose.yml` and `docker-compose.local.yml` (the Zeus stack) runs `scripts/zeus-janitor.sh --loop` daily:
 
 | path | kept |
 | --- | --- |
@@ -34,6 +34,6 @@ Supabase holds thin URL / index rows only. Heavy artifacts live on Zeus (Docker 
 | `cache/*.tmp` | 1 day |
 
 The scraper's own state files (`local-scraper-cache.json`, `sweep-state.json`, `source-health.json`,
-`state-rotation.json`) are never touched. Start it on Zeus: `docker compose up -d janitor`.
+`state-rotation.json`) are never touched. Start it on Zeus: `docker compose -f docker-compose.local.yml up -d janitor`.
 
 Vercel Hobby allows up to 100 daily cron jobs per project (changelog 2026-01-20; the old 2-per-team cap is gone), so this third daily cron fits.

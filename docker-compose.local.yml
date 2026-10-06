@@ -76,6 +76,20 @@ services:
       retries: 5
       start_period: 45s
 
+  # Disk janitor for ./cache on Zeus: age-based deletes in named subfolders only; the scraper's
+  # state files are never touched. See scripts/zeus-janitor.sh and docs/RETENTION.md.
+  janitor:
+    image: alpine:3.20
+    restart: unless-stopped
+    environment:
+      JANITOR_INTERVAL_HOURS: "24"
+    volumes:
+      - ./cache:/cache
+      - ./scripts/zeus-janitor.sh:/janitor.sh:ro
+    command: ["sh", "/janitor.sh", "--loop"]
+    networks:
+      - scraper-local
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
