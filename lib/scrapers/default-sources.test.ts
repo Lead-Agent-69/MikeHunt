@@ -1,16 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-
-function defaultSources(): string[] {
-  const src = readFileSync("scripts/scrape-ci.ts", "utf8");
-  const block = src.match(/const DEFAULT_SOURCES = \[([\s\S]*?)\];/);
-  if (!block) throw new Error("DEFAULT_SOURCES missing");
-  const ids: string[] = [];
-  const re = /"([a-z0-9_]+)"/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(block[1])) !== null) ids.push(m[1]);
-  return ids;
-}
+import {
+  CI_CANDIDATE_SOURCES,
+  CI_DEFAULT_SOURCES,
+  resolveCiSources,
+} from "./ci-sources";
+import {
+  TOS_RESTRICTED_SOURCES,
+  isAutomationAllowedSource,
+} from "./sweep-schedule";
 
 function runnerEnabled(): Map<string, boolean> {
   const src = readFileSync("lib/scrapers/runner.ts", "utf8");
@@ -26,10 +24,10 @@ function runnerEnabled(): Map<string, boolean> {
 }
 
 describe("scrape-ci DEFAULT_SOURCES", () => {
-  it("runs open enabled feeds, drops dead ids, and keeps truecar headed-only", () => {
-    const defaults = defaultSources();
+  it("candidates are runner-enabled; dead ids and headed-only truecar stay out", () => {
+    const candidates: string[] = [...CI_CANDIDATE_SOURCES];
     const enabled = runnerEnabled();
-    for (const id of defaults) expect(enabled.get(id)).toBe(true);
+    for (const id of candidates) expect(enabled.get(id)).toBe(true);
     for (const id of [
       "cargurus",
       "independent_dealer",
@@ -42,18 +40,7 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
       "auto_discover",
       "truecar",
     ]) {
-      expect(defaults).not.toContain(id);
-    }
-    for (const id of [
-      "govdeals",
-      "allsurplus",
-      "municibid",
-      "gsa_auctions",
-      "offerup",
-      "publicsurplus",
-    ]) {
-      expect(defaults).toContain(id);
-      expect(enabled.get(id)).toBe(true);
+      expect(candidates).not.toContain(id);
     }
     expect(enabled.get("truecar")).toBe(true);
     // Image/fleet configs must not bake SCRAPE_SOURCES — terms-safe defaults are code-side;
@@ -63,6 +50,66 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
       expect(src).not.toMatch(/^\s*ENV\s+SCRAPE_SOURCES\s*=/m);
       expect(src).not.toMatch(/^\s*SCRAPE_SOURCES\s*=/m);
     }
+  });
+
+  it("default run drops every terms-restricted source (same rule as sweep + preview)", () => {
+    for (const id of CI_DEFAULT_SOURCES) {
+      expect(TOS_RESTRICTED_SOURCES[id]).toBeUndefined();
+      expect(isAutomationAllowedSource(id, "")).toBe(true);
+    }
+    for (const id of [
+      "craigslist",
+      "offerup",
+      "carvana",
+      "autotempest",
+      "ebay_sold",
+      "ebay_motors",
+      "cars_com",
+      "autotrader",
+      "publicsurplus",
+      "municibid",
+      "copart",
+    ]) {
+      expect(CI_DEFAULT_SOURCES).not.toContain(id);
+    }
+    expect(CI_DEFAULT_SOURCES).toEqual([
+      "carparts_com",
+      "govdeals",
+      "allsurplus",
+      "gsa_auctions",
+      "curated_dealers",
+    ]);
+    const selection = resolveCiSources([], "");
+    expect(selection).toEqual({
+      sources: CI_DEFAULT_SOURCES,
+      origin: "default",
+      optedInRestricted: [],
+    });
+  });
+
+  it("explicit args or SCRAPE_SOURCES are an operator opt-in and report restricted ids", () => {
+    expect(resolveCiSources(["craigslist", "govdeals"], "copart")).toEqual({
+      sources: ["craigslist", "govdeals"],
+      origin: "args",
+      optedInRestricted: ["craigslist"],
+    });
+    expect(resolveCiSources([], " municibid, govdeals ,municibid")).toEqual({
+      sources: ["municibid", "govdeals"],
+      origin: "env",
+      optedInRestricted: ["municibid"],
+    });
+    expect(resolveCiSources([], "govdeals").optedInRestricted).toEqual([]);
+  });
+
+  it("scrape-ci and the worker resolve sources through ci-sources, not a raw list", () => {
+    const ci = readFileSync("scripts/scrape-ci.ts", "utf8");
+    expect(ci).toContain("resolveCiSources(");
+    expect(ci).not.toMatch(/const DEFAULT_SOURCES = \[/);
+    const worker = readFileSync("workers/scrape-worker.ts", "utf8");
+    expect(worker).toContain("scripts/scrape-ci.ts");
+    expect(readFileSync("scripts/scrape-local.sh", "utf8")).not.toMatch(
+      /^\s*SCRAPE_SOURCES=/m,
+    );
   });
 
   it("does not upload listing photos into vehicle-photos by default", () => {

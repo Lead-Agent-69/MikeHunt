@@ -147,6 +147,15 @@ describe("automation allow-list for public preview routes", () => {
       true,
     );
     expect(isAutomationAllowedSource("govdeals", "")).toBe(true);
-    expect(isAutomationAllowedSource("municibid", "")).toBe(true);
+    expect(isAutomationAllowedSource("municibid", "")).toBe(false);
+    expect(isAutomationAllowedSource("offerup", undefined)).toBe(false);
+    expect(isAutomationAllowedSource("municibid", "municibid")).toBe(true);
+  });
+
+  it("keeps municibid and offerup out of the default sweep", () => {
+    expect(TOS_RESTRICTED_SOURCES.municibid).toMatch(/automated/);
+    expect(TOS_RESTRICTED_SOURCES.offerup).toMatch(/automated/);
+    expect(resolveSweepSources("")).not.toContain("municibid");
+    expect(resolveSweepSources("")).not.toContain("offerup");
   });
 });

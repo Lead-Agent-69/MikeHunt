@@ -120,7 +120,13 @@ function TopNavContent() {
     setScopedStates(nextStates?.length ? nextStates : undefined);
   }, [pathname, searchParams]);
 
+  // Unread alerts are account data. Poll only once we know there is a session; a signed-out
+  // visitor would just get a 401 every five minutes.
   useEffect(() => {
+    if (!dealerId) {
+      setAlertCount(0);
+      return;
+    }
     let cancelled = false;
     async function fetchAlerts() {
       try {
@@ -138,7 +144,7 @@ function TopNavContent() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, []);
+  }, [dealerId]);
 
   useEffect(() => {
     // The dashboard layout scrolls inside <body>, not the window, so window.scrollY stays 0 there
