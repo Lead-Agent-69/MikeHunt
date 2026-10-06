@@ -197,6 +197,19 @@ A failure counts as 0. A source with `zeroStreak = n ≥ 2` runs only on sweeps 
 resets the streak. This handles anti-bot walls, dead sites, and empty gov feeds without spending idle
 time other sources need. FlareSolverr stays the reserve tier inside `smartFetch`.
 
+### 5.3b Rings, tiers, and want-hit (2026-10-06)
+
+Ring-0 demand still comes from `scrape_demand()` (home / search / recent). The planner then expands
+each anchor through `nearbyStates` (`expandDemandRings`): ring *r* keeps weight · 1/(1+r). ZIP3
+preference stays on ring-0 only.
+
+Among sources already allowed by `resolveSweepSources` (terms-safe defaults + any `SCRAPE_SOURCES`
+opt-in), `orderSourcesByTier` runs **primary** (curated / independent / opted-in retail) before
+**secondary** (GSA / surplus / auctions). Restricted aggregators stay off unless opted in.
+
+Ops metric: `GET /api/scrape/health` → `demandCoverage.wantHit` = fraction of ring-0 demand states
+with ≥5 active **primary**-source rows (target ~0.9).
+
 ### 5.4 Ordering inside a sweep
 
 Sources run in this order, and the daily insert budget is spent in the same order:

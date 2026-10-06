@@ -20,7 +20,13 @@ import { sellerContact } from "@/lib/data/deal-contact";
 import {
   TOS_RESTRICTED_SOURCES,
   isAutomationAllowedSource,
+  sourceTier,
 } from "@/lib/scrapers/sweep-schedule";
+import {
+  summarizeDemand,
+  wantHitRatio,
+  type DemandRow,
+} from "@/lib/scrapers/sweep-demand";
 
 export const dynamic = "force-dynamic";
 
@@ -871,6 +877,47 @@ export function buildScopeStatus({
   };
 }
 
+
+async function buildDemandCoverage(
+  supabase: ReturnType<typeof createClient>,
+  activeDeals: readonly any[],
+) {
+  let demandRows: DemandRow[] = [];
+  try {
+    const { data, error } = await supabase.rpc("scrape_demand", {
+      p_active_days: 30,
+    });
+    if (error) throw error;
+    demandRows = (data || []) as DemandRow[];
+  } catch {
+    return null;
+  }
+  const demand = summarizeDemand(demandRows);
+  const primaryCounts: Record<string, number> = {};
+  for (const row of activeDeals || []) {
+    const src = String(row?.source || "").toLowerCase();
+    if (sourceTier(src) !== "primary") continue;
+    const st = String(row?.location_state || "")
+      .trim()
+      .toUpperCase();
+    if (!st) continue;
+    primaryCounts[st] = (primaryCounts[st] || 0) + 1;
+  }
+  const hit = wantHitRatio({
+    anchors: demand.anchors || [],
+    primaryCounts,
+    minRows: 5,
+  });
+  return {
+    ...hit,
+    target: 0.9,
+    anchors: demand.anchors || [],
+    weights: demand.weights,
+    primaryCounts,
+    note: "want-hit = fraction of ring-0 demand states with ≥5 active primary-source rows",
+  };
+}
+
 function buildHealthSummary(health: any[]) {
   const total = health.length;
   const enabled = health.filter((row) => row.enabled).length;
@@ -1330,6 +1377,7 @@ export async function GET(request: NextRequest) {
 
     const userHealth = userFacingHealthRows(health, scope);
     const summary = buildHealthSummary(userHealth);
+    const demandCoverage = await buildDemandCoverage(supabase, activeDeals);
 
     return NextResponse.json({
       configured: true,
@@ -1337,7 +1385,10 @@ export async function GET(request: NextRequest) {
       enabled: summary.enabled,
       due: summary.due,
       healthy: summary.healthy,
-      summary,
+      summary: demandCoverage
+        ? { ...summary, wantHit: demandCoverage.wantHit, demandCoverage }
+        : summary,
+      demandCoverage,
       scope,
       plan: scopedPlan,
       scopeFiltered,

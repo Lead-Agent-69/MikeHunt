@@ -5,18 +5,21 @@ import {
   SWEEP_STATE_CODES,
   metroZipsForState,
 } from "@/lib/geo/metro-zips";
+import { nearbyStates } from "@/lib/geo/us-states";
 import {
   type StateRotation,
   type SweepPlan,
   planSweepStates,
 } from "./sweep-plan";
+import { orderSourcesByTier, sourceTier } from "./sweep-schedule";
 
 /**
  * Demand-weighted sweep planning. Deterministic heuristics only (no LLM in the hot path).
  * See docs/USER-DRIVEN-SCRAPING.md §5.
  *
  *   score(state) = 10·ln(1 + D) + 2·min(H/24, 4) + 1/(1 + A/100)
- *     D = demand weight from scrape_demand (home 3·r, search 2·r, recent 1·e^(−age/3))
+ *     D = demand weight from scrape_demand (home 3·r, search 2·r, recent 1·e^(−age/3)),
+ *         expanded through nearbyStates rings with weight · 1/(1+ring)
  *     H = hours since the state was last planned into a sweep (never = capped term)
  *     A = active listings in the state (thin states get a small bump)
  *
@@ -34,10 +37,14 @@ export interface DemandRow {
 }
 
 export interface DemandSummary {
-  /** Total demand weight per state. */
+  /** Total demand weight per state (includes ring expansion when applied). */
   weights: Record<string, number>;
-  /** Demanded 3-digit ZIP prefixes per state, heaviest first. */
+  /** Demanded 3-digit ZIP prefixes per state, heaviest first (ring-0 anchors only). */
   zip3s: Record<string, string[]>;
+  /** Ring distance from the nearest user home/search anchor (0 = demanded state itself). */
+  rings?: Record<string, number>;
+  /** Ring-0 anchor states from scrape_demand (before neighbor expansion). */
+  anchors?: string[];
 }
 
 const KNOWN_STATES = new Set(SWEEP_STATE_CODES);
@@ -67,7 +74,96 @@ export function summarizeDemand(
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([zip3]) => zip3);
   }
-  return { weights, zip3s };
+  const anchors = Object.keys(weights).sort(
+    (a, b) => (weights[b] || 0) - (weights[a] || 0) || a.localeCompare(b),
+  );
+  return {
+    weights,
+    zip3s,
+    rings: Object.fromEntries(anchors.map((s) => [s, 0])),
+    anchors,
+  };
+}
+
+/**
+ * Expand ring-0 demand outward through nearbyStates. Ring r gets weight · 1/(1+r).
+ * ZIP3 preference stays on anchors only. Caps at maxRing (default 3).
+ */
+export function expandDemandRings(
+  demand: DemandSummary,
+  maxRing = 3,
+): DemandSummary {
+  const cap = Math.max(0, Math.min(8, Math.floor(maxRing)));
+  const weights: Record<string, number> = { ...demand.weights };
+  const rings: Record<string, number> = {
+    ...(demand.rings || Object.fromEntries(
+      Object.keys(demand.weights).map((s) => [s, 0]),
+    )),
+  };
+  const anchors = demand.anchors || Object.keys(demand.weights);
+  for (const anchor of anchors) {
+    const base = demand.weights[anchor] || 0;
+    if (base <= 0 || !KNOWN_STATES.has(anchor)) continue;
+    for (let r = 1; r <= cap; r++) {
+      // nearbyStates(n) is inclusive of self; take n = r+1 closest then drop nearer rings.
+      const near = [...nearbyStates(anchor, r + 1)].filter((s) => s !== anchor);
+      // States whose closest ring to this anchor is exactly r: in nearby(r+1) but not nearby(r).
+      const closer =
+        r === 1
+          ? new Set<string>()
+          : new Set(
+              [...nearbyStates(anchor, r)].filter((s) => s !== anchor),
+            );
+      for (const st of near) {
+        if (!KNOWN_STATES.has(st) || closer.has(st)) continue;
+        const add = base / (1 + r);
+        weights[st] = (weights[st] || 0) + add;
+        const prev = rings[st];
+        if (prev === undefined || r < prev) rings[st] = r;
+      }
+    }
+  }
+  return {
+    weights,
+    zip3s: demand.zip3s,
+    rings,
+    anchors: [...anchors],
+  };
+}
+
+/**
+ * Want-hit / demand coverage: fraction of ring-0 anchor states that have at least
+ * `minRows` fresh-enough active listings from PRIMARY sources.
+ * Target ~0.9 once density is healthy.
+ */
+export function wantHitRatio(input: {
+  anchors: readonly string[];
+  /** Active listing counts per state from PRIMARY sources only. */
+  primaryCounts: Record<string, number>;
+  minRows?: number;
+}): { wantHit: number; covered: number; demanded: number; gaps: string[] } {
+  const minRows = Math.max(1, Math.floor(input.minRows ?? 5));
+  const anchors = [...new Set(input.anchors.map((s) => s.toUpperCase()))].filter(
+    (s) => KNOWN_STATES.has(s),
+  );
+  if (!anchors.length)
+    return { wantHit: 1, covered: 0, demanded: 0, gaps: [] };
+  const gaps: string[] = [];
+  let covered = 0;
+  for (const st of anchors) {
+    if ((input.primaryCounts[st] || 0) >= minRows) covered += 1;
+    else gaps.push(st);
+  }
+  return {
+    wantHit: covered / anchors.length,
+    covered,
+    demanded: anchors.length,
+    gaps,
+  };
+}
+
+export function isPrimarySource(id: string) {
+  return sourceTier(id) === "primary";
 }
 
 export function stateScore(input: {
@@ -121,6 +217,8 @@ export function planDemandSweep(
     zipsPerState: number;
     counts?: Record<string, number>;
     demand?: DemandSummary;
+    /** Expand home/search anchors through nearbyStates. Default 3. Set 0 to disable. */
+    maxRing?: number;
     states?: readonly string[];
     now?: Date;
   },
@@ -130,7 +228,15 @@ export function planDemandSweep(
     1,
     Math.min(pool.length, Math.floor(options.perSweep) || 1),
   );
-  const weights = options.demand?.weights || {};
+  const maxRing =
+    options.maxRing === undefined ? 3 : Math.max(0, options.maxRing);
+  const demand =
+    options.demand && maxRing > 0
+      ? expandDemandRings(options.demand, maxRing)
+      : options.demand;
+  const weights = demand?.weights || {};
+  const zip3s = demand?.zip3s || {};
+  const anchors = new Set(demand?.anchors || []);
   const demanded = pool.filter((s) => (weights[s] || 0) > 0);
   if (!demanded.length) {
     const plain = planSweepStates(rotation, { ...options, perSweep: k });
@@ -175,14 +281,18 @@ export function planDemandSweep(
   const zipsByState: Record<string, string[]> = {};
   for (const state of states) {
     const offset = (rotation.sweeps[state] || 0) * options.zipsPerState;
-    zipsByState[state] = demandSet.has(state)
+    // Extra ZIP depth + zip3 preference only for ring-0 anchors (real user homes/searches).
+    const anchor = anchors.has(state);
+    zipsByState[state] = anchor
       ? demandZipsForState(
           state,
           options.zipsPerState + 1,
           offset,
-          options.demand?.zip3s[state],
+          zip3s[state],
         )
-      : metroZipsForState(state, options.zipsPerState, offset);
+      : demandSet.has(state)
+        ? metroZipsForState(state, options.zipsPerState + 1, offset)
+        : metroZipsForState(state, options.zipsPerState, offset);
   }
   return {
     states,
@@ -226,7 +336,8 @@ export function sourcesForSweep(
   const kept = sources.filter((s) =>
     shouldRunSource(health.zeroStreak[s] || 0, sweepNumber),
   );
-  return kept.length ? kept : [...sources];
+  const list = kept.length ? kept : [...sources];
+  return orderSourcesByTier(list);
 }
 
 export function startSweep(health: SourceHealth): SourceHealth {
