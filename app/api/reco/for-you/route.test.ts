@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const getServerUser = vi.hoisted(() => vi.fn());
 const mode = vi.hoisted(() => ({ value: null as string | null }));
+const signalsError = vi.hoisted(() => ({ value: null as any }));
 const NOW_ISO = new Date().toISOString();
 
 const DEAL = {
@@ -24,12 +25,12 @@ const DEAL = {
   first_seen_at: NOW_ISO,
 };
 
-function chain(rows: any[]) {
+function chain(rows: any[], error: any = null) {
   const q: any = {};
   for (const m of ["select", "eq", "gt", "gte", "not", "order", "limit", "in"])
     q[m] = () => q;
   q.then = (resolve: (v: unknown) => unknown) =>
-    resolve({ data: rows, error: null });
+    resolve({ data: error ? null : rows, error });
   return q;
 }
 
@@ -54,22 +55,27 @@ vi.mock("@/lib/supabase", () => ({
           }),
         };
       if (table === "deal_signals")
-        return chain([
-          {
-            deal_id: "s1",
-            kind: "open",
-            make: "Honda",
-            model: "Accord",
-            created_at: NOW_ISO,
-          },
-          {
-            deal_id: "s2",
-            kind: "save",
-            make: "Honda",
-            model: "Accord",
-            created_at: NOW_ISO,
-          },
-        ]);
+        return chain(
+          signalsError.value
+            ? []
+            : [
+                {
+                  deal_id: "s1",
+                  kind: "open",
+                  make: "Honda",
+                  model: "Accord",
+                  created_at: NOW_ISO,
+                },
+                {
+                  deal_id: "s2",
+                  kind: "save",
+                  make: "Honda",
+                  model: "Accord",
+                  created_at: NOW_ISO,
+                },
+              ],
+          signalsError.value,
+        );
       return chain([DEAL]);
     },
   }),
@@ -87,10 +93,12 @@ describe("GET /api/reco/for-you", () => {
   it("ranks from signals and redacts flip economics off the flip desk", async () => {
     getServerUser.mockResolvedValue({ data: { user: { id: "u1" } } });
     mode.value = "personal";
+    signalsError.value = null;
     const res = await get();
     const body = await res.json();
     expect(res.headers.get("cache-control")).toMatch(/no-store/);
     expect(body.personalized).toBe(true);
+    expect(body.signalsAvailable).toBe(true);
     expect(body.homeState).toBe("TX");
     expect(body.deskAccess).toBe("personal");
     expect(body.items[0]).toMatchObject({
@@ -105,8 +113,24 @@ describe("GET /api/reco/for-you", () => {
   it("flip desk keeps economics", async () => {
     getServerUser.mockResolvedValue({ data: { user: { id: "u1" } } });
     mode.value = "reseller";
+    signalsError.value = null;
     const body = await (await get()).json();
     expect(body.deskAccess).toBe("flip");
+    expect(body.signalsAvailable).toBe(true);
     expect(body.items[0].trueNetProfit).toBe(2100);
+  });
+
+  it("missing deal_signals sets signalsAvailable:false (not a cold start)", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+    mode.value = "personal";
+    signalsError.value = {
+      code: "PGRST205",
+      message:
+        "Could not find the table 'public.deal_signals' in the schema cache",
+    };
+    const body = await (await get()).json();
+    expect(body.personalized).toBe(false);
+    expect(body.signalsAvailable).toBe(false);
+    expect(body.basedOnSignals).toBe(0);
   });
 });

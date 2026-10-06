@@ -31,7 +31,16 @@ export async function GET(req: NextRequest) {
 
   const headers = { "Cache-Control": "private, no-store" };
   if (!isSupabaseConfigured())
-    return NextResponse.json({ prompt: null }, { headers });
-  const rows = await readUserSignals(createServerComponentClient(), user.id);
-  return NextResponse.json({ prompt: similarPrompt(rows) }, { headers });
+    return NextResponse.json(
+      { prompt: null, signalsAvailable: false },
+      { headers },
+    );
+  const { rows, available } = await readUserSignals(
+    createServerComponentClient(),
+    user.id,
+  );
+  return NextResponse.json(
+    { prompt: similarPrompt(rows), signalsAvailable: available },
+    { headers },
+  );
 }

@@ -39,12 +39,41 @@ export function dealSnapshot(d: Record<string, any> | null | undefined) {
   };
 }
 
-/** Read a user's recent signals, newest first. Missing table or any error → [] (fail soft). */
+/** PostgREST / Postgres codes when the relation isn't in the schema. */
+export function isMissingDealSignalsTable(
+  error:
+    | {
+        code?: string;
+        message?: string;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.code === "42P01" || error.code === "PGRST205") return true;
+  const msg = String(error.message || "").toLowerCase();
+  return (
+    msg.includes("deal_signals") &&
+    (msg.includes("does not exist") || msg.includes("could not find"))
+  );
+}
+
+export type SignalsRead = {
+  rows: SignalRow[];
+  /**
+   * false when the deal_signals relation is missing; true when the table exists
+   * (even if this user has zero rows). Other read errors still fail soft to []
+   * with available:true so a transient blip is not mistaken for "table missing".
+   */
+  available: boolean;
+};
+
+/** Read a user's recent signals, newest first. Missing table → { rows:[], available:false }. */
 export async function readUserSignals(
   sb: SupabaseClient,
   userId: string,
   now: number = Date.now(),
-): Promise<SignalRow[]> {
+): Promise<SignalsRead> {
   try {
     const since = new Date(
       now - SIGNAL_LOOKBACK_DAYS * 86_400_000,
@@ -56,10 +85,13 @@ export async function readUserSignals(
       .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(SIGNAL_READ_LIMIT);
-    if (error || !Array.isArray(data)) return [];
-    return data as SignalRow[];
+    if (isMissingDealSignalsTable(error)) {
+      return { rows: [], available: false };
+    }
+    if (error || !Array.isArray(data)) return { rows: [], available: true };
+    return { rows: data as SignalRow[], available: true };
   } catch {
-    return [];
+    return { rows: [], available: true };
   }
 }
 
