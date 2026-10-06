@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { useDealerId } from "@/hooks/useDealerId";
+import { SimilarInterestPrompt } from "@/components/reco/SimilarInterestPrompt";
 import { useDealDwellSignal } from "@/hooks/useDealDwellSignal";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
@@ -961,6 +962,11 @@ export default function DealPage({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fadeUp pb-24">
+      {/* Reco: "Interested in similar?" after enough dwell, signed-in only */}
+      <SimilarInterestPrompt
+        dealId={id}
+        enabled={Boolean(dealerId && serverDeal)}
+      />
       {/* HEADER & USER TYPE */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
