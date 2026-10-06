@@ -23,7 +23,7 @@ describe("sources proof scope", () => {
     expect(page).toContain("over $${healthScope.minPrice.toLocaleString()}");
   });
 
-  it("refreshes and shows source proof after a scoped smart import", () => {
+  it("refreshes and shows buyer-friendly availability after a scoped smart import", () => {
     const builder = readFileSync(
       "components/discovery/BuyerScopeBuilder.tsx",
       "utf8",
@@ -31,7 +31,7 @@ describe("sources proof scope", () => {
 
     expect(builder).toContain("const loadSourceHealth = useCallback");
     expect(builder).toContain("await loadSourceHealth({ silent: true })");
-    expect(builder).toContain("Fresh source proof");
+    expect(builder).toContain("Listing availability");
     expect(builder).toContain("rowsWithPhotos");
     expect(builder).toContain("photoCoveragePct");
   });
