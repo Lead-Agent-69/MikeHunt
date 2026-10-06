@@ -269,44 +269,52 @@ describe("GET /api/scrape/health lane scoping", () => {
   });
 
   it("limits government health proof to government sources", async () => {
-    const { GET } = await import("./route");
-    const res = await GET(
-      req(
-        "/api/scrape/health?lane=government&state=FL&maxPrice=10000&q=mercedes",
-      ),
-    );
-    const body = await res.json();
+    // GovDeals is terms-restricted; this proof path runs with the operator opt-in.
+    const prior = process.env.SCRAPE_SOURCES;
+    process.env.SCRAPE_SOURCES = "govdeals";
+    try {
+      const { GET } = await import("./route");
+      const res = await GET(
+        req(
+          "/api/scrape/health?lane=government&state=FL&maxPrice=10000&q=mercedes",
+        ),
+      );
+      const body = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(body.scope).toMatchObject({ lane: "government", state: "FL" });
-    expect(body.plan.sourceIds).toEqual([
-      "publicsurplus",
-      "govdeals",
-      "allsurplus",
-      "municibid",
-      "gsa_auctions",
-    ]);
-    expect(body.sources.map((source: any) => source.id)).toEqual(
-      body.plan.sourceIds,
-    );
-    expect(
-      body.sources.find((source: any) => source.id === "govdeals"),
-    ).toMatchObject({
-      readiness: "ready",
-      activeRows: 1,
-      rowsWithPhotos: 1,
-    });
-    expect(body.summary).toMatchObject({
-      total: 5,
-      enabled: 5,
-      healthy: 1,
-      ready: 1,
-      activeRows: 1,
-      rowsWithPhotos: 1,
-      photoCoveragePct: 100,
-      termsOff: 2,
-    });
-    expect(body.healthy).toBe(1);
+      expect(res.status).toBe(200);
+      expect(body.scope).toMatchObject({ lane: "government", state: "FL" });
+      expect(body.plan.sourceIds).toEqual([
+        "publicsurplus",
+        "govdeals",
+        "allsurplus",
+        "municibid",
+        "gsa_auctions",
+      ]);
+      expect(body.sources.map((source: any) => source.id)).toEqual(
+        body.plan.sourceIds,
+      );
+      expect(
+        body.sources.find((source: any) => source.id === "govdeals"),
+      ).toMatchObject({
+        readiness: "ready",
+        activeRows: 1,
+        rowsWithPhotos: 1,
+      });
+      expect(body.summary).toMatchObject({
+        total: 5,
+        enabled: 5,
+        healthy: 1,
+        ready: 1,
+        activeRows: 1,
+        rowsWithPhotos: 1,
+        photoCoveragePct: 100,
+        termsOff: 3,
+      });
+      expect(body.healthy).toBe(1);
+    } finally {
+      if (prior === undefined) delete process.env.SCRAPE_SOURCES;
+      else process.env.SCRAPE_SOURCES = prior;
+    }
   });
 
   it("labels terms-restricted sources off for site terms and never probes them", async () => {
@@ -319,7 +327,12 @@ describe("GET /api/scrape/health lane scoping", () => {
       const res = await GET(req("/api/scrape/health?lane=government&state=FL"));
       const body = await res.json();
       expect(res.status).toBe(200);
-      for (const id of ["publicsurplus", "municibid"]) {
+      for (const id of [
+        "publicsurplus",
+        "municibid",
+        "govdeals",
+        "allsurplus",
+      ]) {
         const row = body.sources.find((source: any) => source.id === id);
         expect(row).toMatchObject({
           readiness: "disabled",
@@ -333,7 +346,7 @@ describe("GET /api/scrape/health lane scoping", () => {
         expect(row.userStatus).not.toBe("Needs run");
       }
       expect(
-        body.sources.find((source: any) => source.id === "govdeals"),
+        body.sources.find((source: any) => source.id === "gsa_auctions"),
       ).not.toHaveProperty("termsRestricted");
       expect(previewPublicSurplus).not.toHaveBeenCalled();
       expect(previewMunicibid).not.toHaveBeenCalled();

@@ -3,11 +3,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
-import { summarizeCleanSold, soldTitleLane } from "@/lib/scoring/market-value";
+import {
+  SOLD_MEDIAN_WINDOW_DAYS,
+  soldTitleLane,
+  soldWindowCutoffIso,
+  summarizeCleanSold,
+} from "@/lib/scoring/market-value";
 
 // GET /api/sold?make=Ford&model=F-150&year=2018 — completed-sale prices.
 // A clean median is published only at n >= 3 clean titles. Salvage titles are
-// counted and called out; they are not mixed into that price. No invented prices.
+// counted and called out; they are not mixed into that price. Only sales inside the last
+// SOLD_MEDIAN_WINDOW_DAYS count, so an old price is not shown as today's. No invented prices.
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "sold", limit: 60, windowMs: 60000 });
   if (!rl.allowed) return tooManyRequests(rl);
@@ -24,6 +30,7 @@ export async function GET(req: NextRequest) {
       soldAt: null,
       mixed: false,
       note: null,
+      windowDays: SOLD_MEDIAN_WINDOW_DAYS,
     });
 
   const supabase = createServerComponentClient();
@@ -37,6 +44,7 @@ export async function GET(req: NextRequest) {
     .eq("currency_code", "USD")
     .eq("country_code", "US")
     .gt("sold_price", 0)
+    .gte("sold_at", soldWindowCutoffIso())
     .order("sold_at", { ascending: false })
     .limit(40);
   if (year > 0) q = q.gte("year", year - 2).lte("year", year + 2);
@@ -50,6 +58,7 @@ export async function GET(req: NextRequest) {
       soldAt: null,
       mixed: false,
       note: null,
+      windowDays: SOLD_MEDIAN_WINDOW_DAYS,
     });
 
   const summary = summarizeCleanSold(data || []);
@@ -64,6 +73,7 @@ export async function GET(req: NextRequest) {
     unknownCount: summary.unknownCount,
     mixed: summary.mixed,
     note: summary.note,
+    windowDays: summary.windowDays,
     sales: (data || []).slice(0, 6).map((d: any) => {
       const lane = soldTitleLane(d.title);
       const stored =
