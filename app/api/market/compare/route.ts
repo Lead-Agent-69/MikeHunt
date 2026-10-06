@@ -1,7 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { fitDepreciationCurve } from "@/lib/scoring/depreciation";
 import { daysOnMarket } from "@/lib/intelligence/days-on-market";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -20,7 +24,11 @@ export async function GET(req: NextRequest) {
     .slice(0, 4);
   if (specs.length === 0) return NextResponse.json({ comparison: [] });
 
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json({ configured: false, comparison: [] });
+  }
   const supabase = createServerComponentClient();
+  const flipDesk = await resolveCallerFlipDesk();
 
   const comparison = await Promise.all(
     specs.map(async (spec) => {
@@ -82,5 +90,15 @@ export async function GET(req: NextRequest) {
     }),
   );
 
-  return NextResponse.json({ comparison: comparison.filter(Boolean) });
+  const rows = comparison.filter(Boolean) as Array<Record<string, any>>;
+  return NextResponse.json(
+    {
+      // avgProfit is flip economics: only a saved reseller / dealer desk gets it.
+      comparison: flipDesk
+        ? rows
+        : rows.map(({ avgProfit: _p, ...rest }) => rest),
+      deskAccess: flipDesk ? "flip" : "personal",
+    },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }

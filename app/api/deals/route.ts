@@ -4,6 +4,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { DealsService, DealFilters } from "@/lib/data/deals-service";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
+
+// Desk-scoped payload: flip economics and seller contact only for a saved reseller / dealer desk.
+const DEALS_HEADERS = { "Cache-Control": "private, no-store" };
+
+/** Non-flip callers cannot filter or sort by flip economics (that would leak them by probing). */
+export function filtersForDesk(
+  filters: DealFilters,
+  flipDesk: boolean,
+): DealFilters {
+  if (flipDesk) return filters;
+  const sortBy =
+    filters.sortBy === "profitEstimate" || filters.sortBy === "profitScore"
+      ? "lastSeenAt"
+      : filters.sortBy || "lastSeenAt";
+  return { ...filters, minProfit: undefined, minScore: undefined, sortBy };
+}
+
+function deskResult<T extends { deals?: any[] }>(result: T, flipDesk: boolean) {
+  return NextResponse.json(
+    {
+      ...result,
+      deals: listingsForDesk(result.deals || [], flipDesk),
+      deskAccess: flipDesk ? "flip" : "personal",
+    },
+    { headers: DEALS_HEADERS },
+  );
+}
 
 function parseFilters(searchParams: URLSearchParams): DealFilters {
   return {
@@ -45,26 +76,26 @@ export async function GET(request: NextRequest) {
   try {
     const dealsService = new DealsService();
     const { searchParams } = new URL(request.url);
+    const flipDesk = await resolveCallerFlipDesk();
+    const filters = filtersForDesk(parseFilters(searchParams), flipDesk);
 
     const searchTerm = searchParams.get("search");
     if (searchTerm) {
-      const result = await dealsService.searchDeals(
-        searchTerm,
-        parseFilters(searchParams),
-      );
-      return NextResponse.json(result);
+      const result = await dealsService.searchDeals(searchTerm, filters);
+      return deskResult(result, flipDesk);
     }
 
     const hot = searchParams.get("hot");
-    if (hot === "true") {
+    // "Hot" is ranked by profit score: a flip-desk view only.
+    if (hot === "true" && flipDesk) {
       const deals = await dealsService.getHotDeals(
         parseInt(searchParams.get("limit") || "10", 10),
       );
-      return NextResponse.json({ deals, total: deals.length, hasMore: false });
+      return deskResult({ deals, total: deals.length, hasMore: false }, true);
     }
 
-    const result = await dealsService.getDeals(parseFilters(searchParams));
-    return NextResponse.json(result);
+    const result = await dealsService.getDeals(filters);
+    return deskResult(result, flipDesk);
   } catch (error) {
     console.error("Error in deals API:", error);
     return NextResponse.json(

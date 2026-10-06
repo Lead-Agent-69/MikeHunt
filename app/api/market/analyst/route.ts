@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/text-model";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 
 // GET /api/market/analyst — Deal IQ Layer 4. A plain-English market read over the REAL aggregated
 // data (timing signals + market aggregates). The only AI piece in Deal IQ: generation is explicit
@@ -165,6 +166,21 @@ export async function GET(req: NextRequest) {
       windowMs: 60_000,
     });
     if (!genRl.allowed) return tooManyRequests(genRl);
+  }
+
+  // The desk note quotes average profit by segment: flip economics. Only a saved reseller / dealer
+  // desk reads it (a paid generator above is already a signed-in caller; the cached note is not).
+  if (!wantGenerate && !(await resolveCallerFlipDesk())) {
+    return NextResponse.json(
+      {
+        report: null,
+        canGenerate: false,
+        flipOnly: true,
+        deskAccess: "personal",
+        reason: "The market desk note is for reseller and dealer desks.",
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 
   if (cache && Date.now() - cache.at < TTL_MS && !fresh) {

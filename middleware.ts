@@ -61,6 +61,19 @@ const publicBuyerRoutes = ["/scan", "/dealer-network"];
 // Auth routes
 const authRoutes = ["/login", "/register"];
 
+// User-scoped APIs that signed-out visitors may call. The handler itself returns an empty,
+// non-leaking answer (e.g. TopNav's unread badge polls this for every visitor).
+const guestSafeApiRoutes = ["/api/alerts/unread"];
+
+// A signed-out fetch() to a user-scoped API gets JSON 401, never a 307 to /login. fetch follows the
+// redirect, receives the login page HTML, and the client fails loud trying to parse it.
+function apiSignInRequired(): NextResponse {
+  return NextResponse.json(
+    { error: "Sign in required", signInRequired: true },
+    { status: 401, headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+
 function isTemplateValue(value: string | undefined): boolean {
   if (!value) return true;
   const v = value.trim().toLowerCase();
@@ -109,8 +122,11 @@ export async function middleware(request: NextRequest) {
     pathname === "/api/alerts/process" ||
     pathname === "/api/alerts/profit-sniper";
   // Segment-aware: "/deal" must not swallow the public "/dealer-network".
+  const isApiRoute = pathname.startsWith("/api/");
   const isProtectedRoute =
-    !isCronEndpoint && matchesAnyRoute(pathname, protectedRoutes);
+    !isCronEndpoint &&
+    !matchesAnyRoute(pathname, guestSafeApiRoutes) &&
+    matchesAnyRoute(pathname, protectedRoutes);
   const isSetupGatedRoute =
     isProtectedRoute || matchesAnyRoute(pathname, publicBuyerRoutes);
   const isAuthRoute = matchesAnyRoute(pathname, authRoutes);
@@ -120,6 +136,7 @@ export async function middleware(request: NextRequest) {
     const demoUser = request.cookies.get("mh_demo_user")?.value;
 
     if (isProtectedRoute && !demoUser) {
+      if (isApiRoute) return apiSignInRequired();
       return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
     }
 
@@ -205,6 +222,13 @@ export async function middleware(request: NextRequest) {
   // Authorization: Bearer CRON_SECRET header in their route handlers instead.
 
   if (isProtectedRoute && !user) {
+    if (isApiRoute) {
+      const response = apiSignInRequired();
+      supabaseResponse.cookies
+        .getAll()
+        .forEach((cookie) => response.cookies.set(cookie));
+      return response;
+    }
     return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
   }
 

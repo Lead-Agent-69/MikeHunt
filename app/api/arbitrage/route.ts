@@ -10,6 +10,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 
 // Geographic arbitrage from REAL data — no hardcoded regional price tables. For THIS dealer (home state
 // read from their profile), every out-of-state deal is scored: would importing it pay off after the real
@@ -39,8 +40,42 @@ type Opp = {
   };
 };
 
+/** Empty dashboard: same shape the page already renders when there is nothing to show. */
+export function emptyArbitragePayload(homeState: string) {
+  return {
+    homeState,
+    tailored: false,
+    summary: {
+      local: 0,
+      regional: 0,
+      national: 0,
+      regionalProfit: 0,
+      nationalProfit: 0,
+      bestProfit: 0,
+    },
+    topRoutes: [],
+    localDeals: [],
+    regionalArbitrage: [],
+    nationalArbitrage: [],
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
+    // Arbitrage is resale spread math end to end: only a saved reseller / dealer desk gets it.
+    // Signed-out, personal, diy, and parts callers get the empty shape, never the spreads.
+    if (isSupabaseConfigured() && !(await resolveCallerFlipDesk())) {
+      return NextResponse.json(
+        {
+          ...emptyArbitragePayload(
+            (request.nextUrl.searchParams.get("homeState") || "").toUpperCase(),
+          ),
+          flipOnly: true,
+          deskAccess: "personal",
+        },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     if (!isSupabaseConfigured()) {
       return NextResponse.json({
         configured: false,
@@ -211,7 +246,10 @@ export async function GET(request: NextRequest) {
         };
       },
     );
-    return NextResponse.json(payload);
+    return NextResponse.json(
+      { ...payload, deskAccess: "flip" },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error: any) {
     console.error("Error fetching arbitrage dashboard data:", error);
     return internalError("arbitrage", error);

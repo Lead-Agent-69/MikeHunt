@@ -7,7 +7,9 @@ import { Mono } from "@/components/shared/Mono";
 import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-const money = (v: any) => `$${(Number(v) || 0).toLocaleString()}`;
+// Non-flip desks get no profit fields from the API: show a dash, never a fake $0.
+const money = (v: any) =>
+  v == null ? "—" : `$${(Number(v) || 0).toLocaleString()}`;
 
 export default function OverviewPage() {
   const params = useParams<{ make: string; model: string }>();

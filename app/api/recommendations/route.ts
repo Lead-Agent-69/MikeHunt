@@ -11,6 +11,10 @@ import {
   extractInterestProfile,
   scoreInterest,
 } from "@/lib/intelligence/interest-patterns";
+import {
+  listingsForDesk,
+  resolveCallerFlipDesk,
+} from "@/lib/deals/deal-desk-access";
 
 // GET /api/recommendations — "Deals like your winners". Learns the make/models THIS dealer has
 // profited on (from logged outcomes) and surfaces active deals matching those patterns. Sharpens as
@@ -183,8 +187,13 @@ export async function GET() {
   }
   scored.sort((a, b) => b.rank - a.rank);
 
+  const flipDesk = await resolveCallerFlipDesk();
   return NextResponse.json({
-    deals: scored.slice(0, 24).map((s) => s.deal),
+    deals: listingsForDesk(
+      scored.slice(0, 24).map((s) => s.deal),
+      flipDesk,
+    ),
+    deskAccess: flipDesk ? "flip" : "personal",
     patterns: patterns.slice(0, 8),
     interest: interest.patterns.slice(0, 6),
   });
