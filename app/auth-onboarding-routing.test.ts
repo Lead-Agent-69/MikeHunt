@@ -40,14 +40,14 @@ describe("new-account onboarding routes", () => {
   });
 
   it("keeps signed-in unfinished buyers off the public buyer pages", () => {
-    const middleware = readFileSync("middleware.ts", "utf8");
-    expect(middleware).toContain(
+    const proxy = readFileSync("proxy.ts", "utf8");
+    expect(proxy).toContain(
       'const publicBuyerRoutes = ["/scan", "/dealer-network"];',
     );
     // Signed-out visitors still reach /scan from the landing page.
-    expect(middleware).toContain('// "/scan", — intentionally public');
+    expect(proxy).toContain('// "/scan", — intentionally public');
     // The setup redirect uses the wider set for real and guest sessions.
-    expect(middleware.match(/isSetupGatedRoute &&/g)?.length).toBe(2);
-    expect(middleware).not.toMatch(/userId &&\s+isProtectedRoute &&/);
+    expect(proxy.match(/isSetupGatedRoute &&/g)?.length).toBe(2);
+    expect(proxy).not.toMatch(/userId &&\s+isProtectedRoute &&/);
   });
 });

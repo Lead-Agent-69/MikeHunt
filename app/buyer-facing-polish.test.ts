@@ -111,14 +111,14 @@ describe("buyer-facing polish", () => {
   it("does not let setup be skipped and keeps Discover on the saved buyer scope", () => {
     const onboarding = read("app/onboarding/page.tsx");
     const discover = read("app/(dashboard)/discover/page.tsx");
-    const middleware = read("middleware.ts");
+    const proxy = read("proxy.ts");
 
     expect(onboarding).not.toContain("Set up later");
     expect(onboarding).not.toContain('router.push("/discover")');
     expect(discover).toContain("savedBuyerScope");
     expect(discover).toContain("normalizeBuyerIntent(prefs.buyerScope)");
-    expect(middleware).toContain("user_profiles");
-    expect(middleware).toContain("onboarded");
-    expect(middleware).toContain('url.pathname = "/onboarding"');
+    expect(proxy).toContain("user_profiles");
+    expect(proxy).toContain("onboarded");
+    expect(proxy).toContain('url.pathname = "/onboarding"');
   });
 });
