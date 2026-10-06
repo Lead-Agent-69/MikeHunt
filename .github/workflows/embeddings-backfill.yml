@@ -31,27 +31,41 @@ jobs:
     timeout-minutes: 6
     steps:
       - name: Trigger backfill
-        shell: bash
+        # Zeus self-hosted runners are Windows services (NetworkService) with no WSL distro, so a
+        # bare `shell: bash` resolves to WSL's bash.exe and dies. Built-in Windows PowerShell 5.1 +
+        # curl.exe (ships with Windows 10+) needs nothing extra installed — same as ci.yml's `cmd`.
+        shell: powershell
         env:
-          # Override with a repo secret if the deployment URL ever changes.
-          BASE_URL: ${{ secrets.SITE_URL || 'https://mikehunt-otfbzp7nx-mikehunt.vercel.app' }}
+          # Real Vercel project is team/project mikehunt/mikehunt (NOT mikehunt-69).
+          # Production deploy URLs look like https://mikehunt-<id>-mikehunt.vercel.app and may rotate;
+          # set repo secret SITE_URL to the stable production domain/alias from
+          # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
+          BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           LIMIT: ${{ github.event.inputs.limit || '100' }}
         run: |
-          set -euo pipefail
-          if [ -z "${CRON_SECRET}" ]; then
-            echo "::error::CRON_SECRET repo secret is not set — the endpoint fails closed with 401."
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:CRON_SECRET)) {
+            Write-Output "::error::CRON_SECRET repo secret is not set - the endpoint fails closed with 401."
             exit 1
-          fi
-          echo "POSTing backfill to ${BASE_URL} (limit=${LIMIT})"
-          code=$(curl -sS -o /tmp/backfill.json -w "%{http_code}" \
-            --max-time 300 \
-            -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${BASE_URL}/api/embeddings/backfill?limit=${LIMIT}")
-          echo "HTTP ${code}"
-          cat /tmp/backfill.json
-          echo
-          if [ "${code}" != "200" ]; then
-            echo "::error::Backfill returned ${code}"
+          }
+          if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) {
+            Write-Output "::error::SITE_URL repo secret is not set - set it to the mikehunt/mikehunt production domain from Vercel Domains (not mikehunt-69, not a preview URL)."
             exit 1
-          fi
+          }
+          $base = $env:BASE_URL.TrimEnd('/')
+          $out = Join-Path $env:RUNNER_TEMP 'backfill.json'
+          Write-Output "Calling backfill on $base (limit=$($env:LIMIT))"
+          $code = & curl.exe -sS -o $out -w "%{http_code}" --max-time 300 `
+            -H "Authorization: Bearer $($env:CRON_SECRET)" `
+            "$base/api/embeddings/backfill?limit=$($env:LIMIT)"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "::error::curl failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+          Write-Output "HTTP $code"
+          if (Test-Path $out) { Get-Content $out -Raw | Write-Output }
+          if ("$code".Trim() -ne '200') {
+            Write-Output "::error::Backfill returned $code"
+            exit 1
+          }
