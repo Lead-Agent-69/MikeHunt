@@ -22,6 +22,7 @@ import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
 import { CoverageNotice } from "@/components/discovery/CoverageNotice";
+import { ForYouRail } from "@/components/reco/ForYouRail";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -596,6 +597,9 @@ export default function DiscoverPage() {
           </div>
         )}
       </details>
+      {/* For You: personal reco rail, hidden unless the backend is personalizing */}
+      <ForYouRail flipDesk={flipDesk} />
+
       {/* Body */}
       {isLoading && !data ? (
         <div className="space-y-8">
