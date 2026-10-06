@@ -79,7 +79,9 @@ services:
   # Disk janitor for ./cache on Zeus: age-based deletes in named subfolders only; the scraper's
   # state files are never touched. See scripts/zeus-janitor.sh and docs/RETENTION.md.
   janitor:
-    image: alpine:3.20
+    # Prefer an image already cached on Zeus (Docker Desktop credential-store breaks
+    # `docker pull alpine:3.20` over SSH). redis:7-alpine is pulled with the stack and has /bin/sh.
+    image: redis:7-alpine
     restart: unless-stopped
     environment:
       JANITOR_INTERVAL_HOURS: "24"
