@@ -84,7 +84,8 @@ export default function SettingsPage() {
     phone: "",
     city: "",
     state: "",
-    home_state: "CA",
+    // No state picked until the user picks one. A silent California default misplaced new users.
+    home_state: "",
     auction_fee_default: 450,
     recon_cost_default: 500,
     daily_floor_rate: 35,
@@ -123,7 +124,7 @@ export default function SettingsPage() {
         phone: profileData.profile.phone || "",
         city: profileData.profile.city || "",
         state: profileData.profile.state || "",
-        home_state: profileData.profile.home_state || "CA",
+        home_state: profileData.profile.home_state || "",
         auction_fee_default: profileData.profile.auction_fee_default ?? 450,
         recon_cost_default: profileData.profile.recon_cost_default ?? 500,
         daily_floor_rate: profileData.profile.daily_floor_rate ?? 35,
@@ -143,7 +144,11 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        // An unpicked home state saves as null, not "" and not a guessed default.
+        body: JSON.stringify({
+          ...profile,
+          home_state: profile.home_state || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -331,6 +336,7 @@ export default function SettingsPage() {
                   className="w-full text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none transition-all border-none"
                   style={{ background: "var(--s2)" }}
                 >
+                  <option value="">No state picked</option>
                   {US_STATES.map((s) => (
                     <option key={s} value={s}>
                       {s}
