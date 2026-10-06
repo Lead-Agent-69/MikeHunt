@@ -17,6 +17,10 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  TOS_RESTRICTED_SOURCES,
+  isAutomationAllowedSource,
+} from "@/lib/scrapers/sweep-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -541,6 +545,26 @@ function readySourceImpact(row: any) {
   return "Stored listings from this source can be reviewed in Scan. Last seen is not a live scrape.";
 }
 
+/**
+ * A source whose site terms ban automated access (TOS_RESTRICTED_SOURCES) and that the operator has
+ * not opted into through SCRAPE_SOURCES. Same rule as the sweep, scrape-ci and the public preview
+ * routes (isAutomationAllowedSource), so health never tells anyone to "run" a source we won't run.
+ */
+function termsOffForSource(sourceId: string, raw?: string) {
+  const id = String(sourceId || "").toLowerCase();
+  return (
+    Boolean(TOS_RESTRICTED_SOURCES[id]) && !isAutomationAllowedSource(id, raw)
+  );
+}
+
+function termsFields(sourceId: string) {
+  if (!termsOffForSource(sourceId)) return {};
+  return {
+    termsRestricted: true,
+    termsReason: TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
+  };
+}
+
 function explainSource(
   source: any,
   readiness: string,
@@ -548,6 +572,17 @@ function explainSource(
   row?: any,
   scope?: HealthScope,
 ) {
+  if (row?.termsRestricted) {
+    return {
+      userStatus: "Off for site terms",
+      proofLevel: "off",
+      userImpact: Number(row?.activeRows || 0)
+        ? "This site's terms ban automated access, so MikeHunt does not import from it. Rows already on file are older imports and are not refreshed."
+        : "This site's terms ban automated access, so MikeHunt does not import from it.",
+      nextAction:
+        "Stays off unless the operator opts in through SCRAPE_SOURCES. Prefer a licensed feed or written permission.",
+    };
+  }
   if (readiness === "ready") {
     return {
       userStatus: lastSeenLabel(
@@ -847,6 +882,7 @@ function buildHealthSummary(health: any[]) {
   const blocked = health.filter((row) => row.readiness === "blocked").length;
   const noRows = health.filter((row) => row.readiness === "no_rows").length;
   const needsRun = health.filter((row) => row.readiness === "needs_run").length;
+  const termsOff = health.filter((row) => row.termsRestricted).length;
   const activeRows = health.reduce(
     (sum, row) => sum + Number(row.activeRows || 0),
     0,
@@ -868,6 +904,7 @@ function buildHealthSummary(health: any[]) {
     blocked,
     noRows,
     needsRun,
+    termsOff,
     activeRows,
     rowsWithPhotos,
     photoCoveragePct: activeRows
@@ -1009,21 +1046,24 @@ export async function GET(request: NextRequest) {
         Awaited<ReturnType<typeof publicProbe>>
       >();
       const probeResults = await Promise.all([
-        ...(scopedSourceIds && !scopedSourceIds.has("govdeals")
+        ...((scopedSourceIds && !scopedSourceIds.has("govdeals")) ||
+        !isAutomationAllowedSource("govdeals")
           ? []
           : [
               publicProbe(() => previewGovDeals(1), scope).then(
                 (proof) => ["govdeals", proof] as const,
               ),
             ]),
-        ...(scopedSourceIds && !scopedSourceIds.has("publicsurplus")
+        ...((scopedSourceIds && !scopedSourceIds.has("publicsurplus")) ||
+        !isAutomationAllowedSource("publicsurplus")
           ? []
           : [
               publicProbe(() => previewPublicSurplus(1), scope).then(
                 (proof) => ["publicsurplus", proof] as const,
               ),
             ]),
-        ...(scopedSourceIds && !scopedSourceIds.has("municibid")
+        ...((scopedSourceIds && !scopedSourceIds.has("municibid")) ||
+        !isAutomationAllowedSource("municibid")
           ? []
           : [
               publicProbe(() => previewMunicibid(1), scope).then(
@@ -1044,7 +1084,7 @@ export async function GET(request: NextRequest) {
           requiresAuth: source.requiresAuth,
           stealthRequired: source.stealthRequired,
           frequencyMinutes: source.frequencyMinutes,
-          isDue: !proof,
+          isDue: !proof && !termsOffForSource(source.id),
           lastRunAt: null,
           lastStatus: proof?.lastStatus || "not_configured",
           lastError: showInternalErrors
@@ -1054,9 +1094,10 @@ export async function GET(request: NextRequest) {
           failedRuns: proof?.readiness === "blocked" ? 1 : 0,
           successRate: proof?.readiness === "blocked" ? 0 : 100,
           estimatedDealsPerRun: source.estimatedDealsPerRun,
-          readiness:
-            proof?.readiness ||
-            (source.requiresAuth ? "needs_login" : "not_configured"),
+          readiness: termsOffForSource(source.id)
+            ? "disabled"
+            : proof?.readiness ||
+              (source.requiresAuth ? "needs_login" : "not_configured"),
           activeRows: proof?.activeRows || 0,
           rowsWithPhotos: proof?.rowsWithPhotos || 0,
           averageQuality: proof?.averageQuality || 0,
@@ -1065,6 +1106,7 @@ export async function GET(request: NextRequest) {
             ...completenessPercentages(emptyCompleteness(), 0),
           },
           lastSeenAt: proof?.lastSeenAt || null,
+          ...termsFields(source.id),
         };
         return enrichHealthRow(source, row, false, scope);
       });
@@ -1225,21 +1267,24 @@ export async function GET(request: NextRequest) {
       const minutesSinceLastRun = lastRunAt
         ? Math.round((Date.now() - new Date(lastRunAt).getTime()) / 1000 / 60)
         : null;
-      const readiness = !source.enabled
-        ? source.requiresAuth
-          ? "needs_login"
-          : "disabled"
-        : !lastRun && !proof?.activeRows
+      const termsOff = termsOffForSource(source.id);
+      const readiness = termsOff
+        ? "disabled"
+        : !source.enabled
           ? source.requiresAuth
             ? "needs_login"
-            : source.catalogUrl
-              ? "no_rows"
-              : "needs_run"
-          : lastRun?.status === "error"
-            ? "blocked"
-            : proof?.activeRows
-              ? "ready"
-              : "no_rows";
+            : "disabled"
+          : !lastRun && !proof?.activeRows
+            ? source.requiresAuth
+              ? "needs_login"
+              : source.catalogUrl
+                ? "no_rows"
+                : "needs_run"
+            : lastRun?.status === "error"
+              ? "blocked"
+              : proof?.activeRows
+                ? "ready"
+                : "no_rows";
 
       const row = {
         id: source.id,
@@ -1251,8 +1296,9 @@ export async function GET(request: NextRequest) {
         stealthRequired: source.stealthRequired,
         frequencyMinutes: source.frequencyMinutes,
         isDue:
-          minutesSinceLastRun == null ||
-          minutesSinceLastRun >= source.frequencyMinutes,
+          !termsOff &&
+          (minutesSinceLastRun == null ||
+            minutesSinceLastRun >= source.frequencyMinutes),
         lastRunAt,
         lastStatus:
           lastRun?.status || (proof?.activeRows ? "observed" : "never_run"),
@@ -1277,6 +1323,7 @@ export async function GET(request: NextRequest) {
               ...completenessPercentages(emptyCompleteness(), 0),
             },
         lastSeenAt: proof?.lastSeenAt || null,
+        ...termsFields(source.id),
       };
       return enrichHealthRow(source, row, true, scope);
     });

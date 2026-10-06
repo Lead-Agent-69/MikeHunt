@@ -46,7 +46,7 @@ export const DEFAULT_SWEEP_SOURCES = [
 
 /**
  * Sources whose own terms ban automated access (robots, spiders, scrapers) without written
- * permission. Reviewed 2026-10-05. They are left out of the default sweep. Running one takes an
+ * permission. Reviewed 2026-10-05 (municibid and offerup added 2026-10-05). They are left out of the default sweep. Running one takes an
  * explicit SCRAPE_SOURCES opt-in by the operator, and the scraper logs that opt-in every sweep.
  */
 export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
@@ -70,6 +70,10 @@ export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
     "Copart Member Terms (no spider/crawl/scrape) and Image & Data License (use the CSV download, not scraping)",
   publicsurplus:
     "publicsurplus.com terms: no robot, spider or automatic device to monitor or copy the site without written permission",
+  municibid:
+    "municibid.com/Home/Terms (05/04/26): no access through automated means or other than a standard browser, and no scraping, without a written agreement",
+  offerup:
+    "offerup.com/terms (2026-07-21) §7: no automated means (bot, robot, spider, script, crawler or scraper) to collect or extract data",
 };
 
 export function resolveSweepSources(

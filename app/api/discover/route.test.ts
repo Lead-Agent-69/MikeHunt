@@ -140,6 +140,67 @@ describe("GET /api/discover scoped feed contract", () => {
   );
 
   // First import of the route is heavy under CI parallelism; 5s default flakes on Windows runners.
+  it("returns a coverage block counted from real rows in the requested states", async () => {
+    const now = Date.now();
+    const iso = (hoursAgo: number) =>
+      new Date(now - hoursAgo * 3_600_000).toISOString();
+    rpc.mockResolvedValueOnce({
+      data: [
+        {
+          ...baseRow,
+          id: "mo-1",
+          source: "curated_dealers",
+          source_url: "https://dealer.example/1",
+          condition: "clean",
+          location_state: "MO",
+          last_seen_at: iso(2),
+        },
+        {
+          ...baseRow,
+          id: "mo-gov",
+          location_state: "MO",
+          last_seen_at: iso(30),
+        },
+        {
+          ...baseRow,
+          id: "mo-old",
+          source: "curated_dealers",
+          source_url: "https://dealer.example/2",
+          condition: "clean",
+          location_state: "MO",
+          last_seen_at: iso(24 * 10),
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const res = await GET(req("/api/discover?states=MO,IL"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(rpc).toHaveBeenLastCalledWith(
+      "discover_deals",
+      expect.objectContaining({ p_states: ["MO", "IL"], p_limit: 10000 }),
+    );
+    expect(body.coverage).toMatchObject({
+      status: "thin",
+      windowDays: 7,
+      states: ["MO", "IL"],
+      freshRows: 2,
+      freshRowsInFeed: 1,
+      sourceCount: 2,
+      capped: false,
+      byState: [
+        { state: "MO", rows: 2 },
+        { state: "IL", rows: 0 },
+      ],
+      thresholds: { minRows: 50, minSources: 2 },
+    });
+    expect(body.coverage.bySource.map((s: any) => [s.source, s.rows])).toEqual([
+      ["curated_dealers", 1],
+      ["gov_auction", 1],
+    ]);
+  });
+
   it("keeps gov_auction government rows and maps trust/cost fields", async () => {
     rpc.mockResolvedValueOnce({
       data: [
