@@ -8,6 +8,7 @@ import {
   baselineSlots,
   demandZipsForState,
   emptySourceHealth,
+  expandDemandRings,
   loadSourceHealth,
   planDemandSweep,
   recordSourceYield,
@@ -17,6 +18,7 @@ import {
   startSweep,
   stateScore,
   summarizeDemand,
+  wantHitRatio,
 } from "./sweep-demand";
 
 const NOW = new Date("2026-10-05T05:00:00Z");
@@ -33,7 +35,9 @@ describe("summarizeDemand", () => {
     ]);
     expect(out.weights).toEqual({ MO: 4.5 });
     expect(out.zip3s).toEqual({ MO: ["658", "631"] });
-    expect(summarizeDemand(null)).toEqual({ weights: {}, zip3s: {} });
+    expect(out.anchors).toEqual(["MO"]);
+    expect(out.rings).toEqual({ MO: 0 });
+    expect(summarizeDemand(null)).toEqual({ weights: {}, zip3s: {}, rings: {}, anchors: [] });
   });
 });
 
@@ -89,6 +93,7 @@ describe("planDemandSweep", () => {
         SD: 1,
       },
       demand,
+      maxRing: 0,
       now: NOW,
     });
     expect(plan.states).toHaveLength(10);
@@ -121,6 +126,7 @@ describe("planDemandSweep", () => {
         perSweep,
         zipsPerState: 2,
         demand,
+        maxRing: 0,
         now: at,
       });
       plan.states.forEach((s) => seen.add(s));
@@ -193,5 +199,57 @@ describe("source backoff", () => {
     );
     await saveSourceHealth(health, file);
     expect(await loadSourceHealth(file)).toEqual(health);
+  });
+});
+
+describe("demand rings and want-hit", () => {
+  it("expands MO anchors into neighboring rings with falling weight", () => {
+    const base = summarizeDemand([{ state: "MO", weight: 10, users: 4 }]);
+    const expanded = expandDemandRings(base, 2);
+    expect(expanded.anchors).toEqual(["MO"]);
+    expect(expanded.weights.MO).toBeCloseTo(10, 5);
+    expect(expanded.rings?.MO).toBe(0);
+    // At least one ring-1 neighbor carries half weight.
+    const ring1 = Object.entries(expanded.rings || {}).filter(([, r]) => r === 1);
+    expect(ring1.length).toBeGreaterThan(0);
+    for (const [st, r] of ring1) {
+      expect(expanded.weights[st]).toBeCloseTo(10 / (1 + r), 5);
+    }
+  });
+
+  it("preferentially schedules MO before FL when MO demand dominates, even with rings", () => {
+    const demand = summarizeDemand([
+      { state: "MO", weight: 11, users: 4 },
+      { state: "FL", weight: 1.8, users: 1 },
+    ]);
+    const plan = planDemandSweep(emptyRotation(), {
+      perSweep: 10,
+      zipsPerState: 2,
+      demand,
+      maxRing: 2,
+      now: NOW,
+    });
+    expect(plan.states[0]).toBe("MO");
+    expect(plan.demandStates).toContain("MO");
+    expect(plan.demandStates).toContain("FL");
+    // Ring neighbors of MO can appear in demandStates but MO keeps ZIP preference.
+    expect(plan.zipsByState.MO.length).toBe(3);
+  });
+
+  it("reports want-hit gaps for uncovered anchor states", () => {
+    const hit = wantHitRatio({
+      anchors: ["MO", "FL"],
+      primaryCounts: { MO: 40, FL: 0 },
+      minRows: 5,
+    });
+    expect(hit).toEqual({
+      wantHit: 0.5,
+      covered: 1,
+      demanded: 2,
+      gaps: ["FL"],
+    });
+    expect(
+      wantHitRatio({ anchors: [], primaryCounts: {} }).wantHit,
+    ).toBe(1);
   });
 });

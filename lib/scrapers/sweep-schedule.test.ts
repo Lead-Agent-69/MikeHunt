@@ -14,8 +14,10 @@ import {
   nextSweepStep,
   resolveScraperExecutionMode,
   resolveSweepIntervalMs,
+  orderSourcesByTier,
   resolveSweepSources,
   saveSweepState,
+  sourceTier,
 } from "./sweep-schedule";
 
 const HOUR = 60 * 60 * 1000;
@@ -46,6 +48,22 @@ describe("sweep sources and cadence", () => {
     expect(resolveSweepSources("cars_com, autotrader,cars_com")).toEqual([
       "cars_com",
       "autotrader",
+    ]);
+  });
+
+  it("orders primary sources before secondary (terms-safe + opt-in)", () => {
+    expect(sourceTier("curated_dealers")).toBe("primary");
+    expect(sourceTier("gsa_auctions")).toBe("secondary");
+    expect(orderSourcesByTier(["gsa_auctions", "curated_dealers", "independent_dealer"])).toEqual([
+      "curated_dealers",
+      "independent_dealer",
+      "gsa_auctions",
+    ]);
+    // Opted-in restricted primaries still sort ahead of secondary.
+    expect(resolveSweepSources("gsa_auctions,craigslist,curated_dealers")).toEqual([
+      "craigslist",
+      "curated_dealers",
+      "gsa_auctions",
     ]);
   });
 

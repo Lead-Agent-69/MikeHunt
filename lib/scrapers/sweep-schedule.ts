@@ -27,6 +27,51 @@ export function resolveScraperExecutionMode(
  * listing location go first because the daily insert budget is spent in this order. Auction and
  * surplus feeds take what is left.
  */
+/**
+ * Scheduler tiers (Jonah 2026-10-06). Among sources already allowed by resolveSweepSources
+ * (terms-safe defaults, plus any SCRAPE_SOURCES opt-in), run PRIMARY before SECONDARY so
+ * idle ticks fill retail/private density for demanded rings before auction/surplus.
+ *
+ * Restricted aggregators (craigslist, carvana, autotempest, cars_com, …) stay off unless the
+ * operator opted in — listing them here only orders them when present.
+ */
+export type SweepSourceTier = "primary" | "secondary";
+
+export const SWEEP_SOURCE_TIER: Record<string, SweepSourceTier> = {
+  // PRIMARY — aggregators / retail / private inventory
+  craigslist: "primary",
+  curated_dealers: "primary",
+  independent_dealer: "primary",
+  carvana: "primary",
+  autotempest: "primary",
+  cars_com: "primary",
+  autotrader: "primary",
+  ebay_motors: "primary",
+  cargurus: "primary",
+  // SECONDARY — auctions / surplus / sold comps
+  gsa_auctions: "secondary",
+  publicsurplus: "secondary",
+  govdeals: "secondary",
+  allsurplus: "secondary",
+  ebay_sold: "secondary",
+  copart: "secondary",
+  municibid: "secondary",
+};
+
+export function sourceTier(id: string): SweepSourceTier {
+  return SWEEP_SOURCE_TIER[String(id || "").trim().toLowerCase()] || "secondary";
+}
+
+/** Stable primary-then-secondary order. Unknown ids sort as secondary, preserving input order. */
+export function orderSourcesByTier(sources: readonly string[]): string[] {
+  const primary: string[] = [];
+  const secondary: string[] = [];
+  for (const id of sources) {
+    (sourceTier(id) === "primary" ? primary : secondary).push(id);
+  }
+  return [...primary, ...secondary];
+}
+
 export const DEFAULT_SWEEP_SOURCES = [
   "cars_com",
   "autotrader",
@@ -94,8 +139,10 @@ export function resolveSweepSources(
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  if (explicit.length) return Array.from(new Set(explicit));
-  return DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
+  const list = explicit.length
+    ? Array.from(new Set(explicit))
+    : DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
+  return orderSourcesByTier(list);
 }
 
 /**
