@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 import { NextRequest, NextResponse } from "next/server";
-import { internalError } from "@/lib/api/http-error";
 import { DealsService } from "@/lib/data/deals-service";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import { getServerUser } from "@/lib/server-supabase";
@@ -138,8 +138,10 @@ export async function GET(request: NextRequest) {
         const dealsService = new DealsService();
         // Scan the highest-profit inventory first (biggest base spreads = best arbitrage at any distance),
         // across a wide slice so close AND national opportunities both surface.
+        // PostgREST caps a single page at 1000 rows; 2500 silently returned 1000 and
+        // still pulled select(*) ~3MB into the serverless isolate. Cap explicitly.
         const { deals } = await dealsService.getDeals({
-          limit: 2500,
+          limit: 1000,
           sortBy: "profitEstimate",
           sortOrder: "desc",
         });
@@ -251,8 +253,21 @@ export async function GET(request: NextRequest) {
       { ...payload, deskAccess: "flip" },
       { headers: { "Cache-Control": "private, no-store" } },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Honest empty beats a 500 that /find's fetcher surfaces as "Failed to fetch".
+    // #146 (mapDbToDeal this-binding) was the last hard 500 on this path; keep the
+    // soft landing so a future scan flake never invents a live outage on the hub.
     console.error("Error fetching arbitrage dashboard data:", error);
-    return internalError("arbitrage", error);
+    const home =
+      (request.nextUrl.searchParams.get("homeState") || "").toUpperCase() ||
+      "CA";
+    return NextResponse.json(
+      {
+        ...emptyArbitragePayload(home),
+        degraded: true,
+        deskAccess: "flip",
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 }

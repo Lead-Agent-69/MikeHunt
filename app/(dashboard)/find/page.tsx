@@ -61,7 +61,7 @@ export default function ArbitrageDashboardPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
 
   // Real geocoded deal points for the network map (so it isn't an empty "No mapped locations" box).
-  const { data: mapData } = useSWR("/api/deals/map?verdict=go", fetcher, {
+  const { data: mapData } = useSWR("/api/deals/map?verdict=actionable", fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60_000,
   });

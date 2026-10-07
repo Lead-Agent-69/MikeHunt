@@ -7,13 +7,15 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { parseMapVerdicts } from "@/lib/deals/map-verdict";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
 
-// GET /api/deals/map?verdict=go&limit= — active deals as map points. Precise geocoded coords when we
-// have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals spread out
-// instead of stacking) — so the map reflects ALL located inventory, not just the ~18% geocoded yet.
+// GET /api/deals/map?verdict=actionable&limit= — active deals as map points. Precise geocoded coords
+// when we have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals
+// spread out instead of stacking) — so the map reflects ALL located inventory, not just geocoded.
+
 const money = (v: any) => `$${Math.round(Number(v) || 0).toLocaleString()}`;
 
 // Stable per-id offset in [-0.4, 0.4]° so centroid points don't collapse onto one marker.
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl);
 
   const sp = new URL(req.url).searchParams;
-  const verdict = sp.get("verdict") || "go";
+  const verdictFilter = parseMapVerdicts(sp.get("verdict"));
   const limit = Math.min(
     2000,
     Math.max(1, parseInt(sp.get("limit") || "1000", 10) || 1000),
@@ -59,19 +61,36 @@ export async function GET(req: NextRequest) {
           .gt("ask_price", 0)
           .order("profit_score", { ascending: false, nullsFirst: false })
           .range(from, to);
-        if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
+        if (verdictFilter.mode === "eq") {
+          q = q.eq("deal_verdict", verdictFilter.values[0]);
+        } else if (verdictFilter.mode === "in") {
+          q = q.in("deal_verdict", verdictFilter.values);
+        }
         return q;
       },
       { max: limit },
     );
   } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message, points: [] },
-      { status: 500 },
+    // Honest empty map (200) beats a 500 — /find's shared fetcher throws on !ok.
+    console.error(
+      "[deals-map]",
+      error instanceof Error ? error.message : error,
     );
+    return NextResponse.json({
+      points: [],
+      count: 0,
+      degraded: true,
+      deskAccess: "personal",
+    });
   }
 
-  const flipDesk = await resolveCallerFlipDesk();
+  let flipDesk = false;
+  try {
+    flipDesk = await resolveCallerFlipDesk();
+  } catch {
+    flipDesk = false;
+  }
+
   const points = (data || [])
     .map((d: any) => {
       let lat: number | null = null;
