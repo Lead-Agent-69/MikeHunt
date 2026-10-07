@@ -27,9 +27,9 @@ export function coverageNotice(
   if (coverage.status === "none" || coverage.freshRows === 0) {
     return {
       tone: "none",
-      headline: `No fresh listings in ${where} in the last ${plural(days, "day")}.`,
+      headline: `No fresh saved listings for ${where} yet.`,
       detail:
-        "We only show listings we have actually seen recently, so this area is empty for now.",
+        "Background coverage updates on Zeus (not instant). Wait, or widen search locations / save a search for alerts. We only show listings we have actually seen.",
     };
   }
 
@@ -43,6 +43,6 @@ export function coverageNotice(
     tone: "thin",
     headline: `Coverage is thin in ${where}: ${count} in the last ${plural(days, "day")}${perState}, from ${sources}.`,
     detail:
-      "Results here are a partial view of the market, not everything for sale.",
+      "Results here are a partial view of saved inventory, not everything for sale. Background coverage updates on Zeus (not instant).",
   };
 }

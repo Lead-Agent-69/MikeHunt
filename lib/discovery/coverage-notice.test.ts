@@ -37,12 +37,15 @@ describe("coverageNotice", () => {
 
   it("none: says there are no fresh listings in the states", () => {
     const none = build([], ["TX", "OK"]);
-    expect(coverageNotice(none)).toEqual(
+    const notice = coverageNotice(none);
+    expect(notice).toEqual(
       expect.objectContaining({
         tone: "none",
-        headline: "No fresh listings in TX, OK in the last 7 days.",
+        headline: "No fresh saved listings for TX, OK yet.",
       }),
     );
+    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).not.toMatch(/minute|hour|ETA|%/i);
   });
 
   it("thin: uses the API's own counts per state and source", () => {
