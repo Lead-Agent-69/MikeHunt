@@ -16,6 +16,9 @@ port = 54323
 
 [auth]
 enabled = true
+# Passwords shorter than this are rejected as weak (local + CI contract).
+# Hosted Supabase Auth must also be set to min length 12 in the dashboard.
+minimum_password_length = 12
 site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = [
   "http://127.0.0.1:3000/auth/callback",

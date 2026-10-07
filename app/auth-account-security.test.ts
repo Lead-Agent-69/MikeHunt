@@ -57,4 +57,14 @@ describe("account creation security", () => {
     );
     expect(callback).not.toContain('import { cookies } from "next/headers"');
   });
+
+  it("enforces signup password min length 12 (UI + local Supabase)", () => {
+    const register = readFileSync("app/(auth)/register/page.tsx", "utf8");
+    const config = readFileSync("supabase/config.toml", "utf8");
+    expect(register).toContain("minLength={12}");
+    expect(register).toContain("At least 12 characters");
+    expect(register).toContain("password.length < 12");
+    expect(config).toContain("minimum_password_length = 12");
+  });
+
 });
