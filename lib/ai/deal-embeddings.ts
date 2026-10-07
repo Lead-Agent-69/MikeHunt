@@ -1,6 +1,6 @@
 // lib/ai/deal-embeddings.ts
 // Activates the (previously dormant) pgvector stack: turn each deal into a descriptive sentence,
-// embed it with text-embedding-004, and store the vector so similar_deals_by_id() can find
+// embed it with gemini-embedding-001 (768-d), and store the vector so similar_deals_by_id() can find
 // semantically-near vehicles. Backfill runs in batches from a cron route; fully no-ops (no crash)
 // when GOOGLE_GENERATIVE_AI_API_KEY is absent.
 
