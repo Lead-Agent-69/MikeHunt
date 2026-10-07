@@ -32,17 +32,38 @@ describe("account menu", () => {
     }
   });
 
-  it("reseller and dealer add Parts, Dealer network and Auction Lane", () => {
+  it("reseller and dealer add Feed/Map/Swipe/Auctions plus flip tools", () => {
     for (const mode of ["reseller", "dealer"]) {
       const tools = accountMenuForMode(mode).tools;
       expect(names(tools)).toEqual([
         "Scan listings",
         "Parts",
+        "Feed",
+        "Map",
+        "Swipe",
+        "Auctions",
         "Dealer network",
         "Auction Lane",
       ]);
-      expect(tools[0].href).toBe("/scan?sort=profit");
+      expect(tools.map((t) => t.href)).toEqual([
+        "/scan?sort=profit",
+        "/parts",
+        "/feed",
+        "/map",
+        "/swipe",
+        "/auctions",
+        "/dealer-network",
+        "/lane",
+      ]);
     }
+  });
+
+  it("personal desk keeps Feed/Map/Swipe/Auctions off Account Tools", () => {
+    const hrefs = accountMenuForMode("personal").tools.map((t) => t.href);
+    expect(hrefs).not.toContain("/feed");
+    expect(hrefs).not.toContain("/map");
+    expect(hrefs).not.toContain("/swipe");
+    expect(hrefs).not.toContain("/auctions");
   });
 
   it("never offers admin, and labels stay buyer-neutral", () => {

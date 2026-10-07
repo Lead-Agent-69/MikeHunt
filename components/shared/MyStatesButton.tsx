@@ -21,7 +21,7 @@ export function MyStatesButton({
   className?: string;
   statesOverride?: string[];
 }) {
-  const { prefs } = usePreferences();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const defaultMarket = prefs.buyerScope?.state || prefs.carsState;
@@ -43,7 +43,9 @@ export function MyStatesButton({
       : []);
   const label =
     states.length === 0
-      ? "All states"
+      ? prefsLoading
+        ? "…"
+        : "All states"
       : states.length === 1
         ? states[0]
         : `${states[0]} +${states.length - 1}`;
