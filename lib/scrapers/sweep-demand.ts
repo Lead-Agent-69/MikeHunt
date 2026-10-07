@@ -203,9 +203,10 @@ export function baselineSlots(
 ) {
   const k = Math.max(1, Math.floor(perSweep) || 1);
   if (k === 1) return 1;
-  // While want-hit is under target, keep only a thin nationwide baseline so most slots chase
-  // gap anchors (free-tier safe: same perSweep cap, just redistributed).
-  if (options.gapMode) return Math.min(k - 1, Math.max(1, Math.ceil(0.2 * k)));
+  // While want-hit is under target, keep a thinner nationwide baseline so more slots chase
+  // gap anchors — but never drop below F≥3 when the sweep is large enough (Jonah/Eva 2026-10-07).
+  // free-tier safe: same perSweep cap, just redistributed.
+  if (options.gapMode) return Math.min(k - 1, Math.max(3, Math.ceil(0.2 * k)));
   return Math.min(k - 1, Math.max(3, Math.ceil(0.4 * k)));
 }
 

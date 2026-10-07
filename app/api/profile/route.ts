@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { geocodePlace } from "@/lib/geo/geocode";
+import { syncProfileHomeStateToPrefs } from "@/lib/preferences/sync-home-state";
 
 const GUEST_PROFILE_COOKIE = "mh_guest_profile";
 
@@ -169,6 +170,16 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return internalError("profile", error);
+  }
+
+  // scrape_demand reads prefs.homeLocation, not user_profiles.home_state — mirror on change.
+  if (body.home_state !== undefined || body.state !== undefined) {
+    await syncProfileHomeStateToPrefs({
+      supabase,
+      userId: user.id,
+      homeState: profile?.home_state ?? body.home_state ?? body.state,
+      homeZip: body.home_zip ?? profile?.home_zip,
+    });
   }
 
   return NextResponse.json({ profile });

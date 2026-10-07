@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { ensureAccountRows } from "@/lib/auth/account-bootstrap";
+import {
+  mergeGuestPrefsOnSignup,
+  GUEST_PREFS_COOKIE,
+} from "@/lib/preferences/merge-guest-prefs";
+import { createServerComponentClient } from "@/lib/supabase";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
@@ -61,6 +66,16 @@ export async function GET(request: NextRequest) {
       if (user) {
         try {
           const account = await ensureAccountRows(user);
+          // Promote guest location cookie so scrape_demand sees the state they picked pre-signup.
+          try {
+            await mergeGuestPrefsOnSignup({
+              supabase: createServerComponentClient(),
+              userId: user.id,
+              guestCookieRaw: request.cookies.get(GUEST_PREFS_COOKIE)?.value,
+            });
+          } catch (mergeErr) {
+            console.warn("guest prefs merge skipped:", mergeErr);
+          }
           // A user who has not chosen their buying preferences gets the same
           // onboarding path whether they joined by email or Google.
           if (!account.onboarded && next === "/discover") {

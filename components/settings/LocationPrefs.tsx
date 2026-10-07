@@ -110,7 +110,7 @@ function LocationFields({
  * on every save so older readers (nav chip, feed scope) stay consistent.
  */
 export function LocationPrefs() {
-  const { prefs, save } = usePreferences();
+  const { prefs, save, authed } = usePreferences();
   const home = useMemo(() => effectiveHome(prefs) || null, [prefs]);
   const search = useMemo(() => effectiveSearchLocations(prefs), [prefs]);
 
@@ -150,7 +150,10 @@ export function LocationPrefs() {
   const saveHome = async () => {
     const built = homeLocationFromForm(homeForm);
     if ("error" in built) return toast.error(built.error);
-    await run(homeLocationPatch(built.home, search), "Home location saved");
+    const msg = authed
+      ? "Home saved — scanning your state for fresh listings…"
+      : "Home saved on this device. Sign in to prioritize a Zeus scan for your state.";
+    await run(homeLocationPatch(built.home, search), msg);
   };
 
   const clearHome = async () => {
