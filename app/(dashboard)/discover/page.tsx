@@ -435,7 +435,7 @@ export default function DiscoverPage() {
             </p>
             <p className="mt-1 text-xs text-[var(--t4)]">
               {marketContext ||
-                "Refine makes and budgets without leaving your live results."}
+                "Refine makes and budgets without leaving your matching results."}
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -581,7 +581,7 @@ export default function DiscoverPage() {
 
             {hasLiveListings && (
               <>
-                {/* Flash deals — pinned urgency rail (self-fetching, hides when empty) */}
+                {/* Flash deals — pinned rail (self-fetching, hides when empty) */}
                 <FlashRail state={state || undefined} />
 
                 {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
@@ -622,11 +622,16 @@ export default function DiscoverPage() {
           ))}
         </div>
       ) : error ? (
-        <div className="glass-panel" style={{ padding: 0 }}>
+        <div
+          role="alert"
+          className="glass-panel border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.08)]"
+          style={{ padding: 0 }}
+          data-testid="discover-load-error"
+        >
           <EmptyState
             icon="alert-triangle"
-            title="Couldn't load discovery"
-            message="We couldn't update your vehicles. Check your connection and try again."
+            title="Could not load discovery right now"
+            message="Saved inventory is still on Scan — Discover is not running a live market scan. Check your connection and try again."
             action={{ label: "Try again", onClick: () => void mutate() }}
           />
         </div>
