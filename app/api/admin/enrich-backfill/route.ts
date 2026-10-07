@@ -4,6 +4,19 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enrichCraigslistDetail } from "@/lib/scrapers/sources/index";
 import { canManageOperations } from "@/lib/auth/admin-operations";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
+
+/** Defense-in-depth: enrich-backfill only fetches Craigslist detail hosts. */
+export function isCraigslistDetailUrl(raw: string): boolean {
+  try {
+    const hostname = new URL(raw).hostname.toLowerCase();
+    return (
+      hostname === "craigslist.org" || hostname.endsWith(".craigslist.org")
+    );
+  } catch {
+    return false;
+  }
+}
 
 // POST /api/admin/enrich-backfill — fetch the REAL Craigslist detail page for active deals that are
 // missing photos and pull their actual images/VIN/mileage. New scrapes enrich inline (capped), but
@@ -71,8 +84,11 @@ export async function POST(req: Request) {
   for (let i = 0; i < deals.length; i++) {
     const d = deals[i];
     if (i > 0) await sleep(400); // be polite to Craigslist
+    const sourceUrl = d.source_url as string;
+    // Refuse non-CL hosts (and let UrlNotAllowedError skip private/metadata URLs).
+    if (!isCraigslistDetailUrl(sourceUrl)) continue;
     try {
-      const extra = await enrichCraigslistDetail(d.source_url as string);
+      const extra = await enrichCraigslistDetail(sourceUrl);
       const patch: any = {};
       if (Array.isArray(extra.images) && extra.images.length) {
         patch.images = extra.images.slice(0, 12);
@@ -87,7 +103,8 @@ export async function POST(req: Request) {
           .eq("id", d.id);
         if (!upErr) updated++;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof UrlNotAllowedError) continue;
       /* skip this one */
     }
   }
