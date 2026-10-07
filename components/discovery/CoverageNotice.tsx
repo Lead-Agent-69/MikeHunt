@@ -1,25 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Info, Radar } from "lucide-react";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 import { coverageNotice } from "@/lib/discovery/coverage-notice";
+import { usePreferences } from "@/hooks/usePreferences";
+import { isLocationDemandWarming } from "@/lib/preferences/location-demand-warming";
 
-/** Honest coverage note on Discover. Renders nothing unless coverage is thin or none. */
+/** Honest coverage note on Discover. Renders nothing unless coverage is thin/none (or scanning). */
 export function CoverageNotice({
   coverage,
 }: {
   coverage: DiscoverCoverage | null | undefined;
 }) {
-  const notice = coverageNotice(coverage);
+  const { prefs } = usePreferences();
+  const warming = isLocationDemandWarming(prefs);
+  const notice = coverageNotice(coverage, {
+    scanning: warming.scanning,
+    states: warming.states.length ? warming.states : coverage?.states,
+  });
   if (!notice) return null;
+  const Icon = notice.tone === "scanning" ? Radar : Info;
   return (
     <div
       role="status"
       data-testid="coverage-notice"
+      data-tone={notice.tone}
       className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm"
     >
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
       <div className="min-w-0">
         <p className="font-bold text-[var(--t1)]">{notice.headline}</p>
         <p className="mt-0.5 text-[var(--t3)]">{notice.detail}</p>

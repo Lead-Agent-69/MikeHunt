@@ -54,17 +54,17 @@ describe("sweep sources and cadence", () => {
   it("orders primary sources before secondary (terms-safe + opt-in)", () => {
     expect(sourceTier("curated_dealers")).toBe("primary");
     expect(sourceTier("gsa_auctions")).toBe("secondary");
-    expect(orderSourcesByTier(["gsa_auctions", "curated_dealers", "independent_dealer"])).toEqual([
-      "curated_dealers",
-      "independent_dealer",
-      "gsa_auctions",
-    ]);
+    expect(
+      orderSourcesByTier([
+        "gsa_auctions",
+        "curated_dealers",
+        "independent_dealer",
+      ]),
+    ).toEqual(["curated_dealers", "independent_dealer", "gsa_auctions"]);
     // Opted-in restricted primaries still sort ahead of secondary.
-    expect(resolveSweepSources("gsa_auctions,craigslist,curated_dealers")).toEqual([
-      "craigslist",
-      "curated_dealers",
-      "gsa_auctions",
-    ]);
+    expect(
+      resolveSweepSources("gsa_auctions,craigslist,curated_dealers"),
+    ).toEqual(["craigslist", "curated_dealers", "gsa_auctions"]);
   });
 
   it("defaults to 4h and never goes under 1h", () => {
@@ -72,6 +72,30 @@ describe("sweep sources and cadence", () => {
     expect(resolveSweepIntervalMs("0.1")).toBe(1 * HOUR);
     expect(resolveSweepIntervalMs("6")).toBe(6 * HOUR);
     expect(resolveSweepIntervalMs("nope")).toBe(4 * HOUR);
+  });
+
+  it("shortens only when hasRing0Gaps and SWEEP_GAP_INTERVAL_HOURS is set", () => {
+    const prev = process.env.SWEEP_GAP_INTERVAL_HOURS;
+    try {
+      delete process.env.SWEEP_GAP_INTERVAL_HOURS;
+      expect(resolveSweepIntervalMs("4", { hasRing0Gaps: true })).toBe(
+        4 * HOUR,
+      );
+      process.env.SWEEP_GAP_INTERVAL_HOURS = "1";
+      expect(resolveSweepIntervalMs("4", { hasRing0Gaps: true })).toBe(
+        1 * HOUR,
+      );
+      expect(resolveSweepIntervalMs("4", { hasRing0Gaps: false })).toBe(
+        4 * HOUR,
+      );
+      process.env.SWEEP_GAP_INTERVAL_HOURS = "0.1";
+      expect(resolveSweepIntervalMs("4", { hasRing0Gaps: true })).toBe(
+        0.5 * HOUR,
+      );
+    } finally {
+      if (prev === undefined) delete process.env.SWEEP_GAP_INTERVAL_HOURS;
+      else process.env.SWEEP_GAP_INTERVAL_HOURS = prev;
+    }
   });
 });
 

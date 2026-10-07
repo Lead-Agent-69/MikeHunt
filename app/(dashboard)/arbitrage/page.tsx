@@ -196,7 +196,7 @@ export default function ArbitragePage() {
           <Empty
             text={
               isLoading
-                ? "Scanning the market…"
+                ? "Loading saved listings…"
                 : `No ${tab} import opportunities clearing $1.5k after transport yet.`
             }
           />

@@ -35,7 +35,7 @@ describe("coverageNotice", () => {
     expect(coverageNotice(undefined)).toBeNull();
   });
 
-  it("none: says there are no fresh listings in the states", () => {
+  it("none: honest cold banner — Zeus not instant, no ETA", () => {
     const none = build([], ["TX", "OK"]);
     const notice = coverageNotice(none);
     expect(notice).toEqual(
@@ -57,6 +57,7 @@ describe("coverageNotice", () => {
     expect(coverageNotice(thin)?.headline).toBe(
       "Coverage is thin in TX, OK: 12 fresh listings in the last 7 days (TX 9, OK 3), from 1 source.",
     );
+    expect(coverageNotice(thin)?.detail).toMatch(/Zeus \(not instant\)/);
   });
 
   it("says 'at least' when the API counts were capped", () => {
@@ -73,6 +74,19 @@ describe("coverageNotice", () => {
     );
   });
 
+  it("scanning: Checking saved listings — no ETA", () => {
+    const none = build([], ["IA"]);
+    const notice = coverageNotice(none, { scanning: true, states: ["IA"] });
+    expect(notice).toEqual(
+      expect.objectContaining({
+        tone: "scanning",
+        headline: "Checking saved listings for IA…",
+      }),
+    );
+    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).not.toMatch(/hour|ETA|%/i);
+  });
+
   it("Discover renders the notice from data.coverage with next steps", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     expect(page).toContain("<CoverageNotice coverage={data?.coverage} />");
@@ -82,5 +96,7 @@ describe("coverageNotice", () => {
     );
     expect(comp).toContain('href="/settings"');
     expect(comp).toContain('href="/searches"');
+    expect(comp).toContain("location-demand-warming");
+    expect(comp).toContain("data-tone");
   });
 });

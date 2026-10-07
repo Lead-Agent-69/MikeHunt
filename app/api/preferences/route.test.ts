@@ -41,3 +41,14 @@ describe("PUT /api/preferences", () => {
     expect(res.status).toBe(413);
   });
 });
+
+it("tells guests that location demand needs sign-in", async () => {
+  const res = await PUT(put(JSON.stringify({ homeLocation: { state: "MO" } })));
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.locationDemand).toEqual({
+    requiresAuth: true,
+    states: [],
+  });
+  expect(body.prefs.homeLocation.state).toBe("MO");
+});

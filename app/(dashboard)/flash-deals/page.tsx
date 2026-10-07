@@ -53,10 +53,6 @@ export default async function FlashDealsPage() {
             fast before they sell.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[var(--t3)] text-sm bg-[var(--s2)] px-3 py-1.5 rounded-[var(--r2)] border border-[var(--b1)] shadow-sm">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span>Live feed active</span>
-        </div>
       </header>
 
       {error ? (
@@ -83,7 +79,7 @@ export default async function FlashDealsPage() {
         <EmptyState
           icon="search"
           title="No flash deals right now"
-          message="We're constantly scanning the market. When a massive arbitrage opportunity appears, it will show up here instantly."
+          message="No high-urgency deals in saved inventory right now."
           action={{
             label: "Back to Dashboard",
             href: "/find",
