@@ -55,6 +55,12 @@ export default function RegisterPage() {
     setError(null);
     setNotice(null);
 
+    if (password.length < 12) {
+      setError("Password must be at least 12 characters.");
+      setLoading(false);
+      return;
+    }
+
     try {
       if (!isSupabaseConfigured()) {
         const res = await fetch("/api/auth/demo-login", {
@@ -200,9 +206,9 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={12}
               autoComplete="new-password"
-              placeholder="At least 6 characters"
+              placeholder="At least 12 characters"
               className="text-base"
             />
 
