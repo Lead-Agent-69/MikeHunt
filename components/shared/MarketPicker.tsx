@@ -99,7 +99,7 @@ export function MarketPicker({
       <div className="flex-1 min-w-0">
         <div className="font-black text-[var(--t1)]">Pick your market</div>
         <div className="text-xs text-[var(--t3)] mt-0.5">
-          See {noun} near you instantly — you can widen to nearby or nationwide
+          See {noun} in your home state from saved inventory — you can widen to nearby or nationwide
           anytime.
         </div>
       </div>

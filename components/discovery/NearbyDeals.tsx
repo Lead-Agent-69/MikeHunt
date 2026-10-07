@@ -71,7 +71,7 @@ export function NearbyDeals() {
       <div className="rounded-[var(--r3)] border border-dashed border-[var(--b2)] p-4 text-sm text-[var(--t4)]">
         <div className="mb-2 flex items-center gap-2">
           {zipBox}
-          <span>Distance not available until a listing has real miles.</span>
+          <span>Set a home state in Settings, or enter a ZIP to scope listings.</span>
         </div>
       </div>
     );
@@ -86,7 +86,9 @@ export function NearbyDeals() {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-[var(--t1)]">{label} only</h2>
-          <p className="text-xs text-[var(--t4)]">Distance not available.</p>
+          <p className="text-xs text-[var(--t4)]">
+            City and state from each listing. Miles show only when distance is known.
+          </p>
         </div>
         {zipBox}
       </div>
@@ -102,12 +104,13 @@ export function NearbyDeals() {
           {deals.map((d) => {
             const miles =
               typeof d.distanceMiles === "number" ? d.distanceMiles : null;
+            const cityState = [d.locationCity, d.locationState]
+              .filter(Boolean)
+              .join(", ");
             const where =
               miles != null
-                ? `About ${miles} miles${zipMode ? ` from ${zip}` : ""}`
-                : [d.locationCity, d.locationState]
-                    .filter(Boolean)
-                    .join(", ") || "Distance not available";
+                ? `About ${Math.round(miles)} miles${zipMode ? ` from ${zip}` : ""}`
+                : cityState || label;
             return (
               <Link
                 key={d.id}

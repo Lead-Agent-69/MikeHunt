@@ -473,9 +473,10 @@ export default function OnboardingPage() {
               Your search, your choices
             </div>
             <p className="mt-1 text-xs leading-relaxed">
-              Your state starts with currently indexed listings. Choose Refresh
-              inventory later only when you want MIKEHUNT to check eligible
-              sources for this exact search.
+              Your state starts with currently indexed (saved) listings. On Scan,
+              use “Search saved inventory” to re-query what we already have, or
+              “Find new matches” when you want MIKEHUNT to check eligible sources
+              for this exact search.
             </p>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">
