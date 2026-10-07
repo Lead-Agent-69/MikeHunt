@@ -112,7 +112,7 @@ function LocationFields({
  */
 export function LocationPrefs() {
   const router = useRouter();
-  const { prefs, save, authed } = usePreferences();
+  const { prefs, save, authed, isLoading: prefsLoading } = usePreferences();
   const home = useMemo(() => effectiveHome(prefs) || null, [prefs]);
   const search = useMemo(() => effectiveSearchLocations(prefs), [prefs]);
 
@@ -122,6 +122,9 @@ export function LocationPrefs() {
 
   const homeKey = home ? JSON.stringify(home) : "";
   useEffect(() => {
+    // Wait until prefs finish loading so we don't paint Choose… while "Currently MO"
+    // is already known from a prior render, or wipe a hydrated form with {}.
+    if (prefsLoading) return;
     setHomeForm(
       home
         ? {
@@ -133,7 +136,7 @@ export function LocationPrefs() {
         : EMPTY_FORM,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [homeKey]);
+  }, [homeKey, prefsLoading]);
 
   const run = async (patch: Parameters<typeof save>[0], ok: string) => {
     setBusy(true);
@@ -194,11 +197,24 @@ export function LocationPrefs() {
         </h3>
         <p className="mt-1 mb-3 text-[12px] text-[var(--t4)]">
           The state you live in. Listings there come first.
-          {home ? ` Currently ${locationLabel(home)}.` : " Not set yet."}
+          {prefsLoading
+            ? " Loading saved home…"
+            : home
+              ? ` Currently ${locationLabel(home)}.`
+              : " Not set yet."}
         </p>
         <LocationFields
           idPrefix="home"
-          value={homeForm}
+          value={
+            prefsLoading && home
+              ? {
+                  state: home.state,
+                  city: home.city || "",
+                  zip: home.zip || "",
+                  radiusMi: home.radiusMi ? String(home.radiusMi) : "",
+                }
+              : homeForm
+          }
           onChange={setHomeForm}
           stateLabel="Home state"
         />
@@ -206,7 +222,7 @@ export function LocationPrefs() {
           <button
             type="button"
             onClick={saveHome}
-            disabled={busy}
+            disabled={busy || prefsLoading}
             className="min-h-11 rounded-lg px-4 text-sm font-bold text-white disabled:opacity-60"
             style={{ background: "var(--grad)" }}
           >

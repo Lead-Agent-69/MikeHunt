@@ -20,3 +20,10 @@ describe("Settings home vs search locations", () => {
     expect(prefsUi).toContain("Search locations");
   });
 });
+
+it("home select follows saved home while prefs load (no Choose… vs Currently clash)", () => {
+  expect(prefsUi).toContain("isLoading: prefsLoading");
+  expect(prefsUi).toContain("Loading saved home");
+  expect(prefsUi).toContain("prefsLoading && home");
+  expect(prefsUi).toContain("disabled={busy || prefsLoading}");
+});
