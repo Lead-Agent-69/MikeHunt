@@ -96,7 +96,8 @@ export default function ArbitrageDashboardPage() {
             National Arbitrage Hub
           </h1>
           <p className="text-xs md:text-sm text-[var(--t4)] mt-1 md:mt-2">
-            Discover high-ROI transport routes and local deals instantly.
+            Transport routes and local deals from your home state and saved
+            inventory — not a live market scan.
           </p>
         </div>
         <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
@@ -113,7 +114,7 @@ export default function ArbitrageDashboardPage() {
           <Link href="/scan" className="flex-1 md:flex-none">
             <Btn variant="primary" className="w-full min-h-[44px]">
               <Ico name="scan" size={16} />{" "}
-              <span className="hidden sm:inline">Live Scanner</span>
+              <span className="hidden sm:inline">Search saved inventory</span>
               <span className="sm:hidden">Scan</span>
             </Btn>
           </Link>
@@ -151,10 +152,33 @@ export default function ArbitrageDashboardPage() {
           </div>
         </>
       ) : authError || error ? (
-        <div className="glass-panel text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)]">
+        <div
+          className="glass-panel text-center py-12 border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.10)] space-y-3"
+          data-testid="find-load-error"
+        >
           <p className="text-[var(--red)] font-bold">
-            {authError || error?.message || "An error occurred"}
+            {authError || "Could not load arbitrage routes right now."}
           </p>
+          {!authError ? (
+            <p className="text-sm text-[var(--t3)] max-w-md mx-auto">
+              Saved inventory is still available on Discover and Scan. Retry
+              this page in a moment, or continue there.
+            </p>
+          ) : null}
+          {!authError ? (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Link href="/discover">
+                <Btn variant="primary" className="min-h-[44px]">
+                  Open Discover
+                </Btn>
+              </Link>
+              <Link href="/scan">
+                <Btn variant="ghost" className="min-h-[44px]">
+                  Search saved inventory
+                </Btn>
+              </Link>
+            </div>
+          ) : null}
         </div>
       ) : data ? (
         <>

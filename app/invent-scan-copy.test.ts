@@ -29,4 +29,13 @@ describe("invent-scan copy honesty", () => {
     expect(page).not.toMatch(/animation:\s*"pulse-ring/);
     expect(page).toContain("Last loaded:");
   });
+
+  it("Find hub does not invent a live scanner or instant deals", () => {
+    const page = read("app/(dashboard)/find/page.tsx");
+    expect(page).not.toContain("Live Scanner");
+    expect(page).not.toMatch(/local deals instantly/i);
+    expect(page).toContain("Search saved inventory");
+    expect(page).toContain("not a live market scan");
+    expect(page).toContain("find-load-error");
+  });
 });
