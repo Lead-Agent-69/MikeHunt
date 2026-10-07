@@ -49,6 +49,26 @@ export interface ForYouResponse {
 }
 
 /**
+ * Soft empty-strip copy when signed-in For You has nothing personalized yet.
+ * Returns null when the rail should stay fully hidden (no response / network /
+ * unsigned → fetchForYou null; or when personalized cards will render).
+ */
+export function forYouHonestyMessage(
+  res: ForYouResponse | null | undefined,
+): string | null {
+  if (!res || res.configured === false) return null;
+  if (res.personalized === true) return null;
+  if (res.signalsAvailable === false) {
+    return "Personalized picks aren't available yet (signals not configured).";
+  }
+  // Cold start: table exists but no usable signals yet (or API omitted the flag).
+  if (res.signalsAvailable === true || res.personalized === false) {
+    return "For You builds from listings you open or save — nothing personalized yet.";
+  }
+  return null;
+}
+
+/**
  * Cards for the For You rail, or [] when the rail should stay hidden: no response, not
  * personalized (cold start or signalsAvailable:false), or no usable items. The API sets
  * signalsAvailable so callers can tell missing table apart from an empty cold start.

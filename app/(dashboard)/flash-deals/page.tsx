@@ -1,43 +1,44 @@
-import { createServerComponentClient } from "@/lib/supabase";
-import { redirect } from "next/navigation";
-import { DealCard } from "@/components/shared/DealCard";
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import useSWR from "swr";
+import { Zap } from "lucide-react";
+import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { Deal } from "@/lib/data/deals-service";
-import { Zap } from "lucide-react";
+import type { DiscoveryDeal } from "@/components/discovery/types";
 
-export const revalidate = 0; // Force dynamic rendering for real-time data
+interface FlashDeal extends DiscoveryDeal {
+  secondsRemaining: number | null;
+  belowMarketPct: number | null;
+}
 
-export default async function FlashDealsPage() {
-  const supabase = createServerComponentClient();
+interface FlashResponse {
+  deals: FlashDeal[];
+  count: number;
+  state: string;
+  deskAccess?: string;
+  configured?: boolean;
+}
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Failed to load flash deals");
+    return res.json() as Promise<FlashResponse>;
+  });
 
-  if (!session) {
-    redirect("/login");
-  }
-
-  // Fetch the top "Flash Deals"
-  const { data: flashDeals, error } = await supabase
-    .from("deals")
-    .select(
-      `
-      *,
-      dealer:dealer_id (
-        id,
-        name,
-        company_name,
-        location_state,
-        location_city
-      )
-    `,
-    )
-    .eq("deal_verdict", "go")
-    .gte("profit_score", 90)
-    .order("created_at", { ascending: false })
-    .limit(50);
+/**
+ * Flash Deals page — client-fetches /api/flash-deals (desk-redacts via listingsForDesk).
+ * Honest copy: fresh-to-us listings from saved inventory. No fake urgency/timer, no DealCard
+ * invent ("Act fast", profit score gates). Guest/personal never see profit/max-bid from the API.
+ */
+export default function FlashDealsPage() {
+  const { data, error, isLoading, mutate } = useSWR<FlashResponse>(
+    "/api/flash-deals?limit=48",
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60_000 },
+  );
 
   return (
     <div className="max-w-[1200px] mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -48,41 +49,42 @@ export default async function FlashDealsPage() {
             Flash Deals
           </h1>
           <p className="text-[var(--t2)] mt-2 max-w-2xl">
-            The highest-margin arbitrage opportunities on the market right now.
-            These are deals with a profit score of 90+ and a "Go" verdict. Act
-            fast before they sell.
+            Fresh-to-us listings from saved inventory — recently seen and priced
+            below a real market estimate. No countdown; availability can change.
           </p>
         </div>
+        <Link
+          href="/discover"
+          className="text-sm font-bold text-[var(--t3)] hover:text-[var(--t1)] underline underline-offset-2"
+        >
+          Back to Discover
+        </Link>
       </header>
 
       {error ? (
         <ErrorState
           compact
-          title="We couldn't load time-sensitive deals"
-          message={error.message}
+          title="We couldn't load flash deals"
+          message="Check your connection and try again."
+          onRetry={() => void mutate()}
+          retryLabel="Try again"
         />
-      ) : flashDeals && flashDeals.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {flashDeals.map((deal: any) => (
-            <div key={deal.id} className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-500/50 to-orange-500/50 rounded-[calc(var(--r3)+2px)] blur opacity-20 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none" />
-              <DealCard
-                {...(deal as unknown as Deal)}
-                mmrValue={deal.mmrValue || 0}
-                profitEstimate={deal.profitEstimate || 0}
-                onClick={() => (window.location.href = `/deal/${deal.id}`)}
-              />
-            </div>
+      ) : isLoading && !data ? (
+        <p className="text-sm text-[var(--t4)] px-1">Loading flash deals…</p>
+      ) : data && data.deals.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {data.deals.map((deal) => (
+            <DiscoveryCard key={`flash-page-${deal.id}`} deal={deal} />
           ))}
         </div>
       ) : (
         <EmptyState
           icon="search"
           title="No flash deals right now"
-          message="No high-urgency deals in saved inventory right now."
+          message="No flash deals in saved inventory right now."
           action={{
-            label: "Back to Dashboard",
-            href: "/find",
+            label: "Back to Discover",
+            href: "/discover",
           }}
         />
       )}

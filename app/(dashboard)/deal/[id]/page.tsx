@@ -13,6 +13,7 @@ import {
   BadgeDollarSign,
   FileText,
   Gauge,
+  Search,
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";
@@ -45,6 +46,7 @@ import { ForecastPanel } from "@/components/deal/ForecastPanel";
 import { ScoreBreakdown } from "@/components/deal/ScoreBreakdown";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
+import { FindSimilarModal } from "@/components/saved/FindSimilarModal";
 import { MarketTiming } from "@/components/deal/MarketTiming";
 import { AIBrief } from "@/components/deal/AIBrief";
 import { DealIQCard } from "@/components/deal/DealIQCard";
@@ -519,6 +521,7 @@ export default function DealPage({
   const [saving, setSaving] = React.useState(false);
   const [watching, setWatching] = React.useState(false);
   const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
+  const [findSimilarOpen, setFindSimilarOpen] = React.useState(false);
   const loadedDealIdRef = React.useRef<string | null>(null);
   const localSaved = useLocalSavedVehicles();
   const isLocallyWatched = localSaved.has(id);
@@ -1013,9 +1016,20 @@ export default function DealPage({
           )}
         </div>
 
-        {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
-        {store.userType === "dealer" && (
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setFindSimilarOpen(true)}
+            className="border-[var(--b2)] text-[var(--t2)] font-bold text-xs h-9 rounded-xl flex items-center gap-1.5"
+            data-testid="find-similar-cta"
+          >
+            <Search className="w-3.5 h-3.5" />
+            Find similar
+          </Button>
+          {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
+          {store.userType === "dealer" && (
             <div
               className="flex p-1 rounded-xl"
               style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
@@ -1033,8 +1047,8 @@ export default function DealPage({
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
@@ -1982,7 +1996,27 @@ export default function DealPage({
             },
             { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
             { id: "ai-brief", content: <AIBrief dealId={id} /> },
-            { id: "similar-deals", content: <SimilarDeals dealId={id} /> },
+            {
+              id: "similar-deals",
+              content: (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
+                      Similar
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFindSimilarOpen(true)}
+                      className="text-xs font-bold text-[var(--amber)] hover:underline inline-flex items-center gap-1"
+                    >
+                      <Search className="w-3 h-3" />
+                      Find similar
+                    </button>
+                  </div>
+                  <SimilarDeals dealId={id} />
+                </div>
+              ),
+            },
             // Max-bid math and outcome logging are flip-desk tools.
             ...(store.userType === "dealer"
               ? [
@@ -2089,6 +2123,40 @@ export default function DealPage({
           )}
         </div>
       </div>
+
+      <FindSimilarModal
+        flipDesk={store.userType === "dealer"}
+        isOpen={findSimilarOpen}
+        onClose={() => setFindSimilarOpen(false)}
+        snapshot={{
+          vin: serverDeal?.vin || store.vin || "",
+          year: Number(serverDeal?.year ?? store.year) || 0,
+          make: String(serverDeal?.make ?? store.make ?? ""),
+          model: String(serverDeal?.model ?? store.model ?? ""),
+          trim: serverDeal?.trim,
+          odometer:
+            serverDeal?.mileage ??
+            serverDeal?.odometer ??
+            store.miles ??
+            undefined,
+          askingPrice:
+            serverDeal?.askPrice ??
+            serverDeal?.ask_price ??
+            store.askPrice ??
+            undefined,
+          marketValue:
+            serverDeal?.sellEstimate ?? store.marketValue ?? undefined,
+          ...(store.userType === "dealer"
+            ? {
+                estimatedProfit:
+                  serverDeal?.trueNetProfit ??
+                  serverDeal?.true_net_profit ??
+                  store.netProfit ??
+                  undefined,
+              }
+            : {}),
+        }}
+      />
 
       <CashOfferLetterModal
         isOpen={showCashOfferModal}

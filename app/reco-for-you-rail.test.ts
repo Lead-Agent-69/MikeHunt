@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { forYouCards } from "@/components/reco/for-you";
+import { forYouCards, forYouHonestyMessage } from "@/components/reco/for-you";
 import type { DiscoveryDeal } from "@/components/discovery/types";
 
 const item = {
@@ -142,5 +142,42 @@ describe("For You rail data", () => {
       "localIntent || normalizeBuyerIntent(prefs.buyerScope)",
     );
     expect(renderScope).toContain("vehicles: []");
+  });
+
+  it("soft honesty for cold-start and missing signals; hide when unsigned/unconfigured", () => {
+    expect(forYouHonestyMessage(null)).toBeNull();
+    expect(forYouHonestyMessage(undefined)).toBeNull();
+    expect(
+      forYouHonestyMessage({ personalized: false, configured: false }),
+    ).toBeNull();
+    expect(
+      forYouHonestyMessage({
+        personalized: false,
+        signalsAvailable: false,
+      }),
+    ).toMatch(/signals not configured/i);
+    expect(
+      forYouHonestyMessage({
+        personalized: false,
+        signalsAvailable: true,
+      }),
+    ).toMatch(/nothing personalized yet/i);
+    expect(
+      forYouHonestyMessage({ personalized: true, signalsAvailable: true }),
+    ).toBeNull();
+  });
+
+  it("deal detail mounts Find similar CTA + FindSimilarModal", () => {
+    const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+    expect(page).toContain("FindSimilarModal");
+    expect(page).toContain('data-testid="find-similar-cta"');
+    expect(page).toContain('flipDesk={store.userType === "dealer"}');
+  });
+
+  it("/for-you and /flash redirect to Discover / flash-deals", () => {
+    const forYou = readFileSync("app/(dashboard)/for-you/page.tsx", "utf8");
+    const flash = readFileSync("app/(dashboard)/flash/page.tsx", "utf8");
+    expect(forYou).toContain('redirect("/discover")');
+    expect(flash).toContain('redirect("/flash-deals")');
   });
 });
