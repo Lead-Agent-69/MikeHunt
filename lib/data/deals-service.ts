@@ -270,7 +270,7 @@ export class DealsService {
       throw new Error(`Failed to fetch deals: ${error.message}`);
     }
 
-    const deals = (data || []).map(this.mapDbToDeal);
+    const deals = (data || []).map((row) => this.mapDbToDeal(row));
     const total = count || 0;
     const limit = filters.limit || 20;
     const offset = filters.offset || 0;
@@ -322,7 +322,7 @@ export class DealsService {
       throw new Error(`Failed to search deals: ${error.message}`);
     }
 
-    const deals = (data || []).map(this.mapDbToDeal);
+    const deals = (data || []).map((row) => this.mapDbToDeal(row));
     const total = count || 0;
     const hasMore = deals.length < total;
 
@@ -346,7 +346,7 @@ export class DealsService {
       throw new Error(`Failed to fetch hot deals: ${error.message}`);
     }
 
-    return (data || []).map(this.mapDbToDeal);
+    return (data || []).map((row) => this.mapDbToDeal(row));
   }
 
   async getDealById(id: string): Promise<Deal | null> {
