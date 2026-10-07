@@ -189,7 +189,7 @@ function RailSkeleton() {
 
 export default function DiscoverPage() {
   const searchParams = useSearchParams();
-  const { prefs } = usePreferences();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
   const { intent: localIntent } = useBuyerIntent();
   const urlScope = React.useMemo(() => {
     const q = (searchParams.get("q") || "").toLowerCase().trim();
@@ -301,7 +301,13 @@ export default function DiscoverPage() {
     scopeParams.delete("state");
   }
   const scopeQuery = scopeParams.toString() ? `?${scopeParams.toString()}` : "";
-  const marketLabel = selectedStates || state || "Nationwide";
+  // Until prefs hydrate, never claim Nationwide / All states — that flash was a
+  // free-tier honesty miss on first Discover paint (home is usually a real state).
+  const marketLabel =
+    selectedStates ||
+    state ||
+    (prefsLoading ? "your home state" : "Nationwide");
+  const discoverReady = !prefsLoading;
   const activeScopeLabel = buyerIntentLabel(buyerScope, marketLabel);
   useEffect(() => {
     const makes = buyerScope?.makes?.length
@@ -314,14 +320,20 @@ export default function DiscoverPage() {
     setStateDraft(/^[A-Z]{2}$/.test(scoped) ? scoped : "");
   }, [buyerScope, state]);
 
+  // Hold the discover fetch until prefs settle so we don't paint Nationwide (or an
+  // empty KS shell) then refetch once home/buyerScope arrives (skeleton flicker).
   const { data, error, isLoading, isValidating, mutate } =
-    useSWR<DiscoverResponse>(`/api/discover${scopeQuery}`, fetcher, {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: true,
-      dedupingInterval: 60_000,
-      // Never keep another market's cars while home/state scope changes (free-tier honesty).
-      keepPreviousData: false,
-    });
+    useSWR<DiscoverResponse>(
+      discoverReady ? `/api/discover${scopeQuery}` : null,
+      fetcher,
+      {
+        revalidateOnFocus: false,
+        revalidateOnReconnect: true,
+        dedupingInterval: 60_000,
+        // Never keep another market's cars while home/state scope changes (free-tier honesty).
+        keepPreviousData: false,
+      },
+    );
 
   const statLine = data?.previewMode
     ? `${data.uniqueVehicles.toLocaleString()} vehicles in preview`
@@ -378,7 +390,7 @@ export default function DiscoverPage() {
           <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
             {isValidating && data
               ? "Updating matching vehicles..."
-              : isLoading || (isValidating && !data)
+              : !discoverReady || isLoading || (isValidating && !data)
                 ? `Checking saved listings for ${marketLabel}…`
                 : (statLine ?? "Find vehicles for your budget and buying goal")}
           </p>
@@ -603,7 +615,7 @@ export default function DiscoverPage() {
       )}
 
       {/* Body */}
-      {isLoading && !data ? (
+      {(!discoverReady || isLoading) && !data ? (
         <div className="space-y-8">
           {Array.from({ length: 3 }).map((_, i) => (
             <RailSkeleton key={i} />
