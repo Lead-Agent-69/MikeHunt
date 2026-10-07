@@ -5,7 +5,7 @@ import { Info, Radar } from "lucide-react";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 import { coverageNotice } from "@/lib/discovery/coverage-notice";
 import { usePreferences } from "@/hooks/usePreferences";
-import { isLocationDemandWarming } from "@/lib/preferences/kick-location-demand";
+import { isLocationDemandWarming } from "@/lib/preferences/location-demand-warming";
 
 /** Honest coverage note on Discover. Renders nothing unless coverage is thin/none (or scanning). */
 export function CoverageNotice({
