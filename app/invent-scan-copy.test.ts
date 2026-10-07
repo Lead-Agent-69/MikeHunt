@@ -9,9 +9,16 @@ describe("invent-scan copy honesty", () => {
     expect(page).not.toContain("Live feed active");
     expect(page).not.toMatch(/constantly scanning/i);
     expect(page).not.toMatch(/show up here instantly/i);
+    expect(page).not.toMatch(/Act fast before they sell/i);
+    expect(page).not.toMatch(/highest-margin/i);
+    expect(page).toContain('"use client"');
+    expect(page).toContain("/api/flash-deals");
+    expect(page).toContain("DiscoveryCard");
+    expect(page).not.toContain('from "@/components/shared/DealCard"');
     expect(page).toContain(
-      "No high-urgency deals in saved inventory right now.",
+      "No flash deals in saved inventory right now.",
     );
+    expect(page).toContain('href: "/discover"');
   });
 
   it("Arbitrage load says loading saved listings, not scanning the market", () => {

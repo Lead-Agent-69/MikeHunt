@@ -175,9 +175,11 @@ export function FindSimilarModal({
                         <span className="text-xs font-black text-[var(--t2)]">
                           {formatMoney(comp.ask_price)}
                         </span>
-                        <Badge className="bg-[var(--green)] hover:bg-[var(--green)] text-white text-[9px] px-1 py-0 shadow-none border-none">
-                          Score {comp.profit_score}
-                        </Badge>
+                        {flipDesk && comp.profit_score != null ? (
+                          <Badge className="bg-[var(--green)] hover:bg-[var(--green)] text-white text-[9px] px-1 py-0 shadow-none border-none">
+                            Score {comp.profit_score}
+                          </Badge>
+                        ) : null}
                       </div>
                     </div>
                   </div>

@@ -26,8 +26,11 @@ describe("deal page personal desk", () => {
     expect(page).toMatch(
       /store\.userType === "dealer" &&[\s\S]{0,450}<ForecastPanel/,
     );
+    // Find similar CTA sits in the flex-wrap row for all desks; only the
+    // dealer/private/parts desk toggle stays behind the dealer gate.
+    expect(page).toContain('data-testid="find-similar-cta"');
     expect(page).toMatch(
-      /store\.userType === "dealer" && \(\s*<div className="flex flex-wrap items-center gap-3">/,
+      /store\.userType === "dealer" && \(\s*<div\s+className="flex p-1 rounded-xl"/,
     );
     expect(feed).toContain("/api/discover?dealerSourceIds=");
     expect(feed).toContain("<DiscoveryCard");
