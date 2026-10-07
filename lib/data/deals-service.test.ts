@@ -61,3 +61,91 @@ describe("DealsService.getAvailableMakes (distinct, paginated past the 1000-row 
     expect(makes).toEqual(["Honda"]);
   });
 });
+
+describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
+  // mapDbToDeal calls this.rowOptions(row). Passing the method to Array#map without
+  // binding drops `this`, which threw on /api/deals while getDealById (direct call) worked.
+  const listChain: Record<string, any> = {};
+  const mockFrom = vi.fn(() => listChain);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    for (const m of [
+      "select",
+      "eq",
+      "gte",
+      "in",
+      "or",
+      "order",
+      "limit",
+      "range",
+      "not",
+      "single",
+    ]) {
+      listChain[m] = vi.fn(() => listChain);
+    }
+    // Terminal: awaiting the builder resolves to the page payload.
+    listChain.then = (
+      resolve: (v: unknown) => unknown,
+      reject?: (e: unknown) => unknown,
+    ) => Promise.resolve(listChain.__result).then(resolve, reject);
+    mockFrom.mockReturnValue(listChain);
+  });
+
+  function serviceWithListMock() {
+    const svc = new DealsService();
+    (svc as any).supabase = { from: mockFrom };
+    return svc;
+  }
+
+  const sampleRow = {
+    id: "d1",
+    source: "craigslist",
+    title: "2015 Honda Civic",
+    year: 2015,
+    make: "Honda",
+    model: "Civic",
+    condition: "fair",
+    ask_price: 4500,
+    profit_estimate: 800,
+    profit_score: 75,
+    images: [],
+    location_city: "Austin",
+    location_state: "TX",
+    active: true,
+    first_seen_at: "2026-01-01T00:00:00Z",
+    last_seen_at: "2026-01-02T00:00:00Z",
+    source_url: "https://example.com/listing",
+    options: { seller: "Bob's Yard", sellerType: "dealer" },
+  };
+
+  it("getHotDeals maps rows without losing this (rowOptions / seller)", async () => {
+    listChain.__result = { data: [sampleRow], error: null };
+    const deals = await serviceWithListMock().getHotDeals(5);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].id).toBe("d1");
+    expect(deals[0].seller).toBe("Bob's Yard");
+    expect(deals[0].sellerType).toBe("dealer");
+    expect(deals[0].askPrice).toBe(4500);
+  });
+
+  it("getDeals maps rows without losing this", async () => {
+    listChain.__result = { data: [sampleRow], error: null, count: 1 };
+    const { deals, total, hasMore } = await serviceWithListMock().getDeals({
+      limit: 10,
+    });
+    expect(deals).toHaveLength(1);
+    expect(deals[0].seller).toBe("Bob's Yard");
+    expect(total).toBe(1);
+    expect(hasMore).toBe(false);
+  });
+
+  it("searchDeals maps rows without losing this", async () => {
+    listChain.__result = { data: [sampleRow], error: null, count: 1 };
+    const { deals } = await serviceWithListMock().searchDeals("Honda", {
+      limit: 10,
+    });
+    expect(deals).toHaveLength(1);
+    expect(deals[0].seller).toBe("Bob's Yard");
+  });
+});
