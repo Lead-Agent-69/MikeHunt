@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 
 const resolveFlip = vi.hoisted(() => vi.fn(async () => true));
 const getDeals = vi.hoisted(() =>
-  vi.fn(async () => {
+  vi.fn(async (_filters?: { limit?: number }) => {
     throw new Error("simulated scan failure");
   }),
 );
