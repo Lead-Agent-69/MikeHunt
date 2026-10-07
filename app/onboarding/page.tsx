@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -115,6 +115,8 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const modeTouchedRef = useRef(false);
   const [vehicles, setVehicles] = useState<string[]>([]);
   const vehicle = vehicles.length ? vehicles.join(", ") : "All vehicle types";
   const [state, setState] = useState("");
@@ -147,8 +149,13 @@ export default function OnboardingPage() {
         const saved = prefs?.buyerScope as Partial<BuyerIntent> | undefined;
         const homeState = onboardingHomeState(prefs, saved?.state);
         if (homeState) setState(homeState);
-        if (!saved) return;
-        setBuyerMode(saved.buyerMode || "personal");
+        if (!saved) {
+          setPrefsHydrated(true);
+          return;
+        }
+        if (!modeTouchedRef.current) {
+          setBuyerMode(saved.buyerMode || "personal");
+        }
         setVehicles(
           saved.vehicles?.length
             ? saved.vehicles
@@ -163,8 +170,11 @@ export default function OnboardingPage() {
         setTargetProfit(
           saved.targetProfit ? String(saved.targetProfit) : "3000",
         );
+        setPrefsHydrated(true);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setPrefsHydrated(true);
+      });
     return () => {
       active = false;
     };
@@ -276,7 +286,11 @@ export default function OnboardingPage() {
                 type="button"
                 key={mode}
                 aria-pressed={buyerMode === mode}
-                onClick={() => setBuyerMode(mode)}
+                disabled={!prefsHydrated}
+                onClick={() => {
+                  modeTouchedRef.current = true;
+                  setBuyerMode(mode);
+                }}
                 className="group overflow-hidden rounded-lg border-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                 style={{
                   borderColor:
