@@ -5,7 +5,7 @@ import { Info, Radar } from "lucide-react";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 import { coverageNotice } from "@/lib/discovery/coverage-notice";
 import { usePreferences } from "@/hooks/usePreferences";
-import { isLocationDemandWarming } from "@/lib/preferences/kick-location-demand";
+import { isLocationDemandWarming } from "@/lib/preferences/location-demand-warming";
 
 /** Honest coverage note on Discover. Renders nothing unless coverage is thin/none (or scanning). */
 export function CoverageNotice({
@@ -34,7 +34,7 @@ export function CoverageNotice({
         <p className="mt-0.5 text-[var(--t3)]">{notice.detail}</p>
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
           <Link href="/settings" className="text-[var(--t2)] underline">
-            Add search locations in Settings
+            Widen search locations in Settings
           </Link>
           <Link href="/searches" className="text-[var(--t2)] underline">
             Save a search and get alerts

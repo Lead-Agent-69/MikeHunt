@@ -21,7 +21,8 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  * Every number is read straight from the API's coverage block.
  *
  * When `warming.scanning` is set (prefs.locationDemandAt within the warming window),
- * thin/none copy becomes an honest "Scanning your state…" instead of a dead empty.
+ * thin/none copy becomes "Checking saved listings for {ST}…" — Zeus is not instant,
+ * no ETA, no fake scrape CTA (Sara/May 2026-10-07).
  */
 export function coverageNotice(
   coverage: DiscoverCoverage | null | undefined,
@@ -40,20 +41,20 @@ export function coverageNotice(
   if (warming?.scanning) {
     return {
       tone: "scanning",
-      headline: `Scanning ${scanWhere}…`,
+      headline: `Checking saved listings for ${scanWhere}…`,
       detail:
         coverage.status === "none" || coverage.freshRows === 0
-          ? "We prioritized your home and search states for the free Zeus scrapers. Fresh local listings usually appear within about an hour; this feed only shows cars we have actually seen."
-          : `Coverage is still thin (${plural(coverage.freshRows, "fresh listing")} in the last ${plural(days, "day")}). Keep browsing — new rows land as the scanners finish each source.`,
+          ? "Background coverage updates on Zeus (not instant). This feed only shows listings we have actually seen."
+          : `Coverage is still thin (${plural(coverage.freshRows, "fresh listing")} in the last ${plural(days, "day")}). Background coverage updates on Zeus (not instant).`,
     };
   }
 
   if (coverage.status === "none" || coverage.freshRows === 0) {
     return {
       tone: "none",
-      headline: `No fresh listings in ${where} in the last ${plural(days, "day")}.`,
+      headline: `No fresh saved listings for ${where} yet.`,
       detail:
-        "We only show listings we have actually seen recently, so this area is empty for now. Save your home state in Settings to prioritize a scan.",
+        "Background coverage updates on Zeus (not instant). Wait, or widen search locations / save a search for alerts. We only show listings we have actually seen.",
     };
   }
 
@@ -67,6 +68,6 @@ export function coverageNotice(
     tone: "thin",
     headline: `Coverage is thin in ${where}: ${count} in the last ${plural(days, "day")}${perState}, from ${sources}.`,
     detail:
-      "Results here are a partial view of the market, not everything for sale.",
+      "Results here are a partial view of saved inventory, not everything for sale. Background coverage updates on Zeus (not instant).",
   };
 }

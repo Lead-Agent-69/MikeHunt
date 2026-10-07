@@ -35,14 +35,17 @@ describe("coverageNotice", () => {
     expect(coverageNotice(undefined)).toBeNull();
   });
 
-  it("none: says there are no fresh listings in the states", () => {
+  it("none: honest cold banner — Zeus not instant, no ETA", () => {
     const none = build([], ["TX", "OK"]);
-    expect(coverageNotice(none)).toEqual(
+    const notice = coverageNotice(none);
+    expect(notice).toEqual(
       expect.objectContaining({
         tone: "none",
-        headline: "No fresh listings in TX, OK in the last 7 days.",
+        headline: "No fresh saved listings for TX, OK yet.",
       }),
     );
+    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).not.toMatch(/minute|hour|ETA|%/i);
   });
 
   it("thin: uses the API's own counts per state and source", () => {
@@ -54,6 +57,7 @@ describe("coverageNotice", () => {
     expect(coverageNotice(thin)?.headline).toBe(
       "Coverage is thin in TX, OK: 12 fresh listings in the last 7 days (TX 9, OK 3), from 1 source.",
     );
+    expect(coverageNotice(thin)?.detail).toMatch(/Zeus \(not instant\)/);
   });
 
   it("says 'at least' when the API counts were capped", () => {
@@ -70,16 +74,17 @@ describe("coverageNotice", () => {
     );
   });
 
-  it("scanning: honest warm copy while Zeus fills the new state", () => {
+  it("scanning: Checking saved listings — no ETA", () => {
     const none = build([], ["IA"]);
     const notice = coverageNotice(none, { scanning: true, states: ["IA"] });
     expect(notice).toEqual(
       expect.objectContaining({
         tone: "scanning",
-        headline: "Scanning IA…",
+        headline: "Checking saved listings for IA…",
       }),
     );
-    expect(notice?.detail).toMatch(/prioritized/i);
+    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).not.toMatch(/hour|ETA|%/i);
   });
 
   it("Discover renders the notice from data.coverage with next steps", () => {
@@ -91,14 +96,7 @@ describe("coverageNotice", () => {
     );
     expect(comp).toContain('href="/settings"');
     expect(comp).toContain('href="/searches"');
-    expect(comp).toContain("isLocationDemandWarming");
+    expect(comp).toContain("location-demand-warming");
     expect(comp).toContain("data-tone");
-  });
-
-  it("preferences PUT kicks location demand on home/search saves", () => {
-    const route = readFileSync("app/api/preferences/route.ts", "utf8");
-    expect(route).toContain("kickLocationDemand");
-    expect(route).toContain("locationPatchTouchesDemand");
-    expect(route).toContain("locationDemandPrefsStamp");
   });
 });

@@ -152,44 +152,10 @@ export function locationDemandPrefsStamp(kick: LocationDemandKick): {
   };
 }
 
-/** Warming window for Discover copy (2h — one hybrid sweep cycle + margin). */
-export const LOCATION_DEMAND_WARMING_MS = 2 * 60 * 60 * 1000;
-
-export function isLocationDemandWarming(
-  prefs: PrefsLike | null | undefined,
-  nowMs = Date.now(),
-): {
-  scanning: boolean;
-  states: string[];
-  demandedAt: string | null;
-  ageMs: number | null;
-} {
-  const rawAt = prefs?.locationDemandAt;
-  const at =
-    typeof rawAt === "string" && rawAt.trim() ? Date.parse(rawAt) : NaN;
-  const states = Array.isArray(prefs?.locationDemandStates)
-    ? (prefs!.locationDemandStates as unknown[])
-        .map((s) =>
-          String(s || "")
-            .trim()
-            .toUpperCase(),
-        )
-        .filter((s) => /^[A-Z]{2}$/.test(s))
-    : demandStatesFromPrefs(prefs);
-
-  if (!Number.isFinite(at)) {
-    return { scanning: false, states, demandedAt: null, ageMs: null };
-  }
-  const ageMs = nowMs - at;
-  const scanning =
-    ageMs >= 0 && ageMs < LOCATION_DEMAND_WARMING_MS && states.length > 0;
-  return {
-    scanning,
-    states,
-    demandedAt: new Date(at).toISOString(),
-    ageMs,
-  };
-}
-
 /** Re-export types used by callers / tests. */
 export type { HomeLocation, SearchLocation };
+
+export {
+  LOCATION_DEMAND_WARMING_MS,
+  isLocationDemandWarming,
+} from "@/lib/preferences/location-demand-warming";
