@@ -61,8 +61,8 @@ function CountdownChip({ initialSeconds }: { initialSeconds: number | null }) {
 }
 
 /**
- * Flash Deals rail — a pinned, urgency-styled strip at the top of Discover. Fresh-to-market GO deals
- * priced well below resale, each with a live countdown to its 24h cutoff. Renders nothing when empty.
+ * Flash Deals rail — pinned strip on Discover. Fresh-to-market GO deals priced well below resale,
+ * each with a countdown to its 24h window. Renders nothing when empty. No invented urgency copy.
  */
 export function FlashRail({ state }: { state?: string }) {
   const { data, error } = useSWR<FlashResponse>(
@@ -86,7 +86,7 @@ export function FlashRail({ state }: { state?: string }) {
           🔥 Flash Deals
         </h2>
         <p className="mt-0.5 text-xs text-[var(--t4)]">
-          New to market &amp; 10%+ below resale — moving fast
+          New to market · 10%+ below resale · within 24h
         </p>
       </div>
       <motion.div

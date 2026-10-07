@@ -30,6 +30,15 @@ describe("invent-scan copy honesty", () => {
     expect(page).toContain("Last loaded:");
   });
 
+  it("FlashRail subtitle does not invent urgency", () => {
+    const rail = read("components/discovery/FlashRail.tsx");
+    expect(rail).not.toMatch(/moving fast/i);
+    expect(rail).not.toMatch(/constantly scanning/i);
+    expect(rail).not.toMatch(/show up here instantly/i);
+    expect(rail).toContain("New to market");
+    expect(rail).toContain("10%+ below resale");
+  });
+
   it("Find hub does not invent a live scanner or instant deals", () => {
     const page = read("app/(dashboard)/find/page.tsx");
     expect(page).not.toContain("Live Scanner");
