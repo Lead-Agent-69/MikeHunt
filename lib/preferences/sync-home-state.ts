@@ -1,7 +1,8 @@
 /**
- * Mirror user_profiles.home_state into prefs.homeLocation so scrape_demand()
- * (which only reads prefs) sees Settings / onboarding profile saves.
- * Best-effort: never fails the profile write.
+ * Bidirectional home mirror between user_profiles.home_state and prefs.homeLocation.
+ * Profile → prefs: scrape_demand() only reads prefs.
+ * Prefs → profile: Arbitrage / Dealer Defaults still read home_state.
+ * Best-effort: never fails the caller write.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -100,5 +101,40 @@ export async function syncProfileHomeStateToPrefs(input: {
       err instanceof Error ? err.message : err,
     );
     return { synced: false, kicked: false };
+  }
+}
+
+/**
+ * Mirror prefs.homeLocation into user_profiles.home_state so readers that still use the
+ * legacy column (Arbitrage until discoverHomeState, Settings Dealer Defaults) stay honest.
+ * Pass null homeLocation to clear the column. Best-effort.
+ */
+export async function syncPrefsHomeLocationToProfile(input: {
+  supabase: SupabaseClient;
+  userId: string;
+  /** Sanitized HomeLocation, or null when the user cleared home. */
+  homeLocation: unknown;
+}): Promise<boolean> {
+  const home = sanitizeHomeLocation(input.homeLocation);
+  const state = home?.state ?? null;
+  try {
+    const { error } = await input.supabase
+      .from("user_profiles")
+      .update({ home_state: state })
+      .eq("id", input.userId);
+    if (error) {
+      console.warn(
+        "[preferences] profile home_state sync failed:",
+        error.message,
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn(
+      "[preferences] profile home_state sync error:",
+      err instanceof Error ? err.message : err,
+    );
+    return false;
   }
 }

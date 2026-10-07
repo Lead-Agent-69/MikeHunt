@@ -16,6 +16,7 @@ import {
   locationDemandPrefsStamp,
   locationPatchTouchesDemand,
 } from "@/lib/preferences/kick-location-demand";
+import { syncPrefsHomeLocationToProfile } from "@/lib/preferences/sync-home-state";
 
 export const dynamic = "force-dynamic";
 
@@ -193,6 +194,15 @@ export async function PUT(req: NextRequest) {
       { error: "Preferences unavailable" },
       { status: 500 },
     );
+  }
+
+  // Keep legacy user_profiles.home_state aligned with prefs.homeLocation (Arbitrage / Settings).
+  if ("homeLocation" in patch) {
+    await syncPrefsHomeLocationToProfile({
+      supabase: sb,
+      userId: user.id,
+      homeLocation: patch.homeLocation,
+    });
   }
 
   return NextResponse.json({

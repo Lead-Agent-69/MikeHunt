@@ -9,6 +9,7 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { geocodePlace } from "@/lib/geo/geocode";
 import { syncProfileHomeStateToPrefs } from "@/lib/preferences/sync-home-state";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 
 const GUEST_PROFILE_COOKIE = "mh_guest_profile";
 
@@ -69,6 +70,26 @@ export async function GET(req: NextRequest) {
   if (error) {
     // If table doesn't exist or row missing, just return defaults rather than 500
     return NextResponse.json({ profile: {} });
+  }
+
+  // Settings Dealer Defaults bind profile.home_state; LocationPrefs may only have
+  // prefs.homeLocation. Surface the effective home so the dropdown matches "Currently …".
+  const columnHome = discoverHomeState(null, profile?.home_state);
+  if (!columnHome) {
+    const { data: prefRow } = await supabase
+      .from("user_preferences")
+      .select("prefs")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const fromPrefs = discoverHomeState(
+      (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
+      null,
+    );
+    if (fromPrefs) {
+      return NextResponse.json({
+        profile: { ...profile, home_state: fromPrefs },
+      });
+    }
   }
 
   return NextResponse.json({ profile });
