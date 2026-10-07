@@ -508,7 +508,7 @@ function StatusStrip({
           {error
             ? "Couldn't update vehicles"
             : loading
-              ? "Updating vehicles..."
+              ? "Updating saved inventory…"
               : "Saved inventory loaded"}
         </span>
       </span>
@@ -522,7 +522,7 @@ function StatusStrip({
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
 
       <span className="text-[var(--t4)] shrink-0">
-        Last scan: <span className="text-[var(--t2)]">{lastScanText}</span>
+        Last loaded: <span className="text-[var(--t2)]">{lastScanText}</span>
       </span>
 
       {topSources.length > 0 && (
@@ -552,7 +552,7 @@ function StatusStrip({
 
       {loading && (
         <span className="text-[var(--amber)] animate-pulse shrink-0 ml-auto">
-          Fetching...
+          Loading…
         </span>
       )}
     </div>
@@ -1057,29 +1057,19 @@ function EmptyState({
       className="flex flex-col items-center justify-center text-center py-20 px-6 rounded-2xl"
       style={{ border: "2px dashed var(--b2)", background: "var(--s0)" }}
     >
-      {/* Animated radar pulse */}
+      {/* Static empty marker — no animated rings (not inventing a live scan) */}
       <div className="relative w-24 h-24 mb-8 flex items-center justify-center">
-        {/* Pulse rings */}
         <span
           className="absolute inset-0 rounded-full border-2"
-          style={{
-            borderColor: "rgba(37,99,111,0.14)",
-            animation: "pulse-ring 2s ease-out infinite",
-          }}
+          style={{ borderColor: "rgba(37,99,111,0.14)" }}
         />
         <span
           className="absolute inset-0 rounded-full border-2 scale-75"
-          style={{
-            borderColor: "rgba(37,99,111,0.20)",
-            animation: "pulse-ring 2s ease-out infinite 0.5s",
-          }}
+          style={{ borderColor: "rgba(37,99,111,0.20)" }}
         />
         <span
           className="absolute inset-0 rounded-full border-2 scale-50"
-          style={{
-            borderColor: "rgba(37,99,111,0.26)",
-            animation: "pulse-ring 2s ease-out infinite 1s",
-          }}
+          style={{ borderColor: "rgba(37,99,111,0.26)" }}
         />
         {/* Center icon */}
         <div
@@ -1103,12 +1093,12 @@ function EmptyState({
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        {hasScopedProof ? "No matching vehicles" : "No vehicles to show yet"}
+        No matching saved vehicles for this scope yet.
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
-          ? "No available vehicles match these filters. Try another location, a higher budget, or a broader vehicle search."
-          : "Refresh available inventory or adjust your filters to look for more vehicles."}
+          ? "Nothing in saved inventory matches these filters. Try another location, a higher budget, or a broader vehicle search."
+          : "Adjust your filters, widen search locations in Settings, or wait for background coverage to fill this scope."}
       </p>
 
       {hasScopedProof && (
@@ -1141,7 +1131,7 @@ function EmptyState({
           style={{ background: "var(--grad)" }}
         >
           <Ico name="refresh" size={16} />
-          Refresh Now
+          Search saved inventory
         </button>
         {hasScopedProof && (
           <Link
@@ -1152,13 +1142,6 @@ function EmptyState({
           </Link>
         )}
       </div>
-
-      <style>{`
-        @keyframes pulse-ring {
-          0%   { transform: scale(1);    opacity: 1; }
-          100% { transform: scale(1.5);  opacity: 0; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -4046,12 +4029,12 @@ function ScanPageInner() {
                 className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                 style={{ animation: "spin 700ms linear infinite" }}
               />
-              Scanning…
+              Updating saved inventory…
             </>
           ) : (
             <>
               <Ico name="scan" size={16} />
-              Scan Market
+              Search saved inventory
             </>
           )}
         </button>
