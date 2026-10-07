@@ -49,6 +49,6 @@ describe("mobile location regression protections", () => {
     expect(page).not.toContain("href={`/scan");
     expect(page).toContain("matching vehicles");
     expect(page).not.toContain("mergedDuplicates.toLocaleString()");
-    expect(page).toContain("isLoading && !data");
+    expect(page).toContain("(!discoverReady || isLoading) && !data");
   });
 });
