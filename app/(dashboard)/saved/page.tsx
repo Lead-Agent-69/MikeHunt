@@ -137,13 +137,18 @@ export default function SavedCarsPage() {
       ),
   );
   const canShowLocalSaves = unsyncedLocalItems.length > 0;
+  // Signed-in users with a failed /api/saved-cars fetch are not "missing" auth —
+  // treat that as sync unavailable so we never push a Sign-in CTA while authed.
   const supabaseStatus =
     dealerLoading || isLoading
       ? "checking"
-      : dealerId && !error
-        ? "ready"
-        : "missing";
+      : !dealerId
+        ? "guest"
+        : error
+          ? "unavailable"
+          : "ready";
   const cloudSyncReady = supabaseStatus === "ready";
+  const signedIn = Boolean(dealerId);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this saved vehicle?")) return;
@@ -392,14 +397,20 @@ export default function SavedCarsPage() {
             <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
               {cloudSyncReady
                 ? "Your account watchlist is connected."
-                : canShowLocalSaves
-                  ? "Your watchlist is saved on this device."
-                  : "Save a vehicle to start watching locally."}
+                : signedIn && canShowLocalSaves
+                  ? "Account sync is unavailable — local watchlist still works."
+                  : signedIn
+                    ? "Could not load your account watchlist."
+                    : canShowLocalSaves
+                      ? "Your watchlist is saved on this device."
+                      : "Save a vehicle to start watching locally."}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               {cloudSyncReady
                 ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
-                : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
+                : signedIn
+                  ? "You are signed in. Retry the connection or keep using local saves on this device."
+                  : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -447,14 +458,26 @@ export default function SavedCarsPage() {
             <p className="text-xs leading-relaxed text-[var(--amber-d)]">
               {loading
                 ? "Checking your account watchlist..."
-                : "Your local saves remain available. Sign in or retry the connection to access account saves."}
+                : signedIn
+                  ? "Your local saves remain available. Retry to load account saves."
+                  : "Your local saves remain available. Sign in to access account saves across devices."}
             </p>
-            <a
-              href="/login"
-              className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
-            >
-              Check login
-            </a>
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={() => mutate()}
+                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+              >
+                Retry
+              </button>
+            ) : (
+              <a
+                href="/login"
+                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+              >
+                Sign in
+              </a>
+            )}
           </div>
         )}
       </div>
@@ -641,8 +664,9 @@ export default function SavedCarsPage() {
                 </p>
               </div>
               <p>
-                Sign in with email or Google to keep one watchlist across
-                devices.
+                {signedIn
+                  ? "Account saves sync when the connection is healthy. Local backup stays on this device either way."
+                  : "Sign in with email or Google to keep one watchlist across devices."}
               </p>
             </CardContent>
           </Card>
