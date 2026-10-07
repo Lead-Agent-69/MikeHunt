@@ -13,6 +13,9 @@ export interface Prefs {
   /** Markets the user added on purpose (max 10). Weighted 2x; own comps + travel/shipping in ranking. */
   searchLocations?: SearchLocation[];
   carsState?: string; // legacy default state; fallback for homeLocation
+  /** Set when home/search locations were saved; Discover shows "Scanning…" while warming. */
+  locationDemandAt?: string;
+  locationDemandStates?: string[];
   carsStates?: string[]; // legacy multi-state hunt list; fallback for searchLocations
   buyerScope?: {
     buyerMode?: "personal" | "diy" | "reseller" | "dealer";

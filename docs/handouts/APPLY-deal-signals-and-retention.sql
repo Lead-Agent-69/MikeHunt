@@ -1,0 +1,5 @@
+-- Prefer the combined handout (includes scrape_demand verify + apply):
+--   docs/handouts/APPLY-scrape-demand-deal-signals-retention.sql
+-- Dashboard: https://supabase.com/dashboard/project/qupzqpezslsbobhugswp/sql/new
+--
+-- This file remains as a thin pointer so older agent notes still resolve.

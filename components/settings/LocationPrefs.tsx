@@ -112,7 +112,7 @@ function LocationFields({
  */
 export function LocationPrefs() {
   const router = useRouter();
-  const { prefs, save } = usePreferences();
+  const { prefs, save, authed } = usePreferences();
   const home = useMemo(() => effectiveHome(prefs) || null, [prefs]);
   const search = useMemo(() => effectiveSearchLocations(prefs), [prefs]);
 
@@ -153,11 +153,11 @@ export function LocationPrefs() {
     const built = homeLocationFromForm(homeForm);
     if ("error" in built) return toast.error(built.error);
     const st = built.home.state;
-    const ok = await run(
-      homeLocationPatch(built.home, search),
-      `Home saved — checking saved listings for ${st}…`,
-    );
-    if (ok) {
+    const msg = authed
+      ? `Home saved — checking saved listings for ${st}…`
+      : `Home saved on this device for ${st}. Sign in to prioritize a Zeus scan.`;
+    const ok = await run(homeLocationPatch(built.home, search), msg);
+    if (ok && authed) {
       // Discover should re-fetch this market without keeping another state's cars.
       router.push(`/discover?state=${encodeURIComponent(st)}`);
     }
