@@ -27,6 +27,8 @@ import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
+import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
 // Listing CARDS lack VIN / true mileage / title status — those live on each detail page.
@@ -96,17 +98,12 @@ export async function enrichCraigslistDetail(
   url: string,
 ): Promise<Partial<Deal>> {
   try {
-    const axios = (await import("axios")).default;
+    // SSRF: never axios.get(url) directly — same public-URL gate as save-from-url /
+    // image-proxy. fetchPublicHtml asserts each hop + pins sockets to public IPs.
+    const fetched = await fetchPublicHtml(url);
+    if (!fetched) return {};
     const cheerio = await import("cheerio");
-    const res = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        Accept: "text/html",
-      },
-      timeout: 12000,
-    });
-    const $ = cheerio.load(res.data);
+    const $ = cheerio.load(fetched.html);
     const out: Partial<Deal> = {};
 
     const attr = (cls: string) =>
@@ -139,7 +136,8 @@ export async function enrichCraigslistDetail(
     if (imgs.length) out.images = Array.from(new Set(imgs)).slice(0, 12);
 
     return out;
-  } catch {
+  } catch (error) {
+    if (error instanceof UrlNotAllowedError) throw error;
     return {};
   }
 }
@@ -165,10 +163,14 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
   await Promise.all(
     targets.map((d) =>
       limit(async () => {
-        const extra = await enrichCraigslistDetail(d.source_url as string);
-        if (Object.keys(extra).length) {
-          Object.assign(d, extra);
-          enriched++;
+        try {
+          const extra = await enrichCraigslistDetail(d.source_url as string);
+          if (Object.keys(extra).length) {
+            Object.assign(d, extra);
+            enriched++;
+          }
+        } catch (error) {
+          if (!(error instanceof UrlNotAllowedError)) throw error;
         }
       }),
     ),
