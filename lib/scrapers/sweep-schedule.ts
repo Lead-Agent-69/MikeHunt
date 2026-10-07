@@ -190,13 +190,23 @@ export function optedInRestrictedSources(sources: readonly string[]) {
   return sources.filter((id) => TOS_RESTRICTED_SOURCES[id]);
 }
 
-/** Hours between the end of one sweep and the start of the next. Default 4h, floor 1h. */
+/**
+ * Hours between the end of one sweep and the start of the next. Default 4h, floor 1h.
+ * When `hasRing0Gaps` and SWEEP_GAP_INTERVAL_HOURS is set (>0), use the shorter of the two
+ * (gap floor 0.5h) so Zeus fills want-hit gaps faster without changing the default cadence.
+ */
 export function resolveSweepIntervalMs(
   raw: string | undefined = process.env.SWEEP_INTERVAL_HOURS,
+  options: { hasRing0Gaps?: boolean } = {},
 ): number {
   const hours = Number(raw);
   const safe = Number.isFinite(hours) && hours > 0 ? hours : 4;
-  return Math.max(1, safe) * 60 * 60 * 1000;
+  const normalMs = Math.max(1, safe) * 60 * 60 * 1000;
+  if (!options.hasRing0Gaps) return normalMs;
+  const gapHours = Number(process.env.SWEEP_GAP_INTERVAL_HOURS);
+  if (!Number.isFinite(gapHours) || gapHours <= 0) return normalMs;
+  const gapMs = Math.max(0.5, gapHours) * 60 * 60 * 1000;
+  return Math.min(normalMs, gapMs);
 }
 
 export interface SweepState {

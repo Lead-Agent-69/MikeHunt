@@ -109,15 +109,39 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: located.error }, { status: 400 });
   patch = located.patch;
 
+  const guestMerged = { ...readGuestPrefs(req), ...patch };
+  const guestLocation = locationPatchTouchesDemand(patch);
+
+  function guestWithDemand(prefs: Record<string, unknown>) {
+    const res = NextResponse.json({
+      prefs,
+      authed: false,
+      local: true,
+      ...(guestLocation
+        ? { locationDemand: { requiresAuth: true, states: [] as string[] } }
+        : {}),
+    });
+    res.cookies.set(
+      GUEST_PREFS_COOKIE,
+      Buffer.from(JSON.stringify(prefs), "utf8").toString("base64url"),
+      {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 180,
+      },
+    );
+    return res;
+  }
+
   if (!isSupabaseConfigured()) {
-    return guestPrefsResponse({ ...readGuestPrefs(req), ...patch });
+    return guestWithDemand(guestMerged);
   }
 
   const {
     data: { user },
   } = await getServerUser();
-  if (!user?.id)
-    return guestPrefsResponse({ ...readGuestPrefs(req), ...patch });
+  if (!user?.id) return guestWithDemand(guestMerged);
 
   const sb = createServerComponentClient();
   // Merge server-side so one app's save never drops another's keys.

@@ -67,10 +67,10 @@ describe("stateScore / baselineSlots", () => {
     expect(baselineSlots(20)).toBe(8);
     expect(baselineSlots(3)).toBe(2);
     expect(baselineSlots(1)).toBe(1);
-    // Gap mode: thinner nationwide floor so more slots chase want-hit gaps.
-    expect(baselineSlots(10, { gapMode: true })).toBe(2);
+    // Gap mode: thinner floor but F≥3 when K allows (k-1 caps small sweeps).
+    expect(baselineSlots(10, { gapMode: true })).toBe(3);
     expect(baselineSlots(20, { gapMode: true })).toBe(4);
-    expect(baselineSlots(3, { gapMode: true })).toBe(1);
+    expect(baselineSlots(3, { gapMode: true })).toBe(2);
     expect(baselineSlots(1, { gapMode: true })).toBe(1);
   });
 });

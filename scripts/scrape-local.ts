@@ -356,13 +356,21 @@ async function runSweepTick(
   const prior = await loadSweepState();
   const health = await loadSourceHealth();
   // Sources that keep coming back empty sit out some sweeps (2, 4, then 8). Only used for a new sweep.
+  const priorGaps = Array.isArray(currentStatus.sweep?.gapStates)
+    ? currentStatus.sweep!.gapStates!
+    : [];
   const step = nextSweepStep(
     prior,
     sourcesForSweep(sources, health),
-    resolveSweepIntervalMs(),
+    resolveSweepIntervalMs(undefined, { hasRing0Gaps: priorGaps.length > 0 }),
   );
   if (step.kind === "idle") {
-    currentStatus.sweep = { nextAt: step.nextAt };
+    currentStatus.sweep = {
+      nextAt: step.nextAt,
+      // Keep gap memory across idle ticks so the shortened interval stays armed.
+      gapStates: priorGaps,
+      demandStates: currentStatus.sweep?.demandStates,
+    };
     return false;
   }
   if (!step.state.plan) {
