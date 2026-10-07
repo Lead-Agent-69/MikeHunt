@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 
 // Geographic arbitrage from REAL data — no hardcoded regional price tables. For THIS dealer (home state
 // read from their profile), every out-of-state deal is scored: would importing it pay off after the real
@@ -41,10 +42,10 @@ type Opp = {
 };
 
 /** Empty dashboard: same shape the page already renders when there is nothing to show. */
-export function emptyArbitragePayload(homeState: string) {
+export function emptyArbitragePayload(homeState: string, tailored = false) {
   return {
     homeState,
-    tailored: false,
+    tailored,
     summary: {
       local: 0,
       regional: 0,
@@ -62,14 +63,56 @@ export function emptyArbitragePayload(homeState: string) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Param overrides saved home (view-another-base). Saved home matches Discover:
+    // prefs.homeLocation (Settings/onboarding) wins over legacy user_profiles.home_state.
+    const paramHome = (
+      request.nextUrl.searchParams.get("homeState") || ""
+    ).toUpperCase();
+    let savedHome = "";
+    let preferredMakes: Set<string> = new Set();
+    if (isSupabaseConfigured()) {
+      try {
+        const {
+          data: { user },
+        } = await getServerUser();
+        if (user?.id) {
+          const sb = createServerComponentClient();
+          const [{ data: profile }, { data: prefRow }] = await Promise.all([
+            sb
+              .from("user_profiles")
+              .select("home_state, preferred_makes")
+              .eq("id", user.id)
+              .maybeSingle(),
+            sb
+              .from("user_preferences")
+              .select("prefs")
+              .eq("user_id", user.id)
+              .maybeSingle(),
+          ]);
+          savedHome = discoverHomeState(
+            (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
+            profile?.home_state,
+          );
+          preferredMakes = new Set(
+            (profile?.preferred_makes || []).map((m: string) =>
+              String(m).toLowerCase(),
+            ),
+          );
+        }
+      } catch {
+        /* anonymous — fall through to param/default */
+      }
+    }
+    const tailored = !!savedHome;
+    let homeState = paramHome || savedHome;
+
     // Arbitrage is resale spread math end to end: only a saved reseller / dealer desk gets it.
     // Signed-out, personal, diy, and parts callers get the empty shape, never the spreads.
+    // Still surface their saved home so the page does not falsely say "set your home state".
     if (isSupabaseConfigured() && !(await resolveCallerFlipDesk())) {
       return NextResponse.json(
         {
-          ...emptyArbitragePayload(
-            (request.nextUrl.searchParams.get("homeState") || "").toUpperCase(),
-          ),
+          ...emptyArbitragePayload(homeState, tailored),
           flipOnly: true,
           deskAccess: "personal",
         },
@@ -79,53 +122,11 @@ export async function GET(request: NextRequest) {
     if (!isSupabaseConfigured()) {
       return NextResponse.json({
         configured: false,
-        homeState: request.nextUrl.searchParams.get("homeState") || "",
-        tailored: false,
-        summary: {
-          local: 0,
-          regional: 0,
-          national: 0,
-          regionalProfit: 0,
-          nationalProfit: 0,
-          bestProfit: 0,
-        },
-        topRoutes: [],
-        localDeals: [],
-        regionalArbitrage: [],
-        nationalArbitrage: [],
+        ...emptyArbitragePayload(homeState, tailored),
       });
     }
 
-    // Tailor to the signed-in dealer: their home state + preferred makes. Param overrides (for the
-    // "view another base" case); CA is the last-resort default for anonymous visitors.
-    let homeState = (
-      request.nextUrl.searchParams.get("homeState") || ""
-    ).toUpperCase();
-    let preferredMakes: Set<string> = new Set();
-    let tailored = false;
-    try {
-      const {
-        data: { user },
-      } = await getServerUser();
-      if (user?.id) {
-        const sb = createServerComponentClient();
-        const { data: profile } = await sb
-          .from("user_profiles")
-          .select("home_state, preferred_makes")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profile) {
-          if (!homeState && profile.home_state)
-            homeState = String(profile.home_state).toUpperCase();
-          preferredMakes = new Set(
-            (profile.preferred_makes || []).map((m: string) => m.toLowerCase()),
-          );
-          tailored = !!profile.home_state;
-        }
-      }
-    } catch {
-      /* anonymous — fall through to param/default */
-    }
+    // CA is the last-resort default for anonymous visitors with no param and no saved home.
     if (!homeState) homeState = "CA";
 
     // Cache the per-home-state scan + scoring for 60s (the deal scan is the cost; the surface is the
