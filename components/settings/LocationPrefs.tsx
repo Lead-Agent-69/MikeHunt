@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -110,6 +111,7 @@ function LocationFields({
  * on every save so older readers (nav chip, feed scope) stay consistent.
  */
 export function LocationPrefs() {
+  const router = useRouter();
   const { prefs, save } = usePreferences();
   const home = useMemo(() => effectiveHome(prefs) || null, [prefs]);
   const search = useMemo(() => effectiveSearchLocations(prefs), [prefs]);
@@ -150,7 +152,15 @@ export function LocationPrefs() {
   const saveHome = async () => {
     const built = homeLocationFromForm(homeForm);
     if ("error" in built) return toast.error(built.error);
-    await run(homeLocationPatch(built.home, search), "Home location saved");
+    const st = built.home.state;
+    const ok = await run(
+      homeLocationPatch(built.home, search),
+      `Home saved — checking saved listings for ${st}…`,
+    );
+    if (ok) {
+      // Discover should re-fetch this market without keeping another state's cars.
+      router.push(`/discover?state=${encodeURIComponent(st)}`);
+    }
   };
 
   const clearHome = async () => {

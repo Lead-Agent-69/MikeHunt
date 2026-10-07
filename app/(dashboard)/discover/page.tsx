@@ -319,8 +319,8 @@ export default function DiscoverPage() {
       revalidateOnFocus: false,
       revalidateOnReconnect: true,
       dedupingInterval: 60_000,
-      // Keep the current feed visible while switching state, instead of flashing to skeletons — seamless.
-      keepPreviousData: true,
+      // Never keep another market's cars while home/state scope changes (free-tier honesty).
+      keepPreviousData: false,
     });
 
   const statLine = data?.previewMode
@@ -378,10 +378,9 @@ export default function DiscoverPage() {
           <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
             {isValidating && data
               ? "Updating matching vehicles..."
-              : (statLine ??
-                (isLoading
-                  ? "Loading matching vehicles..."
-                  : "Find vehicles for your budget and buying goal"))}
+              : isLoading || (isValidating && !data)
+                ? `Checking saved listings for ${marketLabel}…`
+                : (statLine ?? "Find vehicles for your budget and buying goal")}
           </p>
         </div>
       </div>
@@ -589,7 +588,6 @@ export default function DiscoverPage() {
                 <IntelRail
                   endpoint="/api/deals/near"
                   title={flipDesk ? "Near you" : "Listings in your home state"}
-                  subtitle="Distance not available until a listing has real miles."
                 />
               </>
             )}
