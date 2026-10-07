@@ -6,11 +6,13 @@ import { createClientComponentClient } from "@/lib/supabase";
 import Link from "next/link";
 import { toast } from "sonner";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { RefreshCw } from "lucide-react";
 
 export default function AuctionsPage() {
   const supabase = createClientComponentClient();
   const [runLists, setRunLists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   // Form State
   const [isUploading, setIsUploading] = useState(false);
@@ -27,12 +29,14 @@ export default function AuctionsPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/auction/run-list");
-      if (res.ok) {
-        const data = await res.json();
-        setRunLists(data);
-      }
+      if (!res.ok) throw new Error("Run lists unavailable");
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error("Invalid run lists response");
+      setRunLists(data);
+      setLoadError(false);
     } catch (err) {
       console.error("Failed to fetch run lists:", err);
+      setLoadError(true);
     }
     setLoading(false);
   }
@@ -247,6 +251,21 @@ export default function AuctionsPage() {
         <div className="text-center py-12 text-[var(--t3)] flex items-center justify-center gap-2">
           <Ico name="refresh" className="animate-spin text-[var(--amber)]" />
           Loading your lists...
+        </div>
+      ) : loadError ? (
+        <div role="status" className="py-12 text-center">
+          <p className="font-semibold text-[var(--t1)]">
+            Auction lists temporarily unavailable
+          </p>
+          <p className="mt-2 text-sm text-[var(--t3)]">
+            We could not load your saved run lists. Try again.
+          </p>
+          <button
+            onClick={() => void fetchRunLists()}
+            className="mt-4 inline-flex min-h-12 items-center gap-2 px-4 font-semibold text-[var(--blue)]"
+          >
+            <RefreshCw size={16} aria-hidden="true" /> Try again
+          </button>
         </div>
       ) : runLists.length === 0 ? (
         <div className="text-center py-16 glass-panel">

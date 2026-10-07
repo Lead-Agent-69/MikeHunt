@@ -13,13 +13,13 @@ name: Embeddings backfill
 
 on:
   schedule:
-    - cron: "0 10 * * *" # same 10:00 UTC slot it had as a Vercel cron
+    - cron: "0 */6 * * *" # bounded batches keep pace with new inventory and drain the backlog
   workflow_dispatch: # manual re-run from the Actions tab
     inputs:
       limit:
         description: "Deals to embed this run (max 200)"
         required: false
-        default: "100"
+        default: "200"
 
 concurrency:
   group: embeddings-backfill
@@ -42,7 +42,7 @@ jobs:
           # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
           BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          LIMIT: ${{ github.event.inputs.limit || '100' }}
+          LIMIT: ${{ github.event.inputs.limit || '200' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:CRON_SECRET)) {
@@ -67,5 +67,10 @@ jobs:
           if (Test-Path $out) { Get-Content $out -Raw | Write-Output }
           if ("$code".Trim() -ne '200') {
             Write-Output "::error::Backfill returned $code"
+            exit 1
+          }
+          $result = Get-Content $out -Raw | ConvertFrom-Json
+          if ($result.skipped -or $result.success -ne $true) {
+            Write-Output "::error::Embedding backfill did not run successfully. Check the production provider configuration."
             exit 1
           }

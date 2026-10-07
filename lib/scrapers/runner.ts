@@ -350,7 +350,7 @@ export function createScraperRegistry(
     frequencyMinutes: 720,
     requiresAuth: false,
     stealthRequired: true,
-    fn: () => scrapeCuratedSites(),
+    fn: (args) => scrapeCuratedSites(undefined, args),
     enabled: true,
     estimatedDealsPerRun: 200,
   });

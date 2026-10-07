@@ -123,6 +123,7 @@ export async function GET(req: NextRequest) {
         lat,
         lng,
         approx,
+        url: `/deal/${encodeURIComponent(d.id)}`,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
         type: typeForVerdict(d.deal_verdict),
         label,

@@ -14,7 +14,6 @@ import { calculateProfit, type ProfitResult } from "./profit-calculator";
 import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
 import {
   lookupMarketValue,
-  lookupMarketAggregate,
   lookupSupply,
   lookupRealSold,
   lookupSalvageSold,
@@ -275,11 +274,10 @@ export function analyzeDeal(
   // SELL side, in order of trust:
   //  1. real retail comps from our own scraped data (lib/scoring/market-value.ts)
   //  2. a market value already attached to the deal (mmr_value, e.g. from MarketCheck/VIN)
-  //  3. the nightly market_aggregates rollup — accumulated history that compounds as we scrape
-  //  4. a source/condition markup on ask (fallback)
+  //  3. a source/condition markup on ask (fallback)
+  // Nightly averages of our own estimates are not independent valuation evidence.
   const comps = lookupMarketValue(deal.make, deal.model, deal.year, deal.trim);
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
-  const aggregate = lookupMarketAggregate(deal.make, deal.model, deal.year);
 
   // Free offline baseline (segment depreciation + trim tier). Doubles as a SANITY GATE so a single
   // outlier comp (e.g. a $42k Shelby setting the "Mustang" median) can't produce a wild resale value.
@@ -303,7 +301,7 @@ export function analyzeDeal(
     baseline <= 0 ? v > 0 : v >= baseline * 0.4 && v <= baseline * upperMult;
 
   // THE MOAT: a clean-market comp is not what THIS car is worth. Convert each clean value (comps,
-  // mmr, aggregate) into the car's real value via title/damage + mileage, anchored to real completed
+  // mmr) into the car's real value via title/damage + mileage, anchored to real completed
   // sales for the damaged/budget segment. A flooded/salvage 2023 model no longer books clean retail.
   const titleCut = titleSeverityMultiplier(deal);
   const conditionTag = titleCut.tag;
@@ -335,10 +333,6 @@ export function analyzeDeal(
         deal.mileage,
       )
     : null;
-  const aggAdj =
-    aggregate && aggregate.value > 0
-      ? conditionAdjustedSell(aggregate.value, deal, realSold)
-      : null;
 
   // Comp acceptance. The mileage-anchored comp is REAL market data, so when the bucket is reliable
   // (high/medium confidence) we bound it against the comp median (allowing a legit low-mileage premium)
@@ -385,11 +379,6 @@ export function analyzeDeal(
     sellBasis = "market";
     valuationSource = "third_party";
     soldAnchored = mmrAdj.soldAnchored;
-  } else if (aggAdj && sane(aggAdj.sell)) {
-    sellEstimate = aggAdj.sell;
-    sellBasis = "market";
-    valuationSource = "historical_estimate";
-    soldAnchored = aggAdj.soldAnchored;
   } else if (baseline > 0) {
     // No trustworthy comp → realistic depreciation estimate (already title/mileage-adjusted).
     sellEstimate = baseline;
@@ -568,7 +557,7 @@ export function analyzeDeal(
   // TRUST GATE: a GO is a promise about resale value, made with the dealer's money. We never make that
   // promise on a baseline-only estimate (offline depreciation curve, no real market comps) — even if the
   // math pencils out, we can't VERIFY the resale price. Demote those to HOLD so a GO always means
-  // "backed by real comps or a third-party market value (KBB/aggregate)". PASS stays PASS. This is the
+  // "backed by real comps or a third-party market value". PASS stays PASS. This is the
   // line between a tip and a guarantee, and it's why the GO/PASS can be trusted.
   if (verdict === "go" && sellBasis === "baseline") {
     verdict = "hold";
@@ -639,19 +628,14 @@ export function analyzeDeal(
           ? (comps?.confidence ?? "none")
           : valuationSource === "third_party"
             ? "low"
-            : valuationSource === "historical_estimate" &&
-                Number(aggregate?.n || 0) >= 6
-              ? "low"
-              : "none",
+            : "none",
       sampleCount:
         valuationSource === "comparables"
           ? Number(comps?.nRetail || 0)
-          : valuationSource === "historical_estimate"
-            ? Number(aggregate?.n || 0)
-            : valuationSource === "third_party" ||
-                valuationSource === "asking_price"
-              ? 1
-              : 0,
+          : valuationSource === "third_party" ||
+              valuationSource === "asking_price"
+            ? 1
+            : 0,
       compCount: comps?.nRetail ?? 0,
       compConfidence: comps?.confidence ?? "none",
       cleanComp: comps?.retail ?? null,
@@ -660,8 +644,8 @@ export function analyzeDeal(
       soldLane: salvageLane ? "salvage" : "clean",
       soldAnchored,
       kbbValue: deal.mmr_value || null,
-      mileageMult: (compAdj ?? mmrAdj ?? aggAdj)?.mileageMult ?? 1,
-      titleMult: (compAdj ?? mmrAdj ?? aggAdj)?.titleMult ?? 1,
+      mileageMult: (compAdj ?? mmrAdj)?.mileageMult ?? 1,
+      titleMult: (compAdj ?? mmrAdj)?.titleMult ?? 1,
       titleTag: conditionTag,
       baseline,
     },

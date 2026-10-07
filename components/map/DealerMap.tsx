@@ -43,6 +43,7 @@ export interface MapPoint {
   lng: number;
   type?: "auction" | "dealer" | "private" | "hub";
   label?: string;
+  approx?: boolean;
   // Rich listing fields (housing) → Zillow/Redfin-style price-pill markers + photo-card popups.
   price?: number;
   priceLabel?: string; // "Starting bid" / "Asking" / "Assessed value" …
@@ -125,6 +126,8 @@ function cardPopup(p: MapPoint): string {
     <div style="padding:8px 10px">
       <div style="font-weight:800;font-size:15px;color:#111">${price}</div>
       <div style="font-weight:600;font-size:12px;color:#555;margin-top:2px">${esc(p.name)}</div>
+      ${p.label ? `<div style="font-size:12px;color:#555;margin-top:4px">${esc(p.label)}</div>` : ""}
+      ${p.approx ? '<div style="font-size:12px;color:#555;margin-top:4px">Approximate state-level location. Verify the seller address.</div>' : ""}
       ${meta ? `<div style="font-size:11px;color:#777;margin-top:2px">${meta}</div>` : ""}
       ${
         p.owner
@@ -142,7 +145,7 @@ function cardPopup(p: MapPoint): string {
             }${p.score != null && p.verdict ? " · " : ""}${esc(p.verdict || "")}</div>`
           : ""
       }
-      ${p.url ? `<a href="${esc(p.url)}" style="display:block;margin-top:7px;font-weight:700;font-size:12px;color:#0d9488;text-decoration:none">View details →</a>` : ""}
+      ${p.url ? `<a href="${esc(p.url)}" style="display:flex;align-items:center;min-height:48px;margin-top:7px;font-weight:700;font-size:14px;color:#0d9488;text-decoration:none">View details →</a>` : ""}
     </div>
   </div>`;
 }

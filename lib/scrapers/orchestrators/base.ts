@@ -129,6 +129,7 @@ export abstract class BaseScraperOrchestrator {
     dealsSaved: number,
     duration: number,
     status: "success" | "error" = "success",
+    errorMessage?: string,
   ) {
     if (this.options.skipSupabaseRunTracking) return;
     this.log(
@@ -148,6 +149,10 @@ export abstract class BaseScraperOrchestrator {
         deals_new: dealsSaved,
         duration_ms: duration,
         completed_at: new Date().toISOString(),
+        error_message:
+          status === "error"
+            ? errorMessage || "Scraper failed without an error message"
+            : null,
       })
       .eq("id", runId);
 

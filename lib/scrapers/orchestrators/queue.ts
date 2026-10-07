@@ -211,6 +211,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         execResult.dealsSaved,
         duration,
         execResult.success ? "success" : "error",
+        execResult.error,
       );
 
       await this.registry.updateStats(

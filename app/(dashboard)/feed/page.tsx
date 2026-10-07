@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { BarChart3, ExternalLink, Flame, Heart, MapPin } from "lucide-react";
+import {
+  BarChart3,
+  ExternalLink,
+  Flame,
+  Heart,
+  MapPin,
+  RefreshCw,
+} from "lucide-react";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
 import { savedScopeStates } from "@/lib/preferences/location-form";
@@ -52,6 +59,7 @@ export default function FeedPage() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [done, setDone] = useState(false);
   const [configured, setConfigured] = useState<boolean | null>(null);
   // The state scope drives what the feed shows. Seeded from saved prefs; the picker updates it live.
@@ -69,6 +77,9 @@ export default function FeedPage() {
       const qs = scope && scope.length ? `&states=${scope.join(",")}` : "";
       const res = await fetch(`/api/feed?offset=${offset}&limit=12${qs}`);
       const data = await res.json();
+      if (!res.ok || data.error || data.degraded)
+        throw new Error("Feed unavailable");
+      setLoadError(false);
       if (data.configured === false) {
         setConfigured(false);
         setDone(true);
@@ -84,7 +95,7 @@ export default function FeedPage() {
       setOffset(data.nextOffset ?? offset + 12);
       if (next.length === 0) setDone(true);
     } catch {
-      /* transient */
+      setLoadError(true);
     } finally {
       setLoading(false);
       busy.current = false;
@@ -105,6 +116,7 @@ export default function FeedPage() {
     setItems([]);
     setOffset(0);
     setDone(false);
+    setLoadError(false);
     busy.current = false;
   }, []);
 
@@ -119,13 +131,13 @@ export default function FeedPage() {
     if (!el) return;
     const io = new IntersectionObserver(
       (e) => {
-        if (e[0].isIntersecting) loadMore();
+        if (e[0].isIntersecting && !loadError) loadMore();
       },
       { rootMargin: "1200px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [loadMore]);
+  }, [loadMore, loadError]);
 
   return (
     <div className="relative left-1/2 min-h-[calc(100vh-56px)] w-screen -translate-x-1/2 snap-y snap-mandatory bg-black scrollbar-hide">
@@ -178,6 +190,24 @@ export default function FeedPage() {
         <FeedCard key={it.id} it={it} />
       ))}
       <div ref={sentinel} className="h-2" />
+      {loadError && !loading && (
+        <div
+          role="status"
+          className="bg-[var(--s1)] px-6 py-10 text-center text-[var(--t1)]"
+        >
+          <p className="font-semibold">Feed temporarily unavailable</p>
+          <p className="mt-2 text-sm text-[var(--t3)]">
+            Your existing listings are still here. Try loading the next page
+            again.
+          </p>
+          <button
+            onClick={() => void loadMore()}
+            className="mt-4 inline-flex min-h-12 items-center gap-2 px-4 font-semibold text-[var(--blue)]"
+          >
+            <RefreshCw size={16} aria-hidden="true" /> Try again
+          </button>
+        </div>
+      )}
       {items.length === 0 && loading && configured !== false && (
         <div className="grid min-h-[calc(100vh-56px)] place-items-center bg-[var(--s1)] px-4">
           <div className="glass-panel w-full max-w-md p-5 text-center">
@@ -200,7 +230,7 @@ export default function FeedPage() {
           <div className="mx-auto max-w-5xl space-y-5">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-                Live feed
+                Feed
               </p>
               <h1 className="mt-1 text-2xl font-black text-[var(--t1)]">
                 Build the feed from buyer intent

@@ -98,12 +98,6 @@ let salvageSoldByState: Map<string, SoldMedian> | null = null;
 const modelKey = (make?: string | null, model?: string | null) =>
   `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
 
-// The nightly `market_aggregates` rollup (pg_cron, avg of mmr_value per make/model/year/state/
-// period) compounds every day. We fold it into a parallel index so a deal with thin live comps
-// can still be valued from accumulated history — the "gets smarter as data grows" path. Kept
-// SEPARATE from the retail comps map so retail semantics stay clean; consumed as a fallback tier.
-let aggregates: Map<string, { value: number; n: number }> | null = null;
-
 export function __resetMarketIndexForTest() {
   computed = null;
   computedTrim = null;
@@ -113,7 +107,6 @@ export function __resetMarketIndexForTest() {
   soldByState = null;
   salvageSoldIndex = null;
   salvageSoldByState = null;
-  aggregates = null;
   loadedAt = 0;
   loadingPromise = null;
 }
@@ -370,9 +363,6 @@ async function loadMarketIndexUnlocked(
   // Build the REAL-SOLD index from completed-sale prices (eBay sold etc.) — the truth anchor used to
   // value damaged/budget cars. Best-effort; never blocks scoring.
   await loadSoldIndex(supabase);
-
-  // Fold in the nightly market_aggregates rollup (best-effort; never blocks scoring).
-  await loadAggregateIndex(supabase);
 }
 
 const SALVAGE_SOLD_TITLE =
@@ -637,77 +627,6 @@ export function lookupSalvageSold(
       ? salvageSoldByState.get(`${key(make, model, year)}|${st}`)
       : null;
   return pickSoldAnchor(national, same);
-}
-
-/**
- * Build the aggregate-backed value index from `market_aggregates`. Rows are per
- * (year, make, model, state, source, period); we roll them up to the same make|model|yearBucket
- * key as the comps index, unit-count-weighting avg_market_value so high-sample quarters dominate.
- */
-async function loadAggregateIndex(supabase: SupabaseClient): Promise<void> {
-  try {
-    // PostgREST caps a single response at ~1000 rows, so `.limit(50000)` silently returned only 1000 of
-    // ~26k aggregate rows — the value index saw 4% of the market. Paginate to load them all.
-    const PAGE = 1000;
-    const MAX = 60000;
-    const data: any[] = [];
-    for (let from = 0; from < MAX; from += PAGE) {
-      const { data: pageRows, error } = await supabase
-        .from("market_aggregates")
-        .select("make, model, year, avg_market_value, unit_count")
-        .gt("avg_market_value", 0)
-        .range(from, from + PAGE - 1);
-      if (error) {
-        // Table may not exist on every environment — degrade silently to comps-only.
-        if (data.length === 0) {
-          if (!aggregates) aggregates = new Map();
-          return;
-        }
-        break;
-      }
-      if (!pageRows || pageRows.length === 0) break;
-      data.push(...pageRows);
-      if (pageRows.length < PAGE) break;
-    }
-
-    const roll = new Map<string, { sum: number; n: number }>();
-    for (const r of data || []) {
-      if (!(r.make && r.model)) continue;
-      const value = Number(r.avg_market_value);
-      if (!Number.isFinite(value) || value <= 0) continue;
-      const weight = Math.max(1, Number(r.unit_count) || 1);
-      const k = key(r.make, r.model, r.year);
-      const cur = roll.get(k) || { sum: 0, n: 0 };
-      cur.sum += value * weight;
-      cur.n += weight;
-      roll.set(k, cur);
-    }
-
-    const next = new Map<string, { value: number; n: number }>();
-    roll.forEach((v, k) =>
-      next.set(k, { value: Math.round(v.sum / v.n), n: v.n }),
-    );
-    aggregates = next;
-    if (next.size > 0)
-      console.log(
-        `[market-value] aggregate index: ${next.size} groups from market_aggregates`,
-      );
-  } catch {
-    if (!aggregates) aggregates = new Map();
-  }
-}
-
-/**
- * Aggregate-backed market value for a vehicle, from accumulated nightly history. Used as a
- * fallback tier when live retail comps are too thin to trust. Returns null when no history exists.
- */
-export function lookupMarketAggregate(
-  make?: string | null,
-  model?: string | null,
-  year?: number | null,
-): { value: number; n: number } | null {
-  if (!aggregates) return null;
-  return aggregates.get(key(make, model, year)) || null;
 }
 
 /**

@@ -56,6 +56,7 @@ export interface ScraperConfig {
   headers?: Record<string, string>;
   // User agents to rotate
   userAgents?: string[];
+  abortSignal?: AbortSignal;
 }
 
 // ─── Proxy pool (enhanced with ProxyManager) ─────────────────────────────────
@@ -246,24 +247,31 @@ export async function* paginate<T>(
   let pageNum = 1;
 
   while (pageNum <= config.maxPages) {
+    config.abortSignal?.throwIfAborted();
     const url = getPageUrl(pageNum);
     console.log(`[${config.name}] Crawling page ${pageNum}: ${url}`);
 
     const result = await limit(async () => {
       await sleep(config.requestDelay);
+      config.abortSignal?.throwIfAborted();
       if (config.renderMode === "static") {
         const $ = await fetchHtml(url, config);
+        config.abortSignal?.throwIfAborted();
         return parsePage($);
       } else {
         // browser or adaptive — let the adaptive engine decide cheapest method
         const adaptive = getAdaptiveEngine();
         const { html, close } = await adaptive.fetch(url, config);
-        const parsed = await parsePage(html);
-        await close();
-        return parsed;
+        try {
+          config.abortSignal?.throwIfAborted();
+          return await parsePage(html);
+        } finally {
+          await close();
+        }
       }
     });
 
+    config.abortSignal?.throwIfAborted();
     if (!result.items.length) break;
     yield result.items;
     if (!result.hasMore) break;

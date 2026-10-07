@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
+import { RefreshCw } from "lucide-react";
 
 // Leaflet touches `window`, so the map must be client-only (no SSR).
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -15,21 +16,32 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ),
 });
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Map unavailable");
+  return response.json();
+};
 
 const FILTERS = [
-  { key: "go", label: "BUY" },
+  { key: "actionable", label: "Review" },
+  { key: "go", label: "Go" },
   { key: "hold", label: "Hold" },
   { key: "all", label: "All" },
 ];
 
 export default function MapPage() {
-  const [verdict, setVerdict] = useState("go");
-  const { data } = useSWR(`/api/deals/map?verdict=${verdict}`, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
-  });
+  const [verdict, setVerdict] = useState("actionable");
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/deals/map?verdict=${verdict}`,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60_000,
+    },
+  );
   const points: any[] = data?.points ?? [];
+  const unavailable = Boolean(error || data?.degraded);
+  const approximateCount = points.filter((point) => point.approx).length;
 
   return (
     <div
@@ -42,7 +54,7 @@ export default function MapPage() {
             Deal Map
           </h1>
           <p className="text-[var(--t3)] text-sm">
-            Every geocoded live deal, by verdict.{" "}
+            Stored listings by verdict.{" "}
             <Mono
               style={{ fontFamily: "var(--fm)" }}
               className="text-[var(--t2)] font-bold"
@@ -52,12 +64,17 @@ export default function MapPage() {
             plotted.
           </p>
         </div>
-        <div className="flex gap-1 p-1 rounded-[var(--r3)] bg-[var(--s1)] border border-[var(--b1)]">
+        <div
+          role="group"
+          aria-label="Map verdict"
+          className="flex flex-wrap gap-1 p-1 rounded-[var(--r3)] bg-[var(--s1)] border border-[var(--b1)]"
+        >
           {FILTERS.map((f) => (
             <button
               key={f.key}
               onClick={() => setVerdict(f.key)}
-              className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold transition-colors"
+              aria-pressed={verdict === f.key}
+              className="min-h-12 min-w-12 px-3 rounded-[var(--r2)] text-xs font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
               style={{
                 background: verdict === f.key ? "var(--amber)" : "transparent",
                 color: verdict === f.key ? "#fff" : "var(--t3)",
@@ -69,13 +86,57 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="h-[60vh] md:h-[68vh]">
-        <DealerMap points={points} />
+      <div className="relative h-[max(400px,60vh)] md:h-[max(500px,68vh)]">
+        <DealerMap points={unavailable ? [] : points} />
+        {(isLoading || unavailable || points.length === 0) && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute inset-0 z-[1000] grid place-items-center bg-[var(--s1)]/90 p-6"
+          >
+            <div className="max-w-sm text-center">
+              <p className="font-semibold text-[var(--t1)]">
+                {isLoading
+                  ? "Loading listings"
+                  : unavailable
+                    ? "Map temporarily unavailable"
+                    : "No listings in this view"}
+              </p>
+              {!isLoading && (
+                <p className="mt-2 text-sm text-[var(--t3)]">
+                  {unavailable
+                    ? "We could not load the stored inventory. Try again."
+                    : "Choose All to review the available inventory."}
+                </p>
+              )}
+              {!isLoading &&
+                (unavailable ? (
+                  <button
+                    onClick={() => void mutate()}
+                    className="mt-4 inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold text-[var(--blue)]"
+                  >
+                    <RefreshCw size={16} aria-hidden="true" /> Try again
+                  </button>
+                ) : (
+                  verdict !== "all" && (
+                    <button
+                      onClick={() => setVerdict("all")}
+                      className="mt-4 min-h-12 px-4 text-sm font-semibold text-[var(--blue)]"
+                    >
+                      Show all listings
+                    </button>
+                  )
+                ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <p className="text-[11px] text-[var(--t4)]">
-        Note: deals from sources with low-quality location data may not be
-        mapped. Coordinates are geocoded from each listing&apos;s city/state.
+      <p className="text-sm text-[var(--t3)]">
+        {approximateCount > 0 &&
+          `${approximateCount} ${approximateCount === 1 ? "location is an approximate state-level position" : "locations are approximate state-level positions"}. `}
+        Verify the seller&apos;s address before planning a trip. Review includes
+        Go and Hold listings.
       </p>
     </div>
   );

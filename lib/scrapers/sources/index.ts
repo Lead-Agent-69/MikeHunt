@@ -487,6 +487,7 @@ function conditionFromTitle(title?: string): string | undefined {
 export async function scrapeIndependentDealer(
   profile: DealerProfile,
   baseUrl: string,
+  abortSignal?: AbortSignal,
 ): Promise<number> {
   console.log(`[IndiDealer] Scraping ${profile.name} at ${baseUrl}`);
   const allDeals: Partial<Deal>[] = [];
@@ -494,6 +495,7 @@ export async function scrapeIndependentDealer(
     ...INDI_CONFIG,
     baseUrl,
     renderMode: profile.renderMode || "browser",
+    abortSignal,
   };
   const sel = profile.selectors;
 
@@ -683,6 +685,7 @@ export async function scrapeIndependentDealer(
   console.log(`[IndiDealer] ${profile.name}: Found ${allDeals.length} deals`);
   // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
   // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
+  abortSignal?.throwIfAborted();
   await upsertDeals(allDeals);
   return allDeals.length;
 }
@@ -700,7 +703,9 @@ export async function autoDiscoverAndCrawl(
     sellerDefault?: string;
     inventoryUrl?: string; // exact inventory page — skip auto-discovery when provided
   },
+  abortSignal?: AbortSignal,
 ): Promise<number> {
+  abortSignal?.throwIfAborted();
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
   const { html, close } = await fetchBrowser(dealerWebsite, {
@@ -708,6 +713,7 @@ export async function autoDiscoverAndCrawl(
     baseUrl: dealerWebsite,
   });
   await close();
+  abortSignal?.throwIfAborted();
 
   const cheerio = await import("cheerio");
   const $ = cheerio.load(html);
@@ -790,7 +796,7 @@ export async function autoDiscoverAndCrawl(
     sellerDefault: hint?.sellerDefault ?? base.sellerDefault,
   };
 
-  return scrapeIndependentDealer(profile, dealerWebsite);
+  return scrapeIndependentDealer(profile, dealerWebsite, abortSignal);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -819,6 +825,7 @@ export {
  *  sites produce 0 cars and are pruned by the normal stale/dead retention. */
 export async function scrapeCuratedSites(
   maxSites = CURATED_SITES.length,
+  execution?: { abortSignal?: AbortSignal; deadlineAt?: number },
 ): Promise<number> {
   const scope = getScrapeRunScope();
   const requestedDealers = new Set(scope?.dealerSourceIds || []);
@@ -879,13 +886,19 @@ export async function scrapeCuratedSites(
   const budgetMs = plannedStates.length
     ? Math.max(
         60_000,
-        Number(process.env.CURATED_SWEEP_BUDGET_MS) || 20 * 60_000,
+        Number(process.env.CURATED_SWEEP_BUDGET_MS) || 4 * 60_000,
       )
     : Infinity;
   const startedAt = Date.now();
+  // Reserve a minute for the last site's browser work before the executor deadline.
+  const deadlineAt = Math.min(
+    startedAt + budgetMs,
+    (execution?.deadlineAt ?? Infinity) - 60_000,
+  );
   let skippedForBudget = 0;
   for (const site of sites) {
-    if (Date.now() - startedAt > budgetMs) {
+    execution?.abortSignal?.throwIfAborted();
+    if (Date.now() >= deadlineAt) {
       skippedForBudget += 1;
       continue;
     }
@@ -917,21 +930,27 @@ export async function scrapeCuratedSites(
         ? await scrapeAeOfMiami(scope)
         : cdgDealer
           ? await scrapeCdgDealer(cdgDealer)
-          : await autoDiscoverAndCrawl(site.url, {
-              name: site.name,
-              city: site.city,
-              state: site.state,
-              conditionDefault: d.condition,
-              damageDefault: d.damage_type,
-              sellerDefault: d.seller_type,
-              inventoryUrl: site.inventoryUrl,
-            });
+          : await autoDiscoverAndCrawl(
+              site.url,
+              {
+                name: site.name,
+                city: site.city,
+                state: site.state,
+                conditionDefault: d.condition,
+                damageDefault: d.damage_type,
+                sellerDefault: d.seller_type,
+                inventoryUrl: site.inventoryUrl,
+              },
+              execution?.abortSignal,
+            );
+      execution?.abortSignal?.throwIfAborted();
       console.log(
         `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
       );
       yields.push({ name: site.name, state: site.state, type: site.type, n });
       total += n;
     } catch (e) {
+      execution?.abortSignal?.throwIfAborted();
       console.warn(`[CuratedSites] ${site.name} failed:`, (e as Error).message);
       yields.push({
         name: site.name,

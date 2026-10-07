@@ -58,14 +58,21 @@ export async function backfillEmbeddings(
     .not("make", "is", null)
     .limit(limit);
 
-  if (error || !rows || rows.length === 0)
+  if (error)
+    throw new Error(`Embedding inventory read failed: ${error.message}`);
+  if (!rows || rows.length === 0)
     return { updated: 0, remaining: 0, skipped: false };
 
   let updated = 0;
   for (const d of rows) {
     try {
       const vec = await generateEmbedding(dealEmbeddingText(d));
-      if (!Array.isArray(vec) || vec.length === 0) continue;
+      if (
+        !Array.isArray(vec) ||
+        vec.length !== 768 ||
+        !vec.every(Number.isFinite)
+      )
+        throw new Error("Embedding must contain 768 finite dimensions");
       const { error: upErr } = await supabase
         .from("deals")
         .update({ embedding: toVectorLiteral(vec) })
@@ -77,11 +84,15 @@ export async function backfillEmbeddings(
   }
 
   // How many still lack embeddings (so the cron knows whether to keep going).
-  const { count } = await supabase
+  const { count, error: countError } = await supabase
     .from("deals")
     .select("id", { count: "exact", head: true })
     .is("embedding", null)
     .eq("active", true);
+  if (countError)
+    throw new Error(`Embedding backlog read failed: ${countError.message}`);
+  if (updated === 0 && rows.length > 0)
+    throw new Error("Embedding backfill made no progress");
 
   return { updated, remaining: count || 0, skipped: false };
 }

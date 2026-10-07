@@ -8,6 +8,8 @@ import { crossRunBackoffMultiplier } from "./circuit-breaker";
 export type ScraperFunction = (args?: ScraperArgs) => Promise<number | Deal[]>;
 
 export interface ScraperArgs {
+  abortSignal?: AbortSignal;
+  deadlineAt?: number;
   states?: string[];
   cities?: string[];
   query?: string;
