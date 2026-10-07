@@ -172,16 +172,16 @@ export const MORE_GROUPS: NavGroup[] = [
         description: "Direct search for a make, model, VIN, or buyer goal.",
       },
       {
-        name: "Live feed",
+        name: "Feed",
         href: "/feed",
         icon: Flame,
-        description: "Fresh rows from active public/source feeds.",
+        description: "Browse recent listings from saved inventory.",
       },
       {
-        name: "Swipe deals",
+        name: "Swipe",
         href: "/swipe",
         icon: Layers,
-        description: "Fast yes/no review of today’s listings.",
+        description: "Fast yes/no review of saved listings.",
       },
       {
         name: "Map search",
@@ -499,6 +499,12 @@ export function accountMenuForMode(buyerMode: unknown): {
   ];
   if (partsDesk) tools.push({ name: "Parts", href: "/parts" });
   if (flip) {
+    // Visor/Copart-parity browsing surfaces — Account Tools is the More menu
+    // (TopNav More dropdown stays removed). Personal desks stay deep-link only.
+    tools.push({ name: "Feed", href: "/feed" });
+    tools.push({ name: "Map", href: "/map" });
+    tools.push({ name: "Swipe", href: "/swipe" });
+    tools.push({ name: "Auctions", href: "/auctions" });
     tools.push({ name: "Dealer network", href: "/dealer-network" });
     tools.push({ name: "Auction Lane", href: "/lane" });
   }
