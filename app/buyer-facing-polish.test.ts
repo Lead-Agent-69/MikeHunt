@@ -30,7 +30,8 @@ describe("buyer-facing polish", () => {
     expect(source).toContain(
       "Clean-title-only is enabled; listings with unknown or repairable titles are excluded.",
     );
-    expect(source).toContain(
+    // Distance claims belong on cards with real miles — not a standing Discover subtitle.
+    expect(source).not.toContain(
       "Distance not available until a listing has real miles.",
     );
   });

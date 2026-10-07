@@ -71,7 +71,9 @@ export function NearbyDeals() {
       <div className="rounded-[var(--r3)] border border-dashed border-[var(--b2)] p-4 text-sm text-[var(--t4)]">
         <div className="mb-2 flex items-center gap-2">
           {zipBox}
-          <span>Set a home state in Settings, or enter a ZIP to scope listings.</span>
+          <span>
+            Set a home state in Settings, or enter a ZIP to scope listings.
+          </span>
         </div>
       </div>
     );
@@ -87,7 +89,8 @@ export function NearbyDeals() {
         <div>
           <h2 className="text-sm font-black text-[var(--t1)]">{label} only</h2>
           <p className="text-xs text-[var(--t4)]">
-            City and state from each listing. Miles show only when distance is known.
+            City and state from each listing. Miles show only when distance is
+            known.
           </p>
         </div>
         {zipBox}

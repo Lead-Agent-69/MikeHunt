@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -110,6 +111,7 @@ function LocationFields({
  * on every save so older readers (nav chip, feed scope) stay consistent.
  */
 export function LocationPrefs() {
+  const router = useRouter();
   const { prefs, save, authed } = usePreferences();
   const home = useMemo(() => effectiveHome(prefs) || null, [prefs]);
   const search = useMemo(() => effectiveSearchLocations(prefs), [prefs]);
@@ -150,10 +152,15 @@ export function LocationPrefs() {
   const saveHome = async () => {
     const built = homeLocationFromForm(homeForm);
     if ("error" in built) return toast.error(built.error);
+    const st = built.home.state;
     const msg = authed
-      ? "Home saved — scanning your state for fresh listings…"
-      : "Home saved on this device. Sign in to prioritize a Zeus scan for your state.";
-    await run(homeLocationPatch(built.home, search), msg);
+      ? `Home saved — checking saved listings for ${st}…`
+      : `Home saved on this device for ${st}. Sign in to prioritize a Zeus scan.`;
+    const ok = await run(homeLocationPatch(built.home, search), msg);
+    if (ok && authed) {
+      // Discover should re-fetch this market without keeping another state's cars.
+      router.push(`/discover?state=${encodeURIComponent(st)}`);
+    }
   };
 
   const clearHome = async () => {
