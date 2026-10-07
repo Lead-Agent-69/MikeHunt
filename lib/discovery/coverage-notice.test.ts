@@ -70,6 +70,18 @@ describe("coverageNotice", () => {
     );
   });
 
+  it("scanning: honest warm copy while Zeus fills the new state", () => {
+    const none = build([], ["IA"]);
+    const notice = coverageNotice(none, { scanning: true, states: ["IA"] });
+    expect(notice).toEqual(
+      expect.objectContaining({
+        tone: "scanning",
+        headline: "Scanning IA…",
+      }),
+    );
+    expect(notice?.detail).toMatch(/prioritized/i);
+  });
+
   it("Discover renders the notice from data.coverage with next steps", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     expect(page).toContain("<CoverageNotice coverage={data?.coverage} />");
@@ -79,5 +91,14 @@ describe("coverageNotice", () => {
     );
     expect(comp).toContain('href="/settings"');
     expect(comp).toContain('href="/searches"');
+    expect(comp).toContain("isLocationDemandWarming");
+    expect(comp).toContain("data-tone");
+  });
+
+  it("preferences PUT kicks location demand on home/search saves", () => {
+    const route = readFileSync("app/api/preferences/route.ts", "utf8");
+    expect(route).toContain("kickLocationDemand");
+    expect(route).toContain("locationPatchTouchesDemand");
+    expect(route).toContain("locationDemandPrefsStamp");
   });
 });

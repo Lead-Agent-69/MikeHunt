@@ -1,5 +1,7 @@
 // app/api/preferences/route.ts — user view preferences. GET returns the user's prefs object; PUT MERGES a
 // partial update in. Auth via cookies; RLS scopes every row to its owner.
+// Location saves also stamp locationDemand* and enqueue a terms-safe Zeus scrape_jobs row so the
+// new home/search states jump the hybrid buyer queue instead of waiting for the next idle sweep.
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -9,6 +11,11 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { sanitizeWatchListPatch } from "@/lib/preferences/watched-dealers";
 import { sanitizeLocationPatch } from "@/lib/preferences/locations";
+import {
+  kickLocationDemand,
+  locationDemandPrefsStamp,
+  locationPatchTouchesDemand,
+} from "@/lib/preferences/kick-location-demand";
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +126,34 @@ export async function PUT(req: NextRequest) {
     .select("prefs")
     .eq("user_id", user.id)
     .maybeSingle();
-  const merged = { ...((existing?.prefs as object) || {}), ...patch };
+  let merged: Record<string, unknown> = {
+    ...((existing?.prefs as object) || {}),
+    ...patch,
+  };
+
+  let locationDemand: {
+    states: string[];
+    queued: boolean;
+    deduplicated: boolean;
+    jobId: string | null;
+  } | null = null;
+
+  if (locationPatchTouchesDemand(patch)) {
+    const kick = await kickLocationDemand({
+      supabase: sb,
+      userId: user.id,
+      prefs: merged,
+    });
+    if (kick) {
+      merged = { ...merged, ...locationDemandPrefsStamp(kick) };
+      locationDemand = {
+        states: kick.states,
+        queued: kick.queued,
+        deduplicated: kick.deduplicated,
+        jobId: kick.jobId,
+      };
+    }
+  }
 
   const { error } = await sb.from("user_preferences").upsert(
     {
@@ -137,5 +171,8 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ prefs: merged });
+  return NextResponse.json({
+    prefs: merged,
+    ...(locationDemand ? { locationDemand } : {}),
+  });
 }

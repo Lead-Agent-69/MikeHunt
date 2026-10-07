@@ -150,7 +150,10 @@ export function LocationPrefs() {
   const saveHome = async () => {
     const built = homeLocationFromForm(homeForm);
     if ("error" in built) return toast.error(built.error);
-    await run(homeLocationPatch(built.home, search), "Home location saved");
+    await run(
+      homeLocationPatch(built.home, search),
+      "Home saved — scanning your state for fresh listings…",
+    );
   };
 
   const clearHome = async () => {
