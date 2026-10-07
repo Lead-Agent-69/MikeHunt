@@ -10,7 +10,11 @@ import { Ico } from "@/components/shared/Ico";
 // scored for import profit (resale − ask − real transport − selling load) from REAL inventory, tiered by
 // haul: Local (no transport) · Regional (close, fast money) · National (whole-country spreads).
 
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+async function fetcher(u: string) {
+  const res = await fetch(u);
+  if (!res.ok) throw new Error("Could not load arbitrage routes");
+  return res.json();
+}
 const money = (n?: number) =>
   n == null ? "—" : `$${Math.round(n).toLocaleString()}`;
 
@@ -31,7 +35,7 @@ type Opp = {
 };
 
 export default function ArbitragePage() {
-  const { data, isLoading } = useSWR("/api/arbitrage", fetcher, {
+  const { data, error, isLoading, mutate } = useSWR("/api/arbitrage", fetcher, {
     keepPreviousData: true,
   });
   const [tab, setTab] = React.useState<"regional" | "national" | "local">(
@@ -109,6 +113,29 @@ export default function ArbitragePage() {
         </div>
       </div>
 
+      {error && !data ? (
+        <div
+          role="alert"
+          className="rounded-[var(--r3)] border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.08)] p-4 text-center"
+          data-testid="arbitrage-load-error"
+        >
+          <p className="text-sm font-bold text-[var(--red)]">
+            Could not load arbitrage routes right now.
+          </p>
+          <p className="mt-1 text-xs text-[var(--t3)]">
+            Saved inventory is still available on Discover and Scan — this page
+            is not running a live market scan.
+          </p>
+          <button
+            type="button"
+            onClick={() => mutate()}
+            className="mt-3 min-h-[44px] rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 text-xs font-black text-[var(--t2)]"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+
       {/* Top routes */}
       {routes.length > 0 && (
         <div
@@ -152,7 +179,9 @@ export default function ArbitragePage() {
         </div>
       )}
 
-      {/* Tier tabs */}
+      {/* Tier tabs — hide when soft-fail so we never invent empty-market success */}
+      {!(error && !data) && (
+      <>
       <div className="flex gap-1.5">
         {tabs.map((t) => (
           <button
@@ -202,6 +231,8 @@ export default function ArbitragePage() {
           />
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

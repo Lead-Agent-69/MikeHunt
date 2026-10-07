@@ -165,18 +165,19 @@ export default function AlertsPage() {
           Loading alerts...
         </div>
       ) : !hasAnyWatchItem ? (
-        <div className="text-center py-16 glass-panel">
+        <div className="text-center py-16 glass-panel" data-testid="alerts-empty">
           <Ico
             name="alert-triangle"
             size={32}
             className="mx-auto text-[var(--t4)] mb-3"
           />
           <h3 className="text-lg font-bold text-[var(--t1)] mb-1">
-            No alerts yet
+            {error ? "Alerts could not load" : "No alerts yet"}
           </h3>
           <p className="text-[var(--t3)] max-w-sm mx-auto">
-            Save a search or watch a car, and new matches and price changes show
-            up here.
+            {error
+              ? "This is not a live inbox refresh. Retry above, or open Discover and Scan for saved inventory."
+              : "Save a search or watch a car, and new matches and price changes show up here."}
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             <Link
@@ -339,9 +340,9 @@ function LocalSearchInbox({
               on this device.
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-              These scopes are ready to use now. Open matching Scan for live
-              vehicles, or inspect Source Proof to confirm which sources can
-              return rows for the saved intent.
+              These scopes are ready to use now. Open matching Scan to search
+              saved inventory, or inspect Source Proof to confirm which sources
+              can return rows for the saved intent.
             </p>
           </div>
           <Link
