@@ -99,7 +99,9 @@ export function validateInventoryRanges(
       )
         return `${label} must be a non-negative whole number`;
     }
-    if (low && high && Number(high) > 0 && Number(low) > Number(high))
+    if (high && Number(high) === 0 && label !== "Mileage")
+      return `${label} maximum must be greater than zero`;
+    if (low && high && Number(low) > Number(high))
       return `${label} minimum must not exceed maximum`;
   }
   return null;
@@ -118,14 +120,22 @@ export function applyVehicleDetails(query: any, params: URLSearchParams) {
       .slice(0, 60);
     if (value && value !== "all") scoped = scoped.ilike(column, `%${value}%`);
   }
-  for (const [key, values] of [
-    ["fuelType", ["Gas", "Diesel", "Hybrid", "Electric"]],
-    ["transmission", ["Automatic", "Manual"]],
+  for (const [key, column, values] of [
+    ["fuelType", "fuel_type", ["Gas", "Diesel", "Hybrid", "Electric"]],
+    ["transmission", "transmission", ["Automatic", "Manual"]],
+    ["drivetrain", "drivetrain", ["AWD", "4WD", "FWD", "RWD"]],
   ] as const) {
     const value = params.get(key);
     if (values.some((allowed) => allowed === value))
-      scoped = scoped.eq(`options->>${key}`, value);
+      scoped = scoped.or(
+        `${column}.ilike.%${value}%,options->>${key}.eq.${value}`,
+      );
   }
+  const keys = params.get("keys");
+  if (keys === "yes" || keys === "no")
+    scoped = scoped.eq("keys_present", keys === "yes");
+  if (keys === "unknown") scoped = scoped.is("keys_present", null);
+  if (params.get("buyNow") === "1") scoped = scoped.gt("buy_now_price", 0);
   return scoped;
 }
 

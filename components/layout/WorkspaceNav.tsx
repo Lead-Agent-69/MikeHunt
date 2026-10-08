@@ -10,7 +10,10 @@ export function WorkspaceNav() {
   const { intent } = useBuyerIntent();
   if (pathname === "/discover" || pathname === "/") return null;
   const tools = accountMenuForMode(intent?.buyerMode).tools;
-  const current = tools.find((tool) => tool.href.split("?")[0] === pathname);
+  const current = tools.find((tool) => {
+    const base = tool.href.split("?")[0];
+    return pathname === base || pathname.startsWith(`${base}/`);
+  });
   if (!current) return null;
   const peers = tools.filter((tool) => tool.group === current.group);
   const catalog = MORE_GROUPS.flatMap((group) => group.items);

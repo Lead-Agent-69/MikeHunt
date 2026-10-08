@@ -1032,7 +1032,6 @@ export async function GET(req: NextRequest) {
   const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
-  const drivetrain = searchParams.get("drivetrain") || "";
   // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
   // filters all read flip-only columns, so they are flip-desk only (fail closed to personal).
   const desk = await resolveCallerDesk();
@@ -1074,6 +1073,7 @@ export async function GET(req: NextRequest) {
     .eq("active", true);
 
   if (
+    searchParams.get("buyNow") !== "1" &&
     !wantsAuctionInventory({
       lane,
       sellerType,
@@ -1121,11 +1121,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Drivetrain facet from the parsed options JSONB (AWD / 4WD / FWD / RWD).
-  if (drivetrain && drivetrain !== "all") {
-    query = query.eq("options->>drivetrain", drivetrain);
-  }
-
   // deal_verdict and true_net_profit are flip economics. Filtering on them off the flip desk would
   // leak them through which rows come back, so non-flip callers ignore these params.
   if (flipDesk && verdict && verdict !== "all") {
@@ -1146,8 +1141,8 @@ export async function GET(req: NextRequest) {
   if (minPrice > 0) query = query.gte("ask_price", minPrice);
   // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
   // for an explicit mileage search.
-  if (minMileage > 0) query = query.gte("mileage", minMileage);
-  if (maxMileage > 0) query = query.lte("mileage", maxMileage);
+  if (searchParams.has("minMileage")) query = query.gte("mileage", minMileage);
+  if (searchParams.has("maxMileage")) query = query.lte("mileage", maxMileage);
   query = applyVehicleDetails(query, searchParams);
 
   if (source && source.toLowerCase() !== "all") {

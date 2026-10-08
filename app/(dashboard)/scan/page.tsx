@@ -2559,6 +2559,8 @@ function ScanPageInner() {
   const [trim, setTrim] = useState("");
   const [fuelType, setFuelType] = useState("all");
   const [transmission, setTransmission] = useState("all");
+  const [keys, setKeys] = useState("all");
+  const [buyNow, setBuyNow] = useState(false);
   const [availability, setAvailability] = useState("all");
   const [madeInUsa, setMadeInUsa] = useState(false);
   const [drivetrain, setDrivetrain] = useState("all");
@@ -2653,6 +2655,8 @@ function ScanPageInner() {
         "trim",
         "fuelType",
         "transmission",
+        "keys",
+        "buyNow",
         "availability",
         "drivetrain",
         "madeInUsa",
@@ -2683,6 +2687,8 @@ function ScanPageInner() {
     setTrim(urlParams.get("trim") || "");
     setFuelType(urlParams.get("fuelType") || "all");
     setTransmission(urlParams.get("transmission") || "all");
+    setKeys(urlParams.get("keys") || "all");
+    setBuyNow(urlParams.get("buyNow") === "1");
     setAvailability(urlParams.get("availability") || "all");
     setDrivetrain(urlParams.get("drivetrain") || "all");
     setMadeInUsa(urlParams.get("madeInUsa") === "1");
@@ -2835,6 +2841,8 @@ function ScanPageInner() {
     if (trim) c++;
     if (fuelType !== "all") c++;
     if (transmission !== "all") c++;
+    if (keys !== "all") c++;
+    if (buyNow) c++;
     return c;
   }, [
     verdict,
@@ -2857,6 +2865,8 @@ function ScanPageInner() {
     trim,
     fuelType,
     transmission,
+    keys,
+    buyNow,
   ]);
 
   const resetFilters = useCallback(() => {
@@ -2889,6 +2899,8 @@ function ScanPageInner() {
     setTrim("");
     setFuelType("all");
     setTransmission("all");
+    setKeys("all");
+    setBuyNow(false);
     window.history.replaceState(null, "", "/scan?reset=1");
   }, []);
 
@@ -2957,6 +2969,12 @@ function ScanPageInner() {
     { label: "Body", value: body, clear: () => setBody("all") },
     { label: "Trim", value: trim, clear: () => setTrim("") },
     { label: "Fuel", value: fuelType, clear: () => setFuelType("all") },
+    { label: "Keys", value: keys, clear: () => setKeys("all") },
+    {
+      label: "Buying",
+      value: buyNow ? "Buy now" : "",
+      clear: () => setBuyNow(false),
+    },
     {
       label: "Transmission",
       value: transmission,
@@ -3219,15 +3237,22 @@ function ScanPageInner() {
       trim,
       fuelType,
       transmission,
+      keys,
       minYear,
       maxYear,
       minMileage,
       maxMileage,
     })) {
       if (value && value !== "all" && value !== "any")
-        params.set(key, value.replace("k", "000"));
+        params.set(
+          key,
+          key === "minMileage" || key === "maxMileage"
+            ? value.replace("k", "000")
+            : value,
+        );
     }
     if (madeInUsa) params.set("madeInUsa", "1");
+    if (buyNow) params.set("buyNow", "1");
     if (dealerHostsFilter.length)
       params.set("dealers", dealerHostsFilter.join(","));
     if (dealerSourceIdsFilter.length)
@@ -3252,6 +3277,8 @@ function ScanPageInner() {
     trim,
     fuelType,
     transmission,
+    keys,
+    buyNow,
     minYear,
     maxYear,
     minMileage,
@@ -3359,6 +3386,7 @@ function ScanPageInner() {
       trim,
       fuelType,
       transmission,
+      keys,
     })) {
       if (value && value !== "all") params.set(key, value);
     }
@@ -3369,6 +3397,7 @@ function ScanPageInner() {
     if (dealerSourceIdsFilter.length)
       params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
     if (madeInUsa) params.set("madeInUsa", "1");
+    if (buyNow) params.set("buyNow", "1");
     if (drivetrain !== "all") params.set("drivetrain", drivetrain);
     return `/api/scan?${params.toString()}`;
   }, [
@@ -3401,6 +3430,8 @@ function ScanPageInner() {
     trim,
     fuelType,
     transmission,
+    keys,
+    buyNow,
   ]);
 
   // Use SWR for data fetching
@@ -4825,6 +4856,25 @@ function ScanPageInner() {
                   { value: "online_only", label: "Online only" },
                 ]}
               />
+              <FilterSelect
+                label="Keys"
+                value={keys}
+                onChange={setKeys}
+                options={[
+                  { value: "all", label: "Keys: All" },
+                  { value: "yes", label: "Keys reported present" },
+                  { value: "no", label: "Keys reported absent" },
+                  { value: "unknown", label: "Keys not reported" },
+                ]}
+              />
+              <label className="flex min-h-11 items-center gap-2 px-2 text-xs font-semibold text-[var(--t2)]">
+                <input
+                  type="checkbox"
+                  checked={buyNow}
+                  onChange={(event) => setBuyNow(event.target.checked)}
+                />{" "}
+                Buy now available
+              </label>
               <FilterSelect
                 label="Drivetrain"
                 value={drivetrain}
