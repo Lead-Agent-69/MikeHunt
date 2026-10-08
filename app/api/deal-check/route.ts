@@ -10,6 +10,7 @@ import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
+import { offerSchema } from "@/lib/deal-check/offer-review";
 
 // POST /api/deal-check  { image: <data URL> }
 // Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1) throw new Error("no JSON");
-    extracted = JSON.parse(text.slice(start, end + 1));
+    extracted = offerSchema.parse(JSON.parse(text.slice(start, end + 1)));
   } catch (e: any) {
     return NextResponse.json(
       { error: "Could not read the document. Try a clearer photo." },

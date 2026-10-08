@@ -63,6 +63,12 @@ function post(text: string) {
 beforeEach(() => fetchWithPatchright.mockClear());
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
+  it("rejects malformed model extraction instead of returning unusable success", async () => {
+    generateText.mockResolvedValueOnce({
+      text: '{"selling_price":"unknown","fees":{}}',
+    });
+    expect((await post("Fictional offer text")).status).toBe(422);
+  });
   it.each([
     "http://127.0.0.1/admin",
     "http://localhost:3000/",

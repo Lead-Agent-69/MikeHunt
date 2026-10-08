@@ -6,15 +6,18 @@ import { Mono } from "@/components/shared/Mono";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 import { useDelayedLoading } from "@/hooks/useDelayedLoading";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import Link from "next/link";
+import { Calculator, FileText } from "lucide-react";
+import { offerSchema, reviewOffer } from "@/lib/deal-check/offer-review";
 
 const money = (v: any) =>
-  v == null
-    ? "—"
+  v == null || !Number.isFinite(Number(v))
+    ? "Not provided"
     : new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
         maximumFractionDigits: 0,
-      }).format(Number(v) || 0);
+      }).format(Number(v));
 
 export default function DealCheckPage() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -22,22 +25,42 @@ export default function DealCheckPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"amounts" | "document">("amounts");
+  const [amounts, setAmounts] = useState({
+    price: "",
+    fees: "",
+    addons: "",
+    taxes: "",
+    total: "",
+  });
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const lastPayload = useRef<{ image?: string; text?: string } | null>(null);
   const showLoader = useDelayedLoading(loading);
+  const resultFocus = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!result) return;
+    resultFocus.current?.focus({ preventScroll: true });
+    resultFocus.current?.scrollIntoView?.({ block: "start" });
+  }, [result]);
 
   useEffect(() => () => controller.current?.abort(), []);
 
   function beginRequest() {
     requestId.current += 1;
     controller.current?.abort();
+    setLoading(false);
     return requestId.current;
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) {
+      setError("Choose an image under 8 MB.");
+      return;
+    }
     const id = beginRequest();
     setError(null);
     setResult(null);
@@ -48,6 +71,10 @@ export default function DealCheckPage() {
       const dataUrl = reader.result as string;
       setPreview(dataUrl);
       analyze({ image: dataUrl }, id);
+    };
+    reader.onerror = () => {
+      if (id === requestId.current)
+        setError("The image could not be read. Choose another file.");
     };
     reader.readAsDataURL(file);
   }
@@ -70,6 +97,7 @@ export default function DealCheckPage() {
     controller.current = abortController;
     lastPayload.current = payload;
     setLoading(true);
+    const timer = setTimeout(() => abortController.abort(), 55000);
     try {
       const res = await fetch("/api/deal-check", {
         method: "POST",
@@ -89,16 +117,19 @@ export default function DealCheckPage() {
             "We couldn't analyze this listing. Please try again.",
           ),
         );
-      else setResult(json);
+      else setResult({ ...json, extracted: offerSchema.parse(json.extracted) });
     } catch (e: any) {
-      if (e.name !== "AbortError" && id === requestId.current)
+      if (id === requestId.current)
         setError(
           userFacingErrorMessage(
-            e,
+            e.name === "AbortError"
+              ? "Offer reading timed out. Retry or enter the amounts directly."
+              : e,
             "We couldn't analyze this listing. Please try again.",
           ),
         );
     } finally {
+      clearTimeout(timer);
       if (id === requestId.current) setLoading(false);
     }
   }
@@ -112,10 +143,39 @@ export default function DealCheckPage() {
 
   const x = result?.extracted;
   const mc = result?.marketComparison;
+  const review = x ? reviewOffer(x) : null;
+
+  function reviewAmounts(event: React.FormEvent) {
+    event.preventDefault();
+    beginRequest();
+    setError(null);
+    const value = (key: keyof typeof amounts) =>
+      amounts[key].trim() === "" ? null : Number(amounts[key]);
+    const parsed = offerSchema.safeParse({
+      selling_price: value("price"),
+      fees:
+        value("fees") == null
+          ? []
+          : [{ name: "Fees entered", amount: value("fees") }],
+      addons:
+        value("addons") == null
+          ? []
+          : [{ name: "Add-ons entered", amount: value("addons") }],
+      taxes: value("taxes"),
+      total_out_the_door: value("total"),
+    });
+    if (!parsed.success || value("price") == null) {
+      setError(
+        "Enter a non-negative selling price and valid amounts for the costs you know.",
+      );
+      return;
+    }
+    setResult({ extracted: parsed.data, manual: true });
+  }
 
   return (
     <div
-      className="max-w-2xl mx-auto px-4 py-8 space-y-6"
+      className="max-w-2xl mx-auto px-4 pt-5 pb-28 space-y-5"
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <div>
@@ -123,44 +183,121 @@ export default function DealCheckPage() {
           Deal Check
         </h1>
         <p className="text-[var(--t3)]">
-          Add a listing link, vehicle details, or a clear photo of an offer.
-          Review the extracted information and any missing costs before
-          deciding.
+          Offer price, itemized fees, taxes and quoted total. A cost review is
+          not a vehicle inspection or a market-value appraisal.
         </p>
       </div>
 
-      <div className="rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-1">
-        <form onSubmit={handleTextSubmit} className="flex flex-col relative">
-          <textarea
-            aria-label="Listing link or vehicle details"
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Paste a URL or raw text from a deal sheet..."
-            className="w-full bg-transparent resize-none p-4 pb-14 outline-none text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[120px] rounded-xl"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-            <label className="flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] focus-within:ring-2 focus-within:ring-[var(--accent)] transition-colors text-[var(--t3)] text-sm font-semibold">
-              <Ico name="camera" size={18} />
-              <span>Upload Photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                aria-label="Upload offer photo"
-                className="sr-only"
-                onChange={onFile}
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={loading || !textInput.trim()}
-              className="min-h-11 px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              style={{ background: "var(--t1)" }}
-            >
-              Analyze
-            </button>
-          </div>
-        </form>
+      <div
+        role="group"
+        aria-label="Offer input"
+        className="flex flex-wrap gap-2"
+      >
+        {[
+          { mode: "amounts", label: "Enter amounts", icon: Calculator },
+          { mode: "document", label: "Read offer", icon: FileText },
+        ].map((item) => (
+          <button
+            key={item.mode}
+            type="button"
+            aria-pressed={mode === item.mode}
+            onClick={() => {
+              beginRequest();
+              setMode(item.mode as "amounts" | "document");
+              setResult(null);
+              setError(null);
+            }}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b2)] px-3 text-sm aria-pressed:bg-[var(--s2)] aria-pressed:font-semibold"
+          >
+            <item.icon size={16} />
+            {item.label}
+          </button>
+        ))}
       </div>
+      {mode === "amounts" ? (
+        <form
+          onSubmit={reviewAmounts}
+          className="space-y-4 border-y border-[var(--b1)] py-4"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { key: "price", label: "Selling price ($)" },
+              { key: "fees", label: "Itemized fees total ($)" },
+              { key: "addons", label: "Add-ons total ($)" },
+              { key: "taxes", label: "Taxes ($)" },
+              { key: "total", label: "Quoted out-the-door total ($)" },
+            ].map((field) => (
+              <label
+                key={field.key}
+                className={`text-sm min-w-0 ${field.key === "total" ? "col-span-2" : ""}`}
+              >
+                <span className="block min-h-10">{field.label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required={field.key === "price"}
+                  value={amounts[field.key as keyof typeof amounts]}
+                  onChange={(event) => {
+                    setResult(null);
+                    setError(null);
+                    setAmounts((previous) => ({
+                      ...previous,
+                      [field.key]: event.target.value,
+                    }));
+                  }}
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b2)] bg-[var(--s0)] px-3"
+                />
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--t3)]">
+            Blank amounts are unknown, not zero. Enter 0 only for a confirmed
+            zero cost.
+          </p>
+          <button className="min-h-11 rounded-lg bg-[var(--t1)] px-4 text-sm font-semibold text-[var(--s0)]">
+            Review amounts
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-1">
+          <form onSubmit={handleTextSubmit} className="flex flex-col relative">
+            <textarea
+              aria-label="Listing link or vehicle details"
+              value={textInput}
+              onChange={(e) => {
+                beginRequest();
+                setTextInput(e.target.value);
+                setResult(null);
+                setError(null);
+              }}
+              placeholder="Paste a URL or raw text from a deal sheet..."
+              className="w-full bg-transparent resize-none p-4 pb-14 outline-none text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[120px] rounded-xl"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
+              <label className="flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] focus-within:ring-2 focus-within:ring-[var(--accent)] transition-colors text-[var(--t3)] text-sm font-semibold">
+                <Ico name="camera" size={18} />
+                <span>Upload Photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label="Upload offer photo"
+                  className="sr-only"
+                  onChange={onFile}
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={loading || !textInput.trim()}
+                className="min-h-11 px-4 py-1.5 rounded-lg font-bold text-sm text-[var(--s0)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                style={{ background: "var(--t1)" }}
+              >
+                Read offer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -186,8 +323,8 @@ export default function DealCheckPage() {
       {error && (
         <div className="glass-panel flex flex-col items-center gap-3 p-4 text-center text-[var(--red)] text-sm">
           <MikeHuntLoader state="error" size={40} label="Deal check" />
-          <p>{error}</p>
-          {lastPayload.current && (
+          <p role="alert">{error}</p>
+          {mode === "document" && lastPayload.current && (
             <button
               type="button"
               onClick={retry}
@@ -201,15 +338,48 @@ export default function DealCheckPage() {
 
       {x && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-bold text-[var(--green)]">
+          <div
+            ref={resultFocus}
+            tabIndex={-1}
+            role="status"
+            className="scroll-mt-28 flex items-center gap-2 text-sm font-bold text-[var(--green)]"
+          >
             <MikeHuntLoader state="complete" size={28} label="Deal analysis" />
-            Analysis ready
+            {result.manual
+              ? "Entered amounts reviewed"
+              : "Extracted amounts: verify against the offer"}
           </div>
+          {review && (
+            <section
+              aria-label="Offer arithmetic"
+              className="border-y border-[var(--b1)] py-4 space-y-2"
+            >
+              <h2 className="text-base font-semibold">Cost check</h2>
+              <Row
+                label="Sum of provided amounts"
+                value={money(review.sum)}
+                bold
+              />
+              <p className="text-sm">
+                {review.incomplete
+                  ? "Incomplete: selling price or taxes not provided."
+                  : review.difference == null
+                    ? "No quoted total provided to reconcile."
+                    : review.difference === 0
+                      ? "Quoted total matches the provided amounts."
+                      : `Quoted total differs from provided amounts by ${money(review.difference)}.`}
+              </p>
+              <p className="text-xs text-[var(--t3)]">
+                Unreported fees, add-ons, repairs, transport and ongoing
+                ownership costs are not verified by this sum.
+              </p>
+            </section>
+          )}
           {/* Market comparison */}
           {mc && (
             <div className="glass-panel p-5">
               <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
-                vs market
+                Asking-price context, not an appraisal
               </p>
               <div className="flex items-center justify-between">
                 <div>
@@ -217,14 +387,14 @@ export default function DealCheckPage() {
                     className="text-2xl font-black"
                     style={{
                       fontFamily: "var(--fm)",
-                      color: mc.isFair ? "var(--green)" : "var(--red)",
+                      color: "var(--t1)",
                     }}
                   >
                     {mc.vsMarket > 0 ? "+" : ""}
                     {money(mc.vsMarket)}
                   </Mono>
                   <p className="text-xs text-[var(--t4)]">
-                    {mc.isFair ? "at/below market" : "above market"} · avg{" "}
+                    Difference from sampled asking-price average · avg{" "}
                     {money(mc.marketAvg)} ({mc.sampleSize} comps)
                   </p>
                 </div>
@@ -233,7 +403,7 @@ export default function DealCheckPage() {
               {mc.comps && mc.comps.length > 0 && (
                 <div className="mt-6 border-t border-[var(--b2)] pt-4">
                   <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-3">
-                    Live Market Comps
+                    Sampled active listings
                   </p>
                   <div className="space-y-2">
                     {mc.comps.map((comp: any) => (
@@ -249,11 +419,17 @@ export default function DealCheckPage() {
                             {comp.year} {comp.make} {comp.model}
                           </span>
                           <span className="text-xs text-[var(--t4)]">
-                            {comp.mileage
+                            {comp.mileage != null
                               ? `${comp.mileage.toLocaleString()} mi`
                               : "Mileage unlisted"}
                           </span>
                         </div>
+                        <p className="mt-3 text-xs text-[var(--t3)]">
+                          This sample is not matched for title, condition,
+                          mileage or location and does not establish a fair
+                          purchase price. These are asking prices, not verified
+                          sale outcomes.
+                        </p>
                         <Mono className="text-sm font-bold text-[var(--t2)]">
                           {money(comp.ask_price)}
                         </Mono>
@@ -270,7 +446,10 @@ export default function DealCheckPage() {
             <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
               {[x.vehicle?.year, x.vehicle?.make, x.vehicle?.model]
                 .filter(Boolean)
-                .join(" ") || "Extracted"}
+                .join(" ") ||
+                (result.manual
+                  ? "Entered offer amounts"
+                  : "Extracted offer amounts")}
             </p>
             <Row label="Selling price" value={money(x.selling_price)} bold />
             {(x.fees || []).map((f: any, i: number) => (
@@ -297,7 +476,7 @@ export default function DealCheckPage() {
           {x.red_flags?.length > 0 && (
             <div className="glass-panel p-5">
               <p className="text-[10px] uppercase tracking-widest text-[var(--red)] font-bold mb-2">
-                ⚠ Flags
+                AI observations: unverified
               </p>
               <ul className="space-y-1">
                 {x.red_flags.map((r: string, i: number) => (
@@ -308,6 +487,23 @@ export default function DealCheckPage() {
               </ul>
             </div>
           )}
+          <nav
+            aria-label="Next steps"
+            className="flex flex-wrap gap-3 border-t border-[var(--b1)] pt-4"
+          >
+            <Link
+              href="/saved"
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+            >
+              Saved vehicles
+            </Link>
+            <Link
+              href="/fleet"
+              className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+            >
+              Plan next steps
+            </Link>
+          </nav>
         </div>
       )}
     </div>

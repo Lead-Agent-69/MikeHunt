@@ -41,7 +41,7 @@ describe("primaryJobForPath", () => {
     expect(primaryJobForPath("/overview/toyota/camry")).toBe("Discover");
     expect(primaryJobForPath("/dealer-network")).toBe("Discover");
     expect(primaryJobForPath("/dealer-network/aeofmiami.com")).toBe("Discover");
-    expect(primaryJobForPath("/compare")).toBe("Deal Check");
+    expect(primaryJobForPath("/compare")).toBe("Saved");
     expect(primaryJobForPath("/alerts")).toBe("Saved");
     expect(primaryJobForPath("/searches")).toBe("Saved");
     expect(primaryJobForPath("/save")).toBe("Saved");
@@ -75,7 +75,7 @@ describe("primaryJobForPath", () => {
     for (const mode of ["personal", "diy", "parts", "reseller", "dealer"]) {
       const tabs = primaryNavForMode(mode);
       for (const [path, href] of [
-        ["/compare", "/deal-check"],
+        ["/compare", "/saved"],
         ["/fleet", "/fleet"],
         ["/parts", "/fleet"],
         ["/dealer-network/shop", "/discover"],
@@ -93,14 +93,12 @@ describe("primaryJobForPath", () => {
   it("keeps the primary nav to the core buyer workflow", () => {
     expect(PRIMARY.map((item) => item.name)).toEqual([
       "Discover",
-      "Deal Check",
       "Saved",
       "Pipeline",
       "Auction Lane",
     ]);
     expect(MOBILE_PRIMARY.map((item) => item.name)).toEqual([
       "Discover",
-      "Deal Check",
       "Saved",
       "Pipeline",
       "Tools",
@@ -118,7 +116,7 @@ describe("primaryJobForPath", () => {
     expect(coverage.get("Auction Lane")?.length).toBeGreaterThan(1);
     expect(coverage.get("Pipeline")?.length).toBeGreaterThan(1);
     expect(coverage.get("Saved")?.length).toBeGreaterThan(1);
-    expect(coverage.get("Deal Check")?.length).toBeGreaterThan(1);
+    expect(coverage.get("Deal Check")?.length).toBe(1);
   });
 
   it("does not duplicate routes across primary and grouped navigation", () => {
@@ -135,6 +133,7 @@ describe("primaryJobForPath", () => {
 
   it("keeps secondary user pages tucked under job groups or account", () => {
     const allowedGroups = new Set([
+      "Deal Check",
       "Discover",
       "Discover collections",
       "Market",
@@ -209,13 +208,11 @@ describe("primaryJobForPath", () => {
       expect(hidesFlipNav(mode)).toBe(true);
       expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
-        "Deal Check",
         "Saved",
         "Plan",
       ]);
       expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
-        "Deal Check",
         "Saved",
         "Plan",
         "Tools",

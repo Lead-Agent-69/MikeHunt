@@ -9,7 +9,8 @@ import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 type PurchaseSave = {
   id: string;
-  deal_id: string;
+  deal_id?: string | null;
+  source_url?: string | null;
   status: string;
   tags?: string[];
   snapshot: { year?: number; make?: string; model?: string };
@@ -30,11 +31,17 @@ export function PurchasePipeline() {
       const response = await fetch(url);
       if (!response.ok)
         throw new Error("We couldn't load your purchase checklist.");
-      return response.json();
+      const result = await response.json();
+      if (!Array.isArray(result)) throw new Error("Unconfirmed saved vehicles");
+      return result;
     },
   );
   const [saving, setSaving] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState("All stages");
+  const [writeError, setWriteError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const stageOf = (save: PurchaseSave) => {
     if (save.status === "acquired") return "Purchased";
     const stored = save.tags
@@ -48,21 +55,40 @@ export function PurchasePipeline() {
     tags: string[],
     status = save.status,
   ) {
+    if (saving) return;
     setSaving(save.id);
+    setWriteError(null);
     try {
       const response = await fetch(
         `/api/saved-cars/${encodeURIComponent(save.id)}`,
         {
           method: "PUT",
+          signal: AbortSignal.timeout(20000),
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tags, status }),
         },
       );
       if (!response.ok)
         throw new Error("Your changes could not be saved. Please try again.");
+      const confirmed = await response.json();
+      if (
+        confirmed.id !== save.id ||
+        confirmed.status !== status ||
+        !Array.isArray(confirmed.tags) ||
+        !tags.every((tag) => confirmed.tags.includes(tag)) ||
+        confirmed.tags.length !== tags.length
+      )
+        throw new Error(
+          "Your changes were not confirmed. Reload the plan before retrying.",
+        );
       await mutate();
     } catch (error) {
-      toast.error(userFacingErrorMessage(error));
+      const message = userFacingErrorMessage(
+        error,
+        "Your changes were not confirmed. Reload the plan before retrying.",
+      );
+      setWriteError({ id: save.id, message });
+      toast.error(message);
     } finally {
       setSaving(null);
     }
@@ -77,6 +103,10 @@ export function PurchasePipeline() {
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">Purchase plan</h1>
+      <p className="text-sm text-[var(--t3)]">
+        Inspection and purchase tasks for your saved vehicles. Purchased is your
+        recorded status, not a payment or verified transfer.
+      </p>
       <div className="flex flex-wrap gap-3 items-center">
         <label htmlFor="purchase-stage-filter">Stage</label>
         <select
@@ -134,25 +164,39 @@ export function PurchasePipeline() {
         <div className="grid gap-4 lg:grid-cols-2">
           {visibleSaves.map((save) => {
             const tags = save.tags || [];
+            const completed = tasks.filter((_, index) =>
+              tags.includes(`purchase-task:${index}`),
+            ).length;
+            const nextTask = tasks.find(
+              (_, index) => !tags.includes(`purchase-task:${index}`),
+            );
+            const title =
+              [save.snapshot?.year, save.snapshot?.make, save.snapshot?.model]
+                .filter(Boolean)
+                .join(" ") || "Saved vehicle";
             return (
               <section
                 key={save.id}
                 className="border border-[var(--b1)] rounded-lg bg-[var(--s0)] p-4 space-y-3"
               >
                 <h2 className="font-bold">
-                  <Link
-                    href={`/deal/${save.deal_id}`}
-                    className="text-[var(--blue)]"
-                  >
-                    {[
-                      save.snapshot?.year,
-                      save.snapshot?.make,
-                      save.snapshot?.model,
-                    ]
-                      .filter(Boolean)
-                      .join(" ") || "Saved vehicle"}
-                  </Link>
+                  {save.deal_id ? (
+                    <Link
+                      href={`/deal/${encodeURIComponent(save.deal_id)}`}
+                      className="text-[var(--blue)]"
+                    >
+                      {title}
+                    </Link>
+                  ) : (
+                    <span>{title}</span>
+                  )}
                 </h2>
+                <p className="text-xs text-[var(--t3)]">
+                  {completed} of {tasks.length} tasks recorded complete
+                </p>
+                {nextTask && (
+                  <p className="text-sm font-medium">Next: {nextTask}</p>
+                )}
                 {save.status === "unavailable" ? (
                   <p className="text-[var(--amber)]">
                     Listing unavailable. Retained for your records.
@@ -219,6 +263,34 @@ export function PurchasePipeline() {
                     ? "Saving..."
                     : "Checklist progress is your record; it does not verify vehicle condition."}
                 </p>
+                {writeError?.id === save.id && (
+                  <div>
+                    <p role="alert" className="text-sm text-[var(--red)]">
+                      {writeError.message}
+                    </p>
+                    <button
+                      disabled={saving != null}
+                      onClick={() => void mutate()}
+                      className="min-h-11 text-sm text-[var(--blue)]"
+                    >
+                      Reload plan
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3 border-t border-[var(--b1)] pt-2">
+                  <Link
+                    href="/deal-check"
+                    className="inline-flex min-h-11 items-center text-sm text-[var(--blue)]"
+                  >
+                    Review offer costs
+                  </Link>
+                  <Link
+                    href="/move"
+                    className="inline-flex min-h-11 items-center text-sm text-[var(--blue)]"
+                  >
+                    Transport estimate
+                  </Link>
+                </div>
               </section>
             );
           })}

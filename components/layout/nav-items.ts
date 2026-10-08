@@ -54,19 +54,17 @@ export type PrimaryJob =
 /** The desktop daily-driver routes from the acquisition workflow. */
 export const PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Auction Lane", href: "/lane", icon: Gavel },
 ];
 
-/** The mobile bottom bar exposes the four daily buyer actions plus Tools. */
-export const MOBILE_TAB_COUNT = 5;
+/** The mobile bottom bar exposes three daily buyer actions plus Tools. */
+export const MOBILE_TAB_COUNT = 4;
 
 /** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
 export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Tools", href: "/tools", icon: Grid3X3 },
@@ -255,6 +253,18 @@ export const MORE_GROUPS: NavGroup[] = [
     ],
   },
   {
+    group: "Deal Check",
+    items: [
+      {
+        name: "Deal Check",
+        href: "/deal-check",
+        icon: FileCheck,
+        description:
+          "Review an offer's itemized costs; extracted amounts require verification.",
+      },
+    ],
+  },
+  {
     group: "Market",
     items: [
       {
@@ -393,7 +403,7 @@ export function navItemMatchesPath(
 
 export function primaryJobForPath(pathname: string): PrimaryJob | null {
   const normalized = pathname === "/" ? "/discover" : pathname;
-  if (navItemMatchesPath({ href: "/compare" }, normalized)) return "Deal Check";
+  if (navItemMatchesPath({ href: "/compare" }, normalized)) return "Saved";
   if (navItemMatchesPath({ href: "/dealer-network" }, normalized))
     return "Discover";
   if (
@@ -476,6 +486,7 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
 export function navItemIsActive(item: NavItem, pathname: string): boolean {
   if (navItemMatchesPath(item, pathname)) return true;
   const job = primaryJobForPath(pathname);
+  if (item.href === "/tools" && job === "Deal Check") return true;
   return (
     job !== null &&
     PRIMARY.some(

@@ -35,9 +35,10 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid"
       style={{
         background: "var(--glass)",
+        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
         backdropFilter: "blur(18px) saturate(180%)",
         WebkitBackdropFilter: "blur(18px) saturate(180%)",
         borderTop: "1px solid var(--b1)",
