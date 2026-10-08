@@ -180,14 +180,6 @@ export default function SavedCarsPage() {
 
   const handleUpdateStatus = async (id: string, newStatus: SavedCarStatus) => {
     try {
-      // Optimistic update
-      mutate(
-        saves?.map((item: any) =>
-          item.id === id ? { ...item, status: newStatus } : item,
-        ),
-        false,
-      );
-
       const res = await fetch(`/api/saved-cars/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -196,13 +188,17 @@ export default function SavedCarsPage() {
       if (res.ok) {
         // Revalidate from server
         mutate();
+        return true;
       } else {
-        // Revert on error
+        toast.error("Saved status was not confirmed changed");
         mutate();
+        return false;
       }
     } catch (e: any) {
       console.error(e);
-      mutate(); // Revert on error
+      toast.error("Saved status was not confirmed changed");
+      mutate();
+      return false;
     }
   };
 

@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { toast } from "sonner";
+import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import {
   ExternalLink,
   RefreshCw,
   Sparkles,
-  CheckSquare,
   Clock,
   TrendingDown,
   TrendingUp,
@@ -97,7 +96,10 @@ interface SavedCarCardProps {
     tags?: string[];
   };
   onDelete: (id: string) => void;
-  onUpdateStatus: (id: string, newStatus: SavedCarStatus) => void;
+  onUpdateStatus: (
+    id: string,
+    newStatus: SavedCarStatus,
+  ) => void | boolean | Promise<void | boolean>;
 }
 
 export const SavedCarCard = React.memo(function SavedCarCard({
@@ -209,34 +211,6 @@ export const SavedCarCard = React.memo(function SavedCarCard({
       return "text-[var(--green)] border-none";
     }
     return "text-[var(--purple)] border-none";
-  };
-
-  const handleAcquire = async () => {
-    try {
-      const res = await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vin: snapshot.vin || "", // no fabricated VIN — can be filled in later
-          year: snapshot.year,
-          make: snapshot.make,
-          model: snapshot.model,
-          condition: "clean_title",
-          purchasePrice: currentPrice || originalPrice,
-          marketValue: snapshot.marketValue || 0,
-          stage: "acquired",
-        }),
-      });
-      if (res.ok) {
-        onUpdateStatus(save.id, "acquired");
-        toast.success("Added to fleet inventory");
-      } else {
-        const err = await res.json();
-        toast.error("Failed to save to fleet");
-      }
-    } catch (e: any) {
-      toast.error("Failed to save to fleet");
-    }
   };
 
   return (
@@ -604,16 +578,24 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     </Button>
                   )}
 
-                  {flipDesk && profitValue > 0 ? (
-                    <Button
-                      size="sm"
-                      onClick={handleAcquire}
-                      className="text-white font-bold text-xs px-3 min-h-11 border-none flex items-center gap-1.5 rounded-lg"
-                      style={{ background: "var(--grad)" }}
-                    >
-                      <CheckSquare className="w-3.5 h-3.5" />
-                      Record purchase
-                    </Button>
+                  {flipDesk ? (
+                    <AcquireToPipelineButton
+                      deal={{
+                        id: save.deal_id,
+                        vin: snapshot.vin,
+                        year: snapshot.year,
+                        make: snapshot.make,
+                        model: snapshot.model,
+                        trim: snapshot.trim,
+                        condition:
+                          snapshot.titleType || snapshot.condition || "unknown",
+                        locationCity: snapshot.locationCity,
+                        locationState: snapshot.locationState,
+                        trueNetProfit: snapshot.estimatedProfit,
+                        sellEstimate: snapshot.sellEstimate,
+                      }}
+                      onRecorded={() => onUpdateStatus(save.id, "acquired")}
+                    />
                   ) : (
                     <span className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-[10px] font-black text-[var(--amber-d)]">
                       {flipDesk

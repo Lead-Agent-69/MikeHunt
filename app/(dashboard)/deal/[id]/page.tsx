@@ -510,7 +510,6 @@ export default function DealPage({
   const calibration = calData?.calibration ?? null;
   const { id } = React.use(params);
   const router = useRouter();
-  const [saving, setSaving] = React.useState(false);
   const [watching, setWatching] = React.useState(false);
   const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
   const [findSimilarOpen, setFindSimilarOpen] = React.useState(false);
@@ -540,53 +539,6 @@ export default function DealPage({
   const loading = isLoading || dealerLoading;
   const authError =
     !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
-
-  const handleSaveToFleet = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vin: store.vin || "", // VIN often isn't in the listing — can be filled in later
-          year: store.year,
-          make: store.make,
-          model: store.model,
-          condition: store.titleType || "clean",
-          purchasePrice: store.askPrice,
-          auctionFee: store.auctionFee,
-          transportCost: store.transportCost,
-          repairCost: store.repairCost,
-          reconCost: store.reconCost,
-          titleFee: store.titleFee,
-          marketValue: store.marketValue,
-          stage: "acquired",
-          // Close-the-loop: snapshot the source deal + the engine's prediction at purchase time.
-          dealId: id,
-          predictedProfit: dealData?.deal?.trueNetProfit ?? store.netProfit,
-          predictedSell: dealData?.deal?.sellEstimate ?? store.marketValue,
-          predictedTransport:
-            dealData?.deal?.dealAnalysis?.costs?.transport ??
-            store.transportCost,
-          predictedRecon:
-            dealData?.deal?.dealAnalysis?.costs?.repair ?? store.reconCost,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        toast.error("Failed to save to fleet");
-      } else {
-        toast.success("Added to fleet", {
-          description: `${[store.year, store.make, store.model].filter(Boolean).join(" ")} is now in your pipeline.`,
-          action: { label: "View Fleet", onClick: () => router.push("/fleet") },
-        });
-      }
-    } catch (e: any) {
-      toast.error("Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleWatchPrice = async () => {
     const syncSavedCar = async () => {
@@ -2082,14 +2034,22 @@ export default function DealPage({
 
           {store.userType === "dealer" && (
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                onClick={handleSaveToFleet}
-                disabled={saving}
-                className="text-white font-bold text-xs md:text-sm min-h-11 rounded-lg"
-                style={{ background: "var(--grad)" }}
-              >
-                {saving ? "Saving..." : "Record purchase"}
-              </Button>
+              <AcquireToPipelineButton
+                label="Record purchase"
+                deal={{
+                  id,
+                  vin: serverDeal?.vin || "",
+                  year: serverDeal?.year,
+                  make: serverDeal?.make,
+                  model: serverDeal?.model,
+                  condition:
+                    serverDeal?.titleType || serverDeal?.condition || "unknown",
+                  trueNetProfit: serverDeal?.trueNetProfit,
+                  sellEstimate: serverDeal?.sellEstimate,
+                  locationCity: serverDeal?.locationCity,
+                  locationState: serverDeal?.locationState,
+                }}
+              />
             </motion.div>
           )}
         </div>

@@ -12,6 +12,7 @@ import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MultiCarTrailerOptimizer } from "@/components/transport/MultiCarTrailerOptimizer";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { ExternalLink } from "lucide-react";
 
 interface QuoteResult {
   from: string;
@@ -375,7 +376,7 @@ function MovePageInner() {
       {result && !loading && !error && (
         <div style={{ animation: "fadeUp 220ms ease-out both" }}>
           <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
-            Title Route: {fromState} → {toState}
+            Registration checks: {fromState} → {toState}
           </h2>
           <div
             className="glass-panel p-5"
@@ -421,17 +422,26 @@ function MovePageInner() {
                     color: titleRules.warning ? "var(--red)" : "var(--green)",
                   }}
                 >
-                  {titleRules.warning ? "⚠ Title Warning" : "✓ Clean Transfer"}
+                  Verification required
                 </p>
                 <p className="text-sm text-[var(--t3)] leading-relaxed">
                   {titleRules.note}
                 </p>
+                <a
+                  href={titleRules.agencyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--blue)]"
+                >
+                  Official DMV directory{" "}
+                  <ExternalLink size={14} aria-hidden="true" />
+                </a>
               </div>
             </div>
 
             <div className="border-t border-[var(--b1)] pt-4">
               <p className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3">
-                Required Documents
+                Confirm with the destination DMV
               </p>
               <ul className="space-y-2">
                 {titleRules.requirements.map((req, idx) => (
@@ -483,10 +493,9 @@ function MovePageInner() {
           <path d="M10 22h4" />
         </svg>
         <p className="text-xs text-[var(--t3)] leading-relaxed">
-          <strong className="text-[var(--t2)]">Pro tip:</strong> Transport costs
-          are already included in the Deal Analyzer profit calculation. These
-          quotes help you verify the auto-estimate or book a carrier for a
-          specific unit.
+          Transport amounts are planning estimates, not bookings. Confirm an
+          exact-address carrier quote and use it in your vehicle's all-in cost
+          plan.
         </p>
       </div>
     </div>
