@@ -17,6 +17,7 @@ function query() {
     "ilike",
     "order",
     "in",
+    "is",
   ]) {
     q[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
@@ -105,7 +106,10 @@ describe("Scan and facets query parity", () => {
       await handler(new NextRequest(`https://example.test/api/scan?${search}`));
       expect(calls).toContainEqual(["gte", "mileage", 5000]);
       expect(calls).toContainEqual(["lte", "mileage", 88000]);
-      expect(calls).toContainEqual(["eq", "options->>fuelType", "Hybrid"]);
+      expect(calls).toContainEqual([
+        "or",
+        "fuel_type.ilike.%Hybrid%,options->>fuelType.eq.Hybrid",
+      ]);
       expect(calls).toContainEqual(["ilike", "damage_type", "%front%"]);
       expect(
         calls.some(
@@ -125,6 +129,24 @@ describe("Scan and facets query parity", () => {
       );
       expect(response.status).toBe(400);
       expect(calls).toEqual([]);
+    }
+  });
+  it("buy-now inventory includes eligible auctions and unknown keys are not treated as absent", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      await handler(
+        new NextRequest(
+          "https://example.test/api/scan?keys=unknown&buyNow=1&maxMileage=0",
+        ),
+      );
+      expect(calls).toContainEqual(["is", "keys_present", null]);
+      expect(calls).toContainEqual(["gt", "buy_now_price", 0]);
+      expect(calls).toContainEqual(["lte", "mileage", 0]);
+      expect(
+        calls.some(
+          ([method, column]) => method === "not" && column === "source",
+        ),
+      ).toBe(false);
     }
   });
 });

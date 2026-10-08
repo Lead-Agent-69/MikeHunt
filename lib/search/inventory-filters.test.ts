@@ -7,7 +7,14 @@ import {
 } from "./inventory-filters";
 
 function query() {
-  const builder = { eq: vi.fn(), in: vi.fn(), or: vi.fn(), ilike: vi.fn() };
+  const builder = {
+    eq: vi.fn(),
+    in: vi.fn(),
+    or: vi.fn(),
+    ilike: vi.fn(),
+    is: vi.fn(),
+    gt: vi.fn(),
+  };
   for (const method of Object.values(builder)) method.mockReturnValue(builder);
   return builder;
 }
@@ -61,9 +68,9 @@ describe("inventory filter contract", () => {
       ["body_class", "%SUV%"],
       ["trim", "%Limited%"],
     ]);
-    expect(q.eq.mock.calls).toEqual([
-      ["options->>fuelType", "Hybrid"],
-      ["options->>transmission", "Automatic"],
+    expect(q.or.mock.calls).toEqual([
+      ["fuel_type.ilike.%Hybrid%,options->>fuelType.eq.Hybrid"],
+      ["transmission.ilike.%Automatic%,options->>transmission.eq.Automatic"],
     ]);
     const unknown = query();
     applyVehicleDetails(
@@ -72,5 +79,15 @@ describe("inventory filter contract", () => {
     );
     expect(unknown.eq).not.toHaveBeenCalled();
     expect(unknown.ilike).not.toHaveBeenCalled();
+  });
+  it("keeps missing keys distinct from reported absent keys and filters actual buy-now prices", () => {
+    const unknown = query();
+    applyVehicleDetails(unknown, new URLSearchParams("keys=unknown&buyNow=1"));
+    expect(unknown.is).toHaveBeenCalledWith("keys_present", null);
+    expect(unknown.eq).not.toHaveBeenCalled();
+    expect(unknown.gt).toHaveBeenCalledWith("buy_now_price", 0);
+    const absent = query();
+    applyVehicleDetails(absent, new URLSearchParams("keys=no"));
+    expect(absent.eq).toHaveBeenCalledWith("keys_present", false);
   });
 });

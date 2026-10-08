@@ -48,11 +48,14 @@ describe("account menu", () => {
   it("parts and diy add Parts but no flip tools", () => {
     for (const mode of ["parts", "diy"]) {
       const menu = accountMenuForMode(mode);
-      expect(names(menu.tools)).toEqual([
-        ...names(accountMenuForMode("personal").tools),
-        "Parts",
-        "Recon",
-      ]);
+      expect(names(menu.tools)).toEqual(
+        expect.arrayContaining([
+          ...names(accountMenuForMode("personal").tools),
+          "Parts",
+          "Recon",
+        ]),
+      );
+      expect(menu.tools[0].name).toBe(mode === "parts" ? "Parts" : "Recon");
       expect(menu.tools.some((tool) => tool.group === "Business")).toBe(false);
     }
   });
