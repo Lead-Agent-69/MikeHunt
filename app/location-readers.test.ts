@@ -12,13 +12,14 @@ describe("legacy location readers prefer the #66 fields", () => {
 
   it("feed seeds its scope from savedScopeStates", () => {
     const src = read("app/(dashboard)/feed/page.tsx");
-    expect(src).toContain("setScope(savedScopeStates(prefs) || [])");
+    expect(src).toContain("inventoryScopeStates(params) ??");
+    expect(src).toContain(
+      'params.get("scope") === "explicit" ? [] : savedScopeStates(prefs) || []',
+    );
     expect(src).not.toContain("prefs.carsStates as string[]");
     // Seeding waits for prefs to load instead of seeding "all states" from the empty default.
-    expect(src).toMatch(/scope === null && !prefsLoading/);
-    expect(src).toContain(
-      "if (busy.current || done || scope === null) return;",
-    );
+    expect(src).toContain("if (!prefsLoading && viewReady)");
+    expect(src).toContain("scope === null || !viewReady");
   });
 
   it("Discover reads saved scope and home through the helpers", () => {

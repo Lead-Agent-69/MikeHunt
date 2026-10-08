@@ -23,6 +23,7 @@ import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -133,21 +134,16 @@ export default function FeedPage() {
   // Null = not-yet-known; [] = explicitly all.
   useEffect(() => {
     // Wait for /api/preferences: before it loads, prefs is {} and would seed "all states".
-    if (scope === null && !prefsLoading && viewReady) {
+    if (!prefsLoading && viewReady) {
       const params = new URLSearchParams(viewQuery);
-      const explicit = params.get("states") ?? params.get("state");
       setScope(
-        explicit !== null
-          ? explicit
-              .split(",")
-              .filter(
-                (value) =>
-                  value && !["all", "nationwide"].includes(value.toLowerCase()),
-              )
-          : savedScopeStates(prefs) || [],
+        inventoryScopeStates(params) ??
+          (params.get("scope") === "explicit"
+            ? []
+            : savedScopeStates(prefs) || []),
       );
     }
-  }, [prefs, prefsLoading, scope, viewReady, viewQuery]);
+  }, [prefs, prefsLoading, viewReady, viewQuery]);
 
   // Re-scope the feed when the chosen states change (reset the stream, refetch from the top).
   const rescope = useCallback((states: string[]) => {
