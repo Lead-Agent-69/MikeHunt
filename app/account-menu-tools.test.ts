@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { accountMenuForMode } from "@/components/layout/nav-items";
+import { accountMenuForMode, MORE_GROUPS } from "@/components/layout/nav-items";
 
 const names = (entries: { name: string }[]) => entries.map((e) => e.name);
 const all = (mode: unknown) => {
@@ -18,6 +18,8 @@ describe("account menu", () => {
       "Map",
       "Swipe",
       "Dealer network",
+      "Today",
+      "Flash deals",
       "Deal Check",
       "Compare",
       "Vehicle intel",
@@ -25,13 +27,22 @@ describe("account menu", () => {
       "Transport",
     ]);
     expect(menu.tools[0].href).toBe("/scan?sort=score");
-    expect(names(menu.secondary)).toEqual(["Settings", "Help & updates"]);
+    expect(names(menu.secondary)).toEqual([
+      "Settings",
+      "Upgrade",
+      "Help & updates",
+    ]);
   });
 
   it("unknown mode is treated as personal", () => {
     expect(accountMenuForMode(undefined)).toEqual(
       accountMenuForMode("personal"),
     );
+  });
+  it("dealers can reach every catalogued user tool, without admin privileges", () => {
+    const hrefs = all("dealer").map((entry) => entry.href.split("?")[0]);
+    for (const group of MORE_GROUPS)
+      for (const tool of group.items) expect(hrefs).toContain(tool.href);
   });
 
   it("parts and diy add Parts but no flip tools", () => {

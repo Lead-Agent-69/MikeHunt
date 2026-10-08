@@ -504,6 +504,8 @@ export function accountMenuForMode(buyerMode: unknown): {
     { name: "Map", href: "/map", group: "Browse" },
     { name: "Swipe", href: "/swipe", group: "Browse" },
     { name: "Dealer network", href: "/dealer-network", group: "Browse" },
+    { name: "Today", href: "/today", group: "Browse" },
+    { name: "Flash deals", href: "/flash-deals", group: "Browse" },
     { name: "Deal Check", href: "/deal-check", group: "Evaluate" },
     { name: "Compare", href: "/compare", group: "Evaluate" },
     { name: "Vehicle intel", href: "/insights", group: "Evaluate" },
@@ -540,6 +542,7 @@ export function accountMenuForMode(buyerMode: unknown): {
     tools,
     secondary: [
       { name: "Settings", href: "/settings" },
+      { name: "Upgrade", href: "/upgrade" },
       { name: "Help & updates", href: "/changelog" },
     ],
   };

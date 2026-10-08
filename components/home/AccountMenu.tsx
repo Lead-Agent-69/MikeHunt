@@ -25,6 +25,9 @@ import {
   FileCheck,
   ListPlus,
   Truck,
+  CalendarDays,
+  Sparkles,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -59,6 +62,9 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   "/list": ListPlus,
   "/bulk": Layers,
   "/finance": Banknote,
+  "/today": CalendarDays,
+  "/flash-deals": Zap,
+  "/upgrade": Sparkles,
 };
 
 function menuIcon(href: string): LucideIcon {
