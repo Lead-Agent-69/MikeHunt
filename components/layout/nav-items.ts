@@ -533,6 +533,21 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Finance", href: "/finance", group: "Business" },
     );
   }
+  if (mode === "parts" || mode === "diy") {
+    const groupOrder = ["Plan", "Browse", "Evaluate"];
+    const planOrder =
+      mode === "parts"
+        ? ["/parts", "/recon", "/fleet", "/move"]
+        : ["/recon", "/parts", "/fleet", "/move"];
+    tools.sort((a, b) => {
+      const groupDifference =
+        groupOrder.indexOf(a.group || "") - groupOrder.indexOf(b.group || "");
+      if (groupDifference) return groupDifference;
+      return a.group === "Plan"
+        ? planOrder.indexOf(a.href) - planOrder.indexOf(b.href)
+        : 0;
+    });
+  }
   return {
     primary: [
       { name: "Saved", href: "/saved" },
