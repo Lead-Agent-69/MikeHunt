@@ -129,7 +129,7 @@ export default function DealCheckPage() {
         </p>
       </div>
 
-      <div className="glass-panel p-1 rounded-2xl border border-[var(--b2)]">
+      <div className="rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-1">
         <form onSubmit={handleTextSubmit} className="flex flex-col relative">
           <textarea
             aria-label="Listing link or vehicle details"
@@ -138,22 +138,22 @@ export default function DealCheckPage() {
             placeholder="Paste a URL or raw text from a deal sheet..."
             className="w-full bg-transparent resize-none p-4 pb-14 outline-none text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[120px] rounded-xl"
           />
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] transition-colors text-[var(--t3)] text-sm font-semibold">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
+            <label className="flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] focus-within:ring-2 focus-within:ring-[var(--accent)] transition-colors text-[var(--t3)] text-sm font-semibold">
               <Ico name="camera" size={18} />
               <span>Upload Photo</span>
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
-                className="hidden"
+                aria-label="Upload offer photo"
+                className="sr-only"
                 onChange={onFile}
               />
             </label>
             <button
               type="submit"
               disabled={loading || !textInput.trim()}
-              className="px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="min-h-11 px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               style={{ background: "var(--t1)" }}
             >
               Analyze
@@ -191,7 +191,7 @@ export default function DealCheckPage() {
             <button
               type="button"
               onClick={retry}
-              className="rounded-lg border border-[var(--rbd)] px-3 py-1.5 font-bold text-[var(--red)]"
+              className="min-h-11 rounded-lg border border-[var(--rbd)] px-3 py-1.5 font-bold text-[var(--red)]"
             >
               Try again
             </button>

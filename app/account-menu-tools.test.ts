@@ -138,7 +138,7 @@ describe("account menu", () => {
     const source = readFileSync("components/home/AccountMenu.tsx", "utf8");
     expect(source).toContain("const signedOut = !authLoading && !dealerId;");
     expect(source).toContain('{ name: "Sign in", href: "/login" }');
-    expect(source).toMatch(/\{!signedOut && \(/);
+    expect(source).toContain("!signedOut && !authLoading");
   });
 
   it("the old More menu stays removed", () => {

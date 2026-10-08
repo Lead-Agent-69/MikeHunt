@@ -1018,20 +1018,12 @@ function EmptyFleetFilter({ label }: { label: string }) {
 
 function FleetPageHeader({ count }: { count: number }) {
   return (
-    <div className="glass-panel overflow-hidden p-4 md:p-5">
+    <header className="border-b border-[var(--b1)] pb-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-            Fleet
-          </p>
           <h1 className="mt-1 text-xl font-black text-[var(--t1)] md:text-2xl">
-            Bought units, costs, recon, and outcomes
+            Pipeline
           </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-            This is the operating board after a vehicle moves from candidate to
-            owned unit. It keeps acquisition cost, floor cost, recon, listing
-            status, offers, and final sale in one timeline.
-          </p>
         </div>
         {count > 0 && (
           <span className="w-fit rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t3)]">
@@ -1039,22 +1031,7 @@ function FleetPageHeader({ count }: { count: number }) {
           </span>
         )}
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {[
-          ["Acquire", "Save the winning deal"],
-          ["Operate", "Track transport and recon"],
-          ["Learn", "Log sale outcomes"],
-        ].map(([label, detail]) => (
-          <div
-            key={label}
-            className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2"
-          >
-            <div className="text-xs font-black text-[var(--t1)]">{label}</div>
-            <div className="mt-0.5 text-[11px] text-[var(--t5)]">{detail}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+    </header>
   );
 }
 

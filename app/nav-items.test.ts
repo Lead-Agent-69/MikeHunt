@@ -10,6 +10,7 @@ import {
   moreGroupsForMode,
   primaryNavForMode,
   navItemMatchesPath,
+  navItemIsActive,
   primaryJobForPath,
   scanHrefForMode,
   accountMenuForMode,
@@ -38,8 +39,9 @@ describe("primaryJobForPath", () => {
     expect(primaryJobForPath("/scan")).toBe("Discover");
     expect(primaryJobForPath("/deal/abc")).toBe("Discover");
     expect(primaryJobForPath("/overview/toyota/camry")).toBe("Discover");
-    expect(primaryJobForPath("/dealer-network")).toBe("Saved");
-    expect(primaryJobForPath("/dealer-network/aeofmiami.com")).toBe("Saved");
+    expect(primaryJobForPath("/dealer-network")).toBe("Discover");
+    expect(primaryJobForPath("/dealer-network/aeofmiami.com")).toBe("Discover");
+    expect(primaryJobForPath("/compare")).toBe("Deal Check");
     expect(primaryJobForPath("/alerts")).toBe("Saved");
     expect(primaryJobForPath("/searches")).toBe("Saved");
     expect(primaryJobForPath("/save")).toBe("Saved");
@@ -59,28 +61,42 @@ describe("primaryJobForPath", () => {
     expect(
       navItemMatchesPath(
         {
-          name: "Dealer network",
           href: "/dealer-network",
-          icon: (() => null) as any,
         },
         "/dealer-network/aeofmiami.com",
       ),
     ).toBe(true);
     expect(
-      navItemMatchesPath(
-        { name: "Discover", href: "/discover", icon: (() => null) as any },
-        "/discover?state=FL",
-      ),
+      navItemMatchesPath({ href: "/discover" }, "/discover?state=FL"),
     ).toBe(false);
+  });
+
+  it("highlights the same workflow even when the personal label is Plan", () => {
+    for (const mode of ["personal", "diy", "parts", "reseller", "dealer"]) {
+      const tabs = primaryNavForMode(mode);
+      for (const [path, href] of [
+        ["/compare", "/deal-check"],
+        ["/fleet", "/fleet"],
+        ["/parts", "/fleet"],
+        ["/dealer-network/shop", "/discover"],
+        ["/searches", "/saved"],
+      ]) {
+        expect(
+          tabs
+            .filter((item) => navItemIsActive(item, path))
+            .map((item) => item.href),
+        ).toEqual([href]);
+      }
+    }
   });
 
   it("keeps the primary nav to the core buyer workflow", () => {
     expect(PRIMARY.map((item) => item.name)).toEqual([
       "Discover",
       "Deal Check",
-      "Auction Lane",
-      "Pipeline",
       "Saved",
+      "Pipeline",
+      "Auction Lane",
     ]);
     expect(MOBILE_PRIMARY.map((item) => item.name)).toEqual([
       "Discover",
@@ -102,7 +118,7 @@ describe("primaryJobForPath", () => {
     expect(coverage.get("Auction Lane")?.length).toBeGreaterThan(1);
     expect(coverage.get("Pipeline")?.length).toBeGreaterThan(1);
     expect(coverage.get("Saved")?.length).toBeGreaterThan(1);
-    expect(coverage.get("Deal Check")?.length).toBe(1);
+    expect(coverage.get("Deal Check")?.length).toBeGreaterThan(1);
   });
 
   it("does not duplicate routes across primary and grouped navigation", () => {
@@ -194,14 +210,14 @@ describe("primaryJobForPath", () => {
       expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
         "Deal Check",
-        "Pipeline",
         "Saved",
+        "Plan",
       ]);
       expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
         "Deal Check",
         "Saved",
-        "Pipeline",
+        "Plan",
         "Tools",
       ]);
       const more = moreGroupsForMode(mode).flatMap((group) =>

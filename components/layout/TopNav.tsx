@@ -17,6 +17,7 @@ import {
   navItemForViewer,
   primaryNavForMode,
   primaryJobForPath,
+  navItemIsActive,
 } from "./nav-items";
 
 function IconBtn({
@@ -156,7 +157,7 @@ function TopNavContent() {
       window.removeEventListener("scroll", onScroll, { capture: true });
   }, []);
 
-  const totalAlertCount = alertCount + localSearches.count;
+  const totalAlertCount = alertCount;
   const changeLocation = (states: string[]) => {
     setScopedStates(states);
     if (["/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname)) {
@@ -214,19 +215,22 @@ function TopNavContent() {
         </Link>
         {activeJob && (
           <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex md:hidden">
-            {activeJob}
+            {activeJob === "Pipeline" &&
+            primaryNav.some((item) => item.name === "Plan")
+              ? "Plan"
+              : activeJob}
           </span>
         )}
       </div>
 
       {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
           overlap them as the window narrows. */}
-      <nav className="hidden md:flex items-center gap-0.5 shrink-0">
+      <nav
+        aria-label="Primary navigation"
+        className="hidden md:flex items-center gap-0.5 shrink-0"
+      >
         {primaryNav.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href === "/discover" && pathname === "/") ||
-            activeJob === item.name;
+          const active = navItemIsActive(item, pathname);
           return (
             <Link
               key={item.name}
@@ -236,7 +240,7 @@ function TopNavContent() {
               }
               aria-current={active ? "page" : undefined}
               aria-label={item.name}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
+              className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
                 active
                   ? "text-white"
                   : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"

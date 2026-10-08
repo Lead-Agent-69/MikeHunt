@@ -35,12 +35,13 @@ export function PurchasePipeline() {
   );
   const [saving, setSaving] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState("All stages");
-  const stageOf = (save: PurchaseSave) =>
-    save.status === "acquired"
-      ? "Purchased"
-      : save.tags
-          ?.find((tag) => tag.startsWith("purchase-stage:"))
-          ?.slice(15) || "Considering";
+  const stageOf = (save: PurchaseSave) => {
+    if (save.status === "acquired") return "Purchased";
+    const stored = save.tags
+      ?.find((tag) => tag.startsWith("purchase-stage:"))
+      ?.slice(15);
+    return stored && stages.includes(stored) ? stored : "Considering";
+  };
 
   async function update(
     save: PurchaseSave,
@@ -70,14 +71,17 @@ export function PurchasePipeline() {
   const saves = (data || []).filter(
     (save) => !["archived", "passed"].includes(save.status),
   );
+  const visibleSaves = saves.filter(
+    (save) => stageFilter === "All stages" || stageOf(save) === stageFilter,
+  );
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold">Purchase checklist</h1>
-      <div className="flex gap-3 items-center">
+      <h1 className="text-2xl font-bold">Purchase plan</h1>
+      <div className="flex flex-wrap gap-3 items-center">
         <label htmlFor="purchase-stage-filter">Stage</label>
         <select
           id="purchase-stage-filter"
-          className="rounded-lg border border-[var(--b1)] bg-[var(--s0)] p-2"
+          className="min-h-11 rounded-lg border border-[var(--b1)] bg-[var(--s0)] p-2"
           value={stageFilter}
           onChange={(event) => setStageFilter(event.target.value)}
         >
@@ -85,7 +89,10 @@ export function PurchasePipeline() {
             <option key={stage}>{stage}</option>
           ))}
         </select>
-        <Link href="/saved" className="text-[var(--blue)]">
+        <Link
+          href="/saved"
+          className="inline-flex min-h-11 items-center text-[var(--blue)]"
+        >
           Saved vehicles
         </Link>
       </div>
@@ -98,101 +105,123 @@ export function PurchasePipeline() {
           onRetry={() => void mutate()}
         />
       ) : !saves.length ? (
-        <p className="text-[var(--t3)]">
-          Save a vehicle to start planning its inspection and purchase.
-        </p>
+        <div className="space-y-3 border-t border-[var(--b1)] py-6">
+          <p className="text-[var(--t3)]">
+            Save a vehicle to start planning its inspection and purchase.
+          </p>
+          <Link
+            href="/discover"
+            className="inline-flex min-h-11 items-center font-semibold text-[var(--blue)]"
+          >
+            Find a vehicle
+          </Link>
+        </div>
+      ) : !visibleSaves.length ? (
+        <div
+          role="status"
+          className="space-y-3 border-t border-[var(--b1)] py-6"
+        >
+          <p>No vehicles in {stageFilter.toLowerCase()}.</p>
+          <button
+            type="button"
+            className="min-h-11 font-semibold text-[var(--blue)]"
+            onClick={() => setStageFilter("All stages")}
+          >
+            Show all stages
+          </button>
+        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {saves
-            .filter(
-              (save) =>
-                stageFilter === "All stages" || stageOf(save) === stageFilter,
-            )
-            .map((save) => {
-              const tags = save.tags || [];
-              return (
-                <section
-                  key={save.id}
-                  className="border border-[var(--b1)] rounded-lg bg-[var(--s0)] p-4 space-y-3"
-                >
-                  <h2 className="font-bold">
-                    <Link
-                      href={`/deal/${save.deal_id}`}
-                      className="text-[var(--blue)]"
-                    >
-                      {save.snapshot?.year} {save.snapshot?.make}{" "}
-                      {save.snapshot?.model}
-                    </Link>
-                  </h2>
-                  {save.status === "unavailable" ? (
-                    <p className="text-[var(--amber)]">
-                      Listing unavailable. Retained for your records.
-                    </p>
-                  ) : (
-                    <label className="flex gap-3 items-center">
-                      Stage
-                      <select
-                        disabled={saving != null}
-                        value={stageOf(save)}
-                        className="bg-[var(--s1)] border border-[var(--b1)] rounded-lg p-2"
-                        onChange={(event) => {
-                          const stage = event.target.value;
-                          void update(
-                            save,
-                            [
-                              ...tags.filter(
-                                (tag) => !tag.startsWith("purchase-stage:"),
-                              ),
-                              `purchase-stage:${stage}`,
-                            ],
-                            stage === "Purchased"
-                              ? "acquired"
-                              : save.status === "acquired"
-                                ? "watching"
-                                : save.status,
-                          );
-                        }}
-                      >
-                        {stages.map((stage) => (
-                          <option key={stage}>{stage}</option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  <div className="space-y-3">
-                    {tasks.map((task, index) => {
-                      const tag = `purchase-task:${index}`;
-                      return (
-                        <label
-                          key={task}
-                          className="flex min-h-11 items-center gap-3"
-                        >
-                          <input
-                            type="checkbox"
-                            disabled={saving != null}
-                            checked={tags.includes(tag)}
-                            onChange={(event) =>
-                              void update(
-                                save,
-                                event.target.checked
-                                  ? [...tags, tag]
-                                  : tags.filter((value) => value !== tag),
-                              )
-                            }
-                          />
-                          <span>{task}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p role="status" className="text-xs text-[var(--t4)]">
-                    {saving === save.id
-                      ? "Saving..."
-                      : "Checklist progress is your record; it does not verify vehicle condition."}
+          {visibleSaves.map((save) => {
+            const tags = save.tags || [];
+            return (
+              <section
+                key={save.id}
+                className="border border-[var(--b1)] rounded-lg bg-[var(--s0)] p-4 space-y-3"
+              >
+                <h2 className="font-bold">
+                  <Link
+                    href={`/deal/${save.deal_id}`}
+                    className="text-[var(--blue)]"
+                  >
+                    {[
+                      save.snapshot?.year,
+                      save.snapshot?.make,
+                      save.snapshot?.model,
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || "Saved vehicle"}
+                  </Link>
+                </h2>
+                {save.status === "unavailable" ? (
+                  <p className="text-[var(--amber)]">
+                    Listing unavailable. Retained for your records.
                   </p>
-                </section>
-              );
-            })}
+                ) : (
+                  <label className="flex gap-3 items-center">
+                    Stage
+                    <select
+                      disabled={saving != null}
+                      value={stageOf(save)}
+                      className="min-h-11 bg-[var(--s1)] border border-[var(--b1)] rounded-lg p-2"
+                      onChange={(event) => {
+                        const stage = event.target.value;
+                        void update(
+                          save,
+                          [
+                            ...tags.filter(
+                              (tag) => !tag.startsWith("purchase-stage:"),
+                            ),
+                            `purchase-stage:${stage}`,
+                          ],
+                          stage === "Purchased"
+                            ? "acquired"
+                            : save.status === "acquired"
+                              ? "watching"
+                              : save.status,
+                        );
+                      }}
+                    >
+                      {stages.map((stage) => (
+                        <option key={stage}>{stage}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <div className="space-y-3">
+                  {tasks.map((task, index) => {
+                    const tag = `purchase-task:${index}`;
+                    return (
+                      <label
+                        key={task}
+                        className="flex min-h-11 items-center gap-3"
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={saving != null}
+                          checked={tags.includes(tag)}
+                          onChange={(event) =>
+                            void update(
+                              save,
+                              event.target.checked
+                                ? [...tags, tag]
+                                : tags.filter((value) => value !== tag),
+                            )
+                          }
+                        />
+                        <span>{task}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p role="status" className="text-xs text-[var(--t4)]">
+                  {saving === save.id
+                    ? "Saving..."
+                    : "Checklist progress is your record; it does not verify vehicle condition."}
+                </p>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

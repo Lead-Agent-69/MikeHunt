@@ -337,6 +337,7 @@ export default function SavedCarsPage() {
         >
           <Input
             type="url"
+            aria-label="Vehicle listing URL"
             placeholder="Paste Craigslist, Copart, or IAA URL..."
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
@@ -388,99 +389,115 @@ export default function SavedCarsPage() {
         ))}
       </div>
 
-      <div className="glass-panel p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-              Saved vehicles
-            </p>
-            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-              {cloudSyncReady
-                ? "Your account watchlist is connected."
-                : signedIn && canShowLocalSaves
-                  ? "Account sync is unavailable — local watchlist still works."
+      <details
+        open={signedIn && !loading && !cloudSyncReady}
+        className="border-y border-[var(--b1)]"
+      >
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)]">
+          {loading
+            ? "Checking watchlist sync..."
+            : cloudSyncReady
+              ? "Account watchlist connected"
+              : signedIn
+                ? "Account sync needs attention"
+                : "Saved on this device"}
+          {unsyncedLocalItems.length > 0 &&
+            ` · ${unsyncedLocalItems.length} local only`}
+        </summary>
+        <div className="pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Saved vehicles
+              </p>
+              <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+                {cloudSyncReady
+                  ? "Your account watchlist is connected."
+                  : signedIn && canShowLocalSaves
+                    ? "Account sync is unavailable — local watchlist still works."
+                    : signedIn
+                      ? "Could not load your account watchlist."
+                      : canShowLocalSaves
+                        ? "Your watchlist is saved on this device."
+                        : "Save a vehicle to start watching locally."}
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+                {cloudSyncReady
+                  ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
                   : signedIn
-                    ? "Could not load your account watchlist."
-                    : canShowLocalSaves
-                      ? "Your watchlist is saved on this device."
-                      : "Save a vehicle to start watching locally."}
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
-              {cloudSyncReady
-                ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
-                : signedIn
-                  ? "You are signed in. Retry the connection or keep using local saves on this device."
-                  : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p className="text-lg font-black text-[var(--t1)]">
-                {unsyncedLocalItems.length}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                local only
+                    ? "You are signed in. Retry the connection or keep using local saves on this device."
+                    : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
               </p>
             </div>
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p
-                className="text-sm font-black uppercase"
-                style={{
-                  color:
-                    supabaseStatus === "ready"
-                      ? "var(--green)"
-                      : "var(--amber)",
-                }}
-              >
-                {supabaseStatus}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                data
-              </p>
-            </div>
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p
-                className="text-sm font-black uppercase"
-                style={{
-                  color: dealerId ? "var(--green)" : "var(--amber)",
-                }}
-              >
-                {dealerId ? "connected" : "guest"}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                account
-              </p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p className="text-lg font-black text-[var(--t1)]">
+                  {unsyncedLocalItems.length}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  local only
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p
+                  className="text-sm font-black uppercase"
+                  style={{
+                    color:
+                      supabaseStatus === "ready"
+                        ? "var(--green)"
+                        : "var(--amber)",
+                  }}
+                >
+                  {supabaseStatus}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  data
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p
+                  className="text-sm font-black uppercase"
+                  style={{
+                    color: dealerId ? "var(--green)" : "var(--amber)",
+                  }}
+                >
+                  {dealerId ? "connected" : "guest"}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  account
+                </p>
+              </div>
             </div>
           </div>
+          {!cloudSyncReady && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+              <p className="text-xs leading-relaxed text-[var(--amber-d)]">
+                {loading
+                  ? "Checking your account watchlist..."
+                  : signedIn
+                    ? "Your local saves remain available. Retry to load account saves."
+                    : "Your local saves remain available. Sign in to access account saves across devices."}
+              </p>
+              {signedIn ? (
+                <button
+                  type="button"
+                  onClick={() => mutate()}
+                  className="min-h-11 rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+                >
+                  Retry
+                </button>
+              ) : (
+                <a
+                  href="/login"
+                  className="inline-flex min-h-11 items-center rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+                >
+                  Sign in
+                </a>
+              )}
+            </div>
+          )}
         </div>
-        {!cloudSyncReady && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
-            <p className="text-xs leading-relaxed text-[var(--amber-d)]">
-              {loading
-                ? "Checking your account watchlist..."
-                : signedIn
-                  ? "Your local saves remain available. Retry to load account saves."
-                  : "Your local saves remain available. Sign in to access account saves across devices."}
-            </p>
-            {signedIn ? (
-              <button
-                type="button"
-                onClick={() => mutate()}
-                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
-              >
-                Retry
-              </button>
-            ) : (
-              <a
-                href="/login"
-                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
-              >
-                Sign in
-              </a>
-            )}
-          </div>
-        )}
-      </div>
+      </details>
 
       {/* BOOKMARKLET & PWA SIDEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

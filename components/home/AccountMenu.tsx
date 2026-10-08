@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -11,6 +13,7 @@ import {
   Layers,
   LogIn,
   LogOut,
+  Lock,
   MapPin,
   ScanSearch,
   Search,
@@ -37,7 +40,10 @@ import {
 } from "@/lib/supabase";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
-import { accountMenuForMode } from "@/components/layout/nav-items";
+import {
+  accountMenuForMode,
+  navItemForViewer,
+} from "@/components/layout/nav-items";
 
 const MENU_ICONS: Record<string, LucideIcon> = {
   "/saved": Bookmark,
@@ -77,15 +83,17 @@ function menuIcon(href: string): LucideIcon {
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const { intent } = useBuyerIntent();
-  // Entries come from accountMenuForMode: flip tools (Dealer network, Auction Lane) only on a
-  // reseller or dealer desk, Parts for parts/DIY/flip, and no admin entry for anyone.
+  // Keep account shortcuts compact; the role-aware tool catalog lives at /tools.
   const menu = accountMenuForMode(intent?.buyerMode);
   const { dealerId, loading: authLoading } = useDealerId();
   const signedOut = !authLoading && !dealerId;
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const panelId = useId();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
+    ref.current?.querySelector<HTMLAnchorElement>("a")?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
@@ -97,7 +105,15 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const onFocus = (event: FocusEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocus);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -110,23 +126,25 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }, []);
 
   async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
     try {
       if (isSupabaseConfigured()) {
-        await createClientComponentClient().auth.signOut();
+        const { error } = await createClientComponentClient().auth.signOut();
+        if (error) throw error;
       } else {
         window.location.assign("/api/auth/demo-logout?next=/login");
         return;
       }
+      setOpen(false);
+      router.replace("/login");
+      router.refresh();
     } catch {
-      /* best-effort */
+      toast.error("Could not log out. Please try again.");
+    } finally {
+      setLoggingOut(false);
     }
-    router.push("/login");
   }
-
-  const go = (href: string) => {
-    setOpen(false);
-    router.push(href);
-  };
 
   function MenuLink({
     entry,
@@ -136,10 +154,24 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     icon?: LucideIcon;
   }) {
     const Icon = icon ?? menuIcon(entry.href);
+    const viewer = navItemForViewer({ ...entry, icon: Icon }, signedOut);
     return (
-      <button onClick={() => go(entry.href)} className={item}>
+      <Link
+        href={viewer.href}
+        title={
+          viewer.signInRequired ? `Sign in to use ${entry.name}` : undefined
+        }
+        onClick={() => setOpen(false)}
+        className={item}
+      >
         <Icon className="h-4 w-4" aria-hidden="true" /> {entry.name}
-      </button>
+        {viewer.signInRequired && (
+          <>
+            <Lock className="ml-auto h-3 w-3" aria-hidden="true" />
+            <span className="sr-only"> (sign in required)</span>
+          </>
+        )}
+      </Link>
     );
   }
 
@@ -155,17 +187,25 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
       >
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]">
-          <MenuLink
-            entry={{ name: "All tools", href: "/tools" }}
-            icon={Grid3X3}
-          />
-          {signedOut ? (
+        <nav
+          id={panelId}
+          aria-label="Account navigation"
+          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
+        >
+          <div className="px-3 py-2 text-xs font-bold text-[var(--t3)]">
+            Account
+          </div>
+          {authLoading ? (
+            <p role="status" className="px-3 py-2 text-sm">
+              Checking account...
+            </p>
+          ) : signedOut ? (
             <>
               <MenuLink
                 entry={{ name: "Sign in", href: "/login" }}
@@ -177,42 +217,37 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
             </>
           ) : (
             <>
-              {menu.primary.map((entry) => (
+              {menu.secondary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
+              <MenuLink
+                entry={{ name: "Buying profile", href: "/onboarding?edit=1" }}
+                icon={Settings}
+              />
               <div className="my-1 border-t border-[var(--b1)]" />
-              <div className="px-3 pt-1 pb-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--t4)]">
-                Tools
-              </div>
-              {menu.tools.map((entry, index) => (
-                <div key={entry.href}>
-                  {entry.group !== menu.tools[index - 1]?.group && (
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase text-[var(--t4)]">
-                      {entry.group}
-                    </div>
-                  )}
-                  <MenuLink entry={entry} />
-                </div>
-              ))}
-              <div className="my-1 border-t border-[var(--b1)]" />
-              {menu.secondary.map((entry) => (
+              {menu.primary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
             </>
           )}
-          {!signedOut && (
+          <MenuLink
+            entry={{ name: "All tools", href: "/tools" }}
+            icon={Grid3X3}
+          />
+          {!signedOut && !authLoading && (
             <>
               <div className="my-1 border-t border-[var(--b1)]" />
               <button
                 onClick={logout}
+                disabled={loggingOut}
                 className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                Log out
+                {loggingOut ? "Logging out..." : "Log out"}
               </button>
             </>
           )}
-        </div>
+        </nav>
       )}
     </div>
   );

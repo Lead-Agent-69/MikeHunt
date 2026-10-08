@@ -55,12 +55,12 @@ export type PrimaryJob =
 export const PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-  { name: "Auction Lane", href: "/lane", icon: Gavel },
-  { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Saved", href: "/saved", icon: Bookmark },
+  { name: "Pipeline", href: "/fleet", icon: Clock },
+  { name: "Auction Lane", href: "/lane", icon: Gavel },
 ];
 
-/** The mobile bottom bar exposes the four daily buyer actions plus account. */
+/** The mobile bottom bar exposes the four daily buyer actions plus Tools. */
 export const MOBILE_TAB_COUNT = 5;
 
 /** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
@@ -90,6 +90,35 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
  * silently bouncing them.
  */
 export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
+  "/discover",
+  "/deal-check",
+  "/today",
+  "/swipe",
+  "/find",
+  "/feed",
+  "/market",
+  "/best-buy",
+  "/arbitrage",
+  "/flash-deals",
+  "/auctions",
+  "/lane",
+  "/map",
+  "/bulk",
+  "/save",
+  "/move",
+  "/recon",
+  "/finance",
+  "/parts",
+  "/list",
+  "/insights",
+  "/onboarding",
+  "/compare",
+  "/overview",
+  "/changelog",
+  "/upgrade",
+  "/deal",
+  "/searches",
+  "/settings",
   "/saved",
   "/alerts",
   "/fleet",
@@ -98,7 +127,7 @@ export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
 export type ViewerNavItem = NavItem & { signInRequired?: boolean };
 
 /**
- * For a signed-out visitor, Saved and Alerts link straight to sign-in (with a
+ * For a signed-out visitor, protected routes link straight to sign-in (with a
  * return path) and are flagged so the nav can mark them. Pass `signedOut` only
  * once the session check has finished, so signed-in users never see a flash.
  */
@@ -106,7 +135,13 @@ export function navItemForViewer(
   item: NavItem,
   signedOut: boolean,
 ): ViewerNavItem {
-  if (!signedOut || !SIGN_IN_REQUIRED_HREFS.includes(item.href)) return item;
+  if (
+    !signedOut ||
+    !SIGN_IN_REQUIRED_HREFS.some((href) =>
+      navItemMatchesPath({ href }, item.href.split("?")[0]),
+    )
+  )
+    return item;
   return {
     ...item,
     href: `/login?next=${encodeURIComponent(item.href)}`,
@@ -130,12 +165,17 @@ function isFlipOnly(item: NavItem) {
 /** Desktop primary nav for the saved buyer mode. */
 export function primaryNavForMode(buyerMode: unknown): NavItem[] {
   if (!hidesFlipNav(buyerMode)) return PRIMARY;
-  return PRIMARY.filter((item) => !isFlipOnly(item));
+  return PRIMARY.filter((item) => !isFlipOnly(item)).map((item) =>
+    item.href === "/fleet" ? { ...item, name: "Plan" } : item,
+  );
 }
 
 /** Purchase planning is available to every buyer mode. */
-export function mobileNavForMode(_buyerMode: unknown): NavItem[] {
-  return MOBILE_PRIMARY;
+export function mobileNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return MOBILE_PRIMARY;
+  return MOBILE_PRIMARY.map((item) =>
+    item.href === "/fleet" ? { ...item, name: "Plan" } : item,
+  );
 }
 
 /**
@@ -343,13 +383,25 @@ export const MORE_GROUPS: NavGroup[] = [
   },
 ];
 
-export function navItemMatchesPath(item: NavItem, pathname: string) {
+export function navItemMatchesPath(
+  item: Pick<NavItem, "href">,
+  pathname: string,
+) {
   const normalized = pathname === "/" ? "/discover" : pathname;
   return normalized === item.href || normalized.startsWith(`${item.href}/`);
 }
 
 export function primaryJobForPath(pathname: string): PrimaryJob | null {
   const normalized = pathname === "/" ? "/discover" : pathname;
+  if (navItemMatchesPath({ href: "/compare" }, normalized)) return "Deal Check";
+  if (navItemMatchesPath({ href: "/dealer-network" }, normalized))
+    return "Discover";
+  if (
+    ["/insights", "/parts"].some((href) =>
+      navItemMatchesPath({ href }, normalized),
+    )
+  )
+    return "Pipeline";
   const primary = PRIMARY.find((item) => navItemMatchesPath(item, normalized));
   if (primary) return primary.name as PrimaryJob;
 
@@ -420,27 +472,28 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   return null;
 }
 
+/** Route ownership stays stable when the buyer-facing label is Plan instead of Pipeline. */
+export function navItemIsActive(item: NavItem, pathname: string): boolean {
+  if (navItemMatchesPath(item, pathname)) return true;
+  const job = primaryJobForPath(pathname);
+  return (
+    job !== null &&
+    PRIMARY.some(
+      (primary) =>
+        primary.href === item.href && primaryJobForPath(primary.href) === job,
+    )
+  );
+}
+
 export function navJobCoverage() {
   const covered = new Map<PrimaryJob, NavItem[]>(
     PRIMARY.map((item) => [item.name as PrimaryJob, [item]]),
   );
   for (const group of MORE_GROUPS) {
-    if (
-      ![
-        "Discover",
-        "Discover collections",
-        "Auction Lane",
-        "Pipeline",
-        "Saved",
-      ].includes(group.group)
-    ) {
-      continue;
+    for (const item of group.items) {
+      const key = primaryJobForPath(item.href);
+      if (key) covered.set(key, [...(covered.get(key) || []), item]);
     }
-    const key =
-      group.group === "Discover collections"
-        ? "Discover"
-        : (group.group as PrimaryJob);
-    covered.set(key, [...(covered.get(key) || []), ...group.items]);
   }
   return covered;
 }
@@ -481,8 +534,8 @@ export const ADMIN_GROUP: NavGroup = {
 export type AccountMenuEntry = { name: string; href: string; group?: string };
 
 /**
- * Signed-in account menu, in order: Saved, Saved searches, Alerts, then a
- * compact Tools section filtered by desk, then Settings and Help. Labels stay
+ * Shared role-aware catalog for Tools, workspace navigation and search.
+ * Account renders the primary and secondary shortcuts, not the full catalog. Labels stay
  * buyer-neutral (no profit or inventory wording). Flip tools appear only on a
  * reseller or dealer desk. There is no admin entry here for anyone.
  */

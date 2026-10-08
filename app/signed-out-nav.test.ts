@@ -12,7 +12,7 @@ describe("signed-out nav", () => {
       navItemForViewer(item, true),
     );
     const saved = desktop.find((item) => item.name === "Saved");
-    const pipeline = desktop.find((item) => item.name === "Pipeline");
+    const pipeline = desktop.find((item) => item.name === "Plan");
     expect(saved).toMatchObject({
       href: "/login?next=%2Fsaved",
       signInRequired: true,
@@ -21,9 +21,10 @@ describe("signed-out nav", () => {
       href: "/login?next=%2Ffleet",
       signInRequired: true,
     });
-    expect(desktop.find((item) => item.name === "Discover")).not.toHaveProperty(
-      "signInRequired",
-    );
+    expect(desktop.find((item) => item.name === "Discover")).toMatchObject({
+      href: "/login?next=%2Fdiscover",
+      signInRequired: true,
+    });
   });
 
   it("flags the mobile tabs the same way and keeps five tabs", () => {
@@ -33,7 +34,7 @@ describe("signed-out nav", () => {
     expect(tabs).toHaveLength(5);
     expect(
       tabs.filter((item) => item.signInRequired).map((item) => item.name),
-    ).toEqual(["Saved", "Pipeline"]);
+    ).toEqual(["Discover", "Deal Check", "Saved", "Plan"]);
   });
 
   it("leaves signed-in (or still checking) visitors untouched", () => {

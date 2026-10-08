@@ -3,30 +3,32 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
-import { accountMenuForMode, MORE_GROUPS } from "./nav-items";
+import { workspaceGroupsForMode, navItemMatchesPath } from "./nav-items";
 
 export function WorkspaceNav() {
   const pathname = usePathname();
   const { intent } = useBuyerIntent();
-  if (pathname === "/discover" || pathname === "/") return null;
-  const tools = accountMenuForMode(intent?.buyerMode).tools;
-  const current = tools.find((tool) => {
-    const base = tool.href.split("?")[0];
-    return pathname === base || pathname.startsWith(`${base}/`);
-  });
+  if (["/", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname))
+    return null;
+  const groups = workspaceGroupsForMode(intent?.buyerMode);
+  const current = groups.find((group) =>
+    group.items.some((item) =>
+      navItemMatchesPath({ ...item, href: item.href.split("?")[0] }, pathname),
+    ),
+  );
   if (!current) return null;
-  const peers = tools.filter((tool) => tool.group === current.group);
-  const catalog = MORE_GROUPS.flatMap((group) => group.items);
+  const peers = current.items;
   return (
     <nav
-      aria-label={`${current.group} desks`}
+      aria-label={`${current.group} navigation`}
       className="mb-4 flex gap-1 overflow-x-auto border-b border-[var(--b1)]"
     >
       {peers.map((tool) => {
-        const Icon = catalog.find(
-          (item) => item.href === tool.href.split("?")[0],
-        )?.icon;
-        const active = tool === current;
+        const Icon = tool.icon;
+        const active = navItemMatchesPath(
+          { ...tool, href: tool.href.split("?")[0] },
+          pathname,
+        );
         return (
           <Link
             key={tool.href}

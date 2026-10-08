@@ -6,29 +6,25 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
-import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
   mobileNavForMode,
   navItemForViewer,
-  navItemMatchesPath,
-  primaryJobForPath,
+  navItemIsActive,
 } from "@/components/layout/nav-items";
 
 export function BottomNav() {
   const pathname = usePathname();
   const reducedMotion = useReducedMotion();
   const localSaved = useLocalSavedVehicles();
-  const localSearches = useLocalSavedSearches();
-  const activeJob = primaryJobForPath(pathname);
   const { intent } = useBuyerIntent();
   const { dealerId, loading: authLoading } = useDealerId();
   const signedOut = !authLoading && !dealerId;
   const tabs = mobileNavForMode(intent?.buyerMode).map((item) =>
     navItemForViewer(item, signedOut),
   );
-  const watchScopeCount = localSaved.count + localSearches.count;
+  const watchScopeCount = localSaved.count;
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -51,10 +47,7 @@ export function BottomNav() {
       }}
     >
       {tabs.map((item) => {
-        const isActive =
-          navItemMatchesPath(item, pathname) ||
-          (item.name === "Discover" && pathname === "/") ||
-          activeJob === item.name;
+        const isActive = navItemIsActive(item, pathname);
         return (
           <Link
             key={item.name}
@@ -70,9 +63,9 @@ export function BottomNav() {
               item.signInRequired
                 ? `Sign in to use ${item.name}`
                 : item.name === "Saved" && watchScopeCount
-                  ? `${watchScopeCount} active watch scope${
+                  ? `${watchScopeCount} vehicle${
                       watchScopeCount === 1 ? "" : "s"
-                    }`
+                    } saved on this device`
                   : item.name
             }
           >
