@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("local Docker scraper runner config", () => {
+  it("retains optional native runtime entries for clean Linux installs", () => {
+    const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+    for (const name of ["@emnapi/core", "@emnapi/runtime"]) {
+      expect(lock.packages[`node_modules/${name}`]?.version).toBeTruthy();
+      expect(lock.packages[`node_modules/${name}`]?.integrity).toMatch(
+        /^sha512-/,
+      );
+    }
+  });
   it("keeps production infrastructure private and waits for readiness", () => {
     const compose = readFileSync("docker-compose.yml", "utf8");
     expect(compose).toContain('"127.0.0.1:6379:6379"');

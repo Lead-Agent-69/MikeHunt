@@ -12,6 +12,8 @@ import {
 } from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
+import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
+import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import {
   isAutomationAllowedSource,
   advanceSweep,
@@ -716,6 +718,14 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     currentStatus.lastError = undefined;
     await writeStatus();
 
+    const stopHeartbeat = startScopedJobHeartbeat(
+      supabase,
+      job.id,
+      WORKER_ID,
+      (error) => {
+        console.warn("[scrape-queue] heartbeat failed:", error);
+      },
+    );
     try {
       if (!sourceIds.length)
         throw new Error(
@@ -739,39 +749,35 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           void writeStatus();
         },
       });
-      const summary = {
-        total: results.length,
-        successful: results.filter((result) => result.success).length,
-        failed: results.filter((result) => !result.success).length,
-        totalDeals: results.reduce(
-          (sum, result) => sum + Number(result.dealsFound || 0),
-          0,
-        ),
-        totalDuration: results.reduce(
-          (sum, result) => sum + Number(result.duration || 0),
-          0,
-        ),
-        results,
-      };
-      const { error } = await supabase
+      const summary = summarizeScopedScrapeResults(results);
+      const succeeded = summary.successful > 0;
+      const { data: completedJob, error } = await supabase
         .from("scrape_jobs")
         .update({
-          status: "completed",
+          status: succeeded ? "completed" : "failed",
+          error_message: succeeded
+            ? null
+            : "None of the selected sources could be checked. Please retry or choose another source.",
           listings_found: summary.totalDeals,
-          listings_saved: summary.totalDeals,
+          listings_saved: summary.totalSaved,
           result: summary,
           completed_at: new Date().toISOString(),
           heartbeat_at: new Date().toISOString(),
         })
         .eq("id", job.id)
-        .eq("worker_id", WORKER_ID);
+        .eq("worker_id", WORKER_ID)
+        .eq("status", "running")
+        .select("id")
+        .maybeSingle();
       if (error)
         throw new Error(`Could not complete queue job: ${error.message}`);
+      if (!completedJob)
+        throw new Error("Queue job is no longer owned by this worker");
       currentStatus.results = results;
       currentStatus.completedSources = results.length;
       currentStatus.progress = 100;
       console.log(
-        `[scrape-queue] completed ${job.id}: ${summary.successful}/${summary.total} sources, ${summary.totalDeals} rows`,
+        `[scrape-queue] ${succeeded ? "completed" : "failed"} ${job.id}: ${summary.successful}/${summary.total} sources, ${summary.totalDeals} found, ${summary.totalSaved} saved`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -785,9 +791,11 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           heartbeat_at: new Date().toISOString(),
         })
         .eq("id", job.id)
-        .eq("worker_id", WORKER_ID);
+        .eq("worker_id", WORKER_ID)
+        .eq("status", "running");
       console.error(`[scrape-queue] failed ${job.id}:`, message);
     } finally {
+      stopHeartbeat();
       currentStatus.activeJob = undefined;
       currentStatus.currentSources = [];
       await writeStatus();

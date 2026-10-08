@@ -8,7 +8,15 @@ import {
 
 function chain(terminal: Record<string, unknown>) {
   const api: Record<string, any> = {};
-  for (const method of ["select", "eq", "in", "order", "limit", "insert"]) {
+  for (const method of [
+    "select",
+    "eq",
+    "in",
+    "order",
+    "limit",
+    "insert",
+    "contains",
+  ]) {
     api[method] = vi.fn(() => api);
   }
   api.maybeSingle = vi.fn(async () => terminal.maybeSingle);
@@ -70,6 +78,33 @@ describe("buyer-scoped scrape queue", () => {
 
     expect(result).toEqual({ job: existing, deduplicated: true });
     expect(query.insert).not.toHaveBeenCalled();
+    expect(query.eq).toHaveBeenCalledWith(
+      "scope",
+      JSON.stringify({ state: "FL" }),
+    );
+    expect(query.eq).toHaveBeenCalledWith("dry_run", false);
+    expect(query.contains).toHaveBeenCalledWith("source_ids", [
+      "curated_dealers",
+    ]);
+  });
+
+  it("does not reuse a job with additional unselected sources", async () => {
+    const query = chain({
+      maybeSingle: {
+        data: { source_ids: ["curated_dealers", "gsa_auctions"] },
+        error: null,
+      },
+      single: { data: { id: "new-job" }, error: null },
+    });
+    const result = await enqueueScopedScrapeJob({ from: () => query } as any, {
+      requestedBy: "user-1",
+      sourceIds: ["curated_dealers"],
+      scope: { state: "MO" },
+      orchestrator: "concurrent",
+      concurrency: 1,
+    });
+    expect(result.deduplicated).toBe(false);
+    expect(query.insert).toHaveBeenCalled();
   });
 
   it("claims through the atomic database function", async () => {

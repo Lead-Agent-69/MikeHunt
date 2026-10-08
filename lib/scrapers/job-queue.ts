@@ -50,13 +50,21 @@ export async function enqueueScopedScrapeJob(
       .from("scrape_jobs")
       .select("*")
       .eq("requested_by", input.requestedBy)
+      .eq("scope", JSON.stringify(input.scope))
+      .eq("dry_run", Boolean(input.dryRun))
+      .contains("source_ids", input.sourceIds)
       .in("status", ["pending", "running"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (activeError)
       throw new Error(`Could not inspect scrape queue: ${activeError.message}`);
-    if (active) return { job: active as ScopedScrapeJob, deduplicated: true };
+    if (
+      active &&
+      Array.isArray(active.source_ids) &&
+      new Set(active.source_ids).size === new Set(input.sourceIds).size
+    )
+      return { job: active as ScopedScrapeJob, deduplicated: true };
   }
 
   const row = {
