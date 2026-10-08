@@ -17,6 +17,11 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).toContain("setShowInsights(event.currentTarget.open)");
     expect(page).toContain("Market insights and saved interests");
   });
+  it("does not submit or navigate an incomplete account scope during hydration", () => {
+    expect(page).toContain("if (!discoverReady) return;");
+    expect(page).toContain("disabled={!discoverReady}");
+    expect(page).toContain("{discoverReady && (");
+  });
 
   it("provides labeled carousel controls and cleans up scroll observers", () => {
     expect(page).toContain("Previous vehicles in");

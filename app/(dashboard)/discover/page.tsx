@@ -405,6 +405,7 @@ export default function DiscoverPage() {
           aria-label="Buying for"
           onSubmit={(event) => {
             event.preventDefault();
+            if (!discoverReady) return;
             const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
             const next = applyBuyingForIntent(buyerScope, {
               make: makeDraft,
@@ -439,7 +440,10 @@ export default function DiscoverPage() {
                 "Refine makes and budgets without leaving your matching results."}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <fieldset
+            disabled={!discoverReady}
+            className="grid min-w-0 gap-2 sm:grid-cols-3"
+          >
             <label className="block text-xs font-semibold text-[var(--t3)]">
               Make
               <input
@@ -478,20 +482,23 @@ export default function DiscoverPage() {
                 ))}
               </select>
             </label>
-          </div>
+          </fieldset>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
+              disabled={!discoverReady}
               className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
             >
               Apply filters
             </button>
-            <Link
-              href={`/scan${scopeQuery}`}
-              className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
-            >
-              View all matching vehicles
-            </Link>
+            {discoverReady && (
+              <Link
+                href={`/scan${scopeQuery}`}
+                className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+              >
+                View all matching vehicles
+              </Link>
+            )}
           </div>
         </form>
       </section>
