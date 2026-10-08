@@ -42,12 +42,16 @@ function topCounts(map: Map<string, number>, limit = 40) {
 
 function titleBucket(condition?: string | null) {
   const c = String(condition || "").toLowerCase();
-  if (!c) return null;
-  if (c.includes("salvage")) return "salvage";
-  if (c.includes("rebuilt")) return "rebuilt";
-  if (c.includes("parts")) return "parts";
-  if (c.includes("clean")) return "clean";
-  return null;
+  return (
+    (
+      {
+        salvage_title: "salvage",
+        rebuilt_title: "rebuilt",
+        parts_only: "parts",
+        clean_title: "clean",
+      } as Record<string, string>
+    )[c] || null
+  );
 }
 
 function sellerBucket(source?: string | null, sourceUrl?: string | null) {
