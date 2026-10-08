@@ -10,8 +10,6 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { useDealerId } from "@/hooks/useDealerId";
 
-const DAILY_FLOOR_RATE = 35;
-
 function ReconCard({
   item,
   now,
@@ -22,33 +20,39 @@ function ReconCard({
   onUpdated: (item: InventoryItem) => void;
 }) {
   const [advancing, setAdvancing] = useState(false);
+  const [updateError, setUpdateError] = useState("");
 
-  const rate = item.dailyFloorRate > 0 ? item.dailyFloorRate : DAILY_FLOOR_RATE;
+  const rate = Math.max(0, item.dailyFloorRate);
   const floorMs = now - new Date(item.floorDate).getTime();
   const days = Math.max(0, Math.floor(floorMs / 86_400_000));
   const carryNow = days * rate;
 
   const handleAdvance = useCallback(async () => {
+    if (advancing) return;
     setAdvancing(true);
+    setUpdateError("");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
     try {
       const res = await fetch("/api/inventory", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: item.id, stage: "listed" }),
+        signal: controller.signal,
       });
       const data = await res.json();
-      if (data.item) onUpdated(data.item);
+      if (!res.ok || data.item?.id !== item.id || data.item?.stage !== "listed")
+        throw new Error("Unconfirmed update");
+      onUpdated(data.item);
+    } catch {
+      setUpdateError(
+        "The stage change was not confirmed. Reload Recon before retrying.",
+      );
     } finally {
+      clearTimeout(timer);
       setAdvancing(false);
     }
-  }, [item.id, onUpdated]);
-
-  const repairProgress =
-    item.repairCost > 0
-      ? ((item.reconCost + item.repairCost) / (item.totalCost * 0.2)) * 100
-      : 0; // Rough estimate of repair progress relative to 20% of cost
-
-  const progressPct = Math.min(100, Math.max(10, repairProgress));
+  }, [item.id, onUpdated, advancing]);
 
   return (
     <div className="panel p-5 space-y-4 reveal-on-scroll transition-all">
@@ -75,32 +79,21 @@ function ReconCard({
         </div>
       </div>
 
-      <div className="space-y-2 p-3 rounded-[var(--r3)] bg-[var(--s3)] border border-[var(--b1)]">
-        <div className="flex justify-between items-center text-xs text-[var(--t2)] mb-1">
-          <span>Repair Progress</span>
-          <Mono className="font-bold text-[var(--blue)]">
-            {progressPct.toFixed(0)}%
-          </Mono>
-        </div>
-        <div className="relative h-1.5 w-full rounded-full overflow-hidden bg-[var(--s5)]">
-          <div
-            className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 bg-[var(--blue)] shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
+      <p className="text-xs text-[var(--t3)]">
+        Repair completion is not tracked here. Confirm the work and inspection
+        before moving to Listed.
+      </p>
 
       <div className="grid grid-cols-2 gap-3 pt-2">
         <div>
           <p className="text-[10px] uppercase font-semibold text-[var(--t5)] tracking-widest mb-1">
-            Est. Repair Cost
+            Recorded Repair Cost
           </p>
           <Mono className="text-sm font-bold text-[var(--t2)]">
             $
-            {(item.repairCost || item.totalCost * 0.15).toLocaleString(
-              undefined,
-              { maximumFractionDigits: 0 },
-            )}
+            {item.repairCost.toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })}
           </Mono>
         </div>
         <div>
@@ -128,6 +121,11 @@ function ReconCard({
           </>
         )}
       </button>
+      {updateError && (
+        <p role="alert" className="text-sm text-[var(--red)]">
+          {updateError}
+        </p>
+      )}
     </div>
   );
 }
@@ -183,7 +181,7 @@ export default function ReconPage() {
         0,
         Math.floor((now - new Date(f.floorDate).getTime()) / 86_400_000),
       );
-      const r = f.dailyFloorRate > 0 ? f.dailyFloorRate : DAILY_FLOOR_RATE;
+      const r = Math.max(0, f.dailyFloorRate);
       return a + d * r;
     }, 0);
     const totalRepair = fleet.reduce(
@@ -213,7 +211,8 @@ export default function ReconPage() {
             Back-Lot Recon Tracker
           </h1>
           <p className="text-xs md:text-sm text-[var(--t4)] mt-0.5">
-            Track vehicles in repair, carrying costs, and shop progress.
+            Review recorded repair costs and confirm readiness to list. Spending
+            does not establish repair completion.
           </p>
         </div>
       </div>

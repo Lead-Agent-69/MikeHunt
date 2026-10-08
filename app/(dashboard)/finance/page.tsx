@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { useDealerId } from "@/hooks/useDealerId";
 import { fetcher } from "@/lib/swr-config";
+import { carryingCost } from "@/lib/finance/carrying-cost";
 
 export default function FinancePage() {
   // Calculator state
@@ -74,10 +75,10 @@ export default function FinancePage() {
         0,
         Math.floor((now - new Date(item.floorDate).getTime()) / 86400000),
       );
-      return acc + days * (item.dailyFloorRate > 0 ? item.dailyFloorRate : 35);
+      return acc + days * Math.max(0, item.dailyFloorRate);
     }, 0);
 
-    const estProfit = inventory.reduce((acc, f) => {
+    const estProfit = active.reduce((acc, f) => {
       const mv = f.marketValue ?? f.listPrice ?? 0;
       return mv > 0 ? acc + mv - f.totalCost : acc;
     }, 0);
@@ -103,14 +104,12 @@ export default function FinancePage() {
   }, [inventory]);
 
   // Calculator logic
-  const p = parseFloat(principal) || 0;
-  const r = (parseFloat(interestRate) || 0) / 100;
-  const d = parseFloat(calcDays) || 0;
-
-  const dailyCost = (p * r) / 365;
-  const monthlyCost = dailyCost * 30;
-  const totalCalcCost = dailyCost * d;
-  const annualCost = dailyCost * 365;
+  const d = calcDays.trim() ? Number(calcDays) : NaN;
+  const calculation = carryingCost(
+    principal.trim() ? Number(principal) : NaN,
+    interestRate.trim() ? Number(interestRate) : NaN,
+    d,
+  );
 
   // Lender table logic
   const sortedLenders = useMemo(() => {
@@ -146,6 +145,11 @@ export default function FinancePage() {
       )}
 
       {/* Fleet Cost Summary */}
+      <p className="text-xs text-[var(--t3)]">
+        Summary covers up to 100 recorded vehicles. Price less cost uses
+        available asking/value inputs, omits missing values and is not realized
+        profit. Carry uses recorded daily rates.
+      </p>
       {!loading && !error && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Panel
@@ -156,7 +160,7 @@ export default function FinancePage() {
               className="text-[10px] uppercase font-semibold mb-1"
               style={{ color: "var(--t5)", letterSpacing: "0.07em" }}
             >
-              Fleet Value
+              Recorded Costs
             </p>
             <Mono className="text-lg font-black text-[var(--t1)] drop-shadow-sm">
               $
@@ -190,7 +194,7 @@ export default function FinancePage() {
               className="text-[10px] uppercase font-semibold mb-1"
               style={{ color: "var(--t5)", letterSpacing: "0.07em" }}
             >
-              Est. Profit
+              Price Less Cost
             </p>
             <Mono className="text-lg font-black text-[var(--green)] drop-shadow-sm">
               {stats.estProfit >= 0 ? "+" : ""}$
@@ -278,27 +282,34 @@ export default function FinancePage() {
             </div>
 
             <div className="pt-4 border-t border-[var(--b1)] space-y-2">
+              <p className="text-xs text-[var(--t3)]">
+                Simple monthly interest over a 30-day planning month. Excludes
+                fees and compounding; verify the lender's terms.
+              </p>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-[var(--t3)]">Daily Cost</span>
                 <Mono className="text-xs font-bold text-[var(--t2)]">
-                  ${dailyCost.toFixed(2)}
+                  {calculation
+                    ? `$${calculation.daily.toFixed(2)}`
+                    : "Enter valid amounts"}
                 </Mono>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-[var(--t3)]">Monthly Cost</span>
                 <Mono className="text-xs font-bold text-[var(--t2)]">
-                  ${monthlyCost.toFixed(2)}
+                  {calculation
+                    ? `$${calculation.monthly.toFixed(2)}`
+                    : "Not calculated"}
                 </Mono>
               </div>
               <div className="flex justify-between items-center pt-2">
                 <span className="text-sm font-bold text-[var(--t1)]">
-                  Cost over {d} days
+                  Cost over {Number.isFinite(d) && d >= 0 ? d : "--"} days
                 </span>
                 <Mono className="text-sm font-black text-[var(--red)]">
-                  $
-                  {totalCalcCost.toLocaleString(undefined, {
-                    maximumFractionDigits: 0,
-                  })}
+                  {calculation
+                    ? `$${calculation.total.toFixed(2)}`
+                    : "Not calculated"}
                 </Mono>
               </div>
             </div>

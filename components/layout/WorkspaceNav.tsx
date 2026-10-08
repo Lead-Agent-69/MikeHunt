@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { workspaceGroupsForMode, navItemMatchesPath } from "./nav-items";
 
 export function WorkspaceNav() {
   const pathname = usePathname();
   const { intent } = useBuyerIntent();
+  const { expanded } = useWorkspace();
   if (["/", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname))
     return null;
-  const groups = workspaceGroupsForMode(intent?.buyerMode);
+  const groups = workspaceGroupsForMode(intent?.buyerMode, expanded);
   const current = groups.find((group) =>
     group.items.some((item) =>
       navItemMatchesPath({ ...item, href: item.href.split("?")[0] }, pathname),

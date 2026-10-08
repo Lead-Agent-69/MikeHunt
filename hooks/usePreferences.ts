@@ -8,6 +8,8 @@ import type { HomeLocation, SearchLocation } from "@/lib/preferences/locations";
 // preferred state without re-picking each visit.
 
 export interface Prefs {
+  workspaceMode?: "focused" | "expanded";
+  workspaceAccess?: "community";
   /** Where the user lives (signup / profile). Weighted 3x for scraping; local radius + same-state comps. */
   homeLocation?: HomeLocation | null;
   /** Markets the user added on purpose (max 10). Weighted 2x; own comps + travel/shipping in ranking. */
@@ -47,7 +49,7 @@ const fetcher = async (u: string) => {
 };
 
 export function usePreferences() {
-  const { data, mutate, isLoading } = useSWR<
+  const { data, mutate, isLoading, error } = useSWR<
     { prefs: Prefs; authed?: boolean } | { error: string }
   >("/api/preferences", fetcher, { revalidateOnFocus: false });
 
@@ -70,5 +72,5 @@ export function usePreferences() {
     return next;
   };
 
-  return { prefs, save, authed, isLoading };
+  return { prefs, save, authed, isLoading, error };
 }

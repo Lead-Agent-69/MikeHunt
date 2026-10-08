@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { CarFront, Grid3X3, X, type LucideIcon } from "lucide-react";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   navItemForViewer,
   scanHrefForMode,
@@ -30,9 +31,13 @@ export function CommandPalette() {
   const returnFocus = useRef<HTMLElement | null>(null);
   const { intent } = useBuyerIntent();
   const { dealerId, loading } = useDealerId();
+  const { expanded } = useWorkspace();
 
   const commands: Command[] = useMemo(() => {
-    const groups = workspaceGroupsForMode(intent?.buyerMode);
+    const groups = workspaceGroupsForMode(
+      intent?.buyerMode,
+      expanded || !!search.trim(),
+    );
     return [
       {
         id: "/tools",
@@ -57,7 +62,7 @@ export function CommandPalette() {
         }),
       ),
     ];
-  }, [router, intent?.buyerMode, dealerId, loading]);
+  }, [router, intent?.buyerMode, dealerId, loading, expanded, search]);
 
   const filteredCommands = useMemo(() => {
     if (!search) return commands;

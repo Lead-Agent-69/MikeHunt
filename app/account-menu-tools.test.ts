@@ -72,10 +72,10 @@ describe("account menu", () => {
         expect.arrayContaining([
           ...names(accountMenuForMode("personal").tools),
           "Parts",
-          "Recon",
         ]),
       );
-      expect(menu.tools[0].name).toBe(mode === "parts" ? "Parts" : "Recon");
+      expect(menu.tools[0].name).toBe("Parts");
+      expect(menu.tools.map((tool) => tool.href)).not.toContain("/recon");
       expect(menu.tools.some((tool) => tool.group === "Business")).toBe(false);
     }
   });

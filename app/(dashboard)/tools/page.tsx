@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Search, Settings2 } from "lucide-react";
 import { useBuyerIntent, BUYER_MODES } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   navItemForViewer,
   workspaceGroupsForMode,
@@ -13,9 +14,10 @@ import {
 export default function ToolsPage() {
   const { intent } = useBuyerIntent();
   const { dealerId, loading } = useDealerId();
+  const { expanded } = useWorkspace();
   const [search, setSearch] = useState("");
   const term = search.trim().toLowerCase();
-  const groups = workspaceGroupsForMode(intent?.buyerMode)
+  const groups = workspaceGroupsForMode(intent?.buyerMode, expanded || !!term)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
@@ -27,7 +29,7 @@ export default function ToolsPage() {
     .filter((group) => group.items.length > 0);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-12">
+    <div className="mx-auto max-w-5xl space-y-6 pb-28">
       <header className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[var(--t1)]">Tools</h1>
@@ -44,6 +46,18 @@ export default function ToolsPage() {
           <Settings2 className="h-5 w-5" aria-hidden="true" />
         </Link>
       </header>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3 text-sm">
+        <span className="text-[var(--t3)]">
+          {expanded ? "Expanded workspace" : "Focused workspace"}
+        </span>
+        <Link
+          href="/upgrade"
+          className="inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--blue)]"
+        >
+          <Settings2 className="h-4 w-4" aria-hidden="true" />
+          {expanded ? "Workspace options" : "Free workspace upgrade"}
+        </Link>
+      </div>
       <label className="flex min-h-11 items-center gap-3 border-b border-[var(--b2)] px-2">
         <Search
           className="h-5 w-5 shrink-0 text-[var(--t3)]"
@@ -77,7 +91,12 @@ export default function ToolsPage() {
                         aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1 break-words">
-                        {entry.name}
+                        <span className="block">{entry.name}</span>
+                        {entry.description && (
+                          <span className="mt-1 block text-xs font-normal text-[var(--t3)]">
+                            {entry.description}
+                          </span>
+                        )}
                       </span>
                       <ArrowUpRight
                         className="h-4 w-4 shrink-0 text-[var(--t4)]"

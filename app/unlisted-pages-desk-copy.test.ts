@@ -17,25 +17,17 @@ describe("flip copy on pages outside the menus", () => {
     expect(today).toContain('flipDesk ? "bidding" : "buying"');
   });
 
-  it("Parts shows Teardown ROI to parts buyers and flip desks only", () => {
+  it("Parts uses entered budgets and limits teardown to parts and flip desks", () => {
     const parts = read("app/(dashboard)/parts/page.tsx");
-    expect(parts).toMatch(
-      /const showTeardown =\s*isFlipBuyerMode\(intent\?\.buyerMode\) \|\|\s*normalizeFlipLeadMode\(intent\?\.buyerMode\) === "parts";/,
-    );
-    expect(parts).toMatch(
-      /\.\.\.\(showTeardown\s*\?\s*\[\{ id: "teardown", label: "Teardown ROI" \}\]\s*:\s*\[\]\)/,
-    );
-    expect(parts).toContain(
-      '!showTeardown && activeTab === "teardown" ? "repair" : activeTab',
-    );
-    expect(parts).not.toMatch(/\{activeTab === "/);
-    expect(parts).not.toContain("arbitrage and recon");
+    expect(parts).toContain('const mode = allowTeardown ? tab : "repair"');
+    expect(parts).toContain('intent?.buyerMode === "parts"');
+    expect(parts).not.toContain("Standard 2025");
+    expect(parts).not.toContain("% ROI");
   });
-
-  it("Upgrade only promises profit to flip desks", () => {
+  it("Upgrade is free and never promises profit", () => {
     const upgrade = read("app/(dashboard)/upgrade/page.tsx");
-    expect(upgrade).toMatch(
-      /isFlipBuyerMode\(intent\?\.buyerMode\)\s*\?\s*"Every plan profits you more than it costs\. Cancel anytime\."\s*:\s*"Pick the plan that fits how you buy\. Cancel anytime\."/,
-    );
+    expect(upgrade).toContain("Free workspace upgrade");
+    expect(upgrade).not.toContain("Every plan profits");
+    expect(upgrade).not.toContain("/api/billing/checkout");
   });
 });

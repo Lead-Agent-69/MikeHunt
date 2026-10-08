@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
+import { FOCUSED_TOOLS } from "@/lib/workspace";
 
 export type NavItem = {
   name: string;
@@ -213,19 +214,20 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Feed",
         href: "/feed",
         icon: Flame,
-        description: "Browse recent listings from saved inventory.",
+        description:
+          "Browse recent indexed listings; freshness depends on the source.",
       },
       {
         name: "Swipe",
         href: "/swipe",
         icon: Layers,
-        description: "Fast yes/no review of saved listings.",
+        description: "Review search results one vehicle at a time.",
       },
       {
         name: "Map search",
         href: "/map",
         icon: MapPin,
-        description: "Browse opportunities by state and distance.",
+        description: "Browse listings with known map coordinates.",
       },
       {
         name: "Flash deals",
@@ -295,7 +297,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Parts",
         href: "/parts",
         icon: Wrench,
-        description: "Part-out and teardown value checks.",
+        description:
+          "Entered repair and teardown budgets, not a valuation or shop quote.",
       },
     ],
   },
@@ -346,7 +349,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Recon",
         href: "/recon",
         icon: Hammer,
-        description: "Repair/reconditioning assumptions and costs.",
+        description:
+          "Recorded recon costs and readiness to list, not repair completion tracking.",
       },
       {
         name: "List a car",
@@ -358,13 +362,15 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Bulk actions",
         href: "/bulk",
         icon: Layers,
-        description: "Batch review and cleanup workflows.",
+        description:
+          "Find multiple listings of the same make and model. Not a bulk purchase.",
       },
       {
         name: "Finance",
         href: "/finance",
         icon: Banknote,
-        description: "Capital, floorplan, and lender tools.",
+        description:
+          "Estimate financing costs and compare recorded lender rates. Not a loan application.",
       },
     ],
   },
@@ -381,7 +387,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Upgrade",
         href: "/upgrade",
         icon: Sparkles,
-        description: "Plan limits and premium sourcing tools.",
+        description:
+          "Free customer access and workspace options. No payment required.",
       },
       {
         name: "What's new",
@@ -581,6 +588,8 @@ export function accountMenuForMode(buyerMode: unknown): {
   ];
   if (partsDesk) {
     tools.push({ name: "Parts", href: "/parts", group: "Plan" });
+  }
+  if (flip) {
     tools.push({ name: "Recon", href: "/recon", group: "Plan" });
   }
   if (flip) {
@@ -593,7 +602,7 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Search markets", href: "/find", group: "Business" },
       { name: "Next best buy", href: "/best-buy", group: "Business" },
       { name: "List vehicles", href: "/list", group: "Business" },
-      { name: "Bulk tools", href: "/bulk", group: "Business" },
+      { name: "Volume sourcing", href: "/bulk", group: "Business" },
       { name: "Finance", href: "/finance", group: "Business" },
     );
   }
@@ -602,7 +611,7 @@ export function accountMenuForMode(buyerMode: unknown): {
     const planOrder =
       mode === "parts"
         ? ["/parts", "/recon", "/fleet", "/move"]
-        : ["/recon", "/parts", "/fleet", "/move"];
+        : ["/parts", "/fleet", "/move"];
     tools.sort((a, b) => {
       const groupDifference =
         groupOrder.indexOf(a.group || "") - groupOrder.indexOf(b.group || "");
@@ -627,7 +636,10 @@ export function accountMenuForMode(buyerMode: unknown): {
   };
 }
 
-export function workspaceGroupsForMode(buyerMode: unknown): NavGroup[] {
+export function workspaceGroupsForMode(
+  buyerMode: unknown,
+  expanded = true,
+): NavGroup[] {
   const menu = accountMenuForMode(buyerMode);
   const catalog = [...PRIMARY, ...MORE_GROUPS.flatMap((group) => group.items)];
   const groups = new Map<string, NavItem[]>();
@@ -637,6 +649,7 @@ export function workspaceGroupsForMode(buyerMode: unknown): NavGroup[] {
     ...menu.secondary.map((item) => ({ ...item, group: "Account" })),
   ]) {
     const base = entry.href.split("?")[0];
+    if (!expanded && !FOCUSED_TOOLS.has(base)) continue;
     const item = catalog.find((candidate) => candidate.href === base);
     const group = entry.group || "Browse";
     const items = groups.get(group) || [];

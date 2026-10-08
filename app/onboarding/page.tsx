@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
+import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
@@ -486,9 +487,15 @@ export default function OnboardingPage() {
                 Your workspace
               </h3>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--t3)]">
-                {accountMenuForMode(buyerMode).tools.map((tool) => (
-                  <li key={tool.href}>{tool.name}</li>
-                ))}
+                {accountMenuForMode(buyerMode)
+                  .tools.filter(
+                    (tool) =>
+                      buyerMode === "dealer" ||
+                      FOCUSED_TOOLS.has(tool.href.split("?")[0]),
+                  )
+                  .map((tool) => (
+                    <li key={tool.href}>{tool.name}</li>
+                  ))}
               </ul>
             </div>
           </div>
