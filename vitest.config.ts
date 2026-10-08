@@ -9,7 +9,6 @@ export default defineConfig({
     globals: true,
     // Bound heavy route imports so parallel workers do not starve test timeouts.
     maxWorkers: 2,
-    minWorkers: 1,
     include: ["lib/**/*.test.ts", "app/**/*.test.ts"],
   },
   resolve: {

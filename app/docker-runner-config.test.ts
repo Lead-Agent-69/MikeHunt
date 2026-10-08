@@ -12,9 +12,22 @@ describe("local Docker scraper runner config", () => {
       "NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}",
     );
     const dockerfile = readFileSync("Dockerfile", "utf8");
+    expect(dockerfile).toContain("FROM node:24-alpine AS base");
     expect(dockerfile).toContain("HUSKY=0 npm ci");
     expect(dockerfile).toContain("ARG NEXT_PUBLIC_SUPABASE_URL");
     expect(dockerfile).not.toContain("ARG SUPABASE_SERVICE_ROLE_KEY");
+  });
+  it("builds browser workers on a supported runtime with locked dependencies", () => {
+    const dockerfile = readFileSync("Dockerfile.scraper", "utf8");
+    expect(dockerfile).toContain("FROM node:24-bookworm-slim");
+    expect(dockerfile).toContain("HUSKY=0 npm ci --include=dev");
+    expect(dockerfile).toContain(
+      "playwright install --with-deps chromium chrome",
+    );
+    expect(dockerfile).toContain("patchright install chromium");
+    expect(dockerfile).not.toContain("npm install --include=dev");
+    const ignored = readFileSync(".dockerignore", "utf8");
+    expect(ignored.split(/\r?\n/)).toContain("artifacts");
   });
   it("passes local app env into the scraper before scraper-specific overrides", () => {
     const compose = readFileSync("docker-compose.local.yml", "utf8");

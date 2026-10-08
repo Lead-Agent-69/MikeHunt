@@ -116,19 +116,20 @@
     "postcss": "^8.4.48",
     "prettier": "^3.4.2",
     "shadcn": "^4.11.0",
-    "supabase": "^1.207.9",
+    "supabase": "2.120.0",
     "tailwindcss": "^3.4.14",
     "tailwindcss-animate": "1.0.7",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.4",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
+    "vitest": "4.1.11"
   },
   "overrides": {
     "source-map-js": "1.2.2",
     "bull": {
       "uuid": "11.1.1"
     },
-    "vite": "6.4.3"
+    "vite": "6.4.3",
+    "postcss-selector-parser": "7.1.6"
   }
 }
