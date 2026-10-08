@@ -36,6 +36,14 @@ Wave 2 queue fixes implemented: active request reuse now requires the same scope
 - Pagination checks HTTP/response shape, keeps current vehicles on failure, displays retry guidance, and stops automatic repeat loops after failures or an unexpectedly empty page.
 - Normal/admin signed-in QA, source-backed evidence enrichment, and the remaining acceptance gates below are not made complete by these changes.
 
+### October 8 Admin Metrics And Access Audit
+
+- Read-only production configuration checks confirmed a server-only admin account is configured and the public/server Supabase project URLs and anonymous keys match. No credentials or account permissions were changed.
+- The available production browser remains on sign-in after the previously supplied credentials were rejected. The configured admin identity differs from that account. Signed-in admin/user QA remains open pending an authorized account-owner sign-in; service credentials are not a substitute for user-session testing.
+- Fixed admin statistics that silently stopped at the PostgREST row cap: source and score summaries now page through active records with stable ordering and an explicit scan bound. User, paid-plan, and recent-signup counts use exact server counts rather than downloaded profile lengths.
+- Resolved database errors and missing counts now return an unavailable response, not misleading zeros. Scans exceeding the bound also fail explicitly rather than publishing partial totals. Queries remain separate reads, not a transaction-consistent snapshot; these are operational counts, not validated buying recommendations.
+- Nine focused route/pagination tests passed, including authorization before privileged client construction, counts beyond 1,000 rows, database failures, missing counts, and the scan bound. Full release verification is recorded after execution.
+
 ## Adoptable Patterns
 
 - Visor: precise inventory filters, dated listing observations, dealer inventory, and market slices with visible sample counts and geography. Listing disappearance must not imply a confirmed sale.
