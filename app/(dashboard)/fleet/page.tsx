@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import { fetcher } from "@/lib/swr-config";
 import { Panel } from "@/components/shared/Panel";
 import { Tag } from "@/components/shared/Tag";
@@ -937,6 +938,14 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
         </div>
 
         {/* Action buttons */}
+        {(item.stage === "recon" || item.stage === "listed") && (
+          <Link
+            href="/list"
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+          >
+            Manage posted listings
+          </Link>
+        )}
         {advanceError && (
           <p role="alert" className="text-xs text-[var(--red)]">
             {advanceError}
