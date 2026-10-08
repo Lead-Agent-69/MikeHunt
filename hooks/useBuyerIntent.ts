@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePreferences } from "@/hooks/usePreferences";
+import { defaultScanSort } from "@/lib/buyer/scan-sort";
 
 export const BUYER_INTENT_KEY = "mh_buyer_scope";
 export const BUYER_INTENT_EVENT = "mh-buyer-scope-change";
@@ -396,11 +398,12 @@ export function discoverQueryForBuyingFor(
 
 export function scanHrefForBuyerIntent(intent: BuyerIntent | null) {
   const params = buildBuyerIntentQuery(intent);
-  params.set("sort", "profit");
+  params.set("sort", defaultScanSort(intent?.buyerMode));
   return `/scan?${params.toString()}`;
 }
 
 export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
+  const { prefs, authed, isLoading } = usePreferences();
   const [intent, setIntent] = useState<BuyerIntent | null>(
     normalizeBuyerIntent(initialIntent) || null,
   );
@@ -415,6 +418,11 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
       window.removeEventListener("storage", sync);
     };
   }, []);
+
+  // Account preferences take precedence over a desk left by another browser user.
+  useEffect(() => {
+    if (!isLoading && authed) setIntent(normalizeBuyerIntent(prefs.buyerScope));
+  }, [prefs.buyerScope, authed, isLoading]);
 
   const save = useCallback((next: BuyerIntent) => {
     const normalized = normalizeBuyerIntent(next) || next;

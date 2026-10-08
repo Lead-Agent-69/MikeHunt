@@ -37,7 +37,7 @@ describe("buildScanFacetSummary", () => {
     expect(facets.states).toEqual(["FL", "TX"]);
     expect(facets.years).toEqual([2022, 2021, 2020]);
     expect(facets.titleTypes).toEqual([
-      { value: "salvage", count: 2, label: "Salvage / repairable" },
+      { value: "salvage", count: 2, label: "Salvage title" },
       { value: "clean", count: 1, label: "Clean title" },
     ]);
     expect(facets.sellerTypes).toEqual([

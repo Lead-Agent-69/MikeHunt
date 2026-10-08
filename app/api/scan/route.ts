@@ -21,6 +21,14 @@ import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import {
+  uniqueDbSources,
+  sellerTypeSourceValues,
+  sourceUrlNeedles,
+  applyVehicleDetails,
+  applyInventoryLane,
+  validateInventoryRanges,
+} from "@/lib/search/inventory-filters";
+import {
   AUCTION_DB_SOURCES,
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
@@ -483,92 +491,13 @@ function dedupeKey(r: any) {
   return `${(r.source || "unknown").toLowerCase()}::${r.source_deal_id || r.id || r.vin || ""}`;
 }
 
-export function dbSourceValues(sourceId: string) {
-  const id = sourceId.toLowerCase();
-  const mapped: Record<string, string[]> = {
-    publicsurplus: ["gov_auction"],
-    govdeals: ["gov_auction"],
-    allsurplus: ["gov_auction"],
-    municibid: ["gov_auction"],
-    gsa_auctions: ["gov_auction"],
-    curated_dealers: ["independent_dealer"],
-    "ae-of-miami": ["independent_dealer"],
-    "damage-com": ["independent_dealer"],
-    "dg-auto": ["independent_dealer"],
-    recar: ["independent_dealer"],
-    "stjames-auto": ["independent_dealer"],
-    "cas-miami": ["independent_dealer"],
-    salvagezone: ["independent_dealer"],
-    "rebuilt-auto": ["independent_dealer"],
-    "alpine-auto": ["independent_dealer"],
-    "replica-auto": ["independent_dealer"],
-    carparts_com: ["independent_dealer"],
-  };
-  return mapped[id] || [id];
-}
-
-export function uniqueDbSources(sourceIds: string[]) {
-  return Array.from(new Set(sourceIds.flatMap(dbSourceValues)));
-}
-
-export function sellerTypeSourceValues(sellerType: string) {
-  const type = sellerType.toLowerCase();
-  if (type === "auction") {
-    return ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"];
-  }
-  if (type === "dealer") {
-    return [
-      "independent_dealer",
-      "cars_com",
-      "cargurus",
-      "autotrader",
-      "truecar",
-      "ebay_motors",
-      "carvana",
-      "vroom",
-    ];
-  }
-  if (type === "private") {
-    return [
-      "craigslist",
-      "craigslist_dealer",
-      "facebook_marketplace",
-      "offerup",
-    ];
-  }
-  return [];
-}
-
-export function sourceUrlNeedles(sourceId: string) {
-  const id = sourceId.toLowerCase();
-  const mapped: Record<string, string[]> = {
-    publicsurplus: ["publicsurplus.com"],
-    govdeals: ["govdeals.com"],
-    allsurplus: ["allsurplus.com", "liquidityservices.com"],
-    municibid: ["municibid.com"],
-    gsa_auctions: ["gsaauctions.gov", "gsa.gov"],
-    "ae-of-miami": ["aeofmiami.com"],
-    "damage-com": ["damage.com"],
-    "dg-auto": ["dgautollc.com"],
-    recar: ["recar.com"],
-    "stjames-auto": ["stjamesauto.com", "stjamesautoparts.com"],
-    "cas-miami": ["casmiami.com"],
-    salvagezone: ["salvagezone.com"],
-    "rebuilt-auto": ["rebuiltauto.com"],
-    "alpine-auto": ["alpineautogallery.com"],
-    "replica-auto": ["replicaauto.com"],
-  };
-  return mapped[id] || [];
-}
-
-export function damagedLaneFilter() {
-  return [
-    "condition.in.(salvage_title,rebuilt_title,parts_only,fire,flood,hail,repairable)",
-    "damage_type.ilike.%repairable%",
-    "damage_type.ilike.%damage%",
-    "damage_type.ilike.%collision%",
-  ].join(",");
-}
+export {
+  dbSourceValues,
+  uniqueDbSources,
+  sellerTypeSourceValues,
+  sourceUrlNeedles,
+  damagedLaneFilter,
+} from "@/lib/search/inventory-filters";
 
 export function normalizePageSize(value: string | null) {
   const parsed = parseInt(value || "48", 10);
@@ -576,10 +505,25 @@ export function normalizePageSize(value: string | null) {
   return Math.min(100, Math.max(1, parsed));
 }
 
-export type ScanSort = "profit" | "score" | "price";
+export type ScanSort =
+  | "profit"
+  | "score"
+  | "price"
+  | "price-desc"
+  | "newest"
+  | "year"
+  | "mileage";
 
 export function normalizeScanSort(value: string | null): ScanSort {
-  if (value === "score" || value === "price") return value;
+  if (
+    value === "score" ||
+    value === "price" ||
+    value === "price-desc" ||
+    value === "newest" ||
+    value === "year" ||
+    value === "mileage"
+  )
+    return value;
   return "profit";
 }
 
@@ -592,6 +536,14 @@ export function scanSortForDesk(sort: ScanSort, flipDesk: boolean): ScanSort {
 }
 
 export function scanSortOrder(sort: ScanSort) {
+  if (sort === "price-desc")
+    return { column: "ask_price", ascending: false, nullsFirst: false };
+  if (sort === "newest")
+    return { column: "first_seen_at", ascending: false, nullsFirst: false };
+  if (sort === "year")
+    return { column: "year", ascending: false, nullsFirst: false };
+  if (sort === "mileage")
+    return { column: "mileage", ascending: true, nullsFirst: false };
   if (sort === "price") {
     return { column: "ask_price", ascending: true, nullsFirst: false };
   }
@@ -1019,6 +971,9 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
   const { searchParams } = new URL(req.url);
+  const rangeError = validateInventoryRanges(searchParams);
+  if (rangeError)
+    return NextResponse.json({ error: rangeError }, { status: 400 });
   // Sanitize free-text search before it's interpolated into the PostgREST .or() filter — strip
   // anything that isn't a normal vehicle/VIN character so commas/parens can't inject extra filters.
   const q = (searchParams.get("q") || "")
@@ -1085,7 +1040,10 @@ export async function GET(req: NextRequest) {
   const deskAccess = deskAccessFor(desk);
   const requestedSort = normalizeScanSort(searchParams.get("sort"));
   const sort = scanSortForDesk(requestedSort, flipDesk);
-  const page = parseInt(searchParams.get("page") || "0");
+  const page = Math.min(
+    1000000,
+    Math.max(0, Math.floor(Number(searchParams.get("page")) || 0)),
+  );
   // Bigger page + client-driven infinite scroll (append) so the grid surfaces ALL matching inventory,
   // not just the first screen. Capped to keep any single payload reasonable.
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
@@ -1146,7 +1104,7 @@ export async function GET(req: NextRequest) {
     query = query.eq("location_state", state.toUpperCase());
   }
 
-  if (availability) {
+  if (availability && availability !== "all") {
     query = query.eq("availability_status", availability);
   }
 
@@ -1184,11 +1142,13 @@ export async function GET(req: NextRequest) {
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
   if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
+  if (maxPrice > 0 || minPrice > 0) query = query.gt("ask_price", 0);
   if (minPrice > 0) query = query.gte("ask_price", minPrice);
   // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
   // for an explicit mileage search.
   if (minMileage > 0) query = query.gte("mileage", minMileage);
   if (maxMileage > 0) query = query.lte("mileage", maxMileage);
+  query = applyVehicleDetails(query, searchParams);
 
   if (source && source.toLowerCase() !== "all") {
     const sourceValues = uniqueDbSources([source]);
@@ -1234,38 +1194,7 @@ export async function GET(req: NextRequest) {
     query = query.eq("condition", mappedCondition);
   }
 
-  // Acquisition LANES — quick lenses matching how a flipper browses. These overlap by design
-  // (a Copart salvage car shows under both "auction" and "salvage"); they're filters, not partitions.
-  if (lane && lane !== "all") {
-    const AUCTION = ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"];
-    const RETAIL = [
-      "carvana",
-      "cars_com",
-      "cargurus",
-      "autotrader",
-      "truecar",
-      "ebay_motors",
-      "vroom",
-      "carmax",
-    ];
-    const PRIVATE = [
-      "craigslist",
-      "craigslist_dealer",
-      "facebook_marketplace",
-      "offerup",
-      "independent_dealer",
-    ];
-    const GOVERNMENT = ["gov_auction"];
-    const PARTS = ["independent_dealer"];
-    if (lane === "auction") query = query.in("source", AUCTION);
-    else if (lane === "damaged")
-      // Salvage + repairable + branded — every fixable/damaged car, any source (incl. auction lots).
-      query = query.or(damagedLaneFilter());
-    else if (lane === "clean-retail") query = query.in("source", RETAIL);
-    else if (lane === "private") query = query.in("source", PRIVATE);
-    else if (lane === "government") query = query.in("source", GOVERNMENT);
-    else if (lane === "parts") query = query.in("source", PARTS);
-  }
+  query = applyInventoryLane(query, lane);
 
   if (category && !source && !titleType) {
     const cleanCat = category.toLowerCase();
@@ -1288,16 +1217,15 @@ export async function GET(req: NextRequest) {
 
   const sortOrder = scanSortOrder(sort);
   const trustRanked = sort === "score";
-  const poolSize = trustRanked
-    ? Math.min(500, Math.max(pageSize * 5, 120))
-    : pageSize;
-  const from = trustRanked ? 0 : page * pageSize;
-  const to = trustRanked ? poolSize - 1 : (page + 1) * pageSize - 1;
+  // Page in the database so trust sorting cannot strand inventory beyond a fixed pool.
+  const from = page * pageSize;
+  const to = (page + 1) * pageSize - 1;
   query = query
     .order(sortOrder.column, {
       ascending: sortOrder.ascending,
       nullsFirst: sortOrder.nullsFirst,
     })
+    .order("id", { ascending: true })
     .range(from, to);
 
   const { data, count, error } = await query;
@@ -1334,9 +1262,7 @@ export async function GET(req: NextRequest) {
     trustRanked || state
       ? sortScanRows(dRows, sort, state, { includeProfit: flipDesk })
       : dRows;
-  const sorted = trustRanked
-    ? ranked.slice(page * pageSize, (page + 1) * pageSize)
-    : ranked;
+  const sorted = ranked;
 
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
   // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields

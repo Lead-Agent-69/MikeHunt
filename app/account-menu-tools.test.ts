@@ -12,7 +12,18 @@ describe("account menu", () => {
   it("personal: Saved, Saved searches, Alerts, Tools (Scan), Settings, Help", () => {
     const menu = accountMenuForMode("personal");
     expect(names(menu.primary)).toEqual(["Saved", "Saved searches", "Alerts"]);
-    expect(names(menu.tools)).toEqual(["Scan listings"]);
+    expect(names(menu.tools)).toEqual([
+      "Scan listings",
+      "Feed",
+      "Map",
+      "Swipe",
+      "Dealer network",
+      "Deal Check",
+      "Compare",
+      "Vehicle intel",
+      "Purchase plan",
+      "Transport",
+    ]);
     expect(menu.tools[0].href).toBe("/scan?sort=score");
     expect(names(menu.secondary)).toEqual(["Settings", "Help & updates"]);
   });
@@ -25,45 +36,56 @@ describe("account menu", () => {
 
   it("parts and diy add Parts but no flip tools", () => {
     for (const mode of ["parts", "diy"]) {
-      expect(names(accountMenuForMode(mode).tools)).toEqual([
-        "Scan listings",
+      const menu = accountMenuForMode(mode);
+      expect(names(menu.tools)).toEqual([
+        ...names(accountMenuForMode("personal").tools),
         "Parts",
+        "Recon",
       ]);
+      expect(menu.tools.some((tool) => tool.group === "Business")).toBe(false);
     }
   });
 
   it("reseller and dealer add Feed/Map/Swipe/Auctions plus flip tools", () => {
     for (const mode of ["reseller", "dealer"]) {
       const tools = accountMenuForMode(mode).tools;
-      expect(names(tools)).toEqual([
-        "Scan listings",
-        "Parts",
-        "Feed",
-        "Map",
-        "Swipe",
-        "Auctions",
-        "Dealer network",
-        "Auction Lane",
-      ]);
-      expect(tools.map((t) => t.href)).toEqual([
-        "/scan?sort=profit",
-        "/parts",
-        "/feed",
-        "/map",
-        "/swipe",
-        "/auctions",
-        "/dealer-network",
-        "/lane",
-      ]);
+      expect(tools.map((t) => t.href)).toEqual(
+        expect.arrayContaining([
+          "/scan?sort=profit",
+          "/parts",
+          "/feed",
+          "/map",
+          "/swipe",
+          "/auctions",
+          "/dealer-network",
+          "/lane",
+          "/market",
+          "/arbitrage",
+          "/find",
+          "/best-buy",
+          "/list",
+          "/bulk",
+          "/finance",
+          "/recon",
+          "/move",
+          "/compare",
+          "/insights",
+          "/fleet",
+          "/deal-check",
+        ]),
+      );
+      expect(new Set(tools.map((tool) => tool.href)).size).toBe(tools.length);
     }
   });
 
-  it("personal desk keeps Feed/Map/Swipe/Auctions off Account Tools", () => {
+  it("personal desk can browse every retail surface without business-only tools", () => {
     const hrefs = accountMenuForMode("personal").tools.map((t) => t.href);
-    expect(hrefs).not.toContain("/feed");
-    expect(hrefs).not.toContain("/map");
-    expect(hrefs).not.toContain("/swipe");
+    expect(hrefs).toContain("/feed");
+    expect(hrefs).toContain("/map");
+    expect(hrefs).toContain("/swipe");
     expect(hrefs).not.toContain("/auctions");
+    expect(hrefs).not.toContain("/market");
+    expect(hrefs).not.toContain("/finance");
   });
 
   it("never offers admin, and labels stay buyer-neutral", () => {

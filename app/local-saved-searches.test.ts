@@ -6,6 +6,20 @@ import {
 } from "@/hooks/useLocalSavedSearches";
 
 describe("local saved searches", () => {
+  it("preserves the exact specification, mileage and sort scope", () => {
+    const saved = {
+      scan_params:
+        "sort=price-desc&minMileage=30000&maxMileage=85000&fuelType=Hybrid&damage=front&trim=Limited&transmission=Automatic&availability=on_lot&drivetrain=AWD",
+    };
+    const params = new URL(
+      scanHrefForSavedSearch(saved),
+      "https://example.test",
+    ).searchParams;
+    new URLSearchParams(saved.scan_params).forEach((value, key) =>
+      expect(params.get(key)).toBe(value),
+    );
+    expect(params.get("reset")).toBe("1");
+  });
   it("builds scan and source-proof links from the saved buyer scope", () => {
     const search = {
       q: "police suv",

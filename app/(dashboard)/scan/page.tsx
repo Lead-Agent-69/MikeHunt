@@ -30,6 +30,8 @@ import {
   Sparkles,
   Table2,
   TrendingUp,
+  X,
+  Copy,
 } from "lucide-react";
 import { DealTable } from "@/components/scan/DealTable";
 import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
@@ -62,11 +64,7 @@ import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
-import {
-  buildBuyerIntentQuery,
-  readLocalBuyerIntent,
-  useBuyerIntent,
-} from "@/hooks/useBuyerIntent";
+import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
@@ -2360,6 +2358,33 @@ function SmartDataPlanCard({
 
 // ── Filter select ─────────────────────────────────────────────────────────────
 
+function RangeInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step="1"
+        inputMode="numeric"
+        aria-label={label}
+        placeholder="Any"
+        value={value === "any" ? "" : value.replace("k", "000")}
+        onChange={(event) => onChange(event.target.value || "any")}
+        className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+      />
+    </label>
+  );
+}
+
 function FilterSelect({
   label,
   value,
@@ -2375,7 +2400,7 @@ function FilterSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="text-sm text-[var(--t1)] rounded-[var(--r2)] px-3 py-2 outline-none transition-all"
+      className="min-h-11 max-w-full text-sm text-[var(--t1)] rounded-[var(--r2)] px-3 py-2 outline-none transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
       style={{
         background: "var(--s0)",
         border: "1px solid var(--b2)",
@@ -2405,7 +2430,9 @@ function FilterGroup({
       <span className="text-[9px] uppercase tracking-wider font-bold text-[var(--t5)] shrink-0">
         {label}
       </span>
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {children}
+      </div>
     </div>
   );
 }
@@ -2419,9 +2446,7 @@ function ScanPageInner() {
   const urlParams = useSearchParams();
   const { intent: savedBuyerIntent } = useBuyerIntent();
   // Unknown mode is personal. Only reseller/dealer desks see flip tools and copy.
-  const flipDesk = isFlipBuyerMode(
-    urlParams.get("mode") || savedBuyerIntent?.buyerMode,
-  );
+  const flipDesk = isFlipBuyerMode(savedBuyerIntent?.buyerMode);
   const reviewMode = urlParams.get("review");
   const isFreshImportReview = reviewMode === "fresh-import";
   const { transitionTo } = useViewTransition();
@@ -2528,6 +2553,12 @@ function ScanPageInner() {
   const [maxPrice, setMaxPrice] = useState("any");
   const [minYear, setMinYear] = useState("any");
   const [maxMileage, setMaxMileage] = useState("any");
+  const [minMileage, setMinMileage] = useState("any");
+  const [damage, setDamage] = useState("all");
+  const [body, setBody] = useState("all");
+  const [trim, setTrim] = useState("");
+  const [fuelType, setFuelType] = useState("all");
+  const [transmission, setTransmission] = useState("all");
   const [availability, setAvailability] = useState("all");
   const [madeInUsa, setMadeInUsa] = useState(false);
   const [drivetrain, setDrivetrain] = useState("all");
@@ -2606,12 +2637,59 @@ function ScanPageInner() {
       makeParam,
       makesParam,
       modelParam,
-      sortParam,
       maxPriceParam,
       verdictParam,
       dealersParam,
       dealerSourceIdsParam,
+      ...[
+        "minPrice",
+        "minProfit",
+        "minYear",
+        "maxYear",
+        "minMileage",
+        "maxMileage",
+        "damage",
+        "body",
+        "trim",
+        "fuelType",
+        "transmission",
+        "availability",
+        "drivetrain",
+        "madeInUsa",
+        "category",
+        "reset",
+      ].map((key) => urlParams.get(key)),
     ].some(Boolean);
+
+    setSearchInput(q || "");
+    setSearch(q || "");
+    setSourceFilter(source || "all");
+    setSellerTypeFilter(sellerTypeParam || "all");
+    setTitleType(title || "all");
+    setLane(laneParam || "all");
+    setState(stateParam?.toUpperCase() || "all");
+    setMake(makeParam || "all");
+    setMakesFilter([]);
+    setModel(modelParam || "all");
+    setMaxPrice(maxPriceParam ? normalizeMaxPriceFilter(maxPriceParam) : "any");
+    setMinPrice(urlParams.get("minPrice") || "any");
+    setMinProfit(urlParams.get("minProfit") || "any");
+    setMinYear(urlParams.get("minYear") || "any");
+    setMaxYear(urlParams.get("maxYear") || "any");
+    setMaxMileage(urlParams.get("maxMileage") || "any");
+    setMinMileage(urlParams.get("minMileage") || "any");
+    setDamage(urlParams.get("damage") || "all");
+    setBody(urlParams.get("body") || "all");
+    setTrim(urlParams.get("trim") || "");
+    setFuelType(urlParams.get("fuelType") || "all");
+    setTransmission(urlParams.get("transmission") || "all");
+    setAvailability(urlParams.get("availability") || "all");
+    setDrivetrain(urlParams.get("drivetrain") || "all");
+    setMadeInUsa(urlParams.get("madeInUsa") === "1");
+    setCategory(urlParams.get("category") || "all");
+    setVerdict(verdictParam || "all");
+    setDealerHostsFilter([]);
+    setDealerSourceIdsFilter([]);
 
     if (q) {
       setSearchInput(q);
@@ -2639,12 +2717,7 @@ function ScanPageInner() {
     }
     if (modelParam) setModel(modelParam);
     if (sortParam) setSort(sortParam);
-    else
-      setSort(
-        defaultScanSort(
-          urlParams.get("mode") || readLocalBuyerIntent()?.buyerMode,
-        ),
-      );
+    else setSort(defaultScanSort(savedBuyerIntent?.buyerMode));
     if (maxPriceParam) setMaxPrice(normalizeMaxPriceFilter(maxPriceParam));
     if (verdictParam) setVerdict(verdictParam);
     if (dealersParam) {
@@ -2673,7 +2746,7 @@ function ScanPageInner() {
 
     if (hasExplicitScanParams || typeof window === "undefined") return;
 
-    const savedScope = readLocalBuyerIntent();
+    const savedScope = savedBuyerIntent;
     const savedParams = buildBuyerIntentQuery(savedScope);
     const scopedQuery = savedParams.get("q") || "";
     const scopedMakes = savedParams.get("makes");
@@ -2682,6 +2755,7 @@ function ScanPageInner() {
     const scopedTitleType = savedParams.get("titleType") || "";
     const scopedSellerType = savedParams.get("sellerType") || "";
     const scopedMaxPrice = savedParams.get("maxPrice") || "";
+    const scopedMinPrice = savedParams.get("minPrice") || "";
     const scopedDealers = savedParams.get("dealers") || "";
     const scopedDealerSourceIds = savedParams.get("dealerSourceIds") || "";
 
@@ -2703,6 +2777,7 @@ function ScanPageInner() {
     if (scopedTitleType) setTitleType(scopedTitleType);
     if (scopedSellerType) setSellerTypeFilter(scopedSellerType);
     if (scopedMaxPrice) setMaxPrice(normalizeMaxPriceFilter(scopedMaxPrice));
+    if (scopedMinPrice) setMinPrice(scopedMinPrice);
     if (scopedDealerSourceIds) {
       setDealerSourceIdsFilter(
         scopedDealerSourceIds
@@ -2735,7 +2810,7 @@ function ScanPageInner() {
           .slice(0, 25),
       );
     }
-  }, [urlParams]);
+  }, [urlParams, savedBuyerIntent]);
 
   // How many advanced filters are active (shown on the "More filters" button).
   const advancedCount = useMemo(() => {
@@ -2754,6 +2829,12 @@ function ScanPageInner() {
     if (availability !== "all") c++;
     if (madeInUsa) c++;
     if (drivetrain !== "all") c++;
+    if (minMileage !== "any") c++;
+    if (damage !== "all") c++;
+    if (body !== "all") c++;
+    if (trim) c++;
+    if (fuelType !== "all") c++;
+    if (transmission !== "all") c++;
     return c;
   }, [
     verdict,
@@ -2770,9 +2851,22 @@ function ScanPageInner() {
     availability,
     madeInUsa,
     drivetrain,
+    minMileage,
+    damage,
+    body,
+    trim,
+    fuelType,
+    transmission,
   ]);
 
   const resetFilters = useCallback(() => {
+    setSearch("");
+    setSearchInput("");
+    setState("all");
+    setMake("all");
+    setModel("all");
+    setMaxPrice("any");
+    setCategory("all");
     setVerdict("all");
     setDealerHostsFilter([]);
     setDealerSourceIdsFilter([]);
@@ -2789,7 +2883,110 @@ function ScanPageInner() {
     setAvailability("all");
     setMadeInUsa(false);
     setDrivetrain("all");
+    setMinMileage("any");
+    setDamage("all");
+    setBody("all");
+    setTrim("");
+    setFuelType("all");
+    setTransmission("all");
+    window.history.replaceState(null, "", "/scan?reset=1");
   }, []);
+
+  const appliedFilters = [
+    {
+      label: "Search",
+      value: search,
+      clear: () => {
+        setSearch("");
+        setSearchInput("");
+      },
+    },
+    { label: "State", value: state, clear: () => setState("all") },
+    {
+      label: "Make",
+      value: make,
+      clear: () => {
+        setMake("all");
+        setModel("all");
+      },
+    },
+    {
+      label: "Makes",
+      value: makesFilter.join(", "),
+      clear: () => setMakesFilter([]),
+    },
+    { label: "Model", value: model, clear: () => setModel("all") },
+    { label: "Min price", value: minPrice, clear: () => setMinPrice("any") },
+    { label: "Max price", value: maxPrice, clear: () => setMaxPrice("any") },
+    { label: "Year from", value: minYear, clear: () => setMinYear("any") },
+    { label: "Year to", value: maxYear, clear: () => setMaxYear("any") },
+    {
+      label: "Min miles",
+      value: minMileage,
+      clear: () => setMinMileage("any"),
+    },
+    {
+      label: "Max miles",
+      value: maxMileage,
+      clear: () => setMaxMileage("any"),
+    },
+    { label: "Lane", value: lane, clear: () => setLane("all") },
+    {
+      label: "Source",
+      value: sourceFilter,
+      clear: () => setSourceFilter("all"),
+    },
+    {
+      label: "Seller",
+      value: sellerTypeFilter,
+      clear: () => setSellerTypeFilter("all"),
+    },
+    { label: "Title", value: titleType, clear: () => setTitleType("all") },
+    {
+      label: "Availability",
+      value: availability,
+      clear: () => setAvailability("all"),
+    },
+    {
+      label: "Drivetrain",
+      value: drivetrain,
+      clear: () => setDrivetrain("all"),
+    },
+    { label: "Damage", value: damage, clear: () => setDamage("all") },
+    { label: "Body", value: body, clear: () => setBody("all") },
+    { label: "Trim", value: trim, clear: () => setTrim("") },
+    { label: "Fuel", value: fuelType, clear: () => setFuelType("all") },
+    {
+      label: "Transmission",
+      value: transmission,
+      clear: () => setTransmission("all"),
+    },
+    {
+      label: "Assembly",
+      value: madeInUsa ? "USA" : "",
+      clear: () => setMadeInUsa(false),
+    },
+    {
+      label: "Dealers",
+      value: dealerHostsFilter.join(", "),
+      clear: () => setDealerHostsFilter([]),
+    },
+    {
+      label: "Dealer sources",
+      value: dealerSourceIdsFilter.join(", "),
+      clear: () => setDealerSourceIdsFilter([]),
+    },
+    ...(flipDesk
+      ? [
+          { label: "Verdict", value: verdict, clear: () => setVerdict("all") },
+          {
+            label: "Min profit",
+            value: minProfit,
+            clear: () => setMinProfit("any"),
+          },
+        ]
+      : []),
+  ].filter((filter) => filter.value && !["all", "any"].includes(filter.value));
 
   const searchSummary = useMemo(() => {
     const laneLabel: Record<string, string> = {
@@ -3009,8 +3206,62 @@ function ScanPageInner() {
       params.set("maxPrice", normalizeMaxPriceFilter(maxPrice));
     if (minPrice !== "any")
       params.set("minPrice", minPrice.replace("k", "000"));
+    for (const [key, value] of Object.entries({
+      q: search,
+      source: sourceFilter,
+      sellerType: sellerTypeFilter,
+      titleType,
+      availability,
+      drivetrain,
+      damage,
+      body,
+      trim,
+      fuelType,
+      transmission,
+      minYear,
+      maxYear,
+      minMileage,
+      maxMileage,
+    })) {
+      if (value && value !== "all" && value !== "any")
+        params.set(key, value.replace("k", "000"));
+    }
+    if (madeInUsa) params.set("madeInUsa", "1");
+    if (dealerHostsFilter.length)
+      params.set("dealers", dealerHostsFilter.join(","));
+    if (dealerSourceIdsFilter.length)
+      params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
+    if (flipDesk && verdict !== "all") params.set("verdict", verdict);
+    if (flipDesk && minProfit !== "any")
+      params.set("minProfit", minProfit.replace("k", "000"));
     return `/api/scan/facets${params.toString() ? `?${params.toString()}` : ""}`;
-  }, [state, lane, maxPrice, minPrice]);
+  }, [
+    state,
+    lane,
+    maxPrice,
+    minPrice,
+    search,
+    sourceFilter,
+    sellerTypeFilter,
+    titleType,
+    availability,
+    drivetrain,
+    damage,
+    body,
+    trim,
+    fuelType,
+    transmission,
+    minYear,
+    maxYear,
+    minMileage,
+    maxMileage,
+    madeInUsa,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+    flipDesk,
+    verdict,
+    minProfit,
+  ]);
   const { data: facets } = useSWR(facetKey, fetcher, {
     revalidateOnFocus: false,
   });
@@ -3018,8 +3269,10 @@ function ScanPageInner() {
     const opts = [{ value: "all", label: "Make: All" }];
     for (const m of facets?.makes ?? [])
       opts.push({ value: m.make, label: `${m.make} (${m.count})` });
+    if (make !== "all" && !opts.some((option) => option.value === make))
+      opts.push({ value: make, label: make });
     return opts;
-  }, [facets]);
+  }, [facets, make]);
 
   // CASCADE: once a make is chosen, load its full model list (Copart-style make → model).
   const { data: modelFacets } = useSWR(
@@ -3033,8 +3286,10 @@ function ScanPageInner() {
     const opts = [{ value: "all", label: "Model: All" }];
     for (const m of modelFacets?.models ?? [])
       opts.push({ value: m.model, label: `${m.model} (${m.count})` });
+    if (model !== "all" && !opts.some((option) => option.value === model))
+      opts.push({ value: model, label: model });
     return opts;
-  }, [modelFacets]);
+  }, [modelFacets, model]);
   const sellerTypeOptions = useMemo(() => {
     const live = Array.isArray(facets?.sellerTypes)
       ? facets.sellerTypes
@@ -3071,11 +3326,6 @@ function ScanPageInner() {
           { value: "rebuilt", label: "Rebuilt Title" },
         ];
   }, [facets?.titleTypes]);
-  // Reset the model whenever the make changes so a stale model can't linger.
-  useEffect(() => {
-    setModel("all");
-  }, [make]);
-
   // Build SWR key from filters
   const swrKey = useMemo(() => {
     const params = new URLSearchParams({ sort });
@@ -3099,6 +3349,17 @@ function ScanPageInner() {
     if (maxYear !== "any") params.set("maxYear", maxYear);
     if (maxMileage !== "any")
       params.set("maxMileage", maxMileage.replace("k", "000"));
+    if (minMileage !== "any")
+      params.set("minMileage", minMileage.replace("k", "000"));
+    for (const [key, value] of Object.entries({
+      damage,
+      body,
+      trim,
+      fuelType,
+      transmission,
+    })) {
+      if (value && value !== "all") params.set(key, value);
+    }
     if (availability !== "all") params.set("availability", availability);
     if (verdict !== "all") params.set("verdict", verdict);
     if (dealerHostsFilter.length)
@@ -3131,6 +3392,12 @@ function ScanPageInner() {
     madeInUsa,
     drivetrain,
     sort,
+    minMileage,
+    damage,
+    body,
+    trim,
+    fuelType,
+    transmission,
   ]);
 
   // Use SWR for data fetching
@@ -3618,6 +3885,7 @@ function ScanPageInner() {
     ].filter(Boolean);
     const saved = saveLocalSavedSearch({
       name: nameParts.length ? nameParts.join(" · ") : "Scan alert",
+      scan_params: swrKey.split("?")[1],
       q: search || null,
       make: make !== "all" ? make : null,
       makes: make === "all" && makesFilter.length ? makesFilter : null,
@@ -3636,7 +3904,8 @@ function ScanPageInner() {
         minPrice !== "any" ? Number(minPrice.replace("k", "000")) : null,
       max_price:
         maxPrice !== "any" ? Number(normalizeMaxPriceFilter(maxPrice)) : null,
-      target_profit: minProfit !== "any" ? Number(minProfit) : null,
+      target_profit:
+        minProfit !== "any" ? Number(minProfit.replace("k", "000")) : null,
       require_go: verdict === "go",
       notify_email: false,
       notify_sms: false,
@@ -3661,6 +3930,7 @@ function ScanPageInner() {
     dealerHostsFilter,
     dealerSourceIdsFilter,
     addToast,
+    swrKey,
   ]);
 
   const dismissToast = useCallback((id: number) => {
@@ -4141,40 +4411,79 @@ function ScanPageInner() {
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
       <div className="glass-panel px-4 py-3 space-y-3">
+        {appliedFilters.length > 0 && (
+          <div
+            className="flex flex-wrap items-center gap-2"
+            aria-label="Applied filters"
+          >
+            {appliedFilters.map((filter) => (
+              <button
+                key={filter.label}
+                type="button"
+                onClick={filter.clear}
+                aria-label={`Remove ${filter.label} filter`}
+                className="flex min-h-11 max-w-full items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs text-[var(--t2)]"
+              >
+                <span className="break-words">
+                  {filter.label}: {filter.value}
+                </span>
+                <X className="h-3 w-3 shrink-0" aria-hidden="true" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="min-h-11 px-3 text-xs font-bold text-[var(--t2)]"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
         {/* PRIMARY: the dealer's most-used controls, always visible */}
         <div className="flex flex-wrap items-center gap-2">
           {/* GO-only — the #1 filter */}
-          <button
-            type="button"
-            onClick={() => setVerdict((v) => (v === "go" ? "all" : "go"))}
-            className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
-            style={{
-              background: verdict === "go" ? "var(--glo)" : "var(--s0)",
-              color: verdict === "go" ? "var(--green)" : "var(--t3)",
-              borderColor: verdict === "go" ? "var(--gbd)" : "var(--b2)",
-            }}
-            title="Only show deals the engine rates BUY"
-          >
-            ✓ BUY only
-          </button>
-          <button
-            type="button"
-            onClick={() => setVerdict((v) => (v === "watch" ? "all" : "watch"))}
-            className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
-            style={{
-              background: verdict === "watch" ? "var(--amber-lo)" : "var(--s0)",
-              color: verdict === "watch" ? "var(--amber-d)" : "var(--t3)",
-              borderColor:
-                verdict === "watch" ? "var(--amber-bd)" : "var(--b2)",
-            }}
-            title="Show serious watch candidates closest to profitable"
-          >
-            Watch queue
-          </button>
+          {flipDesk && (
+            <>
+              <button
+                type="button"
+                onClick={() => setVerdict((v) => (v === "go" ? "all" : "go"))}
+                className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+                style={{
+                  background: verdict === "go" ? "var(--glo)" : "var(--s0)",
+                  color: verdict === "go" ? "var(--green)" : "var(--t3)",
+                  borderColor: verdict === "go" ? "var(--gbd)" : "var(--b2)",
+                }}
+                title="Only show deals the engine rates BUY"
+              >
+                ✓ BUY only
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setVerdict((v) => (v === "watch" ? "all" : "watch"))
+                }
+                className="px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
+                style={{
+                  background:
+                    verdict === "watch" ? "var(--amber-lo)" : "var(--s0)",
+                  color: verdict === "watch" ? "var(--amber-d)" : "var(--t3)",
+                  borderColor:
+                    verdict === "watch" ? "var(--amber-bd)" : "var(--b2)",
+                }}
+                title="Show serious watch candidates closest to profitable"
+              >
+                Watch queue
+              </button>
+            </>
+          )}
           <FilterSelect
             label="Make"
             value={make}
-            onChange={setMake}
+            onChange={(value) => {
+              setMake(value);
+              setModel("all");
+              setMakesFilter([]);
+            }}
             options={makeOptions}
           />
           {/* Model cascades off the chosen make (Copart-style) — appears once a make is picked. */}
@@ -4192,18 +4501,10 @@ function ScanPageInner() {
             onChange={setState}
             options={stateOptions}
           />
-          <FilterSelect
+          <RangeInput
             label="Max Price"
             value={maxPrice}
             onChange={setMaxPrice}
-            options={[
-              { value: "any", label: "Price: Any" },
-              { value: "5000", label: "Under $5,000" },
-              { value: "10000", label: "Under $10,000" },
-              { value: "20000", label: "Under $20,000" },
-              { value: "35000", label: "Under $35,000" },
-              { value: "50000", label: "Under $50,000" },
-            ]}
           />
           <FilterSelect
             label="Sort"
@@ -4216,6 +4517,10 @@ function ScanPageInner() {
                 : []),
               { value: "score", label: "Sort: Score ↓" },
               { value: "price", label: "Sort: Price ↑" },
+              { value: "price-desc", label: "Sort: Price ↓" },
+              { value: "newest", label: "Sort: Newly listed" },
+              { value: "year", label: "Sort: Newest year" },
+              { value: "mileage", label: "Sort: Lowest mileage" },
             ]}
           />
           <button
@@ -4259,6 +4564,26 @@ function ScanPageInner() {
           >
             <Ico name="bell" size={12} />
             Save alert
+          </button>
+          <button
+            type="button"
+            aria-label="Copy search link"
+            title="Copy search link"
+            onClick={async () => {
+              try {
+                const params = new URLSearchParams(swrKey.split("?")[1]);
+                params.set("reset", "1");
+                await navigator.clipboard.writeText(
+                  `${window.location.origin}/scan?${params.toString()}`,
+                );
+                addToast("Search link copied", "success");
+              } catch {
+                addToast("Could not copy the search link", "error");
+              }
+            }}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)]"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
           </button>
 
           {/* Results count + density */}
@@ -4364,17 +4689,10 @@ function ScanPageInner() {
             </FilterGroup>
 
             <FilterGroup label={flipDesk ? "Price & profit" : "Price"}>
-              <FilterSelect
+              <RangeInput
                 label="Min Price"
                 value={minPrice}
                 onChange={setMinPrice}
-                options={[
-                  { value: "any", label: "Min: Any" },
-                  { value: "2k", label: "Over $2,000" },
-                  { value: "5k", label: "Over $5,000" },
-                  { value: "10k", label: "Over $10,000" },
-                  { value: "20k", label: "Over $20,000" },
-                ]}
               />
               {flipDesk && (
                 <FilterSelect
@@ -4393,44 +4711,28 @@ function ScanPageInner() {
             </FilterGroup>
 
             <FilterGroup label="Year">
-              <FilterSelect
-                label="From"
+              <RangeInput
+                label="Year from"
                 value={minYear}
                 onChange={setMinYear}
-                options={[
-                  { value: "any", label: "From: Any" },
-                  { value: "2000", label: "2000 +" },
-                  { value: "2010", label: "2010 +" },
-                  { value: "2015", label: "2015 +" },
-                  { value: "2018", label: "2018 +" },
-                  { value: "2021", label: "2021 +" },
-                ]}
               />
-              <FilterSelect
-                label="To"
+              <RangeInput
+                label="Year to"
                 value={maxYear}
                 onChange={setMaxYear}
-                options={[
-                  { value: "any", label: "To: Any" },
-                  { value: "2024", label: "to 2024" },
-                  { value: "2020", label: "to 2020" },
-                  { value: "2015", label: "to 2015" },
-                  { value: "2010", label: "to 2010" },
-                ]}
               />
             </FilterGroup>
 
             <FilterGroup label="Condition">
-              <FilterSelect
+              <RangeInput
+                label="Min Miles"
+                value={minMileage}
+                onChange={setMinMileage}
+              />
+              <RangeInput
                 label="Max Miles"
                 value={maxMileage}
                 onChange={setMaxMileage}
-                options={[
-                  { value: "any", label: "Miles: Any" },
-                  { value: "50k", label: "Under 50k" },
-                  { value: "100k", label: "Under 100k" },
-                  { value: "150k", label: "Under 150k" },
-                ]}
               />
               <FilterSelect
                 label="Title Type"
@@ -4438,6 +4740,77 @@ function ScanPageInner() {
                 onChange={setTitleType}
                 options={titleTypeOptions}
               />
+              <FilterSelect
+                label="Damage"
+                value={damage}
+                onChange={setDamage}
+                options={[
+                  { value: "all", label: "Damage: All" },
+                  ...[
+                    "Front",
+                    "Rear",
+                    "Side",
+                    "Hail",
+                    "Flood",
+                    "Fire",
+                    "Mechanical",
+                  ].map((value) => ({
+                    value: value.toLowerCase(),
+                    label: value,
+                  })),
+                ]}
+              />
+              <FilterSelect
+                label="Body style"
+                value={body}
+                onChange={setBody}
+                options={[
+                  { value: "all", label: "Body: All" },
+                  ...[
+                    "SUV",
+                    "Sedan",
+                    "Pickup",
+                    "Coupe",
+                    "Convertible",
+                    "Van",
+                    "Wagon",
+                  ].map((value) => ({ value, label: value })),
+                ]}
+              />
+              <FilterSelect
+                label="Fuel"
+                value={fuelType}
+                onChange={setFuelType}
+                options={[
+                  { value: "all", label: "Fuel: All" },
+                  ...["Gas", "Diesel", "Hybrid", "Electric"].map((value) => ({
+                    value,
+                    label: value,
+                  })),
+                ]}
+              />
+              <FilterSelect
+                label="Transmission"
+                value={transmission}
+                onChange={setTransmission}
+                options={[
+                  { value: "all", label: "Transmission: All" },
+                  ...["Automatic", "Manual"].map((value) => ({
+                    value,
+                    label: value,
+                  })),
+                ]}
+              />
+              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+                Trim
+                <input
+                  aria-label="Trim"
+                  value={trim}
+                  onChange={(event) => setTrim(event.target.value)}
+                  maxLength={60}
+                  className="min-h-11 w-36 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+                />
+              </label>
               <FilterSelect
                 label="Availability"
                 value={availability}

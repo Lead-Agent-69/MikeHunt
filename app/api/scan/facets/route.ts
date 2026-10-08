@@ -7,6 +7,20 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { fetchAllRows } from "@/lib/db/paginate";
+import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
+import {
+  applyInventoryLane,
+  applyVehicleDetails,
+  uniqueDbSources,
+  sellerTypeSourceValues,
+  sourceUrlNeedles,
+  validateInventoryRanges,
+} from "@/lib/search/inventory-filters";
+import {
+  AUCTION_DB_SOURCES,
+  wantsAuctionInventory,
+} from "@/lib/discovery/auction-scope";
 import {
   dealerSourceIdFromUrl,
   displaySource,
@@ -29,7 +43,7 @@ function topCounts(map: Map<string, number>, limit = 40) {
 function titleBucket(condition?: string | null) {
   const c = String(condition || "").toLowerCase();
   if (!c) return null;
-  if (c.includes("salvage") || c.includes("repair")) return "salvage";
+  if (c.includes("salvage")) return "salvage";
   if (c.includes("rebuilt")) return "rebuilt";
   if (c.includes("parts")) return "parts";
   if (c.includes("clean")) return "clean";
@@ -45,7 +59,7 @@ function sellerBucket(source?: string | null, sourceUrl?: string | null) {
   if (
     s === "independent_dealer" ||
     Boolean(dealerSourceIdFromUrl(url)) ||
-    ["carvana", "cars_com", "cargurus", "autotrader"].includes(s)
+    sellerTypeSourceValues("dealer").includes(s)
   ) {
     return "dealer";
   }
@@ -53,54 +67,6 @@ function sellerBucket(source?: string | null, sourceUrl?: string | null) {
     return "private";
   }
   return null;
-}
-
-function numericParam(value: string | null) {
-  const parsed = Number(String(value || "").replace(/[^0-9.]/g, ""));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function applyBuyerFacetScope(
-  query: any,
-  scope: {
-    lane?: string;
-    maxPrice?: number;
-    minPrice?: number;
-  },
-) {
-  let scoped = query;
-  if (scope.maxPrice) scoped = scoped.lte("ask_price", scope.maxPrice);
-  if (scope.minPrice) scoped = scoped.gte("ask_price", scope.minPrice);
-  if (scope.lane && scope.lane !== "all") {
-    const lane = scope.lane.toLowerCase();
-    const AUCTION = ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"];
-    const RETAIL = [
-      "carvana",
-      "cars_com",
-      "cargurus",
-      "autotrader",
-      "truecar",
-      "vroom",
-    ];
-    const PRIVATE = ["craigslist", "facebook_marketplace", "offerup"];
-    const GOVERNMENT = ["gov_auction"];
-    const PARTS = ["carparts_com"];
-    if (lane === "auction") scoped = scoped.in("source", AUCTION);
-    else if (lane === "damaged") {
-      scoped = scoped.or(
-        [
-          "condition.in.(salvage_title,rebuilt_title,parts_only,fire,flood,hail,repairable)",
-          "damage_type.ilike.%repairable%",
-          "damage_type.ilike.%damage%",
-          "damage_type.ilike.%collision%",
-        ].join(","),
-      );
-    } else if (lane === "clean-retail") scoped = scoped.in("source", RETAIL);
-    else if (lane === "private") scoped = scoped.in("source", PRIVATE);
-    else if (lane === "government") scoped = scoped.in("source", GOVERNMENT);
-    else if (lane === "parts") scoped = scoped.in("source", PARTS);
-  }
-  return scoped;
 }
 
 export function buildScanFacetSummary(
@@ -144,7 +110,7 @@ export function buildScanFacetSummary(
         item.value === "clean"
           ? "Clean title"
           : item.value === "salvage"
-            ? "Salvage / repairable"
+            ? "Salvage title"
             : item.value === "rebuilt"
               ? "Rebuilt title"
               : item.value === "parts"
@@ -179,14 +145,13 @@ export function buildScanFacetSummary(
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "facets", limit: 60, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl);
-
-  const { searchParams } = new URL(req.url);
-  const state = searchParams.get("state")?.toUpperCase();
-  const make = searchParams.get("make")?.trim();
-  const lane = (searchParams.get("lane") || "").toLowerCase();
-  const maxPrice = numericParam(searchParams.get("maxPrice"));
-  const minPrice = numericParam(searchParams.get("minPrice"));
-  if (!isSupabaseConfigured()) {
+  const { searchParams: params } = new URL(req.url);
+  const rangeError = validateInventoryRanges(params);
+  if (rangeError)
+    return NextResponse.json({ error: rangeError }, { status: 400 });
+  const make = params.get("make");
+  const cascade = !!make && make !== "all";
+  if (!isSupabaseConfigured())
     return NextResponse.json({
       configured: false,
       makes: [],
@@ -195,52 +160,146 @@ export async function GET(req: NextRequest) {
       titleTypes: [],
       sellerTypes: [],
       sources: [],
-      models: make && make !== "all" ? [] : undefined,
+      models: cascade ? [] : undefined,
     });
-  }
   const supabase = createServerComponentClient();
-
-  // ── CASCADE: models for one make ──────────────────────────────────────────
-  // Filtering to a single make keeps the row set small, so we get that make's COMPLETE model list.
-  if (make && make !== "all") {
-    let mq = supabase
+  const flipDesk = (await resolveCallerDesk()) === "flip";
+  const source = params.get("source") || "";
+  const lane = params.get("lane") || "all";
+  const seller = params.get("sellerType") || "all";
+  const sourceIds = (params.get("dealerSourceIds") || "")
+    .split(",")
+    .filter(Boolean);
+  const build = () => {
+    let query = supabase
       .from("deals")
-      .select("model")
-      .eq("active", true)
-      .gt("ask_price", 0)
-      .ilike("make", make)
-      .not("model", "is", null)
-      .limit(20000);
-    mq = applyBuyerFacetScope(mq, { lane, maxPrice, minPrice });
-    if (state) mq = mq.eq("location_state", state);
-    const { data, error } = await mq;
-    if (error) return internalError("scan:facets", error);
+      .select(
+        cascade
+          ? "id,model"
+          : "id,make,location_state,year,condition,source,source_url",
+      )
+      .eq("active", true);
+    if (
+      !wantsAuctionInventory({
+        lane,
+        sellerType: seller,
+        sources: [source, ...sourceIds],
+      })
+    )
+      query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
+    query = applyInventoryLane(query, lane);
+    query = applyVehicleDetails(query, params);
+    if (
+      Number(params.get("maxPrice")) > 0 ||
+      Number(params.get("minPrice")) > 0
+    )
+      query = query.gt("ask_price", 0);
+    if (flipDesk && Number(params.get("minProfit")) > 0)
+      query = query.gte("true_net_profit", Number(params.get("minProfit")));
+    const verdict = params.get("verdict");
+    if (flipDesk && verdict && verdict !== "all") {
+      if (verdict === "watch")
+        query = query
+          .gte("ask_price", 3000)
+          .gt("sell_estimate", 0)
+          .not("true_net_profit", "is", null)
+          .lt("true_net_profit", 0);
+      else query = query.eq("deal_verdict", verdict);
+    }
+    const state = params.get("state");
+    if (state && !["all", "nationwide"].includes(state.toLowerCase()))
+      query = query.eq("location_state", state.toUpperCase());
+    const q = (params.get("q") || "")
+      .replace(/[^a-zA-Z0-9 -]/g, " ")
+      .trim()
+      .slice(0, 60);
+    if (q)
+      query = query.or(
+        `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
+      );
+    for (const [key, column, minimum] of [
+      ["minPrice", "ask_price", true],
+      ["maxPrice", "ask_price", false],
+      ["minYear", "year", true],
+      ["maxYear", "year", false],
+      ["minMileage", "mileage", true],
+      ["maxMileage", "mileage", false],
+    ] as const) {
+      const value = Number(params.get(key));
+      if (value > 0)
+        query = minimum ? query.gte(column, value) : query.lte(column, value);
+    }
+    if (cascade) query = query.ilike("make", make!);
+    if (source && source !== "all") {
+      query = query.in("source", uniqueDbSources([source]));
+      const needles = sourceUrlNeedles(source);
+      if (needles.length)
+        query = query.or(
+          needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
+        );
+    }
+    const sellers = sellerTypeSourceValues(seller);
+    if (sellers.length) query = query.in("source", sellers);
+    const title = params.get("titleType");
+    if (title && title !== "all")
+      query = query.eq(
+        "condition",
+        (
+          {
+            clean: "clean_title",
+            rebuilt: "rebuilt_title",
+            salvage: "salvage_title",
+            parts: "parts_only",
+          } as Record<string, string>
+        )[title] || title,
+      );
+    const availability = params.get("availability");
+    if (availability && availability !== "all")
+      query = query.eq("availability_status", availability);
+    const drivetrain = params.get("drivetrain");
+    if (drivetrain && drivetrain !== "all")
+      query = query.eq("options->>drivetrain", drivetrain);
+    if (params.get("madeInUsa") === "1")
+      query = query.or(
+        "assembly_country.ilike.%united states%,assembly_country.ilike.%usa%",
+      );
+    const hosts = (params.get("dealers") || "")
+      .split(",")
+      .map((host) => host.replace(/[^a-z0-9.-]/gi, ""))
+      .filter(Boolean)
+      .slice(0, 25);
+    if (hosts.length)
+      query = query.or(
+        hosts.map((host) => `source_url.ilike.%${host}%`).join(","),
+      );
+    if (sourceIds.length) {
+      query = query.in("source", uniqueDbSources(sourceIds));
+      const needles = sourceIds.flatMap(sourceUrlNeedles);
+      if (needles.length)
+        query = query.or(
+          needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
+        );
+    }
+    return query.order("id", { ascending: true });
+  };
+  try {
+    const rows = await fetchAllRows<any>(
+      (from, to) => build().range(from, to),
+      { max: 30000 },
+    );
+    const bounded = rows.length === 30000;
+    if (!cascade)
+      return NextResponse.json({ ...buildScanFacetSummary(rows), bounded });
     const models = new Map<string, number>();
-    for (const r of data || [])
-      if (r.model) models.set(r.model, (models.get(r.model) || 0) + 1);
+    for (const row of rows) inc(models, row.model);
     return NextResponse.json({
       make,
+      bounded,
       models: Array.from(models.entries())
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .map(([model, count]) => ({ model, count })),
     });
+  } catch (error) {
+    return internalError("scan:facets", error);
   }
-
-  // ── BASE: full make list (+ states / years) ───────────────────────────────
-  // Pull just the small facet columns so we can scan a WIDE slice and not miss a make. Distinct makes are
-  // few (~60 brands) so this captures the full menu; models come from the per-make cascade above.
-  let q = supabase
-    .from("deals")
-    .select("make, location_state, year, condition, source, source_url")
-    .eq("active", true)
-    .gt("ask_price", 0)
-    .not("make", "is", null)
-    .limit(30000);
-  q = applyBuyerFacetScope(q, { lane, maxPrice, minPrice });
-  if (state) q = q.eq("location_state", state);
-
-  const { data, error } = await q;
-  if (error) return internalError("scan:facets", error);
-
-  return NextResponse.json(buildScanFacetSummary(data || []));
 }

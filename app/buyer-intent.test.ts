@@ -56,7 +56,7 @@ describe("buyer intent profile", () => {
     expect(params.get("makes")).toBe("Ford,Toyota");
     expect(params.get("dealers")).toBe("aeofmiami.com");
     expect(params.get("dealerSourceIds")).toBe("ae-of-miami");
-    expect(scanHrefForBuyerIntent(intent)).toContain("sort=profit");
+    expect(scanHrefForBuyerIntent(intent)).toContain("sort=score");
     expect(buyerIntentLabel(intent)).toContain("Ford/Toyota");
     expect(buyerIntentLabel(intent)).toContain("Personal buyer");
     expect(buyerIntentLabel(intent)).toContain("over $5,000");

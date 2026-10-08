@@ -18,7 +18,7 @@ export interface Prefs {
   locationDemandStates?: string[];
   carsStates?: string[]; // legacy multi-state hunt list; fallback for searchLocations
   buyerScope?: {
-    buyerMode?: "personal" | "diy" | "reseller" | "dealer";
+    buyerMode?: "personal" | "diy" | "parts" | "reseller" | "dealer";
     vehicle?: string;
     vehicles?: string[];
     lane?: string;
@@ -27,6 +27,7 @@ export interface Prefs {
     titleType?: string;
     sellerType?: string;
     maxPrice?: number;
+    minPrice?: number;
     targetProfit?: number;
     timeline?: "now" | "month" | "research";
     repairCapability?: "none" | "basic" | "advanced";
@@ -39,19 +40,23 @@ export interface Prefs {
   watchedDealerSourceIds?: string[];
 }
 
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = async (u: string) => {
+  const response = await fetch(u);
+  if (!response.ok) throw new Error("Preferences could not be loaded");
+  return response.json();
+};
 
 export function usePreferences() {
   const { data, mutate, isLoading } = useSWR<
-    { prefs: Prefs } | { error: string }
+    { prefs: Prefs; authed?: boolean } | { error: string }
   >("/api/preferences", fetcher, { revalidateOnFocus: false });
 
   const prefs: Prefs = data && "prefs" in data ? data.prefs : {};
-  const authed = !(data && "error" in (data as any));
+  const authed = !!data && "prefs" in data && data.authed !== false;
 
   const save = async (patch: Partial<Prefs>) => {
     const next = { ...prefs, ...patch };
-    mutate({ prefs: next }, false); // optimistic
+    mutate({ prefs: next, authed }, false); // optimistic
     try {
       const response = await fetch("/api/preferences", {
         method: "PUT",
