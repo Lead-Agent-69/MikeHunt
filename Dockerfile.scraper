@@ -1,7 +1,7 @@
 # Dockerfile.scraper — browser-capable scrape worker for the Docker fleet.
 #
-# Built on Playwright's image: Debian + every browser system dependency + xvfb already baked in (the
-# Alpine app image can't run Chrome). We add Patchright's stealth Chromium and real Google Chrome (the
+# Built on Node's Debian image with Playwright's browser system dependencies and xvfb (the
+# Alpine app image can't run Chrome). We add Patchright's Chromium and real Google Chrome (the
 # headed tier needs the actual Chrome channel to beat PerimeterX/Akamai), then loop scrape cycles under
 # a virtual display.
 #
@@ -10,18 +10,20 @@
 # Reputation note: scaling replicas on ONE host shares ONE IP (doesn't help anti-bot reputation). For the
 # real "unstoppable" effect, run replicas on DIFFERENT hosts/regions so each has its own IP.
 
-FROM mcr.microsoft.com/playwright:v1.48.0-jammy
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
 # Install deps incl. devDeps (tsx/patchright live there). Force dev install in case the base sets NODE_ENV.
 COPY package.json package-lock.json* ./
 COPY scripts/postinstall.js ./scripts/postinstall.js
-RUN npm install --include=dev
+RUN HUSKY=0 npm ci --include=dev
 
-# Browsers: Patchright's stealth Chromium (stealth tier) + real Google Chrome (headed tier). OS deps are
-# already in the base image, so no --with-deps needed.
-RUN npx patchright install chromium && npx playwright install chromium chrome
+# Install OS dependencies alongside the browsers selected by the lockfile.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xvfb \
+    && npx playwright install --with-deps chromium chrome \
+    && npx patchright install chromium \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
