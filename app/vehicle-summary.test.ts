@@ -83,5 +83,8 @@ describe("first-screen listing facts", () => {
     expect(source).toContain('"Record purchase"');
     expect(source).toContain('aria-label="Vehicle actions"');
     expect(source).not.toContain("max-w-5xl mx-auto animate-fadeUp");
+    const guide = readFileSync("components/ui/next-level-features.tsx", "utf8");
+    expect(guide).toContain("lg:bottom-24");
+    expect(guide).not.toContain("lg:bottom-6");
   });
 });
