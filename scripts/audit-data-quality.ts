@@ -7,6 +7,7 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "../lib/db/paginate";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,12 +46,14 @@ async function auditDataQuality(): Promise<AuditReport> {
   // Get total counts
   const { count: totalCount } = await supabase
     .from("deals")
-    .select("*", { count: "exact", head: true });
+    .select("*", { count: "exact", head: true })
+    .throwOnError();
 
   const { count: activeCount } = await supabase
     .from("deals")
     .select("*", { count: "exact", head: true })
-    .eq("active", true);
+    .eq("active", true)
+    .throwOnError();
 
   report.totalDeals = totalCount || 0;
   report.activeDeals = activeCount || 0;
@@ -103,19 +106,20 @@ async function auditDataQuality(): Promise<AuditReport> {
 }
 
 async function checkMissingFields(report: AuditReport) {
-  const { data: missing } = await supabase
+  const { data: missing, count } = await supabase
     .from("deals")
-    .select("id, source, title, year, make, model")
+    .select("id, source, title, year, make, model", { count: "exact" })
     .eq("active", true)
     .or("year.is.null,make.is.null,model.is.null")
-    .limit(5);
+    .limit(5)
+    .throwOnError();
 
   if (missing && missing.length > 0) {
     report.issues.push({
       category: "Missing Required Fields",
       severity: "critical",
-      count: missing.length,
-      percentage: (missing.length / report.activeDeals) * 100,
+      count: count || 0,
+      percentage: ((count || 0) / report.activeDeals) * 100,
       examples: missing,
     });
   }
@@ -131,12 +135,13 @@ async function checkInvalidYears(report: AuditReport) {
     // production automobile era or implausibly far-future model years.
     .or(`year.lt.1900,year.gt.${currentYear + 2}`);
   const [{ data: invalid }, { count }] = await Promise.all([
-    invalidQuery.limit(5),
+    invalidQuery.limit(5).throwOnError(),
     supabase
       .from("deals")
       .select("id", { count: "exact", head: true })
       .eq("active", true)
-      .or(`year.lt.1900,year.gt.${currentYear + 2}`),
+      .or(`year.lt.1900,year.gt.${currentYear + 2}`)
+      .throwOnError(),
   ]);
 
   if (invalid && (count || 0) > 0) {
@@ -151,19 +156,20 @@ async function checkInvalidYears(report: AuditReport) {
 }
 
 async function checkInvalidPrices(report: AuditReport) {
-  const { data: invalid } = await supabase
+  const { data: invalid, count } = await supabase
     .from("deals")
-    .select("id, source, title, ask_price")
+    .select("id, source, title, ask_price", { count: "exact" })
     .eq("active", true)
     .or("ask_price.lt.100,ask_price.gt.500000")
-    .limit(5);
+    .limit(5)
+    .throwOnError();
 
   if (invalid && invalid.length > 0) {
     report.issues.push({
       category: "Invalid Prices",
       severity: "warning",
-      count: invalid.length,
-      percentage: (invalid.length / report.activeDeals) * 100,
+      count: count || 0,
+      percentage: ((count || 0) / report.activeDeals) * 100,
       examples: invalid,
     });
   }
@@ -178,13 +184,15 @@ async function checkInvalidMileage(report: AuditReport) {
       .eq("active", true)
       .not("mileage", "is", null)
       .or(invalidFilter)
-      .limit(5),
+      .limit(5)
+      .throwOnError(),
     supabase
       .from("deals")
       .select("id", { count: "exact", head: true })
       .eq("active", true)
       .not("mileage", "is", null)
-      .or(invalidFilter),
+      .or(invalidFilter)
+      .throwOnError(),
   ]);
 
   if (invalid && (count || 0) > 0) {
@@ -203,7 +211,8 @@ async function checkMissingVins(report: AuditReport) {
     .from("deals")
     .select("*", { count: "exact", head: true })
     .eq("active", true)
-    .is("vin", null);
+    .is("vin", null)
+    .throwOnError();
 
   const percentage = ((count || 0) / report.activeDeals) * 100;
 
@@ -219,17 +228,32 @@ async function checkMissingVins(report: AuditReport) {
 }
 
 async function checkDuplicateVins(report: AuditReport) {
-  const { data: duplicates } = await supabase.rpc("find_duplicate_vins", {
-    limit_count: 5,
+  const rows = await fetchAllRows<{ id: string; vin: string }>((from, to) =>
+    supabase
+      .from("deals")
+      .select("id, vin")
+      .eq("active", true)
+      .not("vin", "is", null)
+      .order("id")
+      .range(from, to),
+  );
+  const seen = new Set<string>();
+  const duplicates = rows.filter((row) => {
+    const vin = row.vin.trim().toUpperCase();
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
+    if (seen.has(vin)) return true;
+    seen.add(vin);
+    return false;
   });
 
   if (duplicates && duplicates.length > 0) {
     report.issues.push({
-      category: "Duplicate VINs",
-      severity: "warning",
+      category:
+        "Additional listings sharing a VIN (may be cross-source listings)",
+      severity: "info",
       count: duplicates.length,
       percentage: (duplicates.length / report.activeDeals) * 100,
-      examples: duplicates,
+      examples: duplicates.slice(0, 5),
     });
   }
 }
@@ -239,7 +263,8 @@ async function checkMissingImages(report: AuditReport) {
     .from("deals")
     .select("*", { count: "exact", head: true })
     .eq("active", true)
-    .or("images.is.null,images.eq.{}");
+    .or("images.is.null,images.eq.{}")
+    .throwOnError();
 
   const percentage = ((count || 0) / report.activeDeals) * 100;
 
@@ -259,7 +284,8 @@ async function checkMissingLocation(report: AuditReport) {
     .from("deals")
     .select("*", { count: "exact", head: true })
     .eq("active", true)
-    .is("location_state", null);
+    .is("location_state", null)
+    .throwOnError();
 
   if (count && count > 0) {
     report.issues.push({
@@ -280,7 +306,8 @@ async function checkStaleDeals(report: AuditReport) {
     .from("deals")
     .select("*", { count: "exact", head: true })
     .eq("active", true)
-    .lt("last_seen_at", thirtyDaysAgo.toISOString());
+    .lt("last_seen_at", thirtyDaysAgo.toISOString())
+    .throwOnError();
 
   if (count && count > 0) {
     report.issues.push({
@@ -298,7 +325,8 @@ async function checkScoringIssues(report: AuditReport) {
     .from("deals")
     .select("*", { count: "exact", head: true })
     .eq("active", true)
-    .is("profit_score", null);
+    .is("profit_score", null)
+    .throwOnError();
 
   if (count && count > 0) {
     report.issues.push({
