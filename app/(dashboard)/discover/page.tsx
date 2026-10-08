@@ -496,7 +496,7 @@ export default function DiscoverPage() {
                 href={`/scan${scopeQuery}`}
                 className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
               >
-                View all matching vehicles
+                Browse inventory
               </Link>
             )}
           </div>

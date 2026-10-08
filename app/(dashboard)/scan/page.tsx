@@ -1407,7 +1407,8 @@ function SmartDataPlanCard({
     },
     {
       label: "Market",
-      value: plan.filters.state || "Nationwide",
+      value:
+        plan.filters.states?.join(", ") || plan.filters.state || "Nationwide",
       detail: plan.scope.maxPrice
         ? `Up to $${Number(plan.scope.maxPrice).toLocaleString()}`
         : "No budget cap",
@@ -1588,8 +1589,10 @@ function SmartDataPlanCard({
             {plan.scope.lane}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
-            {plan.filters.state || "Nationwide"} ·{" "}
-            {plan.filters.q || "all vehicles"}
+            {plan.filters.states?.join(", ") ||
+              plan.filters.state ||
+              "Nationwide"}{" "}
+            · {plan.filters.q || "all vehicles"}
             {plan.scope.sellerType ? ` · ${plan.scope.sellerType} sellers` : ""}
           </p>
         </div>
@@ -2552,7 +2555,12 @@ function ScanPageInner() {
   const [titleType, setTitleType] = useState("all");
   const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
   const [minProfit, setMinProfit] = useState("any");
-  const [state, setState] = useState("all");
+  const [state, setStateValue] = useState("all");
+  const [selectedStates, setSelectedStates] = useState("");
+  const setState = (value: string) => {
+    setSelectedStates("");
+    setStateValue(value);
+  };
   const [make, setMake] = useState("all");
   const [makesFilter, setMakesFilter] = useState<string[]>([]);
   const [model, setModel] = useState("all");
@@ -2606,6 +2614,7 @@ function ScanPageInner() {
     const title = urlParams.get("titleType");
     const laneParam = urlParams.get("lane");
     const stateParam = urlParams.get("state");
+    const statesParam = urlParams.get("states");
     const makeParam = urlParams.get("make");
     const makesParam = urlParams.get("makes");
     const modelParam = urlParams.get("model");
@@ -2621,6 +2630,7 @@ function ScanPageInner() {
       title,
       laneParam,
       stateParam,
+      statesParam,
       makeParam,
       makesParam,
       modelParam,
@@ -2657,6 +2667,7 @@ function ScanPageInner() {
     setTitleType(title || "all");
     setLane(laneParam || "all");
     setState(stateParam?.toUpperCase() || "all");
+    setSelectedStates(statesParam || "");
     setMake(makeParam || "all");
     setMakesFilter([]);
     setModel(modelParam || "all");
@@ -3008,7 +3019,7 @@ function ScanPageInner() {
           ? "watch candidates"
           : null,
       laneLabel[lane] || lane,
-      state !== "all" ? state : "nationwide",
+      selectedStates || (state !== "all" ? state : "nationwide"),
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
       make === "all" && makesFilter.length
@@ -3040,6 +3051,7 @@ function ScanPageInner() {
     verdict,
     lane,
     state,
+    selectedStates,
     titleType,
     make,
     makesFilter,
@@ -3061,6 +3073,7 @@ function ScanPageInner() {
             : undefined,
         lane,
         state: state !== "all" ? state : undefined,
+        states: selectedStates || undefined,
         make: make !== "all" ? make : undefined,
         makes: make === "all" && makesFilter.length ? makesFilter : undefined,
         model: model !== "all" ? model : undefined,
@@ -3084,6 +3097,7 @@ function ScanPageInner() {
       search,
       lane,
       state,
+      selectedStates,
       make,
       makesFilter,
       model,
@@ -3147,6 +3161,8 @@ function ScanPageInner() {
     try {
       const params = new URLSearchParams();
       if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
+      if (smartPlan.scope.states?.length)
+        params.set("states", smartPlan.scope.states.join(","));
       if (smartPlan.scope.lane)
         params.set("lane", String(smartPlan.scope.lane));
       if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
@@ -3248,6 +3264,7 @@ function ScanPageInner() {
   const facetKey = useMemo(() => {
     const params = new URLSearchParams();
     if (state !== "all") params.set("state", state);
+    if (selectedStates) params.set("states", selectedStates);
     if (lane !== "all") params.set("lane", lane);
     if (maxPrice !== "any")
       params.set("maxPrice", normalizeMaxPriceFilter(maxPrice));
@@ -3291,6 +3308,7 @@ function ScanPageInner() {
     return `/api/scan/facets${params.toString() ? `?${params.toString()}` : ""}`;
   }, [
     state,
+    selectedStates,
     lane,
     maxPrice,
     minPrice,
@@ -3391,6 +3409,7 @@ function ScanPageInner() {
     if (titleType !== "all") params.set("titleType", titleType);
     if (lane !== "all") params.set("lane", lane);
     if (state !== "all") params.set("state", state);
+    if (selectedStates) params.set("states", selectedStates);
     if (make !== "all") params.set("make", make);
     if (make === "all" && makesFilter.length)
       params.set("makes", makesFilter.join(","));
@@ -3435,6 +3454,7 @@ function ScanPageInner() {
     titleType,
     lane,
     state,
+    selectedStates,
     make,
     makesFilter,
     model,

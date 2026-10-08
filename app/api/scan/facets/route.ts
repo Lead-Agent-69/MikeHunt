@@ -212,7 +212,13 @@ export async function GET(req: NextRequest) {
       else query = query.eq("deal_verdict", verdict);
     }
     const state = params.get("state");
-    if (state && !["all", "nationwide"].includes(state.toLowerCase()))
+    const selectedStates = (params.get("states") || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => /^[A-Z]{2}$/.test(value));
+    if (selectedStates.length)
+      query = query.in("location_state", selectedStates);
+    else if (state && !["all", "nationwide"].includes(state.toLowerCase()))
       query = query.eq("location_state", state.toUpperCase());
     const q = (params.get("q") || "")
       .replace(/[^a-zA-Z0-9 -]/g, " ")

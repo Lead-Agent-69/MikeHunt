@@ -5,10 +5,21 @@ const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
 const card = readFileSync("components/discovery/DiscoveryCard.tsx", "utf8");
 
 describe("discovery browsing presentation safeguards", () => {
+  it("keeps multi-state scope in inventory, facets, and collection planning", () => {
+    const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
+    const facets = readFileSync("app/api/scan/facets/route.ts", "utf8");
+    expect(scan).toContain('const statesParam = urlParams.get("states")');
+    expect(scan.match(/params.set\("states", selectedStates\)/g)).toHaveLength(
+      2,
+    );
+    expect(scan).toContain("states: selectedStates || undefined");
+    expect(scan).toContain('setSelectedStates("")');
+    expect(facets).toContain('query.in("location_state", selectedStates)');
+  });
   it("uses the header location scope and offers the complete matching inventory", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
-    expect(page).toContain("View all matching vehicles");
+    expect(page).toContain("Browse inventory");
     expect(page).toContain("href={`/scan${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
   });
