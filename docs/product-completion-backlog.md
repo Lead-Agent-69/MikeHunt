@@ -2,6 +2,14 @@
 
 Updated October 4, 2026. Based on the conversation and code inspected, not a claim of production completion.
 
+## Release Waves: October 7, 2026
+
+1. Dependency security: Vitest 4.1.11 and Supabase CLI 2.120.0 pinned; compatible transitive fixes applied; selector parser pinned to 7.1.6. All four critical audit advisories removed. Production dependency audit reports zero advisories. Twelve high development-tool findings remain, all tracing to the unpatched braces nested-pattern advisory; no forced Tailwind migration or claim of a fully clean development audit.
+2. Worker recovery and evidence coverage: still open. Historical running records need ownership-safe recovery, not age-only deletion. The last production audit found 3,295 of 3,790 listings without VINs and 25 without state. These need source-backed enrichment or explicit unknowns, never guessed values.
+3. Signed-in user/admin QA: still open. Public production smoke checks pass (19 checks), but browser surfaces are disconnected. Actual account login, session restoration, onboarding, mobile interaction, and admin controls are not verified by anonymous HTTP checks.
+
+Wave 1 final combined-tree verification: 1,364 tests across 278 files, typecheck, lint (255 existing warnings), and production build passed with the parser override. Compatible MCP SDK and proxy-addr updates are present in the lockfile; tinypool is no longer installed. Live smoke results describe the previously deployed release, not proof that these new dependency changes are deployed.
+
 ## Adoptable Patterns
 
 - Visor: precise inventory filters, dated listing observations, dealer inventory, and market slices with visible sample counts and geography. Listing disappearance must not imply a confirmed sale.
