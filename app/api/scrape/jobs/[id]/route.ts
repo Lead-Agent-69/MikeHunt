@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { publicScopedScrapeSummary } from "@/lib/scrapers/job-result";
 
 export const dynamic = "force-dynamic";
 
@@ -30,5 +31,14 @@ export async function GET(
     );
   if (!data)
     return NextResponse.json({ error: "Import not found" }, { status: 404 });
-  return NextResponse.json({ job: data });
+  return NextResponse.json({
+    job: {
+      ...data,
+      error_message:
+        data.status === "failed"
+          ? "We couldn't check the selected sources. Please retry or choose another source."
+          : null,
+      result: publicScopedScrapeSummary(data.result),
+    },
+  });
 }
