@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
 
 describe("Scan flip copy by buyer desk", () => {
-  it("derives flipDesk from ?mode= or the saved buyer intent (unknown = personal)", () => {
+  it("derives flipDesk from saved buyer intent, not an editable URL mode", () => {
     expect(scan).toMatch(
-      /const flipDesk = isFlipBuyerMode\(\s*urlParams\.get\("mode"\) \|\| savedBuyerIntent\?\.buyerMode,?\s*\)/,
+      /const flipDesk = isFlipBuyerMode\(savedBuyerIntent\?\.buyerMode\)/,
     );
   });
 

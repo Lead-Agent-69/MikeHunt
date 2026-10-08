@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
+import { accountMenuForMode } from "@/components/layout/nav-items";
 import { toast } from "sonner";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
@@ -480,6 +481,16 @@ export default function OnboardingPage() {
             <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
               {BUYER_MODES[buyerMode].priorities.join(" · ")}
             </p>
+            <div className="mt-3 border-t border-[var(--b1)] pt-3">
+              <h3 className="text-xs font-bold text-[var(--t2)]">
+                Your workspace
+              </h3>
+              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--t3)]">
+                {accountMenuForMode(buyerMode).tools.map((tool) => (
+                  <li key={tool.href}>{tool.name}</li>
+                ))}
+              </ul>
+            </div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">
             <div className="flex items-center gap-2 font-bold text-[var(--t2)]">

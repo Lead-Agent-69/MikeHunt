@@ -150,6 +150,17 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           ) : (
             <Placeholder />
           )}
+          <div
+            data-testid="discovery-card-photo-price"
+            className="absolute bottom-3 left-3 max-w-[calc(100%-24px)] rounded-md bg-black/80 px-3 py-2 text-white"
+          >
+            <p className="text-[10px] font-semibold">{terms.priceLabel}</p>
+            <p className="font-mono text-xl font-extrabold">
+              {deal.askPrice > 0
+                ? `$${deal.askPrice.toLocaleString()}`
+                : "Not reported"}
+            </p>
+          </div>
 
           <span
             className="absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
@@ -194,7 +205,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               if (isSaved) localSaves.remove(deal.id);
               else localSaves.save(toLocalSavedVehicle(deal));
             }}
-            className="absolute right-2.5 top-2.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
+            className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
@@ -233,6 +244,31 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {deal.vin.slice(-6)}
               </span>
             )}
+          </div>
+          <div
+            data-testid="discovery-card-price"
+            className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] pb-3"
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
+                {terms.priceLabel}
+              </p>
+              <span className="font-mono text-xl font-black text-[var(--t1)]">
+                {Number.isFinite(deal.askPrice) && deal.askPrice > 0
+                  ? `$${deal.askPrice.toLocaleString()}`
+                  : "Not reported"}
+              </span>
+            </div>
+            {evidence.acquisitionReady && deal.recommendedMaxBid ? (
+              <div className="text-right">
+                <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
+                  Purchase ceiling
+                </p>
+                <span className="font-mono text-[17px] font-black text-[var(--green)]">
+                  ${Math.round(deal.recommendedMaxBid).toLocaleString()}
+                </span>
+              </div>
+            ) : null}
           </div>
 
           {/* VIN-graph red flag ΓÇö the moat made visible. Loud red for misrepresentation traps (a
@@ -377,7 +413,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </p>
 
           <p className="text-[11px] leading-relaxed text-[var(--t3)]">
-            {`Ask $${deal.askPrice.toLocaleString()}`}
+            {deal.askPrice > 0
+              ? `${terms.priceLabel} $${deal.askPrice.toLocaleString()}`
+              : "Price not reported"}
             {" · "}
             {deal.soldAnchored && deal.sellEstimate && (deal.compCount || 0) > 0
               ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
@@ -397,35 +435,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 ? " · Private"
                 : ""}
           </p>
-
-          {/* Price and practical ceiling stay adjacent so the acquisition decision is readable. */}
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-2 border-t border-[var(--b1)]">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                {terms.priceLabel}
-              </p>
-              <span className="font-mono text-lg font-black leading-none text-[var(--t1)] tracking-tight">
-                {Number.isFinite(deal.askPrice) && deal.askPrice > 0
-                  ? `$${deal.askPrice.toLocaleString()}`
-                  : "Price not reported"}
-              </span>
-            </div>
-
-            <div className="text-right">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                Purchase ceiling
-              </p>
-              {evidence.acquisitionReady && deal.recommendedMaxBid ? (
-                <span className="font-mono text-[17px] font-black leading-none text-[var(--green)]">
-                  ${Math.round(deal.recommendedMaxBid).toLocaleString()}
-                </span>
-              ) : (
-                <span className="text-xs font-semibold leading-normal text-[var(--t3)]">
-                  Not established
-                </span>
-              )}
-            </div>
-          </div>
 
           {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}
           <details className="border-t border-[var(--b1)] pt-2">

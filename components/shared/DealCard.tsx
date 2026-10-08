@@ -432,6 +432,15 @@ export const DealCard = memo(function DealCard({
         />
         {/* Gradient overlay for premium feel */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--s1)] via-transparent to-transparent opacity-35" />
+        <div
+          data-testid="dealcard-photo-price"
+          className="absolute bottom-3 left-3 max-w-[calc(100%-24px)] rounded-md bg-black/80 px-3 py-2 text-white"
+        >
+          <p className="text-[10px] font-semibold">{copy.priceLabel(source)}</p>
+          <p className="font-mono text-xl font-extrabold">
+            {askPrice > 0 ? `$${askPrice.toLocaleString()}` : "Not reported"}
+          </p>
+        </div>
       </div>
 
       {/* Top strip: source badge + score ring */}
@@ -470,10 +479,37 @@ export const DealCard = memo(function DealCard({
             {year} {make} {model}
           </span>
         </h3>
+        <div
+          data-testid="dealcard-price"
+          className="grid grid-cols-2 gap-3 border-b border-[var(--b1)] pb-3"
+        >
+          <div>
+            <p className="text-[10px] uppercase text-[var(--t4)] font-semibold mb-1">
+              {copy.priceLabel(source)}
+            </p>
+            <Mono className="text-xl font-extrabold text-[var(--t1)]">
+              {askPrice > 0 ? `$${askPrice.toLocaleString()}` : "Not reported"}
+            </Mono>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase text-[var(--t4)] font-semibold mb-1">
+              {resaleBasisLabel}
+            </p>
+            <Mono
+              className="text-sm font-bold text-[var(--t3)]"
+              title={resaleBasisTitle}
+            >
+              {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
+            </Mono>
+            {sellEstimate && !mmrValue && (
+              <p className="text-[10px] text-[var(--t4)]">Needs comps</p>
+            )}
+          </div>
+        </div>
         <p className="text-xs leading-relaxed text-[var(--t3)]">
           {askPrice > 0
-            ? `Ask $${askPrice.toLocaleString()}`
-            : "Ask not listed"}
+            ? `${copy.priceLabel(source)} $${askPrice.toLocaleString()}`
+            : "Price not reported"}
           {" · "}
           {soldAnchored && resaleBasis && valuationCompCount > 0
             ? `${copy.compBackedPrefix} $${resaleBasis.toLocaleString()} · ${valuationCompCount} comps`
@@ -910,37 +946,6 @@ export const DealCard = memo(function DealCard({
             </div>
           </div>
         </details>
-
-        {/* Price grid */}
-        <div
-          className="rounded-[var(--r2)] grid grid-cols-2 gap-3 px-3 py-2.5"
-          style={{ background: "var(--s1)" }}
-        >
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              {copy.priceLabel(source)}
-            </p>
-            <Mono className="text-sm font-extrabold text-[var(--t1)]">
-              ${askPrice.toLocaleString()}
-            </Mono>
-          </div>
-          <div>
-            <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
-              {resaleBasisLabel}
-            </p>
-            <Mono
-              className="text-sm font-extrabold text-[var(--t3)]"
-              title={resaleBasisTitle}
-            >
-              {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
-            </Mono>
-            {sellEstimate && !mmrValue && (
-              <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--t5)]">
-                Needs comps
-              </p>
-            )}
-          </div>
-        </div>
 
         {/* Big profit (flip desk only) */}
         <div className="flex items-end justify-between mt-auto pt-1 gap-2">

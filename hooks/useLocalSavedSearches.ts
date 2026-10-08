@@ -26,6 +26,8 @@ export interface LocalSavedSearch {
   is_active?: boolean;
   local?: boolean;
   created_at?: string;
+  /** Exact Scan query for local searches, including specifications and sort. */
+  scan_params?: string;
 }
 
 export const LOCAL_SAVED_SEARCH_KEY = "mh-local-saved-searches-v1";
@@ -84,6 +86,12 @@ export function toggleLocalSavedSearch(id: string, current: boolean) {
 }
 
 export function searchParamsForSavedSearch(search: Partial<LocalSavedSearch>) {
+  if (search.scan_params) {
+    const params = new URLSearchParams(search.scan_params);
+    params.delete("page");
+    params.set("reset", "1");
+    return params;
+  }
   const params = new URLSearchParams();
   if (search.q) params.set("q", search.q);
   if (search.make) params.set("make", search.make);
@@ -112,7 +120,9 @@ export function searchParamsForSavedSearch(search: Partial<LocalSavedSearch>) {
 
 export function scanHrefForSavedSearch(search: Partial<LocalSavedSearch>) {
   const params = searchParamsForSavedSearch(search);
-  params.set("sort", search.require_go ? "profit" : "score");
+  if (!params.has("sort"))
+    params.set("sort", search.require_go ? "profit" : "score");
+  params.set("reset", "1");
   return `/scan?${params.toString()}`;
 }
 

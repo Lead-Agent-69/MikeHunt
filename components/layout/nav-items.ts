@@ -478,7 +478,7 @@ export const ADMIN_GROUP: NavGroup = {
   ],
 };
 
-export type AccountMenuEntry = { name: string; href: string };
+export type AccountMenuEntry = { name: string; href: string; group?: string };
 
 /**
  * Signed-in account menu, in order: Saved, Saved searches, Alerts, then a
@@ -495,18 +495,41 @@ export function accountMenuForMode(buyerMode: unknown): {
   const mode = normalizeFlipLeadMode(buyerMode);
   const partsDesk = flip || mode === "parts" || mode === "diy";
   const tools: AccountMenuEntry[] = [
-    { name: "Scan listings", href: scanHrefForMode(buyerMode) },
+    {
+      name: "Scan listings",
+      href: scanHrefForMode(buyerMode),
+      group: "Browse",
+    },
+    { name: "Feed", href: "/feed", group: "Browse" },
+    { name: "Map", href: "/map", group: "Browse" },
+    { name: "Swipe", href: "/swipe", group: "Browse" },
+    { name: "Dealer network", href: "/dealer-network", group: "Browse" },
+    { name: "Deal Check", href: "/deal-check", group: "Evaluate" },
+    { name: "Compare", href: "/compare", group: "Evaluate" },
+    { name: "Vehicle intel", href: "/insights", group: "Evaluate" },
+    {
+      name: flip ? "Pipeline" : "Purchase plan",
+      href: "/fleet",
+      group: "Plan",
+    },
+    { name: "Transport", href: "/move", group: "Plan" },
   ];
-  if (partsDesk) tools.push({ name: "Parts", href: "/parts" });
+  if (partsDesk) {
+    tools.push({ name: "Parts", href: "/parts", group: "Plan" });
+    tools.push({ name: "Recon", href: "/recon", group: "Plan" });
+  }
   if (flip) {
-    // Visor/Copart-parity browsing surfaces — Account Tools is the More menu
-    // (TopNav More dropdown stays removed). Personal desks stay deep-link only.
-    tools.push({ name: "Feed", href: "/feed" });
-    tools.push({ name: "Map", href: "/map" });
-    tools.push({ name: "Swipe", href: "/swipe" });
-    tools.push({ name: "Auctions", href: "/auctions" });
-    tools.push({ name: "Dealer network", href: "/dealer-network" });
-    tools.push({ name: "Auction Lane", href: "/lane" });
+    tools.push(
+      { name: "Auctions", href: "/auctions", group: "Business" },
+      { name: "Auction Lane", href: "/lane", group: "Business" },
+      { name: "Market", href: "/market", group: "Business" },
+      { name: "Arbitrage", href: "/arbitrage", group: "Business" },
+      { name: "Search markets", href: "/find", group: "Business" },
+      { name: "Next best buy", href: "/best-buy", group: "Business" },
+      { name: "List vehicles", href: "/list", group: "Business" },
+      { name: "Bulk tools", href: "/bulk", group: "Business" },
+      { name: "Finance", href: "/finance", group: "Business" },
+    );
   }
   return {
     primary: [
