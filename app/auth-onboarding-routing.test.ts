@@ -42,7 +42,7 @@ describe("new-account onboarding routes", () => {
   it("keeps signed-in unfinished buyers off the public buyer pages", () => {
     const proxy = readFileSync("proxy.ts", "utf8");
     expect(proxy).toContain(
-      'const publicBuyerRoutes = ["/scan", "/dealer-network"];',
+      'const publicBuyerRoutes = ["/scan", "/dealer-network", "/tools"];',
     );
     // Signed-out visitors still reach /scan from the landing page.
     expect(proxy).toContain('// "/scan", — intentionally public');

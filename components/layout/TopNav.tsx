@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell, Lock } from "lucide-react";
+import { Bell, Grid3X3, Lock } from "lucide-react";
 import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
@@ -34,7 +34,7 @@ function IconBtn({
       href={href}
       title={title}
       aria-label={title}
-      className="relative flex h-9 w-9 items-center justify-center rounded-xl transition-colors text-[var(--t3)] hover:text-[var(--t1)]"
+      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors text-[var(--t3)] hover:text-[var(--t1)]"
       style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
     >
       {children}
@@ -240,9 +240,10 @@ function TopNavContent() {
               key={item.name}
               href={item.href}
               title={
-                item.signInRequired ? `Sign in to use ${item.name}` : undefined
+                item.signInRequired ? `Sign in to use ${item.name}` : item.name
               }
               aria-current={active ? "page" : undefined}
+              aria-label={item.name}
               className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
                 active
                   ? "text-white"
@@ -254,7 +255,9 @@ function TopNavContent() {
                 className="relative z-10 h-3.5 w-3.5"
                 strokeWidth={active ? 2.5 : 2}
               />
-              <span className="relative z-10">{item.name}</span>
+              <span className="relative z-10 hidden lg:inline">
+                {item.name}
+              </span>
               {item.signInRequired && (
                 <>
                   <Lock
@@ -297,6 +300,9 @@ function TopNavContent() {
             <Bell style={{ width: 17, height: 17 }} />
           </IconBtn>
           <AccountMenu floating={false} />
+          <IconBtn href="/tools" title="All tools">
+            <Grid3X3 className="h-5 w-5" aria-hidden="true" />
+          </IconBtn>
         </div>
 
         <div className="flex items-center justify-end gap-2 md:hidden">

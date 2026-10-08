@@ -6,7 +6,7 @@ import {
   Bookmark,
   CalendarDays,
   Clock,
-  CircleUserRound,
+  Grid3X3,
   Code2,
   Columns3,
   Compass,
@@ -69,7 +69,7 @@ export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
-  { name: "Account", href: "/settings", icon: CircleUserRound },
+  { name: "Tools", href: "/tools", icon: Grid3X3 },
 ];
 
 /**
@@ -508,7 +508,6 @@ export function accountMenuForMode(buyerMode: unknown): {
     { name: "Flash deals", href: "/flash-deals", group: "Browse" },
     { name: "Deal Check", href: "/deal-check", group: "Evaluate" },
     { name: "Compare", href: "/compare", group: "Evaluate" },
-    { name: "Vehicle intel", href: "/insights", group: "Evaluate" },
     {
       name: flip ? "Pipeline" : "Purchase plan",
       href: "/fleet",
@@ -522,6 +521,7 @@ export function accountMenuForMode(buyerMode: unknown): {
   }
   if (flip) {
     tools.push(
+      { name: "Outcomes & intelligence", href: "/insights", group: "Business" },
       { name: "Auctions", href: "/auctions", group: "Business" },
       { name: "Auction Lane", href: "/lane", group: "Business" },
       { name: "Market", href: "/market", group: "Business" },
@@ -561,4 +561,24 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Help & updates", href: "/changelog" },
     ],
   };
+}
+
+export function workspaceGroupsForMode(buyerMode: unknown): NavGroup[] {
+  const menu = accountMenuForMode(buyerMode);
+  const catalog = [...PRIMARY, ...MORE_GROUPS.flatMap((group) => group.items)];
+  const groups = new Map<string, NavItem[]>();
+  for (const entry of [
+    ...menu.tools,
+    ...menu.primary.map((item) => ({ ...item, group: "Saved" })),
+    ...menu.secondary.map((item) => ({ ...item, group: "Account" })),
+  ]) {
+    const base = entry.href.split("?")[0];
+    const item = catalog.find((candidate) => candidate.href === base);
+    const group = entry.group || "Browse";
+    const items = groups.get(group) || [];
+    items.push({ ...entry, icon: item?.icon || Search });
+    groups.set(group, items);
+  }
+  groups.get("Browse")?.unshift(PRIMARY[0]);
+  return Array.from(groups, ([group, items]) => ({ group, items }));
 }

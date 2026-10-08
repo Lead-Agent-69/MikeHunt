@@ -2,20 +2,20 @@
 
 import React from "react";
 import useSWR from "swr";
+import { RefreshCw } from "lucide-react";
+import { useDealerId } from "@/hooks/useDealerId";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
 import { fetchForYou } from "@/lib/reco/client";
 import { forYouCards, forYouHonestyMessage } from "./for-you";
 import type { DiscoveryDeal } from "@/components/discovery/types";
 
-const loadForYou = (url: string) => {
-  const m = /[?&]limit=(\d+)/.exec(url);
-  return fetchForYou(m ? Number(m[1]) : 12);
-};
+const loadForYou = ([, , ids]: [string, string, string]) =>
+  fetchForYou(12, ids.split(",").filter(Boolean));
 
 /**
  * "For You" on Discover, ranked by /api/reco/for-you from the user's own view signals.
  * Shows cards when personalized; soft one-line honesty when signed-in cold-start or
- * signalsAvailable:false; hidden on network/unsigned error. Non-flip desks never see
+ * signalsAvailable:false; retry on service errors, hidden for guests. Non-flip desks never see
  * profit or max-bid (forYouCards redacts).
  */
 export function ForYouRail({
@@ -25,13 +25,41 @@ export function ForYouRail({
   flipDesk: boolean;
   eligibleDeals: DiscoveryDeal[];
 }) {
-  const { data, error } = useSWR("/api/reco/for-you?limit=12", loadForYou, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
-    shouldRetryOnError: false,
-  });
+  const { dealerId } = useDealerId();
+  const ids = Array.from(new Set(eligibleDeals.map((deal) => deal.id)))
+    .slice(0, 120)
+    .join(",");
+  const { data, error, mutate } = useSWR(
+    dealerId && ids ? ["/api/reco/for-you", dealerId, ids] : null,
+    loadForYou,
+    {
+      revalidateOnFocus: true,
+      dedupingInterval: 60_000,
+      shouldRetryOnError: false,
+    },
+  );
 
-  if (error) return null;
+  if (error)
+    return (
+      <section
+        aria-label="For You"
+        className="flex items-center justify-between gap-3 px-1"
+        role="status"
+      >
+        <p className="text-sm text-[var(--t4)]">
+          Recommendations are temporarily unavailable.
+        </p>
+        <button
+          type="button"
+          title="Retry recommendations"
+          aria-label="Retry recommendations"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--b1)]"
+          onClick={() => void mutate()}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </section>
+    );
 
   const cards = forYouCards(data, flipDesk, eligibleDeals);
   if (cards.length > 0) {

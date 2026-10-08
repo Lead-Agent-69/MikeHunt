@@ -56,7 +56,7 @@ const protectedRoutes = [
 // Pages that stay open to signed-out visitors but are still part of the
 // buyer app. A signed-in buyer who has not finished setup is sent to
 // onboarding from these too, so setup cannot be skipped through them.
-const publicBuyerRoutes = ["/scan", "/dealer-network"];
+const publicBuyerRoutes = ["/scan", "/dealer-network", "/tools"];
 
 // Auth routes
 const authRoutes = ["/login", "/register"];

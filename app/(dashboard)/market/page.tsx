@@ -2,19 +2,25 @@
 
 import React from "react";
 import useSWR from "swr";
+import { fetcher } from "@/lib/swr-config";
+import { ErrorState } from "@/components/shared/ErrorState";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
-import { CarTypeSelector, QuickPresets } from "@/components/shared/CarTypeSelector";
-import { PriceRangeSelector, YearRangeSelector } from "@/components/shared/PriceRangeSelector";
+import {
+  CarTypeSelector,
+  QuickPresets,
+} from "@/components/shared/CarTypeSelector";
+import {
+  PriceRangeSelector,
+  YearRangeSelector,
+} from "@/components/shared/PriceRangeSelector";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
 // WHOLE MARKET (everything). Every filter shows a live count from the server's facets. Built on the
 // shared design tokens so it inherits whatever theme is active.
-
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 // prettier-ignore
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -125,9 +131,13 @@ export default function MarketPage() {
     return p.toString();
   }, [f]);
 
-  const { data, isLoading } = useSWR(`/api/market/explore?${qs}`, fetcher, {
-    keepPreviousData: true,
-  });
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/market/explore?${qs}`,
+    fetcher,
+    {
+      keepPreviousData: true,
+    },
+  );
 
   const rows: TableRow[] = data?.rows || [];
   const facets = data?.facets || {
@@ -228,19 +238,11 @@ export default function MarketPage() {
           <CarTypeSelector
             selectedCategories={f.categories}
             selectedMakes={f.makes}
-            onCategoryToggle={(cat) => set({ categories: toggle(f.categories, cat) })}
+            onCategoryToggle={(cat) =>
+              set({ categories: toggle(f.categories, cat) })
+            }
             onMakeToggle={(make) => set({ makes: toggle(f.makes, make) })}
             onClearAll={() => set({ categories: [], makes: [] })}
-          />
-
-          <ChipGroup
-            title="Title / condition"
-            options={CONDITIONS.map((c) => ({
-              key: c,
-              label: c.replace(/_/g, " "),
-            }))}
-            selected={f.conditions}
-            onToggle={(k) => set({ conditions: toggle(f.conditions, k) })}
           />
 
           <ChipGroup
@@ -373,7 +375,7 @@ export default function MarketPage() {
 
         {/* ── Results ── */}
         <main className="min-w-0 flex-1">
-          <MarketVisualizers facets={facets} />
+          {!error && <MarketVisualizers facets={facets} />}
 
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -381,7 +383,9 @@ export default function MarketPage() {
                 Market sourcing
               </h1>
               <p className="text-xs text-[var(--t4)]">
-                {isLoading && !data ? (
+                {error ? (
+                  "Market data unavailable"
+                ) : isLoading && !data ? (
                   "Loading…"
                 ) : (
                   <>
@@ -414,7 +418,13 @@ export default function MarketPage() {
             </select>
           </div>
 
-          {rows.length > 0 ? (
+          {error ? (
+            <ErrorState
+              title="Market data unavailable"
+              message="Could not load market listings. Your filters have been kept."
+              onRetry={() => void mutate()}
+            />
+          ) : rows.length > 0 ? (
             <DealTable rows={rows} />
           ) : (
             <div

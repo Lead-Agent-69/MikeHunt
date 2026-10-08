@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/swr-config";
-import { Btn } from "@/components/shared/Btn";
+import { markInventoryListed } from "@/lib/inventory/update-listings";
 import { Tag } from "@/components/shared/Tag";
 import { Ico } from "@/components/shared/Ico";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -27,6 +27,8 @@ export default function ListPage() {
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   const [blasting, setBlasting] = useState(false);
   const [done, setDone] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [updatedCount, setUpdatedCount] = useState(0);
 
   const { dealerId, loading: authLoading } = useDealerId();
 
@@ -51,21 +53,27 @@ export default function ListPage() {
   const inventory: InventoryItem[] = data?.items || [];
 
   const togglePlatform = (id: string) => {
+    setDone(false);
+    setSaveError(null);
     setSelectedPlatforms((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
   };
 
   const toggleVehicle = (id: string) => {
+    setDone(false);
+    setSaveError(null);
     setSelectedVehicles((prev) =>
       prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
     );
   };
 
   const handleBlast = async () => {
-    if (selectedVehicles.length === 0) return;
+    if (!selectedVehicles.length || !selectedPlatforms.length || blasting)
+      return;
     setBlasting(true);
     setDone(false);
+    setSaveError(null);
     try {
       const platformNames = selectedPlatforms.map((p) => {
         const map: Record<string, string> = {
@@ -77,22 +85,20 @@ export default function ListPage() {
         };
         return map[p] || p;
       });
-      await Promise.all(
-        selectedVehicles.map(async (id) => {
-          await fetch("/api/inventory", {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id,
-              stage: "listed",
-              listed_platforms: platformNames,
-            }),
-          });
-        }),
-      );
+      const result = await markInventoryListed(selectedVehicles, platformNames);
+      setUpdatedCount(result.updatedIds.length);
+      setDone(result.failedIds.length === 0);
+      if (result.failedIds.length) {
+        setSelectedVehicles(result.failedIds);
+        setSaveError(
+          `${result.updatedIds.length} saved; ${result.failedIds.length} could not be saved. Retry the remaining selected vehicles.`,
+        );
+      }
+      if (result.updatedIds.length) void mutate();
+    } catch {
+      setSaveError("Could not save the listings. Please try again.");
     } finally {
       setBlasting(false);
-      setDone(true);
     }
   };
 
@@ -240,12 +246,17 @@ export default function ListPage() {
           style={{ background: "var(--glo)" }}
         >
           <p className="text-[var(--green)] font-bold flex justify-center items-center gap-2">
-            <Ico name="check" /> Tagged {selectedVehicles.length}{" "}
-            {selectedVehicles.length === 1 ? "vehicle" : "vehicles"} as listed
-            on {selectedPlatforms.length}{" "}
+            <Ico name="check" /> Tagged {updatedCount}{" "}
+            {updatedCount === 1 ? "vehicle" : "vehicles"} as listed on{" "}
+            {selectedPlatforms.length}{" "}
             {selectedPlatforms.length === 1 ? "platform" : "platforms"}.
           </p>
         </div>
+      )}
+      {saveError && (
+        <p role="alert" className="text-sm text-[var(--red)]">
+          {saveError}
+        </p>
       )}
     </div>
   );

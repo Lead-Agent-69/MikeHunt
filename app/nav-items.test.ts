@@ -87,7 +87,7 @@ describe("primaryJobForPath", () => {
       "Deal Check",
       "Saved",
       "Pipeline",
-      "Account",
+      "Tools",
     ]);
 
     const coverage = navJobCoverage();
@@ -202,7 +202,7 @@ describe("primaryJobForPath", () => {
         "Deal Check",
         "Saved",
         "Pipeline",
-        "Account",
+        "Tools",
       ]);
       const more = moreGroupsForMode(mode).flatMap((group) =>
         group.items.map((item) => item.href),

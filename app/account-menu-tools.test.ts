@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { accountMenuForMode, MORE_GROUPS } from "@/components/layout/nav-items";
+import {
+  accountMenuForMode,
+  MORE_GROUPS,
+  workspaceGroupsForMode,
+} from "@/components/layout/nav-items";
 
 const names = (entries: { name: string }[]) => entries.map((e) => e.name);
 const all = (mode: unknown) => {
@@ -9,6 +13,23 @@ const all = (mode: unknown) => {
 };
 
 describe("account menu", () => {
+  it("Tools exposes each role's full catalog without administrative privileges", () => {
+    for (const mode of ["personal", "diy", "parts", "reseller", "dealer"]) {
+      const groups = workspaceGroupsForMode(mode);
+      const hrefs = groups.flatMap((group) =>
+        group.items.map((item) => item.href),
+      );
+      expect(hrefs).toContain("/discover");
+      for (const entry of all(mode)) expect(hrefs).toContain(entry.href);
+      expect(new Set(hrefs).size).toBe(hrefs.length);
+      expect(hrefs).not.toContain("/admin");
+      expect(hrefs).not.toContain("/sources");
+      expect(hrefs.includes("/insights")).toBe(
+        mode === "dealer" || mode === "reseller",
+      );
+    }
+    expect(workspaceGroupsForMode("parts")[0].group).toBe("Plan");
+  });
   it("personal: Saved, Saved searches, Alerts, Tools (Scan), Settings, Help", () => {
     const menu = accountMenuForMode("personal");
     expect(names(menu.primary)).toEqual(["Saved", "Saved searches", "Alerts"]);
@@ -22,7 +43,6 @@ describe("account menu", () => {
       "Flash deals",
       "Deal Check",
       "Compare",
-      "Vehicle intel",
       "Purchase plan",
       "Transport",
     ]);
