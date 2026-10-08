@@ -2,8 +2,9 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const scopeState = vi.hoisted(() => ({ query: "state=TX" }));
 vi.mock("@/hooks/useInventoryViewScope", () => ({
-  useInventoryViewScope: () => ({ query: "state=TX", ready: true }),
+  useInventoryViewScope: () => ({ query: scopeState.query, ready: true }),
 }));
 vi.mock("@/hooks/usePreferences", () => ({
   usePreferences: () => ({ prefs: {}, isLoading: false }),
@@ -28,9 +29,30 @@ let root: Root;
 afterEach(() => {
   if (root) act(() => root.unmount());
   vi.unstubAllGlobals();
+  scopeState.query = "state=TX";
 });
 
 describe("Feed scope request isolation", () => {
+  it("replaces the initial location when a shared header search changes", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const fetchMock = vi.fn((_url: string) => new Promise(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    root = createRoot(document.createElement("div"));
+    await act(async () => root.render(React.createElement(FeedPage)));
+    scopeState.query = "scope=explicit&state=CA";
+    await act(async () => root.render(React.createElement(FeedPage)));
+    expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=CA");
+    scopeState.query = "scope=explicit";
+    await act(async () => root.render(React.createElement(FeedPage)));
+    expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=&");
+  });
   it("ignores an older state's response after the user selects a new market", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal(

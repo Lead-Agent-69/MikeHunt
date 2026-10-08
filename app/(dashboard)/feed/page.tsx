@@ -61,6 +61,7 @@ const money = (n?: number | null) =>
 export default function FeedPage() {
   const { query: viewQuery, ready: viewReady } = useInventoryViewScope();
   const { prefs, isLoading: prefsLoading } = usePreferences();
+  const savedScopeKey = JSON.stringify(savedScopeStates(prefs) || []);
   const [items, setItems] = useState<FeedItem[]>([]);
   const offset = useRef(0);
   const generation = useRef(0);
@@ -138,12 +139,10 @@ export default function FeedPage() {
       const params = new URLSearchParams(viewQuery);
       setScope(
         inventoryScopeStates(params) ??
-          (params.get("scope") === "explicit"
-            ? []
-            : savedScopeStates(prefs) || []),
+          (params.get("scope") === "explicit" ? [] : JSON.parse(savedScopeKey)),
       );
     }
-  }, [prefs, prefsLoading, viewReady, viewQuery]);
+  }, [savedScopeKey, prefsLoading, viewReady, viewQuery]);
 
   // Re-scope the feed when the chosen states change (reset the stream, refetch from the top).
   const rescope = useCallback((states: string[]) => {
