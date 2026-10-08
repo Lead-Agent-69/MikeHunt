@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCondition } from "./utils";
+import { formatCondition } from "@/components/shared/deal-card/utils";
 
 describe("buyer-facing condition labels", () => {
   it("labels a title claim without treating it as an inspection", () => {
