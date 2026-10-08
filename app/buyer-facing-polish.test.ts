@@ -22,7 +22,7 @@ describe("buyer-facing polish", () => {
 
     expect(source).not.toContain("Drag or swipe to explore");
     expect(source).toContain("Buying for");
-    expect(source).toContain("View all matching vehicles");
+    expect(source).toContain("Browse inventory");
     expect(source).not.toContain("<BuyerScopeBuilder");
     expect(source).not.toContain("<SetupStatusPanel");
     expect(source).not.toContain("Scanning the market");

@@ -183,7 +183,7 @@ describe("primaryJobForPath", () => {
     );
 
     expect(discoverPage).toContain("Buying for");
-    expect(discoverPage).toContain("View all matching vehicles");
+    expect(discoverPage).toContain("Browse inventory");
     expect(discoverPage).not.toContain("<BuyerScopeBuilder");
     expect(discoverPage).not.toContain("<SetupStatusPanel");
   });
