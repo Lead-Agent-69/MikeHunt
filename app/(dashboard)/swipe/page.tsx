@@ -1,14 +1,25 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { CarFront, Layers } from "lucide-react";
+import { CarFront, Layers, RefreshCw } from "lucide-react";
 import { SwipeCardStack } from "@/components/ui/framer-components";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { proxiedImage } from "@/lib/image-url";
+import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
+import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
+import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
 // left to pass — the same two decisions the buttons below the stack make, for keyboard users.
@@ -43,7 +54,7 @@ type SwipeDeal = {
   images?: string[];
 };
 
-function DealFace({ deal }: { deal: SwipeDeal }) {
+function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
   const [imgFailed, setImgFailed] = useState(false);
   const img = proxiedImage(deal.images?.[0]);
   const title =
@@ -53,6 +64,9 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
+  const sourceLabel = sourceMeta(
+    displaySource(deal.source, deal.sourceUrl),
+  ).label;
   const seller =
     (deal as { sellerType?: string }).sellerType === "dealer"
       ? "Dealer"
@@ -90,6 +104,16 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
           }}
         />
 
+        <div className="absolute bottom-12 left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-black/75 px-3 py-2 text-white">
+          <span className="mr-2 text-xs">
+            {dealCardCopy(flipDesk).priceLabel(deal.source)}
+          </span>
+          <strong className="text-lg">
+            {deal.askPrice != null && deal.askPrice > 0
+              ? `$${Math.round(deal.askPrice).toLocaleString()}`
+              : "Not reported"}
+          </strong>
+        </div>
         <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
           {deal.source && (
             <span
@@ -99,7 +123,7 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
                 backdropFilter: "blur(8px)",
               }}
             >
-              {deal.source}
+              {sourceLabel}
             </span>
           )}
         </div>
@@ -120,35 +144,41 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
             </span>
           ) : null}
           {deal.condition && (
-            <span className="capitalize">{deal.condition}</span>
+            <span className="capitalize">
+              {deal.condition.replace(/_/g, " ")}
+            </span>
           )}
           {location && <span className="truncate">{location}</span>}
-          {deal.source && <span>{deal.source}</span>}
+          {deal.source && <span>{sourceLabel}</span>}
           {seller && <span>{seller}</span>}
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-2 border-t border-[var(--b1)] pt-2.5">
           <div>
             <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-              Ask
+              {dealCardCopy(flipDesk).priceLabel(deal.source)}
             </p>
             <span className="font-mono text-lg font-black leading-none tracking-tight text-[var(--t1)]">
-              ${Math.round(deal.askPrice ?? 0).toLocaleString()}
+              {deal.askPrice != null && deal.askPrice > 0
+                ? `$${Math.round(deal.askPrice).toLocaleString()}`
+                : "Not reported"}
             </span>
           </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-              Resale basis
-            </p>
-            <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
-              {deal.sellEstimate
-                ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
-                : "Resale basis not on file."}
-            </span>
-          </div>
+          {flipDesk && (
+            <div className="text-right">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Resale basis
+              </p>
+              <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
+                {deal.sellEstimate
+                  ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
+                  : "Resale basis not on file."}
+              </span>
+            </div>
+          )}
         </div>
 
-        {(deal.sellEstimate || deal.recommendedMaxBid) && (
+        {flipDesk && (deal.sellEstimate || deal.recommendedMaxBid) && (
           <div className="grid grid-cols-2 gap-1.5 text-[10px]">
             <div
               className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
@@ -190,19 +220,34 @@ function StackSkeleton() {
 }
 
 export default function SwipePage() {
+  const { query, ready, intent } = useInventoryViewScope();
+  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [batch, setBatch] = useState(0);
   // Bumped by "Start over" so a repeat of batch 0 still remounts the stack and clears counters.
   const [runId, setRunId] = useState(0);
   const [decided, setDecided] = useState(0);
   const [saved, setSaved] = useState(0);
   const [passed, setPassed] = useState(0);
+  const [failedSaves, setFailedSaves] = useState<string[]>([]);
+  const [pendingSaves, setPendingSaves] = useState<string[]>([]);
+  const currentScope = useRef(query);
+  currentScope.current = query;
 
-  const { data, error, isLoading } = useSWR(
-    `/api/deals?sortBy=lastSeenAt&sortOrder=desc&limit=${PAGE}&offset=${
-      batch * PAGE
-    }`,
+  const [scopeBatch, setScopeBatch] = useState(query);
+  const effectiveBatch = scopeBatch === query ? batch : 0;
+  useEffect(() => {
+    setScopeBatch(query);
+    setBatch(0);
+    setRunId((value) => value + 1);
+    setSaved(0);
+    setPassed(0);
+  }, [query]);
+  const { data, error, isLoading, mutate } = useSWR(
+    ready
+      ? `/api/scan?${query}&sort=newest&pageSize=${PAGE}&page=${effectiveBatch}`
+      : null,
     fetcher,
-    { revalidateOnFocus: false, keepPreviousData: true },
+    { revalidateOnFocus: true, keepPreviousData: false },
   );
 
   const hasMore: boolean = !!data?.hasMore;
@@ -210,11 +255,11 @@ export default function SwipePage() {
   // Memoised on `data` so the stack only resets its queue when a genuinely new batch arrives.
   const cards = useMemo(
     () =>
-      ((data?.deals ?? []) as SwipeDeal[]).map((d) => ({
+      ((data?.vehicles ?? []) as SwipeDeal[]).map((d) => ({
         id: d.id,
-        content: <DealFace deal={d} />,
+        content: <DealFace deal={d} flipDesk={flipDesk} />,
       })),
-    [data],
+    [data, flipDesk],
   );
 
   // Decision counters are per-batch; a new batch starts from zero.
@@ -222,9 +267,9 @@ export default function SwipePage() {
     setDecided(0);
   }, [batch, runId]);
 
-  const onSave = useCallback((id: string) => {
-    setDecided((n) => n + 1);
-    setSaved((n) => n + 1);
+  const persistSave = useCallback((id: string) => {
+    const scope = currentScope.current;
+    setPendingSaves((ids) => [...ids, id]);
     fetch("/api/saved-cars", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -232,10 +277,25 @@ export default function SwipePage() {
     })
       .then((res) => {
         if (!res.ok) throw new Error();
+        if (currentScope.current === scope) setSaved((n) => n + 1);
+        setFailedSaves((ids) => ids.filter((value) => value !== id));
         toast.success("Saved to your garage");
       })
-      .catch(() => toast.error("Couldn't save — are you signed in?"));
+      .catch(() => {
+        setFailedSaves((ids) => (ids.includes(id) ? ids : [...ids, id]));
+        toast.error("Couldn't save. Sign in if needed, then retry.");
+      })
+      .finally(() =>
+        setPendingSaves((ids) => ids.filter((value) => value !== id)),
+      );
   }, []);
+  const onSave = useCallback(
+    (id: string) => {
+      setDecided((n) => n + 1);
+      persistSave(id);
+    },
+    [persistSave],
+  );
 
   const onPass = useCallback(() => {
     setDecided((n) => n + 1);
@@ -264,7 +324,6 @@ export default function SwipePage() {
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         className="relative"
       >
-        <div className="absolute -inset-4 rounded-full bg-[var(--amber-lo)] opacity-50 blur-[32px] pointer-events-none" />
         <h1 className="relative flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
           <span
             className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg"
@@ -274,10 +333,27 @@ export default function SwipePage() {
           </span>
           Swipe
         </h1>
-        <p className="relative mt-1.5 text-xs text-[var(--t4)] md:text-sm">
-          Drag right to save, left to pass — best-scored deals first.
-        </p>
       </motion.div>
+      <InventoryViewLinks query={query} current="/swipe" />
+      {failedSaves.length > 0 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 border-y border-[var(--b1)] py-2 text-sm"
+        >
+          <span>
+            {failedSaves.length} save{failedSaves.length === 1 ? "" : "s"} not
+            completed
+          </span>
+          <button
+            type="button"
+            disabled={pendingSaves.length > 0}
+            onClick={() => failedSaves.forEach(persistSave)}
+            className="inline-flex min-h-11 items-center gap-2 px-2 disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" /> Retry saves
+          </button>
+        </div>
+      )}
 
       {/* Session tally */}
       <div className="flex items-center justify-between gap-2 text-[11px] font-bold">
@@ -289,7 +365,7 @@ export default function SwipePage() {
         <span className="text-[var(--t4)]">{passed} passed</span>
       </div>
 
-      {isLoading && !cards.length ? (
+      {(!ready || isLoading) && !cards.length ? (
         <StackSkeleton />
       ) : error ? (
         <div className="glass-panel" style={{ padding: 0 }}>
@@ -298,6 +374,13 @@ export default function SwipePage() {
             title="Couldn't load deals"
             message="Something went wrong fetching the queue. Try again in a moment."
           />
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="inline-flex min-h-11 items-center gap-2 px-4 text-sm"
+          >
+            <RefreshCw className="h-4 w-4" /> Try again
+          </button>
         </div>
       ) : exhausted ? (
         <motion.div

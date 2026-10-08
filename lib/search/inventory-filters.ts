@@ -66,7 +66,6 @@ export function sellerTypeSourceValues(sellerType: string) {
     return [
       "independent_dealer",
       "craigslist_dealer",
-      "carmax",
       "cars_com",
       "cargurus",
       "autotrader",

@@ -12,6 +12,7 @@ import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import {
   navItemForViewer,
   primaryNavForMode,
@@ -107,17 +108,7 @@ function TopNavContent() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const statesParam = params.get("states");
-    const stateParam = params.get("state");
-    const nextStates = statesParam
-      ? statesParam
-          .split(",")
-          .map((state) => state.trim().toUpperCase())
-          .filter(Boolean)
-      : stateParam
-        ? [stateParam.trim().toUpperCase()]
-        : undefined;
-    setScopedStates(nextStates?.length ? nextStates : undefined);
+    setScopedStates(inventoryScopeStates(params));
   }, [pathname, searchParams]);
 
   // Unread alerts are account data. Poll only once we know there is a session; a signed-out
@@ -168,7 +159,7 @@ function TopNavContent() {
   const totalAlertCount = alertCount + localSearches.count;
   const changeLocation = (states: string[]) => {
     setScopedStates(states);
-    if (pathname === "/discover" || pathname === "/scan") {
+    if (["/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname)) {
       const params = new URLSearchParams(window.location.search);
       params.delete("state");
       params.delete("states");
@@ -176,6 +167,7 @@ function TopNavContent() {
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
       window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      window.dispatchEvent(new Event("inventory-scope-change"));
     } else router.refresh();
   };
 

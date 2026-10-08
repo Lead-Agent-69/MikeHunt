@@ -69,6 +69,7 @@ import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
+import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import {
   INVENTORY_DETAIL_FIELDS,
   readInventoryDetails,
@@ -4488,6 +4489,7 @@ function ScanPageInner() {
       )}
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
+      <InventoryViewLinks query={swrKey.split("?")[1] || ""} current="/scan" />
       <div className="glass-panel px-4 py-3 space-y-3">
         {appliedFilters.length > 0 && (
           <div

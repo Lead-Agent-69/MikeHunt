@@ -431,5 +431,5 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
     return normalized;
   }, []);
 
-  return { intent, save };
+  return { intent, save, isLoading };
 }

@@ -11,6 +11,8 @@ export interface EditorialCardData {
   title: string;
   category: string;
   year: string;
+  price?: number | null;
+  priceLabel?: string;
   description: string;
   cta?: string;
   ctaLink?: string;
@@ -43,10 +45,13 @@ export function EditorialCard({
 
   return (
     <motion.div
-      className={cn("relative group cursor-pointer", className)}
+      className={cn("relative group", className)}
       style={{ aspectRatio: currentVariant.aspectRatio }}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => { setIsHovered(false); setIsVideoPlaying(false); }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setIsVideoPlaying(false);
+      }}
       whileHover={{ y: -8 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
@@ -111,6 +116,18 @@ export function EditorialCard({
         </motion.div>
 
         {/* Content */}
+        {data.price !== undefined && (
+          <div className="absolute left-4 top-14 max-w-[calc(100%-2rem)] rounded-lg bg-black/70 px-3 py-2 text-white">
+            <span className="mr-2 text-xs">
+              {data.priceLabel || "Listed price"}
+            </span>
+            <strong className="text-lg">
+              {data.price != null && data.price > 0
+                ? `$${Math.round(data.price).toLocaleString()}`
+                : "Not reported"}
+            </strong>
+          </div>
+        )}
         <div className="absolute bottom-0 left-0 right-0 p-5">
           <motion.h3
             className="text-lg font-bold text-white leading-tight mb-2"
@@ -132,9 +149,9 @@ export function EditorialCard({
 
           {data.cta && (
             <motion.button
-              className="mt-3 px-4 py-2 text-xs font-bold text-white bg-white/10 rounded-full backdrop-blur-md hover:bg-white/20 transition-colors"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: isHovered ? 1 : 0, y: isHovered ? 0 : 10 }}
+              className="mt-3 min-h-11 px-4 py-2 text-xs font-bold text-white bg-white/10 rounded-lg backdrop-blur-md hover:bg-white/20 transition-colors"
+              initial={{ opacity: 1, y: 0 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.2 }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -148,9 +165,11 @@ export function EditorialCard({
 
         {/* Hover border effect */}
         <motion.div
-          className="absolute inset-0 rounded-[var(--r4)] border-2 border-white/0"
+          className="pointer-events-none absolute inset-0 rounded-[var(--r4)] border-2 border-white/0"
           animate={{
-            borderColor: isHovered ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0)",
+            borderColor: isHovered
+              ? "rgba(255,255,255,0.2)"
+              : "rgba(255,255,255,0)",
           }}
           transition={{ duration: 0.3 }}
         />
@@ -165,7 +184,10 @@ interface EditorialCardStackProps {
   className?: string;
 }
 
-export function EditorialCardStack({ items, className }: EditorialCardStackProps) {
+export function EditorialCardStack({
+  items,
+  className,
+}: EditorialCardStackProps) {
   return (
     <div className={cn("space-y-6", className)}>
       {items.map((item, index) => (
@@ -174,7 +196,11 @@ export function EditorialCardStack({ items, className }: EditorialCardStackProps
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.5, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
+          transition={{
+            duration: 0.5,
+            delay: index * 0.1,
+            ease: [0.16, 1, 0.3, 1],
+          }}
         >
           <EditorialCard data={item} />
         </motion.div>
@@ -190,7 +216,11 @@ interface EditorialGridProps {
   className?: string;
 }
 
-export function EditorialGrid({ items, columns = 3, className }: EditorialGridProps) {
+export function EditorialGrid({
+  items,
+  columns = 3,
+  className,
+}: EditorialGridProps) {
   return (
     <div
       className={cn("grid gap-6", className)}
@@ -202,7 +232,11 @@ export function EditorialGrid({ items, columns = 3, className }: EditorialGridPr
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.5, delay: index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+          transition={{
+            duration: 0.5,
+            delay: index * 0.05,
+            ease: [0.16, 1, 0.3, 1],
+          }}
         >
           <EditorialCard data={item} />
         </motion.div>
