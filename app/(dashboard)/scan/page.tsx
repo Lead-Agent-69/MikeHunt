@@ -20,6 +20,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
+import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
 
 import {
   ArrowUpRight,
@@ -3567,7 +3568,21 @@ function ScanPageInner() {
     [smartPlan, selectedSourceIds],
   );
 
-  useEffect(() => () => sourceRunController.current?.abort(), []);
+  const sourceSearchKey = JSON.stringify({
+    scope: smartPlan.scope,
+    sourceIds: selectedSourceIds,
+  });
+  useEffect(() => {
+    sourceRunId.current++;
+    sourceRunController.current?.abort();
+    setRunImporting(false);
+    setPlanMessage(null);
+    setImportRunProof([]);
+    return () => {
+      sourceRunId.current++;
+      sourceRunController.current?.abort();
+    };
+  }, [sourceSearchKey]);
 
   const runMatchingSources = useCallback(async () => {
     const runId = ++sourceRunId.current;
@@ -3680,13 +3695,11 @@ function ScanPageInner() {
         }
         if (res.status === 503) {
           throw new Error(
-            data?.message ||
-              data?.error ||
-              "This source refresh is not available right now.",
+            "This source refresh is not available right now. Existing matches remain available; try again later.",
           );
         }
         throw new Error(
-          data?.message || data?.error || "Could not run matching sources.",
+          "We couldn't start this source search. Your existing matches remain available; try again later.",
         );
       }
       let completedData = data;
@@ -3696,48 +3709,29 @@ function ScanPageInner() {
             ? "Your source search is already in progress. We'll show new matches when it finishes."
             : "Your source search is underway. We'll show new matches when it finishes.",
         );
-        const deadline = Date.now() + 10 * 60 * 1000;
-        while (Date.now() < deadline) {
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-          if (runId !== sourceRunId.current || controller.signal.aborted)
-            return;
-          const statusRes = await fetch(`/api/scrape/jobs/${data.job.id}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          });
-          const statusData = await statusRes.json();
-          if (!statusRes.ok)
-            throw new Error(
-              statusData?.error ||
-                "Could not read the scoped source search status.",
-            );
-          const job = statusData.job;
-          if (job.status === "failed")
-            throw new Error(
-              job.error_message || "The scoped source search failed.",
-            );
-          if (job.status === "completed") {
-            completedData = job.result || {
-              total: selectedSourceIds.length,
-              successful: selectedSourceIds.length,
-              failed: 0,
-              totalDeals: job.listings_saved || job.listings_found || 0,
-              results: [],
-            };
-            break;
-          }
+        const job = await pollScopedScrapeJob(
+          data.job.id,
+          controller.signal,
+          (message) => {
+            if (runId === sourceRunId.current) setPlanMessage(message);
+          },
+        );
+        if (runId !== sourceRunId.current || controller.signal.aborted) return;
+        if (!job) {
           setPlanMessage(
-            job.status === "running"
-              ? "Searching only the matching sources. New rows will appear here when complete..."
-              : "Your source search is waiting to begin...",
-          );
-        }
-        if (completedData === data) {
-          setPlanMessage(
-            "The source search is still running in the background. This page will refresh when you return.",
+            "We stopped waiting for this search, but it may still be running. Existing matches remain available; refresh results to check for new vehicles.",
           );
           return;
         }
+        if (!job.result) {
+          setPlanMessage(
+            "The search ended, but its source results could not be verified. Refreshing available matches without claiming new inventory.",
+          );
+          mutate();
+          mutateScrapeHealth();
+          return;
+        }
+        completedData = job.result;
       }
       if (runId !== sourceRunId.current) return;
       const runResults = Array.isArray(completedData.results)
@@ -3753,7 +3747,7 @@ function ScanPageInner() {
         })),
       );
       setPlanMessage(
-        `Source search finished: ${completedData.successful || 0}/${completedData.total || 0} sources succeeded, ${completedData.totalDeals || 0} rows found.`,
+        `Source search finished: ${completedData.successful || 0} of ${completedData.total || 0} sources checked successfully; ${completedData.totalDeals || 0} listings found.`,
       );
       mutate();
       mutateScrapeHealth();
@@ -3761,9 +3755,11 @@ function ScanPageInner() {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (runId !== sourceRunId.current) return;
       setPlanMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not run matching sources.",
+        error instanceof TypeError || error instanceof SyntaxError
+          ? "We couldn't connect to check this search. It may still be running; existing matches remain available."
+          : error instanceof Error
+            ? error.message
+            : "Could not run matching sources.",
       );
     } finally {
       if (runId === sourceRunId.current) setRunImporting(false);

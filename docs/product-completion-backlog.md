@@ -20,6 +20,14 @@ Wave 2 queue fixes implemented: active request reuse now requires the same scope
 - Production audit: 3,796 active listings, 3,301 missing VINs (87.0%), 25 missing state (0.7%). Audit reporting now exposes every detected missing VIN/image rather than hiding gaps below arbitrary percentage thresholds; a clear audit is not proof of valuation accuracy.
 - Browser inventory reconnected, but the disconnected localhost tab was rejected by browser policy. A working production login tab was requested; actual user/admin login is still unverified.
 
+### Search Monitoring Wave
+
+- Removed fabricated source-success counts when a completed job has no verified summary. Completion without proof refreshes available inventory and explicitly reports the missing summary.
+- Status polling now retries transient read failures without submitting another collection request, bounds request/wait time, handles sign-in and missing-job failures with friendly guidance, and reports stale heartbeats without claiming failure or cancelling a worker.
+- Filter/source changes and navigation cancel monitoring and invalidate older responses. A monitoring timeout no longer promises an automatic refresh on return or asserts that the worker is still alive.
+- Added behavioral tests for completion, missing results, failure, access errors, mismatched responses, retry, deadline, cancellation, and stale heartbeat. Full release checks are recorded separately after execution.
+- Production browser login was attempted with the previously supplied account and rejected as incorrect credentials. Password reset/sign-in was handed back to the account owner. Normal-user/admin interaction QA remains open; no account privileges were changed.
+
 ## Adoptable Patterns
 
 - Visor: precise inventory filters, dated listing observations, dealer inventory, and market slices with visible sample counts and geography. Listing disappearance must not imply a confirmed sale.
