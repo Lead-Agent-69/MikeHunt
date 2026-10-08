@@ -28,6 +28,14 @@ Wave 2 queue fixes implemented: active request reuse now requires the same scope
 - Added behavioral tests for completion, missing results, failure, access errors, mismatched responses, retry, deadline, cancellation, and stale heartbeat. Full release checks are recorded separately after execution.
 - Production browser login was attempted with the previously supplied account and rejected as incorrect credentials. Password reset/sign-in was handed back to the account owner. Normal-user/admin interaction QA remains open; no account privileges were changed.
 
+### Scoped Preview And Pagination Wave
+
+- Source-plan previews, live previews, and inventory pagination now use cancellable, latest-request ownership. Filter changes and navigation cancel obsolete requests; late success/error/finally callbacks cannot overwrite a newer search or clear its loading state.
+- Explicit preview-source selection no longer silently falls back to other sources. Preview responses report only actually attempted sources and use customer-facing language rather than database/setup jargon.
+- Make, model, selected makes, maximum year, and minimum mileage now constrain preview results. A requested mileage limit excludes unknown mileage. Advanced filters unsupported by public previews are disclosed rather than ignored; existing inventory search retains those filters.
+- Pagination checks HTTP/response shape, keeps current vehicles on failure, displays retry guidance, and stops automatic repeat loops after failures or an unexpectedly empty page.
+- Normal/admin signed-in QA, source-backed evidence enrichment, and the remaining acceptance gates below are not made complete by these changes.
+
 ## Adoptable Patterns
 
 - Visor: precise inventory filters, dated listing observations, dealer inventory, and market slices with visible sample counts and geography. Listing disappearance must not imply a confirmed sale.

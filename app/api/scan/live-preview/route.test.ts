@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
+import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
 
 vi.mock("@/lib/deals/deal-desk-access", async (importOriginal) => {
   const actual =
@@ -56,8 +57,12 @@ vi.mock("@/lib/scrapers/sources/publicsurplus", () => ({
   previewPublicSurplus: vi.fn(async () => []),
 }));
 
+let requestNumber = 0;
 function req(path: string) {
-  return new NextRequest(`http://localhost:3000${path}`);
+  // Filter fixtures use distinct clients; the separate rate-limit suite tests repeated calls.
+  return new NextRequest(`http://localhost:3000${path}`, {
+    headers: { "x-real-ip": `203.0.113.${++requestNumber}` },
+  });
 }
 
 // GovDeals is terms-restricted (Liquidity Services User Agreement), so these preview-path tests run
@@ -88,9 +93,7 @@ describe("GET /api/scan/live-preview", () => {
     expect(res.status).toBe(200);
     expect(body.total).toBe(0);
     expect(body.vehicles).toEqual([]);
-    expect(body.message).toMatch(
-      /does not have a public no-auth preview path/i,
-    );
+    expect(body.message).toMatch(/isn't available for preview/i);
     expect(body.plan.sourceIds).not.toContain("govdeals");
   });
 
@@ -126,6 +129,61 @@ describe("GET /api/scan/live-preview", () => {
     expect(body.total).toBe(0);
     expect(body.vehicles).toEqual([]);
     expect(body.proof[0].matchedRows).toBe(0);
+  });
+
+  it("does not fall back to other sources when the selected source has no matches", async () => {
+    process.env.SCRAPE_SOURCES = "govdeals,municibid";
+    vi.mocked(previewMunicibid).mockClear();
+    const { GET } = await import("./route");
+    const res = await GET(
+      req("/api/scan/live-preview?lane=government&source=govdeals&state=MO"),
+    );
+    const body = await res.json();
+    expect(body.vehicles).toEqual([]);
+    expect(body.attemptedSources).toEqual(["govdeals"]);
+    expect(previewMunicibid).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "make=Ford",
+    "makes=Ford,Toyota",
+    "model=Explorer",
+    "maxYear=2018",
+    "minMileage=10000",
+    "maxMileage=100000",
+  ])("does not ignore requested preview criteria (%s)", async (criteria) => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      req(
+        `/api/scan/live-preview?lane=government&source=govdeals&state=FL&${criteria}`,
+      ),
+    );
+    expect((await res.json()).vehicles).toEqual([]);
+  });
+
+  it("keeps matching make/model results instead of rejecting every narrowed search", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      req(
+        "/api/scan/live-preview?lane=government&source=govdeals&state=FL&make=Mercedes-Benz&model=C-Class",
+      ),
+    );
+    expect((await res.json()).vehicles).toHaveLength(1);
+  });
+
+  it("refuses unsupported preview filters before contacting a source", async () => {
+    vi.mocked(previewGovDeals).mockClear();
+    const { GET } = await import("./route");
+    const res = await GET(
+      req(
+        "/api/scan/live-preview?lane=government&source=govdeals&damage=flood",
+      ),
+    );
+    const body = await res.json();
+    expect(body.vehicles).toEqual([]);
+    expect(body.unsupportedFilters).toEqual(["damage"]);
+    expect(body.message).toContain("can't verify");
+    expect(previewGovDeals).not.toHaveBeenCalled();
   });
 });
 

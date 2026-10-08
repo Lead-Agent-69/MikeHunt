@@ -21,6 +21,11 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
+import { createLatestRequest } from "@/lib/latest-request";
+import {
+  previewFilterMessage,
+  unsupportedPreviewFilters,
+} from "@/lib/search/preview-filter-support";
 
 import {
   ArrowUpRight,
@@ -2580,6 +2585,9 @@ function ScanPageInner() {
   const [runImporting, setRunImporting] = useState(false);
   const sourceRunId = useRef(0);
   const sourceRunController = useRef<AbortController | null>(null);
+  const planRequests = useRef(createLatestRequest());
+  const previewRequests = useRef(createLatestRequest());
+  const pageRequests = useRef(createLatestRequest());
   const [livePreviewing, setLivePreviewing] = useState(false);
   const [livePreviewRows, setLivePreviewRows] = useState<any[]>([]);
   const [livePreviewProof, setLivePreviewProof] = useState<PreviewProofItem[]>(
@@ -2590,30 +2598,6 @@ function ScanPageInner() {
     useState<ScrapePlanResult | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const autoPreviewKeyRef = useRef<string | null>(null);
-  const activePreviewRequestRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    setLivePreviewRows([]);
-    setLivePreviewProof([]);
-    autoPreviewKeyRef.current = null;
-    activePreviewRequestRef.current = null;
-  }, [
-    sourceFilter,
-    sellerTypeFilter,
-    lane,
-    state,
-    search,
-    make,
-    makesFilter,
-    model,
-    titleType,
-    maxPrice,
-    minYear,
-    maxMileage,
-    dealerHostsFilter,
-    dealerSourceIdsFilter,
-    sellerTypeFilter,
-  ]);
 
   useEffect(() => {
     const q = urlParams.get("q");
@@ -3115,6 +3099,7 @@ function ScanPageInner() {
   );
 
   const previewSourcePlan = useCallback(async () => {
+    const request = planRequests.current.start();
     setPlanPreviewing(true);
     setPlanMessage(null);
     setImportPlanProof(null);
@@ -3127,20 +3112,22 @@ function ScanPageInner() {
           sourceIds:
             sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds,
         }),
+        signal: request.signal,
       });
       const data = await res.json();
+      if (!request.isCurrent()) return;
       if (!res.ok)
-        throw new Error(data?.error || "Could not preview source plan.");
+        throw new Error(
+          "We couldn't prepare this source search. Please try again.",
+        );
       setImportPlanProof(data as ScrapePlanResult);
       const runnable = Number(data?.summary?.runnable || 0);
       const heldBack = Number(data?.summary?.heldBack || 0);
-      const estimated = Number(data?.summary?.estimatedDealsPerRun || 0);
-      const firstBlocker = data?.summary?.firstBlocker;
       setPlanMessage(
-        data?.message ||
-          `Plan ready: ${runnable} ready, ${heldBack} skipped, about ${estimated.toLocaleString()} expected rows per full search.${firstBlocker ? ` First setup step: ${firstBlocker}` : ""}`,
+        `Search plan: ${runnable} sources available; ${heldBack} unavailable for this search. Vehicle counts are known only after sources are checked.`,
       );
     } catch (error) {
+      if (!request.isCurrent()) return;
       setPlanMessage(
         userFacingErrorMessage(
           error,
@@ -3148,18 +3135,15 @@ function ScanPageInner() {
         ),
       );
     } finally {
-      setPlanPreviewing(false);
+      if (request.isCurrent()) setPlanPreviewing(false);
+      request.finish();
     }
   }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter]);
 
   const fetchLivePreview = useCallback(async () => {
+    const request = previewRequests.current.start();
     setLivePreviewing(true);
     setPlanMessage(null);
-    const requestKey = JSON.stringify({
-      scope: smartPlan.scope,
-      sourceFilter,
-    });
-    activePreviewRequestRef.current = requestKey;
     try {
       const params = new URLSearchParams();
       if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
@@ -3176,6 +3160,9 @@ function ScanPageInner() {
         params.set("maxPrice", String(smartPlan.scope.maxPrice));
       if (smartPlan.scope.minYear)
         params.set("minYear", String(smartPlan.scope.minYear));
+      if (maxYear !== "any") params.set("maxYear", maxYear);
+      if (minMileage !== "any")
+        params.set("minMileage", minMileage.replace("k", "000"));
       if (smartPlan.scope.maxMileage)
         params.set("maxMileage", String(smartPlan.scope.maxMileage));
       if (minPrice !== "any")
@@ -3187,18 +3174,42 @@ function ScanPageInner() {
         params.set("dealers", dealerHostsFilter.join(","));
       if (dealerSourceIdsFilter.length)
         params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
+      for (const [key, value] of Object.entries({
+        damage,
+        body,
+        trim,
+        fuelType,
+        transmission,
+        keys,
+        availability,
+        drivetrain,
+        verdict,
+        category,
+        minProfit,
+      })) {
+        if (value !== "all" && value !== "any") params.set(key, value);
+      }
+      if (madeInUsa) params.set("madeInUsa", "1");
+      if (buyNow) params.set("buyNow", "1");
+      if (unsupportedPreviewFilters(params).length) {
+        setPlanMessage(previewFilterMessage);
+        return;
+      }
       const res = await fetch(`/api/scan/live-preview?${params.toString()}`, {
         cache: "no-store",
+        signal: request.signal,
       });
       const data = await res.json();
+      if (!request.isCurrent()) return;
       if (!res.ok)
-        throw new Error(data?.error || "Could not fetch live preview.");
-      if (activePreviewRequestRef.current !== requestKey) return;
+        throw new Error(
+          "We couldn't preview matching vehicles. Please try again.",
+        );
       setLivePreviewRows(data.vehicles || []);
       setLivePreviewProof(data.proof || []);
       setPlanMessage(data.message || "Live public preview loaded.");
     } catch (error) {
-      if (activePreviewRequestRef.current !== requestKey) return;
+      if (!request.isCurrent()) return;
       setPlanMessage(
         userFacingErrorMessage(
           error,
@@ -3206,13 +3217,29 @@ function ScanPageInner() {
         ),
       );
     } finally {
-      setLivePreviewing(false);
+      if (request.isCurrent()) setLivePreviewing(false);
+      request.finish();
     }
   }, [
     smartPlan.scope,
     sourceFilter,
     sellerTypeFilter,
     minPrice,
+    maxYear,
+    minMileage,
+    damage,
+    body,
+    trim,
+    fuelType,
+    transmission,
+    keys,
+    availability,
+    drivetrain,
+    verdict,
+    category,
+    minProfit,
+    madeInUsa,
+    buyNow,
     dealerHostsFilter,
     dealerSourceIdsFilter,
   ]);
@@ -3573,14 +3600,16 @@ function ScanPageInner() {
     sourceIds: selectedSourceIds,
   });
   useEffect(() => {
-    sourceRunId.current++;
-    sourceRunController.current?.abort();
+    const runId = sourceRunId;
+    const runController = sourceRunController;
+    runId.current++;
+    runController.current?.abort();
     setRunImporting(false);
     setPlanMessage(null);
     setImportRunProof([]);
     return () => {
-      sourceRunId.current++;
-      sourceRunController.current?.abort();
+      runId.current++;
+      runController.current?.abort();
     };
   }, [sourceSearchKey]);
 
@@ -3771,7 +3800,19 @@ function ScanPageInner() {
   const [extra, setExtra] = useState<any[]>([]);
   const [morePage, setMorePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   useEffect(() => {
+    const plans = planRequests.current;
+    const previews = previewRequests.current;
+    const pages = pageRequests.current;
+    plans.cancel();
+    previews.cancel();
+    pages.cancel();
+    setPlanPreviewing(false);
+    setLivePreviewing(false);
+    setLoadingMore(false);
+    setLoadMoreError(null);
+    setPlanMessage(null);
     setExtra([]);
     setMorePage(0);
     setLivePreviewRows([]);
@@ -3779,7 +3820,12 @@ function ScanPageInner() {
     setImportRunProof([]);
     setImportPlanProof(null);
     autoPreviewKeyRef.current = null;
-  }, [swrKey]);
+    return () => {
+      plans.cancel();
+      previews.cancel();
+      pages.cancel();
+    };
+  }, [swrKey, sourceSearchKey]);
 
   // Derive state from SWR + the appended pages.
   const results = useMemo(
@@ -3849,19 +3895,35 @@ function ScanPageInner() {
   const hasMore = !loading && !!swrKey && results.length < total;
   const loadMore = useCallback(async () => {
     if (!swrKey || loadingMore || !hasMore) return;
+    const request = pageRequests.current.start();
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const next = morePage + 1;
-      const res = await fetch(`${swrKey}&page=${next}`).then((r) => r.json());
-      const v = res?.vehicles || [];
+      const response = await fetch(`${swrKey}&page=${next}`, {
+        signal: request.signal,
+      });
+      const res = await response.json();
+      if (!request.isCurrent()) return;
+      if (!response.ok || !Array.isArray(res?.vehicles))
+        throw new Error("Could not load more vehicles");
+      const v = res.vehicles;
       if (v.length) {
         setExtra((prev) => [...prev, ...v]);
         setMorePage(next);
+      } else {
+        setLoadMoreError(
+          "No more vehicles were returned. The available inventory may have changed; refresh your search to check.",
+        );
       }
     } catch {
-      /* transient — the sentinel will retry on next scroll */
+      if (request.isCurrent())
+        setLoadMoreError(
+          "We couldn't load more vehicles. Your current results are still available. Try again.",
+        );
     } finally {
-      setLoadingMore(false);
+      if (request.isCurrent()) setLoadingMore(false);
+      request.finish();
     }
   }, [swrKey, loadingMore, hasMore, morePage]);
 
@@ -3869,7 +3931,7 @@ function ScanPageInner() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el || loadMoreError) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) loadMore();
@@ -3878,7 +3940,7 @@ function ScanPageInner() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [loadMore]);
+  }, [loadMore, loadMoreError]);
   const error = swrError?.message || swrData?.error || null;
   const [lastScan, setLastScan] = useState<Date | null>(null);
 
@@ -5142,7 +5204,18 @@ function ScanPageInner() {
 
       {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}
       {!loading && !error && hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-8">
+        <div
+          ref={sentinelRef}
+          className="flex flex-col items-center gap-3 py-8"
+        >
+          {loadMoreError && (
+            <p
+              role="status"
+              className="max-w-lg text-center text-sm text-[var(--t2)]"
+            >
+              {loadMoreError}
+            </p>
+          )}
           <button
             onClick={loadMore}
             disabled={loadingMore}
@@ -5150,7 +5223,9 @@ function ScanPageInner() {
           >
             {loadingMore
               ? "Loading…"
-              : `Load more — ${(total - results.length).toLocaleString()} more`}
+              : loadMoreError
+                ? "Try loading more again"
+                : `Load more — ${(total - results.length).toLocaleString()} more`}
           </button>
         </div>
       )}
