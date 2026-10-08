@@ -10,6 +10,7 @@ import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
+import { authErrorMessage } from "@/lib/auth/auth-error-message";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -20,6 +21,7 @@ export default function ForgotPasswordPage() {
 
   const handleReset = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (loading) return;
     setLoading(true);
     setMessage(null);
     setError(null);
@@ -32,20 +34,30 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/login`
-        : undefined;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage("Check your email for a password reset link.");
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        },
+      );
+      if (resetError) {
+        setError(
+          authErrorMessage(
+            resetError.message,
+            "We couldn't send a reset link. Please try again.",
+          ),
+        );
+      } else {
+        setMessage(
+          "If an account exists for this email, a reset link has been requested. Check your inbox and spam folder. Open the latest link in this browser.",
+        );
+      }
+    } catch {
+      setError("We couldn't connect. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -78,12 +90,18 @@ export default function ForgotPasswordPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--red)]">
+          <div
+            role="alert"
+            className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--red)]"
+          >
             {error}
           </div>
         )}
         {message && (
-          <div className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--green)]">
+          <div
+            role="status"
+            className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--green)]"
+          >
             {message}
           </div>
         )}
@@ -92,6 +110,7 @@ export default function ForgotPasswordPage() {
           <Field
             label="Email address"
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

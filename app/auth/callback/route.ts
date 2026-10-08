@@ -58,37 +58,50 @@ export async function GET(request: NextRequest) {
       },
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        try {
-          const account = await ensureAccountRows(user);
-          // Promote guest location cookie so scrape_demand sees the state they picked pre-signup.
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!error) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          // Recovery must reach the password form even when profile setup is incomplete.
+          if (next === "/reset-password") return response;
           try {
-            await mergeGuestPrefsOnSignup({
-              supabase: createServerComponentClient(),
-              userId: user.id,
-              guestCookieRaw: request.cookies.get(GUEST_PREFS_COOKIE)?.value,
-            });
-          } catch (mergeErr) {
-            console.warn("guest prefs merge skipped:", mergeErr);
+            const account = await ensureAccountRows(user);
+            // Promote guest location cookie so scrape_demand sees the state they picked pre-signup.
+            try {
+              await mergeGuestPrefsOnSignup({
+                supabase: createServerComponentClient(),
+                userId: user.id,
+                guestCookieRaw: request.cookies.get(GUEST_PREFS_COOKIE)?.value,
+              });
+            } catch (mergeErr) {
+              console.warn("guest prefs merge skipped:", mergeErr);
+            }
+            // A user who has not chosen their buying preferences gets the same
+            // onboarding path whether they joined by email or Google.
+            if (!account.onboarded && next === "/discover") {
+              response.headers.set("location", `${base}/onboarding`);
+            }
+          } catch (bootstrapError) {
+            console.error("OAuth account bootstrap failed:", bootstrapError);
+            return NextResponse.redirect(`${base}/login?error=account_setup`);
           }
-          // A user who has not chosen their buying preferences gets the same
-          // onboarding path whether they joined by email or Google.
-          if (!account.onboarded && next === "/discover") {
-            response.headers.set("location", `${base}/onboarding`);
-          }
-        } catch (bootstrapError) {
-          console.error("OAuth account bootstrap failed:", bootstrapError);
-          return NextResponse.redirect(`${base}/login?error=account_setup`);
         }
+        if (next === "/reset-password" && !user) {
+          return NextResponse.redirect(`${base}/reset-password?error=expired`);
+        }
+        return response;
       }
-      return response;
+    } catch {
+      console.error("Authentication callback could not complete");
     }
   }
 
-  return NextResponse.redirect(`${base}/login?error=oauth`);
+  return NextResponse.redirect(
+    next === "/reset-password"
+      ? `${base}/reset-password?error=expired`
+      : `${base}/login?error=oauth`,
+  );
 }

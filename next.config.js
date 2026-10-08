@@ -28,6 +28,7 @@ function supabaseConnectSources() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   reactStrictMode: false,
   output: "standalone",
   // Pin the workspace root to THIS directory. A stray package-lock.json under the user home
