@@ -12,6 +12,14 @@ Wave 1 final combined-tree verification: 1,364 tests across 278 files, typecheck
 
 Wave 2 queue fixes implemented: active request reuse now requires the same scope, dry-run setting, and exact selected source set; found and saved counts are separate; no-results/all-failed execution is failed rather than successful completion; genuinely successful zero-match searches remain valid. Running jobs emit owner-filtered heartbeats, terminal writes require the current owner and running status, and customer status excludes raw runner errors and metadata. Historical scraper-run recovery and source-backed VIN/state enrichment remain open. A read-only live database check verified JSONB scope/source matching against an existing job; this is not proof of a successful end-to-end scrape or signed-in browser session.
 
+### October 7 Reliability Follow-Up
+
+- Fixed Linux jsdom builtin-module externalization in the test configuration. All 1,376 existing tests passed in the network-isolated Node 24 worker image with `NODE_ENV=test`; DOM/theme tests remained enabled, not skipped.
+- Added an operator-only abandoned source-run recovery tool: `npx tsx scripts/recover-source-runs.ts` previews records; apply requires explicit UUIDs, `--apply`, and `--workers-stopped`. Operators must independently stop and verify all owning workers first. Recovery compares the observed ID/source/start/status, preserves counts/listings/history, and records an unknown interrupted outcome, not success. Source terminal writes now guard running status so late completion cannot overwrite recovery.
+- Production read-only preview found five source-run candidates older than six hours. No recovery writes were applied because historical rows do not identify their owning workers. Automatic lease-based recovery remains open.
+- Production audit: 3,796 active listings, 3,301 missing VINs (87.0%), 25 missing state (0.7%). Audit reporting now exposes every detected missing VIN/image rather than hiding gaps below arbitrary percentage thresholds; a clear audit is not proof of valuation accuracy.
+- Browser inventory reconnected, but the disconnected localhost tab was rejected by browser policy. A working production login tab was requested; actual user/admin login is still unverified.
+
 ## Adoptable Patterns
 
 - Visor: precise inventory filters, dated listing observations, dealer inventory, and market slices with visible sample counts and geography. Listing disappearance must not imply a confirmed sale.

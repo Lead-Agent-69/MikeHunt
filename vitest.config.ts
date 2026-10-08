@@ -1,9 +1,21 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { builtinModules } from "node:module";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    {
+      name: "test-node-builtins",
+      enforce: "pre",
+      resolveId(id) {
+        // DOM simulation does not turn filesystem imports into browser modules.
+        if (id.startsWith("node:") || builtinModules.includes(id))
+          return { id, external: true };
+      },
+    },
+    react(),
+  ],
   test: {
     environment: "jsdom",
     globals: true,
