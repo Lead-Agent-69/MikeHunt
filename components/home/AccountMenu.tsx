@@ -148,18 +148,18 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   return (
     <div
       ref={ref}
-      className={floating ? "fixed top-3 right-3 z-[60]" : "relative"}
+      className={floating ? "fixed top-3 right-3 z-[60]" : "relative z-[60]"}
     >
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
         aria-expanded={open}
-        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)]/90 backdrop-blur text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
+        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
       >
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur-md shadow-[var(--shadow)]">
+        <div className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]">
           {signedOut ? (
             <>
               <MenuLink
