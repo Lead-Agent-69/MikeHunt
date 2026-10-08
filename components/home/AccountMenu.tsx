@@ -11,6 +11,7 @@ import {
   Layers,
   LogIn,
   LogOut,
+  ShieldCheck,
   MapPin,
   ScanSearch,
   Search,
@@ -76,13 +77,32 @@ function menuIcon(href: string): LucideIcon {
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const { intent } = useBuyerIntent();
-  // Entries come from accountMenuForMode: flip tools (Dealer network, Auction Lane) only on a
-  // reseller or dealer desk, Parts for parts/DIY/flip, and no admin entry for anyone.
+  // Buyer tools are mode-specific; operator access is checked separately by the server.
   const menu = accountMenuForMode(intent?.buyerMode);
   const { dealerId, loading: authLoading } = useDealerId();
   const signedOut = !authLoading && !dealerId;
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !dealerId) return;
+    const controller = new AbortController();
+    setAdminUserId(null);
+    fetch("/api/auth/whoami", { signal: controller.signal, cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((viewer) => {
+        if (
+          !controller.signal.aborted &&
+          viewer?.isAdmin === true &&
+          viewer.id === dealerId
+        )
+          setAdminUserId(dealerId);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [open, dealerId]);
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -109,17 +129,23 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }, []);
 
   async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError(null);
     try {
       if (isSupabaseConfigured()) {
-        await createClientComponentClient().auth.signOut();
+        const { error } = await createClientComponentClient().auth.signOut();
+        if (error) throw error;
       } else {
         window.location.assign("/api/auth/demo-logout?next=/login");
         return;
       }
+      router.replace("/login");
+      router.refresh();
     } catch {
-      /* best-effort */
+      setLogoutError("Could not log out. Check your connection and try again.");
+      setLoggingOut(false);
     }
-    router.push("/login");
   }
 
   const go = (href: string) => {
@@ -193,6 +219,18 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               {menu.secondary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
+              {dealerId && adminUserId === dealerId && (
+                <>
+                  <div className="my-1 border-t border-[var(--b1)]" />
+                  <MenuLink
+                    entry={{ name: "Admin dashboard", href: "/admin" }}
+                    icon={ShieldCheck}
+                  />
+                  <MenuLink
+                    entry={{ name: "Source operations", href: "/sources" }}
+                  />
+                </>
+              )}
             </>
           )}
           {!signedOut && (
@@ -200,11 +238,17 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               <div className="my-1 border-t border-[var(--b1)]" />
               <button
                 onClick={logout}
+                disabled={loggingOut}
                 className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                Log out
+                {loggingOut ? "Logging out…" : "Log out"}
               </button>
+              {logoutError && (
+                <p role="alert" className="px-3 py-2 text-xs text-[var(--red)]">
+                  {logoutError}
+                </p>
+              )}
             </>
           )}
         </div>

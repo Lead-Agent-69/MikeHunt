@@ -74,20 +74,26 @@ export function GoogleButton({
     }
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`,
-        queryParams: { access_type: "offline", prompt: "select_account" },
-      },
-    });
-    // On success the page navigates to Google, so we only get here on failure.
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`,
+          queryParams: { access_type: "offline", prompt: "select_account" },
+        },
+      });
+      if (error) {
+        setError(
+          authErrorMessage(
+            error.message,
+            "Google sign-in could not start. Please try again.",
+          ),
+        );
+        setLoading(false);
+      }
+    } catch {
       setError(
-        authErrorMessage(
-          error.message,
-          "Google sign-in could not start. Please try again.",
-        ),
+        "Could not connect to sign in. Check your connection and try again.",
       );
       setLoading(false);
     }
@@ -111,7 +117,9 @@ export function GoogleButton({
               : "Google sign-in not configured"}
       </button>
       {error && (
-        <p className="text-xs text-center text-[var(--red)]">{error}</p>
+        <p role="alert" className="text-xs text-center text-[var(--red)]">
+          {error}
+        </p>
       )}
       {(!configured || googleReady === false) && (
         <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">

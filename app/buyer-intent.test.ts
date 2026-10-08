@@ -129,6 +129,17 @@ describe("buyer intent profile", () => {
     expect(href).toContain("titleType=salvage");
   });
 
+  it("preserves multiple selected states when refining other filters", () => {
+    const next = applyBuyingForIntent(
+      { buyerMode: "personal", vehicle: "Trucks" },
+      { make: "Ford", maxPrice: 18000 },
+    );
+    const params = discoverQueryForBuyingFor(next, "NATIONWIDE", "MO,IL,IA");
+    expect(params.get("states")).toBe("MO,IL,IA");
+    expect(params.has("state")).toBe(false);
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.get("mode")).toBe("personal");
+  });
   it("rewrites a Discover query for make, budget, lane, and state", () => {
     const next = applyBuyingForIntent(
       { vehicle: "SUVs", buyerMode: "personal", makes: ["Honda"] },

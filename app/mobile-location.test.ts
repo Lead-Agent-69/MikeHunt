@@ -46,7 +46,7 @@ describe("mobile location regression protections", () => {
     expect(page).toContain('label: "Try again", onClick: () => void mutate()');
     expect(page).toContain("router.replace");
     expect(page).toContain('aria-label="Buying for"');
-    expect(page).not.toContain("href={`/scan");
+    expect(page).toContain("href={`/scan${scopeQuery}`}");
     expect(page).toContain("matching vehicles");
     expect(page).not.toContain("mergedDuplicates.toLocaleString()");
     expect(page).toContain("(!discoverReady || isLoading) && !data");

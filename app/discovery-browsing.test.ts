@@ -5,6 +5,13 @@ const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
 const card = readFileSync("components/discovery/DiscoveryCard.tsx", "utf8");
 
 describe("discovery browsing presentation safeguards", () => {
+  it("uses the header location scope and offers the complete matching inventory", () => {
+    expect(page).not.toContain('aria-label="State"');
+    expect(page).not.toContain("stateDraft");
+    expect(page).toContain("View all matching vehicles");
+    expect(page).toContain("href={`/scan${scopeQuery}`}");
+    expect(page).toContain("selectedStates,");
+  });
   it("mounts secondary market requests only when insights are opened", () => {
     expect(page).toContain("showInsights &&");
     expect(page).toContain("setShowInsights(event.currentTarget.open)");

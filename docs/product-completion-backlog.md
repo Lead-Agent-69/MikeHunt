@@ -1,6 +1,10 @@
 # Product Completion Register
 
-Updated October 4, 2026. Based on the conversation and code inspected, not a claim of production completion.
+Updated October 8, 2026. Based on inspected code and recorded live checks, not a claim of production completion.
+
+## October 8 Live QA Follow-Up
+
+The existing administrator session now restores and the dashboard loads. The earlier disconnected-browser/account-blocked notes below are historical. Fresh Google login/recovery still has a confirmed redirect-configuration blocker; ordinary-role testing remains open. See [the current live QA and repair register](qa-2026-10-08.md) for verified pages, fixes, and untested acceptance gates.
 
 ## Release Waves: October 7, 2026
 

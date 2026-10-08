@@ -117,6 +117,8 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const modeTouchedRef = useRef(false);
   const [vehicles, setVehicles] = useState<string[]>([]);
   const vehicle = vehicles.length ? vehicles.join(", ") : "All vehicle types";
@@ -132,10 +134,15 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     let active = true;
+    setLoadError(false);
+    setPrefsHydrated(false);
     const editing =
       new URLSearchParams(window.location.search).get("edit") === "1";
     Promise.all([fetch("/api/profile"), fetch("/api/preferences")])
       .then(async ([profileResponse, preferencesResponse]) => {
+        if (!profileResponse.ok || !preferencesResponse.ok) {
+          throw new Error("Profile unavailable");
+        }
         const [profileData, preferencesData] = await Promise.all([
           profileResponse.json(),
           preferencesResponse.json(),
@@ -174,12 +181,12 @@ export default function OnboardingPage() {
         setPrefsHydrated(true);
       })
       .catch(() => {
-        setPrefsHydrated(true);
+        if (active) setLoadError(true);
       });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, loadAttempt]);
 
   const intent = useMemo<BuyerIntent>(
     () => ({
@@ -577,6 +584,20 @@ export default function OnboardingPage() {
           {current.description}
         </p>
         <div className="mt-7">{current.body}</div>
+        {loadError && (
+          <div role="alert" className="mt-4 text-sm text-[var(--red)]">
+            <p>
+              Your saved profile could not load. Retry before making changes.
+            </p>
+            <button
+              type="button"
+              className="min-h-11 font-bold underline"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              Retry loading profile
+            </button>
+          </div>
+        )}
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
           {step > 0 ? (
             <button
@@ -595,10 +616,16 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
-            disabled={saving || (step === 1 && !scopeChosen)}
+            disabled={!prefsHydrated || saving || (step === 1 && !scopeChosen)}
             className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
           >
-            {saving ? "Saving..." : isLast ? "See my matches" : "Continue"}
+            {saving
+              ? "Saving..."
+              : !prefsHydrated
+                ? "Loading profile…"
+                : isLast
+                  ? "See my matches"
+                  : "Continue"}
             {!saving && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>
