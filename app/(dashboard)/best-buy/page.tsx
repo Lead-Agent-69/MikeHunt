@@ -329,6 +329,11 @@ export default function BestBuyPage() {
                             make: item.make,
                             model: item.model,
                             trim: item.trim,
+                            condition:
+                              item.titleType ||
+                              item.title_type ||
+                              item.condition ||
+                              "unknown",
                             askPrice: item.askPrice,
                             trueNetProfit: item.trueNetProfit,
                             sellEstimate: item.sellEstimate,

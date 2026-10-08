@@ -343,8 +343,13 @@ function DecisionCommandPanel({
                   make: deal.make,
                   model: deal.model,
                   trim: deal.trim,
+                  condition:
+                    deal.titleType ||
+                    deal.title_type ||
+                    deal.condition ||
+                    "unknown",
                   askPrice: deal.askPrice,
-                  trueNetProfit: deal.true_net_profit || deal.trueNetProfit,
+                  trueNetProfit: deal.true_net_profit ?? deal.trueNetProfit,
                   sellEstimate: deal.sellEstimate,
                   locationCity: deal.locationCity,
                   locationState: deal.locationState,
