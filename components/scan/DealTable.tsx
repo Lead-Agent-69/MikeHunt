@@ -408,7 +408,7 @@ export function DealTable({
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <Mono className="font-bold text-[var(--t1)]">
-                    {fmt(r.askPrice)}
+                    {r.askPrice > 0 ? fmt(r.askPrice) : "Not reported"}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
                     {priceCopy.priceLabel(r.source)}

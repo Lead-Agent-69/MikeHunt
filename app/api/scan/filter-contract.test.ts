@@ -18,6 +18,7 @@ function query() {
     "order",
     "in",
     "is",
+    "neq",
   ]) {
     q[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
@@ -72,6 +73,30 @@ import { GET as facets } from "./facets/route";
 
 describe("Scan and facets query parity", () => {
   beforeEach(() => calls.splice(0));
+
+  it("shares extended filters and enables auction inventory for auction dates", async () => {
+    const search =
+      "auctionFrom=2026-10-07&auctionTo=2026-10-08&minBuyNow=500&runDrive=unknown&hasPhotos=yes&zip=78701";
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      const response = await handler(
+        new NextRequest(`https://example.test/api/scan?${search}`),
+      );
+      expect(response.status).toBe(200);
+      expect(calls).toContainEqual(["is", "run_drive", null]);
+      expect(calls).toContainEqual(["gte", "buy_now_price", 500]);
+      expect(calls).toContainEqual([
+        "lt",
+        "auction_end_at",
+        "2026-10-09T00:00:00.000Z",
+      ]);
+      expect(calls).toContainEqual(["neq", "images", "{}"]);
+      expect(calls).toContainEqual(["eq", "location_zip", "78701"]);
+      expect(
+        calls.some((call) => call[0] === "not" && call[1] === "source"),
+      ).toBe(false);
+    }
+  });
 
   it("can retrieve trust-ranked inventory beyond the former 500-row ceiling", async () => {
     const response = await scan(

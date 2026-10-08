@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { hasAuctionDetailFilters } from "@/lib/search/extended-inventory-filters";
 import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
 import {
   applyInventoryLane,
@@ -184,7 +185,7 @@ export async function GET(req: NextRequest) {
       )
       .eq("active", true);
     if (
-      params.get("buyNow") !== "1" &&
+      !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
         lane,
         sellerType: seller,

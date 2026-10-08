@@ -21,6 +21,10 @@ import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import {
+  SCAN_EXTRA_KEYS,
+  hasAuctionDetailFilters,
+} from "@/lib/search/extended-inventory-filters";
+import {
   uniqueDbSources,
   sellerTypeSourceValues,
   sourceUrlNeedles,
@@ -1048,6 +1052,11 @@ export async function GET(req: NextRequest) {
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
   if (!isSupabaseConfigured()) {
+    if (SCAN_EXTRA_KEYS.some((key) => searchParams.get(key)))
+      return NextResponse.json(
+        { error: "Detailed source inventory is temporarily unavailable" },
+        { status: 503, headers: SCAN_CACHE_HEADERS },
+      );
     const preview = await publicPreviewFallback({
       lane,
       sellerType,
@@ -1073,7 +1082,7 @@ export async function GET(req: NextRequest) {
     .eq("active", true);
 
   if (
-    searchParams.get("buyNow") !== "1" &&
+    !hasAuctionDetailFilters(searchParams) &&
     !wantsAuctionInventory({
       lane,
       sellerType,

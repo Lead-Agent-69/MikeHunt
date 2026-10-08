@@ -1,3 +1,33 @@
+import {
+  applyExtendedFilters,
+  validateExtendedFilters,
+} from "./extended-inventory-filters";
+import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
+import { sourceMeta } from "@/lib/sources/source-meta";
+import type { Database } from "@/types/supabase";
+
+const STORED_SOURCE_IDS = [
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "facebook_marketplace",
+  "craigslist",
+  "ebay_motors",
+  "autotrader",
+  "cars_com",
+  "gov_auction",
+  "repo_network",
+  "independent_dealer",
+  "cargurus",
+  "craigslist_dealer",
+  "carvana",
+  "truecar",
+  "vroom",
+  "offerup",
+  "acv",
+] satisfies Database["public"]["Enums"]["deal_source"][];
+
 export function dbSourceValues(sourceId: string) {
   const id = sourceId.toLowerCase();
   const mapped: Record<string, string[]> = {
@@ -6,6 +36,7 @@ export function dbSourceValues(sourceId: string) {
     allsurplus: ["gov_auction"],
     municibid: ["gov_auction"],
     gsa_auctions: ["gov_auction"],
+    gsa: ["gov_auction"],
     curated_dealers: ["independent_dealer"],
     "ae-of-miami": ["independent_dealer"],
     "damage-com": ["independent_dealer"],
@@ -59,6 +90,7 @@ export function sourceUrlNeedles(sourceId: string) {
     allsurplus: ["allsurplus.com", "liquidityservices.com"],
     municibid: ["municibid.com"],
     gsa_auctions: ["gsaauctions.gov", "gsa.gov"],
+    gsa: ["gsaauctions.gov", "gsa.gov"],
     "ae-of-miami": ["aeofmiami.com"],
     "damage-com": ["damage.com"],
     "dg-auto": ["dgautollc.com"],
@@ -104,7 +136,7 @@ export function validateInventoryRanges(
     if (low && high && Number(low) > Number(high))
       return `${label} minimum must not exceed maximum`;
   }
-  return null;
+  return validateExtendedFilters(params);
 }
 
 export function applyVehicleDetails(query: any, params: URLSearchParams) {
@@ -136,7 +168,7 @@ export function applyVehicleDetails(query: any, params: URLSearchParams) {
     scoped = scoped.eq("keys_present", keys === "yes");
   if (keys === "unknown") scoped = scoped.is("keys_present", null);
   if (params.get("buyNow") === "1") scoped = scoped.gt("buy_now_price", 0);
-  return scoped;
+  return applyExtendedFilters(scoped, params);
 }
 
 export function applyInventoryLane(query: any, lane: string) {
@@ -153,3 +185,89 @@ export function applyInventoryLane(query: any, lane: string) {
   if (lane === "damaged") return query.or(damagedLaneFilter());
   return query;
 }
+
+export const VEHICLE_CATEGORY_FILTERS = {
+  trucks: {
+    label: "Pickup trucks",
+    filter: "body_class.ilike.%pickup%,body_class.ilike.%truck%",
+  },
+  suvs: {
+    label: "SUVs",
+    filter: "body_class.ilike.%suv%,body_class.ilike.%utility%",
+  },
+  sedans: { label: "Sedans", filter: "body_class.ilike.%sedan%" },
+  sports: {
+    label: "Coupes & convertibles",
+    filter: "body_class.ilike.%coupe%,body_class.ilike.%convertible%",
+  },
+  luxury: {
+    label: "Premium brands",
+    filter: [
+      "BMW",
+      "Mercedes-Benz",
+      "Audi",
+      "Lexus",
+      "Porsche",
+      "Cadillac",
+      "Acura",
+      "Genesis",
+      "Lincoln",
+      "Jaguar",
+      "Infiniti",
+      "Bentley",
+      "Rolls-Royce",
+    ]
+      .map((make) => `make.ilike.${make}`)
+      .join(","),
+  },
+  electric: {
+    label: "Electric & hybrid",
+    filter:
+      "fuel_type.ilike.%electric%,fuel_type.ilike.%hybrid%,options->>fuelType.in.(Electric,Hybrid)",
+  },
+  commercial: {
+    label: "Commercial vehicles",
+    filter:
+      "body_class.ilike.%cargo%,body_class.ilike.%commercial%,body_class.ilike.%heavy%,body_class.ilike.%bus%",
+  },
+  motorcycles: {
+    label: "Motorcycles",
+    filter: "body_class.ilike.%motorcycle%",
+  },
+};
+
+export function applySelectedSources(query: any, sources: string[]) {
+  if (!sources.length) return query;
+  return query.or(
+    sources
+      .map((source) => {
+        const values = dbSourceValues(source);
+        const stored =
+          values.length === 1
+            ? `source.eq.${values[0]}`
+            : `source.in.(${values.join(",")})`;
+        const needles = sourceUrlNeedles(source);
+        return needles.length
+          ? `and(${stored},or(${needles.map((needle) => `source_url.ilike.%${needle}%`).join(",")}))`
+          : stored;
+      })
+      .join(","),
+  );
+}
+
+export const INVENTORY_SOURCE_FILTERS = Array.from(
+  new Map(
+    [
+      ...STORED_SOURCE_IDS.map((id) => ({ id, name: sourceMeta(id).label })),
+      ...["govdeals", "allsurplus", "municibid", "salvagezone"].map((id) => ({
+        id,
+        name: sourceMeta(id).label,
+      })),
+      ...ALL_VEHICLE_SOURCES.filter((source) =>
+        dbSourceValues(source.id).every((id) =>
+          (STORED_SOURCE_IDS as string[]).includes(id),
+        ),
+      ).map(({ id, name }) => ({ id, name })),
+    ].map((source) => [source.id, source]),
+  ).values(),
+).sort((a, b) => a.name.localeCompare(b.name));

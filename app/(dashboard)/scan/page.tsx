@@ -68,6 +68,12 @@ import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
+import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
+import {
+  INVENTORY_DETAIL_FIELDS,
+  readInventoryDetails,
+  SCAN_EXTRA_KEYS,
+} from "@/lib/search/extended-inventory-filters";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -2542,6 +2548,7 @@ function ScanPageInner() {
 
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [extraFilters, setExtraFilters] = useState<Record<string, string>>({});
   const [sellerTypeFilter, setSellerTypeFilter] = useState("all");
   const [titleType, setTitleType] = useState("all");
   const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
@@ -2662,10 +2669,12 @@ function ScanPageInner() {
         "madeInUsa",
         "category",
         "reset",
+        ...SCAN_EXTRA_KEYS,
       ].map((key) => urlParams.get(key)),
     ].some(Boolean);
 
     setSearchInput(q || "");
+    setExtraFilters(readInventoryDetails(urlParams, SCAN_EXTRA_KEYS));
     setSearch(q || "");
     setSourceFilter(source || "all");
     setSellerTypeFilter(sellerTypeParam || "all");
@@ -2820,7 +2829,7 @@ function ScanPageInner() {
 
   // How many advanced filters are active (shown on the "More filters" button).
   const advancedCount = useMemo(() => {
-    let c = 0;
+    let c = Object.values(extraFilters).filter(Boolean).length;
     if (verdict !== "all") c++;
     if (dealerHostsFilter.length) c++;
     if (dealerSourceIdsFilter.length) c++;
@@ -2846,6 +2855,7 @@ function ScanPageInner() {
     return c;
   }, [
     verdict,
+    extraFilters,
     dealerHostsFilter.length,
     dealerSourceIdsFilter.length,
     sourceFilter,
@@ -2870,6 +2880,7 @@ function ScanPageInner() {
   ]);
 
   const resetFilters = useCallback(() => {
+    setExtraFilters({});
     setSearch("");
     setSearchInput("");
     setState("all");
@@ -2905,6 +2916,17 @@ function ScanPageInner() {
   }, []);
 
   const appliedFilters = [
+    ...INVENTORY_DETAIL_FIELDS.filter((field) => extraFilters[field.key]).map(
+      (field) => ({
+        label: field.label,
+        value:
+          field.options?.find(
+            (option) => option.value === extraFilters[field.key],
+          )?.label || extraFilters[field.key],
+        clear: () =>
+          setExtraFilters((current) => ({ ...current, [field.key]: "" })),
+      }),
+    ),
     {
       label: "Search",
       value: search,
@@ -3218,7 +3240,9 @@ function ScanPageInner() {
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
   const facetKey = useMemo(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(
+      Object.entries(extraFilters).filter(([, value]) => Boolean(value)),
+    );
     if (state !== "all") params.set("state", state);
     if (lane !== "all") params.set("lane", lane);
     if (maxPrice !== "any")
@@ -3263,6 +3287,7 @@ function ScanPageInner() {
     return `/api/scan/facets${params.toString() ? `?${params.toString()}` : ""}`;
   }, [
     state,
+    extraFilters,
     lane,
     maxPrice,
     minPrice,
@@ -3356,7 +3381,12 @@ function ScanPageInner() {
   }, [facets?.titleTypes]);
   // Build SWR key from filters
   const swrKey = useMemo(() => {
-    const params = new URLSearchParams({ sort });
+    const params = new URLSearchParams({
+      ...Object.fromEntries(
+        Object.entries(extraFilters).filter(([, value]) => Boolean(value)),
+      ),
+      sort,
+    });
     if (search) params.set("q", search);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (sellerTypeFilter !== "all") params.set("sellerType", sellerTypeFilter);
@@ -3402,6 +3432,7 @@ function ScanPageInner() {
     return `/api/scan?${params.toString()}`;
   }, [
     search,
+    extraFilters,
     sourceFilter,
     sellerTypeFilter,
     titleType,
@@ -4008,6 +4039,10 @@ function ScanPageInner() {
           filter: "active=eq.true",
         },
         (payload) => {
+          if (Object.values(extraFilters).some(Boolean)) {
+            void mutate();
+            return;
+          }
           const d = payload.new;
           if (
             isAuctionChannel(d.source) &&
@@ -4113,7 +4148,16 @@ function ScanPageInner() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [state, sourceFilter, sellerTypeFilter, lane, sort, addToast, mutate]);
+  }, [
+    state,
+    sourceFilter,
+    sellerTypeFilter,
+    lane,
+    sort,
+    addToast,
+    mutate,
+    extraFilters,
+  ]);
 
   // Client-side filtering + sorting with useMemo (instant, no re-fetch).
   // The API ignores `sort`, so the sort control is honored here.
@@ -4707,6 +4751,13 @@ function ScanPageInner() {
         {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
         {showMore && (
           <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
+            <InventoryDetailFilters
+              values={extraFilters}
+              keys={SCAN_EXTRA_KEYS}
+              onChange={(key, value) =>
+                setExtraFilters((current) => ({ ...current, [key]: value }))
+              }
+            />
             <FilterGroup label="From">
               <FilterSelect
                 label="Seller Type"
@@ -4780,18 +4831,9 @@ function ScanPageInner() {
                 onChange={setDamage}
                 options={[
                   { value: "all", label: "Damage: All" },
-                  ...[
-                    "Front",
-                    "Rear",
-                    "Side",
-                    "Hail",
-                    "Flood",
-                    "Fire",
-                    "Mechanical",
-                  ].map((value) => ({
-                    value: value.toLowerCase(),
-                    label: value,
-                  })),
+                  ...(INVENTORY_DETAIL_FIELDS.find(
+                    (field) => field.key === "damage",
+                  )?.options || []),
                 ]}
               />
               <FilterSelect
