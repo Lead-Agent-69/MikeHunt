@@ -495,10 +495,7 @@ function StatusStrip({
     : "never";
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 rounded-[var(--r3)] font-mono text-[11px] overflow-x-auto"
-      style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-    >
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1 text-xs">
       {/* Status dot */}
       <span className="flex items-center gap-1.5 shrink-0">
         <span
@@ -1349,6 +1346,9 @@ function SmartDataPlanCard({
   const plannedSearchHref = `/scan?${new URLSearchParams({
     lane: String(plan.scope.lane || "all"),
     ...(plan.filters.state ? { state: plan.filters.state } : {}),
+    ...(plan.scope.states?.length
+      ? { states: plan.scope.states.join(",") }
+      : {}),
     ...(plan.filters.q ? { q: plan.filters.q } : {}),
     ...(plan.scope.sellerType
       ? { sellerType: String(plan.scope.sellerType) }
@@ -1791,6 +1791,9 @@ function SmartDataPlanCard({
               href={`/scan?${new URLSearchParams({
                 lane: String(plan.scope.lane || "all"),
                 ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                ...(plan.scope.states?.length
+                  ? { states: plan.scope.states.join(",") }
+                  : {}),
                 ...(plan.filters.q ? { q: plan.filters.q } : {}),
                 ...(plan.scope.sellerType
                   ? { sellerType: String(plan.scope.sellerType) }
@@ -1968,6 +1971,9 @@ function SmartDataPlanCard({
                   lane: String(plan.scope.lane || "all"),
                   source: item.id,
                   ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                  ...(plan.scope.states?.length
+                    ? { states: plan.scope.states.join(",") }
+                    : {}),
                   ...(plan.filters.q ? { q: plan.filters.q } : {}),
                   ...(plan.scope.sellerType
                     ? { sellerType: String(plan.scope.sellerType) }
@@ -2285,6 +2291,9 @@ function SmartDataPlanCard({
                           ? { state: plan.filters.state }
                           : {}),
                         ...(plan.filters.q ? { q: plan.filters.q } : {}),
+                        ...(plan.scope.states?.length
+                          ? { states: plan.scope.states.join(",") }
+                          : {}),
                         sort: "profit",
                       }).toString()}`}
                       className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--s0)] px-2 py-1 text-[10px] font-black text-[var(--green)]"
@@ -3533,6 +3542,8 @@ function ScanPageInner() {
     const params = new URLSearchParams();
     if (smartPlan.scope.lane) params.set("lane", String(smartPlan.scope.lane));
     if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
+    if (smartPlan.scope.states?.length)
+      params.set("states", smartPlan.scope.states.join(","));
     if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
     if (smartPlan.scope.makes?.length)
       params.set("makes", smartPlan.scope.makes.join(","));
@@ -3554,6 +3565,7 @@ function ScanPageInner() {
   }, [
     smartPlan.scope.lane,
     smartPlan.scope.state,
+    smartPlan.scope.states,
     smartPlan.scope.q,
     smartPlan.scope.makes,
     smartPlan.scope.make,
@@ -4270,7 +4282,7 @@ function ScanPageInner() {
       style={{ animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)" }}
     >
       {/* ── Search bar ── */}
-      <div className="glass-panel flex flex-col items-center gap-3 p-4 sm:flex-row md:sticky md:top-4 md:z-20">
+      <div className="flex flex-wrap items-center gap-2 md:sticky md:top-4 md:z-20">
         {newCount > 0 && (
           <button
             onClick={clearNew}
@@ -4402,7 +4414,11 @@ function ScanPageInner() {
             mutate();
           }}
           disabled={loading}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-white rounded-xl py-3.5 px-7 transition-all disabled:opacity-50 border-none"
+          aria-label={
+            loading ? "Updating saved inventory" : "Search saved inventory"
+          }
+          title="Search saved inventory"
+          className="flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-all disabled:opacity-50 border-none sm:px-5"
           style={{ background: "var(--grad)" }}
         >
           {loading ? (
@@ -4411,12 +4427,14 @@ function ScanPageInner() {
                 className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                 style={{ animation: "spin 700ms linear infinite" }}
               />
-              Updating saved inventory…
+              <span className="hidden sm:inline">
+                Updating saved inventory…
+              </span>
             </>
           ) : (
             <>
               <Ico name="scan" size={16} />
-              Search saved inventory
+              <span className="hidden sm:inline">Search saved inventory</span>
             </>
           )}
         </button>
@@ -4456,7 +4474,7 @@ function ScanPageInner() {
         lastScan={lastScan}
       />
 
-      <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-2.5 text-xs font-semibold text-[var(--t3)]">
+      <div className="text-xs leading-relaxed text-[var(--t3)]">
         {searchSummary}
       </div>
 
@@ -4474,27 +4492,36 @@ function ScanPageInner() {
       )}
 
       {isAdmin ? (
-        <SmartDataPlanCard
-          configured={scanConfigured}
-          total={total}
-          plan={effectiveSmartPlan}
-          onPreview={previewSourcePlan}
-          onRun={runMatchingSources}
-          onLivePreview={fetchLivePreview}
-          previewing={planPreviewing}
-          running={runImporting}
-          livePreviewing={livePreviewing}
-          showingPreview={
-            !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
-          }
-          proof={displayProof}
-          importRun={importRunProof}
-          importPlan={importPlanProof}
-          readinessItems={systemStatus?.readiness?.items || []}
-          sourceHealth={scrapeHealth?.sources || []}
-          scopeStatus={scrapeHealth?.scopeStatus || null}
-          message={displayMessage}
-        />
+        <details className="border-b border-[var(--b1)] pb-3">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            Source operations
+          </summary>
+          <SmartDataPlanCard
+            configured={scanConfigured}
+            total={total}
+            plan={effectiveSmartPlan}
+            onPreview={previewSourcePlan}
+            onRun={runMatchingSources}
+            onLivePreview={fetchLivePreview}
+            previewing={planPreviewing}
+            running={runImporting}
+            livePreviewing={livePreviewing}
+            showingPreview={
+              !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
+            }
+            proof={displayProof}
+            importRun={importRunProof}
+            importPlan={importPlanProof}
+            readinessItems={systemStatus?.readiness?.items || []}
+            sourceHealth={scrapeHealth?.sources || []}
+            scopeStatus={scrapeHealth?.scopeStatus || null}
+            message={displayMessage}
+          />
+          <ScopeQualityPanel
+            results={filteredResults}
+            sourceHealthById={tableSourceHealthById}
+          />
+        </details>
       ) : (
         <button
           type="button"
@@ -4507,12 +4534,6 @@ function ScanPageInner() {
         </button>
       )}
 
-      {isAdmin && (
-        <ScopeQualityPanel
-          results={filteredResults}
-          sourceHealthById={tableSourceHealthById}
-        />
-      )}
       {!isAdmin && displayMessage && (
         <p role="status" className="text-sm text-[var(--t3)]">
           {runImporting
@@ -4522,7 +4543,11 @@ function ScanPageInner() {
       )}
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
-      <div className="glass-panel px-4 py-3 space-y-3">
+      <details className="glass-panel px-4 py-3 space-y-3">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+          Filters &amp; view
+          {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
+        </summary>
         {appliedFilters.length > 0 && (
           <div
             className="flex flex-wrap items-center gap-2"
@@ -4991,7 +5016,7 @@ function ScanPageInner() {
             )}
           </div>
         )}
-      </div>
+      </details>
 
       {/* ── Acquisition lane segments — browse the way a flipper sorts inventory ── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -5027,13 +5052,18 @@ function ScanPageInner() {
         })}
       </div>
 
-      {!loading && !error && filteredResults.length > 0 && (
-        <ScanReviewStrip
-          results={filteredResults as ScanResult[]}
-          sourceHealthById={tableSourceHealthById}
-          href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
-          flipDesk={flipEconomics}
-        />
+      {isAdmin && !loading && !error && filteredResults.length > 0 && (
+        <details className="border-b border-[var(--b1)] pb-3">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            Inventory diagnostics
+          </summary>
+          <ScanReviewStrip
+            results={filteredResults as ScanResult[]}
+            sourceHealthById={tableSourceHealthById}
+            href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
+            flipDesk={flipEconomics}
+          />
+        </details>
       )}
 
       {/* ── Results grid ── */}

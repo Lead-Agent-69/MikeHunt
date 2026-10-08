@@ -66,6 +66,13 @@ const TOKEN_SEGMENT: Record<string, Segment | "luxury"> = {
   luxury: "luxury",
 };
 
+export function hasVehicleCategoryQuery(query: string): boolean {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .some((term) => !!TOKEN_SEGMENT[term]);
+}
+
 function normalizeVehiclePhrase(value?: string | null): string {
   return (value || "")
     .toLowerCase()

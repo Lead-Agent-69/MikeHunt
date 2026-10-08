@@ -20,6 +20,12 @@ import type { DiscoverDesk } from "@/lib/discovery/desk-rails";
 import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
+import {
+  CATEGORY_PROJECTION,
+  matchingCategoryIds,
+} from "@/lib/search/category-inventory";
+import { cached } from "@/lib/cache";
 import {
   uniqueDbSources,
   sellerTypeSourceValues,
@@ -1115,7 +1121,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  if (q) {
+  if (q && !hasVehicleCategoryQuery(q)) {
     query = query.or(
       `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
     );
@@ -1220,10 +1226,52 @@ export async function GET(req: NextRequest) {
       ascending: sortOrder.ascending,
       nullsFirst: sortOrder.nullsFirst,
     })
-    .order("id", { ascending: true })
-    .range(from, to);
+    .order("id", { ascending: true });
 
-  const { data, count, error } = await query;
+  let categoryIds: string[] | null = null;
+  if (hasVehicleCategoryQuery(q)) {
+    const scopeKey = new URLSearchParams(searchParams);
+    scopeKey.delete("page");
+    scopeKey.delete("pageSize");
+    scopeKey.sort();
+    try {
+      categoryIds = await cached(
+        `scan-category:${desk}:${scopeKey}`,
+        15000,
+        () =>
+          matchingCategoryIds(
+            (start, end) => query.select(CATEGORY_PROJECTION).range(start, end),
+            q,
+          ),
+      );
+    } catch (categoryError) {
+      return internalError("scan:category", categoryError);
+    }
+    const pageIds = categoryIds.slice(from, to + 1);
+    if (!pageIds.length)
+      return NextResponse.json(
+        {
+          vehicles: [],
+          deskAccess,
+          total: categoryIds.length,
+          state: states.join(",") || state || "nationwide",
+          page,
+          pageSize,
+          hasMore: false,
+          isLive: true,
+          sort,
+        },
+        { headers: SCAN_CACHE_HEADERS },
+      );
+    query = query
+      .select(SCAN_SELECT)
+      .in("id", pageIds)
+      .range(0, pageSize - 1);
+  } else {
+    query = query.range(from, to);
+  }
+  const { data, count: dbCount, error } = await query;
+  const count = categoryIds ? categoryIds.length : dbCount;
   if (error) {
     console.error("API scan error:", error.message);
     return internalError("scan", error);
@@ -1276,7 +1324,7 @@ export async function GET(req: NextRequest) {
       vehicles,
       deskAccess,
       total: count || 0,
-      state: state || "nationwide",
+      state: states.join(",") || state || "nationwide",
       page,
       pageSize,
       hasMore: (count || 0) > (page + 1) * pageSize,
