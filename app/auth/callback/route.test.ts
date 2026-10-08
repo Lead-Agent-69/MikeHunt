@@ -32,6 +32,36 @@ beforeEach(() => {
 });
 
 describe("recovery callbacks", () => {
+  it("takes a new account through setup before opening its intended vehicle", async () => {
+    const response = await GET(
+      new NextRequest(
+        "https://example.com/auth/callback?code=test&next=/deal/123",
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "https://example.com/onboarding?next=%2Fdeal%2F123",
+    );
+  });
+  it("preserves a returning account's intended vehicle", async () => {
+    mocks.bootstrap.mockResolvedValueOnce({ onboarded: true });
+    const response = await GET(
+      new NextRequest(
+        "https://example.com/auth/callback?code=test&next=/deal/123",
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "https://example.com/deal/123",
+    );
+  });
+  it("does not redirect ordinary sign-in without a verified user", async () => {
+    mocks.user.mockResolvedValueOnce({ data: { user: null } });
+    const response = await GET(
+      new NextRequest("https://example.com/auth/callback?code=test"),
+    );
+    expect(response.headers.get("location")).toBe(
+      "https://example.com/login?error=oauth",
+    );
+  });
   it("exchanges the recovery code and bypasses account setup only for the reset destination", async () => {
     const response = await GET(
       new NextRequest(

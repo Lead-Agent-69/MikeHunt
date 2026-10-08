@@ -18,6 +18,7 @@ import {
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
 import { toast } from "sonner";
+import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
   BUYER_MODES,
@@ -149,7 +150,15 @@ export default function OnboardingPage() {
         ]);
         if (!active) return;
         if (profileData?.profile?.onboarded && !editing) {
-          router.replace("/discover");
+          const destination = safeNextPath(
+            new URLSearchParams(window.location.search).get("next"),
+          );
+          router.replace(
+            new URL(destination, window.location.origin).pathname ===
+              "/onboarding"
+              ? "/discover"
+              : destination,
+          );
           return;
         }
         const prefs = preferencesData?.prefs || null;
@@ -269,7 +278,13 @@ export default function OnboardingPage() {
       }
       toast.success("Your buying profile is ready");
       writeLocalBuyerIntent(intent);
-      router.push(previewHref);
+      const requested = new URLSearchParams(window.location.search).get("next");
+      const destination = safeNextPath(requested, previewHref);
+      router.push(
+        new URL(destination, window.location.origin).pathname === "/onboarding"
+          ? previewHref
+          : destination,
+      );
       router.refresh();
     } catch (error) {
       toast.error(

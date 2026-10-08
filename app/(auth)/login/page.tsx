@@ -16,6 +16,7 @@ import {
   authErrorMessage,
 } from "@/lib/auth/auth-error-message";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { postLoginDestination } from "@/lib/auth/post-login-destination";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -27,14 +28,14 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
-  const [next, setNext] = useState("/onboarding");
+  const [next, setNext] = useState("/discover");
   const router = useRouter();
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNext(safeNextPath(params.get("next"), "/onboarding"));
+    setNext(safeNextPath(params.get("next")));
     setError(authCallbackMessage(params.get("error")));
   }, []);
 
@@ -72,6 +73,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
     setNotice(null);
@@ -128,8 +130,8 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        // Unfinished profiles stay on setup. A safe ?next= still wins.
-        router.push(next);
+        const account = await bootstrap.json();
+        router.push(postLoginDestination(account.onboarded === true, next));
         router.refresh();
       }
     } catch {

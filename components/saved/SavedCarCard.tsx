@@ -145,8 +145,11 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const nextTrustChecks = (snapshot.trustExplanation?.nextChecks || []).filter(
     (check) => auctionListing || !/auction|bidding/i.test(check),
   );
+  const missingFields = (snapshot.dataQuality?.missing || []).filter(
+    (field) => auctionListing || !/auction/i.test(field),
+  );
   const trustIssues = [
-    weakQuality ? `${snapshot.dataQuality?.label || "Thin"} data` : null,
+    weakQuality ? "listing details incomplete" : null,
     staleListing
       ? freshnessHours == null
         ? "last verified time unknown"
@@ -436,46 +439,28 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     color: "var(--amber-d)",
                   }}
                 >
-                  {snapshot.damageType}
-                </Badge>
-              )}
-              {snapshot.dataQuality && (
-                <Badge
-                  className="border-none text-[10px] font-bold uppercase"
-                  style={{ background: "var(--s1)", color: "var(--t3)" }}
-                >
-                  {snapshot.dataQuality.label} data ·{" "}
-                  {snapshot.dataQuality.score}%
+                  {snapshot.damageType.replace(/_/g, " ")} reported by listing
                 </Badge>
               )}
             </div>
-            {snapshot.dataQuality?.missing?.length ? (
+            {missingFields.length ? (
               <p className="text-[11px] leading-relaxed text-[var(--t4)]">
-                Missing{" "}
-                {snapshot.dataQuality.missing
-                  .filter((field) => auctionListing || !/auction/i.test(field))
-                  .slice(0, 3)
-                  .map(qualityFieldLabel)
-                  .join(", ")}
+                Still needed:{" "}
+                {missingFields.slice(0, 3).map(qualityFieldLabel).join(", ")}
               </p>
             ) : null}
             {flipDesk && trustSummary ? (
-              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] leading-relaxed text-[var(--t3)]">
-                <span className="font-black uppercase tracking-wide text-[var(--t5)]">
-                  Trust proof
-                </span>{" "}
+              <details className="text-[11px] leading-relaxed text-[var(--t3)]">
+                <summary className="cursor-pointer font-semibold">
+                  Listing notes
+                </summary>
                 {trustSummary}
-                {typeof snapshot.trustExplanation?.score === "number" ? (
-                  <span className="ml-1 font-mono text-[var(--t5)]">
-                    ({Math.round(snapshot.trustExplanation.score)}/100)
-                  </span>
-                ) : null}
                 {nextTrustChecks.length ? (
                   <div className="mt-1 text-[var(--t4)]">
                     Verify {nextTrustChecks.slice(0, 3).join(", ")}
                   </div>
                 ) : null}
-              </div>
+              </details>
             ) : null}
             {(snapshot.sellEstimate ||
               snapshot.recommendedMaxBid ||

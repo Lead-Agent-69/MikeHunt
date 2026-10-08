@@ -87,7 +87,12 @@ export default function SavedCarsPage() {
   const flipDesk = isFlipBuyerMode(
     intent?.buyerMode || prefs?.buyerScope?.buyerMode,
   );
-  const { dealerId, loading: dealerLoading } = useDealerId();
+  const {
+    dealerId,
+    loading: dealerLoading,
+    error: accountError,
+    retry: retryAccount,
+  } = useDealerId();
   const localSaved = useLocalSavedVehicles();
   const [filter, setFilter] = useState<
     "all" | "active" | "price_drops" | "gone"
@@ -124,9 +129,10 @@ export default function SavedCarsPage() {
 
   const loading = isLoading || dealerLoading;
   const authError =
-    !dealerLoading && !dealerId
+    accountError ||
+    (!dealerLoading && !dealerId
       ? "Please sign in to view your saved cars."
-      : null;
+      : null);
   const unsyncedLocalItems = localSaved.items.filter(
     (item) =>
       !saves?.some(
@@ -142,11 +148,13 @@ export default function SavedCarsPage() {
   const supabaseStatus =
     dealerLoading || isLoading
       ? "checking"
-      : !dealerId
-        ? "guest"
-        : error
-          ? "unavailable"
-          : "ready";
+      : accountError
+        ? "unavailable"
+        : !dealerId
+          ? "guest"
+          : error
+            ? "unavailable"
+            : "ready";
   const cloudSyncReady = supabaseStatus === "ready";
   const signedIn = Boolean(dealerId);
 
@@ -246,7 +254,7 @@ export default function SavedCarsPage() {
         };
         saveLocalVehicle(localVehicle);
         setInputUrl("");
-        toast.success("Saved locally. Sign in later to sync alerts.");
+        toast.success("Vehicle saved on this device.");
       } else {
         toast.error(
           userFacingErrorMessage(
@@ -279,7 +287,9 @@ export default function SavedCarsPage() {
       };
       saveLocalVehicle(localVehicle);
       setInputUrl("");
-      toast.success("Saved locally. Network sync can happen later.");
+      toast.success(
+        "Vehicle saved on this device. Account save could not complete.",
+      );
     } finally {
       setAdding(false);
     }
@@ -337,7 +347,8 @@ export default function SavedCarsPage() {
         >
           <Input
             type="url"
-            placeholder="Paste Craigslist, Copart, or IAA URL..."
+            aria-label="Vehicle listing URL"
+            placeholder="Paste a vehicle listing link..."
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
             className="text-sm bg-[var(--s0)] border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
@@ -388,84 +399,58 @@ export default function SavedCarsPage() {
         ))}
       </div>
 
-      <div className="glass-panel p-4">
+      <div className="border-y border-[var(--b1)] py-4" role="status">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
               Saved vehicles
             </p>
             <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-              {cloudSyncReady
-                ? "Your account watchlist is connected."
-                : signedIn && canShowLocalSaves
-                  ? "Account sync is unavailable — local watchlist still works."
-                  : signedIn
-                    ? "Could not load your account watchlist."
-                    : canShowLocalSaves
-                      ? "Your watchlist is saved on this device."
-                      : "Save a vehicle to start watching locally."}
+              {loading
+                ? "Loading your saved vehicles..."
+                : accountError
+                  ? "We couldn't check your account."
+                  : cloudSyncReady
+                    ? "Your account watchlist is connected."
+                    : signedIn && canShowLocalSaves
+                      ? "Account sync is unavailable — local watchlist still works."
+                      : signedIn
+                        ? "Could not load your account watchlist."
+                        : canShowLocalSaves
+                          ? "Your watchlist is saved on this device."
+                          : "Save a vehicle to start watching locally."}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
-              {cloudSyncReady
-                ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
-                : signedIn
-                  ? "You are signed in. Retry the connection or keep using local saves on this device."
-                  : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
+              {loading
+                ? "Your saved vehicles will appear here shortly."
+                : accountError
+                  ? "Check your connection and retry. Saves on this device are still available."
+                  : cloudSyncReady
+                    ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
+                    : signedIn
+                      ? "You are signed in. Retry the connection or keep using local saves on this device."
+                      : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p className="text-lg font-black text-[var(--t1)]">
-                {unsyncedLocalItems.length}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                local only
-              </p>
-            </div>
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p
-                className="text-sm font-black uppercase"
-                style={{
-                  color:
-                    supabaseStatus === "ready"
-                      ? "var(--green)"
-                      : "var(--amber)",
-                }}
-              >
-                {supabaseStatus}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                data
-              </p>
-            </div>
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-              <p
-                className="text-sm font-black uppercase"
-                style={{
-                  color: dealerId ? "var(--green)" : "var(--amber)",
-                }}
-              >
-                {dealerId ? "connected" : "guest"}
-              </p>
-              <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                account
-              </p>
-            </div>
-          </div>
+          {canShowLocalSaves && (
+            <p className="text-sm text-[var(--t3)]">
+              {unsyncedLocalItems.length} saved on this device
+            </p>
+          )}
         </div>
-        {!cloudSyncReady && (
+        {!loading && !cloudSyncReady && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
             <p className="text-xs leading-relaxed text-[var(--amber-d)]">
-              {loading
-                ? "Checking your account watchlist..."
+              {accountError
+                ? "Retry to check your account."
                 : signedIn
                   ? "Your local saves remain available. Retry to load account saves."
                   : "Your local saves remain available. Sign in to access account saves across devices."}
             </p>
-            {signedIn ? (
+            {signedIn || accountError ? (
               <button
                 type="button"
-                onClick={() => mutate()}
+                onClick={() => (accountError ? retryAccount() : mutate())}
                 className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
               >
                 Retry
@@ -499,8 +484,11 @@ export default function SavedCarsPage() {
           ) : authError || error ? (
             <ErrorState
               title="Couldn't load saved cars"
-              message={authError || error?.message || "An error occurred"}
-              onRetry={() => mutate()}
+              message={
+                authError ||
+                "We couldn't load your saved vehicles. Check your connection and retry."
+              }
+              onRetry={() => (accountError ? retryAccount() : mutate())}
             />
           ) : loading ? (
             <div className="grid grid-cols-1 gap-4">
@@ -702,18 +690,18 @@ function LocalSavedSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--t3)]">
-            Local-only saves ({items.length})
+            Saved on this device ({items.length})
           </h3>
           <p className="text-xs text-[var(--t4)]">
             {syncUnavailableMessage ||
-              "These saves are stored on this device and have not reached cloud sync yet."}
+              "These vehicles are saved only in this browser. Account saves are shown separately."}
           </p>
         </div>
         <Badge
           className="border-none text-[10px] font-bold uppercase"
           style={{ background: "var(--glo)", color: "var(--green)" }}
         >
-          Waiting to sync
+          On this device
         </Badge>
       </div>
 
@@ -764,27 +752,24 @@ function LocalSavedSection({
                         : ""}
                       Saved {new Date(item.savedAt).toLocaleDateString()}
                     </p>
-                    {item.dataQuality && (
+                    {item.dataQuality?.missing.length ? (
                       <p className="text-[11px] font-semibold text-[var(--t4)]">
-                        Data quality {item.dataQuality.score}/100
-                        {item.dataQuality.missing.length
-                          ? ` · missing ${item.dataQuality.missing
-                              .slice(0, 2)
-                              .map(qualityFieldLabel)
-                              .join(", ")}`
-                          : ""}
+                        {`Still needed: ${item.dataQuality.missing
+                          .slice(0, 2)
+                          .map(qualityFieldLabel)
+                          .join(", ")}`}
                       </p>
-                    )}
+                    ) : null}
                     {trustSummary ? (
-                      <p className="text-[11px] leading-relaxed text-[var(--t4)]">
-                        Trust proof: {trustSummary}
-                        {typeof item.trustExplanation?.score === "number"
-                          ? ` (${Math.round(item.trustExplanation.score)}/100)`
-                          : ""}
+                      <details className="text-[11px] leading-relaxed text-[var(--t4)]">
+                        <summary className="cursor-pointer">
+                          Listing notes
+                        </summary>
+                        {trustSummary}
                         {nextTrustChecks.length
                           ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
                           : ""}
-                      </p>
+                      </details>
                     ) : null}
                     {(item.seller ||
                       item.sellerPhone ||
