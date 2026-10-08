@@ -5,11 +5,15 @@ const mocks = vi.hoisted(() => ({
   exchange: vi.fn(),
   user: vi.fn(),
   bootstrap: vi.fn(),
+  setCookies: null as null | ((cookies: any[]) => void),
 }));
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: () => ({
-    auth: { exchangeCodeForSession: mocks.exchange, getUser: mocks.user },
-  }),
+  createServerClient: (_url: string, _key: string, options: any) => {
+    mocks.setCookies = options.cookies.setAll;
+    return {
+      auth: { exchangeCodeForSession: mocks.exchange, getUser: mocks.user },
+    };
+  },
 }));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
@@ -32,6 +36,27 @@ beforeEach(() => {
 });
 
 describe("recovery callbacks", () => {
+  it("keeps exchanged cookies on the destination-preserving onboarding response", async () => {
+    mocks.exchange.mockImplementationOnce(async () => {
+      mocks.setCookies?.([
+        {
+          name: "test-session",
+          value: "session-value",
+          options: { path: "/", httpOnly: true },
+        },
+      ]);
+      return { error: null };
+    });
+    const response = await GET(
+      new NextRequest(
+        "https://example.com/auth/callback?code=test&next=/deal/123",
+      ),
+    );
+    expect(response.cookies.get("test-session")?.value).toBe("session-value");
+    expect(response.headers.get("location")).toBe(
+      "https://example.com/onboarding?next=%2Fdeal%2F123",
+    );
+  });
   it("takes a new account through setup before opening its intended vehicle", async () => {
     const response = await GET(
       new NextRequest(
