@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
       )
       .eq("active", true);
     if (
+      params.get("buyNow") !== "1" &&
       !wantsAuctionInventory({
         lane,
         sellerType: seller,
@@ -230,7 +231,7 @@ export async function GET(req: NextRequest) {
       ["maxMileage", "mileage", false],
     ] as const) {
       const value = Number(params.get(key));
-      if (value > 0)
+      if (value > 0 || (column === "mileage" && params.has(key)))
         query = minimum ? query.gte(column, value) : query.lte(column, value);
     }
     if (cascade) query = query.ilike("make", make!);
@@ -260,9 +261,6 @@ export async function GET(req: NextRequest) {
     const availability = params.get("availability");
     if (availability && availability !== "all")
       query = query.eq("availability_status", availability);
-    const drivetrain = params.get("drivetrain");
-    if (drivetrain && drivetrain !== "all")
-      query = query.eq("options->>drivetrain", drivetrain);
     if (params.get("madeInUsa") === "1")
       query = query.or(
         "assembly_country.ilike.%united states%,assembly_country.ilike.%usa%",
