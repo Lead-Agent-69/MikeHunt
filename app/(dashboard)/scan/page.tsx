@@ -2916,6 +2916,7 @@ function ScanPageInner() {
       clear: () => setMakesFilter([]),
     },
     { label: "Model", value: model, clear: () => setModel("all") },
+    { label: "Shown tag", value: category, clear: () => setCategory("all") },
     { label: "Min price", value: minPrice, clear: () => setMinPrice("any") },
     { label: "Max price", value: maxPrice, clear: () => setMaxPrice("any") },
     { label: "Year from", value: minYear, clear: () => setMinYear("any") },
@@ -3339,6 +3340,7 @@ function ScanPageInner() {
     if (make === "all" && makesFilter.length)
       params.set("makes", makesFilter.join(","));
     if (model !== "all") params.set("model", model);
+    if (category !== "all") params.set("category", category);
     if (minProfit !== "any")
       params.set("minProfit", minProfit.replace("k", "000"));
     if (maxPrice !== "any")
@@ -3392,6 +3394,7 @@ function ScanPageInner() {
     madeInUsa,
     drivetrain,
     sort,
+    category,
     minMileage,
     damage,
     body,
@@ -4590,8 +4593,8 @@ function ScanPageInner() {
           {!loading && (
             <div className="ml-auto flex items-center gap-3 shrink-0">
               <span className="text-xs text-[var(--t3)] font-mono">
-                {filteredResults.length} result
-                {filteredResults.length !== 1 ? "s" : ""}
+                {filteredResults.length} shown / {total.toLocaleString()}{" "}
+                matching
               </span>
               <div
                 className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"

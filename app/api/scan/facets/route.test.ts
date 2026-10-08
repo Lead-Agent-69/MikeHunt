@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { buildScanFacetSummary } from "./route";
 
 describe("buildScanFacetSummary", () => {
+  it("does not infer title status from operability or repairability", () => {
+    expect(
+      buildScanFacetSummary([
+        { condition: "repairable" },
+        { condition: "run_drive" },
+        { condition: "clean" },
+      ]).titleTypes,
+    ).toEqual([]);
+  });
   it("turns live inventory rows into buyer-facing filter categories", () => {
     const facets = buildScanFacetSummary([
       {
