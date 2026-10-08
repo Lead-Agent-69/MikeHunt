@@ -383,8 +383,8 @@ export const DealCard = memo(function DealCard({
       ? `low confidence until ${weakAssumption} is known`
       : `${mathConfidence.toLowerCase()} valuation confidence`,
     trustSignals.length >= 4
-      ? "source proof is usable"
-      : "source proof is thin",
+      ? "listing fields are present; verify with the seller"
+      : "listing details are incomplete",
   ];
   const explainedWhyShown = trustExplanation?.reasons?.length
     ? trustExplanation.reasons

@@ -35,8 +35,22 @@ export function formatCondition(
   condition?: string,
   damageType?: string,
 ): string {
-  if (damageType && condition) return `${damageType} / ${condition}`;
-  if (damageType) return damageType;
-  if (condition) return condition;
-  return "Unknown";
+  const labels: Record<string, string> = {
+    clean_title: "Clean title reported",
+    salvage_title: "Salvage title reported",
+    rebuilt_title: "Rebuilt title reported",
+    parts_only: "Parts only",
+    run_drive: "Runs and drives reported",
+  };
+  const readable = (value: string) =>
+    labels[value.toLowerCase()] || value.replace(/_/g, " ");
+  return (
+    Array.from(
+      new Set(
+        [condition, damageType]
+          .filter(Boolean)
+          .map((value) => readable(value!)),
+      ),
+    ).join(" · ") || "Unknown"
+  );
 }
