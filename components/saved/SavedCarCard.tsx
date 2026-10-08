@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta } from "@/lib/sources/source-meta";
+import { buyTerm } from "@/lib/deal-terms";
 
 export type SavedCarStatus =
   | "active"
@@ -306,8 +307,10 @@ export const SavedCarCard = React.memo(function SavedCarCard({
 
         <CardContent className="p-5 flex flex-col sm:flex-row justify-between gap-4">
           {snapshot.images?.[0] && (
-            <Link
-              href={`/deal/${save.deal_id || ""}`}
+            <a
+              href={
+                save.deal_id ? `/deal/${save.deal_id}` : sourceHref || undefined
+              }
               className="relative h-28 w-full shrink-0 overflow-hidden rounded-[var(--r3)] bg-[var(--s1)] sm:h-32 sm:w-44"
               aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
             >
@@ -321,7 +324,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 {snapshot.images.length} photo
                 {snapshot.images.length === 1 ? "" : "s"}
               </div>
-            </Link>
+            </a>
           )}
           {/* Main Info */}
           <div className="space-y-2 flex-1">
@@ -349,6 +352,23 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             <h3 className="text-lg font-bold text-[var(--t1)] tracking-tight">
               {snapshot.year} {snapshot.make} {snapshot.model} {snapshot.trim}
             </h3>
+            <div aria-label="Saved vehicle price">
+              <span className="block text-xs text-[var(--t4)]">
+                {status === "unavailable"
+                  ? "Last reported price"
+                  : buyTerm(save.source_name).priceLabel}
+              </span>
+              <span className="text-xl font-bold text-[var(--t1)]">
+                {Number.isFinite(
+                  status === "unavailable" ? originalPrice : currentPrice,
+                ) &&
+                (status === "unavailable" ? originalPrice : currentPrice) > 0
+                  ? formatMoney(
+                      status === "unavailable" ? originalPrice : currentPrice,
+                    )
+                  : "Not reported"}
+              </span>
+            </div>
 
             <p className="text-xs text-[var(--t4)]">
               {snapshot.odometer
@@ -530,43 +550,17 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           {/* Pricing & Actions */}
           <div className="flex flex-col sm:items-end justify-between gap-4 min-w-[160px]">
             <div className="text-left sm:text-right">
-              {status === "unavailable" ? (
-                <>
-                  <span className="text-xs text-[var(--t4)] block uppercase font-bold tracking-wider">
-                    Was listed at
-                  </span>
-                  <span className="text-lg font-bold text-[var(--t2)]">
-                    {formatMoney(originalPrice)}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs text-[var(--t4)] block uppercase font-bold tracking-wider">
-                    Price
-                  </span>
-                  <div className="flex items-baseline gap-2">
-                    {priceDiff !== 0 && (
-                      <span className="text-xs text-[var(--t4)] line-through">
-                        {formatMoney(originalPrice)}
-                      </span>
-                    )}
-                    <span className="text-xl font-bold text-[var(--t1)]">
-                      {formatMoney(currentPrice)}
-                    </span>
-                  </div>
-                  {flipDesk && (
-                    <span
-                      className={`text-xs font-bold block mt-0.5 ${
-                        profitValue >= 0
-                          ? "text-[var(--green)]"
-                          : "text-[var(--red)]"
-                      }`}
-                    >
-                      Est. Profit: {profitValue >= 0 ? "+" : ""}
-                      {formatMoney(profitValue)}
-                    </span>
-                  )}
-                </>
+              {status !== "unavailable" && flipDesk && (
+                <span
+                  className={`text-xs font-bold block mt-0.5 ${
+                    profitValue >= 0
+                      ? "text-[var(--green)]"
+                      : "text-[var(--red)]"
+                  }`}
+                >
+                  Est. Profit: {profitValue >= 0 ? "+" : ""}
+                  {formatMoney(profitValue)}
+                </span>
               )}
             </div>
 
@@ -577,44 +571,44 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 <Button
                   size="sm"
                   onClick={() => setModalOpen(true)}
-                  className="text-white font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
+                  className="text-white font-bold text-xs px-3 min-h-11 border-none flex items-center gap-1.5 rounded-lg"
                   style={{ background: "var(--t1)" }}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Find Similar
                 </Button>
               ) : status === "acquired" ? (
-                <Link href="/fleet" className="w-full sm:w-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-[var(--purple)] font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
-                    style={{ background: "var(--plo)" }}
-                  >
-                    {flipDesk ? "View in Fleet" : "View purchase"}
-                  </Button>
+                <Link
+                  href="/fleet"
+                  className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-bold text-[var(--blue)]"
+                >
+                  {flipDesk ? "View pipeline" : "View purchase plan"}
                 </Link>
               ) : (
                 <>
-                  <Link
-                    href={`/deal/${save.deal_id || ""}`}
-                    className="w-full sm:w-auto"
-                  >
+                  {save.deal_id ? (
+                    <Link
+                      href={`/deal/${save.deal_id}`}
+                      className="inline-flex min-h-11 items-center rounded-lg bg-[var(--s1)] px-3 text-xs font-bold text-[var(--t2)]"
+                    >
+                      Review vehicle
+                    </Link>
+                  ) : (
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-[var(--t2)] font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
-                      style={{ background: "var(--s1)" }}
+                      onClick={() => setModalOpen(true)}
+                      className="min-h-11"
                     >
-                      Analyze
+                      Find similar
                     </Button>
-                  </Link>
+                  )}
 
                   {flipDesk && profitValue > 0 ? (
                     <Button
                       size="sm"
                       onClick={handleAcquire}
-                      className="text-white font-bold text-xs px-3 h-8 border-none flex items-center gap-1.5 rounded-lg"
+                      className="text-white font-bold text-xs px-3 min-h-11 border-none flex items-center gap-1.5 rounded-lg"
                       style={{ background: "var(--grad)" }}
                     >
                       <CheckSquare className="w-3.5 h-3.5" />
@@ -635,18 +629,20 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 size="sm"
                 variant="ghost"
                 onClick={() => onDelete(save.id)}
-                className="text-[var(--red)] p-2 h-8 w-8 rounded-lg flex items-center justify-center transition-colors border-none hover:bg-[var(--rlo)]"
+                aria-label="Remove saved vehicle"
+                className="text-[var(--red)] p-2 h-11 w-11 rounded-lg flex items-center justify-center transition-colors border-none hover:bg-[var(--rlo)]"
                 title="Remove Saved Car"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
 
-              {save.source_url && (
+              {sourceHref && (
                 <a
-                  href={save.source_url}
+                  href={sourceHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 h-8 w-8 rounded-lg text-[var(--t3)] hover:text-[var(--t1)] flex items-center justify-center transition-colors"
+                  aria-label="Open original listing"
+                  className="p-2 h-11 w-11 rounded-lg text-[var(--t3)] hover:text-[var(--t1)] flex items-center justify-center transition-colors"
                   style={{ background: "var(--s1)" }}
                   title="Open Original Listing"
                 >

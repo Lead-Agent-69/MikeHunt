@@ -302,7 +302,7 @@ export default function SavedCarsPage() {
           <span>{comparisonIds.length} of 4 selected</span>
           {comparisonIds.length >= 2 ? (
             <Link
-              className="font-bold text-[var(--blue)]"
+              className="inline-flex min-h-11 items-center font-bold text-[var(--blue)]"
               href={`/compare?ids=${encodeURIComponent(comparisonIds.join(","))}`}
             >
               Compare selected vehicles
@@ -314,7 +314,7 @@ export default function SavedCarsPage() {
           )}
           <button
             onClick={() => setComparisonIds([])}
-            className="ml-auto text-sm"
+            className="ml-auto min-h-11 text-sm"
           >
             Clear selection
           </button>

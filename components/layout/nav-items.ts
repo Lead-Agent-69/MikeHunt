@@ -629,7 +629,11 @@ export function workspaceGroupsForMode(buyerMode: unknown): NavGroup[] {
     const item = catalog.find((candidate) => candidate.href === base);
     const group = entry.group || "Browse";
     const items = groups.get(group) || [];
-    items.push({ ...entry, icon: item?.icon || Search });
+    items.push({
+      ...entry,
+      icon: item?.icon || Search,
+      description: item?.description,
+    });
     groups.set(group, items);
   }
   groups.get("Browse")?.unshift(PRIMARY[0]);

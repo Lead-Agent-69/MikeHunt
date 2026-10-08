@@ -4,6 +4,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { sourceMeta } from "@/lib/sources/source-meta";
+import { buyTerm } from "@/lib/deal-terms";
 
 type Candidate = {
   id: string;
@@ -17,11 +18,17 @@ type Candidate = {
   source?: string;
   sourceUrl?: string;
   images?: string[];
+  locationCity?: string;
+  locationState?: string;
+  vin?: string;
+  damageType?: string;
+  runAndDrive?: boolean;
+  hasKeys?: boolean;
   dealAnalysis?: { costs?: { repair?: number; transport?: number } };
 };
 
 const money = (value?: number) =>
-  value == null
+  value == null || !Number.isFinite(value)
     ? "Not confirmed"
     : new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -68,7 +75,43 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     );
 
   const rows: { label: string; value: (candidate: Candidate) => string }[] = [
-    { label: "Listed price / bid", value: (c) => money(c.askPrice) },
+    { label: "Price type", value: (c) => buyTerm(c.source).priceLabel },
+    {
+      label: "Listed price / bid",
+      value: (c) =>
+        c.askPrice != null && c.askPrice > 0
+          ? money(c.askPrice)
+          : "Not reported",
+    },
+    {
+      label: "Location",
+      value: (c) =>
+        [c.locationCity, c.locationState].filter(Boolean).join(", ") ||
+        "Not reported",
+    },
+    { label: "VIN", value: (c) => c.vin || "Not reported" },
+    {
+      label: "Damage reported",
+      value: (c) => c.damageType?.replace(/_/g, " ") || "Not reported",
+    },
+    {
+      label: "Run and drive",
+      value: (c) =>
+        c.runAndDrive === true
+          ? "Reported yes"
+          : c.runAndDrive === false
+            ? "Reported no"
+            : "Not reported",
+    },
+    {
+      label: "Keys",
+      value: (c) =>
+        c.hasKeys === true
+          ? "Reported yes"
+          : c.hasKeys === false
+            ? "Reported no"
+            : "Not reported",
+    },
     {
       label: "Mileage reported",
       value: (c) =>
@@ -90,7 +133,7 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     {
       label: "Known-cost subtotal",
       value: (c) =>
-        c.askPrice == null
+        c.askPrice == null || c.askPrice <= 0
           ? "Not confirmed"
           : money(
               c.askPrice +
@@ -106,7 +149,9 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     {
       label: "Last seen at source",
       value: (c) =>
-        c.lastSeenAt ? new Date(c.lastSeenAt).toLocaleString() : "Unknown",
+        c.lastSeenAt && Number.isFinite(new Date(c.lastSeenAt).getTime())
+          ? new Date(c.lastSeenAt).toLocaleString()
+          : "Unknown",
     },
     { label: "Listing source", value: (c) => sourceMeta(c.source || "").label },
     {
@@ -127,9 +172,22 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
             <th className="min-w-36 p-3 text-left">Compare</th>
             {data.map((c) => (
               <th key={c.id} className="min-w-44 p-3 text-left">
-                <Link href={`/deal/${c.id}`} className="text-[var(--blue)]">
+                <Link
+                  href={`/deal/${c.id}`}
+                  className="inline-flex min-h-11 items-center text-[var(--blue)]"
+                >
                   {c.year} {c.make} {c.model}
                 </Link>
+                {c.sourceUrl && (
+                  <a
+                    href={c.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-h-11 items-center text-xs font-medium text-[var(--blue)]"
+                  >
+                    Original listing
+                  </a>
+                )}
               </th>
             ))}
           </tr>

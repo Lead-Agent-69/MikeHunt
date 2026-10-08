@@ -62,6 +62,7 @@ import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
+import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 import { estimateTeardownValue } from "@/lib/intelligence/teardown";
 import {
@@ -161,8 +162,6 @@ function money(value?: number | null) {
 }
 
 function PersonalListingLead({ deal }: { deal: any }) {
-  const ask = Number(deal?.ask_price || deal?.askPrice || 0);
-  const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
   const checks = [
     "VIN matches the listing",
@@ -172,16 +171,9 @@ function PersonalListingLead({ deal }: { deal: any }) {
   ];
   return (
     <section className="glass-panel p-4 md:p-5" aria-label="Listing to check">
-      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-        Check this listing
-      </p>
       <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
-        {title || "This vehicle"}
+        Checks before purchase
       </h2>
-      <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-        Asking price
-      </p>
-      <p className="mt-1 text-2xl font-black text-[var(--t1)]">{money(ask)}</p>
       <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
         <span className="font-black">All-in cost is not confirmed.</span>{" "}
         Repair, transport, taxes, and registration still need to be checked.
@@ -460,7 +452,7 @@ function DetailDisclosure({
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="interactive-surface flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:hidden md:p-5 [&::-webkit-details-marker]:hidden">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
             {eyebrow}
           </p>
@@ -964,15 +956,15 @@ export default function DealPage({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto animate-fadeUp pb-24">
+    <div className="space-y-6 max-w-5xl mx-auto pb-40 md:pb-24">
       {/* Reco: "Interested in similar?" after enough dwell, signed-in only */}
       <SimilarInterestPrompt
         dealId={id}
         enabled={Boolean(dealerId && serverDeal)}
       />
-      {/* HEADER & USER TYPE */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+      {/* Listing identity, reports and primary research action. */}
+      <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <SourceBadge
               source={dealData?.deal?.source}
@@ -980,80 +972,67 @@ export default function DealPage({
               size="lg"
               showChannel
             />
-            <Badge
+            <Button
+              type="button"
               variant="outline"
-              className="text-[var(--t1)] bg-[var(--s0)] border-[var(--b1)]"
+              size="sm"
+              onClick={() => setFindSimilarOpen(true)}
+              className="ml-auto border-[var(--b2)] text-[var(--t2)] font-bold text-xs min-h-11 rounded-lg flex items-center gap-1.5"
+              data-testid="find-similar-cta"
             >
-              {store.year} {store.make} {store.model}
-            </Badge>
-            <Badge
-              className="text-white uppercase tracking-wider text-[10px] border-none"
-              style={{ background: "var(--grad)" }}
-            >
-              {store.titleType} Title
-            </Badge>
+              <Search className="w-3.5 h-3.5" />
+              Find similar
+            </Button>
           </div>
-          <p className="text-[var(--t4)] text-sm">
-            {[
-              [dealData?.deal?.locationCity, dealData?.deal?.locationState]
-                .filter(Boolean)
-                .join(", "),
-              store.miles ? `${store.miles.toLocaleString()} mi` : null,
-            ]
-              .filter(Boolean)
-              .join(" • ") || "Deal details"}
-          </p>
+          <VehicleSummary
+            deal={{
+              ...serverDeal,
+              askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price,
+              titleType: serverDeal?.titleType ?? serverDeal?.title_type,
+              damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
+            }}
+          />
           {dealData?.deal?.sourceUrl && (
             <a
               href={dealData.deal.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
             >
               View original listing
               <span aria-hidden>↗</span>
             </a>
           )}
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setFindSimilarOpen(true)}
-            className="border-[var(--b2)] text-[var(--t2)] font-bold text-xs h-9 rounded-xl flex items-center gap-1.5"
-            data-testid="find-similar-cta"
-          >
-            <Search className="w-3.5 h-3.5" />
-            Find similar
-          </Button>
-          {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
-          {store.userType === "dealer" && (
-            <div
-              className="flex p-1 rounded-xl"
-              style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
-            >
-              {(["dealer", "private", "parts"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => store.setUserType(t)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
-                  style={
-                    store.userType === t ? { background: "var(--grad)" } : {}
-                  }
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
+      {/* Keep the actual vehicle visible before secondary checklists and analysis. */}
+      {serverDeal?.images?.length ? (
+        <section aria-label="Listing photos">
+          <ImageGallery
+            images={serverDeal.images}
+            title={[serverDeal.year, serverDeal.make, serverDeal.model]
+              .filter(Boolean)
+              .join(" ")}
+            sourceUrl={serverDeal.sourceUrl}
+          />
+          <p className="mt-2 text-xs text-[var(--t5)]">
+            {serverDeal.images.length} listing photos. Photos are
+            source-provided and are not a mechanic inspection.
+          </p>
+        </section>
+      ) : (
+        <p
+          role="status"
+          className="border-y border-[var(--b1)] py-4 text-sm text-[var(--t3)]"
+        >
+          No listing photos reported. Check the original listing for condition
+          evidence.
+        </p>
+      )}
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
         <section
-          className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
+          className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
           aria-label="Vehicle evidence status"
         >
           <h2 className="text-lg font-bold text-[var(--t1)]">
@@ -1104,22 +1083,6 @@ export default function DealPage({
             }}
           />
         ))}
-
-      {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
-      {serverDeal?.images && serverDeal.images.length > 0 && (
-        <div>
-          <ImageGallery
-            images={serverDeal.images}
-            title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
-            sourceUrl={serverDeal.sourceUrl}
-          />
-          <p className="mt-2 text-xs text-[var(--t5)]">
-            {serverDeal.images.length} listing photo
-            {serverDeal.images.length === 1 ? "" : "s"}. Photos are
-            source-provided and are not a mechanic inspection.
-          </p>
-        </div>
-      )}
 
       {serverDeal && detailQuality && (
         <Card
@@ -2070,8 +2033,9 @@ export default function DealPage({
 
       {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
           the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}
-      <div
-        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
+      <section
+        aria-label="Vehicle actions"
+        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(58px+env(safe-area-inset-bottom))] md:bottom-0"
         style={{
           background: "var(--s0)",
           borderTop: "1px solid var(--b1)",
@@ -2084,15 +2048,22 @@ export default function DealPage({
               variant="outline"
               onClick={handleWatchPrice}
               disabled={watching}
-              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
             >
               {watching
                 ? "Adding…"
                 : isLocallyWatched
-                  ? "Watching"
-                  : "Watch Price"}
+                  ? "Saved"
+                  : "Save vehicle"}
             </Button>
           </motion.div>
+
+          <Link
+            href="/fleet"
+            className="inline-flex min-h-11 items-center rounded-lg border border-[var(--b2)] px-3 text-sm font-semibold text-[var(--t2)]"
+          >
+            {store.userType === "dealer" ? "Pipeline" : "Purchase plan"}
+          </Link>
 
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
@@ -2102,7 +2073,7 @@ export default function DealPage({
                 if (fromState) params.set("from", fromState);
                 router.push(`/move?${params.toString()}`);
               }}
-              className="text-white font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+              className="text-white font-semibold text-xs md:text-sm min-h-11 rounded-lg"
               style={{ background: "var(--t1)" }}
             >
               Get Transport
@@ -2114,15 +2085,15 @@ export default function DealPage({
               <Button
                 onClick={handleSaveToFleet}
                 disabled={saving}
-                className="text-white font-bold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+                className="text-white font-bold text-xs md:text-sm min-h-11 rounded-lg"
                 style={{ background: "var(--grad)" }}
               >
-                {saving ? "Saving..." : "Add to Fleet"}
+                {saving ? "Saving..." : "Record purchase"}
               </Button>
             </motion.div>
           )}
         </div>
-      </div>
+      </section>
 
       <FindSimilarModal
         flipDesk={store.userType === "dealer"}

@@ -19,7 +19,9 @@ export default function ToolsPage() {
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
-        `${item.name} ${group.group}`.toLowerCase().includes(term),
+        `${item.name} ${group.group} ${item.description || ""}`
+          .toLowerCase()
+          .includes(term),
       ),
     }))
     .filter((group) => group.items.length > 0);

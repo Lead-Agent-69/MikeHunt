@@ -75,6 +75,39 @@ describe("personal buyer workflows", () => {
     expect(html).toContain("Find a vehicle");
   });
 
+  it("compares price types, location, missing prices and reports without hiding the source", () => {
+    result.data = [
+      {
+        id: "one",
+        source: "copart",
+        askPrice: 4500,
+        locationCity: "Dallas",
+        locationState: "TX",
+        runAndDrive: false,
+        hasKeys: true,
+        sourceUrl: "https://www.copart.com/lot/123",
+      },
+      {
+        id: "two",
+        source: "independent_dealer",
+        askPrice: 0,
+        lastSeenAt: "invalid",
+      },
+    ];
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleComparison, { ids: ["one", "two"] }),
+    );
+    expect(html).toContain("Current bid");
+    expect(html).toContain("Asking price");
+    expect(html).toContain("Dallas, TX");
+    expect(html).toContain("Reported no");
+    expect(html).toContain("Reported yes");
+    expect(html).toContain("Original listing");
+    expect(html).toContain("Not reported");
+    expect(html).not.toContain("$0");
+    expect(html).not.toContain("Invalid Date");
+  });
+
   it("explains empty stage filters and restores the checklist without losing saves", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     result.data = [

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MultiCarTrailerOptimizer } from "@/components/transport/MultiCarTrailerOptimizer";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 
 interface QuoteResult {
   from: string;
@@ -62,6 +63,9 @@ const fetcher = (url: string) =>
   });
 
 function MovePageInner() {
+  const { intent } = useBuyerIntent();
+  const flipDesk =
+    intent?.buyerMode === "dealer" || intent?.buyerMode === "reseller";
   const { dealerId, loading: dealerLoading } = useDealerId();
   const searchParams = useSearchParams();
 
@@ -138,8 +142,8 @@ function MovePageInner() {
               </>
             ) : (
               <>
-                Instant transport quotes + title route check for any
-                state-to-state move.
+                State-to-state transport estimates. Carrier quotes require exact
+                pickup and delivery addresses.
               </>
             )}
           </p>
@@ -165,7 +169,7 @@ function MovePageInner() {
               setFromState(toState);
               setToState(fromState);
             }}
-            className="mt-5 h-10 w-10 flex-shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-110 hover:rotate-180"
+            className="mt-5 h-11 w-11 flex-shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-110 hover:rotate-180"
             style={{ background: "var(--s2)", border: "1px solid var(--b2)" }}
             title="Swap states"
           >
@@ -207,7 +211,8 @@ function MovePageInner() {
               <Mono className="font-bold text-[var(--t1)]">
                 {result.miles.toLocaleString()}
               </Mono>{" "}
-              driving miles
+              {result.mode === "road" ? "routed miles" : "estimated miles"}{" "}
+              between state centers
               {result.driveTime ? (
                 <>
                   {" · "}
@@ -220,7 +225,7 @@ function MovePageInner() {
               · {fromState} → {toState}
               {result.mode === "road" ? (
                 <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--green)] font-bold">
-                  ● live route
+                  Road route, not a live carrier quote
                 </span>
               ) : null}
             </span>
@@ -228,7 +233,8 @@ function MovePageInner() {
         )}
         {isSameState && (
           <p className="mt-3 text-sm text-[var(--t4)]">
-            Same state — local tow/driveaway only.
+            Same-state distance is unknown without pickup and delivery
+            addresses. The amounts below are minimum planning placeholders.
           </p>
         )}
       </div>
@@ -331,8 +337,9 @@ function MovePageInner() {
             })}
           </div>
           <p className="text-xs text-[var(--t5)] mt-3 px-1">
-            Estimates based on $0.78/mile open carrier industry average. Get
-            carrier quotes on{" "}
+            Planning assumptions: $0.78/mile open carrier plus $50, with a $150
+            minimum. Not a carrier quote; actual distance, vehicle condition and
+            dates affect cost. Get carrier quotes on{" "}
             <a
               href="https://uship.com"
               target="_blank"
@@ -356,7 +363,7 @@ function MovePageInner() {
       )}
 
       {/* Multi-Car Trailer Bundle Optimizer */}
-      {result && !loading && !error && (
+      {flipDesk && result && !loading && !error && (
         <MultiCarTrailerOptimizer
           miles={result.miles}
           fromState={fromState}

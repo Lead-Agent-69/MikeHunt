@@ -15,7 +15,7 @@ describe("deal page personal desk", () => {
     expect(page).toContain("prefs.buyerScope?.buyerMode");
     expect(page).toContain("PersonalListingLead");
     expect(page).toContain("What to verify");
-    expect(page).toContain("Asking price");
+    expect(page).toContain("<VehicleSummary");
     expect(page).toContain("Original listing");
     expect(page).toMatch(
       /store\.userType === "dealer" && serverDeal && \(\s*<ContactSeller/,
@@ -26,12 +26,9 @@ describe("deal page personal desk", () => {
     expect(page).toMatch(
       /store\.userType === "dealer" &&[\s\S]{0,450}<ForecastPanel/,
     );
-    // Find similar CTA sits in the flex-wrap row for all desks; only the
-    // dealer/private/parts desk toggle stays behind the dealer gate.
+    // Changing a desk uses the saved buying profile, not a disappearing page toggle.
     expect(page).toContain('data-testid="find-similar-cta"');
-    expect(page).toMatch(
-      /store\.userType === "dealer" && \(\s*<div\s+className="flex p-1 rounded-xl"/,
-    );
+    expect(page).not.toContain('(["dealer", "private", "parts"] as const)');
     expect(feed).toContain("/api/discover?dealerSourceIds=");
     expect(feed).toContain("<DiscoveryCard");
     expect(feed).not.toContain("/api/scan");

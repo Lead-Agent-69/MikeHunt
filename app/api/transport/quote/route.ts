@@ -17,6 +17,7 @@ const HOOKUP_FEE = 50;
 const MIN_QUOTE = 150;
 
 function coord(latRaw: string | null, lngRaw: string | null): LatLng | null {
+  if (!latRaw?.trim() || !lngRaw?.trim()) return null;
   const lat = Number(latRaw);
   const lng = Number(lngRaw);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;

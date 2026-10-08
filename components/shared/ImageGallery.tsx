@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   motion,
   animate,
@@ -45,9 +51,13 @@ export function ImageGallery({
 }: ImageGalleryProps) {
   // Free-tier: direct source URLs for gallery frames; proxy only hotlink hosts
   // (and only the hero when the host does not block). Never next/image.
-  const images = (rawImages || [])
-    .map((url, index) => galleryImageSrc(url, index))
-    .filter(Boolean);
+  const images = useMemo(
+    () =>
+      (rawImages || [])
+        .map((url, index) => galleryImageSrc(url, index))
+        .filter(Boolean),
+    [rawImages],
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [direction, setDirection] = useState(0);
@@ -55,7 +65,8 @@ export function ImageGallery({
   const [imageError, setImageError] = useState<Record<number, boolean>>({});
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
-  const lightboxRef = useRef<HTMLDivElement>(null);
+  const lightboxRef = useRef<HTMLDialogElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
 
   // Dragging the photo down dismisses the lightbox; the backdrop fades out in step so the
   // gesture reads as "pushing the image away" rather than a hard close.
@@ -70,7 +81,12 @@ export function ImageGallery({
     if (!hasImages) return;
 
     const preloadImage = (index: number) => {
-      if (index >= 0 && index < images.length && !imageLoaded[index]) {
+      if (
+        index >= 0 &&
+        index < images.length &&
+        !imageLoaded[index] &&
+        !imageError[index]
+      ) {
         const img = new Image();
         img.src = images[index];
         img.onload = () =>
@@ -84,11 +100,12 @@ export function ImageGallery({
     preloadImage(currentIndex);
     preloadImage(currentIndex + 1);
     preloadImage(currentIndex - 1);
-  }, [currentIndex, hasImages, images, imageLoaded]);
+  }, [currentIndex, hasImages, images, imageLoaded, imageError]);
 
   // Touch handlers for swipe
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = touchStartX.current;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -137,11 +154,15 @@ export function ImageGallery({
     // Restore whatever the page had before — the dashboard locks scroll elsewhere too, so
     // hard-coding "unset" would clobber it.
     const prevOverflow = document.body.style.overflow;
+    const dialog = lightboxRef.current;
+    dialog?.showModal();
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = prevOverflow;
+      dialog?.close();
+      returnFocus.current?.focus();
     };
   }, [isLightboxOpen, handleKeyDown]);
 
@@ -158,6 +179,7 @@ export function ImageGallery({
   };
 
   const openLightbox = (index: number) => {
+    returnFocus.current = document.activeElement as HTMLElement;
     // A drag-dismiss leaves the photo offset; clear it so the next open starts centred.
     dragY.set(0);
     setDirection(0);
@@ -172,7 +194,9 @@ export function ImageGallery({
         {hasImages ? (
           <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 md:aspect-[21/9] rounded-[var(--r3)] overflow-hidden">
             {/* HERO IMAGE */}
-            <div
+            <button
+              type="button"
+              aria-label={`Open photo 1 of ${images.length}: ${title}`}
               className={cn(
                 "relative group cursor-pointer overflow-hidden w-full aspect-[4/3] md:aspect-auto",
                 images.length >= 5
@@ -230,14 +254,16 @@ export function ImageGallery({
               >
                 1 / {images.length}
               </div>
-            </div>
+            </button>
 
             {/* SECONDARY IMAGES (Desktop only, if enough images exist) */}
             {images.length >= 5 &&
               images.slice(1, 5).map((img, idx) => {
                 const realIdx = idx + 1;
                 return (
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`Open photo ${realIdx + 1} of ${images.length}: ${title}`}
                     key={realIdx}
                     className="hidden md:block relative group cursor-pointer overflow-hidden"
                     onClick={() => openLightbox(realIdx)}
@@ -281,7 +307,7 @@ export function ImageGallery({
                         </span>
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
           </div>
@@ -310,9 +336,14 @@ export function ImageGallery({
       {/* LIGHTBOX MODAL */}
       <AnimatePresence>
         {isLightboxOpen && hasImages && (
-          <motion.div
+          <motion.dialog
             ref={lightboxRef}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            aria-label={`${title} listing photos`}
+            onCancel={(event) => {
+              event.preventDefault();
+              setIsLightboxOpen(false);
+            }}
+            className="fixed inset-0 z-50 m-0 h-full w-full max-h-none max-w-none border-0 bg-transparent flex items-center justify-center p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -452,7 +483,7 @@ export function ImageGallery({
             >
               Arrow keys to navigate • drag down or ESC to close
             </div>
-          </motion.div>
+          </motion.dialog>
         )}
       </AnimatePresence>
     </>
