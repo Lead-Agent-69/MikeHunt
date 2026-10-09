@@ -4,25 +4,54 @@ import { NextRequest } from "next/server";
 const getServerUser = vi.hoisted(() => vi.fn());
 const rpc = vi.hoisted(() => vi.fn());
 const savedMode = vi.hoisted(() => ({ value: null as string | null }));
+const queryRows = vi.hoisted(() => ({
+  rows: [] as any[],
+  error: null as any,
+  basePrice: 15000,
+  filters: [] as { method: string; args: any[] }[],
+}));
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
     rpc,
-    from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data:
-              table === "user_preferences" && savedMode.value
-                ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
+    from: (table: string) => {
+      const query: any = {
+        maybeSingle: async () => ({
+          data:
+            table === "user_preferences" && savedMode.value
+              ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
+              : table === "deals"
+                ? { ...ROW, id: "deal-1", ask_price: queryRows.basePrice }
                 : null,
-            error: null,
-          }),
+          error: null,
         }),
-      }),
-    }),
+        then: (resolve: any) =>
+          Promise.resolve({
+            data: queryRows.rows,
+            error: queryRows.error,
+          }).then(resolve),
+      };
+      for (const method of [
+        "select",
+        "eq",
+        "in",
+        "neq",
+        "gt",
+        "gte",
+        "lte",
+        "order",
+        "limit",
+        "ilike",
+        "or",
+      ])
+        query[method] = (...args: any[]) => {
+          queryRows.filters.push({ method, args });
+          return query;
+        };
+      return query;
+    },
   }),
 }));
 
@@ -44,6 +73,8 @@ const ROW = {
   images: [],
   source: "independent_dealer",
   similarity: 0.93,
+  active: true,
+  last_seen_at: new Date().toISOString(),
 };
 
 async function load(mode: string | null, signedIn = true) {
@@ -65,6 +96,10 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     getServerUser.mockReset();
     rpc.mockReset();
     rpc.mockResolvedValue({ data: [ROW], error: null });
+    queryRows.rows = [ROW];
+    queryRows.error = null;
+    queryRows.basePrice = 15000;
+    queryRows.filters = [];
   });
 
   it.each(["dealer", "reseller"])(
@@ -92,7 +127,10 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
       id: "deal-2",
       askPrice: 13900,
       sellEstimate: 17800,
-      similarity: 93,
+      matchReasons: expect.arrayContaining([
+        "Same make and model",
+        "$1,100 lower asking price",
+      ]),
     });
   });
 
@@ -105,5 +143,34 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     );
     const card = (await res.json()).similar[0];
     expect(card).not.toHaveProperty("trueNetProfit");
+  });
+  it("does not disguise inventory failures as an empty result", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+    queryRows.error = { message: "offline" };
+    const res = await GET(
+      new NextRequest("https://app.test/api/deals/deal-1/similar"),
+      { params: Promise.resolve({ id: "deal-1" }) },
+    );
+    expect(res.status).toBe(503);
+  });
+  it("rechecks semantic suggestions against live inventory", async () => {
+    queryRows.rows = [{ ...ROW, active: false }];
+    const res = await GET(
+      new NextRequest("https://app.test/api/deals/deal-1/similar"),
+      { params: Promise.resolve({ id: "deal-1" }) },
+    );
+    expect((await res.json()).similar).toEqual([]);
+  });
+  it("uses whole-dollar bounds for integer database prices", async () => {
+    queryRows.basePrice = 24092;
+    await load("personal");
+    expect(queryRows.filters).toContainEqual({
+      method: "gte",
+      args: ["ask_price", 14456],
+    });
+    expect(queryRows.filters).toContainEqual({
+      method: "lte",
+      args: ["ask_price", 33728],
+    });
   });
 });

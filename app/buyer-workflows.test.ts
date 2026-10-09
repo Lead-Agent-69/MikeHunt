@@ -20,10 +20,19 @@ beforeEach(() => {
 
 describe("personal buyer workflows", () => {
   it("compares actual vehicles without treating unknown costs as a confirmed all-in price", () => {
-    result.data = [
-      { id: "one", year: 2019, make: "Honda", model: "Civic", askPrice: 5980 },
-      { id: "two", year: 2020, make: "Ford", model: "Explorer" },
-    ];
+    result.data = {
+      cars: [
+        {
+          id: "one",
+          year: 2019,
+          make: "Honda",
+          model: "Civic",
+          askPrice: 5980,
+        },
+        { id: "two", year: 2020, make: "Ford", model: "Explorer" },
+      ],
+      failed: 0,
+    };
     const html = renderToStaticMarkup(
       React.createElement(VehicleComparison, { ids: ["one", "two"] }),
     );
@@ -76,24 +85,27 @@ describe("personal buyer workflows", () => {
   });
 
   it("compares price types, location, missing prices and reports without hiding the source", () => {
-    result.data = [
-      {
-        id: "one",
-        source: "copart",
-        askPrice: 4500,
-        locationCity: "Dallas",
-        locationState: "TX",
-        runAndDrive: false,
-        hasKeys: true,
-        sourceUrl: "https://www.copart.com/lot/123",
-      },
-      {
-        id: "two",
-        source: "independent_dealer",
-        askPrice: 0,
-        lastSeenAt: "invalid",
-      },
-    ];
+    result.data = {
+      cars: [
+        {
+          id: "one",
+          source: "copart",
+          askPrice: 4500,
+          locationCity: "Dallas",
+          locationState: "TX",
+          runAndDrive: false,
+          hasKeys: true,
+          sourceUrl: "https://www.copart.com/lot/123",
+        },
+        {
+          id: "two",
+          source: "independent_dealer",
+          askPrice: 0,
+          lastSeenAt: "invalid",
+        },
+      ],
+      failed: 0,
+    };
     const html = renderToStaticMarkup(
       React.createElement(VehicleComparison, { ids: ["one", "two"] }),
     );

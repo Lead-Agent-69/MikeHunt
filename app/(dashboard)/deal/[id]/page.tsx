@@ -1432,6 +1432,10 @@ export default function DealPage({
           );
         })()}
 
+      <section aria-label="Current alternatives">
+        <SimilarDeals dealId={id} />
+      </section>
+
       <DetailDisclosure
         eyebrow="Vehicle examination"
         title="Check condition, title, and history"
@@ -1938,27 +1942,6 @@ export default function DealPage({
             },
             { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
             { id: "ai-brief", content: <AIBrief dealId={id} /> },
-            {
-              id: "similar-deals",
-              content: (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-                      Similar
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setFindSimilarOpen(true)}
-                      className="text-xs font-bold text-[var(--amber)] hover:underline inline-flex items-center gap-1"
-                    >
-                      <Search className="w-3 h-3" />
-                      Find similar
-                    </button>
-                  </div>
-                  <SimilarDeals dealId={id} />
-                </div>
-              ),
-            },
             // Max-bid math and outcome logging are flip-desk tools.
             ...(store.userType === "dealer"
               ? [

@@ -2,14 +2,15 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { rankAlternatives } from "@/lib/deals/rank-alternatives";
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
+import { isAuctionSource } from "@/lib/deal-terms";
 import {
   redactListingForNonFlipDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 
-// GET /api/deals/[id]/similar — semantically-similar deals via pgvector (similar_deals_by_id).
-// Falls back to attribute-based similarity (same make, near year/price) when embeddings aren't
-// populated yet, so the section is always useful.
+// Semantic suggestions and an attribute pool share the same live-inventory fit checks.
 function mapRow(d: any) {
   return {
     id: d.id,
@@ -19,6 +20,7 @@ function mapRow(d: any) {
     askPrice: Number(d.ask_price || 0),
     mileage: d.mileage,
     condition: d.condition,
+    damageType: d.damage_type,
     dealVerdict: d.deal_verdict,
     trueNetProfit:
       d.true_net_profit != null ? Number(d.true_net_profit) : undefined,
@@ -28,8 +30,7 @@ function mapRow(d: any) {
     locationCity: d.location_city,
     images: d.images || [],
     source: d.source,
-    similarity:
-      d.similarity != null ? Math.round(Number(d.similarity) * 100) : undefined,
+    lastSeenAt: d.last_seen_at,
   };
 }
 
@@ -46,49 +47,76 @@ export async function GET(
     return flipDesk ? card : redactListingForNonFlipDesk(card);
   };
 
-  // 1. Semantic path.
+  const columns =
+    "id, year, make, model, ask_price, mileage, condition, damage_type, deal_verdict, true_net_profit, sell_estimate, profit_score, location_state, location_city, images, source, active, last_seen_at, auction_end_at, vin";
+  const { data: base, error: baseError } = await supabase
+    .from("deals")
+    .select(columns)
+    .eq("id", id)
+    .maybeSingle();
+  if (baseError)
+    return NextResponse.json(
+      { error: "Alternatives couldn't be loaded." },
+      { status: 503 },
+    );
+  if (!base?.make || !base?.model)
+    return NextResponse.json({ similar: [], basis: "none" });
+  let semanticRows: any[] = [];
+  // Re-read semantic suggestions: the RPC alone does not prove current availability.
   try {
     const { data, error } = await supabase.rpc("similar_deals_by_id", {
       p_deal_id: id,
-      p_count: 12,
+      p_count: 48,
     });
     if (!error && data && data.length > 0) {
-      return NextResponse.json({
-        similar: data.map(shape),
-        basis: "semantic",
-      });
+      const hydrated = await supabase
+        .from("deals")
+        .select(columns)
+        .in(
+          "id",
+          data.map((row: any) => row.id),
+        )
+        .eq("active", true);
+      if (!hydrated.error) semanticRows = hydrated.data || [];
     }
   } catch {
     // fall through to attribute-based
   }
 
-  // 2. Attribute-based fallback — same make, ±2 years, similar price.
-  const { data: base } = await supabase
-    .from("deals")
-    .select("make, model, year, ask_price")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!base?.make) return NextResponse.json({ similar: [], basis: "none" });
-
+  // Include an attribute pool so vector coverage cannot hide a closer-priced match.
   let q = supabase
     .from("deals")
-    .select(
-      "id, year, make, model, ask_price, mileage, condition, deal_verdict, true_net_profit, sell_estimate, profit_score, location_state, location_city, images, source",
-    )
+    .select(columns)
     .eq("active", true)
     .eq("make", base.make)
     .neq("id", id)
     .gt("ask_price", 0)
-    .order("profit_score", { ascending: false, nullsFirst: false })
-    .limit(12);
+    .gte("last_seen_at", new Date(Date.now() - 7 * 86400000).toISOString())
+    .order("last_seen_at", { ascending: false })
+    .limit(120);
 
-  if (base.model) q = q.ilike("model", `%${String(base.model).split(" ")[0]}%`);
+  q = q.ilike("model", String(base.model).replace(/[\\%_]/g, "\\$&"));
   if (base.year) q = q.gte("year", base.year - 2).lte("year", base.year + 2);
+  if (!isAuctionSource(base.source) && Number(base.ask_price) > 0)
+    q = q
+      .gte("ask_price", Math.ceil(Number(base.ask_price) * 0.6))
+      .lte("ask_price", Math.floor(Number(base.ask_price) * 1.4));
+  q = applyLiveAuctionWindow(q);
 
-  const { data: rows } = await q;
+  const { data: rows, error } = await q;
+  if (error && !semanticRows.length)
+    return NextResponse.json(
+      { error: "Alternatives couldn't be loaded." },
+      { status: 503 },
+    );
   return NextResponse.json({
-    similar: (rows || []).map(shape),
+    similar: rankAlternatives(base, [...semanticRows, ...(rows || [])]).map(
+      ({ row, matchReasons, priceDifference }) => ({
+        ...shape(row),
+        matchReasons,
+        priceDifference,
+      }),
+    ),
     basis: "attribute",
   });
 }
