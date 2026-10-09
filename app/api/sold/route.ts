@@ -5,6 +5,7 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import {
   SOLD_MEDIAN_WINDOW_DAYS,
+  isWithinSoldWindow,
   soldTitleLane,
   soldWindowCutoffIso,
   summarizeCleanSold,
@@ -45,23 +46,34 @@ export async function GET(req: NextRequest) {
     .eq("country_code", "US")
     .gt("sold_price", 0)
     .gte("sold_at", soldWindowCutoffIso())
+    .lte("sold_at", new Date().toISOString())
     .order("sold_at", { ascending: false })
     .limit(40);
   if (year > 0) q = q.gte("year", year - 2).lte("year", year + 2);
 
-  const { data, error } = await q;
+  let result;
+  try {
+    result = await q;
+  } catch {
+    result = { data: null, error: true };
+  }
+  const { data, error } = result;
   if (error)
-    return NextResponse.json({
-      sales: [],
-      median: null,
-      count: 0,
-      soldAt: null,
-      mixed: false,
-      note: null,
-      windowDays: SOLD_MEDIAN_WINDOW_DAYS,
-    });
+    return NextResponse.json(
+      {
+        error:
+          "Recent sale records are temporarily unavailable. Please try again.",
+      },
+      { status: 503 },
+    );
 
-  const summary = summarizeCleanSold(data || []);
+  const recentRows = (data || []).filter(
+    (row: any) =>
+      Number.isFinite(Number(row.sold_price)) &&
+      Number(row.sold_price) > 0 &&
+      isWithinSoldWindow(row.sold_at),
+  );
+  const summary = summarizeCleanSold(recentRows);
 
   return NextResponse.json({
     median: summary.median,
@@ -74,7 +86,10 @@ export async function GET(req: NextRequest) {
     mixed: summary.mixed,
     note: summary.note,
     windowDays: summary.windowDays,
-    sales: (data || []).slice(0, 6).map((d: any) => {
+    checkedAt: new Date().toISOString(),
+    evidenceLabel:
+      "Source-reported sale records; title claims are not independently verified",
+    sales: recentRows.slice(0, 6).map((d: any) => {
       const lane = soldTitleLane(d.title);
       const stored =
         typeof d.title === "string" ? d.title.replace(/\s+/g, " ").trim() : "";

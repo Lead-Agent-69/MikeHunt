@@ -4,10 +4,14 @@ import React from "react";
 import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mono } from "@/components/shared/Mono";
+import { RefreshCw } from "lucide-react";
 
-// REAL recent sale prices for this model (eBay sold etc.) — actual money that changed hands, not
-// asking prices. Shows the dealer what these truly sell for. Hides when there's no real data.
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+// Distinguish source-reported sale records from verified transaction/title evidence.
+const fetcher = async (u: string) => {
+  const response = await fetch(u);
+  if (!response.ok) throw new Error("Sale records unavailable");
+  return response.json();
+};
 const money = (n?: number | null) =>
   n == null ? "—" : `$${Math.round(n).toLocaleString()}`;
 const soldOn = (iso?: string | null) => {
@@ -35,12 +39,12 @@ export function RecentlySold({
     make && model
       ? `/api/sold?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${year ? `&year=${year}` : ""}`
       : null;
-  const { data } = useSWR(key, fetcher, { revalidateOnFocus: false });
+  const { data, error, isLoading, mutate } = useSWR(key, fetcher, {
+    revalidateOnFocus: false,
+  });
   const cleanCount = Number(data?.count || 0);
   const showPrice = data?.median != null && cleanCount >= 3;
-  if (!data || (!showPrice && !data.note && !(data.sales || []).length))
-    return null;
-  if (!showPrice && !data.note) return null;
+  if (!key) return null;
 
   return (
     <Card
@@ -50,18 +54,37 @@ export function RecentlySold({
       <CardContent className="p-6">
         <div className="flex items-center justify-between gap-3 mb-4">
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            Real recent sales · {make} {model}
+            Recent sale records · {make} {model}
           </p>
-          <span className="text-[10px] text-[var(--t5)]">
-            actual transactions
-          </span>
+          <span className="text-[10px] text-[var(--t5)]">source-reported</span>
         </div>
 
-        {showPrice ? (
+        {error ? (
+          <div
+            className="flex flex-wrap items-center gap-3 text-sm text-[var(--t3)]"
+            role="status"
+          >
+            <span>
+              Sale records could not be checked. No resale price is confirmed.
+            </span>
+            <button
+              type="button"
+              onClick={() => void mutate()}
+              className="inline-flex min-h-11 items-center gap-2 text-[var(--blue)]"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Retry
+            </button>
+          </div>
+        ) : isLoading ? (
+          <p className="text-sm text-[var(--t3)]" role="status">
+            Checking recent sale records…
+          </p>
+        ) : showPrice ? (
           <div className="flex items-end gap-5 mb-4">
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
-                Clean median
+                Clean-title reported median
               </p>
               <Mono className="text-3xl font-black text-[var(--t1)] leading-none">
                 {money(data.median)}
@@ -75,11 +98,12 @@ export function RecentlySold({
           </div>
         ) : (
           <p className="mb-4 text-sm leading-relaxed text-[var(--t3)]">
-            {data.note}
+            {data?.note ||
+              "No qualifying recent sales on file. Resale value is not confirmed."}
           </p>
         )}
 
-        {showPrice ? (
+        {showPrice && !error ? (
           <div className="divide-y divide-[var(--b1)]">
             {(data.sales || []).map((s: any, i: number) => (
               <a
@@ -90,7 +114,11 @@ export function RecentlySold({
                 className="flex items-center justify-between gap-3 py-2 text-sm"
               >
                 <span className="truncate text-[var(--t2)]">
-                  {s.lane === "salvage" ? "Salvage · " : ""}
+                  {s.lane === "salvage"
+                    ? "Salvage reported · "
+                    : s.lane === "unknown"
+                      ? "Title unreported · "
+                      : "Clean title reported · "}
                   {s.title}
                   {soldOn(s.soldAt) ? ` · ${soldOn(s.soldAt)}` : ""}
                 </span>
@@ -108,6 +136,16 @@ export function RecentlySold({
             ))}
           </div>
         ) : null}
+        {data && !error && (
+          <p className="mt-3 text-xs leading-relaxed text-[var(--t4)]">
+            Last {data.windowDays} days ·{" "}
+            {data.evidenceLabel ||
+              "Source-reported records, not independently verified title or condition."}
+            {soldOn(data.checkedAt)
+              ? ` · Checked ${soldOn(data.checkedAt)}`
+              : ""}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

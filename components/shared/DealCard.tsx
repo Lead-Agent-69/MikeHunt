@@ -189,7 +189,11 @@ export const DealCard = memo(function DealCard({
     soldAnchored: soldAnchored === true,
     soldAt: valuation?.soldAt,
   });
-  const resaleBasisLabel = copy.basisLabel(recentSoldEvidence, resaleBasis > 0);
+  const resaleBasisLabel = copy.basisLabel(
+    recentSoldEvidence,
+    resaleBasis > 0,
+    valuationSource,
+  );
   const resaleBasisTitle = copy.basisTitle(valuationSource);
   const valuationCompCount = Number(valuation?.compCount || 0);
   const valuationSoldCount = Number(valuation?.soldCount || 0);

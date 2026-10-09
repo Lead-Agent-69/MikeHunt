@@ -163,3 +163,10 @@ Do not mark any item complete solely because a screen/component exists or unit t
 - Purchase-candidate eligibility now requires clean-title completed-sale evidence: at least three sold observations, an explicit sold anchor, and a valid date within the existing 180-day observation window. Asking comparisons and third-party confidence labels cannot replace completed sales, even when purchase checkboxes are set.
 - Card confidence no longer upgrades missing/low confidence to Medium, or undated, stale, invalid, or future-dated sales to High. Asking-only comparisons remain market context, not confirmed resale value.
 - This validates stored evidence metadata, not independent authenticity of each sale. Source provenance, comparable matching, inspection/repair quotes, and validated evidence writes remain open acceptance gates. AI/model estimates are not verified facts and no accuracy percentage is claimed.
+
+### Backend Sale-Record Integrity
+
+- Sold-price aggregation now requires explicit clean-title wording for the clean lane. A vehicle listing name without salvage keywords is no longer presumed clean. Source-reported title wording is not independent title verification.
+- Backend samples reject nonfinite prices and future sale dates. Paginated market/sold indexes use stable ID ordering; failed or bounded incomplete loads cannot publish partial samples or silently reuse old sold anchors.
+- The sold-record API returns a friendly unavailable response on query failure, separate from an empty valid sample. It supplies a check timestamp and 180-day observation window. The detail view offers retry and labels records source-reported, not authenticated transactions.
+- Card estimate labels distinguish model, external, asking-price, historical and listing-comparison bases. Remaining limits include source authenticity, duplicate/cross-source identity resolution, like-for-like matching, repair inspections/quotes, and conflicting source-health metadata. No new commercial feed or automatic verified repair evidence is created by these safeguards.

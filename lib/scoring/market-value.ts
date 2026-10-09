@@ -221,14 +221,27 @@ export async function loadMarketIndex(
   force = false,
 ): Promise<void> {
   if (computed && !force && Date.now() - loadedAt < TTL_MS) return;
-  if (loadingPromise && !force) {
+  if (loadingPromise) {
     await loadingPromise;
     return;
   }
 
-  loadingPromise = loadMarketIndexUnlocked(supabase, force).finally(() => {
-    loadingPromise = null;
-  });
+  loadingPromise = loadMarketIndexUnlocked(supabase, force)
+    .catch(() => {
+      // A rejected page must invalidate prior anchors just like a database error response.
+      computed = null;
+      computedTrim = null;
+      supplyByModel = null;
+      retailByModel = null;
+      soldIndex = null;
+      soldByState = null;
+      salvageSoldIndex = null;
+      salvageSoldByState = null;
+      loadedAt = 0;
+    })
+    .finally(() => {
+      loadingPromise = null;
+    });
   await loadingPromise;
 }
 
@@ -253,9 +266,10 @@ async function loadMarketIndexUnlocked(
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gt("ask_price", 1000)
       .lt("ask_price", 200000)
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) {
-      loadErr = error;
+    if (error || !pageRows) {
+      loadErr = error || { message: "missing page" };
       break;
     }
     if (!pageRows || pageRows.length === 0) break;
@@ -263,9 +277,20 @@ async function loadMarketIndexUnlocked(
     if (pageRows.length < PAGE) break;
   }
 
-  if (loadErr && data.length === 0) {
-    console.warn("[market-value] index load failed:", loadErr.message);
-    if (!computed) computed = new Map();
+  if (loadErr || data.length >= MAX) {
+    console.warn(
+      "[market-value] incomplete index load:",
+      loadErr?.message || "scan bound reached",
+    );
+    computed = null;
+    computedTrim = null;
+    supplyByModel = null;
+    retailByModel = null;
+    soldIndex = null;
+    soldByState = null;
+    salvageSoldIndex = null;
+    salvageSoldByState = null;
+    loadedAt = 0;
     return;
   }
 
@@ -281,7 +306,8 @@ async function loadMarketIndexUnlocked(
   for (const r of data || []) {
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
-    if (!(r.make && r.model)) continue;
+    if (!(r.make && r.model && Number.isFinite(r.ask_price) && r.ask_price > 0))
+      continue;
     // Keep placeholder/bait prices ($1,234, $1, $111,111) OUT of the comp index so they can't poison
     // the medians every valuation depends on. The listing still exists/shows — just not as a comp.
     if (looksLikePlaceholderPrice(r.ask_price)) continue;
@@ -370,11 +396,20 @@ const SALVAGE_SOLD_TITLE =
 
 export type SoldTitleLane = "clean" | "salvage" | "unknown";
 
-/** Salvage/rebuilt/flood wording on the stored title. Blank titles are unknown, not clean. */
+/** Listing names are not title documents; only explicit clean-title claims enter that lane. */
 export function soldTitleLane(title?: string | null): SoldTitleLane {
   const text = (title || "").replace(/\s+/g, " ").trim();
   if (!text) return "unknown";
-  return SALVAGE_SOLD_TITLE.test(text) ? "salvage" : "clean";
+  if (SALVAGE_SOLD_TITLE.test(text)) return "salvage";
+  if (
+    /\b(?:not|no|non|unknown|unconfirmed|pending)[\s-]+clean[\s-]+title\b|\bclean[\s-]+title[\s:=-]+(?:unknown|unconfirmed|pending|not|no)\b/i.test(
+      text,
+    )
+  )
+    return "unknown";
+  return /\bclean[\s-]+title\b|\btitle[\s:=-]+clean\b/i.test(text)
+    ? "clean"
+    : "unknown";
 }
 
 export type SoldObservation = {
@@ -397,8 +432,6 @@ type SoldBucket = { prices: number[]; soldAt: string | null };
  */
 export const SOLD_MEDIAN_WINDOW_DAYS = 180;
 const DAY_MS = 86_400_000;
-/** Allow a little clock skew between the scraper and this server before calling a date "future". */
-const SOLD_FUTURE_SKEW_MS = DAY_MS;
 
 /** ISO cutoff for queries: sales on or after this instant are inside the window. */
 export function soldWindowCutoffIso(now: number = Date.now()): string {
@@ -413,7 +446,7 @@ export function isWithinSoldWindow(
   if (!soldAt) return false;
   const t = Date.parse(soldAt);
   if (!Number.isFinite(t)) return false;
-  if (t > now + SOLD_FUTURE_SKEW_MS) return false;
+  if (t > now) return false;
   return now - t <= SOLD_MEDIAN_WINDOW_DAYS * DAY_MS;
 }
 
@@ -429,8 +462,11 @@ function pushSold(
     buckets.set(bucketKey, bucket);
   }
   bucket.prices.push(price);
-  if (soldAt && (!bucket.soldAt || soldAt > bucket.soldAt))
-    bucket.soldAt = soldAt;
+  if (
+    soldAt &&
+    (!bucket.soldAt || Date.parse(soldAt) > Date.parse(bucket.soldAt))
+  )
+    bucket.soldAt = new Date(soldAt).toISOString();
 }
 
 function finalizeSold(buckets: Map<string, SoldBucket>) {
@@ -461,7 +497,8 @@ export function buildSoldIndexes(
   const salvageState = new Map<string, SoldBucket>();
   for (const row of rows || []) {
     const price = Number(row.sold_price);
-    if (!(row.make && row.model && price > 0)) continue;
+    if (!(row.make && row.model && Number.isFinite(price) && price > 0))
+      continue;
     // Outside SOLD_MEDIAN_WINDOW_DAYS (or undated): not a current sold price.
     if (!isWithinSoldWindow(row.sold_at, now)) continue;
     const lane = soldTitleLane(row.title);
@@ -495,7 +532,7 @@ export function summarizeCleanSold(
   let staleCount = 0;
   for (const row of rows || []) {
     const price = Number(row.sold_price);
-    if (!(price > 0)) continue;
+    if (!(Number.isFinite(price) && price > 0)) continue;
     if (!isWithinSoldWindow(row.sold_at, now)) {
       staleCount += 1;
       continue;
@@ -515,6 +552,7 @@ export function summarizeCleanSold(
     ? clean
         .map((row) => row.sold_at)
         .filter((stamp): stamp is string => Boolean(stamp))
+        .map((stamp) => new Date(stamp).toISOString())
         .sort()
         .at(-1) || null
     : null;
@@ -530,7 +568,7 @@ export function summarizeCleanSold(
             ? "Only salvage titles on file. Not a clean price."
             : staleCount > 0
               ? `No sales in the last ${SOLD_MEDIAN_WINDOW_DAYS} days. Older sales are not used as a current price.`
-              : null;
+              : "No qualifying recent sales on file. A resale price cannot be confirmed from this sample.";
   return {
     median: value == null ? null : Math.round(value),
     count: prices.length,
@@ -558,11 +596,16 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
         .eq("country_code", "US")
         .gt("sold_price", 0)
         .gte("sold_at", soldWindowCutoffIso())
+        .order("id", { ascending: true })
         .range(from, from + PAGE - 1);
-      if (error || !data || data.length === 0) break;
+      if (error || !data)
+        throw new Error("Sold evidence could not be loaded completely");
+      if (data.length === 0) break;
       rows.push(...data);
       if (data.length < PAGE) break;
     }
+    if (rows.length >= 40000)
+      throw new Error("Sold evidence scan bound reached");
     const built = buildSoldIndexes(rows);
     soldIndex = built.clean;
     soldByState = built.cleanState;
@@ -576,10 +619,10 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
       "[market-value] sold index load failed:",
       (e as Error).message,
     );
-    if (!soldIndex) soldIndex = new Map();
-    if (!soldByState) soldByState = new Map();
-    if (!salvageSoldIndex) salvageSoldIndex = new Map();
-    if (!salvageSoldByState) salvageSoldByState = new Map();
+    soldIndex = null;
+    soldByState = null;
+    salvageSoldIndex = null;
+    salvageSoldByState = null;
   }
 }
 
