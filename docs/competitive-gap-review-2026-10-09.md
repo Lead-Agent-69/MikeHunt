@@ -16,7 +16,7 @@ or better results than competitors. Route existence does not prove a working ser
 
 Discover bookmarks previously used only device storage. Persisted listing cards now
 use account-owned Saved rows when signed in, with one shared identity/list subscription,
-owner-scoped caching, confirmed mutations and visible retry/error states. Guest and
+owner-scoped caching, confirmed mutations, checked device backups and visible retry/error states. Guest and
 live-search records remain explicitly device-only. Stale-account mutations are rejected
 server-side. This closes a code-level continuity gap; real two-device acceptance is pending.
 
@@ -29,8 +29,10 @@ server-side. This closes a code-level continuity gap; real two-device acceptance
 2. **One search contract.** Discover offers core criteria and links to full matches/filters.
    Existing grouped detail filters cover specifications, auction/condition and evidence,
    but their presence is not proof of normalized coverage across every source.
-   Missing competitive depth includes dynamic facet counts, explicit unknown-value
-   price/mileage inclusion and verified drive-time/distance geography. Sparse source
+   Scan already has dynamic facets for makes, title, seller and source; extend and validate
+   those counts for richer detail fields rather than rebuilding them. Further competitive
+   work includes explicit unknown-value price/mileage inclusion and verification of
+   drive-time/distance geography. Sparse source
    fields need coverage-aware availability, not controls that silently do nothing.
 3. **Saved interests to delivered alerts.** Test the complete matching, scheduling,
    notification and unsubscribe lifecycle. A saved watchlist row is not proof of delivery.

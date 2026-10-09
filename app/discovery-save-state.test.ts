@@ -17,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  unsave: vi.fn(),
+}));
+vi.mock("@/components/reco/deal-signals", () => ({
+  signalUnsave: mocks.unsave,
 }));
 vi.mock("@/hooks/useDealerId", () => ({
   useDealerId: () => ({
@@ -181,6 +185,44 @@ describe("Discovery bookmark account continuity", () => {
     await toggle();
     expect(control.saved).toBe(true);
     expect(mocks.mutate).not.toHaveBeenCalled();
+    expect(mocks.unsave).not.toHaveBeenCalled();
+  });
+  it("backs up confirmed account saves and reports blocked device storage separately", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ success: true, id: "save" })),
+    );
+    render();
+    await toggle();
+    expect(
+      JSON.parse(localStorage.getItem("mh-local-saved-vehicles-v1")!)[0].id,
+    ).toBe("deal-one");
+    const write = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("Quota");
+      });
+    try {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ success: true, id: "save" })),
+      );
+      await toggle();
+      expect(mocks.success).toHaveBeenCalledWith("Saved to your account");
+      expect(mocks.error).toHaveBeenCalledWith(
+        "Account saved, but device backup is unavailable.",
+      );
+    } finally {
+      write.mockRestore();
+    }
+  });
+  it("signals an unsave only after confirmed account removal", async () => {
+    state.rows = [{ id: "save-one", deal_id: "deal-one", user_id: "one" }];
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ success: true, id: "save-one" })),
+    );
+    render();
+    await toggle();
+    expect(mocks.unsave).toHaveBeenCalledWith("deal-one");
+    expect(mocks.success).toHaveBeenCalledWith("Removed from account");
   });
   it("disables actions while loading and retries a failed list instead of treating it as empty", async () => {
     state.rows = undefined;

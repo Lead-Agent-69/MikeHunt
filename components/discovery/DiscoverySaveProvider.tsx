@@ -10,6 +10,7 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase";
 import type { DiscoveryDeal } from "./types";
 import { toast } from "sonner";
+import { signalUnsave } from "@/components/reco/deal-signals";
 
 type SavedRow = { id: string; deal_id: string; user_id: string };
 type SaveControl = {
@@ -162,11 +163,15 @@ export function DiscoverySaveProvider({
               ).catch(() => undefined);
               const deviceRemoved =
                 !row || !local.has(deal.id) || local.remove(deal.id);
+              const deviceBackup = row || local.save(toLocalSavedVehicle(deal));
+              if (row) signalUnsave(deal.id);
               toast.success(
                 row ? "Removed from account" : "Saved to your account",
               );
               if (!deviceRemoved)
                 toast.error("The device bookmark could not be removed.");
+              if (!deviceBackup)
+                toast.error("Account saved, but device backup is unavailable.");
             } catch {
               if (currentOwner.current === owner)
                 toast.error("Account bookmark was not confirmed. Try again.");
