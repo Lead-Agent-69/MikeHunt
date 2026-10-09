@@ -56,6 +56,7 @@ import { RecentlySold } from "@/components/deal/RecentlySold";
 import { VinHistory } from "@/components/deal/VinHistory";
 import { ContactSeller } from "@/components/deal/ContactSeller";
 import { DealNotes } from "@/components/deal/DealNotes";
+import { VehicleSourceAction } from "@/components/deal/VehicleSourceAction";
 import { ImageGallery } from "@/components/shared/ImageGallery";
 import { ListingVerification } from "@/components/deal/ListingVerification";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
@@ -1341,6 +1342,19 @@ export default function DealPage({
         summary="Build an all-in plan, contact the seller, and keep your research together."
       >
         <div className="space-y-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const params = new URLSearchParams({ dealId: id });
+              if (serverDeal?.locationState)
+                params.set("from", serverDeal.locationState);
+              router.push(`/move?${params.toString()}`);
+            }}
+            className="min-h-11 gap-2"
+          >
+            <Ico name="truck" size={16} />
+            Plan transport
+          </Button>
           {store.userType === "dealer" &&
             serverDeal?.decisionEvidence?.acquisitionReady === true &&
             serverDeal?.dealVerdict &&
@@ -1855,20 +1869,13 @@ export default function DealPage({
             </Button>
           </motion.div>
 
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              onClick={() => {
-                const fromState = dealData?.deal?.locationState;
-                const params = new URLSearchParams({ dealId: id });
-                if (fromState) params.set("from", fromState);
-                router.push(`/move?${params.toString()}`);
-              }}
-              className="text-white font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
-              style={{ background: "var(--t1)" }}
-            >
-              Get Transport
-            </Button>
-          </motion.div>
+          <VehicleSourceAction
+            sourceUrl={serverDeal?.sourceUrl || dealData?.deal?.sourceUrl}
+            auction={
+              serverDeal?.decisionEvidence?.state === "auction_watch" ||
+              isAuctionSource(serverDeal?.source ?? dealData?.deal?.source)
+            }
+          />
 
           {store.userType === "dealer" && (
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

@@ -148,3 +148,10 @@ Do not mark any item complete solely because a screen/component exists or unit t
 
 - Production `4d9b4cc` passed 1,517 tests and 20 smoke checks. A real ReCar URL analysis correctly distinguished included administration fees, optional shipping, excluded taxes, and clean-title total-loss history.
 - The retest exposed salvage-auction broker listings mislabeled as independent dealers in asking-price context. The follow-up now checks source URLs, auction closing dates, reported damage/title history, and missing mileage/condition before admitting comparisons. Automated regression fixtures cover this exact broker case. Upstream classification and source-detail enrichment still need correction; this filter does not repair those records.
+
+### Quality Over Quantity: Feature Acceptance
+
+- Each customer tool must support a specific decision, show the evidence/assumptions behind its output, preserve useful content on failure, and provide a meaningful next action. A rendered widget is not acceptance evidence.
+- Adopt Copart's task patterns (search, watchlist, photo inspection, clearly separated lot facts and auction action), not its transactional capabilities or unsupported condition claims. References: https://www.copart.com/content/us/en/search/publicwatchlist and https://www.copart.com/Content/US/EN/PDFs/NewMemberGuide.pdf.
+- Vehicle details now prioritize opening the original listing/auction in the fixed action area. Transport remains available under planning instead of suggesting logistics before vehicle verification. Missing/unsafe source URLs produce a disabled state, never a fake link. The action has a stable touch target, an external-link icon, and an explicit new-tab accessible label.
+- Remaining product gates: source-derived photos/history; like-for-like sold comparisons; evidence-backed costs; saved/account sync and alert delivery; all buyer-mode actions; real-device accessibility/performance; authorized admin workflows. Do not promise 100% satisfaction, prediction accuracy, or proven coverage from UI polish or automated tests.
