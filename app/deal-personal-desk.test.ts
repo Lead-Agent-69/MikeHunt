@@ -116,14 +116,13 @@ describe("deal page personal desk", () => {
     expect(page).toContain(
       "source-provided and are not a mechanic inspection.",
     );
-    expect(page).toContain("Listing completeness");
-    expect(page).toContain("field coverage");
-    expect(page).toContain("damage reported");
-    expect(page).toContain(
-      "This counts source-provided fields, not inspection findings.",
+    expect(page).toContain("<ListingVerification");
+    expect(page).not.toContain("Source inventory:");
+    expect(page).not.toContain("of source rows include photos.");
+    expect(page).not.toContain("Buyer math");
+    expect(page).not.toContain("{detailMathConfidence} confidence");
+    expect(page.indexOf("<ImageGallery")).toBeLessThan(
+      page.indexOf("<PersonalListingLead"),
     );
-    expect(page).toContain("Source inventory:");
-    expect(page).toContain("Source last checked:");
-    expect(page).toContain("of source rows include photos.");
   });
 });

@@ -10,7 +10,8 @@ Navigation changes in this wave preserve the existing route catalog and mode gat
 
 Remaining product acceptance work, in priority order:
 
-1. Vehicle detail: move source-wide counts and runner language to admin; keep per-vehicle evidence, verification date, unknown costs and unresolved checks visible. A clean title is not proof of an undamaged or roadworthy car.
+1. Vehicle detail wave implemented: photos precede decision panels; source-wide counts, repeated field badges, and completeness-derived confidence removed from the buyer page. Per-vehicle evidence remains in a keyboard-accessible disclosure with three decision questions. Operational diagnostics remain in existing Sources/admin surfaces. Further audit of specialist panels remains open. A clean title is not proof of an undamaged or roadworthy car.
+   QA follow-up: the local Highlander listing was labelled Repairable in Discover but Needs evidence in detail. Both prohibit an unverified purchase; unify classification without overriding evidence warnings. Repair eligibility must be distinct from title tolerance.
 2. Buyer eligibility: distinguish title tolerance from repair tolerance. The live clean-title personal search still includes explicitly labelled repairable vehicles; that is not a clean-condition recommendation. Verify each onboarding choice against both Discover and Scan.
 3. Complete live analysis, inspection/quote attachment, two-car comparison, purchase-task edits and unavailable-record retention with appropriate fixtures. Screen presence alone is insufficient.
 4. Prove email confirmation/recovery, browser restart, PWA updates/offline recovery and real notification delivery. Google OAuth success does not prove these paths.

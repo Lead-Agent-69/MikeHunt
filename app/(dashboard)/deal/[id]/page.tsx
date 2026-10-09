@@ -57,6 +57,7 @@ import { VinHistory } from "@/components/deal/VinHistory";
 import { ContactSeller } from "@/components/deal/ContactSeller";
 import { DealNotes } from "@/components/deal/DealNotes";
 import { ImageGallery } from "@/components/shared/ImageGallery";
+import { ListingVerification } from "@/components/deal/ListingVerification";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
@@ -171,7 +172,10 @@ function PersonalListingLead({ deal }: { deal: any }) {
     "Seller contact and the all-in price",
   ];
   return (
-    <section className="glass-panel p-4 md:p-5" aria-label="Listing to check">
+    <section
+      className="border-y border-[var(--b1)] py-4 md:py-5"
+      aria-label="Listing to check"
+    >
       <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
         Check this listing
       </p>
@@ -181,7 +185,9 @@ function PersonalListingLead({ deal }: { deal: any }) {
       <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
         Asking price
       </p>
-      <p className="mt-1 text-2xl font-black text-[var(--t1)]">{money(ask)}</p>
+      <p className="mt-1 text-2xl font-black text-[var(--t1)]">
+        {ask > 0 ? money(ask) : "Price not provided"}
+      </p>
       <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
         <span className="font-black">All-in cost is not confirmed.</span>{" "}
         Repair, transport, taxes, and registration still need to be checked.
@@ -213,7 +219,8 @@ function PersonalListingLead({ deal }: { deal: any }) {
         </div>
       ) : (
         <p className="mt-4 text-sm text-[var(--t4)]">
-          Original listing link is not on this row yet.
+          The original listing link is unavailable. Verify the seller before
+          proceeding.
         </p>
       )}
     </section>
@@ -227,8 +234,6 @@ function DecisionCommandPanel({
   engineScore,
   engineRoi,
   detailQualityScore,
-  detailMathConfidence,
-  sourceHealth,
   proofLinks,
   onCashOffer,
   onWatchPrice,
@@ -239,8 +244,6 @@ function DecisionCommandPanel({
   engineScore: number;
   engineRoi: number;
   detailQualityScore?: number;
-  detailMathConfidence: string;
-  sourceHealth?: SourceHealthItem;
   proofLinks: { scan: string; sources: string };
   onCashOffer: () => void;
   onWatchPrice: () => void;
@@ -253,7 +256,6 @@ function DecisionCommandPanel({
         : "border-[var(--rbd)] bg-[var(--rlo)] text-[var(--red)]";
   const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const maxBid = Number(deal?.recommendedMaxBid || deal?.askPrice || 0);
-  const sourceReady = sourceHealth?.readiness === "ready";
 
   return (
     <section className="glass-panel motion-enter overflow-hidden p-0">
@@ -305,9 +307,9 @@ function DecisionCommandPanel({
                 Icon: Gauge,
               },
               {
-                label: "Proof",
+                label: "Listing details",
                 value: `${detailQualityScore || 0}/100`,
-                detail: `${detailMathConfidence} confidence`,
+                detail: "Field completeness, not inspection",
                 Icon: ShieldCheck,
               },
             ].map(({ label, value, detail, Icon }) => (
@@ -388,10 +390,7 @@ function DecisionCommandPanel({
             {[
               [
                 "Why this verdict?",
-                sourceReady
-                  ? `${Number(sourceHealth?.activeRows || 0).toLocaleString()} current rows and ${Number(sourceHealth?.rowsWithPhotos || 0).toLocaleString()} photos support this source read.`
-                  : sourceHealth?.nextAction ||
-                    "The source proof is still loading, so this recommendation is provisional.",
+                "This estimate depends on comparable prices, repair assumptions, and total purchase costs. Source inventory counts do not verify this vehicle.",
               ],
               [
                 "What would make this a buy?",
@@ -805,22 +804,6 @@ export default function DealPage({
       sourceUrl: serverDeal.sourceUrl,
     });
   }, [serverDeal]);
-  const resaleBasis = Number(
-    serverDeal?.sellEstimate || serverDeal?.mmrValue || 0,
-  );
-  const detailCosts = serverDeal?.dealAnalysis?.costs;
-  const detailMathConfidence =
-    (detailQuality?.score || 0) >= 78 && resaleBasis > 0
-      ? "High"
-      : (detailQuality?.score || 0) >= 58 || resaleBasis > 0
-        ? "Medium"
-        : "Low";
-  const detailMathGaps = [
-    !resaleBasis ? "market value" : null,
-    !detailCosts?.repair ? "repair estimate" : null,
-    !detailCosts?.transport ? "transport" : null,
-    ...(detailQuality?.missing.slice(0, 2).map(fieldLabel) || []),
-  ].filter(Boolean);
 
   const saveDealLocally = React.useCallback(() => {
     const title =
@@ -981,18 +964,25 @@ export default function DealPage({
               showChannel
             />
             <Badge
-              variant="outline"
-              className="text-[var(--t1)] bg-[var(--s0)] border-[var(--b1)]"
-            >
-              {store.year} {store.make} {store.model}
-            </Badge>
-            <Badge
               className="text-white uppercase tracking-wider text-[10px] border-none"
               style={{ background: "var(--grad)" }}
             >
-              {store.titleType} Title
+              {store.titleType} title reported
             </Badge>
           </div>
+          <h1 className="text-xl font-bold leading-tight text-[var(--t1)] sm:text-2xl">
+            {store.year} {store.make} {store.model}
+          </h1>
+          <p className="mt-2 text-lg font-semibold text-[var(--t1)]">
+            {Number(serverDeal?.ask_price || serverDeal?.askPrice) > 0
+              ? money(Number(serverDeal?.ask_price || serverDeal?.askPrice))
+              : "Price not provided"}
+            <span className="ml-2 text-xs font-normal text-[var(--t4)]">
+              {serverDeal?.decisionEvidence?.state === "auction_watch"
+                ? "Reported auction amount"
+                : "Asking price"}
+            </span>
+          </p>
           <p className="text-[var(--t4)] text-sm">
             {[
               [dealData?.deal?.locationCity, dealData?.deal?.locationState]
@@ -1051,6 +1041,22 @@ export default function DealPage({
         </div>
       </div>
 
+      {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
+      {serverDeal?.images && serverDeal.images.length > 0 && (
+        <div>
+          <ImageGallery
+            images={serverDeal.images}
+            title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
+            sourceUrl={serverDeal.sourceUrl}
+          />
+          <p className="mt-2 text-xs text-[var(--t5)]">
+            {serverDeal.images.length} listing photo
+            {serverDeal.images.length === 1 ? "" : "s"}. Photos are
+            source-provided and are not a mechanic inspection.
+          </p>
+        </div>
+      )}
+
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
         <section
           className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
@@ -1087,8 +1093,6 @@ export default function DealPage({
               engineScore={engineScore}
               engineRoi={engineRoi}
               detailQualityScore={detailQuality?.score}
-              detailMathConfidence={detailMathConfidence}
-              sourceHealth={sourceHealth}
               proofLinks={proofLinks}
               onCashOffer={() => setShowCashOfferModal(true)}
               onWatchPrice={handleWatchPrice}
@@ -1105,259 +1109,16 @@ export default function DealPage({
           />
         ))}
 
-      {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
-      {serverDeal?.images && serverDeal.images.length > 0 && (
-        <div>
-          <ImageGallery
-            images={serverDeal.images}
-            title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
-            sourceUrl={serverDeal.sourceUrl}
-          />
-          <p className="mt-2 text-xs text-[var(--t5)]">
-            {serverDeal.images.length} listing photo
-            {serverDeal.images.length === 1 ? "" : "s"}. Photos are
-            source-provided and are not a mechanic inspection.
-          </p>
-        </div>
-      )}
-
       {serverDeal && detailQuality && (
-        <Card
-          className="border-none overflow-hidden"
-          style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <CardTitle className="text-base font-black text-[var(--t1)]">
-                  Decision readiness
-                </CardTitle>
-                <p className="mt-1 text-xs text-[var(--t4)]">
-                  Listing proof, source health, and buyer math before you bid.
-                </p>
-              </div>
-              <Badge
-                className="w-fit border-none uppercase tracking-wider"
-                style={{
-                  background:
-                    detailMathConfidence === "High"
-                      ? "var(--glo)"
-                      : detailMathConfidence === "Medium"
-                        ? "var(--amber-lo)"
-                        : "rgba(239,68,68,0.12)",
-                  color:
-                    detailMathConfidence === "High"
-                      ? "var(--green)"
-                      : detailMathConfidence === "Medium"
-                        ? "var(--amber-d)"
-                        : "var(--red)",
-                }}
-              >
-                {detailMathConfidence} confidence
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-                  Listing completeness
-                </span>
-                <span className="text-xs font-black text-[var(--t1)]">
-                  {detailQuality.score}
-                </span>
-              </div>
-              <p className="mt-1 text-xs font-bold text-[var(--t3)]">
-                {detailQuality.label} field coverage
-              </p>
-              <div className="mt-3 grid grid-cols-2 gap-1.5">
-                {detailQuality.present.slice(0, 6).map((field) => (
-                  <span
-                    key={field}
-                    className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--glo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--green)]"
-                  >
-                    {field === "damage" ? "damage reported" : fieldLabel(field)}
-                  </span>
-                ))}
-              </div>
-              {detailQuality.missing.length > 0 && (
-                <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
-                  Missing{" "}
-                  {detailQuality.missing.slice(0, 4).map(fieldLabel).join(", ")}
-                  {detailQuality.missing.length > 4
-                    ? `, +${detailQuality.missing.length - 4}`
-                    : ""}
-                </p>
-              )}
-              <div className="mt-3 grid grid-cols-2 gap-1.5">
-                {[
-                  "photo",
-                  "vin",
-                  "title",
-                  "mileage",
-                  "damage",
-                  "sellerContact",
-                  "auction",
-                  "price",
-                  "source",
-                ].map((field) => {
-                  const present = detailQuality.present.includes(field as any);
-                  return (
-                    <span
-                      key={field}
-                      className="flex items-center justify-between gap-2 rounded-[var(--r1)] border px-2 py-1 text-[10px] font-black uppercase"
-                      style={{
-                        borderColor: present ? "var(--gbd)" : "var(--amber-bd)",
-                        background: present ? "var(--glo)" : "var(--amber-lo)",
-                        color: present ? "var(--green)" : "var(--amber-d)",
-                      }}
-                    >
-                      <span>
-                        {field === "damage"
-                          ? "damage reported"
-                          : fieldLabel(field as any)}
-                      </span>
-                      <span>
-                        {present
-                          ? field === "damage"
-                            ? "reported"
-                            : "provided"
-                          : "check"}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
-                This counts source-provided fields, not inspection findings.
-                Missing VIN, mileage, seller contact, or auction timing means
-                verify from the original listing before money moves.
-              </p>
-            </div>
-
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-                  Source status
-                </span>
-                <span
-                  className="text-[10px] font-black uppercase"
-                  style={{
-                    color:
-                      sourceHealth?.readiness === "ready"
-                        ? "var(--green)"
-                        : sourceHealth?.readiness === "blocked" ||
-                            sourceHealth?.readiness === "needs_login"
-                          ? "var(--red)"
-                          : "var(--amber-d)",
-                  }}
-                >
-                  {sourceHealth?.userStatus ||
-                    sourceHealth?.readiness?.replace(/_/g, " ") ||
-                    "pending"}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-[var(--t3)]">
-                {sourceHealth
-                  ? `Source inventory: ${Number(sourceHealth.activeRows || 0).toLocaleString()} active rows · ${Number(
-                      sourceHealth.rowsWithPhotos || 0,
-                    ).toLocaleString()} rows with photos`
-                  : "Source status is loading for this listing."}
-              </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
-                {sourceHealth
-                  ? `Source last checked: ${
-                      typeof sourceHealth.freshnessHours === "number"
-                        ? sourceHealth.freshnessHours < 24
-                          ? `${sourceHealth.freshnessHours}h ago`
-                          : `${Math.round(sourceHealth.freshnessHours / 24)}d ago`
-                        : relativeFreshness(sourceHealth.lastSeenAt)
-                    } · ${Number(sourceHealth.photoCoveragePct || 0)}% of source rows include photos.`
-                  : "The page will show source inventory and last-checked time once returned."}
-              </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-[var(--t5)]">
-                {sourceHealth?.nextAction ||
-                  (serverDeal.sourceUrl
-                    ? "Direct source link is available for verification."
-                    : "No direct source link was saved for this listing.")}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Link
-                  href={proofLinks.scan}
-                  className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
-                >
-                  Matching Scan
-                </Link>
-                <Link
-                  href={proofLinks.sources}
-                  className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
-                >
-                  Source proof
-                </Link>
-                {serverDeal.sourceUrl && (
-                  <a
-                    href={serverDeal.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-[var(--r1)] bg-[var(--t1)] px-2.5 py-1.5 text-[11px] font-black text-[var(--s0)]"
-                  >
-                    Original listing
-                  </a>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-                  Buyer math
-                </span>
-                <span className="text-[10px] font-black uppercase text-[var(--t3)]">
-                  {serverDeal.dealVerdict || "review"}
-                </span>
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                <span className="text-[var(--t4)]">
-                  {serverDeal.decisionEvidence?.state === "auction_watch"
-                    ? "Auction amount"
-                    : "Ask"}
-                </span>
-                <Mono className="text-right font-bold text-[var(--t2)]">
-                  {formatMoney(Number(serverDeal.askPrice || 0))}
-                </Mono>
-                <span className="text-[var(--t4)]">Resale</span>
-                <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.acquisitionReady !== true
-                    ? "Needs verified comparisons"
-                    : resaleBasis
-                      ? formatMoney(resaleBasis)
-                      : "Unknown"}
-                </Mono>
-                <span className="text-[var(--t4)]">Repair</span>
-                <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.acquisitionReady !== true
-                    ? "Inspection and quote needed"
-                    : detailCosts?.repair
-                      ? formatMoney(detailCosts.repair)
-                      : "Needed"}
-                </Mono>
-                <span className="text-[var(--t4)]">Transport</span>
-                <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.acquisitionReady !== true
-                    ? "Quote needed"
-                    : detailCosts?.transport
-                      ? formatMoney(detailCosts.transport)
-                      : "Needed"}
-                </Mono>
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
-                {detailMathGaps.length
-                  ? `Tighten before bidding: ${detailMathGaps.slice(0, 4).join(", ")}.`
-                  : "Review all costs and evidence before making an offer."}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <ListingVerification
+          present={detailQuality.present}
+          missing={detailQuality.missing}
+          acquisitionReady={
+            serverDeal.decisionEvidence?.acquisitionReady === true
+          }
+          summary={serverDeal.decisionEvidence?.summary}
+          nextCheck={serverDeal.decisionEvidence?.nextCheck}
+        />
       )}
 
       {/* ENGINE DECISION — flip desk only. Personal, DIY, and parts buyers do not get net profit,
