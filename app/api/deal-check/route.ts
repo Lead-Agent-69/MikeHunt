@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
 import * as cheerio from "cheerio";
@@ -26,6 +27,22 @@ const PROMPT = `Extract every financial detail from this vehicle deal sheet / bu
   "red_flags": [string]
 }
 Extract ONLY what is literally on the document — do not invent numbers. In red_flags, note junk/hidden fees, math that doesn't reconcile, or padded add-ons.`;
+
+const URL_IN_TEXT = /\b(?:https?|wss?):\/\/[^\s"'<>)]*/gi;
+
+/** Copy of a browser/import error with every URL replaced, so no user-pasted link reaches Sentry. */
+function scrubbedBrowserError(e: unknown): Error {
+  const name = e instanceof Error ? e.name : "Error";
+  const message = (e instanceof Error ? e.message : String(e))
+    .replace(URL_IN_TEXT, "[url]")
+    .slice(0, 500);
+  const safe = new Error(message);
+  safe.name = name;
+  if (e instanceof Error && e.stack) {
+    safe.stack = e.stack.replace(URL_IN_TEXT, "[url]");
+  }
+  return safe;
+}
 
 export async function POST(req: NextRequest) {
   const rl = rateLimit(req, { key: "deal-check", limit: 15, windowMs: 60_000 });
@@ -87,9 +104,8 @@ export async function POST(req: NextRequest) {
       // sub-request is re-checked; private/metadata hops abort (UrlNotAllowedError).
       // Dynamic import prevents patchright-core module-init from crashing the route
       // at cold-start when the browser binary is unavailable (e.g. image-only requests).
-      const { fetchPublicWithPatchright } = await import(
-        "@/lib/scrapers/tools/patchright-engine"
-      );
+      const { fetchPublicWithPatchright } =
+        await import("@/lib/scrapers/tools/patchright-engine");
       const html = await fetchPublicWithPatchright(target.toString());
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
@@ -108,6 +124,13 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+      // Fail closed (422 below) but make import/launch/navigation failures visible.
+      // Never send the pasted URL: Patchright errors often embed it, so scrub URLs.
+      const safeError = scrubbedBrowserError(e);
+      console.error("[deal-check] patchright read failed:", safeError.message);
+      Sentry.captureException(safeError, {
+        tags: { route: "deal-check", stage: "patchright" },
+      });
       return NextResponse.json(
         {
           error:
