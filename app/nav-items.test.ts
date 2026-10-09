@@ -49,7 +49,7 @@ describe("primaryJobForPath", () => {
     expect(primaryJobForPath("/status")).toBeNull();
     expect(primaryJobForPath("/fleet")).toBe("Pipeline");
     expect(primaryJobForPath("/move")).toBe("Pipeline");
-    expect(primaryJobForPath("/finance")).toBe("Pipeline");
+    expect(primaryJobForPath("/finance")).toBeNull();
     expect(primaryJobForPath("/best-buy")).toBe("Discover");
     expect(primaryJobForPath("/market")).toBe("Discover");
     expect(primaryJobForPath("/deal-check")).toBe("Deal Check");
@@ -153,20 +153,17 @@ describe("primaryJobForPath", () => {
       "/arbitrage",
       "/auctions",
       "/best-buy",
-      "/bulk",
       "/compare",
       "/deal/abc",
       "/deal-check",
       "/dealer-network",
       "/discover",
       "/feed",
-      "/finance",
       "/find",
       "/flash-deals",
       "/fleet",
       "/insights",
       "/lane",
-      "/list",
       "/map",
       "/market",
       "/move",

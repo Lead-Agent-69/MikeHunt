@@ -8,6 +8,7 @@ export function workspaceIsExpanded(buyerMode: unknown, mode?: unknown) {
 export const FOCUSED_TOOLS = new Set([
   "/discover",
   "/scan",
+  "/dealer-network",
   "/map",
   "/saved",
   "/searches",
@@ -18,7 +19,6 @@ export const FOCUSED_TOOLS = new Set([
   "/move",
   "/parts",
   "/recon",
-  "/list",
   "/lane",
   "/insights",
   "/settings",

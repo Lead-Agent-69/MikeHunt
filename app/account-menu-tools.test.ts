@@ -34,7 +34,7 @@ describe("account menu", () => {
     const menu = accountMenuForMode("personal");
     expect(names(menu.primary)).toEqual(["Saved", "Saved searches", "Alerts"]);
     expect(names(menu.tools)).toEqual([
-      "Scan listings",
+      "Search cars",
       "Feed",
       "Map",
       "Swipe",
@@ -97,9 +97,6 @@ describe("account menu", () => {
           "/arbitrage",
           "/find",
           "/best-buy",
-          "/list",
-          "/bulk",
-          "/finance",
           "/recon",
           "/move",
           "/compare",

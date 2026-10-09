@@ -1,7 +1,6 @@
 import {
   Activity,
   ArrowLeftRight,
-  Banknote,
   BellRing,
   Bookmark,
   CalendarDays,
@@ -17,7 +16,6 @@ import {
   Gavel,
   Hammer,
   Layers,
-  ListPlus,
   MapPin,
   Search,
   Settings,
@@ -81,6 +79,9 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
   "/lane",
   "/auctions",
   "/arbitrage",
+  "/find",
+  "/best-buy",
+  "/market",
 ];
 
 /**
@@ -102,13 +103,10 @@ export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
   "/auctions",
   "/lane",
   "/map",
-  "/bulk",
   "/save",
   "/move",
   "/recon",
-  "/finance",
   "/parts",
-  "/list",
   "/insights",
   "/onboarding",
   "/compare",
@@ -205,10 +203,11 @@ export const MORE_GROUPS: NavGroup[] = [
         description: "Daily shortlist and time-sensitive tasks.",
       },
       {
-        name: "Search",
+        name: "Arbitrage routes",
         href: "/find",
         icon: Search,
-        description: "Direct search for a make, model, VIN, or buyer goal.",
+        description:
+          "Compare sourcing routes from your home state, including transport estimates.",
       },
       {
         name: "Feed",
@@ -241,16 +240,17 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Discover collections",
     items: [
       {
-        name: "Scan inventory",
+        name: "Search cars",
         href: "/scan",
         icon: Search,
         description: "Run the full search workflow against matching sources.",
       },
       {
-        name: "Next Best Buy",
+        name: "Ranked picks",
         href: "/best-buy",
         icon: Flame,
-        description: "The one listing to check first.",
+        description:
+          "Compare ranked buying candidates by budget and strategy; estimates are not guaranteed returns.",
       },
     ],
   },
@@ -270,10 +270,11 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Market",
     items: [
       {
-        name: "Market",
+        name: "Market explorer",
         href: "/market",
         icon: SlidersHorizontal,
-        description: "Pricing, demand, timing, and market signals.",
+        description:
+          "Explore indexed inventory and geographic market comparisons.",
       },
       {
         name: "Arbitrage",
@@ -351,26 +352,6 @@ export const MORE_GROUPS: NavGroup[] = [
         icon: Hammer,
         description:
           "Recorded recon costs and readiness to list, not repair completion tracking.",
-      },
-      {
-        name: "List a car",
-        href: "/list",
-        icon: ListPlus,
-        description: "Prepare a vehicle for resale.",
-      },
-      {
-        name: "Bulk actions",
-        href: "/bulk",
-        icon: Layers,
-        description:
-          "Find multiple listings of the same make and model. Not a bulk purchase.",
-      },
-      {
-        name: "Finance",
-        href: "/finance",
-        icon: Banknote,
-        description:
-          "Estimate financing costs and compare recorded lender rates. Not a loan application.",
       },
     ],
   },
@@ -469,10 +450,7 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   if (
     normalized.startsWith("/fleet") ||
     normalized.startsWith("/move") ||
-    normalized.startsWith("/recon") ||
-    normalized.startsWith("/list") ||
-    normalized.startsWith("/bulk") ||
-    normalized.startsWith("/finance")
+    normalized.startsWith("/recon")
   ) {
     return "Pipeline";
   }
@@ -567,13 +545,13 @@ export function accountMenuForMode(buyerMode: unknown): {
   const partsDesk = flip || mode === "parts" || mode === "diy";
   const tools: AccountMenuEntry[] = [
     {
-      name: "Scan listings",
+      name: "Search cars",
       href: scanHrefForMode(buyerMode),
       group: "Browse",
     },
-    { name: "Feed", href: "/feed", group: "Browse" },
-    { name: "Map", href: "/map", group: "Browse" },
-    { name: "Swipe", href: "/swipe", group: "Browse" },
+    { name: "Feed", href: "/feed", group: "Search views" },
+    { name: "Map", href: "/map", group: "Search views" },
+    { name: "Swipe", href: "/swipe", group: "Search views" },
     { name: "Dealer network", href: "/dealer-network", group: "Browse" },
     { name: "Today", href: "/today", group: "Browse" },
     { name: "Flash deals", href: "/flash-deals", group: "Browse" },
@@ -597,17 +575,14 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Outcomes & intelligence", href: "/insights", group: "Business" },
       { name: "Auctions", href: "/auctions", group: "Business" },
       { name: "Auction Lane", href: "/lane", group: "Business" },
-      { name: "Market", href: "/market", group: "Business" },
+      { name: "Market explorer", href: "/market", group: "Business" },
       { name: "Arbitrage", href: "/arbitrage", group: "Business" },
-      { name: "Search markets", href: "/find", group: "Business" },
-      { name: "Next best buy", href: "/best-buy", group: "Business" },
-      { name: "List vehicles", href: "/list", group: "Business" },
-      { name: "Volume sourcing", href: "/bulk", group: "Business" },
-      { name: "Finance", href: "/finance", group: "Business" },
+      { name: "Arbitrage routes", href: "/find", group: "Business" },
+      { name: "Ranked picks", href: "/best-buy", group: "Business" },
     );
   }
   if (mode === "parts" || mode === "diy") {
-    const groupOrder = ["Plan", "Browse", "Evaluate"];
+    const groupOrder = ["Plan", "Browse", "Search views", "Evaluate"];
     const planOrder =
       mode === "parts"
         ? ["/parts", "/recon", "/fleet", "/move"]

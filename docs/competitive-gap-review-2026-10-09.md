@@ -22,6 +22,20 @@ server-side. This closes a code-level continuity gap; real two-device acceptance
 
 ## Remaining Priorities
 
+### Acquisition-Focused Consolidation
+
+The separate Listing Manager, Finance and Bulk screens and their exclusive helpers
+are removed. Legacy bookmarks lead to Plan/Pipeline or car search; dedicated bulk
+and lender APIs return 410 without reading or changing account data. Existing inventory,
+expenses and recorded outcomes are preserved. Feed, Map and Swipe are grouped as
+search views, and dealer/source browsing stays available in the focused workspace.
+Specialist labels now distinguish car search from arbitrage routes and market exploration.
+
+Ranked Picks uses one budget/strategy-scoped result set instead of a second independently
+fetched headline pick and duplicate carousel. Request changes abort old loads; failure,
+loading, empty and retry states are explicit. This is recommendation UI correctness,
+not proof of ranking quality, sold-comparable coverage or production freshness.
+
 1. **Inventory reliability before more surfaces.** Prove each source yields current inventory,
    record last successful extraction and differentiate unavailable from no matches.
    Recent healthy scraper-container logs still contained several zero-yield sources.

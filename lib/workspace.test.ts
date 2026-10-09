@@ -33,7 +33,7 @@ describe("intentional workspace", () => {
       for (const expanded of [false, true])
         expect(hrefs(mode, expanded)).not.toContain("/admin");
     }
-    expect(hrefs("dealer", true)).toContain("/finance");
-    expect(hrefs("dealer", true)).toContain("/bulk");
+    expect(hrefs("dealer", true)).toContain("/insights");
+    expect(hrefs("dealer", true)).toContain("/market");
   });
 });
