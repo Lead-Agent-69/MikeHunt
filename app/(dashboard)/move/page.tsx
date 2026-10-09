@@ -1,502 +1,182 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Ico } from "@/components/shared/Ico";
-import { Mono } from "@/components/shared/Mono";
+import { ArrowLeftRight, Truck } from "lucide-react";
 import { SelectField } from "@/components/shared/Field";
-import { US_STATES, getTitleRules } from "@/lib/utils/titleRules";
-import { cn } from "@/lib/utils";
+import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
-import { MultiCarTrailerOptimizer } from "@/components/transport/MultiCarTrailerOptimizer";
+import { Button } from "@/components/ui/button";
 
-interface QuoteResult {
-  from: string;
-  to: string;
-  miles: number;
-  minutes?: number;
-  driveTime?: string;
-  mode?: "road" | "estimate";
-  quote: number;
-  openQuote?: number;
-  enclosedQuote?: number;
-}
-
-const CARRIER_TIERS = [
-  {
-    id: "diy",
-    label: "Self-Drive / Driveaway",
-    icon: "map",
-    color: "var(--green)",
-    multiplier: 0.18, // fuel + time cost
-    desc: "You or hired driver delivers it. Cheapest option, most time.",
-    eta: "1–3 days",
-  },
-  {
-    id: "open",
-    label: "Open Carrier",
-    icon: "truck",
-    color: "var(--amber)",
-    multiplier: 0.78,
-    desc: "Standard open transport. Most common method for non-luxury vehicles.",
-    eta: "3–7 days",
-  },
-  {
-    id: "enclosed",
-    label: "Enclosed Carrier",
-    icon: "package",
-    color: "var(--blue)",
-    multiplier: 1.35,
-    desc: "Fully protected transport. Recommended for high-value or damaged vehicles.",
-    eta: "5–10 days",
-  },
-];
-
-// Fetcher function for SWR
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch");
-    return res.json();
-  });
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Route unavailable");
+  return response.json();
+};
 
 function MovePageInner() {
   const { dealerId, loading: dealerLoading } = useDealerId();
   const searchParams = useSearchParams();
-
-  // Prefill origin from deal context (e.g. /move?from=TX&dealId=...)
   const fromParam = (searchParams.get("from") || "").toUpperCase();
-  const dealId = searchParams.get("dealId");
-  const initialFrom = US_STATES.includes(fromParam) ? fromParam : "TX";
-
-  const [fromState, setFromState] = useState(initialFrom);
-  const [toState, setToState] = useState("CA");
-
-  // Use SWR for data fetching
-  const { data, error, isLoading } = useSWR(
-    dealerId && !dealerLoading
-      ? `/api/transport/quote?from=${fromState}&to=${toState}&dealerId=${dealerId}`
+  const toParam = (searchParams.get("to") || "").toUpperCase();
+  const [fromState, setFromState] = useState(
+    US_STATES.includes(fromParam) ? fromParam : "",
+  );
+  const [toState, setToState] = useState(
+    US_STATES.includes(toParam) ? toParam : "",
+  );
+  const { data, error, isLoading, mutate } = useSWR(
+    dealerId && !dealerLoading && fromState && toState && fromState !== toState
+      ? `/api/transport/quote?from=${fromState}&to=${toState}`
       : null,
     fetcher,
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 300000, // 5 minutes (quotes don't change often)
-    },
+    { revalidateOnFocus: false, dedupingInterval: 300000 },
   );
-
-  const loading = isLoading || dealerLoading;
-  const authError =
-    !dealerLoading && !dealerId
-      ? "Please sign in to view transport quotes."
-      : null;
-
-  // Calculate quotes from data
-  const result = useMemo(() => {
-    if (!data) return null;
-    return {
-      ...data,
-      openQuote: Math.round(data.miles * 0.78) + 50,
-      enclosedQuote: Math.round(data.miles * 1.35) + 50,
-    };
-  }, [data]);
-
-  const titleRules = getTitleRules(fromState, toState);
-  const isSameState = fromState === toState;
+  const validRoute =
+    !error &&
+    !isLoading &&
+    data?.mode === "road" &&
+    Number.isFinite(data?.miles) &&
+    data.miles > 0 &&
+    Number.isFinite(data?.quote) &&
+    data.quote > 0 &&
+    data.from === fromState &&
+    data.to === toState;
+  const stateOptions = [
+    { value: "", label: "Choose state" },
+    ...US_STATES.map((s) => ({ value: s, label: s })),
+  ];
 
   return (
-    <div
-      className="space-y-4 md:space-y-5 max-w-3xl mx-auto pb-24 md:pb-6"
-      style={{ animation: "fadeUp 200ms ease-out both" }}
-    >
-      {/* Header */}
-      <div
-        className="glass-panel p-4 md:p-5 flex items-center gap-3 md:gap-4"
-        style={{
-          borderColor: "rgba(255,56,92,0.15)",
-          backgroundColor: "rgba(255,56,92,0.04)",
-        }}
+    <div className="mx-auto max-w-3xl space-y-5 pb-24 md:pb-6">
+      <header>
+        <h1 className="flex items-center gap-2 text-xl font-bold text-[var(--t1)]">
+          <Truck className="h-5 w-5" aria-hidden="true" /> Transport planning
+        </h1>
+        <p className="mt-2 text-sm text-[var(--t3)]">
+          Choose the pickup and destination states. Confirm vehicle condition
+          and exact addresses with a carrier before booking.
+        </p>
+      </header>
+      <section
+        className="border-y border-[var(--b1)] py-5"
+        aria-label="Transport route"
       >
-        <div
-          className="w-10 h-10 md:w-11 md:h-11 rounded-[var(--r3)] flex items-center justify-center text-white flex-shrink-0"
-          style={{
-            background: "var(--amber)",
-            boxShadow: "0 0 20px rgba(255,56,92,0.3)",
-          }}
-        >
-          <Ico name="truck" size={18} />
-        </div>
-        <div>
-          <h1 className="text-lg md:text-xl font-black text-[var(--t1)]">
-            Move & Logistics
-          </h1>
-          <p className="text-xs md:text-sm text-[var(--t3)] mt-0.5">
-            {dealId ? (
-              <>
-                Transport options for your deal — origin prefilled from{" "}
-                {fromState}.
-              </>
-            ) : (
-              <>
-                Instant transport quotes + title route check for any
-                state-to-state move.
-              </>
-            )}
-          </p>
-        </div>
-      </div>
-
-      {/* Route Selector */}
-      <div className="glass-panel p-5">
-        <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-4">
-          Route
-        </h2>
         <div className="flex items-center gap-3">
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <SelectField
               label="From State"
-              options={US_STATES.map((s) => ({ value: s, label: s }))}
+              options={stateOptions}
               value={fromState}
               onChange={(e) => setFromState(e.target.value)}
             />
           </div>
           <button
+            type="button"
+            aria-label="Swap states"
+            title="Swap states"
+            className="premium-focus mt-5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--b2)]"
             onClick={() => {
               setFromState(toState);
               setToState(fromState);
             }}
-            className="mt-5 h-10 w-10 flex-shrink-0 rounded-full flex items-center justify-center transition-all hover:scale-110 hover:rotate-180"
-            style={{ background: "var(--s2)", border: "1px solid var(--b2)" }}
-            title="Swap states"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-[var(--t3)]"
-            >
-              <path d="M8 3 4 7l4 4" />
-              <path d="M4 7h16" />
-              <path d="m16 21 4-4-4-4" />
-              <path d="M20 17H4" />
-            </svg>
+            <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
           </button>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <SelectField
               label="To State"
-              options={US_STATES.map((s) => ({ value: s, label: s }))}
+              options={stateOptions}
               value={toState}
               onChange={(e) => setToState(e.target.value)}
             />
           </div>
         </div>
-
-        {/* Distance badge */}
-        {result && !isSameState && (
-          <div
-            className="mt-4 flex items-center gap-2 text-sm text-[var(--t3)]"
-            style={{ animation: "fadeUp 150ms ease-out both" }}
-          >
-            <Ico name="map" size={14} className="text-[var(--t4)]" />
-            <span>
-              <Mono className="font-bold text-[var(--t1)]">
-                {result.miles.toLocaleString()}
-              </Mono>{" "}
-              driving miles
-              {result.driveTime ? (
-                <>
-                  {" · "}
-                  <Mono className="font-bold text-[var(--t1)]">
-                    {result.driveTime}
-                  </Mono>{" "}
-                  drive
-                </>
-              ) : null}{" "}
-              · {fromState} → {toState}
-              {result.mode === "road" ? (
-                <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--green)] font-bold">
-                  ● live route
-                </span>
-              ) : null}
-            </span>
-          </div>
-        )}
-        {isSameState && (
-          <p className="mt-3 text-sm text-[var(--t4)]">
-            Same state — local tow/driveaway only.
-          </p>
-        )}
-      </div>
-
-      {/* Loading */}
-      {loading && (
-        <div className="glass-panel p-8 flex items-center justify-center gap-3">
-          <div
-            className="w-5 h-5 rounded-full border-2 border-[var(--amber)] border-t-transparent"
-            style={{ animation: "spin 700ms linear infinite" }}
-          />
-          <span className="text-sm text-[var(--t3)] font-medium">
-            Calculating route…
-          </span>
-        </div>
-      )}
-
-      {/* Error */}
-      {(authError || error) && !loading && (
-        <div
-          className="glass-panel p-5 text-center"
-          style={{
-            borderColor: "rgba(220,38,38,0.2)",
-            backgroundColor: "rgba(220,38,38,0.05)",
-          }}
-        >
-          <p className="text-[var(--red)] text-sm font-bold">
-            {authError || error?.message || "An error occurred"}
-          </p>
-        </div>
-      )}
-
-      {/* Carrier Tiers */}
-      {result && !loading && !error && (
-        <div style={{ animation: "fadeUp 180ms ease-out both" }}>
-          <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
-            Transport Options
-          </h2>
-          <div className="space-y-3">
-            {CARRIER_TIERS.map((tier, i) => {
-              const tierQuote = isSameState
-                ? 150
-                : Math.max(
-                    150,
-                    Math.round(result.miles * tier.multiplier) + 50,
-                  );
-              return (
-                <div
-                  key={tier.id}
-                  className="glass-panel p-5 flex items-center gap-4"
-                  style={{
-                    animationDelay: `${i * 60}ms`,
-                    animation: "fadeUp 200ms ease-out both",
-                  }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-[var(--r2)] flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: `${tier.color}18`,
-                      border: `1px solid ${tier.color}30`,
-                    }}
-                  >
-                    <span style={{ color: tier.color }}>
-                      <Ico
-                        name={
-                          tier.id === "diy"
-                            ? "map"
-                            : tier.id === "open"
-                              ? "truck"
-                              : "deal"
-                        }
-                        size={18}
-                      />
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-[var(--t1)] text-sm">
-                      {tier.label}
-                    </p>
-                    <p className="text-xs text-[var(--t4)] mt-0.5 leading-relaxed">
-                      {tier.desc}
-                    </p>
-                    <p className="text-xs text-[var(--t4)] mt-1">
-                      ETA: {tier.eta}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span
-                      className="font-mono text-xl font-black"
-                      style={{ color: tier.color }}
-                    >
-                      ${tierQuote.toLocaleString()}
-                    </span>
-                    <p className="text-[10px] text-[var(--t5)] mt-0.5">
-                      estimate
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-[var(--t5)] mt-3 px-1">
-            Estimates based on $0.78/mile open carrier industry average. Get
-            carrier quotes on{" "}
-            <a
-              href="https://uship.com"
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-[var(--amber)]"
-            >
-              uShip.com
-            </a>{" "}
-            or{" "}
-            <a
-              href="https://montanaweg.com"
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-[var(--amber)]"
-            >
-              MontanaWeg
-            </a>
-            .
-          </p>
-        </div>
-      )}
-
-      {/* Multi-Car Trailer Bundle Optimizer */}
-      {result && !loading && !error && (
-        <MultiCarTrailerOptimizer
-          miles={result.miles}
-          fromState={fromState}
-          toState={toState}
-        />
-      )}
-
-      {/* Title Rules */}
-      {result && !loading && !error && (
-        <div style={{ animation: "fadeUp 220ms ease-out both" }}>
-          <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
-            Title Route: {fromState} → {toState}
-          </h2>
-          <div
-            className="glass-panel p-5"
-            style={
-              titleRules.warning
-                ? {
-                    borderColor: "rgba(220,38,38,0.25)",
-                    backgroundColor: "rgba(220,38,38,0.04)",
-                  }
-                : {
-                    borderColor: "rgba(5,150,105,0.2)",
-                    backgroundColor: "rgba(5,150,105,0.03)",
-                  }
-            }
-          >
-            <div className="flex items-start gap-3 mb-4">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{
-                  background: titleRules.warning
-                    ? "rgba(220,38,38,0.12)"
-                    : "rgba(5,150,105,0.12)",
-                  border: `1px solid ${titleRules.warning ? "rgba(220,38,38,0.25)" : "rgba(5,150,105,0.25)"}`,
-                }}
-              >
-                <span
-                  style={{
-                    color: titleRules.warning ? "var(--red)" : "var(--green)",
-                  }}
-                >
-                  <Ico
-                    name={
-                      titleRules.warning ? "alert-triangle" : "check-circle"
-                    }
-                    size={16}
-                  />
-                </span>
-              </div>
-              <div>
-                <p
-                  className="text-sm font-bold mb-1"
-                  style={{
-                    color: titleRules.warning ? "var(--red)" : "var(--green)",
-                  }}
-                >
-                  {titleRules.warning ? "⚠ Title Warning" : "✓ Clean Transfer"}
-                </p>
-                <p className="text-sm text-[var(--t3)] leading-relaxed">
-                  {titleRules.note}
-                </p>
-              </div>
-            </div>
-
-            <div className="border-t border-[var(--b1)] pt-4">
-              <p className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3">
-                Required Documents
-              </p>
-              <ul className="space-y-2">
-                {titleRules.requirements.map((req, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-start gap-2 text-sm text-[var(--t2)]"
-                  >
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-                      style={{ background: "rgba(5,150,105,0.1)" }}
-                    >
-                      <svg
-                        className="w-3 h-3 text-[var(--green)]"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
-                    </div>
-                    {req}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pro tip */}
-      <div
-        className="glass-panel p-4 flex items-start gap-3"
-        style={{ animation: "fadeUp 250ms ease-out both" }}
-      >
-        <svg
-          className="w-4 h-4 text-[var(--amber)] mt-0.5 flex-shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-          <path d="M9 18h6" />
-          <path d="M10 22h4" />
-        </svg>
-        <p className="text-xs text-[var(--t3)] leading-relaxed">
-          <strong className="text-[var(--t2)]">Pro tip:</strong> Transport costs
-          are already included in the Deal Analyzer profit calculation. These
-          quotes help you verify the auto-estimate or book a carrier for a
-          specific unit.
+      </section>
+      {dealerLoading || isLoading ? <Skeleton className="h-24 w-full" /> : null}
+      {!dealerLoading && !dealerId ? (
+        <p role="status">Please sign in to plan transport.</p>
+      ) : null}
+      {fromState && toState && fromState === toState ? (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          For a local move, ask a carrier for a quote using the exact pickup and
+          delivery addresses. No local price has been calculated.
         </p>
-      </div>
+      ) : null}
+      {error || (data && !validRoute && !isLoading && fromState !== toState) ? (
+        <div role="status" className="space-y-3 text-sm text-[var(--t3)]">
+          <p>
+            A reliable road route is unavailable. No transport price is
+            confirmed.
+          </p>
+          <Button variant="outline" onClick={() => void mutate()}>
+            Try again
+          </Button>
+        </div>
+      ) : null}
+      {validRoute ? (
+        <section className="space-y-3" aria-label="Transport planning estimate">
+          <h2 className="text-base font-semibold text-[var(--t1)]">
+            Route planning estimate
+          </h2>
+          <p className="text-sm text-[var(--t3)]">
+            {fromState} → {toState} · {Math.round(data.miles).toLocaleString()}{" "}
+            road miles between state centers, not the vehicle and your address.
+          </p>
+          <div className="flex items-center justify-between gap-4 border-y border-[var(--b1)] py-4">
+            <span className="text-sm text-[var(--t2)]">
+              Open carrier planning estimate
+            </span>
+            <strong className="text-lg text-[var(--t1)]">
+              ${Math.round(data.quote).toLocaleString()}
+            </strong>
+          </div>
+          <p className="text-xs leading-relaxed text-[var(--t4)]">
+            Model assumption: $0.78 per road mile plus $50, with a $150 minimum.
+            This is not a carrier quote. Non-running vehicles, loading, exact
+            addresses, timing, and availability can change the cost. No booking
+            or delivery date is confirmed.
+          </p>
+        </section>
+      ) : null}
+      <section className="space-y-3 border-t border-[var(--b1)] pt-5">
+        <h2 className="text-base font-semibold text-[var(--t1)]">
+          Get a carrier quote
+        </h2>
+        <p className="text-sm text-[var(--t3)]">
+          For self-drive, enclosed transport, or multi-vehicle loads, request a
+          quote for your actual route and vehicle condition. No bundle savings
+          have been verified.
+        </p>
+        <a
+          href="https://www.uship.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="premium-focus inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+          aria-label="Visit uShip (opens in a new tab)"
+        >
+          Visit uShip
+        </a>
+      </section>
+      <section className="border-t border-[var(--b1)] pt-5">
+        <h2 className="text-base font-semibold text-[var(--t1)]">
+          Title and registration
+        </h2>
+        <p className="mt-2 text-sm text-[var(--t3)]">
+          Title transfer eligibility has not been verified. Confirm the title
+          brand, required documents, fees, and deadlines with the destination
+          state's DMV before purchase.
+        </p>
+      </section>
     </div>
   );
 }
 
 export default function MovePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="max-w-3xl mx-auto pb-24 md:pb-6 space-y-4">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      }
-    >
+    <Suspense fallback={<Skeleton className="mx-auto h-40 max-w-3xl" />}>
       <MovePageInner />
     </Suspense>
   );
