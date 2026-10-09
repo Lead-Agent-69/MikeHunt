@@ -104,6 +104,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const expectedOwner = request.headers.get("X-Save-Owner");
+    if (expectedOwner && expectedOwner !== userId)
+      return NextResponse.json(
+        { error: "Account changed. Reload and retry." },
+        { status: 409 },
+      );
+
     const { data, error } = await supabase
       .from("saved_cars")
       .delete()

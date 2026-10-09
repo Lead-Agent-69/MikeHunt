@@ -77,6 +77,14 @@ describe("saved vehicle mutations", () => {
     mocks.user = null;
     expect((await DELETE(req(), params)).status).toBe(401);
   });
+  it("rejects a stale account before deleting any rows", async () => {
+    const request = new NextRequest("http://localhost/api/saved-cars/save", {
+      method: "DELETE",
+      headers: { "X-Save-Owner": "previous-account" },
+    });
+    expect((await DELETE(request, params)).status).toBe(409);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
   it("confirms exactly one owner-scoped deleted row", async () => {
     expect(await (await DELETE(req(), params)).json()).toEqual({
       success: true,

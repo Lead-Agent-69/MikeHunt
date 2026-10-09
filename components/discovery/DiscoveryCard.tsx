@@ -11,13 +11,9 @@ import {
   readCondition,
   CONDITION_TIER_COLOR,
 } from "@/lib/intelligence/condition";
-import {
-  toLocalSavedVehicle,
-  useLocalSavedVehicles,
-} from "@/hooks/useLocalSavedVehicles";
+import { useDiscoverySave } from "./DiscoverySaveProvider";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
-import { Clock3, Flame, Zap } from "lucide-react";
-import { toast } from "sonner";
+import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 
 const TITLE_STYLES: Record<
   string,
@@ -89,7 +85,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const reducedMotion = useReducedMotion();
-  const localSaves = useLocalSavedVehicles();
+  const bookmark = useDiscoverySave(deal);
   const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
   const title =
@@ -111,7 +107,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       ? deal.sourceUrl
       : `/deal/${deal.id}`;
   const external = href.startsWith("http");
-  const isSaved = localSaves.has(deal.id);
+  const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
   const decision = {
     label: evidence.label,
@@ -203,36 +199,23 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              const confirmed = isSaved
-                ? localSaves.remove(deal.id)
-                : localSaves.save(toLocalSavedVehicle(deal));
-              if (!confirmed)
-                toast.error(
-                  "Device storage is unavailable. This bookmark was not changed.",
-                );
+              void bookmark.toggle();
             }}
             className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
             }}
-            title={isSaved ? "Remove device bookmark" : "Save on this device"}
-            aria-label={
-              isSaved ? "Remove device bookmark" : "Save on this device"
-            }
+            title={bookmark.label}
+            aria-label={bookmark.label}
+            aria-busy={bookmark.busy}
+            disabled={bookmark.busy}
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
+            <Bookmark
+              size={15}
               fill={isSaved ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
+              aria-hidden="true"
+            />
           </button>
         </div>
 
