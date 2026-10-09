@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -29,6 +30,7 @@ import {
   CalendarDays,
   Sparkles,
   Zap,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -38,6 +40,7 @@ import {
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
 import { accountMenuForMode } from "@/components/layout/nav-items";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const MENU_ICONS: Record<string, LucideIcon> = {
   "/saved": Bookmark,
@@ -85,7 +88,12 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const panelId = useId();
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    ref.current?.querySelector<HTMLElement>(`[id="${panelId}"] a`)?.focus();
+  }, [open, panelId]);
   useEffect(() => {
     if (!open || !dealerId) return;
     const controller = new AbortController();
@@ -120,12 +128,12 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }, [open]);
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
+    const onDoc = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
         setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
   }, []);
 
   async function logout() {
@@ -148,11 +156,6 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     }
   }
 
-  const go = (href: string) => {
-    setOpen(false);
-    router.push(href);
-  };
-
   function MenuLink({
     entry,
     icon,
@@ -161,31 +164,51 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     icon?: LucideIcon;
   }) {
     const Icon = icon ?? menuIcon(entry.href);
+    const label = entry.href === "/alerts" ? "Activity" : entry.name;
     return (
-      <button onClick={() => go(entry.href)} className={item}>
-        <Icon className="h-4 w-4" aria-hidden="true" /> {entry.name}
-      </button>
+      <Link
+        href={entry.href}
+        prefetch={false}
+        onClick={() => setOpen(false)}
+        className={item}
+      >
+        <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+      </Link>
     );
   }
 
   const item =
-    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
+    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] active:bg-[var(--s2)] transition-colors rounded-lg flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]";
 
   return (
     <div
       ref={ref}
+      onBlur={(event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setOpen(false);
+      }}
       className={floating ? "fixed top-3 right-3 z-[60]" : "relative z-[60]"}
     >
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Account menu"
         aria-expanded={open}
-        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
+        aria-controls={open ? panelId : undefined}
+        title="Account and tools"
+        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] active:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] shadow-[var(--shadow2)]"
       >
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>
       {open && (
-        <div className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]">
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Account and tools"
+          className="absolute z-[70] top-12 right-0 w-72 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-150px-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain p-1.5 rounded-lg border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
+        >
           {signedOut ? (
             <>
               <MenuLink
@@ -198,27 +221,41 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
             </>
           ) : (
             <>
-              {menu.primary.map((entry) => (
-                <MenuLink key={entry.href} entry={entry} />
-              ))}
+              {menu.primary
+                .filter((entry) => entry.href !== "/saved")
+                .map((entry) => (
+                  <MenuLink key={entry.href} entry={entry} />
+                ))}
               <div className="my-1 border-t border-[var(--b1)]" />
-              <div className="px-3 pt-1 pb-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--t4)]">
-                Tools
-              </div>
-              {menu.tools.map((entry, index) => (
-                <div key={entry.href}>
-                  {entry.group !== menu.tools[index - 1]?.group && (
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase text-[var(--t4)]">
-                      {entry.group}
-                    </div>
-                  )}
-                  <MenuLink entry={entry} />
-                </div>
-              ))}
+              <details className="group/tools">
+                <summary
+                  className={`${item} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
+                >
+                  <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                  Explore tools
+                  <ChevronDown
+                    className="ml-auto h-4 w-4 transition-transform motion-reduce:transition-none group-open/tools:rotate-180"
+                    aria-hidden="true"
+                  />
+                </summary>
+                {menu.tools.map((entry, index) => (
+                  <div key={entry.href}>
+                    {entry.group !== menu.tools[index - 1]?.group && (
+                      <p className="px-3 pt-3 pb-1 text-xs font-semibold text-[var(--t3)]">
+                        {entry.group}
+                      </p>
+                    )}
+                    <MenuLink entry={entry} />
+                  </div>
+                ))}
+              </details>
               <div className="my-1 border-t border-[var(--b1)]" />
               {menu.secondary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
+              <div className="lg:hidden border-t border-[var(--b1)] mt-1 pt-1">
+                <ThemeToggle showLabel />
+              </div>
               {dealerId && adminUserId === dealerId && (
                 <>
                   <div className="my-1 border-t border-[var(--b1)]" />

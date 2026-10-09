@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
-import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
@@ -20,7 +19,6 @@ export function BottomNav() {
   const pathname = usePathname();
   const reducedMotion = useReducedMotion();
   const localSaved = useLocalSavedVehicles();
-  const localSearches = useLocalSavedSearches();
   const activeJob = primaryJobForPath(pathname);
   const { intent } = useBuyerIntent();
   const { dealerId, loading: authLoading } = useDealerId();
@@ -28,7 +26,7 @@ export function BottomNav() {
   const tabs = mobileNavForMode(intent?.buyerMode).map((item) =>
     navItemForViewer(item, signedOut),
   );
-  const watchScopeCount = localSaved.count + localSearches.count;
+  const watchScopeCount = localSaved.count;
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -39,7 +37,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -60,8 +58,13 @@ export function BottomNav() {
             key={item.name}
             href={item.href}
             aria-current={isActive ? "page" : undefined}
+            aria-label={
+              item.signInRequired
+                ? `${item.name} (sign in required)`
+                : item.name
+            }
             onClick={tapFeedback}
-            className="group relative flex flex-col items-center justify-center gap-1 overflow-hidden transition-colors"
+            className="group relative flex min-h-11 flex-col items-center justify-center gap-1 overflow-hidden transition-colors active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--accent)]"
             style={{
               color: isActive ? "var(--accent)" : "var(--t4)",
               WebkitTapHighlightColor: "transparent",
@@ -70,9 +73,9 @@ export function BottomNav() {
               item.signInRequired
                 ? `Sign in to use ${item.name}`
                 : item.name === "Saved" && watchScopeCount
-                  ? `${watchScopeCount} active watch scope${
+                  ? `${watchScopeCount} vehicle${
                       watchScopeCount === 1 ? "" : "s"
-                    }`
+                    } saved on this device`
                   : item.name
             }
           >
@@ -124,6 +127,7 @@ export function BottomNav() {
               item.name === "Saved" &&
               watchScopeCount > 0 && (
                 <span
+                  aria-hidden="true"
                   className="absolute top-1.5 left-1/2 ml-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white"
                   style={{ background: "var(--accent)", lineHeight: 1 }}
                 >
@@ -135,7 +139,7 @@ export function BottomNav() {
               style={{
                 fontSize: 10.5,
                 fontWeight: isActive ? 760 : 620,
-                letterSpacing: "0.01em",
+                letterSpacing: 0,
               }}
             >
               {item.name}

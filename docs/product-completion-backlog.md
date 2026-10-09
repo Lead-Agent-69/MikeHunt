@@ -2,6 +2,21 @@
 
 Updated October 8, 2026. Based on inspected code and recorded live checks, not a claim of production completion.
 
+## October 9 Authentication And Navigation Follow-Up
+
+Supabase Site URL now uses the public production domain. Callback allowlist entries cover the app's `next` query on production, the existing amber alias, and localhost:3000. Fresh Google sign-in succeeded for the requested personal account; onboarding saved Personal / Missouri / all vehicle types / clean title, reload restored the session, and logout followed by returning OAuth preserved the intended vehicle URL. The personal account was redirected away from `/admin`. These are live observations, not proof of browser-restart recovery, emailed recovery, every admin API, or cross-account data isolation.
+
+Navigation changes in this wave preserve the existing route catalog and mode gating: compact account actions, collapsed grouped tools, real links, keyboard focus and dismissal, mobile theme access, truthful notification/device-save badges, 44px controls, tablet-safe breakpoints and reduced-motion desktop indicators. The local development badge no longer covers the account trigger. Release status must be recorded after checks and deployment, not inferred from local screenshots.
+
+Remaining product acceptance work, in priority order:
+
+1. Vehicle detail: move source-wide counts and runner language to admin; keep per-vehicle evidence, verification date, unknown costs and unresolved checks visible. A clean title is not proof of an undamaged or roadworthy car.
+2. Buyer eligibility: distinguish title tolerance from repair tolerance. The live clean-title personal search still includes explicitly labelled repairable vehicles; that is not a clean-condition recommendation. Verify each onboarding choice against both Discover and Scan.
+3. Complete live analysis, inspection/quote attachment, two-car comparison, purchase-task edits and unavailable-record retention with appropriate fixtures. Screen presence alone is insufficient.
+4. Prove email confirmation/recovery, browser restart, PWA updates/offline recovery and real notification delivery. Google OAuth success does not prove these paths.
+5. Measure mobile navigation and search performance on a real device/slow connection; verify reduced motion and screen-reader behavior. Responsive bounds and unit tests are narrower evidence.
+6. Validate scoped source runs, amount type, title/damage provenance, detail/photo coverage and disappearance policy. Do not publish universal coverage or 99% valuation accuracy without measured, source-backed validation.
+
 ## October 8 Live QA Follow-Up
 
 The existing administrator session now restores and the dashboard loads. The earlier disconnected-browser/account-blocked notes below are historical. Fresh Google login/recovery still has a confirmed redirect-configuration blocker; ordinary-role testing remains open. See [the current live QA and repair register](qa-2026-10-08.md) for verified pages, fixes, and untested acceptance gates.

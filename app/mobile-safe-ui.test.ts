@@ -42,9 +42,9 @@ describe("mobile fixed UI surfaces", () => {
     const topNav = readFileSync("components/layout/TopNav.tsx", "utf8");
     const accountMenu = readFileSync("components/home/AccountMenu.tsx", "utf8");
 
-    expect(topNav).toContain("md:hidden lg:block");
-    expect(topNav).toContain("hidden items-center justify-end gap-2 md:flex");
-    expect(topNav).toContain("flex items-center justify-end gap-2 md:hidden");
+    expect(topNav).toContain("lg:hidden xl:block");
+    expect(topNav).toContain("hidden items-center justify-end gap-2 lg:flex");
+    expect(topNav).toContain("flex items-center justify-end gap-2 lg:hidden");
     expect(topNav).toContain("max-w-[88px]");
     expect(topNav).toContain("activeJob === item.name");
     expect(topNav).not.toContain("More dropdown");

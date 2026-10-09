@@ -29,6 +29,9 @@ function supabaseConnectSources() {
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
+  // The floating development badge can overlap account and navigation controls.
+  // Compile/runtime error reporting remains enabled without the badge.
+  devIndicators: false,
   reactStrictMode: false,
   output: "standalone",
   // Pin the workspace root to THIS directory. A stray package-lock.json under the user home
