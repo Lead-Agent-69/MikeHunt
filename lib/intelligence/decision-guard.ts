@@ -1,5 +1,6 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { hasReportedRepairRisk } from "./repair-risk";
+import { hasRecentSoldEvidence } from "@/lib/valuation/evidence-confidence";
 
 export type DecisionEvidenceState =
   | "verified"
@@ -65,11 +66,12 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
     Boolean(analysis.priceImplausible) ||
     ["typo", "implausible"].includes(String(analysis.priceSanity || ""));
   const hasComparableEvidence =
-    (valuation.source === "comparables" &&
-      ["high", "medium"].includes(valuation.confidence) &&
-      Number(valuation.compCount ?? valuation.sampleCount ?? 0) >= 3) ||
-    (valuation.source === "third_party" &&
-      ["high", "medium"].includes(valuation.confidence));
+    valuation.source === "comparables" &&
+    ["high", "medium"].includes(valuation.confidence) &&
+    Number.isInteger(valuation.compCount) &&
+    valuation.compCount >= 3 &&
+    valuation.soldLane === "clean" &&
+    hasRecentSoldEvidence(valuation);
   const identityComplete =
     /^[A-HJ-NPR-Z0-9]{17}$/i.test(String(input.vin || "").trim()) &&
     typeof input.mileage === "number" &&

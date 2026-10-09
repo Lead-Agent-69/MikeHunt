@@ -55,16 +55,26 @@ describe("assessDecisionEvidence", () => {
       valuation: { source: "comparables", compCount: 8, confidence: "high" },
     });
     expect(result.acquisitionReady).toBe(false);
-    expect(result.nextCheck).toMatch(/purchase price/);
+    expect(result.nextCheck).toMatch(
+      /asking prices are not confirmed sale prices/,
+    );
   });
 
-  it("requires explicit evidence gates for a purchase candidate", () => {
+  it("requires explicit evidence gates and recent clean completed sales for a purchase candidate", () => {
     const result = assessDecisionEvidence({
       source: "dealer",
       vin: "1HGCM82633A000000",
       mileage: 40000,
       dealVerdict: "go",
-      valuation: { source: "comparables", compCount: 8, confidence: "high" },
+      valuation: {
+        source: "comparables",
+        compCount: 8,
+        confidence: "high",
+        soldCount: 3,
+        soldAnchored: true,
+        soldLane: "clean",
+        soldAt: new Date(Date.now() - 86400000).toISOString(),
+      },
       dealAnalysis: {
         evidenceGates: {
           priceMeaningConfirmed: true,
@@ -104,5 +114,52 @@ describe("assessDecisionEvidence", () => {
         dealAnalysis: { evidenceGates: { costsConfirmed: "true" } },
       }).acquisitionReady,
     ).toBe(false);
+  });
+  it("does not promote asking comps or unproven third-party labels despite completed checkboxes", () => {
+    for (const valuation of [
+      { source: "comparables", compCount: 8, confidence: "high" },
+      { source: "third_party", confidence: "high" },
+      ...[
+        undefined,
+        "invalid",
+        new Date(Date.now() - 181 * 86400000).toISOString(),
+        new Date(Date.now() + 86400000).toISOString(),
+      ].map((soldAt) => ({
+        source: "comparables",
+        compCount: 8,
+        confidence: "high",
+        soldCount: 3,
+        soldAnchored: true,
+        soldLane: "clean",
+        soldAt,
+      })),
+      {
+        source: "comparables",
+        compCount: 8,
+        confidence: "high",
+        soldCount: 3,
+        soldAnchored: true,
+        soldLane: "salvage",
+        soldAt: new Date().toISOString(),
+      },
+    ]) {
+      expect(
+        assessDecisionEvidence({
+          source: "dealer",
+          vin: "1HGCM82633A000000",
+          mileage: 40000,
+          dealVerdict: "go",
+          valuation,
+          dealAnalysis: {
+            evidenceGates: {
+              priceMeaningConfirmed: true,
+              titleReviewed: true,
+              conditionInspected: true,
+              costsConfirmed: true,
+            },
+          },
+        }).acquisitionReady,
+      ).toBe(false);
+    }
   });
 });

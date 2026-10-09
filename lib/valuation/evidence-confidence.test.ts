@@ -28,6 +28,7 @@ describe("valuation evidence confidence", () => {
         compCount: 5,
         soldCount: 3,
         soldAnchored: true,
+        soldAt: new Date(Date.now() - 86400000).toISOString(),
       }),
     ).toBe("High");
     expect(
@@ -47,5 +48,33 @@ describe("valuation evidence confidence", () => {
         soldAnchored: true,
       }),
     ).toBe("Low");
+  });
+  it("never treats missing or unsupported confidence as evidence", () => {
+    for (const confidence of [undefined, "low", "unknown", "none"]) {
+      for (const source of ["comparables", "third_party"]) {
+        expect(evidenceConfidence({ source, confidence, compCount: 5 })).toBe(
+          "Low",
+        );
+      }
+    }
+  });
+  it("withholds high confidence from undated, stale and future sale claims", () => {
+    for (const soldAt of [
+      undefined,
+      "bad-date",
+      new Date(Date.now() + 86400000).toISOString(),
+      new Date(Date.now() - 181 * 86400000).toISOString(),
+    ]) {
+      expect(
+        evidenceConfidence({
+          source: "comparables",
+          confidence: "high",
+          compCount: 5,
+          soldCount: 3,
+          soldAnchored: true,
+          soldAt,
+        }),
+      ).toBe("Medium");
+    }
   });
 });

@@ -241,6 +241,7 @@ export const DealCard = memo(function DealCard({
     compCount: valuationCompCount,
     soldCount: valuationSoldCount,
     soldAnchored: Boolean(soldAnchored),
+    soldAt: valuation?.soldAt,
   });
   const sourceProofScore = sourceHealth
     ? (sourceHealth.readiness === "ready" ||
