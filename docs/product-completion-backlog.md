@@ -2,6 +2,14 @@
 
 Updated October 9, 2026. Based on inspected code and recorded live checks, not a claim of production completion. Later dated entries supersede historical blockers below.
 
+## October 9 Document Provider Follow-Up
+
+Account-preference release `dac9c36` passed 1,501 tests, typecheck, lint and build, and deployed READY to the canonical domain. All 20 production smoke checks passed. Live Settings -> Discover verified 63 Missouri clean-title matches with reported repair inclusion, and zero with repair exclusion; the original exclusion preference was restored. These are matching inventory counts, not roadworthiness or valuation claims.
+
+Deal Check now has a dedicated extraction-only provider selector: configured Anthropic first, otherwise the existing Google key with `gemini-2.5-flash-lite`. There is no automatic second-provider retry and the narrative/valuation model contract is unchanged. Returned document fields are schema-validated; negative/string amounts or malformed line items are rejected. Missing values stay null, auction bids/deposits/monthly payments must not become a selling price, and provider failures retain input with friendly temporary-unavailability feedback. Timeouts, cancellation and zero automatic retries remain. Provider output is not independently verified vehicle evidence. Production provider success must be recorded after actual QA, not inferred from configuration or mocked tests.
+
+Remaining acceptance gates: actual extraction on production; source-backed retail coverage, detail enrichment and retirement; authorized administrator controls and cross-account isolation; recovery-email delivery and browser restart; populated compare/pipeline mutations; installed-PWA update, notification delivery and real-device performance.
+
 ## October 9 Repair Eligibility And Buyer Copy Audit
 
 Release wave `ed3a470` passed all checks (1,496 tests / 300 files, typecheck, lint, build) and was pushed to main. A subsequent live Deal Check request returned an empty response and leaked a JSON parser error. Follow-up adds safe response-shape handling, retained input/retry, parser-error redaction, a 25-second provider timeout without automatic retries, and request cancellation. Active asking-price averages are now labelled price context, not fair-price verdicts or sold comps. Actual provider success on production remains a gate until verified after deployment.

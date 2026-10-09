@@ -10,7 +10,7 @@ const getServerUser = vi.hoisted(() =>
 );
 const generateText = vi.hoisted(() =>
   vi.fn(async () => ({
-    text: '{"selling_price":1000,"fees":[],"addons":[],"red_flags":[]}',
+    text: '{"vehicle":{"year":null,"make":null,"model":null,"vin":null,"mileage":null},"selling_price":1000,"fees":[],"addons":[],"taxes":null,"total_out_the_door":null,"red_flags":[]}',
   })),
 );
 
@@ -18,9 +18,9 @@ vi.mock("ai", () => ({ generateText }));
 vi.mock("@/lib/scrapers/tools/patchright-engine", () => ({
   fetchPublicWithPatchright: fetchWithPatchright,
 }));
-vi.mock("@/lib/ai/text-model", () => ({
-  getTextModel: () => ({}),
-  hasTextModel: () => true,
+vi.mock("@/lib/ai/document-model", () => ({
+  getDocumentModel: () => ({}),
+  hasDocumentModel: () => true,
 }));
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -63,6 +63,25 @@ function post(text: string) {
 beforeEach(() => fetchWithPatchright.mockClear());
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
+  it("rejects malformed extraction instead of displaying unchecked fields", async () => {
+    generateText.mockResolvedValueOnce({
+      text: '{"selling_price":"3000","fees":"none"}',
+    });
+    const response = await post("2020 Acura MDX asking 3000");
+    expect(response.status).toBe(422);
+    expect((await response.json()).extracted).toBeUndefined();
+  });
+  it("rejects non-string input before calling the provider", async () => {
+    generateText.mockClear();
+    const response = await POST(
+      new NextRequest("https://x.test/api/deal-check", {
+        method: "POST",
+        body: JSON.stringify({ text: { url: "http://localhost" } }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(generateText).not.toHaveBeenCalled();
+  });
   it("bounds provider work and propagates request cancellation", async () => {
     const response = await post(
       "2020 Acura MDX asking 3000, salvage auction bid",
@@ -79,7 +98,7 @@ describe("POST /api/deal-check URL paste SSRF guard", () => {
   it("returns a recoverable response on provider failure, not fabricated extraction", async () => {
     generateText.mockRejectedValueOnce(new Error("provider timed out"));
     const response = await post("2020 Acura MDX asking 3000");
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.extracted).toBeUndefined();
     expect(body.error).not.toContain("provider");
