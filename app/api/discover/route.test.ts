@@ -69,7 +69,7 @@ const baseRow = {
   images: ["https://example.com/truck.jpg"],
   first_seen_at: "2026-10-02T00:00:00.000Z",
   last_seen_at: "2026-10-02T04:00:00.000Z",
-  auction_end_at: "2026-10-05T04:00:00.000Z",
+  auction_end_at: new Date(Date.now() + 86400000).toISOString(),
   deal_analysis: {
     sellBasis: "market",
     soldAnchored: true,
@@ -80,6 +80,27 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("excludes ended auctions from rails and coverage while keeping unknown closing times", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        { ...baseRow, id: "ended", auction_end_at: "2020-01-01T00:00:00Z" },
+        { ...baseRow, id: "open" },
+        { ...baseRow, id: "unknown", auction_end_at: null },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const response = await GET(req("/api/discover?lane=government"));
+    const body = await response.json();
+    const ids = body.rails.flatMap((rail: any) =>
+      rail.deals.map((deal: any) => deal.id),
+    );
+    expect(ids).not.toContain("ended");
+    expect(ids).toContain("open");
+    expect(ids).toContain("unknown");
+    expect(body.totalListings).toBe(2);
+    expect(body.marketListings).toBe(2);
+  });
   it("keeps auctions out of ordinary discovery without losing dealer cars", async () => {
     rpc.mockResolvedValueOnce({
       data: [

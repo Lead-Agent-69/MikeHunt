@@ -22,4 +22,15 @@ Production database: `qupzqpezslsbobhugswp.supabase.co`.
 
 No fabricated rows, expanded permission grants or database migrations. Policy-blocked sources remain blocked. Missing-price inventory still fails existing quality checks. JavaScript-only sources need an authorized API/feed or an independently reviewed adapter; they are not claimed as covered.
 
-The running Docker worker must use the verified image for these scheduling and import fixes to persist in its always-on operation. Authorized Copart/eBay data access and wider state-by-state coverage remain separate requirements.
+The running Docker worker uses `mikehunt-scraper-inventory:dd31ea1-cleanboot`; its health, display service, hosted database access, and persisted rotation were verified after rollout. Authorized Copart/eBay data access and wider state-by-state coverage remain separate requirements.
+
+## Follow-up coverage audit
+
+Read-only production audit at 2026-10-09 17:26 UTC found 4,305 active database rows: 1,560 independent-dealer, 1,788 government-auction, and 957 Copart rows. All had positive prices, but active is not the same as fresh or still buyable:
+
+- Dealer inventory grew another 68 net active rows since the previous readback; only one dealer row had not been observed in seven days.
+- All 957 Copart rows had not been observed in seven days. An authorized refreshed auction feed remains needed; these are not proof of current Copart coverage.
+- 831 government-auction rows had not been observed in seven days; 804 had a recorded auction end time in the past. Source refresh and lifecycle cleanup remain needed.
+- SD, RI and WY had only 1, 3 and 3 active rows respectively; unknown location accounted for 47. These are raw inventory counts, not a guarantee of available matching vehicles.
+
+Follow-up fixes supplement partial dealer HTML matches with priced structured inventory, dedupe against existing URL/VIN identities, and keep missing-price rows out without triggering paid extraction for already-identified structured inventory. Discover rails/coverage, shared Feed scope, Scan results and Scan facets exclude known-ended auctions. Unknown end times remain eligible; saved history is not changed. These code changes must reach the frontend deployment to affect production discovery; the original worker rollout predates them.

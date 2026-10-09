@@ -65,7 +65,7 @@ export function inventoryScopeStates(
 }
 
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
-  let q = applyVehicleDetails(query, params);
+  let q = applyVehicleDetails(applyLiveAuctionWindow(query), params);
   q = applyInventoryLane(q, params.get("lane") || "all");
   const csv = (key: string) =>
     (params.get(key) || "")
@@ -147,3 +147,4 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     q = q.or(dealers.map((host) => `source_url.ilike.%${host}%`).join(","));
   return q;
 }
+import { applyLiveAuctionWindow } from "./live-auction-window";

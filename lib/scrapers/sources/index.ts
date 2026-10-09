@@ -576,18 +576,37 @@ export async function scrapeIndependentDealer(
         });
       });
 
-      // FREE structured rescue (no API cost) — runs BEFORE the paid LLM rescue. Many dealer sites embed
-      // their inventory as JSON-LD or __NEXT_DATA__ even when our CSS selectors miss; the generic
-      // extractor recovers those for $0. No-paid-first (standing constraint): only if this also finds
-      // nothing do we fall through to the cost-gated AI rescue below.
-      if (
-        items.length === 0 &&
-        typeof rawHtml === "string" &&
-        rawHtml.length > 1500
-      ) {
+      // Structured inventory can include cars missed by a partial CSS match. Keep the CSS row when
+      // both describe the same listing, and only supplement it with priced, vehicle-shaped rows.
+      const structuredHtml =
+        typeof rawHtml === "string" ? rawHtml : rawHtml.html();
+      let hasStructuredInventory = false;
+      if (structuredHtml.length > 1500) {
         const { genericExtract } = await import("../generic-extractor");
-        for (const g of genericExtract(rawHtml, "independent_dealer")) {
-          if (!g.make && !g.title) continue;
+        const structured = genericExtract(structuredHtml, "independent_dealer");
+        hasStructuredInventory = structured.length > 0;
+        const listingUrls = new Set(items.map((item) => item.source_url));
+        const listingVins = new Set(
+          items.map((item) => item.vin).filter(Boolean),
+        );
+        let supplemented = 0;
+        for (const g of structured) {
+          if ((!g.make && !g.title) || !g.ask_price || g.ask_price < 100)
+            continue;
+          const sourceUrl = g.source_url
+            ? normalizeUrl(g.source_url, baseUrl)
+            : undefined;
+          // Inventory/account URLs are not a stable identity for a separate vehicle.
+          if (
+            !sourceUrl ||
+            sourceUrl === baseUrl ||
+            sourceUrl === normalizeUrl(profile.inventoryUrl, baseUrl)
+          )
+            continue;
+          if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin)))
+            continue;
+          listingUrls.add(sourceUrl);
+          if (g.vin) listingVins.add(g.vin);
           items.push({
             source: "independent_dealer",
             source_deal_id:
@@ -595,9 +614,7 @@ export async function scrapeIndependentDealer(
                 ? g.source_url.split("/").filter(Boolean).pop()
                 : "") ||
               `${profile.dealerId}-${[g.year, g.make, g.model, g.ask_price, g.mileage].filter(Boolean).join("-")}`,
-            source_url: g.source_url
-              ? normalizeUrl(g.source_url, baseUrl)
-              : baseUrl,
+            source_url: sourceUrl,
             title:
               [g.year, g.make, g.model].filter(Boolean).join(" ") ||
               g.title ||
@@ -618,10 +635,11 @@ export async function scrapeIndependentDealer(
             location_state: profile.state,
             images: g.images || [],
           });
+          supplemented += 1;
         }
-        if (items.length)
+        if (supplemented)
           console.log(
-            `[IndiDealer] ${profile.name}: genericExtract rescued ${items.length} (selector miss, free)`,
+            `[IndiDealer] ${profile.name}: genericExtract supplemented ${supplemented} priced listings (free)`,
           );
       }
 
@@ -630,6 +648,7 @@ export async function scrapeIndependentDealer(
       // only fires on a double miss, only when a provider key + AI_SCRAPE_EXTRACT are configured.
       if (
         items.length === 0 &&
+        !hasStructuredInventory &&
         typeof rawHtml === "string" &&
         rawHtml.length > 1500
       ) {

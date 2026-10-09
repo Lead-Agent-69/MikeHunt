@@ -184,6 +184,7 @@ export async function GET(req: NextRequest) {
           : "id,make,location_state,year,condition,source,source_url",
       )
       .eq("active", true);
+    query = applyLiveAuctionWindow(query);
     if (
       !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
@@ -297,3 +298,4 @@ export async function GET(req: NextRequest) {
     return internalError("scan:facets", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

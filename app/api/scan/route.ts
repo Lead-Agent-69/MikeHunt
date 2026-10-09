@@ -1079,6 +1079,8 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
+  query = applyLiveAuctionWindow(query);
+
   if (
     !hasAuctionDetailFilters(searchParams) &&
     !wantsAuctionInventory({
@@ -1315,3 +1317,4 @@ export async function POST(req: NextRequest) {
     return internalError("scan", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
