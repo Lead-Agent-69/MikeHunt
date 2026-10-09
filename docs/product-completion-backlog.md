@@ -1,6 +1,18 @@
 # Product Completion Register
 
-Updated October 8, 2026. Based on inspected code and recorded live checks, not a claim of production completion.
+Updated October 9, 2026. Based on inspected code and recorded live checks, not a claim of production completion. Later dated entries supersede historical blockers below.
+
+## October 9 Repair Eligibility And Buyer Copy Audit
+
+Fixed the reproduced Discover/detail mismatch for reported front-end damage. Both now use the same reported-repair-risk classifier; unknown damage remains unknown, never an undamaged or acquisition-ready claim. Auctions retain their existing research-only gate.
+
+Added a separate repairable-vehicle choice to onboarding and an immediately saved Settings checkbox. Personal defaults exclude reported repair needs; legacy DIY/reseller/dealer profiles retain inclusion unless explicitly changed. Repair capability describes who performs work, not eligibility. Discover rails, Scan inventory, public fallback and live source previews respect the choice; inventory exclusions occur before database count and pagination. Cache keys isolate different eligibility choices. Saved records are not removed by this browsing preference.
+
+Removed internal scope summaries and completeness/trust scores from local Saved and Activity cards. Actual missing fields and outstanding checks remain visible; no field-completeness score is represented as vehicle accuracy.
+
+Evidence: live anonymous database query succeeded for Missouri with 31 eligible matches and ten inspected sample rows without reported repair risk. Local Settings checkbox saved, survived reload, and was restored to its previous value. Local Highlander detail now says Repairable vehicle: research before purchase while retaining the separately reported clean title. Production personal session loaded Settings, Saved, Pipeline, Deal Check, Compare and Activity; empty comparison/checklist states are not proof of populated workflows. Existing full verification passed 1,495 tests across 300 files, typecheck, lint (255 existing warnings), and build before the final Activity/preview follow-up; final release verification and deployment are recorded below after completion.
+
+Still open: actual email recovery delivery/completion, browser-restart session restoration, populated compare and pipeline mutations, inspection/quote attachments, notification delivery, installed PWA update/offline recovery, real-device performance, source-by-source scoped collection and retirement evidence, and authorized admin-owner live controls/cross-account isolation. No administrator privileges were granted and no passwords changed. No 99% valuation or universal source-coverage claim is supported by this audit.
 
 ## October 9 Authentication And Navigation Follow-Up
 

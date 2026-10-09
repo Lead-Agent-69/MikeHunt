@@ -1,4 +1,5 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { hasReportedRepairRisk } from "./repair-risk";
 
 export type DecisionEvidenceState =
   | "verified"
@@ -30,9 +31,6 @@ const AUCTION_SOURCES = new Set([
   "purplewave",
 ]);
 
-const REPAIRABLE_RE =
-  /salvage|rebuilt|parts|flood|wrecked|repairable|non[- ]?run|not running|mechanic special|damage/i;
-
 type GuardInput = {
   source?: string | null;
   condition?: string | null;
@@ -61,9 +59,8 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   const analysis = input.dealAnalysis || {};
   const valuation = input.valuation || analysis.valuation || {};
   const source = String(input.source || "").toLowerCase();
-  const text = `${input.condition || ""} ${input.damageType || ""}`;
   const isAuction = AUCTION_SOURCES.has(source) || isAuctionChannel(source);
-  const repairable = REPAIRABLE_RE.test(text);
+  const repairable = hasReportedRepairRisk(input.condition, input.damageType);
   const priceAnomaly =
     Boolean(analysis.priceImplausible) ||
     ["typo", "implausible"].includes(String(analysis.priceSanity || ""));

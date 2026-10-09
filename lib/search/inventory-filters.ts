@@ -1,3 +1,19 @@
+import { NO_DAMAGE_VALUES } from "@/lib/intelligence/repair-risk";
+
+export function applyRepairEligibility(
+  query: any,
+  includeRepairable: string | null,
+) {
+  if (includeRepairable !== "0") return query;
+  // Apply before pagination and counts; filtering a downloaded page hides totals and loses matches.
+  const damage = NO_DAMAGE_VALUES.map(
+    (value) => `damage_type.ilike.${value === "" ? '""' : value}`,
+  ).join(",");
+  return query
+    .or("condition.is.null,condition.in.(clean_title,run_drive)")
+    .or(`damage_type.is.null,${damage}`);
+}
+
 export function dbSourceValues(sourceId: string) {
   const id = sourceId.toLowerCase();
   const mapped: Record<string, string[]> = {

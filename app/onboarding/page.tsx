@@ -19,6 +19,7 @@ import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
 import { toast } from "sonner";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
   BUYER_MODES,
@@ -128,6 +129,7 @@ export default function OnboardingPage() {
   const [titleType, setTitleType] = useState("all");
   const [timeline, setTimeline] = useState("now");
   const [repairCapability, setRepairCapability] = useState("none");
+  const [includeRepairable, setIncludeRepairable] = useState(false);
   const [targetProfit, setTargetProfit] = useState("3000");
   const [savedPrefs, setSavedPrefs] = useState<Record<string, any> | null>(
     null,
@@ -184,6 +186,7 @@ export default function OnboardingPage() {
         setTitleType(saved.titleType || "all");
         setTimeline(saved.timeline || "now");
         setRepairCapability(saved.repairCapability || "none");
+        setIncludeRepairable(includesRepairable(saved));
         setTargetProfit(
           saved.targetProfit ? String(saved.targetProfit) : "3000",
         );
@@ -208,6 +211,7 @@ export default function OnboardingPage() {
           : vehicle.toLowerCase().replace(" / ", " "),
       state: state === "Nationwide" || US_STATES.includes(state) ? state : "",
       titleType,
+      includeRepairable,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       targetProfit:
         buyerMode === "reseller" || buyerMode === "dealer"
@@ -216,7 +220,16 @@ export default function OnboardingPage() {
       laneValue: titleType === "salvage" ? "damaged" : "all",
       lane: titleType === "salvage" ? "Salvage & repairable" : "All deals",
     }),
-    [buyerMode, maxPrice, state, targetProfit, titleType, vehicle, vehicles],
+    [
+      buyerMode,
+      maxPrice,
+      state,
+      targetProfit,
+      titleType,
+      vehicle,
+      vehicles,
+      includeRepairable,
+    ],
   );
 
   const previewHref = useMemo(() => {
@@ -443,6 +456,25 @@ export default function OnboardingPage() {
               </ChoiceButton>
             ))}
           </div>
+          {buyerMode === "diy" && (
+            <p className="text-sm text-[var(--t3)]">
+              Repair capability describes who can do the work, not whether
+              damaged cars are included.
+            </p>
+          )}
+          <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-[var(--t1)]">
+            <input
+              type="checkbox"
+              checked={includeRepairable}
+              onChange={(event) => setIncludeRepairable(event.target.checked)}
+              className="h-5 w-5 accent-[var(--blue)]"
+            />
+            Include vehicles with reported damage or repair needs
+          </label>
+          <p className="text-sm text-[var(--t3)]">
+            A clean title does not mean undamaged. Unknown condition still needs
+            an inspection.
+          </p>
           {buyerMode === "diy" && (
             <label className="block text-sm font-bold text-[var(--t2)]">
               Repair capability

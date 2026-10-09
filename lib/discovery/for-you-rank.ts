@@ -19,6 +19,7 @@ export type BuyerScopePrefs = {
   titleType?: string | null;
   timeline?: string | null;
   repairCapability?: string | null;
+  includeRepairable?: boolean;
   maxPrice?: number | null;
 };
 

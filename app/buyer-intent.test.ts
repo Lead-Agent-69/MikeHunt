@@ -10,6 +10,23 @@ import {
 import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
 
 describe("buyer intent profile", () => {
+  it("preserves explicit repair inclusion independently of title and DIY capability", () => {
+    const intent = normalizeBuyerIntent({
+      buyerMode: "personal",
+      titleType: "clean",
+      includeRepairable: true,
+    });
+    expect(buildBuyerIntentQuery(intent).get("includeRepairable")).toBe("1");
+    expect(buildBuyerIntentQuery(intent).get("titleType")).toBe("clean");
+    expect(
+      buildBuyerIntentQuery(
+        normalizeBuyerIntent({ buyerMode: "personal" }),
+      ).get("includeRepairable"),
+    ).toBe("0");
+    expect(
+      normalizeBuyerIntent({ includeRepairable: false })?.includeRepairable,
+    ).toBe(false);
+  });
   it("retains multiple categories alongside make filters and an explicit nationwide override", () => {
     const intent = normalizeBuyerIntent({
       vehicles: ["SUVs", "Trucks"],

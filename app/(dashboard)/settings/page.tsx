@@ -15,6 +15,7 @@ import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { EnablePush } from "@/components/EnablePush";
 import { LocationPrefs } from "@/components/settings/LocationPrefs";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { includesRepairable } from "@/lib/intelligence/repair-risk";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -26,7 +27,23 @@ const fetcher = (url: string) =>
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function CarsViewPrefs() {
-  const { authed, isLoading } = usePreferences();
+  const { authed, isLoading, prefs, save } = usePreferences();
+  const [repairSaving, setRepairSaving] = useState(false);
+  const [repairStatus, setRepairStatus] = useState("");
+  async function saveRepairEligibility(enabled: boolean) {
+    setRepairSaving(true);
+    setRepairStatus("Saving...");
+    try {
+      await save({
+        buyerScope: { ...prefs.buyerScope, includeRepairable: enabled },
+      });
+      setRepairStatus("Saved");
+    } catch {
+      setRepairStatus("Could not save. Try again.");
+    } finally {
+      setRepairSaving(false);
+    }
+  }
   if (isLoading || !authed) return null;
   return (
     <div className="glass-panel p-6 animate-popIn">
@@ -39,6 +56,24 @@ function CarsViewPrefs() {
       </p>
       <div className="mt-5 border-t border-[var(--b1)] pt-5">
         <p className="text-sm font-black text-[var(--t1)]">Buying profile</p>
+        <label className="mt-3 flex min-h-11 items-center gap-3 text-sm text-[var(--t1)]">
+          <input
+            type="checkbox"
+            className="h-5 w-5 accent-[var(--blue)]"
+            checked={includesRepairable(prefs.buyerScope)}
+            disabled={repairSaving}
+            onChange={(event) =>
+              void saveRepairEligibility(event.target.checked)
+            }
+          />
+          Include vehicles with reported damage or repair needs
+        </label>
+        <p className="mt-1 text-xs text-[var(--t4)]">
+          Separate from title status. Unknown condition still needs inspection.
+        </p>
+        <p role="status" className="mt-1 min-h-5 text-xs text-[var(--t3)]">
+          {repairStatus}
+        </p>
         <p className="mt-1 text-[12px] text-[var(--t4)]">
           Change your buyer mode, vehicle types, budget, title tolerance, and
           timeline.

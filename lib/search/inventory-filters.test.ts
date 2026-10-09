@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   applyInventoryLane,
+  applyRepairEligibility,
   applyVehicleDetails,
   sellerTypeSourceValues,
   validateInventoryRanges,
@@ -20,6 +21,18 @@ function query() {
 }
 
 describe("inventory filter contract", () => {
+  it("applies repair exclusions before pagination without conflating clean title with no damage", () => {
+    const q = query();
+    expect(applyRepairEligibility(q, "0")).toBe(q);
+    expect(q.or.mock.calls[0][0]).toBe(
+      "condition.is.null,condition.in.(clean_title,run_drive)",
+    );
+    expect(q.or.mock.calls[1][0]).toContain("damage_type.is.null");
+    expect(q.or.mock.calls[1][0]).toContain("damage_type.ilike.unknown");
+    const enabled = query();
+    applyRepairEligibility(enabled, "1");
+    expect(enabled.or).not.toHaveBeenCalled();
+  });
   it("accepts custom ranges and rejects inverted, negative or malformed ranges", () => {
     expect(
       validateInventoryRanges(

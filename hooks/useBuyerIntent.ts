@@ -1,4 +1,5 @@
 "use client";
+import { includesRepairable } from "@/lib/intelligence/repair-risk";
 
 import { useCallback, useEffect, useState } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -22,6 +23,7 @@ export type BuyerIntent = {
   targetProfit?: number;
   timeline?: "now" | "month" | "research";
   repairCapability?: "none" | "basic" | "advanced";
+  includeRepairable?: boolean;
   preferredMakes?: string[];
   makes?: string[];
   watchedDealers?: string[];
@@ -217,6 +219,10 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
       raw.timeline === "research"
         ? raw.timeline
         : undefined,
+    includeRepairable:
+      typeof raw.includeRepairable === "boolean"
+        ? raw.includeRepairable
+        : undefined,
     repairCapability:
       raw.repairCapability === "none" ||
       raw.repairCapability === "basic" ||
@@ -229,6 +235,7 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
     watchedDealerSourceIds: compactStrings(raw.watchedDealerSourceIds),
   };
   const hasScope = Boolean(
+    typeof normalized.includeRepairable === "boolean" ||
     normalized.vehicle ||
     normalized.vehicles?.length ||
     normalized.vehicleType ||
@@ -293,6 +300,8 @@ export function buildBuyerIntentQuery(
 
   if (state) params.set("state", state);
   if (intent?.buyerMode) params.set("mode", intent.buyerMode);
+  if (intent)
+    params.set("includeRepairable", includesRepairable(intent) ? "1" : "0");
   if (intent?.minPrice) params.set("minPrice", String(intent.minPrice));
   if (intent?.maxPrice) params.set("maxPrice", String(intent.maxPrice));
   if (laneValue && laneValue !== "all") params.set("lane", laneValue);
@@ -331,6 +340,11 @@ export function buyerIntentLabel(
       : intent?.vehicle || "Any vehicle",
     intent?.lane || "All source lanes",
     state,
+    intent
+      ? includesRepairable(intent)
+        ? "Repairable vehicles included"
+        : "Reported repair needs excluded"
+      : "",
     intent?.titleType && intent.titleType !== "all"
       ? `${intent.titleType} title`
       : "",

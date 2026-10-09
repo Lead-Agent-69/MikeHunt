@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
@@ -276,6 +277,7 @@ export async function GET(req: NextRequest) {
     const q = cleanText(searchParams.get("q"));
     const state = (searchParams.get("state") || "").toUpperCase();
     const titleType = cleanText(searchParams.get("titleType"));
+    const excludeRepairable = searchParams.get("includeRepairable") === "0";
     const maxPrice = cleanNumber(searchParams.get("maxPrice"));
     const minPrice = cleanNumber(searchParams.get("minPrice"));
     const minYear = cleanNumber(searchParams.get("minYear"));
@@ -358,6 +360,14 @@ export async function GET(req: NextRequest) {
           source: candidate.id,
         }));
         const filtered = tagged.filter((row: any) => {
+          if (
+            excludeRepairable &&
+            hasReportedRepairRisk(
+              row.condition,
+              row.damage_type || row.damageType,
+            )
+          )
+            return false;
           if (state && state !== "ALL" && row.location_state !== state)
             return false;
           if (!matchesQuery(row, q)) return false;

@@ -165,7 +165,10 @@ export default function AlertsPage() {
           Loading alerts...
         </div>
       ) : !hasAnyWatchItem ? (
-        <div className="text-center py-16 glass-panel" data-testid="alerts-empty">
+        <div
+          className="text-center py-16 glass-panel"
+          data-testid="alerts-empty"
+        >
           <Ico
             name="alert-triangle"
             size={32}
@@ -546,9 +549,6 @@ function LocalWatchInbox({
             ),
           );
           const missing = item.dataQuality?.missing || [];
-          const trustSummary =
-            item.trustExplanation?.summary ||
-            item.trustExplanation?.reasons?.slice(0, 3).join(" · ");
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           return (
             <div
@@ -575,7 +575,7 @@ function LocalWatchInbox({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[var(--s1)] px-2 py-1 text-[10px] font-black uppercase text-[var(--t4)]">
-                        {item.source}
+                        {item.source.replace(/_/g, " ")}
                         {item.locationState ? ` · ${item.locationState}` : ""}
                       </span>
                       <span className="rounded-full bg-[var(--amber-lo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--amber-d)]">
@@ -591,25 +591,25 @@ function LocalWatchInbox({
                         ? ` · ${item.mileage.toLocaleString()} mi`
                         : ""}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[var(--t4)]">
-                      Data quality {item.dataQuality?.score ?? 0}/100
-                      {missing.length
-                        ? ` · missing ${missing
-                            .slice(0, 3)
-                            .map(qualityFieldLabel)
-                            .join(", ")}`
-                        : " · core details present"}
-                    </p>
-                    {trustSummary ? (
-                      <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
-                        Trust proof: {trustSummary}
-                        {typeof item.trustExplanation?.score === "number"
-                          ? ` (${Math.round(item.trustExplanation.score)}/100)`
-                          : ""}
-                        {nextTrustChecks.length
-                          ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
-                          : ""}
+                    {missing.length ? (
+                      <p className="mt-1 text-xs font-semibold text-[var(--t4)]">
+                        {`Still needed: ${missing
+                          .slice(0, 3)
+                          .map(qualityFieldLabel)
+                          .join(", ")}`}
                       </p>
+                    ) : null}
+                    {nextTrustChecks.length ? (
+                      <details className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
+                        <summary className="cursor-pointer">
+                          Still needs checking
+                        </summary>
+                        <ul className="list-disc pl-4">
+                          {nextTrustChecks.map((check) => (
+                            <li key={check}>{check}</li>
+                          ))}
+                        </ul>
+                      </details>
                     ) : null}
                   </div>
                 </div>

@@ -2463,6 +2463,14 @@ function ScanPageInner() {
   const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
   const { intent: savedBuyerIntent } = useBuyerIntent();
+  const repairEligibility =
+    urlParams.get("includeRepairable") ??
+    (savedBuyerIntent?.includeRepairable === true
+      ? "1"
+      : savedBuyerIntent?.buyerMode === "personal" ||
+          savedBuyerIntent?.includeRepairable === false
+        ? "0"
+        : "1");
   // Unknown mode is personal. Only reseller/dealer desks see flip tools and copy.
   const flipDesk = isFlipBuyerMode(savedBuyerIntent?.buyerMode);
   const reviewMode = urlParams.get("review");
@@ -3216,6 +3224,7 @@ function ScanPageInner() {
       }
       if (madeInUsa) params.set("madeInUsa", "1");
       if (buyNow) params.set("buyNow", "1");
+      params.set("includeRepairable", repairEligibility);
       if (unsupportedPreviewFilters(params).length) {
         setPlanMessage(previewFilterMessage);
         return;
@@ -3247,6 +3256,7 @@ function ScanPageInner() {
     }
   }, [
     smartPlan.scope,
+    repairEligibility,
     sourceFilter,
     sellerTypeFilter,
     minPrice,
@@ -3412,6 +3422,7 @@ function ScanPageInner() {
   // Build SWR key from filters
   const swrKey = useMemo(() => {
     const params = new URLSearchParams({ sort });
+    params.set("includeRepairable", repairEligibility);
     if (search) params.set("q", search);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
     if (sellerTypeFilter !== "all") params.set("sellerType", sellerTypeFilter);
@@ -3458,6 +3469,7 @@ function ScanPageInner() {
     return `/api/scan?${params.toString()}`;
   }, [
     search,
+    repairEligibility,
     sourceFilter,
     sellerTypeFilter,
     titleType,

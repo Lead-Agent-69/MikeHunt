@@ -707,9 +707,6 @@ function LocalSavedSection({
 
       <div className="grid grid-cols-1 gap-4">
         {items.map((item) => {
-          const trustSummary =
-            item.trustExplanation?.summary ||
-            item.trustExplanation?.reasons?.slice(0, 3).join(" · ");
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           const contactHref = item.sellerContactUrl || item.sourceUrl;
           return (
@@ -760,15 +757,16 @@ function LocalSavedSection({
                           .join(", ")}`}
                       </p>
                     ) : null}
-                    {trustSummary ? (
+                    {nextTrustChecks.length ? (
                       <details className="text-[11px] leading-relaxed text-[var(--t4)]">
                         <summary className="cursor-pointer">
-                          Listing notes
+                          Still needs checking
                         </summary>
-                        {trustSummary}
-                        {nextTrustChecks.length
-                          ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
-                          : ""}
+                        <ul className="list-disc pl-4">
+                          {nextTrustChecks.map((check) => (
+                            <li key={check}>{check}</li>
+                          ))}
+                        </ul>
                       </details>
                     ) : null}
                     {(item.seller ||

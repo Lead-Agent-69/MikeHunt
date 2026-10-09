@@ -4,6 +4,7 @@
 // app can present the most useful, browsable view. Pure functions, $0, no external APIs.
 
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
 export type Segment =
   | "truck"
@@ -124,13 +125,10 @@ export function dealLane(deal: {
 }): DealLane {
   const src = (deal.source || "").toLowerCase().trim();
   const cond = (deal.condition || "").toLowerCase();
-  const dmg = (deal.damage_type || "").toLowerCase();
   if (LANE_AUCTION.has(src) || isAuctionChannel(src)) return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
     return "salvage";
-  const damaged =
-    /rebuilt|repairable|hail|damage/.test(cond) ||
-    (dmg !== "" && dmg !== "none");
+  const damaged = hasReportedRepairRisk(deal.condition, deal.damage_type);
   if (damaged) return "repairable";
   if (LANE_RETAIL.has(src)) return "clean-retail";
   return "private";

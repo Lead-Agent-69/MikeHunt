@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
@@ -519,6 +520,7 @@ export async function GET(request: NextRequest) {
     const lane = normalizeQuery(searchParams.get("lane"));
     const sellerType = normalizeQuery(searchParams.get("sellerType"));
     const titleType = normalizeQuery(searchParams.get("titleType"));
+    const excludeRepairable = searchParams.get("includeRepairable") === "0";
     const dealerSourceIds = normalizeDealerSourceIds(
       searchParams.get("dealerSourceIds") ||
         searchParams.get("sourceId") ||
@@ -542,8 +544,13 @@ export async function GET(request: NextRequest) {
             makes,
           ),
       );
+      const eligiblePreview = previewDeals.deals.filter(
+        (row: any) =>
+          !excludeRepairable ||
+          !hasReportedRepairRisk(row.condition, row.damageType),
+      );
       return NextResponse.json({
-        rails: previewDeals.deals.length
+        rails: eligiblePreview.length
           ? [
               {
                 key: "public-preview",
@@ -551,15 +558,15 @@ export async function GET(request: NextRequest) {
                 subtitle:
                   "Real GovDeals and PublicSurplus rows while Supabase import is pending",
                 // Preview has no saved desk: always the redacted card.
-                deals: previewDeals.deals.map((d: any) =>
+                deals: eligiblePreview.map((d: any) =>
                   redactListingForNonFlipDesk(d),
                 ),
               },
             ]
           : [],
-        totalListings: previewDeals.deals.length,
-        uniqueVehicles: previewDeals.deals.length,
-        marketListings: previewDeals.deals.length,
+        totalListings: eligiblePreview.length,
+        uniqueVehicles: eligiblePreview.length,
+        marketListings: eligiblePreview.length,
         mergedDuplicates: 0,
         state: state || "nationwide",
         q: q || undefined,
@@ -585,7 +592,7 @@ export async function GET(request: NextRequest) {
     // per-request below from this cached, graded set (cheap), so it stays current.
     const DISCOVER_ROW_CAP = 10000;
     const { merged, rowCount, marketListingCount, coverage } = await cached(
-      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
+      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -611,6 +618,11 @@ export async function GET(request: NextRequest) {
         if (rpcErr) throw new Error(rpcErr.message);
         const marketRows: any[] = Array.isArray(rpcData) ? rpcData : [];
         const rows: any[] = marketRows.filter((row: any) => {
+          if (
+            excludeRepairable &&
+            hasReportedRepairRisk(row.condition, row.damage_type)
+          )
+            return false;
           if (
             dealLane(row) === "auction" &&
             !wantsAuctionInventory({
@@ -885,7 +897,10 @@ export async function GET(request: NextRequest) {
         }
         if (hasScope) {
           personalized = true;
-          const repair = scope.repairCapability;
+          const repair =
+            scope.includeRepairable === true
+              ? undefined
+              : scope.repairCapability;
           if (isFlipMode(scope.buyerMode)) {
             forYouSubtitle =
               "Matched to your states, budget, and profit target";

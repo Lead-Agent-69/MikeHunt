@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import { createClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -32,6 +33,7 @@ import {
   sourceUrlNeedles,
   applyVehicleDetails,
   applyInventoryLane,
+  applyRepairEligibility,
   validateInventoryRanges,
 } from "@/lib/search/inventory-filters";
 import {
@@ -794,6 +796,7 @@ function publicRowToVehicle(
 }
 
 async function publicPreviewFallback(args: {
+  includeRepairable?: string | null;
   lane: string;
   q: string;
   state: string;
@@ -928,7 +931,11 @@ async function publicPreviewFallback(args: {
             allowedSources: plan.sourceIds,
           }),
         );
-  const effectiveRows = unique.length > 0 ? unique : cachedRows;
+  const effectiveRows = (unique.length > 0 ? unique : cachedRows).filter(
+    (row) =>
+      args.includeRepairable !== "0" ||
+      !hasReportedRepairRisk(row.condition, row.damageType ?? row.damage_type),
+  );
   const start = args.page * args.pageSize;
   const pageRows = effectiveRows.slice(start, start + args.pageSize);
   // Same desk gate as the live path — preview rows include analyzeDeal profit/max-bid. Rebuild the
@@ -1055,6 +1062,7 @@ export async function GET(req: NextRequest) {
 
   if (!isSupabaseConfigured()) {
     const preview = await publicPreviewFallback({
+      includeRepairable: searchParams.get("includeRepairable"),
       lane,
       sellerType,
       q,
@@ -1196,6 +1204,7 @@ export async function GET(req: NextRequest) {
   }
 
   query = applyInventoryLane(query, lane);
+  query = applyRepairEligibility(query, searchParams.get("includeRepairable"));
 
   if (category && !source && !titleType) {
     const cleanCat = category.toLowerCase();

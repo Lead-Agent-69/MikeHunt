@@ -31,6 +31,7 @@ export interface Prefs {
     targetProfit?: number;
     timeline?: "now" | "month" | "research";
     repairCapability?: "none" | "basic" | "advanced";
+    includeRepairable?: boolean;
     preferredMakes?: string[];
     makes?: string[];
     watchedDealers?: string[];
