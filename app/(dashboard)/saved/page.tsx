@@ -155,14 +155,13 @@ export default function SavedCarsPage() {
 
     const dealId = saves?.find((item: any) => item.id === id)?.deal_id;
     try {
-      // Optimistic update
-      mutate(
-        saves?.filter((item: any) => item.id !== id),
-        false,
-      );
-
       const res = await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.success === true && result.id === id) {
+        await mutate(
+          (current) => current?.filter((item: any) => item.id !== id),
+          false,
+        );
         // Reco: the save was logged server-side; record the unsave (best-effort).
         signalUnsave(dealId);
         // Revalidate from server
@@ -174,6 +173,7 @@ export default function SavedCarsPage() {
       }
     } catch (e: any) {
       console.error(e);
+      toast.error("Saved vehicle removal was not confirmed. Please retry.");
       mutate(); // Revert on error
     }
   };
@@ -185,7 +185,8 @@ export default function SavedCarsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.id === id && result.status === newStatus) {
         // Revalidate from server
         mutate();
         return true;
@@ -204,7 +205,15 @@ export default function SavedCarsPage() {
 
   const handleSaveNewUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputUrl) return;
+    if (!inputUrl || adding) return;
+    try {
+      const parsed = new URL(inputUrl);
+      if (!["http:", "https:"].includes(parsed.protocol))
+        throw new Error("Invalid URL");
+    } catch {
+      toast.error("Enter a valid http or https listing URL.");
+      return;
+    }
 
     setAdding(true);
     try {
@@ -240,9 +249,16 @@ export default function SavedCarsPage() {
             ],
           },
         };
-        saveLocalVehicle(localVehicle);
+        if (!saveLocalVehicle(localVehicle)) {
+          toast.error(
+            "Device storage is unavailable. The vehicle was not saved.",
+          );
+          return;
+        }
         setInputUrl("");
-        toast.success("Saved locally. Sign in later to sync alerts.");
+        toast.success(
+          "Saved on this device only. Cloud save and alerts are not enabled for this bookmark.",
+        );
       } else {
         toast.error(
           userFacingErrorMessage(
@@ -273,9 +289,16 @@ export default function SavedCarsPage() {
           ],
         },
       };
-      saveLocalVehicle(localVehicle);
+      if (!saveLocalVehicle(localVehicle)) {
+        toast.error(
+          "Device storage is unavailable. The vehicle was not saved.",
+        );
+        return;
+      }
       setInputUrl("");
-      toast.success("Saved locally. Network sync can happen later.");
+      toast.success(
+        "Saved on this device only. Cloud save and alerts are not enabled for this bookmark.",
+      );
     } finally {
       setAdding(false);
     }

@@ -19,6 +19,8 @@ import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
 import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { toast } from "sonner";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { confirmOnboardingSave } from "@/lib/preferences/confirm-onboarding";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
   BUYER_MODES,
@@ -118,6 +120,8 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
   const [prefsHydrated, setPrefsHydrated] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const modeTouchedRef = useRef(false);
   const [vehicles, setVehicles] = useState<string[]>([]);
   const vehicle = vehicles.length ? vehicles.join(", ") : "All vehicle types";
@@ -137,11 +141,22 @@ export default function OnboardingPage() {
       new URLSearchParams(window.location.search).get("edit") === "1";
     Promise.all([fetch("/api/profile"), fetch("/api/preferences")])
       .then(async ([profileResponse, preferencesResponse]) => {
+        if (!profileResponse.ok || !preferencesResponse.ok)
+          throw new Error("Profile unavailable");
         const [profileData, preferencesData] = await Promise.all([
           profileResponse.json(),
           preferencesResponse.json(),
         ]);
         if (!active) return;
+        confirmOnboardingSave(
+          preferencesData,
+          "preferences",
+          {},
+          isSupabaseConfigured(),
+        );
+        if (isSupabaseConfigured() && profileData?.authed === false)
+          throw new Error("Session expired");
+        setLoadError(false);
         if (profileData?.profile?.onboarded && !editing) {
           router.replace("/discover");
           return;
@@ -175,12 +190,12 @@ export default function OnboardingPage() {
         setPrefsHydrated(true);
       })
       .catch(() => {
-        setPrefsHydrated(true);
+        if (active) setLoadError(true);
       });
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, loadAttempt]);
 
   const intent = useMemo<BuyerIntent>(
     () => ({
@@ -223,7 +238,17 @@ export default function OnboardingPage() {
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
 
   async function finish() {
-    if (!buyerMode || !vehicle || !scopeChosen) return;
+    if (saving || !prefsHydrated || !buyerMode || !vehicle || !scopeChosen)
+      return;
+    if (
+      (maxPrice &&
+        (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0)) ||
+      ((buyerMode === "dealer" || buyerMode === "reseller") &&
+        (!Number.isFinite(Number(targetProfit)) || Number(targetProfit) < 0))
+    ) {
+      toast.error("Enter a valid non-negative budget and target profit.");
+      return;
+    }
     setSaving(true);
     const preferences = {
       buyerScope: {
@@ -244,6 +269,12 @@ export default function OnboardingPage() {
         throw new Error(
           "We could not save your buying profile. Please try again.",
         );
+      confirmOnboardingSave(
+        await preferenceResult.json(),
+        "preferences",
+        preferences,
+        isSupabaseConfigured(),
+      );
       const profileResult = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -261,6 +292,12 @@ export default function OnboardingPage() {
       if (!profileResult.ok || !preferenceResult.ok) {
         throw new Error("We could not save your buying profile.");
       }
+      confirmOnboardingSave(
+        await profileResult.json(),
+        "profile",
+        { onboarded: true },
+        isSupabaseConfigured(),
+      );
       toast.success("Your buying profile is ready");
       writeLocalBuyerIntent(intent);
       router.push(previewHref);
@@ -517,8 +554,9 @@ export default function OnboardingPage() {
               Evidence before a recommendation
             </div>
             <p className="mt-1 text-xs leading-relaxed">
-              Every listing keeps its source, last verified time, and missing
-              evidence visible before you act.
+              Review the original source, available listing observations, and
+              missing evidence before you act. Observations are not an
+              inspection or a verified sale price.
             </p>
           </div>
         </div>
@@ -584,6 +622,27 @@ export default function OnboardingPage() {
           {current.description}
         </p>
         <div className="mt-7">{current.body}</div>
+        {loadError && (
+          <div role="alert" className="mt-4 text-sm text-[var(--red)]">
+            <p>
+              Your saved buying profile could not be loaded. Retry before saving
+              changes.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadError(false);
+                setLoadAttempt((value) => value + 1);
+              }}
+              className="mt-2 min-h-11 font-semibold"
+            >
+              Retry loading profile
+            </button>
+            <a href="/login" className="ml-4 font-semibold">
+              Sign in again
+            </a>
+          </div>
+        )}
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
           {step > 0 ? (
             <button
@@ -602,10 +661,18 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
-            disabled={saving || (step === 1 && !scopeChosen)}
+            disabled={saving || !prefsHydrated || (step === 1 && !scopeChosen)}
             className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
           >
-            {saving ? "Saving..." : isLast ? "See my matches" : "Continue"}
+            {saving
+              ? "Saving..."
+              : loadError
+                ? "Profile unavailable"
+                : !prefsHydrated
+                  ? "Loading profile..."
+                  : isLast
+                    ? "See my matches"
+                    : "Continue"}
             {!saving && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>

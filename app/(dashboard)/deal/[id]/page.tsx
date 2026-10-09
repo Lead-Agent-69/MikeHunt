@@ -546,6 +546,7 @@ export default function DealPage({
     !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
 
   const handleWatchPrice = async () => {
+    if (watching) return;
     const syncSavedCar = async () => {
       try {
         const savedRes = await fetch("/api/saved-cars", {
@@ -553,20 +554,18 @@ export default function DealPage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dealId: id }),
         });
-        if (savedRes.ok || savedRes.status === 409) return true;
+        const result = await savedRes.json();
+        if (
+          (savedRes.ok || savedRes.status === 409) &&
+          typeof result.id === "string" &&
+          !result.demo
+        )
+          return true;
         return false;
       } catch {
         return false;
       }
     };
-
-    if (isLocallyWatched) {
-      void syncSavedCar();
-      toast.success("Already watching this deal", {
-        action: { label: "View Saved", onClick: () => router.push("/saved") },
-      });
-      return;
-    }
 
     setWatching(true);
     try {
@@ -578,9 +577,15 @@ export default function DealPage({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
-          saveDealLocally();
+          if (!saveDealLocally()) {
+            toast.error(
+              "Device storage is unavailable. The vehicle was not saved.",
+            );
+            return;
+          }
           toast.success("Saved locally", {
-            description: "Sign in later to sync price alerts.",
+            description:
+              "Saved on this device only. Cloud alerts are not enabled.",
             action: {
               label: "View Saved",
               onClick: () => router.push("/saved"),
@@ -588,30 +593,47 @@ export default function DealPage({
           });
           return;
         }
-        if (res.status === 409) {
+        if (res.status === 409 && data.id && data.deal_id === id) {
+          const saved = await syncSavedCar();
           saveDealLocally();
-          void syncSavedCar();
-          toast.success("Already watching this deal", {
-            action: {
-              label: "View Saved",
-              onClick: () => router.push("/saved"),
+          toast.success(
+            saved
+              ? "Already in your account watchlist and Saved"
+              : "Already in your account watchlist; Saved sync is unavailable",
+            {
+              action: {
+                label: "View Saved",
+                onClick: () => router.push("/saved"),
+              },
             },
-          });
+          );
           return;
         }
         throw new Error(data.error || "Failed to add to watchlist");
       }
-      await syncSavedCar();
-      saveDealLocally();
-      toast.success("Watching this deal for price changes", {
+      const watch = await res.json();
+      if (!watch.id || watch.deal_id !== id || watch.user_id !== dealerId)
+        throw new Error("Watchlist save was not confirmed");
+      const saved = await syncSavedCar();
+      const local = saveDealLocally();
+      toast.success("Added to your account watchlist", {
+        description: !saved
+          ? "The Saved list sync is unavailable. Retry to sync it."
+          : !local
+            ? "Device backup is unavailable."
+            : "Saved to your account with a device backup.",
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
-    } catch (e: any) {
-      saveDealLocally();
+    } catch {
+      if (!saveDealLocally()) {
+        toast.error(
+          "Device storage is unavailable. The vehicle was not saved.",
+        );
+        return;
+      }
       toast.success("Saved locally", {
         description:
-          e?.message ||
-          "Server watchlist was not available, but this vehicle is saved.",
+          "Saved on this device only. Cloud alerts were not confirmed enabled.",
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
     } finally {
@@ -777,7 +799,7 @@ export default function DealPage({
       `${serverDeal?.year ?? store.year ?? ""} ${serverDeal?.make ?? store.make ?? ""} ${serverDeal?.model ?? store.model ?? ""}`.trim() ||
       "Saved vehicle";
 
-    localSaved.save({
+    return localSaved.save({
       id,
       title,
       year: serverDeal?.year ?? store.year,

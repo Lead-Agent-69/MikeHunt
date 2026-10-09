@@ -8,6 +8,19 @@
 - Automated callback and rendered-form tests cover these paths. Local browser verified the invalid-link screen and its recovery link; no actual account password was changed.
 - Still open before Phase 1 acceptance: hosted Auth minimum-password configuration, redirect allowlist and SMTP delivery; user-completed live recovery; signup/confirmation/OAuth/session restoration/logout for each buyer role; real cross-device free-workspace persistence and normal-user/admin-negative acceptance. Local checks do not certify these production gates.
 
+## Account and Saved Follow-Through, October 9, 2026
+
+- Onboarding no longer accepts guest-cookie fallback as an account save. It requires confirmed preferences and an identified completed profile before local completion/navigation. Failed hydration blocks editing completion and offers retry; partial save failures retain a retryable form. All five modes have rendered completion tests.
+- Account preference writes stop on authentication-service/read failures, retain unrelated free-workspace keys, select the persisted owner row, and return that row instead of merely echoing the requested merge. Existing read/merge/write concurrency is not atomic and remains an acceptance risk.
+- Profile read failures are no longer presented as successful empty profiles. Authentication-service failures do not silently become guest saves.
+- Saved removal now confirms an owned deleted row before removing the card. Status/note/tag writes are validated and require an owned result; missing and wrong-owner results do not report success.
+- Device storage writes report failure; Discovery labels its bookmark as device-only. Saved URL fallback validates http/https URLs and does not promise automatic cloud sync or active alerts. Scan distinguishes confirmed account saves from device backups and demo responses.
+- Deal-detail watching attempts actual account watchlist persistence even if a local bookmark already exists. Account watchlist reads/writes fail closed and duplicate results carry the entry identity. Saved-list sync and device backup failures are disclosed separately; adding a watchlist entry is not proof of delivered notifications.
+- Onboarding summaries no longer promise unsupported parts-demand intelligence or universally verified timestamps. Actual parts budgeting and available listing observations are named explicitly.
+- Local browser walked the existing Parts / teardown onboarding profile without submitting changes. Real credential/settings changes, account data deletion, alert delivery, multi-device persistence, and full-role production acceptance are not claimed.
+
+Next acceptance sequence: hosted Auth/email and role/session checks; Saved/account cross-device persistence and concurrent preferences; acquisition/planning/parts records; source and filter yield; intelligence provenance/freshness; real alert delivery; full responsive/accessibility and operational release checks. Do not merge solely on local tests.
+
 Updated October 4, 2026. Based on the conversation and code inspected, not a claim of production completion.
 
 ## Release Waves: October 7, 2026

@@ -5130,12 +5130,18 @@ function ScanPageInner() {
                         },
                       }),
                     });
-                    cloudSynced = res.ok;
-                    alreadyCloudSaved = res.status === 409;
+                    const result = await res.json();
+                    cloudSynced =
+                      res.ok &&
+                      result.success === true &&
+                      typeof result.id === "string" &&
+                      !result.demo;
+                    alreadyCloudSaved =
+                      res.status === 409 && typeof result.id === "string";
                   } catch {
                     cloudSynced = false;
                   }
-                  localSaved.save({
+                  const localConfirmed = localSaved.save({
                     id: car.id,
                     title:
                       `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() ||
@@ -5173,12 +5179,21 @@ function ScanPageInner() {
                         : car.lastSeenAt?.toISOString(),
                     savedAt: new Date().toISOString(),
                   });
+                  if (!cloudSynced && !alreadyCloudSaved && !localConfirmed) {
+                    addToast(
+                      "The vehicle was not saved. Device storage and cloud save are unavailable.",
+                      "error",
+                    );
+                    return;
+                  }
                   addToast(
                     cloudSynced
-                      ? "Watching with cloud alerts and a local backup."
+                      ? localConfirmed
+                        ? "Saved to your account with a device backup."
+                        : "Saved to your account. Device backup is unavailable."
                       : alreadyCloudSaved
-                        ? "Already watching in cloud; local backup refreshed."
-                        : "Watching locally. Sign in when Google OAuth is ready to sync alerts.",
+                        ? "Already saved to your account."
+                        : "Saved on this device only. Cloud alerts are not enabled.",
                     "success",
                   );
                 }}

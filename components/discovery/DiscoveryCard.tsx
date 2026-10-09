@@ -17,6 +17,7 @@ import {
 } from "@/hooks/useLocalSavedVehicles";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Clock3, Flame, Zap } from "lucide-react";
+import { toast } from "sonner";
 
 const TITLE_STYLES: Record<
   string,
@@ -202,16 +203,23 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (isSaved) localSaves.remove(deal.id);
-              else localSaves.save(toLocalSavedVehicle(deal));
+              const confirmed = isSaved
+                ? localSaves.remove(deal.id)
+                : localSaves.save(toLocalSavedVehicle(deal));
+              if (!confirmed)
+                toast.error(
+                  "Device storage is unavailable. This bookmark was not changed.",
+                );
             }}
             className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
             }}
-            title={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
-            aria-label={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
+            title={isSaved ? "Remove device bookmark" : "Save on this device"}
+            aria-label={
+              isSaved ? "Remove device bookmark" : "Save on this device"
+            }
           >
             <svg
               width="15"
