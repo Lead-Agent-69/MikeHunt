@@ -11,7 +11,10 @@ import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { qualityFieldLabel } from "@/lib/data-quality";
-import { evidenceConfidence } from "@/lib/valuation/evidence-confidence";
+import {
+  evidenceConfidence,
+  hasRecentSoldEvidence,
+} from "@/lib/valuation/evidence-confidence";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -180,24 +183,19 @@ export const DealCard = memo(function DealCard({
   const valuationBasisLabel =
     valuationLabels[valuationSource] || "Model estimate";
   const valuationConfidence =
-    valuation?.confidence ||
-    valuation?.compConfidence ||
-    (valuationSource === "comparables"
-      ? "medium"
-      : valuationSource === "third_party" ||
-          valuationSource === "historical_estimate"
-        ? "low"
-        : "none");
-  const resaleBasisLabel = copy.basisLabel(
-    Boolean(soldAnchored),
-    resaleBasis > 0,
-  );
+    valuation?.confidence || valuation?.compConfidence || "none";
+  const recentSoldEvidence = hasRecentSoldEvidence({
+    soldCount: valuation?.soldCount,
+    soldAnchored: soldAnchored === true,
+    soldAt: valuation?.soldAt,
+  });
+  const resaleBasisLabel = copy.basisLabel(recentSoldEvidence, resaleBasis > 0);
   const resaleBasisTitle = copy.basisTitle(valuationSource);
   const valuationCompCount = Number(valuation?.compCount || 0);
   const valuationSoldCount = Number(valuation?.soldCount || 0);
   const valuationSampleCount = Number(valuation?.sampleCount || 0);
   const soldOn =
-    valuationSoldCount >= 3 && valuation?.soldAt
+    recentSoldEvidence && valuation?.soldAt
       ? new Date(valuation.soldAt).toLocaleDateString("en-US", {
           timeZone: "America/Chicago",
           month: "short",
@@ -205,12 +203,15 @@ export const DealCard = memo(function DealCard({
           year: "numeric",
         })
       : null;
-  const soldLine =
-    valuationSoldCount >= 3
-      ? `${valuationSoldCount} ${
-          valuation?.soldLane === "salvage" ? "salvage" : "clean"
-        } sold${soldOn ? ` · ${soldOn}` : ""}`
-      : null;
+  const soldLine = recentSoldEvidence
+    ? `${valuationSoldCount} ${
+        valuation?.soldLane === "salvage"
+          ? "salvage"
+          : valuation?.soldLane === "clean"
+            ? "clean"
+            : "title unspecified"
+      } sold${soldOn ? ` · ${soldOn}` : ""}`
+    : null;
   const valuationProof = [
     valuationCompCount > 0
       ? `${valuationCompCount} comparable${valuationCompCount === 1 ? "" : "s"}`
@@ -240,7 +241,7 @@ export const DealCard = memo(function DealCard({
     confidence: valuationConfidence,
     compCount: valuationCompCount,
     soldCount: valuationSoldCount,
-    soldAnchored: Boolean(soldAnchored),
+    soldAnchored: soldAnchored === true,
     soldAt: valuation?.soldAt,
   });
   const sourceProofScore = sourceHealth
@@ -510,7 +511,7 @@ export const DealCard = memo(function DealCard({
         </div>
         <p className="text-xs leading-relaxed text-[var(--t3)]">
           {freshnessText}
-          {!soldAnchored ? " · Sold comparisons not verified" : ""}
+          {!recentSoldEvidence ? " · Sold comparisons not verified" : ""}
         </p>
 
         {/* Trim + body type + recall badge — NHTSA-decoded, when known */}

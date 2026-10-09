@@ -59,7 +59,8 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("$15,900");
     expect(html).toContain("$3,000 under market est.");
     expect(html).toContain("$15,000");
-    expect(html).toContain("Possible buy");
+    expect(html).toContain("Needs check");
+    expect(html).not.toContain("Possible buy");
   });
 
   it("never renders $NaN when the server redacted profit for this desk", () => {
@@ -86,7 +87,8 @@ describe("DealCard flip economics by buyer desk", () => {
     );
     expect(html).not.toContain("Pass for now");
     expect(html).not.toContain("Engine verdict");
-    expect(html).toContain("Possible buy");
+    expect(html).toContain("Needs check");
+    expect(html).not.toContain("Possible buy");
   });
 
   it("does not show placeholder flip economics on unanalyzed live-preview rows", () => {
@@ -102,6 +104,27 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("Net Profit Est.");
     expect(html).not.toContain("+$0");
     expect(html).not.toMatch(/spread/i);
+  });
+
+  it("does not label stale sold anchors as comp-backed value or high confidence", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: false,
+        soldAnchored: true,
+        valuation: {
+          source: "comparables",
+          confidence: "high",
+          compCount: 5,
+          soldCount: 3,
+          soldLane: "clean",
+          soldAt: new Date(Date.now() - 181 * 86400000).toISOString(),
+        },
+      }),
+    );
+    expect(html).not.toContain("Comp-backed value");
+    expect(html).not.toContain("High confidence");
+    expect(html).toContain("Sold comparisons not verified");
   });
 });
 
