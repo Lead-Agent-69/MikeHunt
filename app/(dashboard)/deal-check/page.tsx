@@ -112,7 +112,7 @@ export default function DealCheckPage() {
           userFacingErrorMessage(
             payload.text &&
               /read the document|clearer photo/i.test(String(json.error || ""))
-              ? "We couldn't identify a vehicle in this text. Include its year, make, model, price, and any known condition details."
+              ? "We couldn't read the offer amounts in this text. Include the selling price, itemized fees, taxes and quoted total, or enter the amounts directly."
               : json.error,
             "We couldn't analyze this listing. Please try again.",
           ),
@@ -263,7 +263,7 @@ export default function DealCheckPage() {
         <div className="rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-1">
           <form onSubmit={handleTextSubmit} className="flex flex-col relative">
             <textarea
-              aria-label="Listing link or vehicle details"
+              aria-label="Offer text or listing URL"
               value={textInput}
               onChange={(e) => {
                 beginRequest();

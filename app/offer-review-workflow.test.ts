@@ -62,4 +62,31 @@ describe("offer-review task", () => {
     expect(host.querySelector('[role="alert"]')).not.toBeNull();
     expect(host.querySelector<HTMLInputElement>("input")?.value).toBe("18000");
   });
+  it("gives offer-specific recovery when document reading fails", async () => {
+    request.mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: "Couldn't read the document. Try a clearer photo.",
+      }),
+    });
+    await act(async () =>
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Read offer"))!
+        .click(),
+    );
+    await act(async () => {
+      const input = host.querySelector("textarea")!;
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )!.set!.call(input, "Dealer quote");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await submit();
+    expect(host.textContent).toContain(
+      "selling price, itemized fees, taxes and quoted total",
+    );
+    expect(host.textContent).not.toContain("year, make, model");
+    expect(host.querySelector("textarea")?.value).toBe("Dealer quote");
+  });
 });

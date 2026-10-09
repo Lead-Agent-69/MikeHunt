@@ -13,6 +13,7 @@ import {
   BadgeDollarSign,
   FileText,
   Gauge,
+  RotateCcw,
   Search,
   ShieldCheck,
   TrendingUp,
@@ -78,6 +79,12 @@ import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
+import {
+  detailValuationConfidence,
+  listingChecklistFields,
+  sourceReadinessFallback,
+} from "@/lib/deals/detail-readiness";
 
 type SourceHealthItem = {
   id: string;
@@ -674,7 +681,7 @@ export default function DealPage({
       .filter(Boolean)
       .join(" ");
     if (!id || !title) return;
-    const ask = serverDeal?.ask_price;
+    const ask = serverDeal?.askPrice ?? serverDeal?.ask_price;
     recordRecent({
       id,
       kind: "car",
@@ -712,7 +719,12 @@ export default function DealPage({
     }
     return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
   }, [serverDeal]);
-  const { data: sourceHealthData } = useSWR(sourceHealthKey, fetcher, {
+  const {
+    data: sourceHealthData,
+    error: sourceHealthError,
+    isLoading: sourceHealthLoading,
+    mutate: retrySourceHealth,
+  } = useSWR(sourceHealthKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });
@@ -721,6 +733,11 @@ export default function DealPage({
     const healthId = sourceHealthIdForDeal(serverDeal, sources);
     return sources.find((source) => source.id === healthId);
   }, [serverDeal, sourceHealthData?.sources]);
+  const sourceFallback = sourceReadinessFallback(
+    Boolean(sourceHealthLoading),
+    Boolean(sourceHealthError),
+  );
+  const detailCopy = dealCardCopy(store.userType === "dealer");
   const proofLinks = React.useMemo(() => {
     if (!serverDeal) return { scan: "/scan", sources: "/scan" };
     const params = new URLSearchParams();
@@ -743,13 +760,13 @@ export default function DealPage({
       params.set("lane", "auction");
     }
     if (sourceHealth?.id) params.set("source", sourceHealth.id);
-    params.set("sort", "profit");
+    params.set("sort", store.userType === "dealer" ? "profit" : "score");
     const query = params.toString();
     return {
       scan: `/scan${query ? `?${query}` : ""}`,
       sources: `/scan${query ? `?${query}` : ""}`,
     };
-  }, [serverDeal, sourceHealth?.id]);
+  }, [serverDeal, sourceHealth?.id, store.userType]);
   const detailQuality = React.useMemo(() => {
     if (!serverDeal) return null;
     return gradeDataQuality({
@@ -780,16 +797,13 @@ export default function DealPage({
     serverDeal?.sellEstimate || serverDeal?.mmrValue || 0,
   );
   const detailCosts = serverDeal?.dealAnalysis?.costs;
-  const detailMathConfidence =
-    (detailQuality?.score || 0) >= 78 && resaleBasis > 0
-      ? "High"
-      : (detailQuality?.score || 0) >= 58 || resaleBasis > 0
-        ? "Medium"
-        : "Low";
+  const detailMathConfidence = detailValuationConfidence(
+    serverDeal?.dealAnalysis?.valuation,
+  );
   const detailMathGaps = [
     !resaleBasis ? "market value" : null,
-    !detailCosts?.repair ? "repair estimate" : null,
-    !detailCosts?.transport ? "transport" : null,
+    detailCosts?.repair == null ? "repair estimate" : null,
+    detailCosts?.transport == null ? "transport" : null,
     ...(detailQuality?.missing.slice(0, 2).map(fieldLabel) || []),
   ].filter(Boolean);
 
@@ -1064,9 +1078,9 @@ export default function DealPage({
         ))}
 
       {serverDeal && detailQuality && (
-        <Card
-          className="border-none overflow-hidden"
-          style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
+        <section
+          aria-label="Decision readiness"
+          className="border-y border-[var(--b1)] py-4"
         >
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -1075,7 +1089,8 @@ export default function DealPage({
                   Decision readiness
                 </CardTitle>
                 <p className="mt-1 text-xs text-[var(--t4)]">
-                  Listing proof, source health, and buyer math before you bid.
+                  Reported listing details, source freshness and estimated
+                  costs.
                 </p>
               </div>
               <Badge
@@ -1095,7 +1110,7 @@ export default function DealPage({
                         : "var(--red)",
                 }}
               >
-                {detailMathConfidence} confidence
+                {detailMathConfidence} valuation confidence
               </Badge>
             </div>
           </CardHeader>
@@ -1112,16 +1127,6 @@ export default function DealPage({
               <p className="mt-1 text-xs font-bold text-[var(--t3)]">
                 {detailQuality.label} field coverage
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-1.5">
-                {detailQuality.present.slice(0, 6).map((field) => (
-                  <span
-                    key={field}
-                    className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--glo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--green)]"
-                  >
-                    {field === "damage" ? "damage reported" : fieldLabel(field)}
-                  </span>
-                ))}
-              </div>
               {detailQuality.missing.length > 0 && (
                 <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
                   Missing{" "}
@@ -1132,18 +1137,8 @@ export default function DealPage({
                 </p>
               )}
               <div className="mt-3 grid grid-cols-2 gap-1.5">
-                {[
-                  "photo",
-                  "vin",
-                  "title",
-                  "mileage",
-                  "damage",
-                  "sellerContact",
-                  "auction",
-                  "price",
-                  "source",
-                ].map((field) => {
-                  const present = detailQuality.present.includes(field as any);
+                {listingChecklistFields(detailQuality).map((field) => {
+                  const present = detailQuality.present.includes(field);
                   return (
                     <span
                       key={field}
@@ -1156,13 +1151,13 @@ export default function DealPage({
                     >
                       <span>
                         {field === "damage"
-                          ? "damage reported"
-                          : fieldLabel(field as any)}
+                          ? "Condition / damage"
+                          : fieldLabel(field)}
                       </span>
                       <span>
                         {present
                           ? field === "damage"
-                            ? "reported"
+                            ? "condition reported"
                             : "provided"
                           : "check"}
                       </span>
@@ -1196,7 +1191,7 @@ export default function DealPage({
                 >
                   {sourceHealth?.userStatus ||
                     sourceHealth?.readiness?.replace(/_/g, " ") ||
-                    "pending"}
+                    sourceFallback.label}
                 </span>
               </div>
               <p className="mt-1 text-xs text-[var(--t3)]">
@@ -1204,19 +1199,29 @@ export default function DealPage({
                   ? `Source inventory: ${Number(sourceHealth.activeRows || 0).toLocaleString()} active rows · ${Number(
                       sourceHealth.rowsWithPhotos || 0,
                     ).toLocaleString()} rows with photos`
-                  : "Source status is loading for this listing."}
+                  : sourceFallback.summary}
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
                 {sourceHealth
-                  ? `Source last checked: ${
+                  ? `Latest source listing: ${
                       typeof sourceHealth.freshnessHours === "number"
                         ? sourceHealth.freshnessHours < 24
                           ? `${sourceHealth.freshnessHours}h ago`
                           : `${Math.round(sourceHealth.freshnessHours / 24)}d ago`
                         : relativeFreshness(sourceHealth.lastSeenAt)
                     } · ${Number(sourceHealth.photoCoveragePct || 0)}% of source rows include photos.`
-                  : "The page will show source inventory and last-checked time once returned."}
+                  : sourceFallback.detail}
               </p>
+              {sourceHealthError && (
+                <button
+                  type="button"
+                  onClick={() => void retrySourceHealth()}
+                  className="mt-2 inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-[var(--blue)]"
+                >
+                  <RotateCcw size={16} />
+                  Retry source check
+                </button>
+              )}
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t5)]">
                 {sourceHealth?.nextAction ||
                   (serverDeal.sourceUrl
@@ -1228,14 +1233,16 @@ export default function DealPage({
                   href={proofLinks.scan}
                   className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
                 >
-                  Matching Scan
+                  Related listings
                 </Link>
-                <Link
-                  href={proofLinks.sources}
-                  className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
-                >
-                  Source proof
-                </Link>
+                {proofLinks.sources !== proofLinks.scan && (
+                  <Link
+                    href={proofLinks.sources}
+                    className="rounded-[var(--r1)] border border-[var(--b2)] bg-[var(--s0)] px-2.5 py-1.5 text-[11px] font-black text-[var(--t2)] hover:text-[var(--t1)]"
+                  >
+                    Source proof
+                  </Link>
+                )}
                 {serverDeal.sourceUrl && (
                   <a
                     href={serverDeal.sourceUrl}
@@ -1267,7 +1274,9 @@ export default function DealPage({
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {formatMoney(Number(serverDeal.askPrice || 0))}
                 </Mono>
-                <span className="text-[var(--t4)]">Resale</span>
+                <span className="text-[var(--t4)]">
+                  {detailCopy.basisRowLabel}
+                </span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Needs verified comparisons"
@@ -1279,7 +1288,7 @@ export default function DealPage({
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Inspection and quote needed"
-                    : detailCosts?.repair
+                    : detailCosts?.repair != null
                       ? formatMoney(detailCosts.repair)
                       : "Needed"}
                 </Mono>
@@ -1287,19 +1296,19 @@ export default function DealPage({
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {serverDeal.decisionEvidence?.acquisitionReady !== true
                     ? "Quote needed"
-                    : detailCosts?.transport
+                    : detailCosts?.transport != null
                       ? formatMoney(detailCosts.transport)
                       : "Needed"}
                 </Mono>
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
                 {detailMathGaps.length
-                  ? `Tighten before bidding: ${detailMathGaps.slice(0, 4).join(", ")}.`
+                  ? `${detailCopy.checksPrefix} ${detailMathGaps.slice(0, 4).join(", ")}.`
                   : "Review all costs and evidence before making an offer."}
               </p>
             </div>
           </CardContent>
-        </Card>
+        </section>
       )}
 
       {/* ENGINE DECISION — flip desk only. Personal, DIY, and parts buyers do not get net profit,

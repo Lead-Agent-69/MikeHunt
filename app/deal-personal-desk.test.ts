@@ -115,12 +115,27 @@ describe("deal page personal desk", () => {
     );
     expect(page).toContain("Listing completeness");
     expect(page).toContain("field coverage");
-    expect(page).toContain("damage reported");
+    expect(page).toContain("Condition / damage");
     expect(page).toContain(
       "This counts source-provided fields, not inspection findings.",
     );
     expect(page).toContain("Source inventory:");
-    expect(page).toContain("Source last checked:");
+    expect(page).toContain("Latest source listing:");
     expect(page).toContain("of source rows include photos.");
+  });
+  it("uses supported valuation evidence and buyer-appropriate wording in the readiness panel", () => {
+    const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+    expect(page).toContain("detailValuationConfidence(");
+    expect(page).toContain("valuation confidence");
+    expect(page).not.toContain(
+      "Listing proof, source health, and buyer math before you bid.",
+    );
+    expect(page).not.toContain("(detailQuality?.score || 0) >= 78");
+    expect(page).toContain("detailCopy.basisRowLabel");
+    expect(page).toContain("detailCopy.checksPrefix");
+    expect(page).toContain('store.userType === "dealer" ? "profit" : "score"');
+    expect(page).toContain("Retry source check");
+    expect(page).not.toContain("Source status is loading for this listing.");
+    expect(page).toContain("listingChecklistFields(detailQuality)");
   });
 });
