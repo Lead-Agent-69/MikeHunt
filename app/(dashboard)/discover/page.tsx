@@ -12,12 +12,14 @@ import {
   buyerIntentLabel,
   discoverQueryForBuyingFor,
   normalizeBuyerIntent,
+  resolveBuyerIntentScope,
   readLocalBuyerIntent,
   useBuyerIntent,
   writeLocalBuyerIntent,
   type BuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { hiddenRailKeysForMode } from "@/lib/discovery/desk-rails";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
@@ -190,7 +192,7 @@ function RailSkeleton() {
 
 export default function DiscoverPage() {
   const searchParams = useSearchParams();
-  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const { prefs, authed, isLoading: prefsLoading } = usePreferences();
   const { intent: localIntent } = useBuyerIntent();
   const urlScope = React.useMemo(() => {
     const q = (searchParams.get("q") || "").toLowerCase().trim();
@@ -200,6 +202,7 @@ export default function DiscoverPage() {
     const titleType = searchParams.get("titleType") || undefined;
     const sellerType = searchParams.get("sellerType") || undefined;
     const buyerMode = searchParams.get("mode") || undefined;
+    const repairParam = searchParams.get("includeRepairable");
     const makesParam = (searchParams.get("makes") || "")
       .split(",")
       .map((item) => item.trim())
@@ -213,11 +216,16 @@ export default function DiscoverPage() {
       titleType ||
       sellerType ||
       buyerMode ||
+      repairParam === "0" ||
+      repairParam === "1" ||
       makesParam.length,
     );
     if (!hasScope) return null;
-    const savedBuyerScope =
-      localIntent || normalizeBuyerIntent(prefs.buyerScope);
+    const savedBuyerScope = resolveBuyerIntentScope(
+      authed,
+      prefs.buyerScope,
+      localIntent,
+    );
     const maxPrice = Number(maxPriceParam || 0);
     return normalizeBuyerIntent({
       ...savedBuyerScope,
@@ -238,6 +246,9 @@ export default function DiscoverPage() {
       ...(searchParams.has("titleType") ? { titleType } : {}),
       ...(searchParams.has("sellerType") ? { sellerType } : {}),
       ...(searchParams.has("mode") ? { buyerMode } : {}),
+      ...(repairParam === "0" || repairParam === "1"
+        ? { includeRepairable: repairParam === "1" }
+        : {}),
       ...(searchParams.has("maxPrice")
         ? {
             maxPrice:
@@ -248,7 +259,7 @@ export default function DiscoverPage() {
         ? { makes: makesParam, preferredMakes: makesParam }
         : {}),
     });
-  }, [searchParams, prefs.buyerScope, localIntent]);
+  }, [searchParams, prefs.buyerScope, localIntent, authed]);
   const router = useRouter();
   const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
@@ -261,8 +272,11 @@ export default function DiscoverPage() {
     const syncScope = () =>
       setBuyerScope(
         urlScope ||
-          readLocalBuyerIntent() ||
-          normalizeBuyerIntent(prefs.buyerScope) ||
+          resolveBuyerIntentScope(
+            authed,
+            prefs.buyerScope,
+            localIntent || readLocalBuyerIntent(),
+          ) ||
           null,
       );
     syncScope();
@@ -272,7 +286,7 @@ export default function DiscoverPage() {
       window.removeEventListener("mh-buyer-scope-change", syncScope);
       window.removeEventListener("storage", syncScope);
     };
-  }, [urlScope, prefs.buyerScope]);
+  }, [urlScope, prefs.buyerScope, localIntent, authed]);
 
   const chosenState = searchParams.get("state");
   const savedStates = savedScopeStates(prefs);
@@ -355,7 +369,7 @@ export default function DiscoverPage() {
   const budgetText = buyerScope?.maxPrice
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
-  const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or repairable titles are excluded. " : ""}Review your filters or try another market.`;
+  const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or branded titles are excluded. " : ""}${!includesRepairable(buyerScope) ? "Vehicles with reported damage or repair needs are also excluded. " : ""}Review your buying preferences or try another market.`;
   const marketContext =
     data?.marketListings && data.marketListings > data.totalListings
       ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
@@ -652,10 +666,10 @@ export default function DiscoverPage() {
               Widen state
             </button>
             <a
-              href="/onboarding"
+              href="/settings"
               className="inline-flex min-h-12 items-center rounded-lg border border-[var(--b2)] px-4 text-sm font-bold text-[var(--t1)]"
             >
-              Raise budget
+              Review buying preferences
             </a>
           </div>
         </div>

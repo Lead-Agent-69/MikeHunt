@@ -422,6 +422,16 @@ export function scanHrefForBuyerIntent(intent: BuyerIntent | null) {
   return `/scan?${params.toString()}`;
 }
 
+export function resolveBuyerIntentScope(
+  authed: boolean,
+  saved: unknown,
+  local: BuyerIntent | null,
+) {
+  return authed
+    ? normalizeBuyerIntent(saved)
+    : local || normalizeBuyerIntent(saved);
+}
+
 export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
   const { prefs, authed, isLoading } = usePreferences();
   const [intent, setIntent] = useState<BuyerIntent | null>(
