@@ -398,7 +398,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <CoverageNotice coverage={data?.coverage} />
+      <CoverageNotice coverage={data?.coverage} onRetry={() => void mutate()} />
 
       <section className="border-y border-[var(--b1)] py-3">
         <form

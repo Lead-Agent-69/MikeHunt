@@ -2,7 +2,10 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const scopeState = vi.hoisted(() => ({ query: "state=TX" }));
+const scopeState = vi.hoisted(() => ({
+  query: "state=TX",
+  displayedStates: undefined as string[] | undefined,
+}));
 vi.mock("@/hooks/useInventoryViewScope", () => ({
   useInventoryViewScope: () => ({ query: scopeState.query, ready: true }),
 }));
@@ -10,12 +13,14 @@ vi.mock("@/hooks/usePreferences", () => ({
   usePreferences: () => ({ prefs: {}, isLoading: false }),
 }));
 vi.mock("@/components/shared/MyStatesButton", () => ({
-  MyStatesButton: ({ onChange }: any) =>
-    React.createElement(
+  MyStatesButton: ({ onChange, statesOverride }: any) => {
+    scopeState.displayedStates = statesOverride;
+    return React.createElement(
       "button",
       { onClick: () => onChange(["CA"]) },
       "Choose California",
-    ),
+    );
+  },
 }));
 vi.mock("@/components/ui/editorial-card", () => ({
   EditorialCard: () => null,
@@ -46,12 +51,15 @@ describe("Feed scope request isolation", () => {
     vi.stubGlobal("fetch", fetchMock);
     root = createRoot(document.createElement("div"));
     await act(async () => root.render(React.createElement(FeedPage)));
+    expect(scopeState.displayedStates).toEqual(["TX"]);
     scopeState.query = "scope=explicit&state=CA";
     await act(async () => root.render(React.createElement(FeedPage)));
     expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=CA");
+    expect(scopeState.displayedStates).toEqual(["CA"]);
     scopeState.query = "scope=explicit";
     await act(async () => root.render(React.createElement(FeedPage)));
     expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=&");
+    expect(scopeState.displayedStates).toEqual([]);
   });
   it("ignores an older state's response after the user selects a new market", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

@@ -70,6 +70,7 @@ import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import { SearchSourceNotice } from "@/components/search/SearchSourceNotice";
 import {
   INVENTORY_DETAIL_FIELDS,
   readInventoryDetails,
@@ -1043,13 +1044,18 @@ function EmptyState({
   sourceHealth?: SourceHealthItem[];
   broadHref?: string;
 }) {
-  const checkedSources = sourceHealth.filter((item) =>
-    ["ready", "no_rows", "needs_run"].includes(item.readiness),
+  const checkedSources = sourceHealth.filter(
+    (item) => item.readiness === "ready",
   );
   const blockedSources = sourceHealth.filter((item) =>
-    ["needs_login", "blocked", "disabled", "not_configured"].includes(
-      item.readiness,
-    ),
+    [
+      "needs_login",
+      "blocked",
+      "disabled",
+      "not_configured",
+      "needs_run",
+      "no_rows",
+    ].includes(item.readiness),
   );
   const scopedRows = sourceHealth.reduce(
     (sum, item) => sum + (Number(item.activeRows) || 0),
@@ -1102,7 +1108,7 @@ function EmptyState({
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
-          ? "Nothing in saved inventory matches these filters. Try another location, a higher budget, or a broader vehicle search."
+          ? "No results were returned from indexed inventory. Source coverage may be partial; try another location, budget, or broader vehicle search."
           : "Adjust your filters, widen search locations in Settings, or wait for background coverage to fill this scope."}
       </p>
 
@@ -1112,19 +1118,19 @@ function EmptyState({
             <div className="font-black text-[var(--t1)]">
               {checkedSources.length}
             </div>
-            <div className="text-[var(--t5)]">listing sites searched</div>
+            <div className="text-[var(--t5)]">sources reporting ready</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
               {scopedRows.toLocaleString()}
             </div>
-            <div className="text-[var(--t5)]">matching vehicles</div>
+            <div className="text-[var(--t5)]">indexed rows in broad scope</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
               {blockedSources.length}
             </div>
-            <div className="text-[var(--t5)]">sites could not be checked</div>
+            <div className="text-[var(--t5)]">sources with coverage gaps</div>
           </div>
         </div>
       )}
@@ -3550,14 +3556,15 @@ function ScanPageInner() {
     dealerHostsFilter,
     dealerSourceIdsFilter,
   ]);
-  const { data: scrapeHealth, mutate: mutateScrapeHealth } = useSWR(
-    scrapeHealthKey,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 60000,
-    },
-  );
+  const {
+    data: scrapeHealth,
+    error: scrapeHealthError,
+    isLoading: scrapeHealthLoading,
+    mutate: mutateScrapeHealth,
+  } = useSWR(scrapeHealthKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
   const sourceHealthById = useMemo(() => {
     return new Map(
       ((scrapeHealth?.sources || []) as SourceHealthItem[]).map((source) => [
@@ -4491,6 +4498,17 @@ function ScanPageInner() {
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
       <InventoryViewLinks query={swrKey.split("?")[1] || ""} current="/scan" />
+      <SearchSourceNotice
+        sources={
+          Array.isArray(scrapeHealth?.sources)
+            ? scrapeHealth.sources
+            : undefined
+        }
+        error={!!scrapeHealthError}
+        loading={scrapeHealthLoading}
+        configured={scrapeHealth?.configured}
+        onRetry={() => void mutateScrapeHealth()}
+      />
       <div className="glass-panel px-4 py-3 space-y-3">
         {appliedFilters.length > 0 && (
           <div
@@ -5022,7 +5040,7 @@ function ScanPageInner() {
           sourceHealth={scrapeHealth?.sources || []}
           broadHref={`/scan?${new URLSearchParams({
             ...(lane && lane !== "all" ? { lane } : {}),
-            sort: "profit",
+            sort: defaultScanSort(savedBuyerIntent?.buyerMode),
           }).toString()}`}
         />
       )}

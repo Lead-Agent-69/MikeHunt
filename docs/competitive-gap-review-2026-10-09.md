@@ -36,6 +36,20 @@ fetched headline pick and duplicate carousel. Request changes abort old loads; f
 loading, empty and retry states are explicit. This is recommendation UI correctness,
 not proof of ranking quality, sold-comparable coverage or production freshness.
 
+Today now redirects into Discover with URL criteria preserved. Today and Flash no longer
+take separate tool-catalog entries. The price-opportunity collection remains contextual
+to Discover, preserves its state when opened, uses a validated shared fetch contract,
+and exposes failed/unconfigured loads rather than silently hiding them. Discovery-window
+countdowns are removed from its UI; a recently observed listing is not necessarily new
+to the market. Search shows all four shared-scope views with an active state.
+
+Discover now displays unavailable coverage with retry, rather than hiding that status.
+Search exposes failed, unknown, pending and partial source coverage. Source-health counts
+are explicitly broad-scope indexed rows, not exact full-filter matches or proof that sites
+were freshly searched. These are honesty and workflow improvements; actual source yields,
+scraper recovery, authorized Copart/eBay coverage and recommendation freshness still need
+operational validation. No database migrations or scraper deployment were performed here.
+
 1. **Inventory reliability before more surfaces.** Prove each source yields current inventory,
    record last successful extraction and differentiate unavailable from no matches.
    Recent healthy scraper-container logs still contained several zero-yield sources.

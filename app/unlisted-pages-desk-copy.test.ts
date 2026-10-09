@@ -4,17 +4,12 @@ import { describe, expect, it } from "vitest";
 const read = (rel: string) => readFileSync(rel, "utf8");
 
 describe("flip copy on pages outside the menus", () => {
-  it("Today keeps flip widgets and profit sort on reseller/dealer desks", () => {
+  it("Today consolidates into Discover instead of another personalized front door", () => {
     const today = read("app/(dashboard)/today/page.tsx");
-    expect(today).not.toContain('"/scan?sort=profit"');
-    expect(today).not.toContain("sort=profit`");
-    expect(today).toContain("defaultScanSort(intent?.buyerMode)");
-    expect(today).toContain("{flipDesk && <NextBestBuySpotlight />}");
-    expect(today).toContain("{flipDesk && <MarketPulse />}");
-    expect(today).toMatch(
-      /\{flipDesk && \(\s*<IntelRail\s+endpoint="\/api\/recommendations"/,
-    );
-    expect(today).toContain('flipDesk ? "bidding" : "buying"');
+    expect(today).toContain("redirect(");
+    expect(today).toContain("/discover");
+    expect(today).not.toContain("/api/system/status");
+    expect(today).not.toContain("NextBestBuySpotlight");
   });
 
   it("Parts uses entered budgets and limits teardown to parts and flip desks", () => {

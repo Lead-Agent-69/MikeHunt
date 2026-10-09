@@ -191,6 +191,7 @@ export default function FeedPage() {
           <InventoryViewLinks query={query} current="/feed" />
           <MyStatesButton
             onChange={rescope}
+            statesOverride={scope ?? undefined}
             className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3.5 py-2 text-[13px] font-bold text-white backdrop-blur hover:bg-black/70"
           />
         </div>

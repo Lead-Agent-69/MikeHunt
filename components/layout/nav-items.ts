@@ -3,7 +3,6 @@ import {
   ArrowLeftRight,
   BellRing,
   Bookmark,
-  CalendarDays,
   Clock,
   Grid3X3,
   Code2,
@@ -26,7 +25,6 @@ import {
   TrendingUp,
   Truck,
   Wrench,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
@@ -197,12 +195,6 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Discover",
     items: [
       {
-        name: "Today",
-        href: "/today",
-        icon: CalendarDays,
-        description: "Daily shortlist and time-sensitive tasks.",
-      },
-      {
         name: "Arbitrage routes",
         href: "/find",
         icon: Search,
@@ -227,12 +219,6 @@ export const MORE_GROUPS: NavGroup[] = [
         href: "/map",
         icon: MapPin,
         description: "Browse listings with known map coordinates.",
-      },
-      {
-        name: "Flash deals",
-        href: "/flash-deals",
-        icon: Zap,
-        description: "Urgent listings and auctions ending soon.",
       },
     ],
   },
@@ -553,8 +539,6 @@ export function accountMenuForMode(buyerMode: unknown): {
     { name: "Map", href: "/map", group: "Search views" },
     { name: "Swipe", href: "/swipe", group: "Search views" },
     { name: "Dealer network", href: "/dealer-network", group: "Browse" },
-    { name: "Today", href: "/today", group: "Browse" },
-    { name: "Flash deals", href: "/flash-deals", group: "Browse" },
     { name: "Deal Check", href: "/deal-check", group: "Evaluate" },
     { name: "Compare", href: "/compare", group: "Evaluate" },
     {

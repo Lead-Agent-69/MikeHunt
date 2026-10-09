@@ -51,18 +51,17 @@ export function InventoryViewLinks({
       aria-label="Inventory views"
       className="flex flex-wrap items-center gap-2"
     >
-      {VIEWS.filter((view) => view.path !== current).map(
-        ({ path, label, Icon }) => (
-          <Link
-            key={path}
-            href={`${path}?${params.toString()}`}
-            title={label}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-xs font-semibold text-[var(--t2)]"
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" /> {label}
-          </Link>
-        ),
-      )}
+      {VIEWS.map(({ path, label, Icon }) => (
+        <Link
+          key={path}
+          href={`${path}?${params.toString()}`}
+          title={label}
+          aria-current={path === current ? "page" : undefined}
+          className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+        </Link>
+      ))}
     </nav>
   );
 }

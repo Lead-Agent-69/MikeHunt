@@ -27,9 +27,7 @@ import {
   ClipboardList,
   FileCheck,
   Truck,
-  CalendarDays,
   Sparkles,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -64,8 +62,6 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   "/fleet": ClipboardList,
   "/move": Truck,
   "/recon": Wrench,
-  "/today": CalendarDays,
-  "/flash-deals": Zap,
   "/upgrade": Sparkles,
 };
 

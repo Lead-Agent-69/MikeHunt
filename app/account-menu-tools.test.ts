@@ -39,8 +39,6 @@ describe("account menu", () => {
       "Map",
       "Swipe",
       "Dealer network",
-      "Today",
-      "Flash deals",
       "Deal Check",
       "Compare",
       "Purchase plan",
