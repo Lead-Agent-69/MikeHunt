@@ -77,8 +77,14 @@ export default function DealCheckPage() {
         body: JSON.stringify(payload),
         signal: abortController.signal,
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (id !== requestId.current) return;
+      if (!json || typeof json !== "object" || Array.isArray(json)) {
+        setError(
+          "The analysis service didn't return a usable response. Your details are still here. Please try again.",
+        );
+        return;
+      }
       if (!res.ok)
         setError(
           userFacingErrorMessage(
@@ -89,7 +95,16 @@ export default function DealCheckPage() {
             "We couldn't analyze this listing. Please try again.",
           ),
         );
-      else setResult(json);
+      else if (
+        json.extracted &&
+        typeof json.extracted === "object" &&
+        !Array.isArray(json.extracted)
+      )
+        setResult(json);
+      else
+        setError(
+          "We couldn't read vehicle details from this response. Your input is still here. Please try again.",
+        );
     } catch (e: any) {
       if (e.name !== "AbortError" && id === requestId.current)
         setError(
@@ -153,8 +168,8 @@ export default function DealCheckPage() {
             <button
               type="submit"
               disabled={loading || !textInput.trim()}
-              className="px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              style={{ background: "var(--t1)" }}
+              className="min-h-11 px-4 py-1.5 rounded-lg font-bold text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              style={{ background: "var(--blue)" }}
             >
               Analyze
             </button>
@@ -191,7 +206,7 @@ export default function DealCheckPage() {
             <button
               type="button"
               onClick={retry}
-              className="rounded-lg border border-[var(--rbd)] px-3 py-1.5 font-bold text-[var(--red)]"
+              className="min-h-11 rounded-lg border border-[var(--rbd)] px-3 py-1.5 font-bold text-[var(--red)]"
             >
               Try again
             </button>
@@ -209,7 +224,7 @@ export default function DealCheckPage() {
           {mc && (
             <div className="glass-panel p-5">
               <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
-                vs market
+                Asking-price context
               </p>
               <div className="flex items-center justify-between">
                 <div>
@@ -217,15 +232,15 @@ export default function DealCheckPage() {
                     className="text-2xl font-black"
                     style={{
                       fontFamily: "var(--fm)",
-                      color: mc.isFair ? "var(--green)" : "var(--red)",
+                      color: "var(--t1)",
                     }}
                   >
                     {mc.vsMarket > 0 ? "+" : ""}
                     {money(mc.vsMarket)}
                   </Mono>
                   <p className="text-xs text-[var(--t4)]">
-                    {mc.isFair ? "at/below market" : "above market"} · avg{" "}
-                    {money(mc.marketAvg)} ({mc.sampleSize} comps)
+                    Difference from {money(mc.marketAvg)} average across{" "}
+                    {mc.sampleSize} active asking prices.
                   </p>
                 </div>
               </div>
@@ -233,7 +248,7 @@ export default function DealCheckPage() {
               {mc.comps && mc.comps.length > 0 && (
                 <div className="mt-6 border-t border-[var(--b2)] pt-4">
                   <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-3">
-                    Live Market Comps
+                    Other active listings, not verified sold comparisons
                   </p>
                   <div className="space-y-2">
                     {mc.comps.map((comp: any) => (
@@ -254,6 +269,12 @@ export default function DealCheckPage() {
                               : "Mileage unlisted"}
                           </span>
                         </div>
+
+                        <p className="mt-3 text-xs text-[var(--t3)]">
+                          Title, damage, fees, and condition may differ. This
+                          comparison cannot establish a fair purchase price or a
+                          buy recommendation.
+                        </p>
                         <Mono className="text-sm font-bold text-[var(--t2)]">
                           {money(comp.ask_price)}
                         </Mono>

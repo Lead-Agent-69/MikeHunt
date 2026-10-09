@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
     );
   if (!hasTextModel())
     return NextResponse.json(
-      { error: "Deal Check needs an AI key and is off on this deployment." },
+      {
+        error:
+          "Deal Check is temporarily unavailable. Your listing details are still here; please try again later.",
+      },
       { status: 503 },
     );
 
@@ -136,6 +139,9 @@ export async function POST(req: NextRequest) {
         },
       ],
       temperature: 0,
+      maxRetries: 0,
+      timeout: 25_000,
+      abortSignal: req.signal,
     });
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
@@ -182,7 +188,7 @@ export async function POST(req: NextRequest) {
         marketComparison = {
           marketAvg: avg,
           vsMarket: sell - avg,
-          isFair: sell <= avg * 1.05,
+          evidenceType: "active_asking_prices",
           sampleSize: data.length,
           comps: topComps,
         };

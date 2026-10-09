@@ -4,6 +4,8 @@ Updated October 9, 2026. Based on inspected code and recorded live checks, not a
 
 ## October 9 Repair Eligibility And Buyer Copy Audit
 
+Release wave `ed3a470` passed all checks (1,496 tests / 300 files, typecheck, lint, build) and was pushed to main. A subsequent live Deal Check request returned an empty response and leaked a JSON parser error. Follow-up adds safe response-shape handling, retained input/retry, parser-error redaction, a 25-second provider timeout without automatic retries, and request cancellation. Active asking-price averages are now labelled price context, not fair-price verdicts or sold comps. Actual provider success on production remains a gate until verified after deployment.
+
 Fixed the reproduced Discover/detail mismatch for reported front-end damage. Both now use the same reported-repair-risk classifier; unknown damage remains unknown, never an undamaged or acquisition-ready claim. Auctions retain their existing research-only gate.
 
 Added a separate repairable-vehicle choice to onboarding and an immediately saved Settings checkbox. Personal defaults exclude reported repair needs; legacy DIY/reseller/dealer profiles retain inclusion unless explicitly changed. Repair capability describes who performs work, not eligibility. Discover rails, Scan inventory, public fallback and live source previews respect the choice; inventory exclusions occur before database count and pagination. Cache keys isolate different eligibility choices. Saved records are not removed by this browsing preference.

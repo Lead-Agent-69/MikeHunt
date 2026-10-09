@@ -63,6 +63,27 @@ function post(text: string) {
 beforeEach(() => fetchWithPatchright.mockClear());
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
+  it("bounds provider work and propagates request cancellation", async () => {
+    const response = await post(
+      "2020 Acura MDX asking 3000, salvage auction bid",
+    );
+    expect(response.status).toBe(200);
+    expect(generateText).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        timeout: 25_000,
+        maxRetries: 0,
+        abortSignal: expect.any(AbortSignal),
+      }),
+    );
+  });
+  it("returns a recoverable response on provider failure, not fabricated extraction", async () => {
+    generateText.mockRejectedValueOnce(new Error("provider timed out"));
+    const response = await post("2020 Acura MDX asking 3000");
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.extracted).toBeUndefined();
+    expect(body.error).not.toContain("provider");
+  });
   it.each([
     "http://127.0.0.1/admin",
     "http://localhost:3000/",
