@@ -71,6 +71,7 @@ import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { SearchSourceNotice } from "@/components/search/SearchSourceNotice";
+import { MarketSearchHandoff } from "@/components/search/MarketSearchHandoff";
 import {
   INVENTORY_DETAIL_FIELDS,
   readInventoryDetails,
@@ -5020,6 +5021,8 @@ function ScanPageInner() {
           flipDesk={flipEconomics}
         />
       )}
+
+      <MarketSearchHandoff query={swrKey.split("?")[1] || ""} />
 
       {/* ── Results grid ── */}
       {loading && (
