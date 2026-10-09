@@ -138,9 +138,7 @@ describe("For You rail data", () => {
       page.indexOf("const router ="),
     );
     expect(renderScope).not.toContain("readLocalBuyerIntent()");
-    expect(renderScope).toContain(
-      "localIntent || normalizeBuyerIntent(prefs.buyerScope)",
-    );
+    expect(renderScope).toContain("resolveBuyerIntentScope(");
     expect(renderScope).toContain("vehicles: []");
   });
 
