@@ -13,9 +13,12 @@ export function evidenceConfidence(input: {
     ) {
       return "High";
     }
-    return input.confidence === "none" ? "Low" : "Medium";
+    return input.confidence === "high" || input.confidence === "medium"
+      ? "Medium"
+      : "Low";
   }
-  return input.source === "third_party" && input.confidence !== "none"
+  return input.source === "third_party" &&
+    (input.confidence === "high" || input.confidence === "medium")
     ? "Medium"
     : "Low";
 }

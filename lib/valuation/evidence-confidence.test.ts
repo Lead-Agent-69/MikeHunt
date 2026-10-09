@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { evidenceConfidence } from "./evidence-confidence";
 
 describe("valuation evidence confidence", () => {
+  it("keeps thin, unknown, and dispersed evidence low even with many rows", () => {
+    for (const confidence of ["low", "none", undefined, "unexpected"])
+      for (const source of ["comparables", "third_party"])
+        expect(evidenceConfidence({ source, confidence, compCount: 20 })).toBe(
+          "Low",
+        );
+  });
   it("does not promote asking-price or model estimates even with claimed high confidence", () => {
     for (const source of [
       "asking_price",

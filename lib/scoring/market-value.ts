@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
+import { isWithinAuctionWindow } from "../search/live-auction-window";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -31,6 +32,31 @@ const ASK_TO_SOLD = 0.95;
 // Minimum comps before we trust the figure.
 const MIN_SAMPLES = 3;
 const TTL_MS = 10 * 60 * 1000;
+export const ASK_COMP_WINDOW_DAYS = 7;
+
+export function isFreshAskComp(
+  row: { last_seen_at?: string | null; auction_end_at?: string | null },
+  now = Date.now(),
+) {
+  const seen = Date.parse(row.last_seen_at || "");
+  return (
+    Number.isFinite(seen) &&
+    seen <= now + 60_000 &&
+    seen >= now - ASK_COMP_WINDOW_DAYS * 86400000 &&
+    isWithinAuctionWindow(row, now)
+  );
+}
+
+export function isRetailCompSource(row: {
+  source?: string;
+  condition?: string | null;
+}) {
+  return (
+    RETAIL_SOURCES.has(row.source || "") ||
+    (row.source === "independent_dealer" &&
+      ["clean", "clean_title"].includes(row.condition?.toLowerCase() || ""))
+  );
+}
 
 // Width of the year band used for grouping comps. Backtest-tuned: a 2-year band beats both 3 (too
 // loose — blends a 2021 and 2023) and 1/exact-year (too thin — fewer comps/bucket, noisier). Measured
@@ -248,9 +274,13 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "make, model, year, trim, mileage, source, ask_price, condition, damage_type, title",
+        "make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
+      .gte(
+        "last_seen_at",
+        new Date(Date.now() - ASK_COMP_WINDOW_DAYS * 86400000).toISOString(),
+      )
       .gt("ask_price", 1000)
       .lt("ask_price", 200000)
       .range(from, from + PAGE - 1);
@@ -279,6 +309,7 @@ async function loadMarketIndexUnlocked(
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
+    if (!isFreshAskComp(r)) continue;
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
     if (!(r.make && r.model)) continue;
@@ -291,12 +322,13 @@ async function loadMarketIndexUnlocked(
     if (!buckets.has(k))
       buckets.set(k, { retail: [], wholesale: [], retailMiles: [] });
     const b = buckets.get(k)!;
-    if (RETAIL_SOURCES.has(r.source)) {
+    if (isRetailCompSource(r)) {
       // Clean-retail only: drop salvage/parts/rebuilt rows so resale comps aren't polluted.
       const cond = (r.condition || "").toLowerCase();
       const dmg = (r.damage_type || "").toLowerCase();
       const isSalvage =
         SALVAGE_CONDITIONS.some((s) => cond.includes(s)) ||
+        SALVAGE_SOLD_TITLE.test(r.title || "") ||
         (dmg !== "" && dmg !== "none");
       // Drop financing/lease teaser prices so the cash-market median isn't inflated/distorted.
       const isPaymentPrice = looksLikePaymentPrice(r.title);
