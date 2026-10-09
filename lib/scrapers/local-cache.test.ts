@@ -29,6 +29,93 @@ async function makeCache(
   return { cache, dir };
 }
 
+function expiryClient(
+  options: { readError?: boolean; writeError?: boolean; changed?: number } = {},
+) {
+  const calls: unknown[][] = [];
+  const query: any = {};
+  for (const method of ["eq", "lte", "order", "in"])
+    query[method] = (...args: unknown[]) => {
+      calls.push([method, ...args]);
+      return query;
+    };
+  query.limit = async (limit: number) => {
+    calls.push(["limit", limit]);
+    return {
+      data: Array.from({ length: limit }, (_, id) => ({ id: `id-${id}` })),
+      error: options.readError ? { message: "read failed" } : null,
+    };
+  };
+  query.select = async () => ({
+    data: Array.from({ length: options.changed ?? 1 }, (_, id) => ({
+      id: `id-${id}`,
+      source: "gov_auction",
+      source_deal_id: `lot-${id}`,
+    })),
+    error: options.writeError ? { message: "write failed" } : null,
+  });
+  const client = {
+    from: vi.fn(() => ({
+      select: () => query,
+      update: (patch: any) => {
+        calls.push(["update", patch]);
+        return query;
+      },
+    })),
+  };
+  return { client: client as any, calls };
+}
+
+describe("bounded auction expiry", () => {
+  it("deactivates without deleting, rechecks end time, and persists shared update usage", async () => {
+    const { cache, dir } = await makeCache({ maxDailyUpdates: 10 });
+    const { client, calls } = expiryClient({ changed: 3 });
+    expect(await cache.deactivateEndedAuctions(client)).toBe(3);
+    expect(calls).toContainEqual(["limit", 8]);
+    expect(calls).toContainEqual(["update", { active: false }]);
+    const dates = calls.filter((call) => call[0] === "lte");
+    expect(dates).toHaveLength(2);
+    expect(dates[0]).toEqual(dates[1]);
+    expect(cache.getQuota().updates).toBe(3);
+    const reloaded = new LocalScraperCache({ path: dir, maxDailyUpdates: 10 });
+    await reloaded.load();
+    expect(reloaded.getQuota().updates).toBe(3);
+  });
+  it("stops at the existing 80 percent budget and in cache-only or paused modes", async () => {
+    const { cache } = await makeCache({ maxDailyUpdates: 5 });
+    const first = expiryClient({ changed: 4 });
+    await cache.deactivateEndedAuctions(first.client);
+    const second = expiryClient();
+    expect(await cache.deactivateEndedAuctions(second.client)).toBe(0);
+    expect(second.client.from).not.toHaveBeenCalled();
+    for (const options of [
+      { cacheOnly: true },
+      { beforeWrite: async () => false },
+    ]) {
+      const { cache: blocked } = await makeCache(options);
+      expect(await blocked.deactivateEndedAuctions(second.client)).toBe(0);
+      expect(second.client.from).not.toHaveBeenCalled();
+    }
+  });
+  it("charges only changed rows, not concurrently rescheduled lots", async () => {
+    const { cache } = await makeCache();
+    expect(
+      await cache.deactivateEndedAuctions(expiryClient({ changed: 0 }).client),
+    ).toBe(0);
+    expect(cache.getQuota().updates).toBe(0);
+  });
+  it("surfaces database errors without claiming success or resetting quota", async () => {
+    const { cache } = await makeCache();
+    await expect(
+      cache.deactivateEndedAuctions(expiryClient({ readError: true }).client),
+    ).rejects.toThrow("Auction expiry read failed");
+    await expect(
+      cache.deactivateEndedAuctions(expiryClient({ writeError: true }).client),
+    ).rejects.toThrow("Auction expiry update failed");
+    expect(cache.getQuota().updates).toBe(0);
+  });
+});
+
 function fakeSupabase(initial: Record<string, any>[] = []) {
   const rows = new Map(
     initial.map((row) => [`${row.source}|${row.source_deal_id}`, { ...row }]),

@@ -315,6 +315,63 @@ export class LocalScraperCache {
     await rename(temp, this.filePath);
   }
 
+  /** Reversible auction expiry, serialized with imports and charged to the same update budget. */
+  async deactivateEndedAuctions(
+    supabase: SupabaseClient,
+    limit = 100,
+  ): Promise<number> {
+    return this.exclusive(async () => {
+      this.rollDay();
+      if (this.cacheOnly) return 0;
+      const available = Math.max(
+        0,
+        Math.floor(this.maxDailyUpdates * 0.8) - this.state.quota.updates,
+      );
+      const take = Math.min(100, available, Math.max(0, Math.floor(limit)));
+      if (!Number.isFinite(take) || take === 0) return 0;
+      if (this.beforeWrite && !(await this.beforeWrite())) return 0;
+      const endedAt = new Date().toISOString();
+      const { data: candidates, error: readError } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("active", true)
+        .lte("auction_end_at", endedAt)
+        .order("auction_end_at", { ascending: true })
+        .limit(take);
+      if (readError)
+        throw new Error(`Auction expiry read failed: ${readError.message}`);
+      if (!candidates?.length) return 0;
+      if (this.beforeWrite && !(await this.beforeWrite())) return 0;
+      // Repeat the expiry predicate so a concurrent reschedule cannot deactivate a reopened lot.
+      const { data: changed, error: writeError } = await supabase
+        .from("deals")
+        .update({ active: false })
+        .in(
+          "id",
+          candidates.map((row) => row.id),
+        )
+        .eq("active", true)
+        .lte("auction_end_at", endedAt)
+        .select("id,source,source_deal_id");
+      if (writeError)
+        throw new Error(`Auction expiry update failed: ${writeError.message}`);
+      for (const row of changed || []) {
+        const entry = this.state.entries[`${row.source}|${row.source_deal_id}`];
+        if (entry) entry.synced = false;
+      }
+      const count = changed?.length || 0;
+      this.state.quota.updates += count;
+      await this.save();
+      const quota = this.getQuota();
+      this.onQuota?.(
+        quota,
+        quota.updates >= Math.floor(this.maxDailyUpdates * 0.8) ||
+          quota.inserts >= Math.floor(this.maxDailyInserts * 0.8),
+      );
+      return count;
+    });
+  }
+
   async persistRows(
     inputRows: Record<string, any>[],
     supabase: SupabaseClient,

@@ -640,6 +640,7 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     `[scrape-queue] ${WORKER_ID} polling buyer-scoped jobs every ${QUEUE_POLL_MS}ms (${mode})`,
   );
   let claimFailures = 0;
+  let nextAuctionExpiryAt = 0;
   while (!stopRequested) {
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
@@ -657,6 +658,28 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       await writeStatus().catch(() => {});
       await new Promise((resolve) => setTimeout(resolve, wait));
       continue;
+    }
+    if (
+      !job &&
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      !quotaReached() &&
+      Date.now() >= nextAuctionExpiryAt
+    ) {
+      nextAuctionExpiryAt = Date.now() + 60 * 60_000;
+      try {
+        const count = await cache.deactivateEndedAuctions(supabase);
+        console.log(
+          `[retention] deactivated ${count} ended auctions; saved history retained`,
+        );
+        await writeStatus();
+      } catch (error) {
+        nextAuctionExpiryAt = Date.now() + 5 * 60_000;
+        console.warn(
+          "[retention] auction expiry failed:",
+          (error as Error).message,
+        );
+      }
     }
     if (!job && mode === "hybrid" && !manualPaused) {
       try {
