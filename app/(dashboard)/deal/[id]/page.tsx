@@ -1255,7 +1255,7 @@ export default function DealPage({
       <DetailDisclosure
         eyebrow="Vehicle examination"
         title="Check condition, title, and history"
-        summary="VIN signals, listing claims, and recent verified sales."
+        summary="VIN signals, listing claims, and source-reported sale records."
       >
         <div className="space-y-4">
           {serverDeal && (
