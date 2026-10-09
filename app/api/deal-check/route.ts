@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
 import * as cheerio from "cheerio";
-import { fetchPublicWithPatchright } from "@/lib/scrapers/tools/patchright-engine";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -89,6 +88,9 @@ export async function POST(req: NextRequest) {
     try {
       // Headless browser read of the pasted public page. Every redirect hop and
       // sub-request is re-checked; private/metadata hops abort (UrlNotAllowedError).
+      // Text/photo analysis and authentication must not depend on a browser runtime at startup.
+      const { fetchPublicWithPatchright } =
+        await import("@/lib/scrapers/tools/patchright-engine");
       const html = await fetchPublicWithPatchright(target.toString());
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
