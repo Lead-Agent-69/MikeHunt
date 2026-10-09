@@ -24,30 +24,58 @@ export default function DealCheckPage() {
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const fileReader = useRef<FileReader | null>(null);
   const lastPayload = useRef<{ image?: string; text?: string } | null>(null);
   const showLoader = useDelayedLoading(loading);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(
+    () => () => {
+      requestId.current += 1;
+      controller.current?.abort();
+      fileReader.current?.abort();
+    },
+    [],
+  );
 
   function beginRequest() {
     requestId.current += 1;
     controller.current?.abort();
+    fileReader.current?.abort();
     return requestId.current;
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
     const id = beginRequest();
+    setLoading(false);
+    lastPayload.current = null;
+    if (
+      !/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) ||
+      file.size > 5_900_000
+    ) {
+      setError("Choose a PNG, JPEG or WebP photo under 6 MB.");
+      lastPayload.current = null;
+      return;
+    }
     setError(null);
     setResult(null);
     setTextInput("");
     const reader = new FileReader();
+    fileReader.current = reader;
     reader.onload = () => {
       if (id !== requestId.current) return;
       const dataUrl = reader.result as string;
       setPreview(dataUrl);
       analyze({ image: dataUrl }, id);
+    };
+    reader.onerror = () => {
+      if (id !== requestId.current) return;
+      setError(
+        "We couldn't open this photo. Choose another file and try again.",
+      );
     };
     reader.readAsDataURL(file);
   }
@@ -145,26 +173,31 @@ export default function DealCheckPage() {
       </div>
 
       <div className="glass-panel p-1 rounded-2xl border border-[var(--b2)]">
-        <form onSubmit={handleTextSubmit} className="flex flex-col relative">
+        <form onSubmit={handleTextSubmit} className="flex flex-col">
           <textarea
             aria-label="Listing link or vehicle details"
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Paste a URL or raw text from a deal sheet..."
-            className="w-full bg-transparent resize-none p-4 pb-14 outline-none text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[120px] rounded-xl"
+            className="w-full bg-transparent resize-y p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--blue)] text-[var(--t2)] placeholder:text-[var(--t4)] min-h-[140px] rounded-lg"
           />
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-[var(--s2)] transition-colors text-[var(--t3)] text-sm font-semibold">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--b2)] p-3">
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="flex min-h-11 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)] text-[var(--t3)] text-sm font-semibold"
+            >
               <Ico name="camera" size={18} />
               <span>Upload Photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={onFile}
-              />
-            </label>
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={onFile}
+            />
             <button
               type="submit"
               disabled={loading || !textInput.trim()}
@@ -220,6 +253,10 @@ export default function DealCheckPage() {
             <MikeHuntLoader state="complete" size={28} label="Deal analysis" />
             Analysis ready
           </div>
+          <p className="text-sm text-[var(--t3)]">
+            Read from your document by AI. Verify these details against the
+            original; this is not an inspection or a buy recommendation.
+          </p>
           {/* Market comparison */}
           {mc && (
             <div className="glass-panel p-5">
@@ -270,17 +307,17 @@ export default function DealCheckPage() {
                           </span>
                         </div>
 
-                        <p className="mt-3 text-xs text-[var(--t3)]">
-                          Title, damage, fees, and condition may differ. This
-                          comparison cannot establish a fair purchase price or a
-                          buy recommendation.
-                        </p>
                         <Mono className="text-sm font-bold text-[var(--t2)]">
                           {money(comp.ask_price)}
                         </Mono>
                       </a>
                     ))}
                   </div>
+                  <p className="mt-3 text-xs text-[var(--t3)]">
+                    Title, damage, fees, and condition may differ. These
+                    listings cannot establish a fair purchase price or a buy
+                    recommendation.
+                  </p>
                 </div>
               )}
             </div>
@@ -345,14 +382,14 @@ function Row({
   bold?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-start justify-between gap-3">
       <span
-        className={`text-sm ${bold ? "font-bold text-[var(--t1)]" : "text-[var(--t3)]"}`}
+        className={`min-w-0 break-words text-sm ${bold ? "font-bold text-[var(--t1)]" : "text-[var(--t3)]"}`}
       >
         {label}
       </span>
       <Mono
-        className={`text-sm ${bold ? "font-black text-[var(--t1)]" : "text-[var(--t2)]"}`}
+        className={`shrink-0 text-sm ${bold ? "font-black text-[var(--t1)]" : "text-[var(--t2)]"}`}
         style={{ fontFamily: "var(--fm)" }}
       >
         {value}

@@ -50,9 +50,12 @@ export const publicHttpsAgent = new https.Agent({
 const httpAgent = publicHttpAgent;
 const httpsAgent = publicHttpsAgent;
 
-export function locationHeader(headers: Record<string, unknown>): string | null {
+export function locationHeader(
+  headers: Record<string, unknown>,
+): string | null {
   const value = headers.location ?? headers.Location;
-  if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : null;
+  if (Array.isArray(value))
+    return typeof value[0] === "string" ? value[0] : null;
   return typeof value === "string" ? value : null;
 }
 
@@ -64,6 +67,7 @@ export function locationHeader(headers: Record<string, unknown>): string | null 
  */
 export async function fetchPublicHtml(
   rawUrl: string,
+  options: { signal?: AbortSignal; maxBytes?: number } = {},
 ): Promise<{ html: string; finalUrl: string } | null> {
   let current = await assertPublicHttpUrl(rawUrl);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
@@ -77,6 +81,8 @@ export async function fetchPublicHtml(
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         },
         timeout: 6000,
+        signal: options.signal,
+        maxContentLength: options.maxBytes ?? Infinity,
         maxRedirects: 0,
         responseType: "text",
         validateStatus: () => true,

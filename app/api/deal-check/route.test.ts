@@ -5,6 +5,13 @@ import { NextRequest } from "next/server";
 const fetchWithPatchright = vi.hoisted(() =>
   vi.fn(async (_url: string) => "<html><body>hi</body></html>"),
 );
+const fetchPublicHtml = vi.hoisted(() =>
+  vi.fn(async (_url: string, _options?: unknown) => ({
+    html: "<html><body>2020 Acura MDX, asking price 18000</body></html>",
+    finalUrl: "https://93.184.216.34/listing",
+  })),
+);
+vi.mock("@/lib/net/fetch-public-html", () => ({ fetchPublicHtml }));
 const getServerUser = vi.hoisted(() =>
   vi.fn(async () => ({ data: { user: { id: "u1" } } })),
 );
@@ -60,7 +67,10 @@ function post(text: string) {
   );
 }
 
-beforeEach(() => fetchWithPatchright.mockClear());
+beforeEach(() => {
+  fetchWithPatchright.mockClear();
+  fetchPublicHtml.mockClear();
+});
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
   it("rejects malformed extraction instead of displaying unchecked fields", async () => {
@@ -116,18 +126,38 @@ describe("POST /api/deal-check URL paste SSRF guard", () => {
     expect(fetchWithPatchright).not.toHaveBeenCalled();
   });
 
-  it("lets a public IP-literal URL through to the browser", async () => {
+  it("reads a public page with bounded cancellable HTTP without needing a browser", async () => {
     await post("https://93.184.216.34/listing");
-    expect(fetchWithPatchright).toHaveBeenCalledWith(
+    expect(fetchPublicHtml).toHaveBeenCalledWith(
       "https://93.184.216.34/listing",
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        maxBytes: 2_000_000,
+      }),
     );
+    expect(fetchWithPatchright).not.toHaveBeenCalled();
   });
 
   it("400s when the browser hits a blocked redirect hop", async () => {
     const { UrlNotAllowedError } = await import("@/lib/net/public-url");
-    fetchWithPatchright.mockRejectedValueOnce(new UrlNotAllowedError());
+    fetchPublicHtml.mockRejectedValueOnce(new UrlNotAllowedError());
     const res = await post("https://93.184.216.34/listing");
     expect(res.status).toBe(400);
+  });
+
+  it("gives a useful alternative for protected pages on serverless without launching a browser", async () => {
+    vi.stubEnv("VERCEL", "1");
+    fetchPublicHtml.mockResolvedValueOnce(null as any);
+    try {
+      const response = await post("https://93.184.216.34/listing");
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toContain(
+        "Paste the listing details",
+      );
+      expect(fetchWithPatchright).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("still requires sign-in", async () => {

@@ -10,6 +10,7 @@ import { parseDealDocument } from "@/lib/ai/deal-document";
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
+import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 
 // POST /api/deal-check  { image: <data URL> }
 // Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
@@ -104,12 +105,22 @@ export async function POST(req: NextRequest) {
       throw e;
     }
     try {
-      // Headless browser read of the pasted public page. Every redirect hop and
-      // sub-request is re-checked; private/metadata hops abort (UrlNotAllowedError).
-      // Text/photo analysis and authentication must not depend on a browser runtime at startup.
-      const { fetchPublicWithPatchright } =
-        await import("@/lib/scrapers/tools/patchright-engine");
-      const html = await fetchPublicWithPatchright(target.toString());
+      // The existing HTTP reader pins sockets to public IPs and checks redirect
+      // hops. Text/photo analysis and auth do not depend on browser startup.
+      const fetched = await fetchPublicHtml(target.toString(), {
+        signal: req.signal,
+        maxBytes: 2_000_000,
+      });
+      let html = fetched?.html;
+      if (!html) {
+        // Serverless deployments have no bundled Chromium runtime. Keep the
+        // existing local browser fallback without making production depend on it.
+        if (process.env.VERCEL || req.signal.aborted)
+          throw new Error("Page unavailable");
+        const { fetchPublicWithPatchright } =
+          await import("@/lib/scrapers/tools/patchright-engine");
+        html = await fetchPublicWithPatchright(target.toString());
+      }
       const $ = cheerio.load(html);
       $("script, style, noscript, img, svg").remove();
       contentText = $("body")
@@ -130,7 +141,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Could not read the provided URL. The site might be heavily protected.",
+            "We couldn't read this page. Paste the listing details or upload a clear photo instead.",
         },
         { status: 422 },
       );
