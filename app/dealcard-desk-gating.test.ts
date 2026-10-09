@@ -59,7 +59,22 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("$15,900");
     expect(html).toContain("$3,000 under market est.");
     expect(html).toContain("$15,000");
+    expect(html).toContain("Needs check");
+    expect(html).toContain("Low confidence");
+    expect(html).not.toContain("Possible buy");
+  });
+
+  it("still recognizes supported evidence for a personal buyer", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: false,
+        valuation: { source: "third_party", confidence: "medium" },
+      }),
+    );
     expect(html).toContain("Possible buy");
+    expect(html).toContain("Medium confidence");
+    expect(html).not.toContain("Net Profit Est.");
   });
 
   it("never renders $NaN when the server redacted profit for this desk", () => {
