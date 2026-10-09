@@ -206,7 +206,9 @@ export async function POST(req: NextRequest) {
       const supabase = createServerComponentClient();
       let q = supabase
         .from("deals")
-        .select("id, year, make, model, mileage, ask_price, source")
+        .select(
+          "id, year, make, model, mileage, ask_price, source, source_url, condition, damage_type, title, auction_end_at",
+        )
         .eq("active", true)
         .ilike("make", v.make)
         .ilike("model", `%${String(v.model).split(" ")[0]}%`)
