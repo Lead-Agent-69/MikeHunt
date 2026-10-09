@@ -1,5 +1,13 @@
 # Product Completion Register
 
+## Phase 1: Account Recovery, October 9, 2026
+
+- Fixed the reset-email destination: PKCE callback now opens a new-password screen, not Login. Recovery bypasses buyer-profile provisioning and onboarding.
+- New-password form requires a verified session, checks it again before saving, enforces 12 characters and matching confirmation, and confirms the returned account before showing success. Failure retains the form; successful updates clear password inputs.
+- Missing, expired, and failed callback links offer a new-link action. Account-bootstrap failure retains exchanged session cookies instead of discarding them.
+- Automated callback and rendered-form tests cover these paths. Local browser verified the invalid-link screen and its recovery link; no actual account password was changed.
+- Still open before Phase 1 acceptance: hosted Auth minimum-password configuration, redirect allowlist and SMTP delivery; user-completed live recovery; signup/confirmation/OAuth/session restoration/logout for each buyer role; real cross-device free-workspace persistence and normal-user/admin-negative acceptance. Local checks do not certify these production gates.
+
 Updated October 4, 2026. Based on the conversation and code inspected, not a claim of production completion.
 
 ## Release Waves: October 7, 2026

@@ -10,6 +10,7 @@ import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
+import { friendlyAuthError } from "@/lib/auth/friendly-error";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -20,6 +21,7 @@ export default function ForgotPasswordPage() {
 
   const handleReset = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (loading) return;
     setLoading(true);
     setMessage(null);
     setError(null);
@@ -32,20 +34,28 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/login`
-        : undefined;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage("Check your email for a password reset link.");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        },
+      );
+      if (error) throw error;
+      setMessage(
+        "If an account exists for this email, a password reset link has been sent.",
+      );
+    } catch (error) {
+      setError(
+        friendlyAuthError(
+          error instanceof Error
+            ? error
+            : (error as { message?: string })?.message,
+        ),
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -78,12 +88,18 @@ export default function ForgotPasswordPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--red)]">
+          <div
+            role="alert"
+            className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--red)]"
+          >
             {error}
           </div>
         )}
         {message && (
-          <div className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--green)]">
+          <div
+            role="status"
+            className="mb-4 p-4 rounded-xl text-sm font-medium border text-[var(--green)]"
+          >
             {message}
           </div>
         )}
