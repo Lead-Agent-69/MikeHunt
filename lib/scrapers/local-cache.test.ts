@@ -8,6 +8,7 @@ import {
   classifyColumns,
   listingHash,
   touchIsDue,
+  listingIdBatches,
 } from "./local-cache";
 
 const tempDirs: string[] = [];
@@ -34,10 +35,12 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
   );
   const writes: Record<string, any>[][] = [];
   const touches: { source: string; ids: string[]; patch: any }[] = [];
+  const reads: string[][] = [];
   return {
     rows,
     writes,
     touches,
+    reads,
     client: {
       from: () => ({
         update: (patch: Record<string, any>) => ({
@@ -58,12 +61,15 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
             eq: (_column: string, value: string) => {
               source = value;
               return {
-                in: async (_idColumn: string, ids: string[]) => ({
-                  data: ids
-                    .map((id) => rows.get(`${source}|${id}`))
-                    .filter(Boolean),
-                  error: null,
-                }),
+                in: async (_idColumn: string, ids: string[]) => {
+                  reads.push(ids);
+                  return {
+                    data: ids
+                      .map((id) => rows.get(`${source}|${id}`))
+                      .filter(Boolean),
+                    error: null,
+                  };
+                },
               };
             },
           };
@@ -103,6 +109,33 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("bounds long listing-ID reads by encoded URL size and persists all accepted rows", async () => {
+    const { cache } = await makeCache({ maxDailyInserts: 1000 });
+    const db = fakeSupabase();
+    const ids = Array.from(
+      { length: 120 },
+      (_, i) => `dealer-${i}-${"long-slug-".repeat(20)}`,
+    );
+    const batches = listingIdBatches(ids);
+    expect(batches.flat()).toEqual(ids);
+    expect(
+      batches.every(
+        (batch) =>
+          batch.reduce(
+            (n, id) => n + encodeURIComponent(JSON.stringify(id)).length + 3,
+            0,
+          ) <= 3000,
+      ),
+    ).toBe(true);
+    const result = await cache.persistRows(
+      ids.map((id) => row(id)),
+      db.client,
+      "id,source,source_deal_id",
+    );
+    expect(result.saved).toBe(120);
+    expect(db.reads).toEqual(batches);
+    expect(listingIdBatches([])).toEqual([]);
+  });
   it("hashes listing changes and skips unchanged rows while tracking price changes", async () => {
     const { cache } = await makeCache();
     const db = fakeSupabase();

@@ -46,6 +46,21 @@ describe("fetchPublicHtml", () => {
 
   it("returns null when the public fetch fails", async () => {
     axiosGet.mockRejectedValueOnce(new Error("timeout"));
-    await expect(fetchPublicHtml("https://listings.example/ford/escape")).resolves.toBeNull();
+    await expect(
+      fetchPublicHtml("https://listings.example/ford/escape"),
+    ).resolves.toBeNull();
+  });
+  it("checks page policy before each redirect request", async () => {
+    axiosGet.mockResolvedValueOnce({
+      status: 302,
+      headers: { location: "/forbidden" },
+      data: "",
+    });
+    const allowed = vi.fn(async (url: string) => !url.endsWith("/forbidden"));
+    await expect(
+      fetchPublicHtml("https://listings.example/inventory", allowed),
+    ).rejects.toThrow("source policy");
+    expect(axiosGet).toHaveBeenCalledTimes(1);
+    expect(allowed).toHaveBeenCalledTimes(2);
   });
 });

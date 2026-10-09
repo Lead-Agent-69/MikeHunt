@@ -20,7 +20,6 @@ import { enrichPriority } from "@/lib/scrapers/enrich-priority";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import {
   CURATED_SITES,
-  orderCuratedSitesForPlan,
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
@@ -29,6 +28,13 @@ import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
+import {
+  curatedSiteKey,
+  loadCuratedRotation,
+  planCuratedRotation,
+  saveCuratedRotation,
+} from "../curated-rotation";
+import { createPoliteHtmlFetcher } from "../polite-html";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
 // Listing CARDS lack VIN / true mileage / title status — those live on each detail page.
@@ -488,6 +494,7 @@ export async function scrapeIndependentDealer(
   profile: DealerProfile,
   baseUrl: string,
   abortSignal?: AbortSignal,
+  fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   console.log(`[IndiDealer] Scraping ${profile.name} at ${baseUrl}`);
   const allDeals: Partial<Deal>[] = [];
@@ -496,8 +503,10 @@ export async function scrapeIndependentDealer(
     baseUrl,
     renderMode: profile.renderMode || "browser",
     abortSignal,
+    fetchPageHtml,
   };
   const sel = profile.selectors;
+  const seenListings = new Set<string>();
 
   const gen = paginate<Partial<Deal>>(
     config,
@@ -514,7 +523,9 @@ export async function scrapeIndependentDealer(
     },
     async (rawHtml) => {
       const cheerio = await import("cheerio");
-      const $ = cheerio.load(typeof rawHtml === "string" ? rawHtml : "");
+      const $ = cheerio.load(
+        typeof rawHtml === "string" ? rawHtml : rawHtml.html(),
+      );
       const items: Partial<Deal>[] = [];
 
       $(sel.dealCard).each((_, el) => {
@@ -549,6 +560,7 @@ export async function scrapeIndependentDealer(
           make: title.split(" ").filter((w) => w.match(/[A-Z][a-z]+/))[0] || "",
           model: title.split(" ").slice(2, 4).join(" ") || "",
           ask_price: price,
+          vin: extractVin(`${card.text()} ${href || ""}`) ?? undefined,
           mileage: extractMileage(mileText) || mileageFromTitle(title),
           // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
           // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
@@ -595,6 +607,7 @@ export async function scrapeIndependentDealer(
             model: g.model || "",
             ask_price: g.ask_price || 0,
             mileage: g.mileage,
+            vin: g.vin,
             condition:
               conditionFromTitle(g.title || "") ||
               profile.conditionDefault ||
@@ -649,6 +662,7 @@ export async function scrapeIndependentDealer(
               model: v.model || "",
               ask_price: v.price,
               mileage: v.mileage,
+              vin: v.vin,
               // Title brand first (damage.com etc. put "Salvage"/"Clear"/"Rebuilt" in the heading the
               // AI returns as title), then the site's type default; the AI's free-text condition is
               // often just a run-status ("Run & Drive") so it's the last hint (pipeline normalizes it).
@@ -676,7 +690,13 @@ export async function scrapeIndependentDealer(
         $(
           'a[rel="next"], .pagination .next:not(.disabled), [aria-label="Next"]',
         ).length > 0;
-      return { items, hasMore: hasNext && items.length > 0 };
+      const fresh = items.filter((item) => {
+        const key = String(item.source_deal_id || item.source_url);
+        if (seenListings.has(key)) return false;
+        seenListings.add(key);
+        return true;
+      });
+      return { items: fresh, hasMore: hasNext && fresh.length > 0 };
     },
   );
 
@@ -686,8 +706,11 @@ export async function scrapeIndependentDealer(
   // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
   // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
   abortSignal?.throwIfAborted();
-  await upsertDeals(allDeals);
-  return allDeals.length;
+  const saved = await upsertDeals(allDeals);
+  console.log(
+    `[IndiDealer] ${profile.name}: ${saved}/${allDeals.length} rows accepted`,
+  );
+  return saved;
 }
 
 // ── Generic "discover and crawl any dealer site" ─────────────────────────────
@@ -704,15 +727,29 @@ export async function autoDiscoverAndCrawl(
     inventoryUrl?: string; // exact inventory page — skip auto-discovery when provided
   },
   abortSignal?: AbortSignal,
+  fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   abortSignal?.throwIfAborted();
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
-  const { html, close } = await fetchBrowser(dealerWebsite, {
-    ...INDI_CONFIG,
-    baseUrl: dealerWebsite,
-  });
-  await close();
+  let html: string;
+  if (fetchPageHtml) {
+    html = await fetchPageHtml(
+      hint?.inventoryUrl
+        ? normalizeUrl(hint.inventoryUrl, dealerWebsite)
+        : dealerWebsite,
+    );
+  } else {
+    const fetched = await fetchBrowser(dealerWebsite, {
+      ...INDI_CONFIG,
+      baseUrl: dealerWebsite,
+    });
+    try {
+      html = fetched.html;
+    } finally {
+      await fetched.close();
+    }
+  }
   abortSignal?.throwIfAborted();
 
   const cheerio = await import("cheerio");
@@ -725,6 +762,7 @@ export async function autoDiscoverAndCrawl(
   const navigational = (href: string) =>
     href &&
     !/^(javascript:|#|mailto:|tel:|data:)/i.test(href.trim()) &&
+    !/saved.?vehicles|compare|wishlist|favorites|my.?garage/i.test(href) &&
     href.trim() !== "/";
   const INV_PATH =
     /inventory|vehicles|\/used|for-sale|listings|stock|showroom/i;
@@ -796,7 +834,12 @@ export async function autoDiscoverAndCrawl(
     sellerDefault: hint?.sellerDefault ?? base.sellerDefault,
   };
 
-  return scrapeIndependentDealer(profile, dealerWebsite, abortSignal);
+  return scrapeIndependentDealer(
+    profile,
+    dealerWebsite,
+    abortSignal,
+    fetchPageHtml,
+  );
 }
 
 // ════════════════════════════════════════════════════════════
@@ -862,14 +905,16 @@ export async function scrapeCuratedSites(
         .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
         .join(", ")}`,
     );
-  // Demand / want-hit gap states lead the sweep plan; crawl their dealers first so a time-boxed
-  // job spends its budget where users are actually looking.
+  // Least-recently-attempted dealers lead; demand / want-hit gaps break ties.
   const plannedStates = getSweepPlan()?.states || [];
-  const sites = orderCuratedSitesForPlan(
+  const rotation = await loadCuratedRotation();
+  const sites = planCuratedRotation(
     candidates.filter((site) => !policyBlockFor(site.url)),
+    rotation,
     plannedStates,
   ).slice(0, maxSites);
   const robotsAllowed = createRobotsGate();
+  const fetchPageHtml = createPoliteHtmlFetcher();
   console.log(
     `[CuratedSites] Crawling ${sites.length} curated salvage/dealer sites${
       requestedDealers.size
@@ -881,8 +926,8 @@ export async function scrapeCuratedSites(
   const yields: { name: string; state?: string; type: string; n: number }[] =
     [];
   // Inside a Zeus sweep the curated crawl is one idle tick; cap it so buyer jobs never wait behind
-  // a 180-site walk. Plan order (gap/demand states first) decides what fits; the rest rotates in
-  // as the plan's states change sweep to sweep. Outside a sweep (CI, smoke) there is no cap.
+  // a 180-site walk. Persistent attempt history rotates deferred dealers into later runs.
+  // Outside a sweep (CI, smoke) there is no cap unless an executor deadline was supplied.
   const budgetMs = plannedStates.length
     ? Math.max(
         60_000,
@@ -896,6 +941,7 @@ export async function scrapeCuratedSites(
     (execution?.deadlineAt ?? Infinity) - 60_000,
   );
   let skippedForBudget = 0;
+  let attempted = 0;
   for (const site of sites) {
     execution?.abortSignal?.throwIfAborted();
     if (Date.now() >= deadlineAt) {
@@ -903,6 +949,17 @@ export async function scrapeCuratedSites(
       continue;
     }
     const d = SITE_TYPE_DEFAULTS[site.type];
+    attempted += 1;
+    rotation.lastAttempted[curatedSiteKey(site)] = Date.now();
+    // Persist before browser work so a killed or timed-out dealer does not monopolize restarts.
+    try {
+      await saveCuratedRotation(rotation);
+    } catch (error) {
+      console.warn(
+        "[CuratedSites] rotation write failed:",
+        (error as Error).message,
+      );
+    }
     try {
       const cdgDealer = cdgDealerForSite(site.url);
       const firstPages = [
@@ -942,6 +999,7 @@ export async function scrapeCuratedSites(
                 inventoryUrl: site.inventoryUrl,
               },
               execution?.abortSignal,
+              fetchPageHtml,
             );
       execution?.abortSignal?.throwIfAborted();
       console.log(
@@ -966,7 +1024,7 @@ export async function scrapeCuratedSites(
   const states = new Set(live.map((y) => y.state).filter(Boolean));
   const dead = yields.filter((y) => y.n === 0).map((y) => y.name);
   console.log(
-    `[CuratedSites] ${total} listings · ${live.length}/${sites.length} sites live · ${states.size} states covered`,
+    `[CuratedSites] ${total} listings · ${live.length}/${attempted} attempted sites yielded · ${sites.length} eligible in this run · ${states.size} known dealer states yielded`,
   );
   if (dead.length)
     console.log(`[CuratedSites] no yield (check/prune): ${dead.join(", ")}`);
@@ -1520,11 +1578,11 @@ async function scrapeCdgDealer(config: CdgDealerConfig) {
       `[CuratedSites] ${config.name} detail enriched ${enriched}/${targets.length}`,
     );
   }
-  if (allDeals.length) await upsertDeals(allDeals);
+  const saved = allDeals.length ? await upsertDeals(allDeals) : 0;
   console.log(
-    `[CuratedSites] ${config.name} CDG parser: ${allDeals.length} listings`,
+    `[CuratedSites] ${config.name} CDG parser: ${allDeals.length} fetched, ${saved} rows accepted`,
   );
-  return allDeals.length;
+  return saved;
 }
 
 // Re-export other source modules
