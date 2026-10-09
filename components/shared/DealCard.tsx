@@ -229,10 +229,10 @@ export const DealCard = memo(function DealCard({
   const costStack = [
     askPrice > 0 ? { label: copy.priceLabel(source), value: askPrice } : null,
     repairEstimate && repairEstimate > 0
-      ? { label: "Repair", value: repairEstimate }
+      ? { label: "Repair (est.)", value: repairEstimate }
       : null,
     transportEstimate && transportEstimate > 0
-      ? { label: "Transport", value: transportEstimate }
+      ? { label: "Transport (est.)", value: transportEstimate }
       : null,
   ].filter(Boolean) as { label: string; value: number }[];
   const knownCostTotal = costStack.reduce((sum, item) => sum + item.value, 0);
@@ -679,7 +679,7 @@ export const DealCard = memo(function DealCard({
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
                 </Mono>
-                <span className="text-[var(--t4)]">Known costs</span>
+                <span className="text-[var(--t4)]">Cost scenario (est.)</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {knownCostTotal
                     ? `$${knownCostTotal.toLocaleString()}`

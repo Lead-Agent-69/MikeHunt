@@ -126,6 +126,19 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("High confidence");
     expect(html).toContain("Sold comparisons not verified");
   });
+  it("does not describe modeled repair and transport amounts as known costs", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        repairEstimate: 400,
+        transportEstimate: 600,
+      }),
+    );
+    expect(html).not.toContain("Known costs");
+    expect(html).toContain("Cost scenario (est.)");
+    expect(html).toContain("Repair (est.): $400");
+    expect(html).toContain("Transport (est.): $600");
+  });
 });
 
 describe("DealCard callers pass the buyer desk", () => {
