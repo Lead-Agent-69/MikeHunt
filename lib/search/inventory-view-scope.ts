@@ -115,16 +115,10 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
       `title.ilike.%${text}%,make.ilike.%${text}%,model.ilike.%${text}%,vin.ilike.%${text}%`,
     );
   for (const [key, column, method] of [
-    ["minPrice", "ask_price", "gte"],
-    ["maxPrice", "ask_price", "lte"],
     ["minYear", "year", "gte"],
     ["maxYear", "year", "lte"],
-    ["minMileage", "mileage", "gte"],
-    ["maxMileage", "mileage", "lte"],
   ])
     if (params.get(key)) q = q[method](column, Number(params.get(key)));
-  if (params.get("minPrice") || params.get("maxPrice"))
-    q = q.gt("ask_price", 0);
   const sellers = sellerTypeSourceValues(params.get("sellerType") || "");
   if (sellers.length) q = q.in("source", sellers);
   const title = params.get("titleType");

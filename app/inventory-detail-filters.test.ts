@@ -29,7 +29,10 @@ describe("organized inventory detail controls", () => {
         }),
       ),
     );
-    expect(host.querySelectorAll("fieldset")).toHaveLength(3);
+    expect(host.querySelectorAll("fieldset")).toHaveLength(4);
+    expect(
+      host.querySelector('fieldset[aria-label="Price & mileage evidence"]'),
+    ).not.toBeNull();
     for (const field of INVENTORY_DETAIL_FIELDS) {
       const control = host.querySelector(`[aria-label="${field.label}"]`);
       expect(control).not.toBeNull();

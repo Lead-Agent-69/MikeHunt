@@ -2617,6 +2617,7 @@ function ScanPageInner() {
     maxPrice,
     minYear,
     maxMileage,
+    extraFilters,
     dealerHostsFilter,
     dealerSourceIdsFilter,
     sellerTypeFilter,

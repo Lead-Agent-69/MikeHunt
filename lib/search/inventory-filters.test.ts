@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyInventoryViewScope,
+  inventoryViewParams,
+} from "./inventory-view-scope";
+import {
   applyInventoryLane,
   applyVehicleDetails,
+  applyInventoryNumericFilters,
   sellerTypeSourceValues,
   validateInventoryRanges,
 } from "./inventory-filters";
@@ -14,12 +19,109 @@ function query() {
     ilike: vi.fn(),
     is: vi.fn(),
     gt: vi.fn(),
+    gte: vi.fn(),
+    lte: vi.fn(),
+    not: vi.fn(),
   };
   for (const method of Object.values(builder)) method.mockReturnValue(builder);
   return builder;
 }
 
 describe("inventory filter contract", () => {
+  it("keeps Scan policies when switching to Feed or Map without adding strict duplicate bounds", () => {
+    const params = inventoryViewParams(
+      new URLSearchParams(
+        "maxPrice=10000&pricePolicy=include&maxMileage=0&mileagePolicy=include",
+      ),
+    );
+    const q = query();
+    applyInventoryViewScope(q, params);
+    expect(params.get("pricePolicy")).toBe("include");
+    expect(params.get("mileagePolicy")).toBe("include");
+    expect(q.or).toHaveBeenCalledWith(
+      "ask_price.is.null,ask_price.lte.0,and(ask_price.gt.0,ask_price.lte.10000)",
+    );
+    expect(q.lte).not.toHaveBeenCalled();
+    expect(q.gt).not.toHaveBeenCalled();
+  });
+  it("treats empty range values in navigation links as unset, not invalid or zero", () => {
+    const params = new URLSearchParams(
+      "minPrice=&maxPrice=&minMileage=&maxMileage=&minYear=&maxYear=",
+    );
+    expect(validateInventoryRanges(params)).toBeNull();
+    const q = query();
+    applyInventoryNumericFilters(q, params);
+    expect(q.gte).not.toHaveBeenCalled();
+    expect(q.lte).not.toHaveBeenCalled();
+  });
+  it("keeps default range behavior and treats zero-mile odometers as reported", () => {
+    const q = query();
+    applyInventoryNumericFilters(
+      q,
+      new URLSearchParams("maxPrice=10000&maxMileage=0"),
+    );
+    expect(q.gt).toHaveBeenCalledWith("ask_price", 0);
+    expect(q.lte.mock.calls).toEqual([
+      ["ask_price", 10000],
+      ["mileage", 0],
+    ]);
+    expect(q.or).not.toHaveBeenCalled();
+    const reported = query();
+    applyInventoryNumericFilters(
+      reported,
+      new URLSearchParams("mileagePolicy=reported"),
+    );
+    expect(reported.gte).toHaveBeenCalledWith("mileage", 0);
+  });
+  it("does not impose a range or invent a value when none was requested", () => {
+    const q = query();
+    applyInventoryNumericFilters(q, new URLSearchParams());
+    expect(q.gt).not.toHaveBeenCalled();
+    expect(q.gte).not.toHaveBeenCalled();
+    expect(q.lte).not.toHaveBeenCalled();
+  });
+  it("includes unreported values without broadening the reported-value ranges", () => {
+    const q = query();
+    applyInventoryNumericFilters(
+      q,
+      new URLSearchParams(
+        "pricePolicy=include&minPrice=5000&maxPrice=10000&mileagePolicy=include&minMileage=0&maxMileage=80000",
+      ),
+    );
+    expect(q.or.mock.calls).toEqual([
+      [
+        "ask_price.is.null,ask_price.lte.0,and(ask_price.gt.0,ask_price.gte.5000,ask_price.lte.10000)",
+      ],
+      [
+        "mileage.is.null,mileage.lt.0,and(mileage.gte.0,mileage.gte.0,mileage.lte.80000)",
+      ],
+    ]);
+    expect(q.gt).not.toHaveBeenCalled();
+    expect(q.gte).not.toHaveBeenCalled();
+    expect(q.lte).not.toHaveBeenCalled();
+  });
+  it("unreported-only values do not pretend to have a known budget or odometer", () => {
+    const q = query();
+    applyInventoryNumericFilters(
+      q,
+      new URLSearchParams(
+        "pricePolicy=unknown&maxPrice=10000&mileagePolicy=unknown&maxMileage=0",
+      ),
+    );
+    expect(q.or.mock.calls).toEqual([
+      ["ask_price.is.null,ask_price.lte.0"],
+      ["mileage.is.null,mileage.lt.0"],
+    ]);
+    expect(q.lte).not.toHaveBeenCalled();
+  });
+  it.each([
+    "pricePolicy=invalid",
+    "mileagePolicy=include,ask_price.gt.0",
+    "minPrice=1.5",
+    "maxMileage=-1",
+  ])("rejects invalid policy or range %s", (params) => {
+    expect(validateInventoryRanges(new URLSearchParams(params))).toBeTruthy();
+  });
   it("accepts custom ranges and rejects inverted, negative or malformed ranges", () => {
     expect(
       validateInventoryRanges(

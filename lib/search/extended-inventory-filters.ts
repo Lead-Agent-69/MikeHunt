@@ -2,6 +2,7 @@ export type InventoryFilterField = {
   key: string;
   label: string;
   type?: "text" | "number" | "date";
+  emptyLabel?: string;
   options?: readonly { value: string; label: string }[];
 };
 const options = (...values: string[]) =>
@@ -18,6 +19,21 @@ export const INVENTORY_DETAIL_GROUPS: {
   label: string;
   fields: InventoryFilterField[];
 }[] = [
+  {
+    label: "Price & mileage evidence",
+    fields: [
+      ...(["price", "mileage"] as const).map((kind) => ({
+        key: `${kind}Policy`,
+        label: kind === "price" ? "Price availability" : "Mileage availability",
+        emptyLabel: "Follow range filters",
+        options: [
+          { value: "reported", label: "Reported values only" },
+          { value: "include", label: "Include unreported values" },
+          { value: "unknown", label: "Unreported values only" },
+        ],
+      })),
+    ],
+  },
   {
     label: "Vehicle specifications",
     fields: [
@@ -128,6 +144,8 @@ export const INVENTORY_DETAIL_GROUPS: {
   },
 ];
 export const SCAN_EXTRA_KEYS = [
+  "pricePolicy",
+  "mileagePolicy",
   "color",
   "engine",
   "runDrive",

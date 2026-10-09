@@ -31,8 +31,9 @@ server-side. This closes a code-level continuity gap; real two-device acceptance
    but their presence is not proof of normalized coverage across every source.
    Scan already has dynamic facets for makes, title, seller and source; extend and validate
    those counts for richer detail fields rather than rebuilding them. Further competitive
-   work includes explicit unknown-value price/mileage inclusion and verification of
-   drive-time/distance geography. Sparse source
+   work includes verification of drive-time/distance geography. Explicit unknown-value
+   price/mileage policies are now implemented using shared result/facet/view query rules;
+   zero mileage remains a reported value, and empty navigation ranges remain unset. Sparse source
    fields need coverage-aware availability, not controls that silently do nothing.
 3. **Saved interests to delivered alerts.** Test the complete matching, scheduling,
    notification and unsubscribe lifecycle. A saved watchlist row is not proof of delivery.

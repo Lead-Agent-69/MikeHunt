@@ -119,11 +119,8 @@ export async function GET(req: NextRequest) {
       );
     const sellerTypes = csv(sp.get("sellerTypes")).map((s) => s.toLowerCase());
     const minRoi = flipDesk ? parseFloat(sp.get("minRoi") || "0") || 0 : 0;
-    const priceMin = parseInt(sp.get("priceMin") || "0") || 0;
-    const priceMax = parseInt(sp.get("priceMax") || "0") || 0;
     const yearMin = parseInt(sp.get("yearMin") || "0") || 0;
     const yearMax = parseInt(sp.get("yearMax") || "0") || 0;
-    const mileageMax = parseInt(sp.get("mileageMax") || "0") || 0;
     const minProfit = flipDesk ? parseInt(sp.get("minProfit") || "0") || 0 : 0;
     const mode = !flipDesk || sp.get("mode") === "all" ? "all" : "curated";
     const requestedSort = sp.get("sort") || "profitEstimate";
@@ -189,15 +186,9 @@ export async function GET(req: NextRequest) {
             .trim()
             .slice(0, 60);
           if (model) q = q.ilike("model", `%${model}%`);
-          if (sp.has("minMileage"))
-            q = q.gte("mileage", Number(sp.get("minMileage")));
           if (sellerTypes.length) q = q.in("seller_type", sellerTypes);
-          if (priceMin > 0) q = q.gte("ask_price", priceMin);
-          if (priceMax > 0) q = q.lte("ask_price", priceMax);
-          if (priceMin > 0 || priceMax > 0) q = q.gt("ask_price", 0);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
-          if (sp.has("mileageMax")) q = q.lte("mileage", mileageMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
           // CURATED = the deals a dealer should actually look at (engine says go/hold or flagged arbitrage).
           // WHOLE MARKET = no verdict gate. The toggle the user asked for.

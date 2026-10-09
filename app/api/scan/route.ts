@@ -1032,8 +1032,6 @@ export async function GET(req: NextRequest) {
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
   const minPrice = parseInt(searchParams.get("minPrice") || "0");
   const verdict = searchParams.get("verdict") || "";
-  const minMileage = parseInt(searchParams.get("minMileage") || "0");
-  const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
@@ -1145,13 +1143,6 @@ export async function GET(req: NextRequest) {
   }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
-  if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
-  if (maxPrice > 0 || minPrice > 0) query = query.gt("ask_price", 0);
-  if (minPrice > 0) query = query.gte("ask_price", minPrice);
-  // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
-  // for an explicit mileage search.
-  if (searchParams.has("minMileage")) query = query.gte("mileage", minMileage);
-  if (searchParams.has("maxMileage")) query = query.lte("mileage", maxMileage);
   query = applyVehicleDetails(query, searchParams);
 
   if (source && source.toLowerCase() !== "all") {

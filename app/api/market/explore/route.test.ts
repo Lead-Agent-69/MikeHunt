@@ -85,6 +85,22 @@ describe("Market inventory filtering and pagination", () => {
     state.flip = true;
     state.error = null;
   });
+  it("uses the same price and mileage policies with legacy Market range aliases", async () => {
+    const response = await request(
+      "priceMax=10000&mileageMax=0&pricePolicy=include&mileagePolicy=include",
+    );
+    expect(response.status).toBe(200);
+    expect(state.calls).toContainEqual([
+      "or",
+      "ask_price.is.null,ask_price.lte.0,and(ask_price.gt.0,ask_price.lte.10000)",
+    ]);
+    expect(state.calls).toContainEqual([
+      "or",
+      "mileage.is.null,mileage.lt.0,and(mileage.gte.0,mileage.lte.0)",
+    ]);
+    expect(state.calls).not.toContainEqual(["gt", "ask_price", 0]);
+    expect(state.calls).not.toContainEqual(["lte", "mileage", 0]);
+  });
 
   it("reaches inventory beyond PostgREST's first 1000 rows", async () => {
     const response = await request(

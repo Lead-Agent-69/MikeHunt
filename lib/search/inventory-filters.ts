@@ -126,6 +126,7 @@ export function validateInventoryRanges(
     for (const value of [low, high]) {
       if (
         value != null &&
+        value !== "" &&
         (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
       )
         return `${label} must be a non-negative whole number`;
@@ -139,7 +140,7 @@ export function validateInventoryRanges(
 }
 
 export function applyVehicleDetails(query: any, params: URLSearchParams) {
-  let scoped = query;
+  let scoped = applyInventoryNumericFilters(query, params);
   for (const [key, column] of [
     ["damage", "damage_type"],
     ["body", "body_class"],
@@ -168,6 +169,45 @@ export function applyVehicleDetails(query: any, params: URLSearchParams) {
   if (keys === "unknown") scoped = scoped.is("keys_present", null);
   if (params.get("buyNow") === "1") scoped = scoped.gt("buy_now_price", 0);
   return applyExtendedFilters(scoped, params);
+}
+
+/** Missing price is null/nonpositive; an actual zero-mile odometer is still reported. */
+export function applyInventoryNumericFilters(
+  query: any,
+  params: URLSearchParams,
+) {
+  let q = query;
+  for (const [kind, column, minKey, maxKey] of [
+    ["price", "ask_price", "minPrice", "maxPrice"],
+    ["mileage", "mileage", "minMileage", "maxMileage"],
+  ] as const) {
+    const policy = params.get(`${kind}Policy`);
+    const low = params.get(minKey);
+    const high = params.get(maxKey);
+    const hasLow =
+      low !== null && low !== "" && (kind === "mileage" || Number(low) > 0);
+    const hasHigh =
+      high !== null && high !== "" && (kind === "mileage" || Number(high) > 0);
+    const unknown = `${column}.is.null,${column}.${kind === "price" ? "lte" : "lt"}.0`;
+    if (policy === "unknown") {
+      q = q.or(unknown);
+      continue;
+    }
+    if (policy === "include") {
+      if (hasLow || hasHigh) {
+        const bounds = [`${column}.${kind === "price" ? "gt" : "gte"}.0`];
+        if (hasLow) bounds.push(`${column}.gte.${Number(low)}`);
+        if (hasHigh) bounds.push(`${column}.lte.${Number(high)}`);
+        q = q.or(`${unknown},and(${bounds.join(",")})`);
+      }
+      continue;
+    }
+    if (policy === "reported" || (kind === "price" && (hasLow || hasHigh)))
+      q = kind === "price" ? q.gt(column, 0) : q.gte(column, 0);
+    if (hasLow) q = q.gte(column, Number(low));
+    if (hasHigh) q = q.lte(column, Number(high));
+  }
+  return q;
 }
 
 export function applyInventoryLane(query: any, lane: string) {

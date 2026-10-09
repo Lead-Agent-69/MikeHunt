@@ -49,7 +49,7 @@ export function InventoryDetailFilters({
                       }
                       className="field min-h-11 min-w-0 !w-full !text-sm"
                     >
-                      <option value="">Any</option>
+                      <option value="">{field.emptyLabel || "Any"}</option>
                       {field.options.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
