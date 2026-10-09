@@ -26,6 +26,28 @@ const candidate = (
 });
 
 describe("alternative relevance", () => {
+  it("never groups Bronco and Bronco Sport as the same-model alternative", () => {
+    const sport = { ...base, make: "Ford", model: "Bronco Sport", year: 2024 };
+    const ranked = rankAlternatives(
+      sport,
+      [
+        candidate({
+          id: "wrong-model",
+          make: "Ford",
+          model: "Bronco",
+          year: 2024,
+        }),
+        candidate({
+          id: "sport",
+          make: "Ford",
+          model: "Bronco Sport",
+          year: 2024,
+        }),
+      ],
+      now,
+    );
+    expect(ranked.map(({ row }) => row.id)).toEqual(["sport"]);
+  });
   it("ranks fit ahead of a much cheaper price", () => {
     const ranked = rankAlternatives(
       base,
