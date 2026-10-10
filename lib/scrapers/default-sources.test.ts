@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   CI_CANDIDATE_SOURCES,
   CI_DEFAULT_SOURCES,
@@ -22,6 +22,16 @@ function runnerEnabled(): Map<string, boolean> {
   }
   return out;
 }
+
+// These suites pin the terms-safe gate itself. Since 2026-10-09 the default restores the
+// operator's sources (OPERATOR_RESTORED_SOURCES / OPERATOR_RESTORED_HOSTS); the gate still runs
+// whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
+beforeEach(() => {
+  vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("scrape-ci DEFAULT_SOURCES", () => {
   it("candidates are runner-enabled; dead ids and headed-only truecar stay out", () => {

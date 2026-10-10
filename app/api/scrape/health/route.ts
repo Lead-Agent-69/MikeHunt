@@ -17,6 +17,7 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
   TOS_RESTRICTED_SOURCES,
   isAutomationAllowedSource,
@@ -939,6 +940,58 @@ async function buildDemandCoverage(
   };
 }
 
+function listingHost(url: unknown) {
+  try {
+    return new URL(String(url || "")).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Honest live coverage, counted from the active rows themselves (not from scraper ids).
+ *
+ * "Working markets" used to be the number of scraper ids whose readiness was "ready". That
+ * undercounted badly: the curated dealer network is one scraper id covering ~30 dealer sites, and
+ * sources with live rows but a terms gate (Copart, GovDeals, PublicSurplus) reported "disabled", so
+ * 3,889 rows from 36 sites in 51 states showed as "7 working markets". A working market is now a
+ * distinct seller site (listing host) with at least one live in-scope row; states are distinct US
+ * listing states (50 + DC).
+ */
+const US_STATE_CODES = new Set(
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(
+    " ",
+  ),
+);
+
+export function buildLiveCoverage(rows: any[]) {
+  const sites = new Map<string, number>();
+  const states = new Set<string>();
+  const sourceGroups = new Set<string>();
+  for (const row of rows) {
+    const host = listingHost(row?.source_url) || String(row?.source || "");
+    if (host) sites.set(host, (sites.get(host) || 0) + 1);
+    const state = String(row?.location_state || "")
+      .trim()
+      .toUpperCase();
+    if (US_STATE_CODES.has(state)) states.add(state);
+    if (row?.source) sourceGroups.add(String(row.source));
+  }
+  return {
+    liveRows: rows.length,
+    workingMarkets: sites.size,
+    liveSites: sites.size,
+    liveStates: states.size,
+    liveSourceGroups: sourceGroups.size,
+    topSites: Array.from(sites.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([host, activeRows]) => ({ host, activeRows })),
+  };
+}
+
 function buildHealthSummary(health: any[]) {
   const total = health.length;
   const enabled = health.filter((row) => row.enabled).length;
@@ -1267,9 +1320,21 @@ export async function GET(request: NextRequest) {
         lastSeenAt: string | null;
       }
     > = {};
-    for (const row of (activeDeals || []).filter((row: any) =>
-      matchesScope(row, scope),
-    )) {
+    // Passenger cars and light/medium trucks only: a non-vehicle row that is still active (e.g.
+    // written by a scraper image older than the ingest filter) never counts as coverage.
+    const liveDeals = (activeDeals || []).filter(
+      (row: any) =>
+        matchesScope(row, scope) &&
+        isInVehicleScope({
+          title: row.title,
+          make: row.make,
+          model: row.model,
+          source: row.source,
+          source_url: row.source_url,
+        }),
+    );
+    const liveCoverage = buildLiveCoverage(liveDeals);
+    for (const row of liveDeals) {
       const id = healthSourceIdForDeal(row, sourceIds) || "unknown";
       const proof =
         proofBySource[id] ||
@@ -1411,8 +1476,14 @@ export async function GET(request: NextRequest) {
       due: summary.due,
       healthy: summary.healthy,
       summary: demandCoverage
-        ? { ...summary, wantHit: demandCoverage.wantHit, demandCoverage }
-        : summary,
+        ? {
+            ...summary,
+            ...liveCoverage,
+            wantHit: demandCoverage.wantHit,
+            demandCoverage,
+          }
+        : { ...summary, ...liveCoverage },
+      coverage: liveCoverage,
       demandCoverage,
       scope,
       plan: scopedPlan,
