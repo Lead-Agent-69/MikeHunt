@@ -416,7 +416,7 @@ export interface BuyTerms {
   maxLabel: string;
   /** Verb for sentences: "bid" | "offer" | "buy". */
   verb: string;
-  /** What the seller's number represents: "Current bid" | "Asking price" | "Price". */
+  /** What the seller's number represents: "Current bid" | "Last bid" (gov surplus) | "Asking price" | "Price". */
   priceLabel: string;
   /** One-word channel tag for chips. */
   channelTag: string;
@@ -428,7 +428,9 @@ export function buyTerms(source?: string | null): BuyTerms {
     return {
       maxLabel: "Max bid",
       verb: "bid",
-      priceLabel: "Current bid",
+      // Government surplus (GSA, GovDeals, PublicSurplus...) is crawled on a schedule, so the stored
+      // number is the last bid we saw, not a live "current" bid, and never a price or a sale.
+      priceLabel: ch === "gov" ? "Last bid" : "Current bid",
       channelTag: "Auction",
     };
   }
