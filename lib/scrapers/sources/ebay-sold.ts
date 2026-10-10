@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
+import { normalizeModel } from "../../scoring/market-value";
+import { US_STATES } from "../../geo/us-states";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,6 +89,135 @@ const num = (t: unknown): number =>
 /** Listing title only. Never a photo. Capped so the sold row stays thin. */
 export function shortSoldTitle(title: string): string {
   return title.replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+// Make spellings eBay sellers use that the deals table spells one way.
+const MAKE_ALIASES: Record<string, string> = {
+  chevy: "Chevrolet",
+  vw: "Volkswagen",
+  mercedes: "Mercedes-Benz",
+  "mercedes-benz": "Mercedes-Benz",
+};
+// Two-word makes: the second word belongs to the make, not the model.
+const TWO_WORD_MAKES = new Set(["land rover", "alfa romeo", "aston martin"]);
+// Models that are two words on the deals side ("Grand Cherokee", "Model 3", "Range Rover").
+const TWO_WORD_MODELS = new Set([
+  "grand cherokee",
+  "grand caravan",
+  "grand marquis",
+  "grand prix",
+  "grand am",
+  "grand vitara",
+  "santa fe",
+  "santa cruz",
+  "range rover",
+  "model 3",
+  "model s",
+  "model x",
+  "model y",
+  "monte carlo",
+  "town country",
+  "crown victoria",
+  "land cruiser",
+  "el camino",
+  "new beetle",
+  "transit connect",
+  "e series",
+]);
+// Truck series that are part of the model on the deals side ("Silverado 1500", "Ram 2500").
+const SERIES_RX = /^(?:1500|2500|3500|4500|5500|150|250|350|450|550)(?:hd)?$/i;
+const SERIES_MODELS = new Set(["silverado", "sierra", "ram"]);
+// Words that end the trim: listing chatter, title words and separators, not trim.
+const TRIM_STOP_RX =
+  /^(?:[-|/,:;~*!]+|no|reserve|clean|salvage|rebuilt|title|low|miles?|one|owner|runs|drives|loaded|nice|must|see|warranty|financing|cold|ac|w\/|with)$/i;
+const MAX_TRIM_WORDS = 4;
+
+/**
+ * Split the words after the model year into make, model and trim. The model is stored through
+ * market-value's normalizeModel ("F-150 XLT" -> model "f150", trim "XLT") so make|model joins match
+ * the deals side exactly; the words after the model (up to listing chatter) are the trim.
+ */
+export function splitSoldMakeModelTrim(words: string[]): {
+  make?: string;
+  model?: string;
+  trim?: string;
+} {
+  const w = words
+    .map((t) => t.replace(/^[,;:()]+|[,;:()]+$/g, ""))
+    .filter((t) => t && t !== "&");
+  if (!w.length) return {};
+  let i = 1;
+  let make = MAKE_ALIASES[w[0].toLowerCase()] || w[0];
+  if (TWO_WORD_MAKES.has(`${w[0]} ${w[1] || ""}`.toLowerCase())) {
+    make = `${w[0]} ${w[1]}`;
+    i = 2;
+  }
+  const a = w[i];
+  if (!a) return { make };
+  const b = w[i + 1];
+  const pair = `${a} ${b || ""}`.toLowerCase();
+  const twoWordModel =
+    !!b &&
+    ((/^[a-z]$/i.test(a) && /^\d{2,4}$/.test(b)) || // "F 150" -> f150
+      TWO_WORD_MODELS.has(pair) || // "Grand Cherokee", "Model 3"
+      (SERIES_MODELS.has(a.toLowerCase()) && SERIES_RX.test(b))); // "Silverado 1500"
+  const modelWords = twoWordModel ? [a, b as string] : [a];
+  const trimWords: string[] = [];
+  for (const t of w.slice(i + modelWords.length)) {
+    if (TRIM_STOP_RX.test(t) || /^\d{4}$/.test(t)) break;
+    trimWords.push(t);
+    if (trimWords.length >= MAX_TRIM_WORDS) break;
+  }
+  return {
+    make,
+    model: normalizeModel(modelWords.join(" ")) || undefined,
+    trim: trimWords.join(" ").trim() || undefined,
+  };
+}
+
+const STATE_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
+  Object.entries(US_STATES).map(([code, [name]]) => [name.toLowerCase(), code]),
+);
+
+function stateFromPlace(place: string): string | undefined {
+  const parts = place
+    .split(",")
+    .map((p) => p.trim().replace(/\s+\d{5}(?:-\d{4})?$/, ""))
+    .filter(Boolean);
+  if (
+    parts.length &&
+    /^(?:united states(?: of america)?|usa|us)$/i.test(parts[parts.length - 1])
+  )
+    parts.pop();
+  const last = parts[parts.length - 1];
+  if (!last) return undefined;
+  if (/^[A-Z]{2}$/.test(last) && US_STATES[last]) return last;
+  return STATE_NAME_TO_CODE[last.toLowerCase()];
+}
+
+/**
+ * Item location state from an eBay card's text pieces: "Located in Houston, TX", "Located in Texas,
+ * United States", or a piece that is exactly "Dallas, TX 75201". Only an explicit US state is
+ * returned; "Located in United States", a bare city or another country is undefined. Never guessed.
+ */
+export function parseSoldLocationState(pieces: string[]): string | undefined {
+  for (const raw of pieces) {
+    const text = (raw || "").replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    const located = text.match(
+      /^(?:located in|item location:?|location:)\s+(.{2,80})$/i,
+    );
+    if (located) {
+      const st = stateFromPlace(located[1]);
+      if (st) return st;
+      continue;
+    }
+    if (/^[A-Za-z .'-]{2,40},\s*[A-Z]{2}(?:\s+\d{5}(?:-\d{4})?)?$/.test(text)) {
+      const st = stateFromPlace(text);
+      if (st) return st;
+    }
+  }
+  return undefined;
 }
 
 export interface SoldRow {
@@ -179,18 +310,27 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       .slice((ym.index || 0) + 4)
       .trim()
       .split(/\s+/);
-    const make = after[0] || undefined;
-    const model = after.slice(1, 3).join(" ") || undefined;
+    const { make, model, trim } = splitSoldMakeModelTrim(after);
+    // Leaf text pieces of the card (title excluded) for the location line.
+    const pieces = card
+      .find("*")
+      .filter((_i: number, n: any) => $(n).children().length === 0)
+      .not(card.find(".s-card__title *, .s-card__title"))
+      .map((_i: number, n: any) => $(n).text())
+      .get() as string[];
+    const location_state = parseSoldLocationState(pieces);
 
     rows.push({
       year,
       make,
       model,
+      trim,
       mileage,
       sold_price,
       sold_at,
       title: shortSoldTitle(title),
       source: "ebay_motors",
+      location_state,
       item_id,
       source_url: absoluteLink.split("?")[0],
     });

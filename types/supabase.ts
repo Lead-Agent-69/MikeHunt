@@ -1968,6 +1968,7 @@ export type Database = {
       }
       sold_listings: {
         Row: {
+          basis: string
           country_code: string
           created_at: string | null
           currency_code: string
@@ -1987,6 +1988,7 @@ export type Database = {
           year: number | null
         }
         Insert: {
+          basis?: string
           country_code?: string
           created_at?: string | null
           currency_code?: string
@@ -2006,6 +2008,7 @@ export type Database = {
           year?: number | null
         }
         Update: {
+          basis?: string
           country_code?: string
           created_at?: string | null
           currency_code?: string
