@@ -57,6 +57,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/e2e/.auth/
 
 # IDE
 .windsurf/plans/

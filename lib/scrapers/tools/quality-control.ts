@@ -2,11 +2,8 @@
 // Validates scraped data, detects duplicates, and computes quality scores.
 
 import { Deal } from "@/types";
-import {
-  normalizeIntegrity,
-  normalizeVin,
-  priceKind,
-} from "../listing-integrity";
+import { normalizeVin } from "../listing-integrity";
+import { qualityFlags } from "@/lib/data-quality/sanity";
 
 export interface ValidationRule {
   name: string;
@@ -44,57 +41,22 @@ export class QualityController {
           if (
             typeof l.ask_price !== "number" ||
             !Number.isFinite(l.ask_price) ||
-            l.ask_price <= 0
+            l.ask_price < 0
           )
             return { valid: false, reason: "missing or invalid price" };
           return { valid: true };
         },
       },
       {
-        name: "price_range",
-        validate: (l) => {
-          if (l.ask_price! < 100 && priceKind(l) !== "bid")
-            return { valid: false, reason: "price too low (< $100)" };
-          return { valid: true };
-        },
-      },
-      {
-        name: "year_range",
+        // Only an unparseable year drops a row (the pipeline needs year > 1900 to store it at all).
+        // Plausibility bounds (price, mileage, year < 1950 or past next model year, VIN format and
+        // check digit) FLAG the row instead of dropping it: lib/data-quality/sanity.ts, applied in
+        // upsertDeals, stores the reason and keeps the row out of scoring and valuation.
+        name: "year_parse",
         validate: (l) => {
           if (!l.year) return { valid: true };
-          const currentYear = new Date().getFullYear() + 1;
-          if (
-            !Number.isInteger(l.year) ||
-            l.year < 1900 ||
-            l.year > currentYear
-          )
-            return { valid: false, reason: `invalid year ${l.year}` };
-          return { valid: true };
-        },
-      },
-      {
-        name: "vin_format",
-        validate: (l) => {
-          if (!l.vin) return { valid: true };
-          if (!normalizeVin(l.vin))
-            return {
-              valid: false,
-              reason: "VIN must contain 17 valid VIN characters",
-            };
-          return { valid: true };
-        },
-      },
-      {
-        name: "mileage_range",
-        validate: (l) => {
-          if (l.mileage === undefined || l.mileage === null)
-            return { valid: true };
-          if (
-            !Number.isFinite(l.mileage) ||
-            l.mileage < 0 ||
-            l.mileage > 2000000
-          )
-            return { valid: false, reason: "invalid mileage" };
+          if (!Number.isInteger(l.year) || l.year < 1900)
+            return { valid: false, reason: `unparseable year ${l.year}` };
           return { valid: true };
         },
       },
@@ -107,7 +69,7 @@ export class QualityController {
     let duplicates = 0;
 
     for (let i = 0; i < deals.length; i++) {
-      const deal = normalizeIntegrity(deals[i]);
+      const deal = deals[i];
       let isValid = true;
 
       for (const rule of this.rules) {
@@ -123,6 +85,15 @@ export class QualityController {
       }
 
       if (isValid) {
+        // Sanity flags (lib/data-quality/sanity.ts) are reported but never drop the row: upsertDeals
+        // stores them in quality_flags and keeps the row out of scoring and valuation.
+        for (const flag of qualityFlags(deal)) {
+          issues.push({
+            index: i,
+            field: flag,
+            reason: "flagged, kept out of scoring",
+          });
+        }
         const key = this.makeKey(deal);
         if (this.seenKeys.has(key)) {
           duplicates += 1;
@@ -167,7 +138,7 @@ export class QualityController {
       return `${deal.source}|${deal.source_deal_id || deal.source_url}`;
     return [
       deal.source,
-      deal.vin || deal.title?.toLowerCase(),
+      normalizeVin(deal.vin) || deal.title?.toLowerCase(),
       deal.ask_price,
       deal.location_state,
       deal.location_city,

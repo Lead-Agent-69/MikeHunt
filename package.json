@@ -4,7 +4,7 @@
   "description": "MikeHunt — Multi-source vehicle sourcing intelligence platform",
   "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=20.3"
   },
   "scripts": {
     "dev": "next dev --turbo",
@@ -24,6 +24,10 @@
     "scrape:local": "tsx scripts/scrape-local.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e": "playwright test",
+    "e2e:prod": "E2E_BASE_URL=https://mikehunt-69.vercel.app playwright test --project=desktop --project=mobile-390",
+    "perf:api": "node e2e/perf/api-p95.mjs",
+    "perf:vitals": "node e2e/perf/web-vitals.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:quick": "npm run typecheck && npm run lint",
     "accuracy:gate": "tsx scripts/valuation-backtest.ts",

@@ -2,6 +2,13 @@
 // from each listing's detail page but is bounded per run, so we spend it on the deals most likely to
 // be a profitable GO — newer + underpriced — which are also the ones most likely to actually carry a
 // VIN. Cheap heuristic over the search-card fields only (year + price + make); no market lookup.
+// Field completeness adds on top: a card already showing its VIN, photo and mileage gains little from
+// a detail fetch, so the budget goes to the cards missing them (lib/data-quality/sanity.ts).
+
+import {
+  enrichmentNeed,
+  type CompletenessInput,
+} from "@/lib/data-quality/sanity";
 
 const POPULAR_MAKES = new Set([
   "ford",
@@ -21,7 +28,7 @@ export function enrichPriority(
     year?: number | null;
     ask_price?: number | null;
     make?: string | null;
-  },
+  } & Omit<CompletenessInput, "ask_price">,
   // Makes the dealer has actually profited on (lowercased) — closes the learning loop so the
   // enrichment budget favors segments that make money. Empty/omitted → pure static heuristic.
   profitableMakes?: Set<string>,
@@ -49,6 +56,9 @@ export function enrichPriority(
 
   // Learned signal: this make has actually made the dealer money → enrich it first.
   if (deal.make && profitableMakes?.has(deal.make.toLowerCase())) score += 30;
+
+  // Completeness: missing VIN / photo / mileage / title is exactly what a detail page fills.
+  score += enrichmentNeed(deal);
 
   return score;
 }

@@ -1,0 +1,1 @@
+CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $q$ SELECT count(*) FROM public.vin_decodes $q$; REVOKE ALL ON FUNCTION public.f() FROM PUBLIC, anon, authenticated;

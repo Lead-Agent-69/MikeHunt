@@ -1,38 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRecallCount } from "@/lib/vehicle/nhtsa";
+import { getRecallsCached, getVinDecode } from "@/lib/vehicle/vin-enrichment";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
+import { sanitizeMcpVin } from "@/lib/vehicle/mcp-vin";
+import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
+import { callSignal, readJsonCapped } from "@/lib/vehicle/deadline";
 
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
     process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   );
-}
-
-async function cacheLookup(vin: string) {
-  const supabase = getSupabase();
-  const since = new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString();
-
-  const { data: d } = await supabase
-    .from("deals")
-    .select("year,make,model,trim,vin,updated_at")
-    .eq("vin", vin)
-    .gte("updated_at", since)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (d && d.year)
-    return {
-      vin,
-      year: d.year,
-      make: d.make,
-      model: d.model,
-      trim: d.trim,
-      source: "cache:deals",
-    };
-  return null;
 }
 
 async function backfillDecoded(
@@ -71,7 +50,6 @@ async function backfillDecoded(
   } catch {}
 }
 
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ vin: string }> },
@@ -82,6 +60,9 @@ export async function GET(
     windowMs: 60_000,
   });
   if (!rl.allowed) return tooManyRequests(rl);
+  const guard = await guardVinRoute(request);
+  if (guard.blocked) return guard.blocked;
+  const { deadline, canWrite } = guard;
   try {
     const { vin: rawVin } = await params;
     // VIN alphabet only (no I/O/Q), 11–17 chars. The VIN is interpolated into upstream URLs, so
@@ -93,56 +74,53 @@ export async function GET(
       return NextResponse.json({ error: "Invalid VIN" }, { status: 400 });
     }
 
-    // Minimal cache from recent deals/vehicles
-    const cached = await cacheLookup(vin);
-    if (cached) {
-      return NextResponse.json({ ...cached, cached: true });
-    }
-
-    // mcp.vin first (free, no auth) per North Star
+    // Shared with /api/vin/[vin]/specs: vin_decodes cache (180-day TTL) -> NHTSA vPIC extended
+    // decode. NHTSA is authoritative and free; mcp.vin is only a fallback when vPIC is down.
+    const sb = getSupabase();
+    const dec = await getVinDecode(sb, vin, { deadline, canWrite });
     let decoded: any = null;
-    try {
-      const response = await fetch(`https://mcp.vin/${vin}?format=json`, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "MikeHuntPro/1.0",
-        },
-      });
-      if (response.ok) {
-        decoded = await response.json();
-      }
-    } catch {}
-
-    if (!decoded || !decoded.year) {
-      // Fallback to NHTSA decode
-      const fb = await fetch(
-        `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${encodeURIComponent(vin)}?format=json`,
-      );
-      if (fb.ok) {
-        const data = await fb.json();
-        const r = data.Results?.[0] || {};
-        decoded = {
-          vin,
-          year: r.ModelYear,
-          make: r.Make,
-          model: r.Model,
-          trim: r.Trim,
-          engine:
-            (r.EngineConfiguration || "") +
-            " " +
-            (r.EngineCylinders || "") +
-            " Cyl",
-          // Assembly origin (tariff-aware sourcing) — NHTSA returns plant fields.
-          assembly_country: r.PlantCountry || undefined,
-          assembly_plant:
-            [r.PlantCompanyName, r.PlantCity, r.PlantState]
-              .filter(Boolean)
-              .join(", ") || undefined,
-        };
-      }
+    let source = "live";
+    if (dec) {
+      const d = dec.decode;
+      source = dec.cached ? (dec.stale ? "cache:stale" : "cache") : "live";
+      decoded = {
+        year: d.year,
+        make: d.make,
+        model: d.model,
+        trim: d.trim,
+        series: d.series,
+        bodyClass: d.bodyClass,
+        driveType: d.driveType,
+        fuelType: d.fuelType,
+        engine: d.engine,
+        transmission: d.transmissionStyle,
+        gvwr: d.gvwr,
+        assembly_country: d.plantCountry || undefined,
+        assembly_plant:
+          [d.plantCompany, d.plantCity, d.plantState]
+            .filter(Boolean)
+            .join(", ") || undefined,
+        decodeClean: d.decodeClean,
+      };
+    } else if (!deadline.expired()) {
+      try {
+        const response = await fetch(`https://mcp.vin/${vin}?format=json`, {
+          signal: callSignal(deadline),
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "MikeHuntPro/1.0",
+          },
+        });
+        if (response.ok) {
+          // Third-party and untrusted: capped at 1 MB, then only a validated year/make/model/trim
+          // survive (these become cache keys and recall lookups). Everything else is dropped.
+          decoded = sanitizeMcpVin(await readJsonCapped(response));
+          if (decoded) source = "mcp.vin";
+        }
+      } catch {}
     }
 
-    if (!decoded || !decoded.year) {
+    if (!decoded || !(decoded.year || decoded.Year || decoded.modelYear)) {
       return NextResponse.json({
         vin,
         year: null,
@@ -152,41 +130,56 @@ export async function GET(
       });
     }
 
-    // Normalize common shapes
+    // Normalize common shapes (NHTSA via vin-enrichment, or the mcp.vin fallback)
     const out = {
       vin,
       year: decoded.year || decoded.Year || decoded.modelYear,
       make: decoded.make || decoded.Make,
       model: decoded.model || decoded.Model,
       trim: decoded.trim || decoded.Trim,
+      series: decoded.series ?? null,
+      bodyClass: decoded.bodyClass ?? null,
+      driveType: decoded.driveType ?? null,
+      fuelType: decoded.fuelType ?? null,
       engine: decoded.engine || decoded.Engine || undefined,
+      transmission: decoded.transmission ?? null,
+      gvwr: decoded.gvwr ?? null,
       assembly_country:
         decoded.assembly_country || decoded.PlantCountry || undefined,
       assembly_plant: decoded.assembly_plant || undefined,
+      decodeClean: decoded.decodeClean ?? null,
       // Ignore third-party decoder recall fields (mcp.vin reports 0); NHTSA below is the source.
       recalls: undefined as number | undefined,
     };
 
-    // One recall source of truth, shared with /api/vin/[vin]/specs: NHTSA recallsByVehicle for the
-    // decoded make/model/year. (The old recallsByVIN URL isn't a public endpoint, so it always
-    // returned 0 while /specs showed the real count.) null = lookup failed, never a fake 0.
+    // One recall source of truth, shared with /api/vin/[vin]/specs: NHTSA recalls for the decoded
+    // make/model/year family, resolved through the recalls catalog (vPIC "F-250" is filed as
+    // "F-250 SD") and cached 7 days. There is no public VIN-level recall API. null = lookup failed,
+    // never a fake 0.
+    let recallCampaigns: any[] = [];
     if (out.make && out.model && out.year) {
-      out.recalls =
-        (await getRecallCount(
-          String(out.make),
-          String(out.model),
-          Number(out.year),
-        )) ?? undefined;
+      const r = await getRecallsCached(
+        sb,
+        String(out.make),
+        String(out.model),
+        Number(out.year),
+        { deadline, canWrite },
+      );
+      out.recalls = r?.count ?? undefined;
+      recallCampaigns = r?.campaigns ?? [];
     }
 
     // Best-effort backfill into existing rows
-    await backfillDecoded(vin, out as any);
+    // (only on a live decode; cache hits were already backfilled when first decoded)
+    if (source === "live") await backfillDecoded(vin, out as any);
 
     return NextResponse.json({
       ...out,
       recalls: out.recalls ?? null,
+      recallCampaigns,
       recallsScope: "model_year",
-      source: "live",
+      source,
+      cached: source.startsWith("cache"),
     });
   } catch (error: any) {
     console.error("VIN Decode Error:", error);

@@ -54,7 +54,8 @@ const s = (v: unknown): string | undefined =>
 export function mapOriginToSource(sourceName: string): Deal["source"] {
   const n = sourceName.toLowerCase();
   if (n.includes("carvana")) return "carvana";
-  if (n.includes("cars.com")) return "cars_com";
+  // Whole word only: "ClassicCars.com" is not Cars.com.
+  if (/(^|[^a-z0-9])cars\.com\b/.test(n)) return "cars_com";
   if (n.includes("cargurus")) return "cargurus";
   if (n.includes("autotrader")) return "autotrader";
   if (n.includes("ebay")) return "ebay_motors";

@@ -1,0 +1,1 @@
+CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = api, public AS $q$ SELECT count(*) FROM vin_decodes $q$; GRANT EXECUTE ON FUNCTION public.f() TO authenticated;

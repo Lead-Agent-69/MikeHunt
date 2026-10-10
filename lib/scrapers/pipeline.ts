@@ -31,6 +31,18 @@ import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import { accessDecision, ACCESS_POLICY_REVISION } from "./access-policy";
 import { integritySummary } from "./listing-integrity";
 import { quarantineRows } from "./quarantine";
+import {
+  completenessScore,
+  qualityFlags,
+  vinFlags,
+} from "@/lib/data-quality/sanity";
+import {
+  columnsExist,
+  stripColumns,
+} from "@/lib/data-quality/optional-columns";
+
+/** Columns added by 20261010210000 (Ren sign pending). Stripped until hosted has them. */
+export const QUALITY_COLUMNS = ["quality_flags", "completeness"] as const;
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -175,6 +187,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   const normalized = normalizeDeals(scopedDeals);
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
   // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
+  // The year each listing stated, before a VIN decode overwrites it (year_vin_mismatch flag).
+  const listedYears = new WeakMap<object, number | undefined>(
+    normalized.map((d) => [d as object, d.year]),
+  );
   const vinApplied = localContext?.cacheOnly
     ? 0
     : await enrichVins(getSupabase(), normalized);
@@ -240,7 +256,22 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
       const phone = deal.seller_phone || extractedContact.phone;
       const email = deal.seller_email || extractedContact.email;
-      const vin = deal.vin || extractedContact.vin;
+      const statedVin = deal.vin || extractedContact.vin;
+      // A VIN that isn't 17 VIN-alphabet chars can't key dedup or a decode: keep the row, keep the
+      // raw text in options.rawVin, flag it, and store vin as null.
+      const vinFormatBad = vinFlags(statedVin).includes("vin_bad_format");
+      const vin = vinFormatBad ? null : statedVin;
+      const flags = qualityFlags({
+        ask_price: deal.ask_price,
+        mileage: deal.mileage,
+        year: deal.year,
+        vin: statedVin,
+        make: deal.make,
+        source: deal.source,
+        auction_end_at: normalizeAuctionEndAt(deal.auction_end),
+        listed_year: listedYears.get(deal as object) ?? deal.year,
+      });
+      const flagged = flags.length > 0;
       const auctionEndAt = normalizeAuctionEndAt(deal.auction_end);
 
       const scraperOptions =
@@ -301,6 +332,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           seller: sellerName || scraperOptions.seller,
           // Stated on the listing vs assumed from the source (salvage yard, ReCar, CPO-less retail).
           ...(titleSource ? { titleSource } : {}),
+          ...(vinFormatBad ? { rawVin: String(statedVin).slice(0, 64) } : {}),
           sellerType: sellerType || scraperOptions.sellerType,
           auction: {
             ...(typeof scraperOptions.auction === "object" &&
@@ -344,17 +376,31 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // seller_phone / seller_email do NOT exist — contact lives in options.contact above.
         estimated_transport_cost: analysis?.transportCost ?? null,
         estimated_repair_cost: analysis?.repairCost ?? null,
-        true_net_profit: analysis?.profit ?? null,
-        profit_score: analysis?.score ?? null,
-        is_arbitrage_opportunity: analysis?.verdict === "go",
+        true_net_profit: flagged ? null : (analysis?.profit ?? null),
+        profit_score: flagged ? null : (analysis?.score ?? null),
+        is_arbitrage_opportunity: !flagged && analysis?.verdict === "go",
         // Free market-value anchor when a scraper has one (AutoTrader ships KBB Fair Purchase Price on
         // every listing — a legit MMR-equivalent benchmark). Shown on cards + available to valuation.
         mmr_value: analysis ? ((deal as any).mmr_value ?? null) : null,
-        sell_estimate: analysis?.sellEstimate ?? null,
-        recommended_max_bid: analysis?.recommendedMaxBid ?? null,
-        deal_verdict: analysis?.verdict ?? null,
+        sell_estimate: flagged ? null : (analysis?.sellEstimate ?? null),
+        recommended_max_bid: flagged
+          ? null
+          : (analysis?.recommendedMaxBid ?? null),
+        deal_verdict: analysis ? (flagged ? "pass" : analysis.verdict) : null,
+        quality_flags: flagged ? flags : null,
+        completeness: completenessScore({
+          images: deal.images,
+          vin,
+          mileage: deal.mileage,
+          ask_price: deal.ask_price,
+          condition,
+          location_zip: deal.location_zip,
+          location_city: deal.location_city,
+          location_state: deal.location_state,
+        }),
         deal_analysis: analysis
           ? {
+              ...(flagged ? { qualityFlags: flags } : {}),
               roi: Math.round(analysis.roi * 10) / 10,
               profitMargin: Math.round(analysis.profitMargin * 10) / 10,
               breakEvenDay: analysis.breakEvenDay,
@@ -369,7 +415,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
                 total: analysis.totalCost,
               },
               scoreBreakdown: analysis.scoreBreakdown,
-              warnings: analysis.warnings,
+              warnings: flagged
+                ? [
+                    `Not scored: listing values failed sanity checks (${flags.join(", ")}). Verify on the source before relying on it.`,
+                    ...analysis.warnings,
+                  ]
+                : analysis.warnings,
               recommendations: analysis.recommendations,
               priceImplausible: analysis.priceImplausible,
               priceSanity: analysis.priceSanity,
@@ -428,6 +479,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.warn("[upsertDeals] geocoding skipped:", (e as Error).message);
   }
 
+  // Thin rows on hosted until the quality migration is applied: strip its columns rather than fail
+  // the Zeus local-cache write (which throws on an unknown column instead of self-healing).
+  let rowsToWrite: typeof rows = rows;
+  if (!(await columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)))
+    rowsToWrite = stripColumns(rows as any[], QUALITY_COLUMNS) as typeof rows;
+
   const SELECT_COLS =
     "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at";
   const sb = getSupabase();
@@ -458,7 +515,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   let error: { message: string } | null = null;
   if (localContext) {
     const result = await localContext.cache.persistRows(
-      rows as any[],
+      rowsToWrite as any[],
       sb,
       SELECT_COLS,
     );
@@ -472,7 +529,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         "[LocalCache] daily write threshold reached; new source jobs will pause",
       );
   } else {
-    const response = await upsertWithBackoff(rows);
+    const response = await upsertWithBackoff(rowsToWrite);
     upsertedRows = response.data;
     error = response.error;
     if (!error) await sleep2s();
@@ -481,7 +538,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
   // below would then drop EVERY row (they all carry it) — that exact bug once killed all ingestion. So
   // when the error names a missing column, strip it from every row and retry the batch. Loop for several.
-  let healedRows: any[] = rows;
+  let healedRows: any[] = rowsToWrite;
   let heals = 0;
   while (error && heals < 8) {
     const col = error.message.match(

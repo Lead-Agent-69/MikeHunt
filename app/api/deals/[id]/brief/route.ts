@@ -63,7 +63,9 @@ export function aiBriefWriteDecision(
 
 export function buildDeterministicDealBrief(d: any) {
   const costs = d.deal_analysis?.costs || {};
-  const verdict = String(d.deal_verdict || "hold").toUpperCase();
+  const verdict = String(d.deal_verdict || "hold")
+    .replace(/_/g, " ")
+    .toUpperCase();
   const profit = Number(d.true_net_profit || 0);
   const ask = Number(d.ask_price || 0);
   const resale = Number(d.sell_estimate ?? d.mmr_value ?? 0);

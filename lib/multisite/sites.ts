@@ -3,7 +3,8 @@
  * opens the site's public search with their filters already applied (AutoTempest's model).
  *
  * URL formats follow Kera's parity audit (/workspace/mikehunt-audit/competitor_parity.md §3,
- * confirmed in a real browser 2026-10-09). Excluded on purpose:
+ * confirmed in a real browser 2026-10-09) and the per-filter re-check of 2026-10-10
+ * (deeplink_verification.md; locked in by multisite-verified.test.ts). Excluded on purpose:
  *  - Carvana: terms forbid hyperlinking to the service without written permission.
  *  - Visor: terms bar unauthorized linking and use "as part of any effort to compete".
  */
@@ -78,22 +79,29 @@ export const autotempest: MultiSiteSite = {
   },
 };
 
+/*
+ * Cars.com drivetrain is NOT sent. Our slugs (`front_wheel_drive`, ...) disagree with a third-party doc
+ * (`fwd`, ...) and Cloudflare blocked every browser check on 2026-10-10, so drivetrain is reported as
+ * dropped (the buyer sets it on Cars.com) rather than sent with a value that may be wrong. Re-add
+ * `drivetrain_slugs[]` once a real browser confirms the slugs.
+ *
+ * Body style IS sent, flagged unconfirmed: pickups map to `truck`. Cars.com's own /shopping/truck/ page
+ * embeds bodystyle ["truck"], and a shared Cars.com URL plus the third-party doc agree; the old
+ * `pickup_truck` was wrong. Not yet loaded in a browser (Cloudflare), so it stays unconfirmed.
+ * Fuel, transmission, trim keyword and max miles agree across sources and stay, flagged.
+ * Cars.com also has flex_fuel / hydrogen fuel and cvt / dual_clutch transmission slugs; our filters
+ * don't offer those values yet, so there is nothing to map.
+ */
 const CARS_COM_BODY: Record<NonNullable<MultiSiteFilters["body"]>, string> = {
   sedan: "sedan",
   suv: "suv",
-  truck: "pickup_truck",
+  truck: "truck",
   coupe: "coupe",
   hatchback: "hatchback",
   minivan: "minivan",
   van: "van",
   wagon: "wagon",
   convertible: "convertible",
-};
-const CARS_COM_DRIVE: Record<NonNullable<MultiSiteFilters["drivetrain"]>, string> = {
-  awd: "all_wheel_drive",
-  "4wd": "four_wheel_drive",
-  fwd: "front_wheel_drive",
-  rwd: "rear_wheel_drive",
 };
 const CARS_COM_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, string> = {
   gas: "gasoline",
@@ -127,14 +135,11 @@ export const carsCom: MultiSiteSite = {
         : undefined,
       keyword: f.trim,
       "body_style_slugs[]": f.body ? [CARS_COM_BODY[f.body]] : undefined,
-      "drivetrain_slugs[]": f.drivetrain
-        ? [CARS_COM_DRIVE[f.drivetrain]]
-        : undefined,
       "fuel_slugs[]": f.fuel ? [CARS_COM_FUEL[f.fuel]] : undefined,
       "transmission_slugs[]": f.transmission ? [f.transmission] : undefined,
     })}`;
-    return link(this, url, f, ["title"], this.verified, {
-      unconfirmed: ["trim", "body", "drivetrain", "fuel", "transmission"],
+    return link(this, url, f, ["title", "drivetrain"], this.verified, {
+      unconfirmed: ["trim", "body", "fuel", "transmission", "milesMax"],
     });
   },
 };
@@ -249,10 +254,16 @@ export const autotrader: MultiSiteSite = {
       make && f.model && /^[a-z0-9]+$/i.test(f.model)
         ? f.model.toUpperCase()
         : undefined;
+    // Trim rides as trimCodeList=MODELCODE|Trim (browser-verified for CIVIC|Sport, 124 -> 26
+    // matches). It needs the model code. Only a single plain word was spot-checked, so trims with
+    // spaces or punctuation ("EX-L", "Touring Elite") are sent but flagged unconfirmed.
+    const trim = modelCode && f.trim ? f.trim : undefined;
+    const trimPlain = Boolean(trim && /^[a-z0-9]+$/i.test(trim));
     const url = `https://www.autotrader.com/cars-for-sale/searchresults.xhtml?${qs(
       {
         makeCodeList: make,
         modelCodeList: modelCode,
+        trimCodeList: trim ? `${modelCode}|${trim}` : undefined,
         startYear: f.yearMin,
         endYear: f.yearMax,
         minPrice: f.priceMin,
@@ -269,7 +280,18 @@ export const autotrader: MultiSiteSite = {
       f,
       [...(f.model && !modelCode ? (["model"] as const) : []), "title"],
       this.verified,
-      { unconfirmed: ["body", "drivetrain", "fuel", "transmission"] },
+      {
+        // Browser-verified 2026-10-10: style, drive, fuel, transmission and max miles.
+        confirmed: [
+          "body",
+          "drivetrain",
+          "fuel",
+          "transmission",
+          "milesMax",
+          ...(trimPlain ? (["trim"] as Key[]) : []),
+        ],
+        unconfirmed: trim && !trimPlain ? ["trim"] : [],
+      },
     );
   },
 };
@@ -320,7 +342,9 @@ const CL_BODY: Record<NonNullable<MultiSiteFilters["body"]>, number> = {
   wagon: 11,
   van: 12,
 };
-const CL_DRIVE: Partial<Record<NonNullable<MultiSiteFilters["drivetrain"]>, number>> = {
+const CL_DRIVE: Partial<
+  Record<NonNullable<MultiSiteFilters["drivetrain"]>, number>
+> = {
   fwd: 1,
   rwd: 2,
   "4wd": 3,
@@ -332,7 +356,10 @@ const CL_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, number> = {
   plugin_hybrid: 3,
   electric: 4,
 };
-const CL_TRANS: Record<NonNullable<MultiSiteFilters["transmission"]>, number> = {
+const CL_TRANS: Record<
+  NonNullable<MultiSiteFilters["transmission"]>,
+  number
+> = {
   manual: 1,
   automatic: 2,
 };
@@ -368,8 +395,15 @@ export const craigslist: MultiSiteSite = {
       f.drivetrain === "awd" ? ["drivetrain"] : [],
       this.verified,
       {
-        confirmed: ["trim"],
-        unconfirmed: ["body", "fuel", "transmission", ...(f.drivetrain === "awd" ? [] : (["drivetrain"] as Key[]))],
+        // Browser-verified 2026-10-10 (coupe, fwd, hybrid, manual, salvage, max miles, trim query).
+        confirmed: [
+          "trim",
+          "body",
+          "fuel",
+          "transmission",
+          "milesMax",
+          ...(f.drivetrain === "awd" ? [] : (["drivetrain"] as Key[])),
+        ],
       },
     );
   },
@@ -485,12 +519,14 @@ export const truecar: MultiSiteSite = {
 
 /**
  * Kelley Blue Book listings (Cox Automotive, same search stack as Autotrader). KBB's terms allow
- * hypertext links under its Linking Policy (no framing). Format not yet browser-confirmed.
+ * hypertext links under its Linking Policy (no framing). Base search and body style were confirmed
+ * in a real browser 2026-10-10 (123 -> 8 matches for coupe). Drive, fuel, transmission and max miles
+ * hit KBB's bot wall, so they are not sent and show as "set it on KBB" until confirmed.
  */
 export const kbb: MultiSiteSite = {
   id: "kbb",
   label: "Kelley Blue Book",
-  verified: false,
+  verified: true,
   build(f) {
     if (!f.make) return null;
     const path = [slug(f.make), f.model ? slug(f.model) : ""]
@@ -503,16 +539,20 @@ export const kbb: MultiSiteSite = {
       endYear: f.yearMax,
       minPrice: f.priceMin,
       maxPrice: f.priceMax,
-      maxMileage: f.milesMax,
-      ...coxExtras(f),
+      vehicleStyleCodes: coxExtras(f).vehicleStyleCodes,
     })}`;
-    return link(this, url, f, ["title"], false, {
-      unconfirmed: ["body", "drivetrain", "fuel", "transmission"],
-    });
+    return link(
+      this,
+      url,
+      f,
+      ["title", "milesMax", "drivetrain", "fuel", "transmission"],
+      this.verified,
+      { confirmed: ["body"] },
+    );
   },
 };
 
-/** Edmunds used inventory. Public search page; format not yet browser-confirmed. */
+/** Edmunds used inventory. Hidden: a real browser got 403 Access Denied (2026-10-10), format unconfirmed. */
 export const edmunds: MultiSiteSite = {
   id: "edmunds",
   label: "Edmunds",
@@ -537,7 +577,8 @@ export const edmunds: MultiSiteSite = {
 
 /**
  * Salvage auctions (public lot search; bidding needs the buyer's own membership or a broker). We
- * link only. MikeHunt does not scrape either site. Formats not yet browser-confirmed.
+ * link only. MikeHunt does not scrape either site. Keyword search (make model trim) was confirmed in
+ * a real browser 2026-10-10; both stay hidden (verified: false) until their linking terms are checked.
  */
 export const copart: MultiSiteSite = {
   id: "copart",
@@ -551,7 +592,16 @@ export const copart: MultiSiteSite = {
       this,
       url,
       f,
-      ["yearMin", "yearMax", "priceMin", "priceMax", "milesMax", "zip", "radiusMi", "title"],
+      [
+        "yearMin",
+        "yearMax",
+        "priceMin",
+        "priceMax",
+        "milesMax",
+        "zip",
+        "radiusMi",
+        "title",
+      ],
       false,
       { confirmed: ["trim"] },
     );
@@ -570,7 +620,16 @@ export const iaai: MultiSiteSite = {
       this,
       url,
       f,
-      ["yearMin", "yearMax", "priceMin", "priceMax", "milesMax", "zip", "radiusMi", "title"],
+      [
+        "yearMin",
+        "yearMax",
+        "priceMin",
+        "priceMax",
+        "milesMax",
+        "zip",
+        "radiusMi",
+        "title",
+      ],
       false,
       { confirmed: ["trim"] },
     );

@@ -4,6 +4,7 @@
 // Free-tier: CACHE_PHOTOS_MAX unset or 0 returns [] so Storage cannot fill.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchListingPhoto } from "./fetch-listing-photo";
 
 const BUCKET = "vehicle-photos";
 
@@ -12,29 +13,6 @@ function isPhotoCacheDisabled(): boolean {
   if (raw === undefined || raw === "") return true;
   const n = Number(raw);
   return !Number.isFinite(n) || n <= 0;
-}
-
-async function fetchImage(
-  url: string,
-): Promise<{ buf: ArrayBuffer; type: string } | null> {
-  try {
-    const origin = new URL(url).origin;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        Referer: origin,
-        Accept: "image/avif,image/webp,image/*,*/*;q=0.8",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") || "image/jpeg";
-    if (!type.startsWith("image/")) return null;
-    return { buf: await res.arrayBuffer(), type };
-  } catch {
-    return null;
-  }
 }
 
 const ext = (type: string) =>
@@ -59,11 +37,12 @@ export async function cacheVehiclePhotos(
       out.push(u);
       continue;
     }
-    const img = await fetchImage(u);
+    // Allowlisted listing CDNs only, pinned + capped (see fetch-listing-photo).
+    const img = await fetchListingPhoto(u);
     if (!img) continue;
-    const path = `${dealId}/${i}.${ext(img.type)}`;
-    const { error } = await sb.storage.from(BUCKET).upload(path, img.buf, {
-      contentType: img.type,
+    const path = `${dealId}/${i}.${ext(img.contentType)}`;
+    const { error } = await sb.storage.from(BUCKET).upload(path, img.body, {
+      contentType: img.contentType,
       upsert: true,
       cacheControl: "2592000",
     });

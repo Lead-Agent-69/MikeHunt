@@ -27,6 +27,10 @@ import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
+  dealerSourceIdFromUrl,
+  sourceFromUrl,
+} from "@/lib/sources/source-meta";
+import {
   isSourceLandingPage,
   sourceLinkLabel,
 } from "@/lib/sources/listing-link";
@@ -124,35 +128,13 @@ function sourceHealthIdForDeal(deal: any, sources: SourceHealthItem[]) {
   const ids = new Set(sources.map((item) => item.id));
   if (ids.has(source)) return source;
   if (source === "gov_auction") {
-    if (url.includes("govdeals.com") && ids.has("govdeals")) return "govdeals";
-    if (url.includes("publicsurplus") && ids.has("publicsurplus"))
-      return "publicsurplus";
-    if (url.includes("municibid") && ids.has("municibid")) return "municibid";
-    if (url.includes("gsa") && ids.has("gsa_auctions")) return "gsa_auctions";
+    const govSource = sourceFromUrl(url);
+    if (govSource && ids.has(govSource)) return govSource;
   }
   if (source === "independent_dealer") {
-    if (url.includes("aeofmiami.com") && ids.has("ae-of-miami"))
-      return "ae-of-miami";
-    if (
-      (url.includes("stjamesauto.com") ||
-        url.includes("stjamesautoparts.com")) &&
-      ids.has("stjames-auto")
-    )
-      return "stjames-auto";
-    if (url.includes("dgautollc.com") && ids.has("dg-auto")) return "dg-auto";
-    if (url.includes("recar.com") && ids.has("recar")) return "recar";
-    if (url.includes("damage.com") && ids.has("damage-com"))
-      return "damage-com";
-    if (url.includes("casmiami.com") && ids.has("cas-miami"))
-      return "cas-miami";
-    if (url.includes("salvagezone.com") && ids.has("salvagezone"))
-      return "salvagezone";
-    if (url.includes("rebuiltauto.com") && ids.has("rebuilt-auto"))
-      return "rebuilt-auto";
-    if (url.includes("alpineautogallery.com") && ids.has("alpine-auto"))
-      return "alpine-auto";
-    if (url.includes("replicaauto.com") && ids.has("replica-auto"))
-      return "replica-auto";
+    // Hostname match (exact or dot-suffix) against the curated dealer domains.
+    const dealerSourceId = dealerSourceIdFromUrl(url);
+    if (dealerSourceId && ids.has(dealerSourceId)) return dealerSourceId;
     if (ids.has("curated_dealers")) return "curated_dealers";
   }
   return "";
@@ -240,6 +222,13 @@ function PersonalListingLead({ deal }: { deal: any }) {
   );
 }
 
+// Engine verdict as the page shows it. NOT_ENOUGH_DATA = too few comps and no third-party value
+// (lib/scoring/deal-analyzer.ts), so there is no buy/pass call.
+type EngineVerdict = "GO" | "HOLD" | "PASS" | "NOT_ENOUGH_DATA";
+function verdictWord(v: EngineVerdict): string {
+  return v === "NOT_ENOUGH_DATA" ? "NOT ENOUGH DATA" : v;
+}
+
 function DecisionCommandPanel({
   deal,
   engineVerdict,
@@ -252,7 +241,7 @@ function DecisionCommandPanel({
   onWatchPrice,
 }: {
   deal: any;
-  engineVerdict: "GO" | "HOLD" | "PASS";
+  engineVerdict: EngineVerdict;
   engineNetProfit: number;
   engineScore: number;
   engineRoi: number;
@@ -266,7 +255,9 @@ function DecisionCommandPanel({
       ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
       : engineVerdict === "HOLD"
         ? "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]"
-        : "border-[var(--rbd)] bg-[var(--rlo)] text-[var(--red)]";
+        : engineVerdict === "NOT_ENOUGH_DATA"
+          ? "border-[var(--b2)] bg-[var(--s1)] text-[var(--t4)]"
+          : "border-[var(--rbd)] bg-[var(--rlo)] text-[var(--red)]";
   const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const maxBid = Number(deal?.recommendedMaxBid || deal?.askPrice || 0);
 
@@ -284,7 +275,9 @@ function DecisionCommandPanel({
                   ? "Bid only if the proof checks out"
                   : engineVerdict === "HOLD"
                     ? "Watch this one until the math improves"
-                    : "Pass unless the seller moves hard"}
+                    : engineVerdict === "NOT_ENOUGH_DATA"
+                      ? "Not enough market data to call this yet"
+                      : "Pass unless the seller moves hard"}
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
                 {title || "This vehicle"} is scored with the current source
@@ -295,7 +288,7 @@ function DecisionCommandPanel({
             <span
               className={`w-fit rounded-full border px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] ${verdictTone}`}
             >
-              {engineVerdict}
+              {verdictWord(engineVerdict)}
             </span>
           </div>
 
@@ -350,7 +343,7 @@ function DecisionCommandPanel({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {engineVerdict === "PASS" ? (
+            {engineVerdict === "PASS" || engineVerdict === "NOT_ENOUGH_DATA" ? (
               <button
                 onClick={onWatchPrice}
                 className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
@@ -714,7 +707,7 @@ export default function DealPage({
   const hasEngine = !!serverDeal?.dealVerdict;
   const engineVerdict = (
     hasEngine ? String(serverDeal.dealVerdict).toUpperCase() : store.verdict
-  ) as "GO" | "HOLD" | "PASS";
+  ) as EngineVerdict;
   const engineNetProfit =
     hasEngine && serverDeal.true_net_profit != null
       ? Number(serverDeal.true_net_profit)
@@ -1465,9 +1458,11 @@ export default function DealPage({
                       Verdict
                     </p>
                     <div
-                      className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : "text-[var(--red)]"}`}
+                      className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : engineVerdict === "NOT_ENOUGH_DATA" ? "text-[var(--t4)]" : "text-[var(--red)]"}`}
                     >
-                      {engineVerdict === "GO" ? "BUY" : engineVerdict}
+                      {engineVerdict === "GO"
+                        ? "BUY"
+                        : verdictWord(engineVerdict)}
                     </div>
                   </div>
                 </div>

@@ -49,9 +49,9 @@ describe("fetchPublicImage", () => {
       headers: { location: "http://169.254.169.254/latest/meta-data" },
       data: new ArrayBuffer(0),
     });
-    await expect(fetchPublicImage(IMG, isAllowedImageUrl)).rejects.toBeInstanceOf(
-      UrlNotAllowedError,
-    );
+    await expect(
+      fetchPublicImage(IMG, isAllowedImageUrl),
+    ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).toHaveBeenCalledTimes(1);
   });
 
@@ -61,15 +61,18 @@ describe("fetchPublicImage", () => {
       headers: { location: "https://attacker.example/x.jpg" },
       data: new ArrayBuffer(0),
     });
-    await expect(fetchPublicImage(IMG, isAllowedImageUrl)).rejects.toBeInstanceOf(
-      UrlNotAllowedError,
-    );
+    await expect(
+      fetchPublicImage(IMG, isAllowedImageUrl),
+    ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).toHaveBeenCalledTimes(1);
   });
 
   it("refuses an allowlisted hostname whose DNS points at a private address", async () => {
     await expect(
-      fetchPublicImage("https://rebind.craigslist.org/a.jpg", isAllowedImageUrl),
+      fetchPublicImage(
+        "https://rebind.craigslist.org/a.jpg",
+        isAllowedImageUrl,
+      ),
     ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).not.toHaveBeenCalled();
   });
@@ -151,8 +154,52 @@ describe("fetchPublicImage on the DNS pin", () => {
   it("refuses a host whose single DNS answer is metadata, before any request", async () => {
     axiosGet.mockReset();
     await expect(
-      fetchPublicImage("https://rebind.craigslist.org/x.jpg", isAllowedImageUrl),
+      fetchPublicImage(
+        "https://rebind.craigslist.org/x.jpg",
+        isAllowedImageUrl,
+      ),
     ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).not.toHaveBeenCalled();
   });
+});
+
+describe("fetchPublicImage signal + byte cap", () => {
+  it("passes a combined deadline signal and honors a smaller maxBytes", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce(ok());
+    const caller = new AbortController();
+    await fetchPublicImage(
+      IMG,
+      isAllowedImageUrl,
+      {},
+      {
+        signal: caller.signal,
+        maxBytes: 1234,
+      },
+    );
+    const init = axiosGet.mock.calls[0][1];
+    expect(init.maxContentLength).toBe(1234);
+    expect(init.signal.aborted).toBe(false);
+    caller.abort();
+    expect(init.signal.aborted).toBe(true);
+  });
+
+  it("never raises the cap above MAX_IMAGE_BYTES", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce(ok());
+    await fetchPublicImage(IMG, isAllowedImageUrl, {}, { maxBytes: 1e12 });
+    expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(10 * 1024 * 1024);
+  });
+});
+
+describe("image byte cap can't be disabled by a bad maxBytes", () => {
+  it.each([NaN, -1, 0, Infinity, -Infinity])(
+    "maxBytes=%s falls back to the 10MB cap",
+    async (m) => {
+      axiosGet.mockReset();
+      axiosGet.mockResolvedValueOnce(ok());
+      await fetchPublicImage(IMG, isAllowedImageUrl, {}, { maxBytes: m });
+      expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(10 * 1024 * 1024);
+    },
+  );
 });

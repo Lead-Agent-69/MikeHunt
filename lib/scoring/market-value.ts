@@ -13,6 +13,7 @@ import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
+import { qualityFlags } from "@/lib/data-quality/sanity";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -424,7 +425,18 @@ async function loadMarketIndexUnlocked(
       break;
     }
     if (!pageRows || pageRows.length === 0) break;
-    data.push(...pageRows);
+    // Sanity-flagged rows (odometer typo, future model year, ...) never feed comps. Same pure check
+    // the ingest pipeline stores in quality_flags, so this works before that column is applied.
+    data.push(
+      ...pageRows.filter(
+        (r: any) =>
+          qualityFlags({
+            ask_price: r.ask_price,
+            mileage: r.mileage,
+            year: r.year,
+          }).length === 0,
+      ),
+    );
     if (pageRows.length < PAGE) break;
   }
 

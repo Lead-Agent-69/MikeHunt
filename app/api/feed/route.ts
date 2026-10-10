@@ -13,6 +13,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
 import { scoreInterest } from "@/lib/intelligence/interest-patterns";
@@ -28,6 +29,12 @@ import {
 
 const COLS =
   "id, source, source_url, title, year, make, model, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, mileage, condition, deal_analysis";
+
+// Paging bounds. A guest can't walk the whole inventory: 30 cards a page, 600 cards deep, 30
+// requests a minute per IP. Signed-in For You pages a 250-card pool, so the cap never bites there.
+export const FEED_MAX_LIMIT = 30;
+export const FEED_MAX_OFFSET = 600;
+export const FEED_GUEST_RATE = { limit: 30, windowMs: 60_000 };
 
 function mapItem(d: any) {
   d = applyGoProfitPolicy(d);
@@ -67,8 +74,14 @@ async function getFeed(req: NextRequest) {
   const rangeError = validateInventoryRanges(sp);
   if (rangeError)
     return NextResponse.json({ error: rangeError }, { status: 400 });
-  const offset = Math.max(0, Number(sp.get("offset")) || 0);
-  const limit = Math.min(Math.max(Number(sp.get("limit")) || 12, 1), 30);
+  const offset = Math.min(
+    Math.max(0, Math.floor(Number(sp.get("offset")) || 0)),
+    FEED_MAX_OFFSET,
+  );
+  const limit = Math.min(
+    Math.max(Math.floor(Number(sp.get("limit")) || 12), 1),
+    FEED_MAX_LIMIT,
+  );
 
   if (!isSupabaseConfigured()) {
     return NextResponse.json({
@@ -156,6 +169,11 @@ async function getFeed(req: NextRequest) {
   }
 
   // ── ANON: plain best-first, fresh, photo-only feed. ──
+  const rl = rateLimit(req, { key: "feed-guest", ...FEED_GUEST_RATE });
+  if (!rl.allowed) return tooManyRequests(rl);
+  if (offset >= FEED_MAX_OFFSET)
+    return NextResponse.json({ items: [], nextOffset: null, capped: true });
+  const pageLimit = Math.min(limit, FEED_MAX_OFFSET - offset);
   let q = supabase
     .from("deals")
     .select(COLS)
@@ -164,7 +182,7 @@ async function getFeed(req: NextRequest) {
     .neq("images", "{}")
     .order("last_seen_at", { ascending: false, nullsFirst: false })
     .order("id", { ascending: true })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + pageLimit - 1);
   q = applyInventoryViewScope(q, sp);
 
   const { data, error } = await q;
@@ -173,8 +191,9 @@ async function getFeed(req: NextRequest) {
   const items = (data || [])
     .filter((d: any) => Array.isArray(d.images) && d.images[0])
     .map(mapItem);
+  const next = offset + pageLimit;
   return NextResponse.json({
     items: forDesk(items),
-    nextOffset: offset + limit,
+    nextOffset: next < FEED_MAX_OFFSET ? next : null,
   });
 }

@@ -15,6 +15,7 @@ import {
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
+import { hostMatches, hostOf } from "@/lib/net/host-match";
 
 function csvParam(value: string | null) {
   return (value || "")
@@ -190,8 +191,15 @@ export async function GET(req: NextRequest) {
       needle.toLowerCase(),
     );
     rows = rows.filter((row: any) => {
-      const url = String(row.source_url || "").toLowerCase();
-      return needles.some((needle) => url.includes(needle));
+      // Match the hostname only: a domain needle by exact/dot-suffix, a bare brand needle
+      // ("stjames") as a fragment of the host. Never a substring of the whole URL.
+      const host = hostOf(row.source_url);
+      if (!host) return false;
+      return needles.some((needle) =>
+        needle.includes(".")
+          ? hostMatches(host, needle)
+          : host.includes(needle),
+      );
     });
   }
 

@@ -49,6 +49,7 @@ import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
 import {
   dealerSourceIdFromUrl,
   displaySource,
+  sourceFromUrl,
   sourceMeta,
   tint,
 } from "@/lib/sources/source-meta";
@@ -3726,12 +3727,9 @@ function ScanPageInner() {
       const url = String(vehicle.sourceUrl || "").toLowerCase();
       if (sourceHealthById.has(source)) return sourceHealthById.get(source);
       if (source === "gov_auction") {
-        if (url.includes("govdeals.com"))
-          return sourceHealthById.get("govdeals");
-        if (url.includes("publicsurplus"))
-          return sourceHealthById.get("publicsurplus");
-        if (url.includes("municibid")) return sourceHealthById.get("municibid");
-        if (url.includes("gsa")) return sourceHealthById.get("gsa_auctions");
+        const govSource = sourceFromUrl(url);
+        if (govSource && sourceHealthById.has(govSource))
+          return sourceHealthById.get(govSource);
       }
       if (source === "independent_dealer") {
         const dealerSourceId = dealerSourceIdFromUrl(

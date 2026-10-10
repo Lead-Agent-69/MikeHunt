@@ -59,9 +59,18 @@ const DEFAULT_TRANSPORT_COST = parseFloat(
 
 // Map a private/retail condition (when no damage_type is present) to a recon/repair baseline,
 // so obviously-damaged private cars don't book $0 repair.
-function conditionRepairBaseline(condition?: string): number {
+function conditionRepairBaseline(
+  condition?: string,
+  retailAsk = false,
+): number {
   const c = (condition || "").toLowerCase();
   if (!c) return 0;
+  // "run_drive" is an auction grade (Copart/IAA "runs and drives", sold as-is). On a retail ask it is
+  // only the scraper's legacy default for "no title/condition parsed" — pipeline.ts now writes NULL
+  // instead — so a dealer or Craigslist car is not booked $1,500 of auction-grade repair for it. It
+  // gets the same used-retail recon as an explicit "used"/"clean" listing.
+  if (retailAsk && (c.includes("run_drive") || c.includes("run/drive")))
+    return 400;
   if (
     c.includes("salvage") ||
     c.includes("rebuilt") ||
@@ -178,6 +187,9 @@ const AUCTION_SOURCES = new Set([
   "govplanet",
   "purplewave",
   "govdeals_auction",
+  // Generic government-surplus lane (GovDeals/municipal feeds normalized to one source). Its price is
+  // a current bid, not a seller's retail ask, so it must not be ask-anchored like a dealer listing.
+  "gov_auction",
 ]);
 function isRetailAsk(source?: string): boolean {
   return !AUCTION_SOURCES.has((source || "").toLowerCase());
@@ -197,6 +209,16 @@ const ASK_INDEX_SOURCES = new Set([
   "carmax",
   "craigslist_dealer",
 ]);
+
+// Max resale / ask for a RETAIL listing whose value is backed by ≥ COMP_MIN_SAMPLES live comps, by comp
+// confidence (3-5 low, 6-11 medium, 12+ high). Bounds how far under its own market a dealer/private ask
+// can be read before we stop believing the comps (trim contamination, mis-parsed model). Env-tunable.
+const RETAIL_COMP_UPLIFT: Record<"high" | "medium" | "low" | "none", number> = {
+  high: parseFloat(process.env.RETAIL_COMP_UPLIFT_HIGH || "1.4"),
+  medium: parseFloat(process.env.RETAIL_COMP_UPLIFT_MEDIUM || "1.3"),
+  low: parseFloat(process.env.RETAIL_COMP_UPLIFT_LOW || "1.2"),
+  none: 1.03,
+};
 
 type IndexComps = NonNullable<ReturnType<typeof lookupMarketValue>>;
 
@@ -232,6 +254,14 @@ export function selfInclusionGuard(
         ? capped
         : comps.confidence,
   };
+}
+
+/** Asking-price comps never read as "high" confidence; completed sales can. */
+function capAskConfidence(
+  c: "high" | "medium" | "low" | "none",
+  askBasis: boolean,
+): "high" | "medium" | "low" | "none" {
+  return askBasis && c === "high" ? "medium" : c;
 }
 
 /** A supplied comp feed (CompObservation[]) as the index shape analyzeDeal consumes. */
@@ -275,9 +305,35 @@ export interface ValuationBreakdown {
   compKind?: "sold" | "ask" | "none";
   /** Comps dropped because they were this listing (circularity guard). */
   compExcludedSelf?: number;
+  /** ≥3 usable comps or a third-party value backed the verdict. False → verdict "not_enough_data". */
+  resaleEvidence?: boolean;
 }
 
-export interface DealAnalysis extends ProfitResult {
+/**
+ * Engine verdict. "not_enough_data" = we can't judge the price: fewer than COMP_MIN_SAMPLES live comps
+ * and no third-party market value (the resale is an offline baseline or the ask itself). It is NOT a
+ * pass — "pass" is reserved for rows where the evidence is there and the deal is bad (or the price is
+ * implausible). Same key the Check-any-listing read uses.
+ */
+export type DealVerdict = "go" | "hold" | "pass" | "not_enough_data";
+
+/** Rows with at least this much independent resale evidence get a real go/hold/pass. */
+export function hasResaleEvidence(
+  sellBasis: "comps" | "market" | "baseline",
+  source: ValuationBreakdown["source"],
+  compCount: number,
+  compConfidence: "high" | "medium" | "low" | "none" = "low",
+): boolean {
+  if (source === "third_party") return true; // KBB/MMR-style value attached to the listing
+  return (
+    (sellBasis === "comps" || source === "comparables") &&
+    compCount >= COMP_MIN_SAMPLES &&
+    compConfidence !== "none" // the index marks a too-dispersed bucket "none": not usable evidence
+  );
+}
+
+export interface DealAnalysis extends Omit<ProfitResult, "verdict"> {
+  verdict: DealVerdict;
   sellEstimate: number;
   mmrValue?: number;
   sellBasis: "comps" | "market" | "baseline";
@@ -500,6 +556,11 @@ export function analyzeDeal(
     valuationUnknown = true;
   }
 
+  // What the evidence said BEFORE the retail ask-anchor below reshapes the number. The anchor bounds the
+  // value; it does not erase the fact that we had comps or a third-party value (evidence gate).
+  const evidenceBasis = sellBasis;
+  const evidenceSource = valuationSource;
+
   // ── ASK-ANCHOR (retail listings) ──────────────────────────────────────────────────────────────────
   // A retail ASKING price is the seller's own researched market value — the strongest single signal of
   // THIS exact car's worth. Model-level comps get contaminated (a base Corvette priced off Z06s/C8s, an
@@ -507,18 +568,27 @@ export function analyzeDeal(
   // profit and misleads the user. Only deep, high-confidence comps justify a real underpricing gap, and
   // even then it's bounded. Auction/wholesale sources are exempt: there the ask IS below retail (the whole
   // point), so retail comps above it are the legitimate arbitrage.
+  //
+  // The old ceiling (1.03 / 1.08 / 1.15 × ask by confidence) applied even when the value came from
+  // ≥3 live same-model comps. With the ~9% selling load, a $600 tow, $490 of holding and recon on top,
+  // that made a retail GO arithmetically impossible: the best retail row on hosted netted −$979 (Oct
+  // 2026 diagnosis, 2,299 retail rows with ≥3 comps). Comp-backed values now get a bounded uplift that
+  // grows with comp depth (RETAIL_COMP_UPLIFT); the comp value itself is still the limit, and the
+  // low-fence / price-sanity gates below still reject a price that is too far under the market.
+  // Without comp backing the ask still IS the value (1.03×) and the verdict is "not_enough_data".
   if (isRetailAsk(deal.source) && askPrice > 0) {
-    const overAsk =
-      comps?.confidence === "high"
-        ? 1.15
-        : comps?.confidence === "medium"
-          ? 1.08
-          : 1.03; // low/no confidence → the ask essentially IS the value
+    const compBacked =
+      sellBasis === "comps" &&
+      !!comps &&
+      Number(comps.nRetail || 0) >= COMP_MIN_SAMPLES;
+    const overAsk = compBacked ? RETAIL_COMP_UPLIFT[comps!.confidence] : 1.03; // no comp backing → the ask essentially IS the value
     const askCeiling = Math.round(askPrice * overAsk);
     if (sellEstimate > askCeiling) {
       sellEstimate = askCeiling;
-      sellBasis = "market"; // ask-anchored (retail listing's own price is the market read)
-      valuationSource = "asking_price";
+      if (!compBacked) {
+        sellBasis = "market"; // ask-anchored (retail listing's own price is the market read)
+        valuationSource = "asking_price";
+      }
     }
     // SYMMETRIC floor: without trustworthy comps, a crude baseline can under-value a retail car far below
     // its ask (a false "overpriced/pass" — the opposite error, just as inaccurate). The ask is the market
@@ -585,7 +655,7 @@ export function analyzeDeal(
   );
   const conditionRepair = hasDamageType
     ? undefined
-    : conditionRepairBaseline(deal.condition);
+    : conditionRepairBaseline(deal.condition, isRetailAsk(deal.source));
 
   // SELLING + recon-to-retail load (~9% of sale), so profit isn't overstated.
   const sellingFee = Math.round(sellEstimate * SELL_COST_PCT);
@@ -632,7 +702,7 @@ export function analyzeDeal(
 
   // Clamp the score to a real 0–100 (the raw model could exceed 100 on strong deals).
   let score = Math.max(0, Math.min(100, Math.round(result.score)));
-  let verdict = result.verdict;
+  let verdict: DealVerdict = result.verdict;
   let warnings = result.warnings;
 
   // Reality gate: a deal isn't a valuation-grade flip if (a) the price is financing/lease/payment
@@ -686,26 +756,35 @@ export function analyzeDeal(
   }
 
   if (valuationUnknown) {
-    if (verdict === "go") verdict = "hold";
-    score = Math.min(score, 40);
     warnings = [
       "No market evidence for this vehicle (no comps, no market value, no year/make baseline) — resale is unknown. Profit shown assumes it resells at its ask.",
       ...warnings,
     ];
   }
 
-  // TRUST GATE: a GO is a promise about resale value, made with the dealer's money. We never make that
-  // promise on a baseline-only estimate (offline depreciation curve, no real market comps) — even if the
-  // math pencils out, we can't VERIFY the resale price. Demote those to HOLD so a GO always means
-  // "backed by real comps or a third-party market value". PASS stays PASS. This is the
-  // line between a tip and a guarantee, and it's why the GO/PASS can be trusted.
-  if (verdict === "go" && sellBasis === "baseline") {
-    verdict = "hold";
-    score = Math.min(score, 84); // strong HOLD ("great on paper, unverified"), just below the GO band
-    warnings = [
-      "Resale value here is an offline estimate — we don't yet have real market comps for this exact car, so it's a HOLD, not a confident GO. Verify the resale price before you buy.",
-      ...warnings,
-    ];
+  // EVIDENCE GATE (replaces the old baseline→HOLD trust gate). A go/hold/pass is a claim about resale
+  // value. We only make it with independent evidence: ≥ COMP_MIN_SAMPLES live comps or a third-party
+  // market value. Everything else — an offline baseline, the ask itself, thin comps — is
+  // "not_enough_data", never "pass" (a pass would say "we checked and it's bad"). Implausible/bait
+  // prices keep their pass: that verdict is about the listing, not the market.
+  const compCountForEvidence = Number(comps?.nRetail || 0);
+  const resaleEvidence = hasResaleEvidence(
+    evidenceBasis,
+    evidenceSource,
+    compCountForEvidence,
+    comps?.confidence ?? "none",
+  );
+  if (!resaleEvidence && !priceImplausible) {
+    verdict = "not_enough_data";
+    score = Math.min(score, 40);
+    if (!valuationUnknown) {
+      warnings = [
+        compCountForEvidence > 0
+          ? `Only ${compCountForEvidence} comparable listing${compCountForEvidence === 1 ? "" : "s"} for this car (need ${COMP_MIN_SAMPLES}) and no third-party value, so there isn't enough data to call it a buy or a pass. Verify the resale price yourself.`
+          : "No comparable listings or third-party value for this car yet, so there isn't enough data to call it a buy or a pass. The resale shown is an estimate. Verify it before you buy.",
+        ...warnings,
+      ];
+    }
   }
 
   // A current auction bid is not the buyer's final all-in cost. Keep auction inventory useful for
@@ -764,9 +843,15 @@ export function analyzeDeal(
     valuation: {
       basis: sellBasis,
       source: valuationSource,
+      // Asking-price comps are a read of what sellers WANT, not what cars sold for: cap at medium.
+      // A retail value bounded by its own ask still reports the comps that drove the verdict.
       confidence:
-        valuationSource === "comparables"
-          ? (comps?.confidence ?? "none")
+        valuationSource === "comparables" ||
+        (resaleEvidence && evidenceSource === "comparables")
+          ? capAskConfidence(
+              comps?.confidence ?? "none",
+              !(feedComps && feedAgg?.kind === "sold"),
+            )
           : valuationSource === "third_party"
             ? "low"
             : "none",
@@ -800,6 +885,7 @@ export function analyzeDeal(
           ? "ask"
           : "none",
       compExcludedSelf,
+      resaleEvidence,
     },
   };
 }

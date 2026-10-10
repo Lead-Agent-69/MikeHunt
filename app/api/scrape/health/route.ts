@@ -35,6 +35,7 @@ import {
   WANT_HIT_TARGET,
   type DemandRow,
 } from "@/lib/scrapers/sweep-demand";
+import { urlHostMatches } from "@/lib/net/host-match";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +100,11 @@ function normalizeQuery(value: string | null) {
     .trim();
 }
 
+/** "www.example.com" → "example.com" so a dealer host also matches its subdomains. */
+function bareHost(host: string) {
+  return host.replace(/^www\./, "");
+}
+
 function normalizeDealerHosts(value: string | null) {
   return (value || "")
     .toLowerCase()
@@ -161,14 +167,8 @@ function healthSourceIdForDeal(row: any, sourceIds: string[]) {
   const source = String(row.source || "");
   const url = String(row.source_url || "").toLowerCase();
   if (source === "gov_auction") {
-    if (url.includes("govdeals.com") && sourceIds.includes("govdeals"))
-      return "govdeals";
-    if (url.includes("publicsurplus") && sourceIds.includes("publicsurplus"))
-      return "publicsurplus";
-    if (url.includes("municibid") && sourceIds.includes("municibid"))
-      return "municibid";
-    if (url.includes("gsa") && sourceIds.includes("gsa_auctions"))
-      return "gsa_auctions";
+    const govSource = sourceFromUrl(url);
+    if (govSource && sourceIds.includes(govSource)) return govSource;
     return (
       sourceIds.find((id) => dbSourceValues(id).includes(source)) || source
     );
@@ -204,8 +204,7 @@ function dealerProofSources(scope: HealthScope, sourceIds: string[]) {
     .filter((source) => {
       if (dealerSourceIds.length) return dealerSourceIds.includes(source.id);
       if (!dealerHosts.length) return true;
-      const url = String(source.url || "").toLowerCase();
-      return dealerHosts.some((host) => url.includes(host));
+      return urlHostMatches(source.url, dealerHosts.map(bareHost));
     })
     .map((source) => ({
       id: source.id,
@@ -254,8 +253,8 @@ function matchesScope(row: any, scope: HealthScope) {
     if (!titleSignal.includes(wanted)) return false;
   }
   if (scope.dealerHosts?.length) {
-    const sourceUrl = String(row.source_url || "").toLowerCase();
-    if (!scope.dealerHosts.some((host) => sourceUrl.includes(host))) {
+    // Hostname match (exact or dot-suffix), not a substring of the whole URL.
+    if (!urlHostMatches(row.source_url, scope.dealerHosts.map(bareHost))) {
       return false;
     }
   }

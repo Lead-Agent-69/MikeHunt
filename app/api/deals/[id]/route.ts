@@ -12,6 +12,7 @@ import {
   isFlipDeskMode,
   readSavedBuyerScope,
   redactDealForNonFlipDesk,
+  redactSellerForGuest,
 } from "@/lib/deals/deal-desk-access";
 
 export async function GET(
@@ -79,12 +80,14 @@ export async function GET(
         "open",
         deal,
       );
-    const payload = isFlipDeskMode(savedMode)
+    const deskPayload = isFlipDeskMode(savedMode)
       ? {
           ...applyGoProfitPolicy(safeDeal, targetProfit),
           deskAccess: "flip" as const,
         }
       : redactDealForNonFlipDesk(safeDeal);
+    // Signed-out: no seller identity either (name, profile link, raw options.seller).
+    const payload = user?.id ? deskPayload : redactSellerForGuest(deskPayload);
     return NextResponse.json({ deal: payload, meter });
   } catch (error) {
     console.error("Error in single deal API:", error);

@@ -51,6 +51,7 @@ import {
   selectCuratedSitesForDemand,
 } from "../curated-rotation";
 import { createPoliteHtmlFetcher } from "../polite-html";
+import { hostMatches, hostOf, urlHostMatches } from "@/lib/net/host-match";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
 // Listing CARDS lack VIN / true mileage / title status — those live on each detail page.
@@ -117,7 +118,9 @@ export function mileageFromDealerText(
 }
 
 /** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
-export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+export function craigslistGalleryImages(
+  urls: (string | undefined)[],
+): string[] {
   const byId = new Map<string, string>();
   for (const raw of urls) {
     const url = String(raw || "");
@@ -1192,7 +1195,7 @@ export async function scrapeCuratedSites(
         });
         continue;
       }
-      const n = site.url.toLowerCase().includes("aeofmiami.com")
+      const n = urlHostMatches(site.url, ["aeofmiami.com"])
         ? await scrapeAeOfMiami(scope)
         : dealerCms
           ? await scrapeDealerCms(dealerCms, scope)
@@ -1413,10 +1416,14 @@ const CDG_DEALERS: CdgDealerConfig[] = [
 ];
 
 function cdgDealerForSite(siteUrl: string) {
-  const url = siteUrl.toLowerCase();
-  return CDG_DEALERS.find((dealer) =>
-    url.includes(new URL(dealer.baseUrl).host),
-  );
+  const host = hostOf(siteUrl);
+  if (!host) return undefined;
+  return CDG_DEALERS.find((dealer) => {
+    const dealerHost = hostOf(dealer.baseUrl);
+    return dealerHost
+      ? hostMatches(host, dealerHost.replace(/^www\./, ""))
+      : false;
+  });
 }
 
 function parseJsonLdCars($: any) {

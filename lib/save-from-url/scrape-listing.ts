@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import * as cheerio from "cheerio";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
+import { urlHostMatches } from "@/lib/net/host-match";
 
 /**
  * Read a listing page. A failed or blocked fetch returns null — URL tokens
@@ -144,16 +145,23 @@ export async function scrapeOrParseListing(
       if (src) data.images.push(src);
     });
   } else if (source === "facebook-marketplace") {
-    const priceMatch = $("body").text().match(/\$[0-9,]+/);
+    const priceMatch = $("body")
+      .text()
+      .match(/\$[0-9,]+/);
     if (priceMatch) {
       const parsed = parseFloat(priceMatch[0].replace(/[^0-9.]/g, ""));
       if (parsed) data.ask_price = parsed;
     }
   } else if (source === "copart") {
-    const lotMatch = fetched.finalUrl.match(/lot\/(\d+)/);
+    // Only a page actually served from copart.com (after redirects) may claim a Copart lot id.
+    const lotMatch = urlHostMatches(fetched.finalUrl, ["copart.com"])
+      ? fetched.finalUrl.match(/lot\/(\d+)/)
+      : null;
     if (lotMatch) data.external_id = lotMatch[1];
   } else if (source === "iaa") {
-    const idMatch = fetched.finalUrl.match(/VehicleDetail\/(\d+)/);
+    const idMatch = urlHostMatches(fetched.finalUrl, ["iaai.com"])
+      ? fetched.finalUrl.match(/VehicleDetail\/(\d+)/)
+      : null;
     if (idMatch) data.external_id = idMatch[1];
   } else {
     const priceText =

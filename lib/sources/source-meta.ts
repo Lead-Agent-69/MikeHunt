@@ -6,6 +6,8 @@
 // ask, pay a PRICE at retail). Cards, tables, the deal page, filters, and copy all read from here, so a
 // dealer glances and instantly knows the source — and we never call a Carvana price a "bid".
 
+import { hostMatches, hostOf } from "@/lib/net/host-match";
+
 export type Channel =
   | "auction" // live auction — you place a BID (Copart)
   | "salvage" // salvage/total-loss auction — BID
@@ -255,8 +257,8 @@ export function dealerSourceIdFromUrl(
   sourceUrl?: string | null,
   allowedSourceIds?: string[],
 ) {
-  const url = String(sourceUrl || "").toLowerCase();
-  if (!url) return null;
+  const host = hostOf(sourceUrl);
+  if (!host) return null;
   const allowed = allowedSourceIds?.length
     ? new Set(allowedSourceIds.map((id) => id.toLowerCase()))
     : null;
@@ -264,7 +266,7 @@ export function dealerSourceIdFromUrl(
     Object.entries(DEALER_SOURCE_DOMAINS).find(
       ([sourceId, domains]) =>
         (!allowed || allowed.has(sourceId)) &&
-        domains.some((domain) => url.includes(domain)),
+        domains.some((domain) => hostMatches(host, domain)),
     )?.[0] || null
   );
 }
@@ -300,7 +302,8 @@ export function canonicalSource(source?: string | null): string {
   if (k.includes("cargurus")) return "cargurus";
   if (k.includes("autotrader")) return "autotrader";
   if (k.includes("truecar")) return "truecar";
-  if (k.includes("cars_com") || k.includes("cars")) return "cars_com";
+  // Whole "cars" token only: classiccars_com / carsforsale are not cars.com.
+  if (/(^|_)cars(_com|_dot_com|\.com)?(_|$)/.test(k)) return "cars_com";
   if (k.includes("publicsurplus") || k.includes("gov")) return "gov_auction";
   if (k.includes("dealer") || k.includes("curated"))
     return "independent_dealer";
@@ -308,16 +311,17 @@ export function canonicalSource(source?: string | null): string {
 }
 
 export function sourceFromUrl(sourceUrl?: string | null): string | null {
-  const url = String(sourceUrl || "").toLowerCase();
-  if (!url) return null;
-  if (url.includes("govdeals.com")) return "govdeals";
-  if (url.includes("publicsurplus.com")) return "publicsurplus";
-  if (url.includes("allsurplus.com") || url.includes("liquidityservices.com"))
-    return "allsurplus";
-  if (url.includes("municibid.com")) return "municibid";
-  if (url.includes("gsaauctions.gov") || url.includes("gsa.gov"))
-    return "gsa_auctions";
-  const dealerSourceId = dealerSourceIdFromUrl(url);
+  // Hostname match only (exact or dot-suffix), never a substring of the whole URL.
+  const host = hostOf(sourceUrl);
+  if (!host) return null;
+  const on = (...domains: string[]) =>
+    domains.some((domain) => hostMatches(host, domain));
+  if (on("govdeals.com")) return "govdeals";
+  if (on("publicsurplus.com")) return "publicsurplus";
+  if (on("allsurplus.com", "liquidityservices.com")) return "allsurplus";
+  if (on("municibid.com")) return "municibid";
+  if (on("gsaauctions.gov", "gsa.gov")) return "gsa_auctions";
+  const dealerSourceId = dealerSourceIdFromUrl(sourceUrl);
   if (dealerSourceId) return dealerSourceId.replace(/-/g, "_");
   return null;
 }

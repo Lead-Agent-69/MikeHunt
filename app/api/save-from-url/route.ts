@@ -11,6 +11,7 @@ import * as crypto from "crypto";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { scrapeOrParseListing } from "@/lib/save-from-url/scrape-listing";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { detectSource } from "@/lib/save-from-url/detect-source";
 
 /** Each save can trigger an outbound fetch + pipeline upsert; cap per signed-in user. */
 const SAVE_FROM_URL_LIMIT = { limit: 10, windowMs: 60_000 } as const;
@@ -44,8 +45,16 @@ export async function POST(request: NextRequest) {
     const dealerId: string = user.id;
 
     const { url } = await request.json();
-    if (!url) {
+    if (!url || typeof url !== "string") {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    }
+    // Reject anything that is not an http(s) URL with a real host before any cache or fetch work.
+    const source = detectSource(url);
+    if (!source) {
+      return NextResponse.json(
+        { error: "That URL can't be read.", code: "URL_INVALID" },
+        { status: 400 },
+      );
     }
 
     // 1. Check URL Hash cache
@@ -78,8 +87,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Detect Source
-    const source = detectSource(url);
+    // 2. Source was detected from the hostname above.
 
     // 3. Scrape or Parse URL details. Returns null if nothing real could be extracted.
     // Blocked targets (private, link-local, metadata, redirect onto those) are 400.
@@ -241,23 +249,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
-function detectSource(url: string): string {
-  const lowercase = url.toLowerCase();
-  if (lowercase.includes("craigslist.org")) return "craigslist";
-  if (lowercase.includes("facebook.com")) return "facebook-marketplace";
-  if (lowercase.includes("copart.com")) return "copart";
-  if (lowercase.includes("iaai.com")) return "iaa";
-  if (lowercase.includes("ebay.com") || lowercase.includes("ebay.to"))
-    return "ebay-motors";
-  if (lowercase.includes("autotrader.com")) return "autotrader";
-  if (lowercase.includes("cars.com")) return "cars-com";
-  if (lowercase.includes("cargurus.com")) return "cargurus";
-  if (lowercase.includes("carmax.com")) return "carmax";
-  if (lowercase.includes("carvana.com")) return "carvana";
-  return "web-share";
-}
-
 
 async function createAnalyzingSavedCar(
   supabase: any,

@@ -163,9 +163,12 @@ describe("parseSafety", () => {
 
 describe("getRecallCount", () => {
   it("returns the Count", async () => {
-    const f = vi.fn(async () => ({
+    const f = vi.fn(async (url: string) => ({
       ok: true,
-      json: async () => ({ Count: 6 }),
+      json: async () =>
+        url.includes("products/vehicle/models")
+          ? { results: [] }
+          : { Count: 6 },
     }));
     expect(await getRecallCount("ford", "mustang", 2019, f as any)).toBe(6);
   });

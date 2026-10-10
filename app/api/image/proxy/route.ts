@@ -1,99 +1,14 @@
 import { NextResponse } from "next/server";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicImage } from "@/lib/net/fetch-public-image";
-
-const ALLOWED_IMAGE_DOMAINS = [
-  "craigslist.org",
-  "fbcdn.net",
-  "facebook.com",
-  "cargurus.com",
-  "cars.com",
-  "autotrader.com",
-  "ebay.com",
-  "ebayimg.com",
-  "copart.com",
-  "iaai.com",
-  // Verified hosts used by the currently imported government/dealer inventory.
-  "lqdt1.com",
-  "recar.com",
-  "stjamesautoparts.com",
-  "dgautollc.com",
-  "dealerzone.com",
-  "salvagezone.com",
-] as const;
-
-const ALLOWED_IMAGE_HOSTS = new Set([
-  "d37qv0n5b4mbzm.cloudfront.net",
-  "gsa-prod-ppms-attachments-prod.s3.amazonaws.com",
-  // Platform dealers (4cdg / VehiclesNETWORK) self-host their photos. Exact hosts only, checked
-  // 2026-10-10 from each inventory page; lib/scrapers/curated-image-hosts.test.ts keeps this in step
-  // with the platform-tagged entries in lib/scrapers/curated-sites.ts.
-  "affordableusedcars.com",
-  "autoworksinc.com",
-  "beasautosales.com",
-  "camachoauto.com",
-  "craseautoil.com",
-  "crowncitymotors.com",
-  "data.rebuildautos.com",
-  "drivenation.com",
-  "duntonmotors.com",
-  "glensautosales.com",
-  "jakesautomall.com",
-  "kwsautosales.com",
-  "missoulacarandtruck.com",
-  "mnrepairables.com",
-  "prestigeautobrokers.com",
-  "randyadamsinc.com",
-  "redcarpetautosales.net",
-  "ridetimeautocredit.com",
-  "southsiderebuilders.com",
-  "texasbhph.com",
-  "usedcarsanchorageak.com",
-  "usedcarsokc.com",
-  "wildwestomaha.com",
-  "www.affordableusedcars.com",
-  "www.autoworksinc.com",
-  "www.beasautosales.com",
-  "www.camachoauto.com",
-  "www.craseautoil.com",
-  "www.crowncitymotors.com",
-  "www.drivenation.com",
-  "www.duntonmotors.com",
-  "www.glensautosales.com",
-  "www.jakesautomall.com",
-  "www.kwsautosales.com",
-  "www.missoulacarandtruck.com",
-  "www.mnrepairables.com",
-  "www.prestigeautobrokers.com",
-  "www.randyadamsinc.com",
-  "www.redcarpetautosales.net",
-  "www.ridetimeautocredit.com",
-  "www.southsiderebuilders.com",
-  "www.texasbhph.com",
-  "www.usedcarsanchorageak.com",
-  "www.usedcarsokc.com",
-  "www.wildwestomaha.com",
-]);
+import { isAllowedImageUrl } from "@/lib/images/image-hosts";
 
 /** ~1 day at the CDN / edge; browsers may refresh a bit sooner. */
 const CACHE_CONTROL =
   "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
 
-export function isAllowedImageUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    if (!["http:", "https:"].includes(parsed.protocol)) return false;
-    const hostname = parsed.hostname.toLowerCase();
-    return (
-      ALLOWED_IMAGE_HOSTS.has(hostname) ||
-      ALLOWED_IMAGE_DOMAINS.some(
-        (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
-      )
-    );
-  } catch {
-    return false;
-  }
-}
+// Re-exported for existing callers/tests; the list lives in lib/images/image-hosts.
+export { isAllowedImageUrl };
 
 /**
  * GET /api/image/proxy?url=...
@@ -103,9 +18,11 @@ export function isAllowedImageUrl(value: string) {
  *
  * SSRF: the host allowlist alone isn't enough (an allowed host can redirect, or
  * its DNS can point somewhere private). fetchPublicImage re-checks the allowlist
- * and assertPublicHttpUrl on the first URL and on every redirect hop, follows
- * redirects manually (max 3), and pins sockets to public IPs. Only raster image
- * types are returned (no SVG/HTML), with nosniff and a sandbox CSP.
+ * on the first URL and on every redirect hop, resolves each hop's host once,
+ * validates every address and pins the socket to it (lib/net/pinned-dns, with
+ * proxy: false), follows redirects manually (max 3), and caps bytes and time.
+ * Only raster image types are returned (no SVG/HTML), with nosniff and a
+ * sandbox CSP.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
