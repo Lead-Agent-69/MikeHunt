@@ -85,6 +85,7 @@ import {
   SCAN_EXTRA_KEYS,
 } from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
+import { VirtualCardGrid } from "@/components/scan/VirtualCardGrid";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -2545,10 +2546,7 @@ function ScanPageInner() {
       /* ignore */
     }
   }, []);
-  const gridClass =
-    density === "compact"
-      ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
-      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+  // Card grid columns (1/2/3, or 2/3/4/5 compact) now live in VirtualCardGrid's columnsFor().
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Commit a query to history + apply it immediately (used by Enter, Scan button, recent chips).
@@ -5233,173 +5231,152 @@ function ScanPageInner() {
       )}
 
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
-        <motion.div
-          className={gridClass}
-          variants={{
-            hidden: {},
-            show: {
-              transition: { staggerChildren: 0.06, delayChildren: 0.05 },
-            },
-          }}
-          initial="hidden"
-          animate="show"
-        >
-          {filteredResults.map((car: ScanResult) => (
-            <motion.div
-              key={car.id}
-              variants={{
-                hidden: { opacity: 0, y: 20, scale: 0.97 },
-                show: {
-                  opacity: 1,
-                  y: 0,
-                  scale: 1,
-                  transition: {
-                    type: "spring" as const,
-                    stiffness: 120,
-                    damping: 18,
-                  },
-                },
-              }}
-            >
-              <DealCard
-                flipDesk={flipEconomics}
-                id={car.id}
-                source={car.source}
-                year={car.year}
-                make={car.make}
-                model={car.model}
-                trim={car.trim}
-                bodyClass={car.bodyClass}
-                recallsCount={car.recallsCount}
-                askPrice={car.askPrice}
-                mmrValue={car.mmrValue}
-                profitEstimate={car.profitEstimate}
-                profitScore={car.profitScore}
-                locationCity={car.locationCity}
-                locationState={car.locationState}
-                mileage={car.mileage}
-                condition={car.condition}
-                damageType={car.damageType}
-                titleSource={car.titleSource}
-                titleType={car.titleType}
-                dealVerdict={car.dealVerdict}
-                recommendedMaxBid={car.recommendedMaxBid}
-                sellEstimate={car.sellEstimate}
-                sellBasis={car.sellBasis}
-                valuation={car.valuation}
-                soldAnchored={car.soldAnchored}
-                repairEstimate={car.repairEstimate}
-                transportEstimate={car.transportEstimate}
-                warnings={car.warnings}
-                priceDropAmount={car.priceDropAmount}
-                priceDropDays={car.priceDropDays}
-                auctionEndAt={car.auctionEndAt}
-                bidCount={car.bidCount}
-                firstSeenAt={car.firstSeenAt}
-                lastSeenAt={car.lastSeenAt}
-                imageUrl={car.imageUrl}
-                vin={car.vin}
-                sourceUrl={car.sourceUrl}
-                seller={car.seller}
-                sellerType={car.sellerType}
-                sellerPhone={car.sellerPhone}
-                sellerEmail={car.sellerEmail}
-                sellerContactUrl={car.sellerContactUrl}
-                dataQuality={car.dataQuality}
-                trustExplanation={car.trustExplanation}
-                sourceHealth={resolveSourceHealth(car)}
-                isSaved={localSaved.has(car.id)}
-                onSave={async () => {
-                  if (localSaved.has(car.id)) {
-                    localSaved.remove(car.id);
-                    addToast("Vehicle removed from local watchlist", "info");
-                    return;
-                  }
-                  let cloudSynced = false;
-                  let alreadyCloudSaved = false;
-                  try {
-                    const res = await fetch("/api/saved-cars", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        dealId: car.id,
-                        snapshot: {
-                          dataQuality: car.dataQuality,
-                          trustExplanation: car.trustExplanation,
-                        },
-                      }),
-                    });
-                    const result = await res.json();
-                    cloudSynced =
-                      res.ok &&
-                      result.success === true &&
-                      typeof result.id === "string" &&
-                      !result.demo;
-                    alreadyCloudSaved =
-                      res.status === 409 && typeof result.id === "string";
-                  } catch {
-                    cloudSynced = false;
-                  }
-                  const localConfirmed = localSaved.save({
-                    id: car.id,
-                    title:
-                      `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() ||
-                      "Saved vehicle",
-                    year: car.year,
-                    make: car.make,
-                    model: car.model,
-                    vin: car.vin,
-                    mileage: car.mileage,
-                    askPrice: car.askPrice,
-                    estimatedProfit: car.profitEstimate,
-                    sellEstimate: car.sellEstimate,
-                    recommendedMaxBid: car.recommendedMaxBid,
-                    repairEstimate: car.repairEstimate,
-                    transportEstimate: car.transportEstimate,
-                    source: car.source,
-                    sourceUrl: car.sourceUrl,
-                    seller: car.seller,
-                    sellerType: car.sellerType,
-                    sellerPhone: car.sellerPhone,
-                    sellerEmail: car.sellerEmail,
-                    sellerContactUrl: car.sellerContactUrl,
-                    image: car.imageUrl,
-                    locationCity: car.locationCity,
-                    locationState: car.locationState,
-                    dataQuality: car.dataQuality,
-                    trustExplanation: car.trustExplanation,
-                    firstSeenAt:
-                      typeof car.firstSeenAt === "string"
-                        ? car.firstSeenAt
-                        : car.firstSeenAt?.toISOString(),
-                    lastSeenAt:
-                      typeof car.lastSeenAt === "string"
-                        ? car.lastSeenAt
-                        : car.lastSeenAt?.toISOString(),
-                    savedAt: new Date().toISOString(),
+        // Windowed: only rows near the viewport are mounted (see VirtualCardGrid).
+        <VirtualCardGrid
+          items={filteredResults as ScanResult[]}
+          getKey={(car) => car.id}
+          density={density}
+          label="Vehicle results"
+          restoreKey={swrKey ? `scan:${swrKey}` : null}
+          renderItem={(car) => (
+            <DealCard
+              flipDesk={flipEconomics}
+              id={car.id}
+              source={car.source}
+              year={car.year}
+              make={car.make}
+              model={car.model}
+              trim={car.trim}
+              bodyClass={car.bodyClass}
+              recallsCount={car.recallsCount}
+              askPrice={car.askPrice}
+              mmrValue={car.mmrValue}
+              profitEstimate={car.profitEstimate}
+              profitScore={car.profitScore}
+              locationCity={car.locationCity}
+              locationState={car.locationState}
+              mileage={car.mileage}
+              condition={car.condition}
+              damageType={car.damageType}
+              titleSource={car.titleSource}
+              titleType={car.titleType}
+              dealVerdict={car.dealVerdict}
+              recommendedMaxBid={car.recommendedMaxBid}
+              sellEstimate={car.sellEstimate}
+              sellBasis={car.sellBasis}
+              valuation={car.valuation}
+              soldAnchored={car.soldAnchored}
+              repairEstimate={car.repairEstimate}
+              transportEstimate={car.transportEstimate}
+              warnings={car.warnings}
+              priceDropAmount={car.priceDropAmount}
+              priceDropDays={car.priceDropDays}
+              auctionEndAt={car.auctionEndAt}
+              bidCount={car.bidCount}
+              firstSeenAt={car.firstSeenAt}
+              lastSeenAt={car.lastSeenAt}
+              imageUrl={car.imageUrl}
+              vin={car.vin}
+              sourceUrl={car.sourceUrl}
+              seller={car.seller}
+              sellerType={car.sellerType}
+              sellerPhone={car.sellerPhone}
+              sellerEmail={car.sellerEmail}
+              sellerContactUrl={car.sellerContactUrl}
+              dataQuality={car.dataQuality}
+              trustExplanation={car.trustExplanation}
+              sourceHealth={resolveSourceHealth(car)}
+              isSaved={localSaved.has(car.id)}
+              onSave={async () => {
+                if (localSaved.has(car.id)) {
+                  localSaved.remove(car.id);
+                  addToast("Vehicle removed from local watchlist", "info");
+                  return;
+                }
+                let cloudSynced = false;
+                let alreadyCloudSaved = false;
+                try {
+                  const res = await fetch("/api/saved-cars", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      dealId: car.id,
+                      snapshot: {
+                        dataQuality: car.dataQuality,
+                        trustExplanation: car.trustExplanation,
+                      },
+                    }),
                   });
-                  if (!cloudSynced && !alreadyCloudSaved && !localConfirmed) {
-                    addToast(
-                      "The vehicle was not saved. Device storage and cloud save are unavailable.",
-                      "error",
-                    );
-                    return;
-                  }
+                  const result = await res.json();
+                  cloudSynced =
+                    res.ok &&
+                    result.success === true &&
+                    typeof result.id === "string" &&
+                    !result.demo;
+                  alreadyCloudSaved =
+                    res.status === 409 && typeof result.id === "string";
+                } catch {
+                  cloudSynced = false;
+                }
+                const localConfirmed = localSaved.save({
+                  id: car.id,
+                  title:
+                    `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() ||
+                    "Saved vehicle",
+                  year: car.year,
+                  make: car.make,
+                  model: car.model,
+                  vin: car.vin,
+                  mileage: car.mileage,
+                  askPrice: car.askPrice,
+                  estimatedProfit: car.profitEstimate,
+                  sellEstimate: car.sellEstimate,
+                  recommendedMaxBid: car.recommendedMaxBid,
+                  repairEstimate: car.repairEstimate,
+                  transportEstimate: car.transportEstimate,
+                  source: car.source,
+                  sourceUrl: car.sourceUrl,
+                  seller: car.seller,
+                  sellerType: car.sellerType,
+                  sellerPhone: car.sellerPhone,
+                  sellerEmail: car.sellerEmail,
+                  sellerContactUrl: car.sellerContactUrl,
+                  image: car.imageUrl,
+                  locationCity: car.locationCity,
+                  locationState: car.locationState,
+                  dataQuality: car.dataQuality,
+                  trustExplanation: car.trustExplanation,
+                  firstSeenAt:
+                    typeof car.firstSeenAt === "string"
+                      ? car.firstSeenAt
+                      : car.firstSeenAt?.toISOString(),
+                  lastSeenAt:
+                    typeof car.lastSeenAt === "string"
+                      ? car.lastSeenAt
+                      : car.lastSeenAt?.toISOString(),
+                  savedAt: new Date().toISOString(),
+                });
+                if (!cloudSynced && !alreadyCloudSaved && !localConfirmed) {
                   addToast(
-                    cloudSynced
-                      ? localConfirmed
-                        ? "Saved to your account with a device backup."
-                        : "Saved to your account. Device backup is unavailable."
-                      : alreadyCloudSaved
-                        ? "Already saved to your account."
-                        : "Saved on this device only. Cloud alerts are not enabled.",
-                    "success",
+                    "The vehicle was not saved. Device storage and cloud save are unavailable.",
+                    "error",
                   );
-                }}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
+                  return;
+                }
+                addToast(
+                  cloudSynced
+                    ? localConfirmed
+                      ? "Saved to your account with a device backup."
+                      : "Saved to your account. Device backup is unavailable."
+                    : alreadyCloudSaved
+                      ? "Already saved to your account."
+                      : "Saved on this device only. Cloud alerts are not enabled.",
+                  "success",
+                );
+              }}
+            />
+          )}
+        />
       )}
 
       {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}
