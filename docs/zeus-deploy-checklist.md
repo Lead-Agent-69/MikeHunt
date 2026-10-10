@@ -52,7 +52,7 @@ incremental, fullRescanHours }`) and ship with the image; no env needed. Registr
 2 per 60s) is now a per-domain minimum gap.
 
 Supabase: migration `20261010200000_scraper_reliability.sql` (Ren applies it; service-role only, no anon
-grants), then `20261010205000_scraper_reliability_hardening.sql` (Ren's follow-up: revokes the identity sequences from anon/authenticated and self-checks grants, RLS, 0 policies, security_invoker and run_retention; it aborts if any check fails). The scraper and /status work before either is applied (they fall back to the old columns and skip
+grants), then `20261010205000_scraper_reliability_hardening.sql` (Ren's follow-up: revokes the identity sequences from anon/authenticated and self-checks grants, RLS, 0 policies, security_invoker and run_retention; it aborts if any check fails)), then `20261010206000_scraper_reliability_selfcheck.sql` (check-only, changes nothing: re-runs that self-check plus column-level grants via has_any_column_privilege and PG17 MAINTAIN; aborts if anything is off). The scraper and /status work before either is applied (they fall back to the old columns and skip
 the new tables), so deploy order is free. After it is applied there is nothing to do on Zeus.
 
 ## 2. What changes behavior on Zeus

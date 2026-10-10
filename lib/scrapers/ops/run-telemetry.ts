@@ -11,7 +11,7 @@
  * every recorder is a no-op, so tests and one-off scripts are unaffected.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { scrubUrls } from "../../security/scrub-urls";
+import { scrubContact } from "../../security/scrub-urls";
 
 export type ErrorClass =
   | "http_403"
@@ -215,7 +215,7 @@ export function recordError(
       errorClass,
       httpStatus: info.status ?? null,
       url: safeUrl(info.url),
-      message: info.message ? capBytes(scrubUrls(info.message), 500) : null,
+      message: info.message ? capBytes(scrubContact(info.message), 500) : null,
       at: new Date().toISOString(),
     });
   }
@@ -282,9 +282,49 @@ export function jsonbTextBytes(obj: Record<string, unknown>): number {
   return Buffer.byteLength(`{${parts.join(", ")}}`, "utf8");
 }
 
-/** Never stored in a dead letter: seller contact details (PII) and bulky fields. */
-const DROP_KEY =
-  /^(description|images|deal_analysis|raw|options)$|phone|email|^(seller|contact|owner|dealer_contact)_?name$|^seller$/i;
+/** Bulky fields never stored in a dead letter. */
+const BULKY_KEY = /^(description|images|deal_analysis|raw|options|html)$/i;
+
+const CONTACT_TOKENS = new Set([
+  "contact", "contacts", "phone", "phones", "telephone", "tel", "mobile", "cell", "cellphone",
+  "whatsapp", "sms", "email", "mail", "emails", "fax", "owner", "owners",
+  "address", "street", "name", "names", "firstname", "lastname", "fullname",
+]);
+/** Vehicle-history facts that only look like contact keys; they hold no PII. */
+const NOT_CONTACT = new Set(["one_owner", "owner_count", "owners_count", "num_owners", "previous_owners"]);
+
+/** Split snake_case, kebab-case and camelCase into lowercase tokens; "e_mail"/"eMail" -> "email". */
+function keyTokens(key: string): string[] {
+  const toks = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < toks.length; i++) {
+    if (toks[i] === "e" && toks[i + 1] === "mail") {
+      out.push("email");
+      i++;
+    } else out.push(toks[i]);
+  }
+  return out;
+}
+
+/**
+ * Seller / owner contact details (PII): contact, seller_contact, contact_info, mobile, whatsapp,
+ * seller_tel, cell, e_mail, owner, seller_name, sellerPhone... A `name` token only counts next to a
+ * person word (seller/owner/contact/first/last/full), so make/model names survive.
+ */
+export function isContactKey(key: string): boolean {
+  const lower = key.toLowerCase();
+  if (NOT_CONTACT.has(lower)) return false;
+  if (lower === "seller" || /phone|email|whatsapp/.test(lower)) return true;
+  const toks = keyTokens(key);
+  const person = toks.some((t) => ["seller", "owner", "contact", "first", "last", "full"].includes(t));
+  return toks.some((t) =>
+    t === "name" || t === "names" ? person : CONTACT_TOKENS.has(t),
+  );
+}
 
 export function compactPayload(
   record: unknown,
@@ -292,10 +332,10 @@ export function compactPayload(
   if (!record || typeof record !== "object") return null;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
-    if (v == null || DROP_KEY.test(k)) continue;
+    if (v == null || BULKY_KEY.test(k) || isContactKey(k)) continue;
     if (typeof v === "string") {
       // URLs lose their query string (tracking / contact params), like every other logged URL.
-      out[k] = /(^|_)url$/i.test(k) ? safeUrl(v) : v.slice(0, 300);
+      out[k] = /(^|_)url$/i.test(k) ? safeUrl(v) : scrubContact(v.slice(0, 600)).slice(0, 300);
     } else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
   }
   while (jsonbTextBytes(out) > MAX_PAYLOAD_BYTES) {
@@ -322,9 +362,10 @@ export function deadLetter(
     return;
   }
   t.deadLetters.push({
-    reason: capBytes(scrubUrls(reason), 300),
+    reason: capBytes(scrubContact(reason), 300),
     url: safeUrl(info.url ?? null),
-    rawSnippet: info.raw ? capBytes(info.raw) : null,
+    // Page HTML carries seller phones/emails and tracking URLs: scrub before it is stored.
+    rawSnippet: info.raw ? capBytes(scrubContact(info.raw.slice(0, 16_384))) : null,
     payload: compactPayload(info.payload),
     at: new Date().toISOString(),
   });

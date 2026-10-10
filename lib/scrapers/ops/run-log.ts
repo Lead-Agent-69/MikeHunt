@@ -91,12 +91,33 @@ export async function updateRunRow(
  * fall back to row-by-row so one bad record never loses the whole run's log (Ren #296 P2-1).
  * A missing table (migration not applied) stops at the batch. Returns rows written.
  */
+const NUL = /\u0000/g;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+/**
+ * Postgres text/jsonb reject U+0000, and a lone UTF-16 surrogate (e.g. from a byte cap that split an
+ * emoji) can't be encoded as UTF-8. Strip both from every string, in nested objects and arrays too.
+ */
+export function sanitizeForPostgres<T>(value: T): T {
+  if (typeof value === "string")
+    return value.replace(NUL, "").replace(LONE_SURROGATE, "") as unknown as T;
+  if (Array.isArray(value)) return value.map((v) => sanitizeForPostgres(v)) as unknown as T;
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>))
+      out[sanitizeForPostgres(k)] = sanitizeForPostgres(v);
+    return out as T;
+  }
+  return value;
+}
+
 export async function insertWithFallback(
   sb: Pick<SupabaseClient, "from">,
   table: string,
-  rows: Record<string, unknown>[],
+  input: Record<string, unknown>[],
 ): Promise<number> {
-  if (!rows.length) return 0;
+  if (!input.length) return 0;
+  const rows = input.map((r) => sanitizeForPostgres(r));
   try {
     const { error } = await sb.from(table).insert(rows);
     if (!error) return rows.length;
@@ -151,6 +172,11 @@ export async function writeRunTelemetry(
       created_at: d.at,
     })),
   );
+  const sent = { errors: t.samples.length, deadLetters: t.deadLetters.length };
+  if (out.errors < sent.errors || out.deadLetters < sent.deadLetters)
+    console.warn(
+      `[run-log] ${t.source}: wrote ${out.errors}/${sent.errors} error samples and ${out.deadLetters}/${sent.deadLetters} dead letters (run ${run_id ?? "untracked"})`,
+    );
   return out;
 }
 
