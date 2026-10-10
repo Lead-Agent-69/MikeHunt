@@ -31,7 +31,8 @@ export const SITE_TYPE_DEFAULTS: Record<
     damage_type: "repairable",
     seller_type: "dealer",
   },
-  independent_dealer: { condition: "run_drive", seller_type: "dealer" },
+  // Mixed lot: no title assumption (titles vary per car); unknown unless the listing says.
+  independent_dealer: { seller_type: "dealer" },
   auction_proxy: { condition: "salvage_title", seller_type: "auction" },
   clean_retail: { condition: "clean", seller_type: "dealer" },
 };

@@ -119,7 +119,11 @@ export function parseAutotraderNextData(
       vin,
       ask_price: price,
       mileage,
+      // Non-CPO "clean" is the marketplace default, not a stated title; CPO is not a title at all.
       condition: listingType === "CERTIFIED" ? "certified" : "clean",
+      ...(listingType === "CERTIFIED"
+        ? {}
+        : { title_source: "source_default" as const }),
       images,
       location_city: locCity,
       location_state: locState,

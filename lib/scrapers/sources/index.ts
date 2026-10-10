@@ -14,6 +14,10 @@ import {
   type ScraperConfig,
 } from "../engine";
 import { upsertDeals } from "../pipeline";
+import {
+  normalizeCondition,
+  resolveListingCondition,
+} from "../normalize-condition";
 import { CRAIGSLIST_SITES, US_STATES } from "@/lib/geo";
 import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 import { enrichPriority } from "@/lib/scrapers/enrich-priority";
@@ -600,13 +604,13 @@ export async function scrapeIndependentDealer(
               : undefined) ||
             mileageFromTitle(title),
           // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
-          // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
-          condition:
+          // rebuilder → rebuilt), tagged as a source default. Neither → unknown (no run_drive guess).
+          ...resolveListingCondition(
             conditionFromTitle(
               sel.condition ? card.find(sel.condition).text() : title,
-            ) ??
-            profile.conditionDefault ??
-            "run_drive",
+            ),
+            profile.conditionDefault,
+          ),
           damage_type: profile.damageDefault,
           seller_type: profile.sellerDefault as Deal["seller_type"],
           location_city: profile.city,
@@ -660,10 +664,10 @@ export async function scrapeIndependentDealer(
             ask_price: g.ask_price || 0,
             mileage: g.mileage,
             vin: g.vin,
-            condition:
-              conditionFromTitle(g.title || "") ||
-              profile.conditionDefault ||
-              "run_drive",
+            ...resolveListingCondition(
+              conditionFromTitle(g.title || ""),
+              profile.conditionDefault,
+            ),
             damage_type: profile.damageDefault,
             seller_type: profile.sellerDefault as Deal["seller_type"],
             location_city: profile.city,
@@ -720,11 +724,14 @@ export async function scrapeIndependentDealer(
               // Title brand first (damage.com etc. put "Salvage"/"Clear"/"Rebuilt" in the heading the
               // AI returns as title), then the site's type default; the AI's free-text condition is
               // often just a run-status ("Run & Drive") so it's the last hint (pipeline normalizes it).
-              condition:
-                conditionFromTitle(v.title) ||
-                profile.conditionDefault ||
-                (v as any).condition ||
-                "run_drive",
+              ...(conditionFromTitle(v.title) || profile.conditionDefault
+                ? resolveListingCondition(
+                    conditionFromTitle(v.title),
+                    profile.conditionDefault,
+                  )
+                : resolveListingCondition(
+                    normalizeCondition((v as any).condition),
+                  )),
               damage_type: profile.damageDefault,
               seller_type: profile.sellerDefault as Deal["seller_type"],
               location_city: v.location_city || profile.city,
@@ -1199,9 +1206,10 @@ async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
         trim: row.trim || undefined,
         ask_price: price,
         mileage: mileageFromDealerText(row.mileage),
-        condition:
-          aeTitleStatusToCondition(row.title_status || row.condition) ||
-          "run_drive",
+        // AE's API states title_status per car; nothing stated → unknown (no run_drive guess).
+        ...resolveListingCondition(
+          aeTitleStatusToCondition(row.title_status || row.condition),
+        ),
         damage_type: row.condition || row.damage_type || undefined,
         seller_type: "dealer",
         location_city: row.location?.city || undefined,
@@ -1331,10 +1339,6 @@ function cdgDealerForSite(siteUrl: string) {
   return CDG_DEALERS.find((dealer) =>
     url.includes(new URL(dealer.baseUrl).host),
   );
-}
-
-function conditionFromDealerText(text: string, fallback: string) {
-  return conditionFromTitle(text) || fallback;
 }
 
 function parseJsonLdCars($: any) {
@@ -1540,10 +1544,13 @@ async function enrichCdgDetail(deal: Partial<Deal>, config: CdgDealerConfig) {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
       mileage: mileage || deal.mileage,
-      condition: conditionFromDealerText(
-        titleText,
-        deal.condition || config.defaultCondition,
-      ),
+      // A title the detail page states wins; else keep what the card gave us (stated or default).
+      ...(conditionFromTitle(titleText)
+        ? resolveListingCondition(conditionFromTitle(titleText))
+        : resolveListingCondition(
+            deal.title_source === "listing" ? deal.condition : undefined,
+            deal.condition || config.defaultCondition,
+          )),
       images: images.length ? images : deal.images,
       description: description || deal.description,
     };
@@ -1622,8 +1629,10 @@ async function scrapeCdgDealer(config: CdgDealerConfig) {
         vin: urlVin || undefined,
         ask_price: price,
         mileage: extractMileage(mileageText) || mileageFromTitle(title),
-        condition: conditionFromDealerText(
-          conditionText || title,
+        // D&G / St. James default salvage_title, ReCar rebuilt_title: tagged source_default
+        // unless the card states a title.
+        ...resolveListingCondition(
+          conditionFromTitle(conditionText || title),
           config.defaultCondition,
         ),
         damage_type: config.defaultDamage,
