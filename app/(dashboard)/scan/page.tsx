@@ -1,5 +1,6 @@
 "use client";
 
+import { zipToState } from "@/lib/geo/zip-state";
 import React, {
   useState,
   useEffect,
@@ -2572,13 +2573,23 @@ function ScanPageInner() {
         if (p.maxPrice) setMaxPrice(normalizeMaxPriceFilter(p.maxPrice));
         if (p.targetProfit) setMinProfit(String(p.targetProfit));
         if (p.minYear) setMinYear(String(p.minYear));
+        if (p.maxYear) setMaxYear(String(p.maxYear));
+        if (p.minPrice) setMinPrice(String(p.minPrice));
+        if (p.maxMileage) setMaxMileage(String(p.maxMileage));
+        // A ZIP narrows to its state until radius search lands here ("near 60601" → IL).
+        const zipState = p.zip && !p.state ? zipToState(p.zip) : null;
+        if (zipState) setState(zipState);
 
         const structured = !!(
           p.make ||
           p.state ||
+          zipState ||
           p.maxPrice ||
+          p.minPrice ||
           p.targetProfit ||
-          p.minYear
+          p.minYear ||
+          p.maxYear ||
+          p.maxMileage
         );
         // Residual free-text: the model if we recognized one, else the raw query
         // (so a plain "sienna" still searches), else empty when only filters were found.
