@@ -13,6 +13,11 @@
  * 3. Run `npx playwright test e2e/smoke.spec.ts`
  */
 import { test, expect, Page } from "@playwright/test";
+import { IS_PROD } from "./support/target";
+
+// This legacy smoke file signs in with a fixed test account, so it never runs against prod
+// (guest.spec.ts covers the prod-safe pages).
+test.skip(IS_PROD, "legacy smoke signs in with a fixed account: local only");
 
 const EMAIL = process.env.TEST_USER_EMAIL ?? "smoke-test@mikehunt-test.local";
 const PASSWORD = process.env.TEST_USER_PASSWORD ?? "Sm0keTest!23";
@@ -87,7 +92,8 @@ test.describe("Save a Deal", () => {
     await expect(page.locator("text=Something went wrong")).not.toBeVisible();
     // Should show either a list of saved cars OR an empty-state message
     const hasContent = await page
-      .locator('[data-testid="saved-car-card"], [data-testid="empty-state"], text=No saved')
+      .locator('[data-testid="saved-car-card"], [data-testid="empty-state"]')
+      .or(page.getByText("No saved"))
       .count();
     expect(hasContent).toBeGreaterThanOrEqual(0); // page rendered without error
   });
@@ -102,7 +108,8 @@ test.describe("Alerts", () => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("/alerts");
-    await page.waitForLoadState("networkidle");
+    // /alerts polls, so "networkidle" never settles; wait for the heading instead.
+    await page.getByRole("heading", { name: "Alerts" }).first().waitFor();
     expect(errors).toHaveLength(0);
     await expect(page.locator("text=Something went wrong")).not.toBeVisible();
   });
