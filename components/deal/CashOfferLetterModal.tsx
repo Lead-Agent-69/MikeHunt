@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -21,6 +21,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
+import {
+  buyerContactFromProfile,
+  OFFER_BLANK,
+} from "@/lib/deal/offer-buyer-contact";
 
 interface CashOfferModalProps {
   isOpen: boolean;
@@ -52,17 +56,46 @@ export function CashOfferLetterModal({
     (deal.askPrice ? Math.round(deal.askPrice * 0.88) : 5000);
 
   const [offerPrice, setOfferPrice] = useState<number>(initialOffer);
-  const [buyerName, setBuyerName] = useState("Vanguard Acquisition Group");
-  const [buyerPhone, setBuyerPhone] = useState("(555) 234-8900");
-  const [buyerEmail, setBuyerEmail] = useState("purchasing@mikehuntcars.com");
+  // No invented buyer: prefill from the signed-in user's profile, otherwise leave blank.
+  const [buyerName, setBuyerName] = useState("");
+  const [buyerPhone, setBuyerPhone] = useState("");
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (!isOpen || prefilled.current) return;
+    prefilled.current = true;
+    let live = true;
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!live) return;
+        const c = buyerContactFromProfile(data);
+        setBuyerName((v) => v || c.name);
+        setBuyerPhone((v) => v || c.phone);
+        setBuyerEmail((v) => v || c.email);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [isOpen]);
+  const shownName = buyerName.trim() || OFFER_BLANK.name;
+  const shownPhone = buyerPhone.trim() || OFFER_BLANK.phone;
+  const shownEmail = buyerEmail.trim() || OFFER_BLANK.email;
   const [expirationHours, setExpirationHours] = useState(48);
   const [includeInspection, setIncludeInspection] = useState(true);
   const [includeCleanTitle, setIncludeCleanTitle] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  const vehicleTitle = `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""} ${deal.trim ?? ""}`.trim() || "Vehicle";
-  const vinFormatted = deal.vin ? deal.vin.toUpperCase() : "AVAILABLE UPON INSPECTION";
-  const locationFormatted = [deal.locationCity, deal.locationState].filter(Boolean).join(", ") || "United States";
+  const vehicleTitle =
+    `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""} ${deal.trim ?? ""}`.trim() ||
+    "Vehicle";
+  const vinFormatted = deal.vin
+    ? deal.vin.toUpperCase()
+    : "AVAILABLE UPON INSPECTION";
+  const locationFormatted =
+    [deal.locationCity, deal.locationState].filter(Boolean).join(", ") ||
+    "United States";
   const offerDate = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -83,7 +116,7 @@ OFFER TERMS:
 • Title: ${includeCleanTitle ? "Subject to clear, lien-free title at handover" : "Title transfer at DMV"}
 • Expiration: Valid for ${expirationHours} hours from delivery
 
-Contact: ${buyerName} | ${buyerPhone} | ${buyerEmail}
+Contact: ${shownName} | ${shownPhone} | ${shownEmail}
 Please confirm if this works to schedule pickup and payment.`;
 
   function handleCopy() {
@@ -128,7 +161,8 @@ Please confirm if this works to schedule pickup and payment.`;
                   Formal Cash Offer Letter Generator
                 </h2>
                 <p className="text-xs text-[var(--t3)] font-medium">
-                  Instant binding Letter of Intent (LOI) to present to private sellers & auctions
+                  Instant binding Letter of Intent (LOI) to present to private
+                  sellers & auctions
                 </p>
               </div>
             </div>
@@ -194,6 +228,8 @@ Please confirm if this works to schedule pickup and payment.`;
                 <input
                   type="text"
                   value={buyerName}
+                  placeholder="Your name or business"
+                  autoComplete="organization"
                   onChange={(e) => setBuyerName(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[var(--s2)] border border-[var(--b2)] text-sm font-bold text-[var(--t1)] focus:border-emerald-500 focus:outline-none"
                 />
@@ -204,9 +240,25 @@ Please confirm if this works to schedule pickup and payment.`;
                   Buyer Phone Number
                 </label>
                 <input
-                  type="text"
+                  type="tel"
                   value={buyerPhone}
+                  placeholder="Your phone"
+                  autoComplete="tel"
                   onChange={(e) => setBuyerPhone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--s2)] border border-[var(--b2)] text-sm font-bold text-[var(--t1)] focus:border-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-[var(--t4)] mb-1 block">
+                  Buyer Email
+                </label>
+                <input
+                  type="email"
+                  value={buyerEmail}
+                  placeholder="Your email"
+                  autoComplete="email"
+                  onChange={(e) => setBuyerEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[var(--s2)] border border-[var(--b2)] text-sm font-bold text-[var(--t1)] focus:border-emerald-500 focus:outline-none"
                 />
               </div>
@@ -224,7 +276,8 @@ Please confirm if this works to schedule pickup and payment.`;
                     OFFICIAL CASH PURCHASE PROPOSAL
                   </h1>
                   <p className="text-xs text-[var(--t4)] mt-1 print:text-gray-600">
-                    Document Ref: MH-{deal.id.slice(0, 8).toUpperCase()}-{new Date().getFullYear()}
+                    Document Ref: MH-{deal.id.slice(0, 8).toUpperCase()}-
+                    {new Date().getFullYear()}
                   </p>
                 </div>
                 <div className="text-right">
@@ -271,7 +324,9 @@ Please confirm if this works to schedule pickup and payment.`;
                     Current Asking Price
                   </div>
                   <Mono className="text-xs font-bold text-[var(--t3)] line-through mt-0.5 print:text-black">
-                    {deal.askPrice ? `$${deal.askPrice.toLocaleString()}` : "Unstated"}
+                    {deal.askPrice
+                      ? `$${deal.askPrice.toLocaleString()}`
+                      : "Unstated"}
                   </Mono>
                 </div>
               </div>
@@ -283,7 +338,8 @@ Please confirm if this works to schedule pickup and payment.`;
                     Firm Cash Purchase Consideration
                   </div>
                   <div className="text-xs text-[var(--t3)] mt-0.5 print:text-gray-700">
-                    Guaranteed payment delivered upon in-person handover and title verification.
+                    Guaranteed payment delivered upon in-person handover and
+                    title verification.
                   </div>
                 </div>
                 <div className="text-right">
@@ -303,20 +359,37 @@ Please confirm if this works to schedule pickup and payment.`;
                 </div>
                 <ol className="list-decimal list-inside space-y-2 text-xs leading-relaxed text-[var(--t3)] print:text-gray-800">
                   <li>
-                    <strong className="text-[var(--t1)] print:text-black">Marketable Title: </strong>
-                    Seller warrants that they hold legal authority to convey the vehicle and guarantees title is free of unliquidated liens, undisclosed salvage branding, or legal encumbrances.
+                    <strong className="text-[var(--t1)] print:text-black">
+                      Marketable Title:{" "}
+                    </strong>
+                    Seller warrants that they hold legal authority to convey the
+                    vehicle and guarantees title is free of unliquidated liens,
+                    undisclosed salvage branding, or legal encumbrances.
                   </li>
                   <li>
-                    <strong className="text-[var(--t1)] print:text-black">Physical Verification: </strong>
-                    Buyer reserves the right to conduct a brief 20-minute physical inspection to confirm odometer accuracy, absence of structural damage, and operational status prior to final fund disbursement.
+                    <strong className="text-[var(--t1)] print:text-black">
+                      Physical Verification:{" "}
+                    </strong>
+                    Buyer reserves the right to conduct a brief 20-minute
+                    physical inspection to confirm odometer accuracy, absence of
+                    structural damage, and operational status prior to final
+                    fund disbursement.
                   </li>
                   <li>
-                    <strong className="text-[var(--t1)] print:text-black">Closing & Expedited Logistics: </strong>
-                    Upon inspection approval, Buyer will issue immediate payment and arrange transport/pickup within 48 business hours at no expense or inconvenience to Seller.
+                    <strong className="text-[var(--t1)] print:text-black">
+                      Closing & Expedited Logistics:{" "}
+                    </strong>
+                    Upon inspection approval, Buyer will issue immediate payment
+                    and arrange transport/pickup within 48 business hours at no
+                    expense or inconvenience to Seller.
                   </li>
                   <li>
-                    <strong className="text-[var(--t1)] print:text-black">Offer Validity: </strong>
-                    This proposal remains active and binding upon Buyer for {expirationHours} hours from transmission, after which it expires automatically unless extended in writing.
+                    <strong className="text-[var(--t1)] print:text-black">
+                      Offer Validity:{" "}
+                    </strong>
+                    This proposal remains active and binding upon Buyer for{" "}
+                    {expirationHours} hours from transmission, after which it
+                    expires automatically unless extended in writing.
                   </li>
                 </ol>
               </div>
@@ -328,11 +401,15 @@ Please confirm if this works to schedule pickup and payment.`;
                     Buyer Representation
                   </div>
                   <div className="h-10 border-b border-dashed border-[var(--b3)] flex items-end pb-1 font-serif italic text-emerald-400 print:text-black">
-                    {buyerName}
+                    {shownName}
                   </div>
                   <div className="text-[11px] text-[var(--t3)] print:text-gray-700">
-                    Authorized Signer: <span className="text-[var(--t1)] print:text-black font-semibold">{buyerName}</span><br />
-                    Phone: {buyerPhone} | Email: {buyerEmail}
+                    Authorized Signer:{" "}
+                    <span className="text-[var(--t1)] print:text-black font-semibold">
+                      {shownName}
+                    </span>
+                    <br />
+                    Phone: {shownPhone} | Email: {shownEmail}
                   </div>
                 </div>
 
@@ -344,7 +421,8 @@ Please confirm if this works to schedule pickup and payment.`;
                     Signature &amp; Acceptance Date
                   </div>
                   <div className="text-[11px] text-[var(--t3)] print:text-gray-700">
-                    Seller Name: ____________________________________<br />
+                    Seller Name: ____________________________________
+                    <br />
                     Driver's License / ID State: ____________________
                   </div>
                 </div>
