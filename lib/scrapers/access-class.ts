@@ -25,6 +25,7 @@ import {
   SITE_POLICY_BLOCKS,
 } from "./source-compliance";
 import { grandfatheredHosts } from "./polite/robots-exempt";
+import { CURATED_SITES } from "./curated-sites";
 
 export type AccessClass =
   | "api"
@@ -39,6 +40,11 @@ export const OPERATOR_OVERRIDE_NOTE =
 const API_HOSTS = ["gsaauctions.gov", "api.gsa.gov", "ppms.gov"];
 /** deals.source values written by reviewed per-site dealer crawls (curated_dealers). */
 const REVIEWED_DEALER_SOURCES = new Set(["independent_dealer"]);
+/**
+ * Hosts whose terms ban automated access, whatever deals.source a row was stored under (Ren #312 P1:
+ * a carparts.com row saved as independent_dealer must not read as `allowed`).
+ */
+export const RESTRICTED_HOSTS: readonly string[] = ["carparts.com"];
 
 function hostOf(url: string | null | undefined): string {
   try {
@@ -52,6 +58,21 @@ function hostOf(url: string | null | undefined): string {
 
 const under = (host: string, list: readonly string[]) =>
   !!host && list.some((h) => host === h || host.endsWith(`.${h}`));
+
+let curatedHostList: string[] | null = null;
+/** Hosts of the reviewed curated dealer network (lib/scrapers/curated-sites.ts). */
+export function curatedHosts(): readonly string[] {
+  if (!curatedHostList)
+    curatedHostList = Array.from(
+      new Set(CURATED_SITES.map((s) => hostOf(s.url)).filter(Boolean)),
+    );
+  return curatedHostList;
+}
+
+/** True only for a host in curated-sites.ts (or a subdomain of one). */
+export function isCuratedHost(url: string | null | undefined): boolean {
+  return under(hostOf(url), curatedHosts());
+}
 
 function restrictedSource(source: string): boolean {
   const s = source.toLowerCase();
@@ -243,14 +264,19 @@ export function accessClassFor(row: {
   if (under(host, OPERATOR_RESTORED_HOSTS) || under(host, grandfatheredHosts()))
     return "operator_override";
   if (restrictedSource(source)) return "restricted";
+  if (under(host, RESTRICTED_HOSTS)) return "restricted";
   if (under(host, Object.keys(SITE_POLICY_BLOCKS))) return "restricted";
   if (under(host, API_HOSTS)) return "api";
-  if (REVIEWED_DEALER_SOURCES.has(source) && host) return "allowed";
+  // Ren #312 P1: `allowed` (and photo caching) only for a host that is actually in the reviewed
+  // curated network. Any other host stored as independent_dealer (auto-discovery, ingest, a random
+  // dealer site) has no review behind it: unreviewed.
+  if (REVIEWED_DEALER_SOURCES.has(source))
+    return under(host, curatedHosts()) ? "allowed" : "unreviewed";
   if (own && !own.mixed && own.access !== "allowed") return own.access;
   return "unreviewed";
 }
 
-/** May this row's photos be copied into our Storage bucket? Only api/allowed sources. */
+/** May this row's photos be copied into our Storage bucket? Only api/allowed rows (so only curated hosts for dealers). */
 export function photoCacheAllowed(row: {
   source?: string | null;
   source_url?: string | null;
