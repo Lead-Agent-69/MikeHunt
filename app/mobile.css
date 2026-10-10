@@ -29,10 +29,18 @@
 
 /* ── Safe area insets for notched devices ── */
 @supports (padding: env(safe-area-inset-top)) {
-  .safe-area-top { padding-top: env(safe-area-inset-top); }
-  .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-  .safe-area-left { padding-left: env(safe-area-inset-left); }
-  .safe-area-right { padding-right: env(safe-area-inset-right); }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
   .safe-area-all {
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
@@ -96,9 +104,15 @@
   right: 0;
   border-radius: 0 var(--r3) var(--r3) 0;
 }
-.swipe-action.save { background: var(--green); }
-.swipe-action.dismiss { background: var(--red); }
-.swipe-action.archive { background: var(--blue); }
+.swipe-action.save {
+  background: var(--green);
+}
+.swipe-action.dismiss {
+  background: var(--red);
+}
+.swipe-action.archive {
+  background: var(--blue);
+}
 
 /* ── Mobile bottom sheet ── */
 .bottom-sheet {
@@ -184,7 +198,9 @@
   justify-content: center;
   box-shadow: 0 4px 16px rgba(242, 91, 154, 0.4);
   z-index: 80;
-  transition: transform 0.2s var(--ease-out), box-shadow 0.2s ease;
+  transition:
+    transform 0.2s var(--ease-out),
+    box-shadow 0.2s ease;
   border: none;
   cursor: pointer;
 }
@@ -311,7 +327,9 @@
 /* ── Touch feedback ── */
 @media (pointer: coarse) {
   .touch-feedback {
-    transition: transform 0.15s var(--ease-out), background-color 0.15s ease;
+    transition:
+      transform 0.15s var(--ease-out),
+      background-color 0.15s ease;
   }
   .touch-feedback:active {
     transform: scale(0.97);
@@ -328,9 +346,16 @@
 
 /* ── Haptic feedback simulation (visual) ── */
 @keyframes haptic {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
 }
 .haptic {
   animation: haptic 0.15s ease;
@@ -338,11 +363,20 @@
 
 /* ── Mobile loading states ── */
 @keyframes mobile-skeleton {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 .mobile-skeleton {
-  background: linear-gradient(90deg, var(--s2) 25%, var(--s3) 50%, var(--s2) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--s2) 25%,
+    var(--s3) 50%,
+    var(--s2) 75%
+  );
   background-size: 200% 100%;
   animation: mobile-skeleton 1.5s infinite linear;
   border-radius: var(--r2);
@@ -387,9 +421,17 @@
 
 /* ── Mobile success states ── */
 @keyframes success-pop {
-  0% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 .success-pop {
   animation: success-pop 0.4s var(--ease-out);
@@ -1152,7 +1194,9 @@ img[loading="lazy"] {
   height: 20px;
   color: var(--s4);
   cursor: pointer;
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 .rating-mobile .star.filled {
   color: var(--gold);
@@ -2355,7 +2399,9 @@ img[loading="lazy"] {
   top: 0;
   left: 0;
   right: 0;
-  padding: 6px 16px;
+  /* Informational only: never swallow taps meant for the top nav under it. */
+  pointer-events: none;
+  padding: calc(6px + env(safe-area-inset-top)) 16px 6px;
   text-align: center;
   font-size: 12px;
   font-weight: 600;
@@ -2812,8 +2858,13 @@ img[loading="lazy"] {
   animation: swipeHint 1.5s ease infinite;
 }
 @keyframes swipeHint {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(8px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(8px);
+  }
 }
 
 /* ── Mobile gesture hint ── */
@@ -2831,11 +2882,16 @@ img[loading="lazy"] {
   color: var(--t3);
   z-index: 100;
   white-space: nowrap;
-  animation: fadeIn 0.3s ease, fadeOut 0.3s ease 2s forwards;
+  animation:
+    fadeIn 0.3s ease,
+    fadeOut 0.3s ease 2s forwards;
   pointer-events: none;
 }
 @keyframes fadeOut {
-  to { opacity: 0; visibility: hidden; }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 
 /* ── Mobile tutorial overlay ── */
@@ -2947,7 +3003,7 @@ img[loading="lazy"] {
   pointer-events: auto;
 }
 .coach-mark-mobile .callout::after {
-  content: '';
+  content: "";
   position: absolute;
   width: 0;
   height: 0;
@@ -3323,8 +3379,14 @@ img[loading="lazy"] {
   animation: confetti-fall 3s ease-in-out infinite;
 }
 @keyframes confetti-fall {
-  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  0% {
+    transform: translateY(-100vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
 }
 .celebration-mobile .celebration-content {
   text-align: center;
@@ -3366,7 +3428,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .sound-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3378,8 +3440,14 @@ img[loading="lazy"] {
   animation: sound-ripple 0.3s ease;
 }
 @keyframes sound-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.1); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
 }
 
 /* ── Mobile vibration feedback (visual indicator) ── */
@@ -3390,11 +3458,22 @@ img[loading="lazy"] {
   animation: vibrate 0.15s ease;
 }
 @keyframes vibrate {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-2px); }
-  40% { transform: translateX(2px); }
-  60% { transform: translateX(-2px); }
-  80% { transform: translateX(2px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-2px);
+  }
+  40% {
+    transform: translateX(2px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
 }
 
 /* ── Mobile success feedback ── */
@@ -3402,7 +3481,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .success-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3414,8 +3493,14 @@ img[loading="lazy"] {
   animation: success-ripple 0.4s ease;
 }
 @keyframes success-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile error feedback ── */
@@ -3423,7 +3508,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .error-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3435,8 +3520,14 @@ img[loading="lazy"] {
   animation: error-ripple 0.4s ease;
 }
 @keyframes error-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile warning feedback ── */
@@ -3444,7 +3535,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .warning-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3456,8 +3547,14 @@ img[loading="lazy"] {
   animation: warning-ripple 0.4s ease;
 }
 @keyframes warning-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile info feedback ── */
@@ -3465,7 +3562,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .info-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3477,8 +3574,14 @@ img[loading="lazy"] {
   animation: info-ripple 0.4s ease;
 }
 @keyframes info-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile neutral feedback ── */
@@ -3486,7 +3589,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .neutral-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3498,8 +3601,14 @@ img[loading="lazy"] {
   animation: neutral-ripple 0.4s ease;
 }
 @keyframes neutral-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile primary feedback ── */
@@ -3507,7 +3616,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .primary-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3519,8 +3628,14 @@ img[loading="lazy"] {
   animation: primary-ripple 0.4s ease;
 }
 @keyframes primary-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile secondary feedback ── */
@@ -3528,7 +3643,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .secondary-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3540,8 +3655,14 @@ img[loading="lazy"] {
   animation: secondary-ripple 0.4s ease;
 }
 @keyframes secondary-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile accent feedback ── */
@@ -3549,7 +3670,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .accent-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3561,8 +3682,14 @@ img[loading="lazy"] {
   animation: accent-ripple 0.4s ease;
 }
 @keyframes accent-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile gold feedback ── */
@@ -3570,7 +3697,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .gold-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3582,8 +3709,14 @@ img[loading="lazy"] {
   animation: gold-ripple 0.4s ease;
 }
 @keyframes gold-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile coral feedback ── */
@@ -3591,7 +3724,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .coral-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3603,8 +3736,14 @@ img[loading="lazy"] {
   animation: coral-ripple 0.4s ease;
 }
 @keyframes coral-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile home feedback ── */
@@ -3612,7 +3751,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .home-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3624,8 +3763,14 @@ img[loading="lazy"] {
   animation: home-ripple 0.4s ease;
 }
 @keyframes home-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile gradient feedback ── */
@@ -3633,13 +3778,15 @@ img[loading="lazy"] {
   position: relative;
 }
 .gradient-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
   border: 2px solid transparent;
   background: var(--grad) border-box;
-  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
@@ -3649,8 +3796,14 @@ img[loading="lazy"] {
   animation: gradient-ripple 0.4s ease;
 }
 @keyframes gradient-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile rainbow feedback ── */
@@ -3658,13 +3811,23 @@ img[loading="lazy"] {
   position: relative;
 }
 .rainbow-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
   border: 2px solid transparent;
-  background: linear-gradient(135deg, #ff7a4d, #f25b9a, #9b6bff, #5b9bef, #00ff66) border-box;
-  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  background: linear-gradient(
+      135deg,
+      #ff7a4d,
+      #f25b9a,
+      #9b6bff,
+      #5b9bef,
+      #00ff66
+    )
+    border-box;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
@@ -3674,8 +3837,14 @@ img[loading="lazy"] {
   animation: rainbow-ripple 0.4s ease;
 }
 @keyframes rainbow-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile neon feedback ── */
@@ -3683,12 +3852,14 @@ img[loading="lazy"] {
   position: relative;
 }
 .neon-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
   border: 2px solid var(--amber);
-  box-shadow: 0 0 10px var(--amber), 0 0 20px var(--amber);
+  box-shadow:
+    0 0 10px var(--amber),
+    0 0 20px var(--amber);
   opacity: 0;
   pointer-events: none;
 }
@@ -3696,8 +3867,14 @@ img[loading="lazy"] {
   animation: neon-ripple 0.4s ease;
 }
 @keyframes neon-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile glow feedback ── */
@@ -3705,7 +3882,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .glow-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3718,8 +3895,14 @@ img[loading="lazy"] {
   animation: glow-ripple 0.4s ease;
 }
 @keyframes glow-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile pulse feedback ── */
@@ -3727,7 +3910,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .pulse-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3739,9 +3922,18 @@ img[loading="lazy"] {
   animation: pulse-ripple 0.4s ease;
 }
 @keyframes pulse-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 0.3; transform: scale(1.05); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile bounce feedback ── */
@@ -3813,7 +4005,7 @@ img[loading="lazy"] {
   position: relative;
 }
 .custom-feedback::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: -4px;
   border-radius: inherit;
@@ -3825,8 +4017,14 @@ img[loading="lazy"] {
   animation: custom-ripple 0.4s ease;
 }
 @keyframes custom-ripple {
-  0% { opacity: 0.5; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
+  0% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
 }
 
 /* ── Mobile feedback utilities ── */
