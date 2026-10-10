@@ -11,6 +11,9 @@
 -- No browser, extension or anon reader exists, so client roles need no access.
 --
 -- RLS stays on with no policies: client roles are denied even if a grant comes back.
+-- The self-check also walks pg_depend: no view over sold_listings may be readable by a client role,
+-- and no SECURITY DEFINER function that reads it may be executable by one (either would hand the
+-- rows back without touching the table grants).
 -- Needs Ren SIGN before any hosted apply.
 
 BEGIN;
@@ -28,6 +31,7 @@ DECLARE
   r text;
   p text;
   n integer;
+  obj oid;
 BEGIN
   FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
     FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] LOOP
@@ -55,6 +59,48 @@ BEGIN
   IF n <> 0 THEN
     RAISE EXCEPTION 'sold_listings has % policies (expected 0)', n;
   END IF;
+
+  -- Views (and materialized views) built on sold_listings: pg_depend -> pg_rewrite -> view.
+  FOR obj IN
+    SELECT DISTINCT rw.ev_class
+    FROM pg_depend d
+    JOIN pg_rewrite rw ON rw.oid = d.objid
+    WHERE d.classid = 'pg_rewrite'::regclass
+      AND d.refobjid = 'public.sold_listings'::regclass
+      AND rw.ev_class <> 'public.sold_listings'::regclass
+  LOOP
+    FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+      IF has_table_privilege(r, obj, 'SELECT') THEN
+        RAISE EXCEPTION 'view % over sold_listings is SELECT-able by %', obj::regclass, r;
+      END IF;
+    END LOOP;
+  END LOOP;
+
+  -- SECURITY DEFINER functions that read sold_listings: SQL BEGIN ATOMIC bodies record a pg_depend
+  -- row; plpgsql and plain SQL bodies do not, so their source is matched too.
+  FOR obj IN
+    SELECT p2.oid
+    FROM pg_proc p2
+    JOIN pg_namespace ns ON ns.oid = p2.pronamespace
+    WHERE p2.prosecdef
+      AND ns.nspname NOT IN ('pg_catalog', 'information_schema')
+      AND (
+        p2.prosrc ILIKE '%sold_listings%'
+        OR EXISTS (
+          SELECT 1 FROM pg_depend d
+          WHERE d.classid = 'pg_proc'::regclass
+            AND d.objid = p2.oid
+            AND d.refobjid = 'public.sold_listings'::regclass
+        )
+      )
+  LOOP
+    FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+      IF has_function_privilege(r, obj, 'EXECUTE') THEN
+        RAISE EXCEPTION 'SECURITY DEFINER function % reads sold_listings and is executable by %',
+          obj::regprocedure, r;
+      END IF;
+    END LOOP;
+  END LOOP;
 END
 $$;
 
