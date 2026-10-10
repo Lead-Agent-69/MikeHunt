@@ -68,8 +68,20 @@ const fetcher = (url: string) =>
     return res.json();
   });
 
+// Research-only framing for branded/damaged supply: no profit claim on the lane itself.
+const SALVAGE_LANE_TITLE = "Salvage & Rebuildable";
+const SALVAGE_LANE_SUBTITLE =
+  "Salvage, parts-only and rebuildable titles from every source. For research: verify the title, damage and repair cost before you buy.";
+
 function Rail({ rail }: { rail: DiscoveryRail }) {
-  const title = rail.key === "foryou" ? "Profile matches" : rail.title;
+  const salvageLane = rail.key === "salvageRebuildable";
+  const title =
+    rail.key === "foryou"
+      ? "Profile matches"
+      : salvageLane
+        ? SALVAGE_LANE_TITLE
+        : rail.title;
+  const subtitle = salvageLane ? SALVAGE_LANE_SUBTITLE : rail.subtitle;
   const strip = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
   const [edges, setEdges] = useState({ start: true, end: true });
@@ -113,8 +125,8 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
           <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
             {title}
           </h2>
-          {rail.subtitle && (
-            <p className="mt-0.5 text-xs text-[var(--t4)]">{rail.subtitle}</p>
+          {subtitle && (
+            <p className="mt-0.5 text-xs text-[var(--t4)]">{subtitle}</p>
           )}
         </div>
         <div className="flex shrink-0 gap-1">
@@ -382,7 +394,11 @@ export default function DiscoverPage() {
   // Reseller/dealer keep roi / salvage / auctionLots / fresh.
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
   // Same table the API enforces (lib/discovery/desk-rails); parts keeps salvage/teardown.
-  const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode);
+  // Salvage & Rebuildable: same gate as the server (includesRepairable): DIY defaults in,
+  // personal only once they opt in, and an explicit saved choice always wins.
+  const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode, {
+    includeRepairable: includesRepairable(buyerScope),
+  });
   const visibleRails = distinctDiscoveryRails(
     (data?.rails || []).filter(
       (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),

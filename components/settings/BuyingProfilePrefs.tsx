@@ -264,6 +264,10 @@ export function BuyingProfilePrefs() {
           />
           Include vehicles with reported damage or repair needs
         </label>
+        <p className="-mt-1 text-xs text-[var(--t4)]">
+          On personal and DIY profiles this also shows the Salvage &amp;
+          Rebuildable lane on Discover, for research only.
+        </p>
         <button
           type="button"
           onClick={() => void submit()}
