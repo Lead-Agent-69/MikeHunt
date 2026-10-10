@@ -12,6 +12,7 @@ import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
 import { normalizeModel } from "../../scoring/market-value";
 import { US_STATES } from "../../geo/us-states";
+import { isPartsCarSoldHeadline } from "../../deals/title-category";
 
 const execFileAsync = promisify(execFile);
 
@@ -79,9 +80,27 @@ async function dynamicQueries(
     .map(([k]) => k);
 }
 
-// Titles that are clearly NOT a whole sellable car — parts, project shells, etc.
-const PARTS_RX =
-  /\b(parts?|engine|transmission|motor only|hood|doors?|bumpers?|fenders?|seats?|wheels?|rims?|tires?|tyres?|axle|differential|ecu|ecm|module|mirrors?|headlights?|taillights?|grille|core support|parting out|for parts|no engine|shell only|gauge|cluster|harness|manual|brochure|hub ?cap|emblem|key fob)\b/i;
+// Headlines that are NOT a whole car: a part, a parted-out car, a shell. Always dropped.
+const NOT_A_CAR_RX =
+  /\b(?:parting[\s-]+out|part[\s-]+out|(?:engine|motor|transmission|trans|body|shell|frame|cab)[\s-]+only|no[\s-]+(?:engine|motor|transmission)|shell[\s-]+only|rolling[\s-]+chassis|(?:owner'?s?|service|shop|repair)[\s-]+manual|brochure|key[\s-]+fob)\b/i;
+// Component words. A headline with one of these is a part listing UNLESS it also reads as a whole
+// car (WHOLE_CAR_RX) or a car sold for parts ("for parts", "parts car": kept, classified Salvage).
+const PART_ITEM_RX =
+  /\b(?:parts?|engine|motor|transmission|hood|doors?|bumpers?|fenders?|seats?|axle|differential|ecu|ecm|pcm|module|mirrors?|headlights?|taillights?|tail[\s-]+lights?|grille|core[\s-]+support|tailgate|gauge|cluster|harness|hub[\s-]?caps?|emblem|wheels?|rims?|tires?|tyres?)\b/i;
+const WHOLE_CAR_RX =
+  /\b(?:\d[\d,]{2,}\s*(?:miles|mi)|miles|title[d]?|vin|runs|drives|driving|sedan|coupe|hatchback|wagon|convertible|pickup|truck|suv|minivan|van|crew[\s-]?cab|super[\s-]?crew|super[\s-]?cab|quad[\s-]?cab|double[\s-]?cab|extended[\s-]?cab|4x4|4x2|4wd|awd|2wd|fwd|rwd|automatic|one[\s-]+owner|no[\s-]+reserve)\b/i;
+
+/**
+ * True when a sold headline is a part or parted-out car, not a whole car. Whole cars sold for parts
+ * ("2012 Civic for parts or repair", "2014 F-150 4x4 parts truck") are kept: soldTitleCategory
+ * files them as Salvage (parts only), so they never pool with clean sales. A component word with
+ * a whole-car cue ("2015 F-150 XLT 4x4 new tires") is a car, not a part.
+ */
+export function isPartsListingHeadline(title: string): boolean {
+  if (NOT_A_CAR_RX.test(title)) return true;
+  if (isPartsCarSoldHeadline(title)) return false;
+  return PART_ITEM_RX.test(title) && !WHOLE_CAR_RX.test(title);
+}
 
 const num = (t: unknown): number =>
   Number(String(t ?? "").replace(/[^0-9.]/g, "")) || 0;
@@ -129,7 +148,7 @@ const SERIES_RX = /^(?:1500|2500|3500|4500|5500|150|250|350|450|550)(?:hd)?$/i;
 const SERIES_MODELS = new Set(["silverado", "sierra", "ram"]);
 // Words that end the trim: listing chatter, title words and separators, not trim.
 const TRIM_STOP_RX =
-  /^(?:[-|/,:;~*!]+|no|reserve|clean|salvage|rebuilt|title|low|miles?|one|owner|runs|drives|loaded|nice|must|see|warranty|financing|cold|ac|w\/|with)$/i;
+  /^(?:[-|/,:;~*!]+|no|reserve|clean|salvage|rebuilt|rebuildable|repairable|reconstructed|flood|flooded|hail|lemon|junk|for|parts|project|needs|title|low|miles?|one|owner|runs|drives|loaded|nice|must|see|warranty|financing|cold|ac|w\/|with)$/i;
 const MAX_TRIM_WORDS = 4;
 
 /**
@@ -254,7 +273,7 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       .replace(/opens in a new window.*$/i, "")
       .trim();
     if (!title || /shop on ebay/i.test(title)) return;
-    if (PARTS_RX.test(title)) return; // drop parts/project junk
+    if (isPartsListingHeadline(title)) return; // drop parts, parted-out cars and shells
 
     const ym = title.match(/(19[5-9]\d|20[0-4]\d)/);
     if (!ym) return;

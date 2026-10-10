@@ -13,6 +13,7 @@ import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { SOLD_BASIS, withSoldBasis } from "./sold-basis";
+import { soldTitleCategory } from "../deals/title-category";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -424,25 +425,23 @@ async function loadMarketIndexUnlocked(
   await loadSoldIndex(supabase);
 }
 
+// Listing (deals) headlines only: drops branded rows from the clean-retail ask index. Sold rows use
+// soldTitleLane below.
 const SALVAGE_SOLD_TITLE =
   /\b(salvage|rebuilt|rebuild|repairable|flood(?:ed)?|junk|non-?runner|wreck(?:ed)?|branded title|title brand|for parts|parts only|certificate of destruction|\bcod\b)\b/i;
 
 export type SoldTitleLane = "clean" | "salvage" | "unknown";
 
-/** Listing names are not title documents; only explicit clean-title claims enter that lane. */
+/**
+ * Sold-index lane for a sold-row headline, from the shared lib/deals/title-category
+ * soldTitleCategory: Clean only on an explicit clean-title claim; Salvage, Rebuilt and Rebuildable
+ * share the branded ("salvage") lane; everything else is unknown and stays out of both medians.
+ */
 export function soldTitleLane(title?: string | null): SoldTitleLane {
-  const text = (title || "").replace(/\s+/g, " ").trim();
-  if (!text) return "unknown";
-  if (SALVAGE_SOLD_TITLE.test(text)) return "salvage";
-  if (
-    /\b(?:not|no|non|unknown|unconfirmed|pending)[\s-]+clean[\s-]+title\b|\bclean[\s-]+title[\s:=-]+(?:unknown|unconfirmed|pending|not|no)\b/i.test(
-      text,
-    )
-  )
-    return "unknown";
-  return /\bclean[\s-]+title\b|\btitle[\s:=-]+clean\b/i.test(text)
-    ? "clean"
-    : "unknown";
+  const cat = soldTitleCategory(title);
+  if (cat === "clean") return "clean";
+  if (cat === "unknown") return "unknown";
+  return "salvage";
 }
 
 export type SoldObservation = {

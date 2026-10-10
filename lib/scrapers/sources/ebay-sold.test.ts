@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  isPartsListingHeadline,
   parseEbaySoldHtml,
   parseSoldLocationState,
   splitSoldMakeModelTrim,
 } from "./ebay-sold";
+import { soldTitleCategory } from "@/lib/deals/title-category";
 
 const card = (
   title: string,
@@ -124,6 +126,33 @@ describe("parseEbaySoldHtml", () => {
       undefined,
     ]);
   });
+
+  it("keeps whole cars sold for parts (Salvage) and cars with part words; drops part listings", () => {
+    const rows = parseEbaySoldHtml(
+      card("2012 Honda Civic for parts or repair", "$2,500.00", "60") +
+        card("2014 Ford F-150 4x4 parts truck", "$3,500.00", "61") +
+        card("2015 Ford F150 XLT 4x4 new tires", "$22,000.00", "62") +
+        card("2016 Ford Mustang GT 6-speed manual", "$24,000.00", "63") +
+        card("2018 Honda Accord Engine Motor 2.4L", "$1,900.00", "64") +
+        card("2016 Jeep Wrangler doors", "$1,200.00", "65") +
+        card("2010 Toyota Camry parting out", "$1,500.00", "66") +
+        card("2010 Toyota Camry no engine", "$1,500.00", "67") +
+        card("2017 Chevrolet Silverado transmission only", "$1,800.00", "68"),
+    );
+    expect(rows.map((r) => r.item_id)).toEqual(["60", "61", "62", "63"]);
+    expect(rows.map((r) => [r.model, r.trim])).toEqual([
+      ["civic", undefined],
+      ["f150", "4x4"],
+      ["f150", "XLT 4x4 new tires"],
+      ["mustang", "GT 6-speed manual"],
+    ]);
+    expect(rows.map((r) => soldTitleCategory(r.title))).toEqual([
+      "salvage",
+      "salvage",
+      "unknown",
+      "unknown",
+    ]);
+  });
 });
 
 describe("splitSoldMakeModelTrim", () => {
@@ -191,5 +220,26 @@ describe("parseSoldLocationState", () => {
     [[], undefined],
   ] as [string[], string | undefined][])("%j -> %s", (pieces, expected) => {
     expect(parseSoldLocationState(pieces)).toBe(expected);
+  });
+});
+
+describe("isPartsListingHeadline", () => {
+  it.each([
+    ["2018 Honda Accord Engine Motor 2.4L", true],
+    ["2016 Jeep Wrangler doors", true],
+    ["2016 Jeep Wrangler OEM wheels rims", true],
+    ["2010 Toyota Camry parting out", true],
+    ["2010 Toyota Camry rolling chassis", true],
+    ["2016 Ford Mustang owners manual", true],
+    ["2014 Ford F-150 parts", true],
+    ["2012 Honda Civic for parts or repair", false],
+    ["2012 Honda Civic parts car", false],
+    ["2014 Ford F-150 4x4 parts truck", false],
+    ["2015 Ford F150 XLT 4x4 new tires", false],
+    ["2016 Ford Mustang GT 6-speed manual", false],
+    ["2018 Honda Accord EX-L 52,000 miles new engine", false],
+    ["2018 Honda Accord EX-L", false],
+  ] as [string, boolean][])("%s -> %s", (title, expected) => {
+    expect(isPartsListingHeadline(title)).toBe(expected);
   });
 });

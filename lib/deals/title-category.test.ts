@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  isPartsCarSoldHeadline,
+  isPartsOnlySoldHeadline,
+  soldTitleCategory,
   LISTING_CONDITIONS,
   TITLE_CATEGORIES,
   conditionsFor,
@@ -142,5 +145,67 @@ describe("matchesTitleCategories / titleCategoryCounts", () => {
       { value: "rebuildable", count: 1, label: "Rebuildable" },
       { value: "unknown", count: 1, label: "Title unknown" },
     ]);
+  });
+});
+
+describe("soldTitleCategory (sold-row headlines)", () => {
+  it.each([
+    // Clean: explicit clean-title claim only
+    ["2018 Honda Accord EX, clean title", "clean"],
+    ["2018 Honda Accord EX Clean-Title 1 owner", "clean"],
+    ["2018 Ford F-150 XLT title: clean", "clean"],
+    ["2018 Honda Accord EX clean title, never salvage", "clean"],
+    ["2018 Honda Accord EX clean title no accidents", "clean"],
+    ["2018 Honda Accord EX clean title no flood damage", "clean"],
+    // Unknown: no title claim, or a negated / pending one
+    ["2018 Honda Accord EX", "unknown"],
+    ["2018 Honda Accord EX Clean Carfax", "unknown"],
+    ["2018 Honda Accord EX clean", "unknown"],
+    ["2018 Honda Accord not clean title", "unknown"],
+    ["2018 Honda Accord clean title pending", "unknown"],
+    ["2018 Honda Accord clean title unconfirmed", "unknown"],
+    ["2018 Honda Accord clean title not verified", "unknown"],
+    ["2018 Honda Accord new parts clean title", "clean"],
+    ["", "unknown"],
+    [null, "unknown"],
+    // Salvage: brand words, parts cars
+    ["2018 Honda Accord salvage title", "salvage"],
+    ["2018 Honda Accord SALVAGE", "salvage"],
+    ["2018 Honda Accord flood car", "salvage"],
+    ["2018 Honda Accord flooded", "salvage"],
+    ["2018 Honda Accord hail damage", "salvage"],
+    ["2018 Honda Accord lemon buyback", "salvage"],
+    ["2018 Honda Accord branded title", "salvage"],
+    ["2018 Honda Accord fire damage", "salvage"],
+    ["2018 Honda Accord junk title", "salvage"],
+    ["2018 Honda Accord clean title, flood damage", "salvage"],
+    ["2012 Honda Civic for parts or repair", "salvage"],
+    ["2012 Honda Civic parts only", "salvage"],
+    ["2014 Ford F-150 4x4 parts truck", "salvage"],
+    ["2014 Ford F-150 parts", "salvage"],
+    // Rebuilt / Rebuildable
+    ["2018 Honda Accord rebuilt title", "rebuilt"],
+    ["2018 Honda Accord REBUILT", "rebuilt"],
+    ["2018 Honda Accord reconstructed title", "rebuilt"],
+    ["2018 Honda Accord rebuilt salvage title", "rebuilt"],
+    ["2018 Honda Accord repairable", "rebuildable"],
+    ["2018 Honda Accord rebuildable salvage", "rebuildable"],
+  ] as [string | null, string][])("%j -> %s", (headline, expected) => {
+    expect(soldTitleCategory(headline)).toBe(expected);
+  });
+
+  it("only flags parts cars, not 'new/OEM/with parts'", () => {
+    expect(isPartsCarSoldHeadline("2012 Honda Civic for parts")).toBe(true);
+    expect(isPartsCarSoldHeadline("2014 F-150 parts")).toBe(false);
+    expect(isPartsOnlySoldHeadline("2014 F-150 parts")).toBe(true);
+    expect(isPartsOnlySoldHeadline("2014 F-150 new parts")).toBe(false);
+    expect(isPartsOnlySoldHeadline("2014 F-150 with OEM parts")).toBe(false);
+    expect(isPartsOnlySoldHeadline("2014 F-150 XLT")).toBe(false);
+  });
+
+  it("keeps the listing (deals.condition) mapping unchanged", () => {
+    expect(titleCategory({ condition: "clean_title" })).toBe("clean");
+    expect(titleCategory({ condition: "flood" })).toBe("unknown");
+    expect(titleCategory({ condition: "run_drive" })).toBe("unknown");
   });
 });

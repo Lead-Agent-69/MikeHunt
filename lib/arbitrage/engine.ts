@@ -46,6 +46,7 @@ import {
 } from "./constants";
 import {
   compCategoriesFor,
+  compTitleCategory,
   isBrandedTitle,
   titleCategory,
   type TitleCategory,
@@ -73,7 +74,11 @@ export interface ArbitrageListing {
 }
 
 export interface ArbitrageComp extends CompObservation {
-  /** Title/condition of the comp; mapped to a TitleCategory. Missing → Unknown. */
+  /**
+   * Title of the comp. Asking-price comps: the condition (clean_title, salvage_title, …). Sold comps:
+   * the sold headline, classified by soldTitleCategory (Clean only on an explicit "clean title").
+   * Missing → Unknown.
+   */
   title?: string | null;
 }
 
@@ -174,16 +179,16 @@ function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** Median age (days) and newest observedAt of the comps aggregateComps used for `agg`. */
-function tierDates(
+/** The comps aggregateComps actually used for `agg` (same kind, same tier scope, in window, not self). */
+function tierComps(
   pool: readonly ArbitrageComp[],
   agg: CompAggregate,
   listing: ArbitrageListing,
   now: number,
   maxAgeDays: number | null,
-): { medianAgeDays: number | null; newestAt: string | null } {
+): { comp: ArbitrageComp; t: number | null }[] {
   const cutoff = maxAgeDays ? now - maxAgeDays * 86_400_000 : null;
-  const times: number[] = [];
+  const out: { comp: ArbitrageComp; t: number | null }[] = [];
   for (const c of pool) {
     if (!(Number(c.price) > 0) || c.kind !== agg.kind) continue;
     if (
@@ -202,10 +207,18 @@ function tierDates(
     )
       continue;
     const t = c.observedAt ? Date.parse(c.observedAt) : NaN;
-    if (!Number.isFinite(t)) continue;
-    if (cutoff != null && t < cutoff) continue;
-    times.push(t);
+    if (Number.isFinite(t) && cutoff != null && t < cutoff) continue;
+    out.push({ comp: c, t: Number.isFinite(t) ? t : null });
   }
+  return out;
+}
+
+/** Median age (days) and newest observedAt of the comps aggregateComps used for `agg`. */
+function tierDates(
+  tier: readonly { t: number | null }[],
+  now: number,
+): { medianAgeDays: number | null; newestAt: string | null } {
+  const times = tier.map((x) => x.t).filter((t): t is number => t != null);
   if (!times.length) return { medianAgeDays: null, newestAt: null };
   const m = median(times.map((t) => Math.max(0, (now - t) / 86_400_000)))!;
   return {
@@ -241,7 +254,7 @@ function valueFromComps(
   };
   const opts = { now, maxAgeDays, minSamples: COMP_MIN_SAMPLES };
   const byCat = (cats: readonly TitleCategory[]) =>
-    comps.filter((c) => cats.includes(titleCategory(c.title)));
+    comps.filter((c) => cats.includes(compTitleCategory(c)));
 
   const pool = byCat(compCategoriesFor(cat));
   const agg = aggregateComps(target, pool, opts);
@@ -279,6 +292,9 @@ function scoreConfidence(input: {
   scope: "state" | "national";
   medianAgeDays: number | null;
   titleMatch: TitleMatch;
+  /** Comps in the used tier whose title is Unknown, and the tier size. */
+  unknownTitleComps?: number;
+  tierSize?: number;
   basis: DistanceBasis;
   lastSeenHours: number | null;
   hasDamage: boolean;
@@ -317,6 +333,14 @@ function scoreConfidence(input: {
       ? "branded title valued from clean comps × title discount"
       : "title not stated on the listing",
   );
+  // Comp pool mostly title-unknown: the median may be pulling branded sales into this lane.
+  const unknownComps = input.unknownTitleComps ?? 0;
+  const tierSize = input.tierSize ?? 0;
+  if (tierSize > 0 && unknownComps / tierSize > C.unverifiedCompShare)
+    hit(
+      C.title.title_unverified,
+      `title_unverified: ${unknownComps} of ${tierSize} comps have no stated title`,
+    );
   hit(
     C.distance[input.basis],
     input.basis === "unknown"
@@ -491,13 +515,11 @@ export function evaluateOpportunity(
   const lastSeenHours = Number.isFinite(seen)
     ? Math.max(0, (now - seen) / 3_600_000)
     : null;
-  const { medianAgeDays, newestAt } = tierDates(
-    val.pool,
-    agg,
-    listing,
-    now,
-    maxAgeDays,
-  );
+  const tier = tierComps(val.pool, agg, listing, now, maxAgeDays);
+  const { medianAgeDays, newestAt } = tierDates(tier, now);
+  const unknownTitleComps = tier.filter(
+    (x) => compTitleCategory(x.comp) === "Unknown",
+  ).length;
   const geoScope = agg.scope as "state" | "national";
   const kind = agg.kind as "sold" | "ask";
   const confidence = scoreConfidence({
@@ -506,6 +528,8 @@ export function evaluateOpportunity(
     scope: geoScope,
     medianAgeDays,
     titleMatch: val.titleMatch,
+    unknownTitleComps,
+    tierSize: tier.length,
     basis: distance.basis,
     lastSeenHours,
     hasDamage,

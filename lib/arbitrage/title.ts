@@ -9,6 +9,11 @@
 // order as lib/discovery/categorize titleClass (salvage/parts before rebuilt: "rebuilt from salvage"
 // is treated as Salvage, the conservative side).
 
+import {
+  LISTING_CONDITIONS,
+  soldTitleCategory,
+} from "@/lib/deals/title-category";
+
 export type TitleCategory =
   | "Clean"
   | "Rebuilt"
@@ -24,6 +29,42 @@ export function titleCategory(condition?: string | null): TitleCategory {
   if (/repairable|rebuildable/.test(c)) return "Rebuildable";
   if (/clean/.test(c)) return "Clean";
   return "Unknown";
+}
+
+const SOLD_TO_ARBITRAGE: Readonly<
+  Record<ReturnType<typeof soldTitleCategory>, TitleCategory>
+> = {
+  clean: "Clean",
+  rebuilt: "Rebuilt",
+  salvage: "Salvage",
+  rebuildable: "Rebuildable",
+  unknown: "Unknown",
+};
+
+/**
+ * Title category for a SOLD comp. Its `title` is the seller's headline, not a condition enum, so it
+ * goes through the shared lib/deals/title-category soldTitleCategory: Clean only on an explicit
+ * "clean title"; flood/hail/lemon/etc. are branded; a bare headline is Unknown (never Clean).
+ * Listing and asking-price comps keep using titleCategory(condition) above.
+ */
+export function soldCompTitleCategory(headline?: string | null): TitleCategory {
+  // A sold row that already carries a listing_condition value (e.g. "salvage_title") uses it as is.
+  const exact = String(headline || "")
+    .trim()
+    .toLowerCase();
+  if ((LISTING_CONDITIONS as readonly string[]).includes(exact))
+    return titleCategory(exact);
+  return SOLD_TO_ARBITRAGE[soldTitleCategory(headline)];
+}
+
+/** Category for any comp: sold rows by headline, asking-price rows by condition. */
+export function compTitleCategory(comp: {
+  kind?: string | null;
+  title?: string | null;
+}): TitleCategory {
+  return comp.kind === "sold"
+    ? soldCompTitleCategory(comp.title)
+    : titleCategory(comp.title);
 }
 
 export function isBrandedTitle(cat: TitleCategory): boolean {
