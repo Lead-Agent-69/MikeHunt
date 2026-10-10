@@ -828,7 +828,9 @@ export type Database = {
           drivetrain: string | null
           duplicate_confidence: number | null
           duplicate_of_id: string | null
+          embedded_at: string | null
           embedding: string | null
+          embedding_source_hash: string | null
           engine: string | null
           estimated_repair_cost: number | null
           estimated_transport_cost: number | null
@@ -900,7 +902,9 @@ export type Database = {
           drivetrain?: string | null
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
+          embedded_at?: string | null
           embedding?: string | null
+          embedding_source_hash?: string | null
           engine?: string | null
           estimated_repair_cost?: number | null
           estimated_transport_cost?: number | null
@@ -972,7 +976,9 @@ export type Database = {
           drivetrain?: string | null
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
+          embedded_at?: string | null
           embedding?: string | null
+          embedding_source_hash?: string | null
           engine?: string | null
           estimated_repair_cost?: number | null
           estimated_transport_cost?: number | null
