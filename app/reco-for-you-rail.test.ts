@@ -92,9 +92,9 @@ describe("For You rail data", () => {
   it("Discover mounts the rail with the current desk", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     expect(page).toContain("flipDesk={flipDesk}");
-    expect(page).toContain(
-      "eligibleDeals={visibleRails.flatMap((rail) => rail.deals)}",
-    );
+    expect(page).toContain("eligibleDeals={eligibleDeals}");
+    expect(page).toContain("hasRankingChoices &&");
+    expect(page).toContain("distinctDiscoveryRails(");
     expect(page).toContain("!isValidating && !error");
   });
 
