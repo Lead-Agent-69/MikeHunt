@@ -9,6 +9,7 @@ _Draft by Ren (security), 2026-10-10 CT. Built from `docs/source-access-matrix.m
 | `api` | Official or partner API used under its published terms (key, quota). |
 | `allowed` | Public pages; the site's terms do not ban automated access and robots.txt allows the paths we fetch. |
 | `restricted` | The site's terms ban robots/scrapers/data mining, or require a licence/dealer account. Runs only on an explicit `SCRAPE_SOURCES` opt-in. |
+| `unreviewed` | Terms not reviewed yet. Also the fail-closed answer for an unknown source at runtime. Not `allowed`. |
 | `operator_override` | **NOT permission.** The operator (Jonah) chose to run this source despite a terms ban, a robots.txt disallow, or a policy block. It carries legal risk (contract/ToS breach, CFAA-style access claims, copyright in photos/descriptions). It is a record of a business decision, not a clearance. |
 
 Rule: every `robotsExempt` source is at least `operator_override`, because the exemption exists only to skip a robots.txt restriction.
@@ -18,16 +19,31 @@ Rule: every `robotsExempt` source is at least `operator_override`, because the e
 | Runner id | Class | Basis |
 |---|---|---|
 | gsa_auctions | allowed (→ `api` once #271's api.gsa.gov adapter is the path) | GSA terms bind bidders only; public API exists |
-| iaa | allowed | Published sitemap + lot pages (terms not formally reviewed; review) |
+| iaa | unreviewed (review first) | Published sitemap + lot pages; terms not reviewed |
 | independent_dealer | allowed | Individual dealer sites, robots-gated |
-| curated_dealers | allowed per host, **except** `OPERATOR_RESTORED_HOSTS` → operator_override | `source-compliance.ts` |
+| curated_dealers | mixed on /status: allowed per host, **except** `OPERATOR_RESTORED_HOSTS` → operator_override | `source-compliance.ts` |
 | auto_discover | allowed | robots/sitemap first |
-| truecar, vroom | allowed (terms not reviewed; review) | not in TOS list |
+| truecar, vroom | unreviewed | not in TOS list; terms not reviewed |
 | acv, adesa, manheim | restricted | dealer licence; stubs |
 | cars_com, autotrader, autotempest, carvana, craigslist, ebay_motors, copart, publicsurplus, municibid, offerup, govdeals, allsurplus, carparts_com | restricted | `TOS_RESTRICTED_SOURCES` |
 | cargurus | operator_override | TOS bans scraping; robotsExempt (Jonah, #269); FlareSolverr |
 | facebook_marketplace | operator_override | Meta terms ban automated collection; stealth browser; robotsExempt |
 | ebay_sold | operator_override | eBay User Agreement bans scrapers; robotsExempt |
+
+## Catalog-only sources (`ALL_SOURCES`, no runner)
+
+| Catalog id | Class | Basis |
+|---|---|---|
+| bring-a-trailer | restricted | bringatrailer.com terms rev. 07/22/2026 §7 ban robots, scraping, aggregation, redistribution and in-line links. Not enabled; entry and scraper kept |
+| car-parts-com | restricted until reviewed | car-parts.com is a different domain from carparts.com; its terms could not be fetched |
+| erepairables | restricted | `SITE_POLICY_BLOCKS` tos_bans_copying |
+| autobidmaster, salvage-reseller, revroom | restricted | `SITE_POLICY_BLOCKS` bot_challenge (not bypassed) |
+| lqdt-maestro | restricted | Liquidity Services User Agreement (as govdeals/allsurplus) |
+| recar, ae-of-miami, cas-miami, bidgodrive, ebay-sold, salvage-trucks-auction, royal-drive, parts-farm | operator_override | robotsExempt and/or `OPERATOR_RESTORED_HOSTS` |
+| research-* (`STATE_DEALER_CANDIDATES`) | allowed, needs permission review (restricted if the host is policy-blocked) | candidate notes |
+| other dealer catalog ids | allowed | individual dealer sites, robots-gated |
+
+Code: `lib/scrapers/access-class.ts` (`SOURCE_ACCESS`, `sourceAccessFor`, row-level `accessClassFor`, `photoCacheAllowed`).
 
 Restricted sources that are opted in via `SCRAPE_SOURCES` on a worker are **running under operator override** at that moment; /status should show that state next to the static class.
 

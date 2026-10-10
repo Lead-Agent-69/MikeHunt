@@ -5,6 +5,7 @@
 // pagination and parse the listing cards. Prices are the CURRENT auction bid, not asking; the
 // pipeline's known-make gate naturally filters non-cars (buses/equipment) that share the category.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
@@ -85,7 +86,7 @@ export function parsePublicSurplusDetailHtml(html: string): Partial<Deal> {
 export async function enrichPublicSurplusDetail(
   sourceUrl: string,
 ): Promise<Partial<Deal>> {
-  const res = await fetch(sourceUrl, {
+  const res = await scraperFetch(sourceUrl, {
     headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
   });
   if (!res.ok) return {};
@@ -165,7 +166,7 @@ export async function previewPublicSurplus(
   for (const cat of VEHICLE_CATS) {
     let prevFirst = "";
     for (let page = 1; page <= maxPagesPerCat; page++) {
-      const res = await fetch(`${BASE}?catid=${cat}&page=${page}`, {
+      const res = await scraperFetch(`${BASE}?catid=${cat}&page=${page}`, {
         headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
       });
       if (!res.ok) break;
@@ -192,7 +193,7 @@ export async function scrapePublicSurplus(maxPagesPerCat = 4): Promise<number> {
     let prevFirst = "";
     for (let page = 1; page <= maxPagesPerCat; page++) {
       try {
-        const res = await fetch(`${BASE}?catid=${cat}&page=${page}`, {
+        const res = await scraperFetch(`${BASE}?catid=${cat}&page=${page}`, {
           headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
         });
         if (!res.ok) break;
