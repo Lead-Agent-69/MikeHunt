@@ -48,3 +48,19 @@ describe("TitleBadge everywhere", () => {
     );
   });
 });
+
+describe("titleSource reaches the badge", () => {
+  it("scan, find and saved snapshots pass options.titleSource through", () => {
+    const scan = read("app/(dashboard)/scan/page.tsx");
+    expect(scan).toContain("titleSource={car.titleSource}");
+    expect(read("app/(dashboard)/find/page.tsx")).toContain("titleSource={");
+    expect(read("app/api/saved-cars/route.ts")).toContain(
+      "titleSource: titleSourceOf(deal)",
+    );
+    for (const path of [
+      "components/discovery/DiscoveryCard.tsx",
+      "app/(dashboard)/swipe/page.tsx",
+    ])
+      expect(read(path)).toContain("titleSource={deal.titleSource}");
+  });
+});

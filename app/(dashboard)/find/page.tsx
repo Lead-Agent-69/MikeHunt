@@ -61,10 +61,14 @@ export default function ArbitrageDashboardPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
 
   // Real geocoded deal points for the network map (so it isn't an empty "No mapped locations" box).
-  const { data: mapData } = useSWR("/api/deals/map?verdict=actionable", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
-  });
+  const { data: mapData } = useSWR(
+    "/api/deals/map?verdict=actionable",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60_000,
+    },
+  );
   const mapPoints: any[] = mapData?.points ?? [];
 
   // Use SWR for data fetching with automatic revalidation
@@ -316,6 +320,10 @@ export default function ArbitrageDashboardPage() {
                       mileage={item.deal.mileage}
                       condition={item.deal.condition}
                       damageType={item.deal.damageType}
+                      titleSource={
+                        (item.deal as { titleSource?: string | null })
+                          .titleSource
+                      }
                       dealVerdict={item.deal.dealVerdict}
                       recommendedMaxBid={item.deal.recommendedMaxBid}
                       sellEstimate={item.deal.sellEstimate}
@@ -366,6 +374,9 @@ export default function ArbitrageDashboardPage() {
                         mileage={deal.mileage}
                         condition={deal.condition}
                         damageType={deal.damageType}
+                        titleSource={
+                          (deal as { titleSource?: string | null }).titleSource
+                        }
                         dealVerdict={deal.dealVerdict}
                         recommendedMaxBid={deal.recommendedMaxBid}
                         sellEstimate={deal.sellEstimate}
