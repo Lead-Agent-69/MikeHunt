@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  soldCaptureLqdtEnabled,
   maestroAssetToDeal,
   maestroAssetToSoldComp,
   type MaestroAsset,
@@ -206,5 +207,17 @@ describe("maestroAssetToSoldComp — sold lots kept as comps (were discarded)", 
         NOW,
       ),
     ).toBeNull();
+  });
+});
+
+describe("SOLD_CAPTURE_LQDT (default ON, accepted risk 2026-10-10)", () => {
+  it("is on when unset or empty", () => {
+    expect(soldCaptureLqdtEnabled({})).toBe(true);
+    expect(soldCaptureLqdtEnabled({ SOLD_CAPTURE_LQDT: "" })).toBe(true);
+    expect(soldCaptureLqdtEnabled({ SOLD_CAPTURE_LQDT: "1" })).toBe(true);
+  });
+  it("turns off with 0 / false / off / no", () => {
+    for (const v of ["0", "false", "OFF", " no "])
+      expect(soldCaptureLqdtEnabled({ SOLD_CAPTURE_LQDT: v })).toBe(false);
   });
 });

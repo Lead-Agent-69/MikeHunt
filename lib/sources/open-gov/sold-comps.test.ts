@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   GSA_ATTRIBUTION,
   fetchNorfolkSoldRows,
+  fetchGsaDatasetRows,
+  readTextCapped,
+  GSA_CSV_MAX_BYTES,
   gsaClosingBidRows,
   isLightVehicleComp,
   isMissingSoldColumn,
@@ -118,6 +121,8 @@ describe("norfolkSoldRows", () => {
       "sold_for > 0 AND auction_date >= '2026-04-13T00:00:00'",
     );
     expect(url.searchParams.get("$select")).not.toMatch(/license_plate/);
+    const init = (fetchImpl.mock.calls[0] as unknown[])[1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
     await expect(
       fetchNorfolkSoldRows("yesterday", fetchImpl as unknown as typeof fetch),
     ).rejects.toThrow();
@@ -308,5 +313,52 @@ describe("writeSoldListings", () => {
       }),
     ).toBe(false);
     expect(isMissingSoldColumn(null)).toBe(false);
+  });
+});
+
+describe("open-data fetch bounds (timeouts + size caps)", () => {
+  it("refuses a body past the cap by Content-Length without reading it", async () => {
+    const res = new Response("x", {
+      headers: { "content-length": String(GSA_CSV_MAX_BYTES + 1) },
+    });
+    await expect(readTextCapped(res, GSA_CSV_MAX_BYTES, "GSA")).rejects.toThrow(
+      /exceeds cap/,
+    );
+  });
+
+  it("refuses a streamed body that grows past the cap (no Content-Length)", async () => {
+    const chunk = new Uint8Array(1024);
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        sent++;
+        if (sent > 20) c.close();
+        else c.enqueue(chunk);
+      },
+    });
+    await expect(
+      readTextCapped(new Response(stream), 4096, "t"),
+    ).rejects.toThrow(/exceeds cap/);
+    expect(sent).toBeLessThan(10);
+  });
+
+  it("reads a body under the cap", async () => {
+    expect(await readTextCapped(new Response("a,b\n1,2"), 100, "t")).toBe(
+      "a,b\n1,2",
+    );
+  });
+
+  it("the GSA CSV fetch has a timeout signal and a 12 MB cap", async () => {
+    const fetchImpl = vi.fn(async (_u: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return new Response("x", {
+        status: 200,
+        headers: { "content-length": String(13 * 1024 * 1024) },
+      });
+    });
+    await expect(
+      fetchGsaDatasetRows(fetchImpl as unknown as typeof fetch),
+    ).rejects.toThrow(/exceeds cap/);
+    expect(GSA_CSV_MAX_BYTES).toBe(12 * 1024 * 1024);
   });
 });

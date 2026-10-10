@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { normalizeModel } from "@/lib/scoring/market-value";
-import { SOLD_BASIS, withSoldBasis } from "@/lib/scoring/sold-basis";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 
 // GET /api/market/sold?make=Honda&model=Accord&year=2018
 // Recent SOLD comps (actual transaction prices) — far more accurate than asking prices. Reads the
@@ -31,17 +31,20 @@ export async function GET(req: NextRequest) {
   const modelOr = /^[A-Za-z0-9.-]+$/.test(firstWord)
     ? `model.ilike.*${firstWord}*,model.ilike.${normFirst}*`
     : `model.ilike.${normFirst}*`;
-  const { data } = await withSoldBasis((filterBasis) => {
-    let q = supabase
-      .from("sold_listings")
-      .select(
-        "sold_price, sold_at, mileage, source, source_url, location_state",
-      )
-      .ilike("make", make)
-      .or(modelOr)
-      .eq("currency_code", "USD")
-      .eq("country_code", "US");
-    if (filterBasis) q = q.eq("basis", SOLD_BASIS);
+  // Retail comps only: gov impound/fleet/surplus sales and GSA closing bids never enter this average.
+  const { data } = await withRetailSold((scope) => {
+    let q = applyRetailSoldScope(
+      supabase
+        .from("sold_listings")
+        .select(
+          "sold_price, sold_at, mileage, source, source_url, location_state",
+        )
+        .ilike("make", make)
+        .or(modelOr)
+        .eq("currency_code", "USD")
+        .eq("country_code", "US"),
+      scope,
+    );
     q = q
       .gt("sold_price", 0)
       .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())

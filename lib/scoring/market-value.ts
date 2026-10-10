@@ -12,7 +12,7 @@ import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
-import { SOLD_BASIS, withSoldBasis } from "./sold-basis";
+import { applyRetailSoldScope, withRetailSold } from "./sold-scope";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -738,15 +738,18 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
     const rows: SoldObservation[] = [];
     const PAGE = 1000;
     for (let from = 0; from < 40000; from += PAGE) {
-      const { data, error } = await withSoldBasis((filterBasis) => {
-        let q = supabase
-          .from("sold_listings")
-          .select(
-            "make, model, year, sold_price, location_state, title, sold_at",
-          )
-          .eq("currency_code", "USD")
-          .eq("country_code", "US");
-        if (filterBasis) q = q.eq("basis", SOLD_BASIS);
+      // Retail comps only: basis 'sold' and no gov sale_channel (lib/scoring/sold-scope).
+      const { data, error } = await withRetailSold((scope) => {
+        const q = applyRetailSoldScope(
+          supabase
+            .from("sold_listings")
+            .select(
+              "make, model, year, sold_price, location_state, title, sold_at",
+            )
+            .eq("currency_code", "USD")
+            .eq("country_code", "US"),
+          scope,
+        );
         return q
           .gt("sold_price", 0)
           .gte("sold_at", soldWindowCutoffIso())

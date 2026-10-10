@@ -290,6 +290,18 @@ export function maestroAssetToDeal(
 }
 
 /**
+ * GovDeals/AllSurplus sold-price capture. Default ON: an accepted risk, operator decision by Jonah on
+ * 2026-10-10 (docs/legal/republish-policy.md, "Accepted risks"). Set SOLD_CAPTURE_LQDT=0 to stop
+ * writing these rows; live GovDeals/AllSurplus deal scraping is unaffected either way.
+ */
+export function soldCaptureLqdtEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const v = (env.SOLD_CAPTURE_LQDT ?? "").trim().toLowerCase();
+  return !["0", "false", "off", "no"].includes(v);
+}
+
+/**
  * A lot the venue itself marks sold (`isSoldAuction`) → a sold comp. These used to be dropped by
  * maestroAssetToDeal (correctly: a closed lot is not a live lead), which threw the sale price away.
  * The price is the winning bid before the buyer's premium; the source is labelled per marketplace
@@ -461,6 +473,7 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
   });
   const byId = new Map<string, Partial<Deal>>();
   const soldComps = new Map<string, SoldListingInsert>();
+  const captureSold = soldCaptureLqdtEnabled();
   const detailLimit = Math.max(
     0,
     Math.min(200, Number(process.env.MAESTRO_DETAIL_LIMIT || 60) || 0),
@@ -483,10 +496,13 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     }
     const deal = maestroAssetToDeal(row, opts);
     if (deal) byId.set(deal.source_deal_id!, deal);
-    const sold = maestroAssetToSoldComp(row, opts);
-    if (sold) soldComps.set(sold.source_item_id, sold);
+    if (captureSold) {
+      const sold = maestroAssetToSoldComp(row, opts);
+      if (sold) soldComps.set(sold.source_item_id, sold);
+    }
   }
-  await saveMaestroSoldComps(Array.from(soldComps.values()), opts.label);
+  if (captureSold)
+    await saveMaestroSoldComps(Array.from(soldComps.values()), opts.label);
   if (enriched) {
     console.log(
       `[${opts.label}] Enriched ${enriched}/${Math.min(detailLimit, assets.length)} detail assets (VIN/mileage/title)`,

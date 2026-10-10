@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   reject: false,
   calls: [] as { method: string; args: any[] }[][],
   missingBasis: false,
+  missingChannel: false,
+  gov: { data: [] as any[], error: null as any },
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: true }),
@@ -25,6 +27,9 @@ vi.mock("@/lib/supabase", () => ({
         "gt",
         "gte",
         "lte",
+        "is",
+        "in",
+        "not",
         "order",
         "limit",
       ])
@@ -35,16 +40,29 @@ vi.mock("@/lib/supabase", () => ({
       query.then = (resolve: any, reject: any) =>
         state.reject
           ? reject(new Error("private database diagnostic"))
-          : state.missingBasis &&
-              calls.some((c) => c.method === "eq" && c.args[0] === "basis")
-            ? resolve({
-                data: null,
-                error: {
-                  code: "42703",
-                  message: "column sold_listings.basis does not exist",
-                },
-              })
-            : resolve(state.result);
+          : calls.some((c) => c.method === "not")
+            ? resolve(state.gov)
+            : state.missingChannel &&
+                calls.some(
+                  (c) => c.method === "is" && c.args[0] === "sale_channel",
+                )
+              ? resolve({
+                  data: null,
+                  error: {
+                    code: "42703",
+                    message: "column sold_listings.sale_channel does not exist",
+                  },
+                })
+              : state.missingBasis &&
+                  calls.some((c) => c.method === "eq" && c.args[0] === "basis")
+                ? resolve({
+                    data: null,
+                    error: {
+                      code: "42703",
+                      message: "column sold_listings.basis does not exist",
+                    },
+                  })
+                : resolve(state.result);
       return query;
     },
   }),
@@ -58,6 +76,8 @@ const request = () =>
 beforeEach(() => {
   state.result = { data: [], error: null };
   state.reject = false;
+  state.missingChannel = false;
+  state.gov = { data: [], error: null };
   state.calls = [];
   state.missingBasis = false;
 });
@@ -157,9 +177,87 @@ describe("source-reported sold evidence", () => {
     state.missingBasis = true;
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(state.calls).toHaveLength(2);
+    // retail read, retail retry without basis, then the separate gov lane read
+    expect(state.calls).toHaveLength(3);
     expect(
       state.calls[1].some((c) => c.method === "eq" && c.args[0] === "basis"),
     ).toBe(false);
+  });
+  it("retail comps exclude gov / fleet / surplus rows (sale_channel IS NULL)", async () => {
+    await GET(request());
+    expect(state.calls[0]).toContainEqual({
+      method: "eq",
+      args: ["basis", "sold"],
+    });
+    expect(state.calls[0]).toContainEqual({
+      method: "is",
+      args: ["sale_channel", null],
+    });
+  });
+  it("still answers before the sale_channel migration is applied", async () => {
+    state.missingChannel = true;
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    expect(
+      state.calls[1].some(
+        (c) => c.method === "is" && c.args[0] === "sale_channel",
+      ),
+    ).toBe(false);
+    expect(state.calls[1]).toContainEqual({
+      method: "eq",
+      args: ["basis", "sold"],
+    });
+  });
+  it("gov rows go to their own lane with the source credit, never into the median", async () => {
+    const sold_at = new Date(Date.now() - 86400000).toISOString();
+    state.result.data = [];
+    state.gov.data = [
+      {
+        year: 2018,
+        make: "Honda",
+        model: "Accord",
+        title: "2018 Honda Accord",
+        sold_price: 4200,
+        sold_at,
+        source: "gsa_closing_bid",
+        source_url: "https://gsaauctions.gov/x",
+        basis: "last_bid",
+        sale_channel: "gov_fleet_auction",
+        attribution:
+          "GovAuctions.app GSA dataset, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+      },
+      {
+        year: 2018,
+        make: "Honda",
+        model: "Accord",
+        sold_price: 3100,
+        sold_at,
+        source: "govdeals",
+        basis: "sold",
+        sale_channel: "gov_surplus_auction",
+        attribution: null, // no credit, not shown
+      },
+    ];
+    const data = await (await GET(request())).json();
+    expect(data.count).toBe(0);
+    expect(data.median).toBeNull();
+    expect(data.govLane.sales).toHaveLength(1);
+    expect(data.govLane.sales[0]).toMatchObject({
+      price: 4200,
+      priceKind: "last_observed_bid",
+      saleChannel: "gov_fleet_auction",
+      attribution: expect.stringContaining("CC BY 4.0"),
+    });
+    expect(data.govLane.credits).toEqual([
+      expect.stringContaining("CC BY 4.0"),
+    ]);
+    const lane = state.calls.find((c) => c.some((x) => x.method === "not"))!;
+    expect(lane).toContainEqual({
+      method: "not",
+      args: ["sale_channel", "is", null],
+    });
+    expect(lane.find((x) => x.method === "select")!.args[0]).toContain(
+      "attribution",
+    );
   });
 });

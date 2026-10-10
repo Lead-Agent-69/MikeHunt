@@ -51,7 +51,7 @@ function tables(t: Tables) {
   fromMock.mockImplementation((table: string) => {
     calls[table] = (calls[table] || 0) + 1;
     const q: any = {};
-    for (const m of ["select", "eq", "in", "gte", "lte", "gt", "order"])
+    for (const m of ["select", "eq", "in", "is", "gte", "lte", "gt", "order"])
       q[m] = () => q;
     q.or = (arg: string) => {
       orArgs.push(arg);

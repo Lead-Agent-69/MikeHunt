@@ -432,6 +432,53 @@ export async function writeSoldListings(
 const UA =
   "MikeHunt open-data reader (+https://github.com/Lead-Agent-69/MikeHunt)";
 
+/** Per-request timeouts and body caps for the open-data fetchers (Ren #302). */
+export const OPEN_DATA_TIMEOUT_MS = 30_000;
+export const GSA_TIMEOUT_MS = 60_000;
+export const SODA_PAGE_MAX_BYTES = 8 * 1024 * 1024;
+/** The GSA CSV is ~6.6 MB (2026-10-10); refuse anything past 12 MB rather than buffer it. */
+export const GSA_CSV_MAX_BYTES = 12 * 1024 * 1024;
+
+/** Read a response body as text, failing once it passes maxBytes (header check + streamed count). */
+export async function readTextCapped(
+  res: Response,
+  maxBytes: number,
+  label: string,
+): Promise<string> {
+  const declared = Number(res.headers?.get?.("content-length") || 0);
+  if (declared > maxBytes)
+    throw new Error(`${label}: body ${declared} bytes exceeds cap ${maxBytes}`);
+  const body = res.body as ReadableStream<Uint8Array> | null | undefined;
+  if (!body || typeof body.getReader !== "function") {
+    const text = await res.text();
+    if (Buffer.byteLength(text) > maxBytes)
+      throw new Error(`${label}: body exceeds cap ${maxBytes}`);
+    return text;
+  }
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new Error(`${label}: body exceeds cap ${maxBytes}`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString("utf8");
+}
+
+async function readJsonCapped<T>(
+  res: Response,
+  maxBytes: number,
+  label: string,
+): Promise<T> {
+  return JSON.parse(await readTextCapped(res, maxBytes, label)) as T;
+}
+
 /** Norfolk SoQL: auctioned rows with a sale price since `sinceIso` (YYYY-MM-DD). Paged, polite. */
 export async function fetchNorfolkSoldRows(
   sinceIso: string,
@@ -452,9 +499,14 @@ export async function fetchNorfolkSoldRows(
     });
     const res = await fetchImpl(`${NORFOLK_ENDPOINT}?${qs}`, {
       headers: { Accept: "application/json", "User-Agent": UA },
+      signal: AbortSignal.timeout(OPEN_DATA_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Norfolk HTTP ${res.status}`);
-    const page = (await res.json()) as Row[];
+    const page = await readJsonCapped<Row[]>(
+      res,
+      SODA_PAGE_MAX_BYTES,
+      "Norfolk",
+    );
     out.push(...page);
     if (page.length < PAGE) break;
     await new Promise((r) => setTimeout(r, 1000));
@@ -468,9 +520,10 @@ export async function fetchSeattleSoldRows(
 ): Promise<Row[]> {
   const res = await fetchImpl(`${SEATTLE_ENDPOINT}?$limit=5000`, {
     headers: { Accept: "application/json", "User-Agent": UA },
+    signal: AbortSignal.timeout(OPEN_DATA_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Seattle HTTP ${res.status}`);
-  return (await res.json()) as Row[];
+  return readJsonCapped<Row[]>(res, SODA_PAGE_MAX_BYTES, "Seattle");
 }
 
 export async function fetchGsaDatasetRows(
@@ -478,9 +531,10 @@ export async function fetchGsaDatasetRows(
 ): Promise<Row[]> {
   const res = await fetchImpl(GSA_DATASET_CSV, {
     headers: { "User-Agent": UA },
+    signal: AbortSignal.timeout(GSA_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`GSA dataset HTTP ${res.status}`);
-  return parseCsv(await res.text());
+  return parseCsv(await readTextCapped(res, GSA_CSV_MAX_BYTES, "GSA dataset"));
 }
 
 /** One summary line per source for dry runs and logs. */
