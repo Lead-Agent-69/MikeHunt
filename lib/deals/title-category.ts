@@ -204,6 +204,32 @@ export function titleCategoryCounts(rows: readonly TitleRow[]): Array<{
   }));
 }
 
+/** Where the stored condition came from (#211: deals.options.titleSource). null = not recorded. */
+export type TitleSource = "listing" | "source_default";
+
+/**
+ * The one options key the client may see about title provenance. Reads `options.titleSource`
+ * (object or JSON string) or a pre-projected `title_source`; anything else → null. Never returns
+ * other options keys.
+ */
+export function titleSourceOf(row: unknown): TitleSource | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as { options?: unknown; title_source?: unknown };
+  let options: unknown = r.options;
+  if (typeof options === "string") {
+    try {
+      options = JSON.parse(options);
+    } catch {
+      options = null;
+    }
+  }
+  const raw =
+    (options && typeof options === "object"
+      ? (options as { titleSource?: unknown }).titleSource
+      : undefined) ?? r.title_source;
+  return raw === "listing" || raw === "source_default" ? raw : null;
+}
+
 // ─── Sold-row headlines ──────────────────────────────────────────────────────────────────────────
 // sold_listings has no condition enum: the only title evidence is the seller's headline text
 // ("2018 Honda Accord EX, clean title"). This is the ONE classifier for those headlines, used by

@@ -49,6 +49,12 @@ import {
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import {
+  parseTitleTypes,
+  titleCategory,
+  titleCategoryOrFilter,
+  titleSourceOf,
+} from "@/lib/deals/title-category";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
@@ -438,6 +444,8 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     mileage,
     condition,
     titleType,
+    titleCategory: titleCategory({ condition: r.condition }),
+    titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
     mmrValue,
@@ -1200,16 +1208,9 @@ export async function GET(req: NextRequest) {
     if (sellerSources.length) query = query.in("source", sellerSources);
   }
 
-  if (titleType && titleType !== "all") {
-    const conditionMapping: Record<string, string> = {
-      clean: "clean_title",
-      rebuilt: "rebuilt_title",
-      salvage: "salvage_title",
-      parts: "parts_only",
-    };
-    const mappedCondition = conditionMapping[titleType] || titleType;
-    query = query.eq("condition", mappedCondition);
-  }
+  // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
+  const titleFilter = titleCategoryOrFilter(parseTitleTypes(titleType));
+  if (titleFilter) query = query.or(titleFilter);
 
   query = applyInventoryLane(query, lane);
   query = applyRepairEligibility(query, searchParams.get("includeRepairable"));

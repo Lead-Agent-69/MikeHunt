@@ -12,6 +12,7 @@ import {
   titleCategoryCounts,
   titleCategoryDetail,
   titleCategoryOrFilter,
+  titleSourceOf,
 } from "./title-category";
 
 describe("titleCategory", () => {
@@ -145,6 +146,26 @@ describe("matchesTitleCategories / titleCategoryCounts", () => {
       { value: "rebuildable", count: 1, label: "Rebuildable" },
       { value: "unknown", count: 1, label: "Title unknown" },
     ]);
+  });
+});
+
+describe("titleSourceOf", () => {
+  it("reads options.titleSource (object, JSON string or projected) and nothing else", () => {
+    expect(
+      titleSourceOf({
+        options: { titleSource: "listing", contact: { phone: "1" } },
+      }),
+    ).toBe("listing");
+    expect(
+      titleSourceOf({
+        options: JSON.stringify({ titleSource: "source_default" }),
+      }),
+    ).toBe("source_default");
+    expect(titleSourceOf({ title_source: "listing" })).toBe("listing");
+    expect(titleSourceOf({ options: { titleSource: "made-up" } })).toBeNull();
+    expect(titleSourceOf({ options: "{bad json" })).toBeNull();
+    expect(titleSourceOf({})).toBeNull();
+    expect(titleSourceOf(null)).toBeNull();
   });
 });
 
