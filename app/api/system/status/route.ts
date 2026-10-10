@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import { cached } from "@/lib/cache";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 import { computeValuationAccuracy } from "@/lib/scoring/accuracy";
 import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
@@ -383,10 +384,12 @@ async function computeFullStatus(): Promise<Record<string, any>> {
         .not("true_net_profit", "is", null)
         .not("profit_score", "is", null),
     ),
-    sb
-      .from("sold_listings")
-      .select("id", { count: "exact", head: true })
-      .then((r: any) => r.count ?? 0),
+    withRetailSold((scope) =>
+      applyRetailSoldScope(
+        sb.from("sold_listings").select("id", { count: "exact", head: true }),
+        scope,
+      ),
+    ).then((r: any) => r.count ?? 0),
     sb
       .from("market_aggregates")
       .select("year", { count: "exact", head: true })

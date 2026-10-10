@@ -13,6 +13,13 @@
 import type { Deal } from "@/types";
 import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
+import { getLocalWriteContext } from "../local-write-context";
+import { createServerComponentClient } from "@/lib/supabase";
+import {
+  isLightVehicleComp,
+  writeSoldListings,
+  type SoldListingInsert,
+} from "@/lib/sources/open-gov/sold-comps";
 
 const API = "https://maestro.lqdt1.com/search/list";
 
@@ -282,6 +289,106 @@ export function maestroAssetToDeal(
   };
 }
 
+/**
+ * GovDeals/AllSurplus sold-price capture. Default ON: an accepted risk, operator decision by Jonah on
+ * 2026-10-10 (docs/legal/republish-policy.md, "Accepted risks"). Set SOLD_CAPTURE_LQDT=0 to stop
+ * writing these rows; live GovDeals/AllSurplus deal scraping is unaffected either way.
+ */
+export function soldCaptureLqdtEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const v = (env.SOLD_CAPTURE_LQDT ?? "").trim().toLowerCase();
+  return !["0", "false", "off", "no"].includes(v);
+}
+
+/**
+ * A lot the venue itself marks sold (`isSoldAuction`) → a sold comp. These used to be dropped by
+ * maestroAssetToDeal (correctly: a closed lot is not a live lead), which threw the sale price away.
+ * The price is the winning bid before the buyer's premium; the source is labelled per marketplace
+ * and the channel is gov_surplus_auction so it never reads as a retail price. No photos, no seller.
+ */
+export function maestroAssetToSoldComp(
+  a: MaestroAsset,
+  opts: Pick<MaestroSourceOpts, "idPrefix" | "requireUS">,
+  now = new Date(),
+): SoldListingInsert | null {
+  if (!a.isSoldAuction) return null;
+  const { assetId, accountId } = a;
+  if (assetId == null || accountId == null) return null;
+  if (opts.requireUS && !isUS(a)) return null;
+  const year = a.modelYear ? parseInt(a.modelYear, 10) : NaN;
+  if (!year || year < 1950 || year > now.getFullYear() + 1) return null;
+  const price = Math.round(Number(a.currentBid ?? 0));
+  if (!price || price < 100 || price > 500_000) return null;
+  const ended = a.assetAuctionEndDateUtc || a.assetAuctionEndDate;
+  const endedAt = ended ? new Date(ended) : null;
+  if (!endedAt || Number.isNaN(endedAt.getTime()) || endedAt > now) return null;
+  const title =
+    (a.assetShortDescription || "").trim() ||
+    [a.modelYear, a.makebrand, a.model].filter(Boolean).join(" ");
+  const make = (a.makebrand || "").trim() || null;
+  const model = (a.model || "").trim() || null;
+  if (!isCarOrTruck(`${title} ${make || ""} ${model || ""}`)) return null;
+  if (!isLightVehicleComp(make, model, title)) return null;
+  const marketplace = opts.idPrefix === "as" ? "allsurplus" : "govdeals";
+  const venue = marketplace === "allsurplus" ? "AllSurplus" : "GovDeals";
+  const vin = detailVin(a);
+  const state = (a.locationState || "").trim().toUpperCase();
+  return {
+    vin: vin || null,
+    year,
+    make,
+    model,
+    trim: attrValue(a, /^trim$/i) || null,
+    mileage: detailMileage(a) ?? null,
+    sold_price: price,
+    sold_at: endedAt.toISOString(),
+    title:
+      `${title} (${venue} sold lot, winning bid before buyer's premium)`.slice(
+        0,
+        180,
+      ),
+    source: marketplace,
+    source_item_id: `${opts.idPrefix}-${assetId}-${accountId}`,
+    source_url: `https://www.${marketplace}.com/asset/${assetId}/${accountId}`,
+    currency_code: "USD",
+    country_code: "US",
+    location_state: /^[A-Z]{2}$/.test(state) ? state : null,
+    basis: "sold",
+    sale_channel: "gov_surplus_auction",
+    attribution: `${venue} (Liquidity Services) lot page; facts only, linked back`,
+  };
+}
+
+/** Write sold lots as comps. Best-effort: never fails the live-lot scrape. Skipped in cache-only mode. */
+async function saveMaestroSoldComps(
+  comps: SoldListingInsert[],
+  label: string,
+): Promise<number> {
+  if (!comps.length) return 0;
+  const context = getLocalWriteContext();
+  if (context?.cacheOnly) {
+    console.log(
+      `[${label}] ${comps.length} sold lots seen; cache-only mode, no Supabase writes`,
+    );
+    return 0;
+  }
+  try {
+    const sb = context?.supabase || createServerComponentClient();
+    const res = await writeSoldListings(sb, comps);
+    if (res.skipped)
+      console.warn(`[${label}] sold comps not written: ${res.skipped}`);
+    else
+      console.log(
+        `[${label}] sold comps: ${res.written} new of ${res.attempted}`,
+      );
+    return res.written;
+  } catch (e) {
+    console.warn(`[${label}] sold comps write failed:`, (e as Error).message);
+    return 0;
+  }
+}
+
 async function fetchMaestroPage(
   businessId: string,
   categoryCodes: string[],
@@ -365,6 +472,8 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     label: opts.label,
   });
   const byId = new Map<string, Partial<Deal>>();
+  const soldComps = new Map<string, SoldListingInsert>();
+  const captureSold = soldCaptureLqdtEnabled();
   const detailLimit = Math.max(
     0,
     Math.min(200, Number(process.env.MAESTRO_DETAIL_LIMIT || 60) || 0),
@@ -387,7 +496,13 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     }
     const deal = maestroAssetToDeal(row, opts);
     if (deal) byId.set(deal.source_deal_id!, deal);
+    if (captureSold) {
+      const sold = maestroAssetToSoldComp(row, opts);
+      if (sold) soldComps.set(sold.source_item_id, sold);
+    }
   }
+  if (captureSold)
+    await saveMaestroSoldComps(Array.from(soldComps.values()), opts.label);
   if (enriched) {
     console.log(
       `[${opts.label}] Enriched ${enriched}/${Math.min(detailLimit, assets.length)} detail assets (VIN/mileage/title)`,

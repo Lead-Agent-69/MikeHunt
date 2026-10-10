@@ -14,6 +14,7 @@ import {
 } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 import {
   isPlaceholderBid,
   MAX_HONEST_MARGIN_PCT,
@@ -336,19 +337,25 @@ async function loadComps(
     let soldRows = 0;
     for (let from = 0; soldRows < MAX_COMP_ROWS; from += PAGE) {
       queries += 1;
-      const { data, error } = await sb
-        .from("sold_listings")
-        .select(COMP_SOLD_COLUMNS)
-        .eq("currency_code", "USD")
-        .eq("country_code", "US")
-        .in("make", makes)
-        .or(soldOr)
-        .gte("year", minYear)
-        .lte("year", maxYear)
-        .gt("sold_price", 0)
-        .gte("sold_at", soldCutoff)
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
+      // Retail comps only (basis 'sold', no gov sale_channel): lib/scoring/sold-scope.
+      const { data, error } = await withRetailSold((scope) =>
+        applyRetailSoldScope(
+          sb
+            .from("sold_listings")
+            .select(COMP_SOLD_COLUMNS)
+            .eq("currency_code", "USD")
+            .eq("country_code", "US"),
+          scope,
+        )
+          .in("make", makes)
+          .or(soldOr)
+          .gte("year", minYear)
+          .lte("year", maxYear)
+          .gt("sold_price", 0)
+          .gte("sold_at", soldCutoff)
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1),
+      );
       // Sold evidence is optional: without it the engine falls back to ask tiers (and says so).
       if (error) break;
       const rows = (data || []) as SoldRow[];

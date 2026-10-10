@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { normalizeModel } from "@/lib/scoring/market-value";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 
 // GET /api/market/sold?make=Honda&model=Accord&year=2018
 // Recent SOLD comps (actual transaction prices) — far more accurate than asking prices. Reads the
@@ -16,27 +18,41 @@ export async function GET(req: NextRequest) {
   const make = searchParams.get("make");
   const model = searchParams.get("model");
   const year = parseInt(searchParams.get("year") || "0", 10);
-  if (!make || !model)
+  if (!make || !model || !normalizeModel(model.split(" ")[0]))
     return NextResponse.json(
       { error: "make and model required" },
       { status: 400 },
     );
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("sold_listings")
-    .select("sold_price, sold_at, mileage, source, source_url, location_state")
-    .ilike("make", make)
-    .ilike("model", `%${model.split(" ")[0]}%`)
-    .eq("currency_code", "USD")
-    .eq("country_code", "US")
-    .gt("sold_price", 0)
-    .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())
-    .order("sold_at", { ascending: false })
-    .limit(50);
-  if (year) q = q.gte("year", year - 1).lte("year", year + 1);
-
-  const { data } = await q;
+  // First model word, raw (legacy rows) or normalized the way the eBay sold collector stores it.
+  const firstWord = model.split(" ")[0];
+  const normFirst = normalizeModel(firstWord);
+  const modelOr = /^[A-Za-z0-9.-]+$/.test(firstWord)
+    ? `model.ilike.*${firstWord}*,model.ilike.${normFirst}*`
+    : `model.ilike.${normFirst}*`;
+  // Retail comps only: gov impound/fleet/surplus sales and GSA closing bids never enter this average.
+  const { data } = await withRetailSold((scope) => {
+    let q = applyRetailSoldScope(
+      supabase
+        .from("sold_listings")
+        .select(
+          "sold_price, sold_at, mileage, source, source_url, location_state",
+        )
+        .ilike("make", make)
+        .or(modelOr)
+        .eq("currency_code", "USD")
+        .eq("country_code", "US"),
+      scope,
+    );
+    q = q
+      .gt("sold_price", 0)
+      .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())
+      .order("sold_at", { ascending: false })
+      .limit(50);
+    if (year) q = q.gte("year", year - 1).lte("year", year + 1);
+    return q;
+  });
   const rows = data || [];
   const prices = rows
     .map((r: any) => Number(r.sold_price))
