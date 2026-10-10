@@ -16,6 +16,7 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { LocalScraperCache } from "@/lib/scrapers/local-cache";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { safeSellerName, sellerForDesk } from "@/lib/deals/seller-name";
 import {
   redactListingForNonFlipDesk,
   resolveCallerDesk,
@@ -96,18 +97,18 @@ function rowOptions(row: any) {
 
 function inferredSeller(row: any) {
   const options = rowOptions(row);
-  const directSeller = String(row.seller || options.seller || "").trim();
+  // Name only. Never fall back to the seller's phone or email (Ren P1: guests read private-seller
+  // contact off Scan cards), and drop a "name" that is itself a phone, email or link.
+  const directSeller =
+    safeSellerName(row.seller) || safeSellerName(options.seller) || "";
   const directSellerType = String(
     row.seller_type || row.sellerType || options.sellerType || "",
   ).trim();
   const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
   const meta = sourceMeta(sourceKey);
-  const contact = sellerContact(row);
   return {
     seller:
       directSeller ||
-      contact.phone ||
-      contact.email ||
       (row.source_url || row.sourceUrl ? meta.label : undefined),
     sellerType:
       directSellerType ||
@@ -970,10 +971,11 @@ async function publicPreviewFallback(args: {
     maxPrice: args.maxPrice,
     sellerType: args.sellerType,
   };
+  // Seller name only to a flip desk, scrubbed of contact either way (cached rows may predate it).
   const vehicles = flipDesk
-    ? pageRows
+    ? pageRows.map((row) => sellerForDesk(row, true))
     : pageRows.map((row) => {
-        const redacted = redactListingForNonFlipDesk(row);
+        const redacted = sellerForDesk(redactListingForNonFlipDesk(row), false);
         return {
           ...redacted,
           trustExplanation: buildTrustExplanation(redacted, filters, args.desk),
@@ -1350,10 +1352,11 @@ export async function GET(req: NextRequest) {
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
   // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields
   // (e.g. "$2,500 estimated spread" / "recommended max buy").
+  // Seller name only to a flip desk (scrubbed of contact); guests and other desks get none.
   const vehicles = flipDesk
-    ? sorted
+    ? sorted.map((row) => sellerForDesk(row, true))
     : sorted.map((row) => {
-        const redacted = redactListingForNonFlipDesk(row);
+        const redacted = sellerForDesk(redactListingForNonFlipDesk(row), false);
         return {
           ...redacted,
           trustExplanation: buildTrustExplanation(redacted, scanFilters, desk),
