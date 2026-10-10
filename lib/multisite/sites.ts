@@ -23,19 +23,39 @@ export const EXCLUDED_SITES: Record<string, string> = {
 const makeModel = (f: MultiSiteFilters) =>
   [f.make, f.model].filter(Boolean).join(" ");
 
+type Key = keyof MultiSiteFilters;
+
+/** Filters added after the first audit. A site lists the ones it carries; the rest are dropped. */
+const EXTRA: Key[] = ["trim", "body", "drivetrain", "fuel", "transmission"];
+const notCarried = (carried: Key[] = []) =>
+  EXTRA.filter((k) => !carried.includes(k));
+
 const link = (
   site: MultiSiteSite,
   url: string,
   f: MultiSiteFilters,
-  dropped: (keyof MultiSiteFilters)[],
+  dropped: Key[],
   verified = site.verified,
-): MultiSiteLink => ({
-  site: site.id,
-  label: site.label,
-  url,
-  dropped: present(f, dropped),
-  verified,
-});
+  carried: { confirmed?: Key[]; unconfirmed?: Key[] } = {},
+): MultiSiteLink => {
+  const extrasDropped = notCarried([
+    ...(carried.confirmed || []),
+    ...(carried.unconfirmed || []),
+  ]);
+  const unconfirmed = present(f, carried.unconfirmed || []);
+  return {
+    site: site.id,
+    label: site.label,
+    url,
+    dropped: present(f, Array.from(new Set([...dropped, ...extrasDropped]))),
+    verified,
+    ...(unconfirmed.length ? { unconfirmed } : {}),
+  };
+};
+
+/** Keyword text for sites that only take free text: make model trim. */
+const words = (f: MultiSiteFilters, extra: (string | undefined)[] = []) =>
+  [f.make, f.model, f.trim, ...extra].filter(Boolean).join(" ");
 
 export const autotempest: MultiSiteSite = {
   id: "autotempest",
@@ -56,6 +76,31 @@ export const autotempest: MultiSiteSite = {
     })}`;
     return link(this, url, f, ["title"]);
   },
+};
+
+const CARS_COM_BODY: Record<NonNullable<MultiSiteFilters["body"]>, string> = {
+  sedan: "sedan",
+  suv: "suv",
+  truck: "pickup_truck",
+  coupe: "coupe",
+  hatchback: "hatchback",
+  minivan: "minivan",
+  van: "van",
+  wagon: "wagon",
+  convertible: "convertible",
+};
+const CARS_COM_DRIVE: Record<NonNullable<MultiSiteFilters["drivetrain"]>, string> = {
+  awd: "all_wheel_drive",
+  "4wd": "four_wheel_drive",
+  fwd: "front_wheel_drive",
+  rwd: "rear_wheel_drive",
+};
+const CARS_COM_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, string> = {
+  gas: "gasoline",
+  diesel: "diesel",
+  hybrid: "hybrid",
+  electric: "electric",
+  plugin_hybrid: "plug_in_hybrid",
 };
 
 const CARS_COM_RADII = [10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 500];
@@ -80,8 +125,17 @@ export const carsCom: MultiSiteSite = {
           ? "all"
           : snapRadius(f.radiusMi, CARS_COM_RADII)
         : undefined,
+      keyword: f.trim,
+      "body_style_slugs[]": f.body ? [CARS_COM_BODY[f.body]] : undefined,
+      "drivetrain_slugs[]": f.drivetrain
+        ? [CARS_COM_DRIVE[f.drivetrain]]
+        : undefined,
+      "fuel_slugs[]": f.fuel ? [CARS_COM_FUEL[f.fuel]] : undefined,
+      "transmission_slugs[]": f.transmission ? [f.transmission] : undefined,
     })}`;
-    return link(this, url, f, ["title"]);
+    return link(this, url, f, ["title"], this.verified, {
+      unconfirmed: ["trim", "body", "drivetrain", "fuel", "transmission"],
+    });
   },
 };
 
@@ -144,6 +198,42 @@ const AUTOTRADER_MAKE_CODES: Record<string, string> = {
   jaguar: "JAG",
   subaru: "SUB",
 };
+/** Autotrader / KBB (both Cox Automotive) style, drive, fuel and transmission codes. */
+const COX_STYLE: Record<NonNullable<MultiSiteFilters["body"]>, string> = {
+  sedan: "SEDAN",
+  suv: "SUVCROSS",
+  truck: "TRUCKS",
+  coupe: "COUPE",
+  hatchback: "HATCH",
+  minivan: "VANMV",
+  van: "VANMV",
+  wagon: "WAGON",
+  convertible: "CONVERT",
+};
+const COX_DRIVE: Record<NonNullable<MultiSiteFilters["drivetrain"]>, string> = {
+  awd: "AWD4WD",
+  "4wd": "AWD4WD",
+  fwd: "FWD",
+  rwd: "RWD",
+};
+const COX_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, string> = {
+  gas: "GSL",
+  diesel: "DSL",
+  hybrid: "HYB",
+  electric: "ELE",
+  plugin_hybrid: "PIH",
+};
+const coxExtras = (f: MultiSiteFilters) => ({
+  vehicleStyleCodes: f.body ? COX_STYLE[f.body] : undefined,
+  driveGroup: f.drivetrain ? COX_DRIVE[f.drivetrain] : undefined,
+  fuelTypeGroup: f.fuel ? COX_FUEL[f.fuel] : undefined,
+  transmissionCodes: f.transmission
+    ? f.transmission === "manual"
+      ? "MAN"
+      : "AUT"
+    : undefined,
+});
+
 export const autotrader: MultiSiteSite = {
   id: "autotrader",
   label: "Autotrader",
@@ -170,12 +260,17 @@ export const autotrader: MultiSiteSite = {
         maxMileage: f.milesMax,
         zip: f.zip,
         searchRadius: f.zip ? f.radiusMi : undefined,
+        ...coxExtras(f),
       },
     )}`;
-    return link(this, url, f, [
-      ...(f.model && !modelCode ? (["model"] as const) : []),
-      "title",
-    ]);
+    return link(
+      this,
+      url,
+      f,
+      [...(f.model && !modelCode ? (["model"] as const) : []), "title"],
+      this.verified,
+      { unconfirmed: ["body", "drivetrain", "fuel", "transmission"] },
+    );
   },
 };
 
@@ -184,33 +279,63 @@ export const ebayMotors: MultiSiteSite = {
   label: "eBay Motors",
   verified: true,
   build(f) {
-    const words = [
-      f.make,
-      f.model,
+    const kw = words(f, [
       f.title === "salvage" || f.title === "rebuilt" ? f.title : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    if (!words) return null;
+    ]).toLowerCase();
+    if (!kw) return null;
     // Year filters break eBay's search page (audit), so years stay off.
     const url = `https://www.ebay.com/sch/Cars-Trucks/6001/i.html?${qs({
-      _nkw: words,
+      _nkw: kw,
       _udlo: f.priceMin,
       _udhi: f.priceMax,
       _stpos: f.zip,
       _sadis: f.zip ? f.radiusMi : undefined,
     })}`;
-    return link(this, url, f, [
-      "yearMin",
-      "yearMax",
-      "milesMax",
-      ...(f.title === "clean" ? (["title"] as const) : []),
-    ]);
+    return link(
+      this,
+      url,
+      f,
+      [
+        "yearMin",
+        "yearMax",
+        "milesMax",
+        ...(f.title === "clean" ? (["title"] as const) : []),
+      ],
+      this.verified,
+      { confirmed: ["trim"] },
+    );
   },
 };
 
 const CL_TITLE: Record<string, number> = { clean: 1, salvage: 2, rebuilt: 3 };
+/** Craigslist auto_* codes as its own search form submits them. */
+const CL_BODY: Record<NonNullable<MultiSiteFilters["body"]>, number> = {
+  convertible: 2,
+  coupe: 3,
+  hatchback: 4,
+  minivan: 5,
+  truck: 7,
+  sedan: 8,
+  suv: 10,
+  wagon: 11,
+  van: 12,
+};
+const CL_DRIVE: Partial<Record<NonNullable<MultiSiteFilters["drivetrain"]>, number>> = {
+  fwd: 1,
+  rwd: 2,
+  "4wd": 3,
+};
+const CL_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, number> = {
+  gas: 1,
+  diesel: 2,
+  hybrid: 3,
+  plugin_hybrid: 3,
+  electric: 4,
+};
+const CL_TRANS: Record<NonNullable<MultiSiteFilters["transmission"]>, number> = {
+  manual: 1,
+  automatic: 2,
+};
 export const craigslist: MultiSiteSite = {
   id: "craigslist",
   label: "Craigslist",
@@ -227,10 +352,26 @@ export const craigslist: MultiSiteSite = {
       max_price: f.priceMax,
       max_auto_miles: f.milesMax,
       auto_title_status: f.title ? CL_TITLE[f.title] : undefined,
+      auto_bodytype: f.body ? CL_BODY[f.body] : undefined,
+      auto_drivetrain: f.drivetrain ? CL_DRIVE[f.drivetrain] : undefined,
+      auto_fuel_type: f.fuel ? CL_FUEL[f.fuel] : undefined,
+      auto_transmission: f.transmission ? CL_TRANS[f.transmission] : undefined,
+      query: f.trim,
       postal: f.zip,
       search_distance: f.radiusMi,
     })}`;
-    return link(this, url, f, []);
+    return link(
+      this,
+      url,
+      f,
+      // Craigslist has no AWD bucket; 4wd is the closest it offers.
+      f.drivetrain === "awd" ? ["drivetrain"] : [],
+      this.verified,
+      {
+        confirmed: ["trim"],
+        unconfirmed: ["body", "fuel", "transmission", ...(f.drivetrain === "awd" ? [] : (["drivetrain"] as Key[]))],
+      },
+    );
   },
 };
 
@@ -242,7 +383,7 @@ export const facebookMarketplace: MultiSiteSite = {
     const mm = makeModel(f);
     if (!mm) return null;
     const years = yearsList(f.yearMin, f.yearMax);
-    const query = [`"${mm}"`, ...years].join(" ");
+    const query = [`"${mm}"`, f.trim, ...years].filter(Boolean).join(" ");
     const state = f.zip ? zipToState(f.zip) : null;
     const city = state ? FACEBOOK_CITY_BY_STATE[state] : undefined;
     const params = qs({
@@ -257,6 +398,8 @@ export const facebookMarketplace: MultiSiteSite = {
         `https://www.facebook.com/marketplace/${city}/search?${params}`,
         f,
         ["milesMax", "radiusMi", "title"],
+        this.verified,
+        { confirmed: ["trim"] },
       );
     // No confident city slug: Facebook centers the search on the viewer's own location.
     return link(
@@ -265,6 +408,7 @@ export const facebookMarketplace: MultiSiteSite = {
       f,
       ["milesMax", "zip", "radiusMi", "title"],
       false,
+      { confirmed: ["trim"] },
     );
   },
 };
@@ -339,6 +483,100 @@ export const truecar: MultiSiteSite = {
   },
 };
 
+/**
+ * Kelley Blue Book listings (Cox Automotive, same search stack as Autotrader). KBB's terms allow
+ * hypertext links under its Linking Policy (no framing). Format not yet browser-confirmed.
+ */
+export const kbb: MultiSiteSite = {
+  id: "kbb",
+  label: "Kelley Blue Book",
+  verified: false,
+  build(f) {
+    if (!f.make) return null;
+    const path = [slug(f.make), f.model ? slug(f.model) : ""]
+      .filter(Boolean)
+      .join("/");
+    const url = `https://www.kbb.com/cars-for-sale/used/${path}?${qs({
+      zip: f.zip,
+      searchRadius: f.zip ? f.radiusMi : undefined,
+      startYear: f.yearMin,
+      endYear: f.yearMax,
+      minPrice: f.priceMin,
+      maxPrice: f.priceMax,
+      maxMileage: f.milesMax,
+      ...coxExtras(f),
+    })}`;
+    return link(this, url, f, ["title"], false, {
+      unconfirmed: ["body", "drivetrain", "fuel", "transmission"],
+    });
+  },
+};
+
+/** Edmunds used inventory. Public search page; format not yet browser-confirmed. */
+export const edmunds: MultiSiteSite = {
+  id: "edmunds",
+  label: "Edmunds",
+  verified: false,
+  build(f) {
+    if (!f.make) return null;
+    const range = (a?: number, b?: number) =>
+      a || b ? `${a ?? "*"}-${b ?? "*"}` : undefined;
+    const url = `https://www.edmunds.com/inventory/srp.html?${qs({
+      inventorytype: "used",
+      make: slug(f.make),
+      model: f.model ? slug(f.model) : undefined,
+      year: range(f.yearMin, f.yearMax),
+      price: range(f.priceMin, f.priceMax),
+      mileage: f.milesMax ? `*-${f.milesMax}` : undefined,
+      zip: f.zip,
+      radius: f.zip ? f.radiusMi : undefined,
+    })}`;
+    return link(this, url, f, ["title"], false);
+  },
+};
+
+/**
+ * Salvage auctions (public lot search; bidding needs the buyer's own membership or a broker). We
+ * link only. MikeHunt does not scrape either site. Formats not yet browser-confirmed.
+ */
+export const copart: MultiSiteSite = {
+  id: "copart",
+  label: "Copart",
+  verified: false,
+  build(f) {
+    const q = words(f);
+    if (!q) return null;
+    const url = `https://www.copart.com/lotSearchResults/?${qs({ free: "true", query: q.toLowerCase() })}`;
+    return link(
+      this,
+      url,
+      f,
+      ["yearMin", "yearMax", "priceMin", "priceMax", "milesMax", "zip", "radiusMi", "title"],
+      false,
+      { confirmed: ["trim"] },
+    );
+  },
+};
+
+export const iaai: MultiSiteSite = {
+  id: "iaai",
+  label: "IAA",
+  verified: false,
+  build(f) {
+    const q = words(f);
+    if (!q) return null;
+    const url = `https://www.iaai.com/Search?${qs({ Keyword: q })}`;
+    return link(
+      this,
+      url,
+      f,
+      ["yearMin", "yearMax", "priceMin", "priceMax", "milesMax", "zip", "radiusMi", "title"],
+      false,
+      { confirmed: ["trim"] },
+    );
+  },
+};
+
 /** Display order: broad aggregators first, then the big marketplaces, then local classifieds. */
 export const MULTISITE_SITES: MultiSiteSite[] = [
   carsCom,
@@ -351,4 +589,8 @@ export const MULTISITE_SITES: MultiSiteSite[] = [
   autolist,
   autotempest,
   truecar,
+  kbb,
+  edmunds,
+  copart,
+  iaai,
 ];

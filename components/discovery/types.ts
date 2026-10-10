@@ -58,6 +58,8 @@ export interface DiscoveryDeal {
   luxury?: boolean;
   priceTier?: string;
   titleClass?: "clean" | "rebuilt" | "salvage" | "parts" | "unknown";
+  /** options.titleSource (#211): a source-default title renders as a weaker badge. */
+  titleSource?: "listing" | "source_default" | null;
   /** Channel/risk lane + its color (auction/salvage/repairable/clean-retail/private). */
   lane?: "auction" | "salvage" | "repairable" | "clean-retail" | "private";
   laneColor?: string;

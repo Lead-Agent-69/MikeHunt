@@ -16,6 +16,40 @@ const num = (v: string) => {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 };
 
+const TITLE_OPTS = [
+  ["clean", "Clean title"],
+  ["salvage", "Salvage title"],
+  ["rebuilt", "Rebuilt title"],
+] as const;
+const BODY_OPTS = [
+  ["sedan", "Sedan"],
+  ["suv", "SUV"],
+  ["truck", "Truck"],
+  ["coupe", "Coupe"],
+  ["hatchback", "Hatchback"],
+  ["minivan", "Minivan"],
+  ["van", "Van"],
+  ["wagon", "Wagon"],
+  ["convertible", "Convertible"],
+] as const;
+const DRIVE_OPTS = [
+  ["awd", "AWD"],
+  ["4wd", "4WD"],
+  ["fwd", "FWD"],
+  ["rwd", "RWD"],
+] as const;
+const FUEL_OPTS = [
+  ["gas", "Gas"],
+  ["diesel", "Diesel"],
+  ["hybrid", "Hybrid"],
+  ["plugin_hybrid", "Plug-in hybrid"],
+  ["electric", "Electric"],
+] as const;
+const TRANS_OPTS = [
+  ["automatic", "Automatic"],
+  ["manual", "Manual"],
+] as const;
+
 export function AlsoSearchOn({
   initial,
 }: {
@@ -36,6 +70,23 @@ export function AlsoSearchOn({
   const [radius, setRadius] = useState(
     initial?.radiusMi ? String(initial.radiusMi) : "50",
   );
+  // "More filters": closed by default so the first glance stays make / model / price / ZIP.
+  const [trim, setTrim] = useState(initial?.trim ?? "");
+  const [priceMin, setPriceMin] = useState(
+    initial?.priceMin ? String(initial.priceMin) : "",
+  );
+  const [milesMax, setMilesMax] = useState(
+    initial?.milesMax ? String(initial.milesMax) : "",
+  );
+  const [title, setTitle] = useState<string>(initial?.title ?? "");
+  const [body, setBody] = useState<string>(initial?.body ?? "");
+  const [drivetrain, setDrivetrain] = useState<string>(
+    initial?.drivetrain ?? "",
+  );
+  const [fuel, setFuel] = useState<string>(initial?.fuel ?? "");
+  const [transmission, setTransmission] = useState<string>(
+    initial?.transmission ?? "",
+  );
 
   const links = useMemo(() => {
     if (!make.trim()) return [];
@@ -44,11 +95,35 @@ export function AlsoSearchOn({
       model: model.trim() || undefined,
       yearMin: num(yearMin),
       yearMax: num(yearMax),
+      priceMin: num(priceMin),
       priceMax: num(priceMax),
+      milesMax: num(milesMax),
       zip: /^\d{5}$/.test(zip) ? zip : undefined,
       radiusMi: num(radius),
+      trim: trim.trim() || undefined,
+      title: title || undefined,
+      body: body || undefined,
+      drivetrain: drivetrain || undefined,
+      fuel: fuel || undefined,
+      transmission: transmission || undefined,
     });
-  }, [make, model, yearMin, yearMax, priceMax, zip, radius]);
+  }, [
+    make,
+    model,
+    yearMin,
+    yearMax,
+    priceMin,
+    priceMax,
+    milesMax,
+    zip,
+    radius,
+    trim,
+    title,
+    body,
+    drivetrain,
+    fuel,
+    transmission,
+  ]);
 
   return (
     <section className="glass-panel p-4 md:p-5" data-testid="also-search-on">
@@ -117,6 +192,60 @@ export function AlsoSearchOn({
           ))}
         </select>
       </div>
+      <details className="mt-2" data-testid="also-search-on-more">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--t3)]">
+          More filters
+        </summary>
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <input
+            aria-label="Trim"
+            placeholder="Trim"
+            value={trim}
+            onChange={(e) => setTrim(e.target.value)}
+            className={FIELD}
+          />
+          <input
+            aria-label="Min price"
+            placeholder="Min price"
+            inputMode="numeric"
+            value={priceMin}
+            onChange={(e) => setPriceMin(e.target.value)}
+            className={FIELD}
+          />
+          <input
+            aria-label="Max miles"
+            placeholder="Max miles"
+            inputMode="numeric"
+            value={milesMax}
+            onChange={(e) => setMilesMax(e.target.value)}
+            className={FIELD}
+          />
+          {(
+            [
+              ["Title", title, setTitle, TITLE_OPTS],
+              ["Body", body, setBody, BODY_OPTS],
+              ["Drivetrain", drivetrain, setDrivetrain, DRIVE_OPTS],
+              ["Fuel", fuel, setFuel, FUEL_OPTS],
+              ["Transmission", transmission, setTransmission, TRANS_OPTS],
+            ] as const
+          ).map(([label, value, set, opts]) => (
+            <select
+              key={label}
+              aria-label={label}
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              className={FIELD}
+            >
+              <option value="">Any {label.toLowerCase()}</option>
+              {opts.map(([v, text]) => (
+                <option key={v} value={v}>
+                  {text}
+                </option>
+              ))}
+            </select>
+          ))}
+        </div>
+      </details>
       {links.length ? (
         <ul
           className="mt-3 flex flex-wrap gap-2"
