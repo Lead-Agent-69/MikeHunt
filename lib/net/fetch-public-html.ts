@@ -21,6 +21,28 @@ export function publicFetchSignal(caller?: AbortSignal): AbortSignal {
   return caller ? AbortSignal.any([caller, deadline]) : deadline;
 }
 
+/** Thrown when the overall deadline (or the caller's signal) fires while DNS is still resolving. */
+class FetchAborted extends Error {}
+
+/** Settle with `p`, or reject with FetchAborted as soon as `signal` aborts (DNS can't take a signal). */
+function untilAborted<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new FetchAborted());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new FetchAborted());
+    signal.addEventListener("abort", onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(e);
+      },
+    );
+  });
+}
+
 export function locationHeader(
   headers: Record<string, unknown>,
 ): string | null {
@@ -35,6 +57,16 @@ export function locationHeader(
  * checked again, so a public URL cannot bounce onto metadata or a private IP.
  * Returns null when the site blocks or errors. Throws UrlNotAllowedError for
  * blocked targets (no fetch is sent to them).
+ *
+ * Bounds (apply to EVERY caller with no options: guests via save-from-url / deal-check, and the
+ * scraper callers lib/scrapers/polite-html.ts and lib/scrapers/sources/index.ts alike):
+ *  - body capped at MAX_HTML_BYTES (5MB); `maxBytes` can only lower it.
+ *  - ONE overall deadline of PUBLIC_FETCH_DEADLINE_MS (10s) for the whole call, armed before the
+ *    first DNS lookup and shared by every DNS lookup and redirect hop (not reset per hop), combined
+ *    with the caller's signal. axios' 6s `timeout` is only a per-request idle timer on top of that.
+ *    A DNS lookup can't be cancelled, but the call stops waiting for it when the deadline fires.
+ *  - proxy: false, and the socket is pinned to the validated addresses (pinned-dns).
+ * A slow scraper page that needs more than 10s, or a page over 5MB, therefore returns null.
  */
 export async function fetchPublicHtml(
   rawUrl: string,
@@ -45,10 +77,17 @@ export async function fetchPublicHtml(
   const allowUrl =
     typeof policyOrOptions === "function" ? policyOrOptions : undefined;
   const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
-  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
-  let target = await resolvePinnedTarget(rawUrl);
-  let current = target.url;
+  // The overall deadline is armed BEFORE the first DNS lookup, so slow DNS counts against it too.
   const signal = publicFetchSignal(options.signal);
+  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
+  let target: Awaited<ReturnType<typeof resolvePinnedTarget>>;
+  try {
+    target = await untilAborted(resolvePinnedTarget(rawUrl), signal);
+  } catch (error) {
+    if (error instanceof FetchAborted) return null;
+    throw error;
+  }
+  let current = target.url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (allowUrl && !(await allowUrl(current.toString())))
       throw new Error("Page disallowed by source policy");
@@ -78,7 +117,15 @@ export async function fetchPublicHtml(
     if (status >= 300 && status < 400) {
       const loc = locationHeader(response.headers || {});
       if (!loc) return null;
-      target = await resolvePinnedTarget(new URL(loc, current).toString());
+      try {
+        target = await untilAborted(
+          resolvePinnedTarget(new URL(loc, current).toString()),
+          signal,
+        );
+      } catch (error) {
+        if (error instanceof FetchAborted) return null;
+        throw error;
+      }
       current = target.url;
       continue;
     }
