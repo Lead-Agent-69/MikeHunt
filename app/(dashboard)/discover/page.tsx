@@ -393,9 +393,10 @@ export default function DiscoverPage() {
   // Reseller/dealer keep roi / salvage / auctionLots / fresh.
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
   // Same table the API enforces (lib/discovery/desk-rails); parts keeps salvage/teardown.
-  // Salvage & Rebuildable: personal/DIY see it only once they opt in (buyerScope.includeRepairable).
+  // Salvage & Rebuildable: same gate as the server (includesRepairable): DIY defaults in,
+  // personal only once they opt in, and an explicit saved choice always wins.
   const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode, {
-    includeRepairable: buyerScope?.includeRepairable,
+    includeRepairable: includesRepairable(buyerScope),
   });
   const visibleRails = (data?.rails || []).filter(
     (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),

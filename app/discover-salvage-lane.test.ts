@@ -4,6 +4,16 @@ import {
   hiddenRailKeysForMode,
   SALVAGE_REBUILDABLE_RAIL,
 } from "@/lib/discovery/desk-rails";
+import { includesRepairable } from "@/lib/intelligence/repair-risk";
+
+// What the Discover page computes for a saved scope.
+const laneHidden = (scope: {
+  buyerMode?: string;
+  includeRepairable?: boolean;
+}) =>
+  hiddenRailKeysForMode(scope.buyerMode, {
+    includeRepairable: includesRepairable(scope),
+  }).has(SALVAGE_REBUILDABLE_RAIL);
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -25,10 +35,21 @@ describe("Discover Salvage & Rebuildable lane", () => {
     );
   });
 
-  it("the page passes the saved opt-in to the rail gate", () => {
+  it("DIY sees the lane by default; an explicit opt-out still hides it", () => {
+    expect(laneHidden({ buyerMode: "diy" })).toBe(false);
+    expect(laneHidden({ buyerMode: "diy", includeRepairable: false })).toBe(
+      true,
+    );
+    expect(laneHidden({ buyerMode: "personal" })).toBe(true);
+    expect(laneHidden({ buyerMode: "personal", includeRepairable: true })).toBe(
+      false,
+    );
+  });
+
+  it("the page gates the rail with includesRepairable(buyerScope)", () => {
     const page = read("app/(dashboard)/discover/page.tsx");
     expect(page).toMatch(
-      /hiddenRailKeysForMode\(buyerScope\?\.buyerMode, \{\s*includeRepairable: buyerScope\?\.includeRepairable,\s*\}\)/,
+      /hiddenRailKeysForMode\(buyerScope\?\.buyerMode, \{\s*includeRepairable: includesRepairable\(buyerScope\),\s*\}\)/,
     );
   });
 
