@@ -21,6 +21,13 @@ type PgError =
   | null
   | undefined;
 
+/** sale_channel values of the separate gov lane (shown with attribution, never retail comps). */
+export const GOV_SALE_CHANNELS = [
+  "gov_impound_auction",
+  "gov_fleet_auction",
+  "gov_surplus_auction",
+] as const;
+
 /** sale_channel values that are retail sales and count as retail comps (NULL = legacy retail rows). */
 export const RETAIL_SALE_CHANNELS = ["ebay"] as const;
 

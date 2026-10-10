@@ -6,21 +6,21 @@ import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   loadSoldItemCache,
   saveSoldItemCache,
   soldCacheScope,
 } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
+import { politeUserAgent } from "../polite/identity";
 import { normalizeModel } from "../../scoring/market-value";
 import { US_STATES } from "../../geo/us-states";
 
 const execFileAsync = promisify(execFile);
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+// Honest identity only (Ren, scraper honesty rules): the MikeHunt bot user agent, no forged Referer, no
+// cookie warm-up, and never a retry from another IP or machine after a block.
+const UA = () => politeUserAgent();
 
 // The models dealers actually flip — captures sold prices across mainstream + truck/SUV demand.
 const QUERIES = [
@@ -434,37 +434,39 @@ function admin(): SupabaseClient {
   );
 }
 
-// eBay bot-walls the sold SRP and fingerprints the HTTP client — Node's fetch (undici) and even a
-// stealth browser get challenged, but the system `curl` passes (and it's present in CI). So we fetch
-// via curl with a shared cookie jar seeded from the homepage.
-async function curlGet(
-  url: string,
-  jar: string,
-): Promise<{ html: string; status: number }> {
-  const { stdout } = await execFileAsync(
-    "curl",
-    [
-      "-sL",
-      "-m",
-      "35",
-      "-A",
-      UA,
-      "-b",
-      jar,
-      "-c",
-      jar,
-      "-H",
-      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "-H",
-      "Accept-Language: en-US,en;q=0.9",
-      "-H",
-      "Referer: https://www.ebay.com/",
-      "-w",
-      "\n__HTTP_STATUS__:%{http_code}",
-      url,
-    ],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
+/** Hard caps on one sold-search fetch: https only, few redirects, bounded body and time. */
+export const EBAY_SOLD_MAX_BYTES = 8 * 1024 * 1024;
+
+/** curl argv for one sold-search page: honest UA, no cookies, no Referer, https only, size-capped. */
+export function ebaySoldCurlArgs(url: string): string[] {
+  return [
+    "-sL",
+    "-m",
+    "35",
+    "--proto",
+    "=https",
+    "--proto-redir",
+    "=https",
+    "--max-redirs",
+    "3",
+    "--max-filesize",
+    String(EBAY_SOLD_MAX_BYTES),
+    "-A",
+    UA(),
+    "-H",
+    "Accept: text/html,application/xhtml+xml",
+    "-w",
+    "\n__HTTP_STATUS__:%{http_code}",
+    url,
+  ];
+}
+
+// Fetched with the system curl (present on Zeus and in CI) under our own bot identity. If eBay refuses,
+// that is the answer: the run is recorded as challenged and nothing retries from another IP or machine.
+async function curlGet(url: string): Promise<{ html: string; status: number }> {
+  const { stdout } = await execFileAsync("curl", ebaySoldCurlArgs(url), {
+    maxBuffer: EBAY_SOLD_MAX_BYTES + 64 * 1024,
+  });
   const marker = stdout.lastIndexOf("\n__HTTP_STATUS__:");
   if (marker < 0) return { html: stdout, status: 0 };
   return {
@@ -476,25 +478,6 @@ async function curlGet(
 
 export async function scrapeEbaySold(): Promise<number> {
   console.log("[eBay Sold] Starting real-sold-price scrape...");
-  const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
-  // Warm-up: seed cookies from the homepage.
-  try {
-    await execFileAsync("curl", [
-      "-s",
-      "-m",
-      "15",
-      "-A",
-      UA,
-      "-c",
-      jar,
-      "https://www.ebay.com/",
-      "-o",
-      "/dev/null",
-    ]);
-  } catch {
-    /* warm-up best-effort */
-  }
-
   // Static popular flips + the top models actually in inventory, deduped, so anchoring reaches the cars
   // users really see (not just 15 hardcoded models).
   const sb = admin();
@@ -516,7 +499,7 @@ export async function scrapeEbaySold(): Promise<number> {
       const url =
         `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}` +
         `&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
-      const { html, status } = await curlGet(url, jar);
+      const { html, status } = await curlGet(url);
       const reason = ebaySoldBarrier(status, html);
       if (reason) {
         // A ban signal or challenge is a "no" from eBay. Stop the whole source for this run (with or
@@ -539,7 +522,10 @@ export async function scrapeEbaySold(): Promise<number> {
       failures += 1;
       console.warn(`[eBay Sold] "${q}" failed:`, (e as Error).message);
       if (failures >= MAX_CONSECUTIVE_FAILURES) {
-        barrier = { status: 0, reason: `${failures} network failures in a row` };
+        barrier = {
+          status: 0,
+          reason: `${failures} network failures in a row`,
+        };
         break;
       }
       // Exponential backoff before the next query after a network failure.
@@ -580,6 +566,7 @@ export async function scrapeEbaySold(): Promise<number> {
     console.warn(
       `[eBay Sold] CACHE_ONLY_MODE: kept ${fresh.length} sold observations locally; 0 written to Supabase`,
     );
+    if (barrier) throw challengedAfterPartial(barrier.reason, rows.length, 0);
     return 0;
   }
 
@@ -590,13 +577,28 @@ export async function scrapeEbaySold(): Promise<number> {
     console.log(
       `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted} new sales${barrier ? ` (stopped early: ${barrier.reason})` : ""}`,
     );
+    // Rows that came through are kept, but a block mid-run is still a block: record it as challenged.
+    if (barrier)
+      throw challengedAfterPartial(barrier.reason, rows.length, inserted);
     return inserted;
   }
 
   console.log(
     `[eBay Sold] parsed ${rows.length} completed listings; ${rows.length} already known locally`,
   );
+  if (barrier) throw challengedAfterPartial(barrier.reason, rows.length, 0);
   return 0;
+}
+
+/** Error for a run eBay blocked after some pages came through (rows already stored are kept). */
+export function challengedAfterPartial(
+  reason: string,
+  parsed: number,
+  inserted: number,
+): Error {
+  return new Error(
+    `challenged: www.ebay.com ${reason} after ${parsed} sold rows parsed (${inserted} new stored); stopped, no bypass attempted`,
+  );
 }
 
 const DEFAULT_MAX_QUERIES = 40;
@@ -604,9 +606,15 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Floor for EBAY_SOLD_DELAY_MS: an env typo can't push requests closer than 4s (+ jitter). */
+export const EBAY_SOLD_MIN_DELAY_MS = 4000;
+
 /** Randomized gap between sold-search requests: EBAY_SOLD_DELAY_MS (default 5s) plus up to 50% jitter. */
 export function soldDelayMs(random = Math.random): number {
-  const base = Math.max(1500, Number(process.env.EBAY_SOLD_DELAY_MS) || 5000);
+  const base = Math.max(
+    EBAY_SOLD_MIN_DELAY_MS,
+    Number(process.env.EBAY_SOLD_DELAY_MS) || 5000,
+  );
   return Math.round(base + base * 0.5 * random());
 }
 

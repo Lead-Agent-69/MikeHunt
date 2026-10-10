@@ -13,6 +13,7 @@ import {
 } from "@/lib/scoring/market-value";
 import {
   applyRetailSoldScope,
+  GOV_SALE_CHANNELS,
   withRetailSold,
   isMissingSaleChannelColumn,
 } from "@/lib/scoring/sold-scope";
@@ -114,8 +115,7 @@ export async function GET(req: NextRequest) {
       .eq("currency_code", "USD")
       .eq("country_code", "US")
       .in("basis", ["sold", "last_bid"])
-      .not("sale_channel", "is", null)
-      .neq("sale_channel", "ebay") // eBay sales are retail comps, not a gov lane
+      .in("sale_channel", [...GOV_SALE_CHANNELS]) // allow-list: eBay and unknown channels never land here
       .gt("sold_price", 0)
       .gte("sold_at", soldWindowCutoffIso())
       .lte("sold_at", new Date().toISOString())

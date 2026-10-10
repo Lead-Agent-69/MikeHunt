@@ -41,7 +41,7 @@ vi.mock("@/lib/supabase", () => ({
       query.then = (resolve: any, reject: any) =>
         state.reject
           ? reject(new Error("private database diagnostic"))
-          : calls.some((c) => c.method === "not")
+          : calls.some((c) => c.method === "in" && c.args[0] === "sale_channel")
             ? resolve(state.gov)
             : state.missingChannel &&
                 calls.some(
@@ -255,14 +255,15 @@ describe("source-reported sold evidence", () => {
     expect(data.govLane.credits).toEqual([
       expect.stringContaining("CC BY 4.0"),
     ]);
-    const lane = state.calls.find((c) => c.some((x) => x.method === "not"))!;
+    const lane = state.calls.find((c) =>
+      c.some((x) => x.method === "in" && x.args[0] === "sale_channel"),
+    )!;
     expect(lane).toContainEqual({
-      method: "not",
-      args: ["sale_channel", "is", null],
-    });
-    expect(lane).toContainEqual({
-      method: "neq",
-      args: ["sale_channel", "ebay"],
+      method: "in",
+      args: [
+        "sale_channel",
+        ["gov_impound_auction", "gov_fleet_auction", "gov_surplus_auction"],
+      ],
     });
     expect(lane.find((x) => x.method === "select")!.args[0]).toContain(
       "attribution",

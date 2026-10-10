@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   applyRetailSoldScope,
+  GOV_SALE_CHANNELS,
   isMissingSaleChannelColumn,
   isRetailSoldRow,
   withRetailSold,
@@ -70,6 +71,14 @@ describe("retail sold scope", () => {
     ).toBe(false);
   });
 
+  it("gov lane channels are exactly the gov allow-list (no ebay)", () => {
+    expect([...GOV_SALE_CHANNELS].sort()).toEqual([
+      "gov_fleet_auction",
+      "gov_impound_auction",
+      "gov_surplus_auction",
+    ]);
+  });
+
   it("in-memory guard: gov rows and closing bids are never retail", () => {
     expect(isRetailSoldRow({ basis: "sold", sale_channel: null })).toBe(true);
     expect(isRetailSoldRow({})).toBe(true);
@@ -128,7 +137,9 @@ describe("every sold_listings reader keeps gov rows out of retail comps", () => 
           const retail = /applyRetailSoldScope\(\s*\w+\s*$/.test(before);
           const select = chain.match(/\.select\(\s*(["'`])([\s\S]*?)\1/);
           const govLane =
-            /\.not\(\s*"sale_channel",\s*"is",\s*null\s*\)/.test(chain) &&
+            /\.in\(\s*"sale_channel",\s*\[\.\.\.GOV_SALE_CHANNELS\]\s*\)/.test(
+              chain,
+            ) &&
             !!select &&
             /\battribution\b/.test(select[2]) &&
             /\battribution:\s*d\.attribution\b/.test(src);
