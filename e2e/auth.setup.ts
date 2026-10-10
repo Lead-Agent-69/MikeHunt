@@ -1,7 +1,13 @@
 import { test as setup } from "@playwright/test";
 import { IS_PROD, LOCAL_ONLY_REASON } from "./support/target";
 import {
-  ADMIN_EMAIL, completeOnboarding, loginViaUi, registerViaUi, storagePath, uniqueEmail, type Desk,
+  ADMIN_EMAIL,
+  completeOnboarding,
+  loginViaUi,
+  registerViaUi,
+  storagePath,
+  uniqueEmail,
+  type Desk,
 } from "./support/accounts";
 
 // One signed-in storage state per desk, built through the real register + onboarding UI against the
@@ -22,8 +28,14 @@ setup("create admin account", async ({ page }) => {
   // Admin is a fixed email (must match the local server's ADMIN_EMAIL); reuse it across runs.
   await loginViaUi(page, ADMIN_EMAIL);
   const landed = await Promise.race([
-    page.waitForURL(/\/(onboarding|discover)/, { timeout: 15_000 }).then(() => true),
-    page.getByText(/Invalid|incorrect|couldn.t sign/i).first().waitFor({ timeout: 15_000 }).then(() => false),
+    page
+      .waitForURL(/\/(onboarding|discover)/, { timeout: 15_000 })
+      .then(() => true),
+    page
+      .getByText(/Invalid|incorrect|couldn.t sign/i)
+      .first()
+      .waitFor({ timeout: 15_000 })
+      .then(() => false),
   ]).catch(() => false);
   if (!landed) await registerViaUi(page, ADMIN_EMAIL, "E2E Admin");
   if (/\/onboarding/.test(page.url())) await completeOnboarding(page, "dealer");

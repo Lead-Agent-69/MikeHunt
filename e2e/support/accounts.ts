@@ -9,7 +9,8 @@ export const DESK_LABEL: Record<Desk, RegExp> = {
   parts: /Parts \/ teardown/,
 };
 export const PASSWORD = "LocalOnly-e2e-1234";
-export const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "e2e-admin@local.test";
+export const ADMIN_EMAIL =
+  process.env.E2E_ADMIN_EMAIL || "e2e-admin@local.test";
 export const storagePath = (name: string) => `e2e/.auth/${name}.json`;
 
 export function uniqueEmail(tag: string) {
@@ -17,7 +18,11 @@ export function uniqueEmail(tag: string) {
 }
 
 /** Real UI signup (local stack only). Lands on /onboarding. */
-export async function registerViaUi(page: Page, email: string, name = "E2E Tester") {
+export async function registerViaUi(
+  page: Page,
+  email: string,
+  name = "E2E Tester",
+) {
   assertLocalTarget("create an account");
   await page.goto("/register");
   await page.getByPlaceholder("John Doe").fill(name);
@@ -27,7 +32,11 @@ export async function registerViaUi(page: Page, email: string, name = "E2E Teste
   await page.waitForURL(/\/onboarding/, { timeout: 30_000 });
 }
 
-export async function loginViaUi(page: Page, email: string, password = PASSWORD) {
+export async function loginViaUi(
+  page: Page,
+  email: string,
+  password = PASSWORD,
+) {
   assertLocalTarget("sign in");
   await page.goto("/login");
   await page.locator('input[type="email"]').fill(email);

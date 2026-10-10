@@ -29,10 +29,14 @@ async function signIn(page: Page) {
   await page.goto("/login");
   await page.waitForLoadState("networkidle");
   await page.locator('input[type="email"], input[name="email"]').fill(EMAIL);
-  await page.locator('input[type="password"], input[name="password"]').fill(PASSWORD);
+  await page
+    .locator('input[type="password"], input[name="password"]')
+    .fill(PASSWORD);
   await page.locator('button[type="submit"]').click();
   // Wait for redirect to dashboard
-  await page.waitForURL(/\/(fleet|find|discover|overview|today)/, { timeout: 15000 });
+  await page.waitForURL(/\/(fleet|find|discover|overview|today)/, {
+    timeout: 15000,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -46,12 +50,16 @@ test.describe("Auth Flow", () => {
     await page.waitForLoadState("networkidle");
     expect(errors).toHaveLength(0);
     // Should show an email + password field
-    await expect(page.locator('input[type="email"], input[name="email"]').first()).toBeVisible();
+    await expect(
+      page.locator('input[type="email"], input[name="email"]').first(),
+    ).toBeVisible();
   });
 
   test("sign in redirects to dashboard", async ({ page }) => {
     await signIn(page);
-    await expect(page).toHaveURL(/\/(fleet|find|discover|overview|today|dashboard)/);
+    await expect(page).toHaveURL(
+      /\/(fleet|find|discover|overview|today|dashboard)/,
+    );
   });
 });
 

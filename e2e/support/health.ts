@@ -17,7 +17,8 @@ export function watchHealth(page: Page): Health {
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     const t = m.text();
-    if (!IGNORED_CONSOLE.some((re) => re.test(t))) h.consoleErrors.push(t.slice(0, 300));
+    if (!IGNORED_CONSOLE.some((re) => re.test(t)))
+      h.consoleErrors.push(t.slice(0, 300));
   });
   return h;
 }
@@ -28,8 +29,12 @@ export async function expectHealthy(page: Page, h: Health) {
   await expect(page.locator("nextjs-portal")).toHaveCount(0);
   expect(h.pageErrors, `uncaught page errors on ${page.url()}`).toEqual([]);
   // Mobile layout: nothing should force sideways scrolling at 390px.
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect.soft(overflow, `horizontal overflow (px) on ${page.url()}`).toBeLessThanOrEqual(1);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect
+    .soft(overflow, `horizontal overflow (px) on ${page.url()}`)
+    .toBeLessThanOrEqual(1);
 }
 
 /** Wait for a client page to settle without relying on networkidle (polling pages never idle). */

@@ -3,15 +3,15 @@
 The signed-in specs (signup, onboarding, desks, saved cars/searches, alerts, settings, /status) need a
 Supabase project. Docker is not required: this folder stands up a **local-only** stand-in.
 
-| Piece | What it is |
-| --- | --- |
-| Postgres 15+ | any local cluster, e.g. `initdb` + `pg_ctl -o "-p 55491"` |
-| `bootstrap.sql` | Supabase shell: `anon` / `authenticated` / `service_role` / `authenticator` roles, `auth.users`, `auth.uid()`/`auth.jwt()`, `storage`, `cron` stubs, pgvector/postgis stand-ins (`float8[]` + `<=>`, `geography` domain) |
-| `apply-migrations.sh` | applies every file in `supabase/migrations` with the stand-in rewrites; only the HNSW / GiST geo indexes fail (logged) |
-| PostgREST 12.2 | static binary from GitHub releases, `db-anon-role=anon`, `jwt-secret` from `keys.cjs` |
-| `gateway.cjs` | port 54321: `/rest/v1` -> PostgREST, `/auth/v1` -> a tiny mock GoTrue (signup, password token, refresh, user, logout) backed by `auth.users` |
-| `keys.cjs` | prints local anon / service-role JWTs (HS256, local secret) |
-| `seed.py` | 5,000 deals (5 perturbed copies of a real 1,000-row `/api/deals` sample), ~3.5k price-history points, ~2k sold comps (real Norfolk impound sales + synthetic retail comps) |
+| Piece                 | What it is                                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Postgres 15+          | any local cluster, e.g. `initdb` + `pg_ctl -o "-p 55491"`                                                                                                                                                                |
+| `bootstrap.sql`       | Supabase shell: `anon` / `authenticated` / `service_role` / `authenticator` roles, `auth.users`, `auth.uid()`/`auth.jwt()`, `storage`, `cron` stubs, pgvector/postgis stand-ins (`float8[]` + `<=>`, `geography` domain) |
+| `apply-migrations.sh` | applies every file in `supabase/migrations` with the stand-in rewrites; only the HNSW / GiST geo indexes fail (logged)                                                                                                   |
+| PostgREST 12.2        | static binary from GitHub releases, `db-anon-role=anon`, `jwt-secret` from `keys.cjs`                                                                                                                                    |
+| `gateway.cjs`         | port 54321: `/rest/v1` -> PostgREST, `/auth/v1` -> a tiny mock GoTrue (signup, password token, refresh, user, logout) backed by `auth.users`                                                                             |
+| `keys.cjs`            | prints local anon / service-role JWTs (HS256, local secret)                                                                                                                                                              |
+| `seed.py`             | 5,000 deals (5 perturbed copies of a real 1,000-row `/api/deals` sample), ~3.5k price-history points, ~2k sold comps (real Norfolk impound sales + synthetic retail comps)                                               |
 
 ```bash
 createdb -p 55491 -h 127.0.0.1 -U postgres mikehunt

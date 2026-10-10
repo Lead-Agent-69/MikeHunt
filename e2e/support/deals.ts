@@ -8,16 +8,24 @@ export async function pickDeal(request: APIRequestContext): Promise<Picked> {
   if (cached) return cached;
   const res = await request.get("/api/deals?limit=15&sortBy=lastSeenAt");
   if (!res.ok()) throw new Error(`/api/deals -> ${res.status()}`);
-  const { deals } = (await res.json()) as { deals: { id: string; title: string }[] };
-  if (!deals?.length) throw new Error("no active deals; seed the local DB first");
+  const { deals } = (await res.json()) as {
+    deals: { id: string; title: string }[];
+  };
+  if (!deals?.length)
+    throw new Error("no active deals; seed the local DB first");
   const histories = await Promise.all(
     deals.map(async (d) => {
-      const ph = await request.get(`/api/deals/${d.id}/price-history`).catch(() => null);
+      const ph = await request
+        .get(`/api/deals/${d.id}/price-history`)
+        .catch(() => null);
       const body = ph && ph.ok() ? await ph.json().catch(() => null) : null;
       return Array.isArray(body) && body.length >= 2;
     }),
   );
   const i = histories.findIndex(Boolean);
-  cached = i >= 0 ? { ...deals[i], hasHistory: true } : { ...deals[0], hasHistory: false };
+  cached =
+    i >= 0
+      ? { ...deals[i], hasHistory: true }
+      : { ...deals[0], hasHistory: false };
   return cached;
 }

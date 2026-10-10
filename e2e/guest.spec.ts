@@ -11,11 +11,20 @@ test.describe("guest (read-only, prod-safe)", () => {
     await settle(page);
     await expect(page.locator("h1").first()).toBeVisible();
     // Desktop shows "Sign in"; at 390px that link is hidden and the hero CTAs carry the way in.
-    await expect(page.locator('a[href*="/register"], a[href*="/login"], a[href*="/scan"], a[href*="/onboarding"]').filter({ visible: true }).first()).toBeVisible();
+    await expect(
+      page
+        .locator(
+          'a[href*="/register"], a[href*="/login"], a[href*="/scan"], a[href*="/onboarding"]',
+        )
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
     await expectHealthy(page, h);
   });
 
-  test("login page renders email + password (not submitted)", async ({ page }) => {
+  test("login page renders email + password (not submitted)", async ({
+    page,
+  }) => {
     const h = watchHealth(page);
     await page.goto("/login");
     await expect(page.locator('input[type="email"]')).toBeVisible();
@@ -39,29 +48,53 @@ test.describe("guest (read-only, prod-safe)", () => {
       const res = await page.goto(path);
       expect(res?.status()).toBe(200);
       await settle(page, 2500);
-      await expect(page.locator("main, [role=main], body").first()).toBeVisible();
+      await expect(
+        page.locator("main, [role=main], body").first(),
+      ).toBeVisible();
       await expectHealthy(page, h);
     });
   }
 
   // Signed-out visitors must be sent to /login?next=… (never a 500 or a blank app shell).
-  const PROTECTED = ["/find", "/discover", "/map", "/flash-deals", "/saved", "/searches", "/alerts", "/settings", "/onboarding", "/parts", "/status"];
-  test("protected pages redirect guests to login with next=", async ({ page }) => {
+  const PROTECTED = [
+    "/find",
+    "/discover",
+    "/map",
+    "/flash-deals",
+    "/saved",
+    "/searches",
+    "/alerts",
+    "/settings",
+    "/onboarding",
+    "/parts",
+    "/status",
+  ];
+  test("protected pages redirect guests to login with next=", async ({
+    page,
+  }) => {
     for (const path of PROTECTED) {
       await page.goto(path);
-      await expect(page, `${path} should bounce to login`).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(path).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+      await expect(page, `${path} should bounce to login`).toHaveURL(
+        new RegExp(
+          `/login\\?next=${encodeURIComponent(path).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+        ),
+      );
       if (IS_PROD) await page.waitForTimeout(400); // keep prod gentle
     }
   });
 
-  test("For You and Flash aliases resolve (guest ends at login)", async ({ page }) => {
+  test("For You and Flash aliases resolve (guest ends at login)", async ({
+    page,
+  }) => {
     await page.goto("/for-you");
     await expect(page).toHaveURL(/\/login\?next=%2Fdiscover|\/discover/);
     await page.goto("/flash");
     await expect(page).toHaveURL(/\/login\?next=%2Fflash-deals|\/flash-deals/);
   });
 
-  test("guest-safe API answers without leaking (alerts unread)", async ({ request }) => {
+  test("guest-safe API answers without leaking (alerts unread)", async ({
+    request,
+  }) => {
     const res = await request.get("/api/alerts/unread");
     expect(res.status()).toBeLessThan(500);
     const user = await request.get("/api/saved-cars");

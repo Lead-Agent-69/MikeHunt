@@ -11,7 +11,9 @@ import { defineConfig, devices } from "@playwright/test";
  *   E2E_ADMIN_EMAIL  local admin account (must equal the local server's ADMIN_EMAIL) for /status.
  */
 const baseURL = process.env.E2E_BASE_URL || "http://localhost:3000";
-const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(baseURL);
+const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(
+  baseURL,
+);
 const launchOptions = process.env.E2E_CHROME
   ? { executablePath: process.env.E2E_CHROME }
   : {};
@@ -25,7 +27,11 @@ export default defineConfig({
   workers: isLocal ? (process.env.CI ? 1 : 2) : 1,
   timeout: 60_000,
   expect: { timeout: 15_000 },
-  reporter: [["list"], ["html", { open: "never" }], ["json", { outputFile: "test-results/e2e-results.json" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["json", { outputFile: "test-results/e2e-results.json" }],
+  ],
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -34,12 +40,19 @@ export default defineConfig({
   },
   projects: [
     // Creates the local desk accounts (personal/reseller/dealer/parts + admin) once; skipped on prod.
-    { name: "setup", testMatch: /auth\.setup\.ts/, use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
     {
       name: "desktop",
       testIgnore: /auth\.setup\.ts/,
       dependencies: ["setup"],
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+      },
     },
     {
       name: "mobile-390",

@@ -5,7 +5,12 @@ import { expectHealthy, watchHealth } from "./support/health";
 import { localOnly } from "./support/target";
 
 // Each desk is a real account onboarded through the UI in auth.setup.ts.
-const FLIP: Record<Desk, boolean> = { personal: false, parts: false, reseller: true, dealer: true };
+const FLIP: Record<Desk, boolean> = {
+  personal: false,
+  parts: false,
+  reseller: true,
+  dealer: true,
+};
 
 for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
   test.describe(`${desk} desk (local only)`, () => {
@@ -15,7 +20,9 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
     test(`Discover is scoped to the ${desk} desk`, async ({ page }) => {
       const h = watchHealth(page);
       await page.goto("/discover");
-      await expect(page.getByText(/BUYING FOR/i).first()).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/BUYING FOR/i).first()).toBeVisible({
+        timeout: 30_000,
+      });
       await expect(page.getByText(DESK_LABEL[desk]).first()).toBeVisible();
       await expectHealthy(page, h);
     });
@@ -26,7 +33,8 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       const body = await res.json();
       expect(body.deskAccess).toBe(FLIP[desk] ? "flip" : "personal");
       // Personal/parts desks must not receive resale-profit fields.
-      if (!FLIP[desk]) for (const d of body.deals) expect(d.trueNetProfit ?? null).toBeNull();
+      if (!FLIP[desk])
+        for (const d of body.deals) expect(d.trueNetProfit ?? null).toBeNull();
     });
 
     test(`deal page renders for the ${desk} desk`, async ({ page }) => {
@@ -43,7 +51,9 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
         const h = watchHealth(page);
         await page.goto("/parts");
         await expect(page).toHaveURL(/\/parts/);
-        await expect(page.locator("h1").first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator("h1").first()).toBeVisible({
+          timeout: 30_000,
+        });
         await expectHealthy(page, h);
       });
     }
@@ -51,7 +61,9 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       test("dealer desk pipeline (/fleet) renders", async ({ page }) => {
         const h = watchHealth(page);
         await page.goto("/fleet");
-        await expect(page.locator("h1").first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.locator("h1").first()).toBeVisible({
+          timeout: 30_000,
+        });
         await expectHealthy(page, h);
       });
     }

@@ -2,7 +2,8 @@ import { test } from "@playwright/test";
 
 /** Where the suite points. Anything that is not localhost is treated as production. */
 export const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:3000";
-export const IS_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(BASE_URL);
+export const IS_LOCAL =
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(BASE_URL);
 export const IS_PROD = !IS_LOCAL;
 
 export const LOCAL_ONLY_REASON =
@@ -16,6 +17,8 @@ export function localOnly() {
 /** Hard guard used by every helper that creates accounts or writes data. */
 export function assertLocalTarget(action: string) {
   if (!IS_LOCAL) {
-    throw new Error(`Refusing to ${action} against ${BASE_URL}: write flows are local-only.`);
+    throw new Error(
+      `Refusing to ${action} against ${BASE_URL}: write flows are local-only.`,
+    );
   }
 }
