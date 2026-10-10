@@ -8,6 +8,7 @@ import React, {
   useCallback,
   Suspense,
 } from "react";
+import { titleFilterOptions } from "@/lib/deals/title-filter-options";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -3472,24 +3473,18 @@ function ScanPageInner() {
           { value: "private", label: "Private sellers" },
         ];
   }, [facets?.sellerTypes]);
-  const titleTypeOptions = useMemo(() => {
-    const live = Array.isArray(facets?.titleTypes)
-      ? facets.titleTypes
-          .filter((item: any) => item?.value)
-          .map((item: any) => ({
-            value: String(item.value),
-            label: `${item.label || item.value} (${Number(item.count || 0)})`,
-          }))
-      : [];
-    return live.length
-      ? [{ value: "all", label: "Title: All live" }, ...live]
-      : [
-          { value: "all", label: "Title: All" },
-          { value: "clean", label: "Clean Title" },
-          { value: "salvage", label: "Salvage Title" },
-          { value: "rebuilt", label: "Rebuilt Title" },
-        ];
-  }, [facets?.titleTypes]);
+  // Five title buckets (Clean / Rebuilt / Salvage / Rebuildable / Unknown) with live facet
+  // counts, sent as titleType. Shared with Discover, Swipe and Map.
+  const titleTypeOptions = useMemo(
+    () =>
+      titleFilterOptions(
+        facets?.titleTypes,
+        Array.isArray(facets?.titleTypes) && facets.titleTypes.length
+          ? "Title: All live"
+          : "Title: All",
+      ),
+    [facets?.titleTypes],
+  );
   // Build SWR key from filters
   const swrKey = useMemo(() => {
     const params = new URLSearchParams({
