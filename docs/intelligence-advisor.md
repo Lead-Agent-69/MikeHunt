@@ -78,36 +78,84 @@ Multi-site deep links (#220) let users check sites we don't ingest. No data is t
 
 Request (any one of these is enough to start):
 - `{ "q": "<listing URL | VIN | '2018 Civic EX 71k $9,500 60432'>" }`, the single box on /find
-- or fields: `url`, `vin`, `year`, `make`, `model`, `trim`, `mileage`, `price`, `zip`, `title`
-  (clean | salvage | rebuilt | rebuildable). `homeState` is optional and adds the buyer's home as a sell market.
+- `{ "dealId": "<deal uuid>" }`, a car we track: read from our `deals` row (price, source + `source_deal_id`,
+  URL, VIN, `last_seen_at`, `auction_end_at`, price history), never re-scraped. Unknown id → `404 DEAL_NOT_FOUND`.
+- or fields: `url`, `vin`, `year`, `make`, `model`, `trim`, `mileage`, `price`, `zip`, `state`, `title`
+  (clean | salvage | rebuilt | rebuildable). Body fields override a tracked row's values.
+- Location: `zip` and/or `state` (two-letter, incl. DC). Both are validated: an invalid ZIP, an unknown state,
+  or a ZIP in another state is a `400`. Same for the buyer-home override `homeZip` / `homeState`: the
+  signed-in buyer's saved home (`resolveBuyerHome`, server-side) is used by default and body values only
+  override it. No default state.
+- Rate limit: guests 5 requests / min per IP (`check-listing`), signed-in users 20 / min per `user.id`
+  (`check-listing-user`).
+- Anything thrown returns a generic JSON `500` (`{ error, code: "INTERNAL" }`, no error text) with
+  `Cache-Control: private, no-store`; same for `/batch`.
+
+`POST /api/check-listing/batch`, for list cards (tracked deals only):
+- Request `{ "dealIds": ["<uuid>", …] }` (1–20; more is `400 TOO_MANY`), optional `homeState` / `homeZip`.
+- Response `{ desk: "flip" | "personal", reads: { [dealId]: CheckListingRead }, missing: string[] }`
+  (`missing`: unknown ids, or rows without make / model / price).
+- Market data per deal is computed on demand and cached in memory (`lib/cache` `cached`, per instance,
+  10 min TTL) keyed by `dealId + updated_at`. The cache holds the unredacted comps; `readForDesk` runs on
+  every request, so a flip and a personal caller never share a card.
+- Separate rate-limit bucket `check-listing-batch`: 30 requests / min per client (600 cards / min).
+  No external cache or paid service.
+- Both endpoints send `Cache-Control: private, no-store`.
 
 How it reads the car:
 - A URL goes through save-from-url's guarded, IP-pinned fetch (public http(s) only, redirects
-  re-checked), then page selectors plus schema.org JSON-LD.
+  re-checked), then page selectors plus schema.org JSON-LD. An eBay URL also carries its item id, so the
+  car is never its own sold comp.
 - A VIN is decoded with NHTSA vPIC.
 - Prices come only from the page or the user.
 - An unreadable page returns `422 PAGE_UNREADABLE` and asks for the details.
 
-Response `{ read, desk }`, where `read` is `CheckListingRead` (`lib/intelligence/check-listing.ts`):
+Comps (`lib/intelligence/check-listing-data.ts`, service-role reads; nothing reaches the browser except
+the desk-specific card):
+- Live retail asks: last 7 days, `eligibleAskingPrices` (no auction bids) and `isLiveDeal` (not stale,
+  frozen or ended).
+- Sales: `sold_listings`, last 180 days, USD/US, with `location_state`, `source` (default `ebay_motors`),
+  `source_item_id` as the source id, VIN, and the headline title through market-value `soldTitleLane`.
+  Once the `basis` migration lands (separate PR), this query filters `basis = 'sold'`.
+- Same model by normalized name (not the first word), same trim when ≥ 3 comps share it, and ±25,000
+  miles when the car's mileage is known.
 
-| Field | Meaning | Basis |
+Response `{ read, desk }`, where `read` is `CheckListingRead` (`lib/intelligence/check-listing.ts`).
+`readForDesk` picks the card: the flip desk gets `readListing`; everyone else gets `readPersonal`, which
+never runs the flip evaluation, gated server-side: retail confidence `none` or `low` → verdict
+`not_enough_data` (no Buy / Wait / Pass, `priceRating` null; fair value and its label stay). An unknown
+title caps confidence at low, so a personal check needs a stated title (or 6+ sales / listings with one)
+to get a verdict.
+
+| Field | Flip desk (`readListing`) | Personal desk (`readPersonal`) |
 | --- | --- | --- |
-| `verdict` | `buy` / `wait` / `pass` / `not_enough_data` | |
-| `headline` | one sentence under the verdict | |
-| `fairValue` | what comps say it's worth where it sits | `measured` (sold) / `estimate` (asks × 0.95) / `insufficient` |
-| `maxBuy` | flip desk: highest price that still clears the target profit (≥ $1,000 or 10% of resale). Personal desk: fair value | same |
-| `resale` + `resale.state` | expected resale in the best sell market (state comps ≥ 3, or the buyer's home) | same |
-| `profit` | net after fees, transport, recon, repair and selling cost (engine cost line) | same |
-| `confidence` | engine confidence label + score | |
-| `why` | 2–4 sentences: comps used, cost line, trend (`market_timing_signals`), the listing's own price history, title | |
-| `assumptions` | every unmeasured input, from the engine | |
+| `verdict` | `buy` / `wait` / `pass` / `not_enough_data` / `not_live` from net profit and engine confidence | `buy` / `wait` / `pass` / `not_enough_data` / `not_live` from price vs retail fair value |
+| `priceRating` | null | `good` / `fair` / `negotiate` / `over` |
+| `fairValue` | dealer resale where the car sits (engine; asks × 0.95) | retail fair value (`retailFairValue`): `label`, `kind` sold/ask, `range` p25–p75 |
+| `maxBuy` | highest price that still clears the target profit (engine `maxAskForNet`) | fair value, rounded down to $50 |
+| `resale` + `resale.state` | expected resale in the best sell market | always null |
+| `profit` | engine cost line and net | null |
+| `confidence` | engine label + score | retail label (score null) |
+| `why`, `assumptions`, `comps` | from the sell-market evaluation | from the at-location retail valuation only; no sell state anywhere |
+| `live` | the tracked row's freshness (`isLiveDeal`: `stale` / `frozen` / `ended` → `not_live`, never Buy); a page fetched now is live | same |
+| `trend` | model-wide `market_timing_signals`, `usedInVerdict: false`; not shown and never changes the verdict until timing is like-for-like | same |
+
+Retail fair value (`lib/intelligence/retail-fair-value.ts`), personal desk only:
+1. Sold retail comps, last 180 days: same state n ≥ 3, else national n ≥ 3; copart / iaa / manheim / adesa /
+   acv are excluded. Label: "Typical selling price · N recent sales[ in ST]". Verdict: ≤ fair Buy,
+   ≤ fair × 1.05 Wait (negotiate), above Pass.
+2. Else live retail asks, median with no 0.95 haircut (`aggregateComps` `askToSold: 1`). Label: "Typical asking
+   price · N live listings (asking prices, not sales)". Verdict: ≤ p25 good (Buy), ≤ median fair (Buy),
+   ≤ median × 1.05 negotiate (Wait), above over market (Pass).
+- Same title lane only, and ±25k miles when the mileage is known.
+- Confidence: 12 / 6 / 3 comps → high / medium / low; asks cap at medium; median comp older than 90 days
+  drops one step; unknown title caps at low; < 3 comps → not enough data.
 
 Engines reused, not re-implemented:
-- `lib/arbitrage` `evaluateOpportunity` handles comps, title categories, fees, transport, recon, repair, selling cost and confidence.
-- `comps-aggregate` never uses a listing as its own comp; the check also drops the pasted URL/VIN.
-- `eligibleAskingPrices` keeps auction bids out of retail comps.
+- `lib/arbitrage` `evaluateOpportunity` handles comps, title categories, fees, transport, recon, repair, selling cost and confidence (flip desk).
+- `comps-aggregate` never uses a listing as its own comp; the check also drops the pasted URL / VIN (normalized, `isSameVehicleOrListing`) and source + source id.
 
 Desk gate:
-- Personal buyers get the verdict against fair value, Buy ≤ and fair value.
+- Personal buyers (and signed-out callers) get the retail card: verdict, price rating, Buy ≤ and fair value.
 - Profit, resale and where to sell are flip-desk only.
-- Signed-out callers are treated as personal.
+- Responses are `Cache-Control: private, no-store`.

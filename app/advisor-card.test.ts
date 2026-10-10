@@ -62,9 +62,23 @@ describe("AdvisorCard (Sara's layout)", () => {
     expect(out).toContain("Expected sale in TX");
   });
 
+  it("not_live shows Listing not live with no Buy", () => {
+    const out = html({ state: "not_live", headline: "Listing not live", reason: "This listing left the market." });
+    expect(out).toContain("Listing not live");
+    expect(out).not.toMatch(/\$\d|data-verdict/);
+  });
+
+  it("fair_only shows the labelled fair value and no verdict", () => {
+    const out = html({ state: "fair_only", headline: "Not enough data", reason: "Not enough sales to call it.", fairValue: { value: 11400, basisLabel: "Typical asking price · 4 listings in IL" }, confidenceNote: null });
+    expect(out).toContain("$11,400");
+    expect(out).toContain("Typical asking price");
+    expect(out).not.toMatch(/data-verdict/);
+  });
+
   it("deal detail renders the card with an isFlipBuyerMode desk gate", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
     expect(page).toContain("<AdvisorCard");
+    expect(page).toMatch(/deal=\{\{ \.\.\.serverDeal, id \}\}/);
     expect(page).toMatch(/isFlipBuyerMode\(\s*readLocalBuyerIntent\(\)\?\.buyerMode \|\| prefs\.buyerScope\?\.buyerMode/);
   });
 });

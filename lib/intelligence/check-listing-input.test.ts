@@ -1,19 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { parseCheckListingBody } from "./check-listing-input";
-import { readForDesk } from "./check-listing-data";
-import { readListing } from "./check-listing";
+import { parseCheckListingBody, parseLocation } from "./check-listing-input";
+import { readListing, readPersonal } from "./check-listing";
 
 describe("check any listing: one input", () => {
   it("a pasted link is a URL check", () => {
-    expect(parseCheckListingBody({ q: "https://www.cars.com/vehicledetail/123/" })).toMatchObject({
+    expect(
+      parseCheckListingBody({ q: "https://www.cars.com/vehicledetail/123/" }),
+    ).toMatchObject({
       url: "https://www.cars.com/vehicledetail/123/",
     });
   });
   it("free text gives year, make, model, miles, price, ZIP and title", () => {
-    const r = parseCheckListingBody({ q: "2018 Honda Civic EX 71k mi $9,500 60432 salvage" });
+    const r = parseCheckListingBody({
+      q: "2018 Honda Civic EX 71k mi $9,500 60432 salvage",
+    });
     expect(r).toMatchObject({
       url: null,
-      fields: { year: 2018, make: "Honda", model: "Civic EX", mileage: 71000, price: 9500, zip: "60432", title: "salvage" },
+      fields: {
+        year: 2018,
+        make: "Honda",
+        model: "Civic EX",
+        mileage: 71000,
+        price: 9500,
+        zip: "60432",
+        title: "salvage",
+      },
     });
   });
   it("a VIN alone is enough to start", () => {
@@ -22,12 +33,20 @@ describe("check any listing: one input", () => {
     });
   });
   it("structured fields win over the text", () => {
-    const r = parseCheckListingBody({ q: "2018 Honda Civic $9,500", price: "8,900", zip: "75001" });
-    expect(r).toMatchObject({ fields: { price: 8900, zip: "75001", make: "Honda" } });
+    const r = parseCheckListingBody({
+      q: "2018 Honda Civic $9,500",
+      price: "8,900",
+      zip: "75001",
+    });
+    expect(r).toMatchObject({
+      fields: { price: 8900, zip: "75001", make: "Honda" },
+    });
   });
   it("rejects nothing-to-check and non-http links", () => {
     expect(parseCheckListingBody({})).toHaveProperty("error");
-    expect(parseCheckListingBody({ url: "file:///etc/passwd" })).toHaveProperty("error");
+    expect(parseCheckListingBody({ url: "file:///etc/passwd" })).toHaveProperty(
+      "error",
+    );
   });
 });
 
@@ -42,26 +61,79 @@ describe("desk gate", () => {
     observedAt: new Date(NOW - (i + 1) * 86_400_000).toISOString(),
     title: "clean_title",
   }));
-  const base = { year: 2018, make: "Honda", model: "Civic", state: "IL", title: "clean" };
+  const base = {
+    year: 2018,
+    make: "Honda",
+    model: "Civic",
+    state: "IL",
+    title: "clean",
+  };
 
   it("flip desk keeps profit and where to sell", () => {
-    const r = readForDesk(readListing({ ...base, price: 9000 }, comps, { now: NOW }), true);
-    expect(r.profit.net).not.toBeNull();
+    const r = readListing({ ...base, price: 9000 }, comps, { now: NOW });
+    expect(r.desk).toBe("flip");
+    expect(r.profit!.net).not.toBeNull();
     expect(r.resale.value).not.toBeNull();
   });
-  it("personal desk: Buy ≤ is fair value, no profit or resale market", () => {
-    const flip = readListing({ ...base, price: 14000 }, comps, { now: NOW });
-    const r = readForDesk(flip, false);
-    expect(r.profit.net).toBeNull();
+  it("personal desk: Buy ≤ is the retail fair value, no profit or resale market", () => {
+    const r = readPersonal({ ...base, price: 14000 }, comps, { now: NOW });
+    expect(r.desk).toBe("personal");
+    expect(r.profit).toBeNull();
     expect(r.resale.value).toBeNull();
     expect(r.resale.state).toBeNull();
-    expect(r.maxBuy.value).toBe(Math.floor(flip.fairValue.value! / 50) * 50);
+    expect(r.fairValue.value).toBe(15350); // median retail ask, no haircut
+    expect(r.maxBuy.value).toBe(Math.floor(15350 / 50) * 50);
     expect(r.verdict).toBe("buy");
     expect(r.why.some((w) => w.startsWith("After fees"))).toBe(false);
   });
-  it("personal desk: overpriced is Pass with the gap", () => {
-    const r = readForDesk(readListing({ ...base, price: 18000 }, comps, { now: NOW }), false);
+  it("personal desk: over market is Pass with the gap", () => {
+    const r = readPersonal({ ...base, price: 18000 }, comps, { now: NOW });
     expect(r.verdict).toBe("pass");
-    expect(r.headline).toMatch(/Overpriced by about \$/);
+    expect(r.priceRating).toBe("over");
+    expect(r.headline).toMatch(/Over market: about \$/);
+  });
+});
+
+describe("dealId and location", () => {
+  const ID = "00000000-0000-4000-8000-000000000001";
+  it("dealId alone is enough; a malformed id is an error", () => {
+    expect(parseCheckListingBody({ dealId: ID })).toMatchObject({
+      dealId: ID,
+      url: null,
+    });
+    expect(parseCheckListingBody({ dealId: "123" })).toHaveProperty("error");
+  });
+  it("location: ZIP, state, or both (must agree); bad values are errors, never defaults", () => {
+    expect(parseLocation("60432", null, "car's")).toEqual({
+      zip: "60432",
+      state: "IL",
+    });
+    expect(parseLocation(null, "tx", "car's")).toEqual({
+      zip: null,
+      state: "TX",
+    });
+    expect(parseLocation(null, null, "car's")).toEqual({
+      zip: null,
+      state: null,
+    });
+    expect(parseLocation("60432", "TX", "car's")).toHaveProperty("error");
+    expect(parseLocation("123", null, "car's")).toHaveProperty("error");
+    expect(parseLocation(null, "QQ", "car's")).toHaveProperty("error");
+    const p = parseCheckListingBody({
+      make: "Honda",
+      model: "Civic",
+      state: "il",
+      homeZip: "53703",
+    });
+    expect(p).toMatchObject({
+      fields: { state: "IL" },
+      homeState: "WI",
+      homeZip: "53703",
+    });
+  });
+  it("a 5-digit number in free text that is not a ZIP is ignored, not an error", () => {
+    const p = parseCheckListingBody({ q: "2018 Honda Civic $9,000 00000" });
+    expect(p).not.toHaveProperty("error");
+    expect((p as any).fields.zip).toBeUndefined();
   });
 });

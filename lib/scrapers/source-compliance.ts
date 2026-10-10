@@ -11,6 +11,8 @@
  * Rows stay URL-only (CACHE_PHOTOS_MAX=0). Nothing here changes prices.
  */
 
+import { politeUserAgent } from "./polite/identity";
+
 export type PolicyBlockKind =
   | "tos_bans_bots"
   | "tos_bans_copying"
@@ -280,7 +282,7 @@ export function createRobotsGate(
         try {
           const res = await fetchImpl(`${origin}/robots.txt`, {
             headers: {
-              "User-Agent": "Mozilla/5.0 (compatible; MikeHuntBot/1.0)",
+              "User-Agent": politeUserAgent(),
             },
             signal: AbortSignal.timeout(15_000),
           });

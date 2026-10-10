@@ -95,7 +95,37 @@ export interface MarketComps {
   // vs a wide Silverado one) instead of a fixed ratio, so the analyzer can flag "priced below anything this
   // vehicle actually sells for" with no keywords. Null when there aren't enough comps to be meaningful.
   retailLowFence?: number | null;
+  // Exact self-exclusion (see lookupMarketValue `self`). `selfChecked` is true when the caller
+  // identified the listing being graded (deal id, or source + source_deal_id), so membership in the
+  // comp pool is known exactly and no approximate guard is needed. `excludedSelf` is 1 when that
+  // listing's own row was removed from the bucket behind this figure.
+  selfChecked?: boolean;
+  excludedSelf?: number;
 }
+
+/** The listing being graded. Matched exactly against the comp pool by id, or source + source_deal_id. */
+export interface MarketSelf {
+  id?: string | null;
+  source?: string | null;
+  sourceDealId?: string | null;
+}
+
+type Bucket = {
+  retail: number[];
+  wholesale: number[];
+  retailMiles: number[];
+};
+
+// Where one listing's own row landed in the index, so it can be removed exactly at lookup time.
+type SelfEntry = {
+  lane: "retail" | "wholesale";
+  k: string;
+  tk: string | null;
+  sk: string;
+  price: number;
+  miles: number | null;
+  year: number | null;
+};
 
 let computed: Map<string, MarketComps> | null = null;
 // Trim-level index (make|model|year|trim) — the sharper PRIMARY tier; `computed` is the fallback.
@@ -120,6 +150,10 @@ let soldIndex: Map<string, SoldMedian> | null = null;
 let soldByState: Map<string, SoldMedian> | null = null;
 let salvageSoldIndex: Map<string, SoldMedian> | null = null;
 let salvageSoldByState: Map<string, SoldMedian> | null = null;
+// Raw buckets behind `computed` / `computedTrim`, and each comp row's identity → bucket entry.
+let rawBuckets: Map<string, Bucket> | null = null;
+let rawTrimBuckets: Map<string, Bucket> | null = null;
+let selfIndex: Map<string, SelfEntry> | null = null;
 
 const modelKey = (make?: string | null, model?: string | null) =>
   `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}`;
@@ -133,9 +167,30 @@ export function __resetMarketIndexForTest() {
   soldByState = null;
   salvageSoldIndex = null;
   salvageSoldByState = null;
+  rawBuckets = null;
+  rawTrimBuckets = null;
+  selfIndex = null;
   loadedAt = 0;
   loadingPromise = null;
 }
+
+const selfKeys = (
+  id?: string | null,
+  source?: string | null,
+  sourceDealId?: string | null,
+): string[] => {
+  const out: string[] = [];
+  const i = String(id || "").trim();
+  if (i) out.push(`id:${i}`);
+  const src = String(source || "")
+    .trim()
+    .toLowerCase();
+  const sid = String(sourceDealId || "")
+    .trim()
+    .toLowerCase();
+  if (src && sid) out.push(`src:${src}|${sid}`);
+  return out;
+};
 
 /** Normalize a model string so 'f-150', 'f150', 'F 150' all collapse to one token. */
 function normalizeModel(model?: string | null): string {
@@ -238,6 +293,64 @@ function median(prices: number[]): number | null {
   return use[Math.floor(use.length / 2)];
 }
 
+// Turn a raw bucket into its MarketComps figure (median + age-aware ask→sold haircut + dispersion-aware
+// confidence). Shared by the model-level and trim-level indexes — year is field [2] of both keys.
+function computeBucket(b: Bucket, k: string): MarketComps {
+  const nowYear = new Date().getFullYear();
+  const retailMed = median(b.retail);
+  const milesMed = median(b.retailMiles);
+  const bucketYear = parseInt(k.split("|")[2], 10);
+  const yrAge = Number.isFinite(bucketYear)
+    ? Math.max(0, nowYear - bucketYear)
+    : 0;
+  const haircut = yrAge >= 18 ? 0.84 : yrAge >= 11 ? 0.89 : ASK_TO_SOLD;
+  return {
+    retail: retailMed != null ? Math.round(retailMed * haircut) : null,
+    wholesale: median(b.wholesale),
+    nRetail: b.retail.length,
+    nWholesale: b.wholesale.length,
+    mileageMed: milesMed != null ? Math.round(milesMed) : null,
+    confidence: confidenceFor(b.retail.length, b.retail),
+    retailLowFence: lowFence(b.retail),
+  };
+}
+
+const CONF_RANK = { none: 0, low: 1, medium: 2, high: 3 } as const;
+
+function removeOne(xs: number[], v: number | null): number[] {
+  const out = [...xs];
+  if (v == null) return out;
+  const i = out.indexOf(v);
+  if (i >= 0) out.splice(i, 1);
+  return out;
+}
+
+/** Recompute one bucket without the graded listing's own row. Confidence can only go down. */
+function bucketWithoutSelf(
+  raw: Bucket | undefined,
+  k: string,
+  e: SelfEntry,
+  original: MarketComps | undefined,
+): MarketComps | undefined {
+  if (!raw || !original) return original;
+  const b: Bucket =
+    e.lane === "retail"
+      ? {
+          retail: removeOne(raw.retail, e.price),
+          wholesale: raw.wholesale,
+          retailMiles: removeOne(raw.retailMiles, e.miles),
+        }
+      : {
+          retail: raw.retail,
+          wholesale: removeOne(raw.wholesale, e.price),
+          retailMiles: raw.retailMiles,
+        };
+  const next = computeBucket(b, k);
+  if (CONF_RANK[next.confidence] > CONF_RANK[original.confidence])
+    next.confidence = original.confidence;
+  return { ...next, excludedSelf: 1 };
+}
+
 /**
  * Load/refresh the in-memory market index from `deals`. Cached for TTL_MS so a full scrape
  * run only pays for it once. Call before scoring a batch.
@@ -287,7 +400,7 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at",
+        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gte(
@@ -324,12 +437,12 @@ async function loadMarketIndexUnlocked(
     return;
   }
 
-  type Bucket = {
-    retail: number[];
-    wholesale: number[];
-    retailMiles: number[];
-  };
   const buckets = new Map<string, Bucket>();
+  const selfIdx = new Map<string, SelfEntry>();
+  const remember = (r: any, entry: SelfEntry) => {
+    for (const sk of selfKeys(r.id, r.source, r.source_deal_id))
+      selfIdx.set(sk, entry);
+  };
   const trimBuckets = new Map<string, Bucket>(); // parallel trim-level index
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
@@ -360,6 +473,18 @@ async function loadMarketIndexUnlocked(
       const isPaymentPrice = looksLikePaymentPrice(r.title);
       if (!isSalvage && !isPaymentPrice) {
         b.retail.push(r.ask_price);
+        remember(r, {
+          lane: "retail",
+          k,
+          tk: normalizeTrim(r.trim)
+            ? trimKey(r.make, r.model, r.year, r.trim)
+            : null,
+          sk,
+          price: r.ask_price,
+          miles:
+            typeof r.mileage === "number" && r.mileage > 0 ? r.mileage : null,
+          year: r.year && r.year > 1950 ? r.year : null,
+        });
         if (typeof r.mileage === "number" && r.mileage > 0)
           b.retailMiles.push(r.mileage);
         if (r.year && r.year > 1950) {
@@ -381,36 +506,27 @@ async function loadMarketIndexUnlocked(
       }
     } else {
       b.wholesale.push(r.ask_price);
+      remember(r, {
+        lane: "wholesale",
+        k,
+        tk: null,
+        sk,
+        price: r.ask_price,
+        miles: null,
+        year: null,
+      });
     }
   }
 
-  const nowYear = new Date().getFullYear();
-  // Turn a raw bucket into its MarketComps figure (median + age-aware ask→sold haircut + dispersion-aware
-  // confidence). Shared by the model-level and trim-level indexes — year is field [2] of both keys.
-  const computeBucket = (b: Bucket, k: string): MarketComps => {
-    const retailMed = median(b.retail);
-    const milesMed = median(b.retailMiles);
-    const bucketYear = parseInt(k.split("|")[2], 10);
-    const yrAge = Number.isFinite(bucketYear)
-      ? Math.max(0, nowYear - bucketYear)
-      : 0;
-    const haircut = yrAge >= 18 ? 0.84 : yrAge >= 11 ? 0.89 : ASK_TO_SOLD;
-    return {
-      retail: retailMed != null ? Math.round(retailMed * haircut) : null,
-      wholesale: median(b.wholesale),
-      nRetail: b.retail.length,
-      nWholesale: b.wholesale.length,
-      mileageMed: milesMed != null ? Math.round(milesMed) : null,
-      confidence: confidenceFor(b.retail.length, b.retail),
-      retailLowFence: lowFence(b.retail),
-    };
-  };
   const next = new Map<string, MarketComps>();
   buckets.forEach((b, k) => next.set(k, computeBucket(b, k)));
   const nextTrim = new Map<string, MarketComps>();
   trimBuckets.forEach((b, k) => nextTrim.set(k, computeBucket(b, k)));
   computed = next;
   computedTrim = nextTrim;
+  rawBuckets = buckets;
+  rawTrimBuckets = trimBuckets;
+  selfIndex = selfIdx;
   supplyByModel = supply;
   retailByModel = byModel;
   loadedAt = Date.now();
@@ -727,9 +843,20 @@ function lookupModelAdjusted(
   make?: string | null,
   model?: string | null,
   year?: number | null,
+  exclude?: { year: number; price: number } | null,
 ): MarketComps | null {
   if (!retailByModel || !year || year < 1950) return null;
-  const comps = retailByModel.get(modelKey(make, model));
+  let comps = retailByModel.get(modelKey(make, model));
+  let excludedSelf = 0;
+  if (comps && exclude) {
+    const i = comps.findIndex(
+      (c) => c.year === exclude.year && c.price === exclude.price,
+    );
+    if (i >= 0) {
+      comps = [...comps.slice(0, i), ...comps.slice(i + 1)];
+      excludedSelf = 1;
+    }
+  }
   if (!comps || comps.length < MIN_SAMPLES) return null;
   const targetBase = estimateBaselineValue(year, make, model);
   if (targetBase <= 0) return null;
@@ -759,29 +886,86 @@ function lookupModelAdjusted(
     nRetail: adjusted.length,
     nWholesale: 0,
     confidence: capped,
+    ...(excludedSelf ? { excludedSelf } : {}),
   };
 }
 
+/**
+ * Retail market value for a make/model/year(/trim). Pass `self` (the listing being graded) to
+ * remove that listing's own ask from the comps exactly — by deal id, or source + source_deal_id —
+ * instead of approximating it. A bucket left under MIN_SAMPLES by the exclusion yields no retail
+ * value; confidence can only go down. The result carries `selfChecked` when `self` had an identity.
+ */
 export function lookupMarketValue(
   make?: string | null,
   model?: string | null,
   year?: number | null,
   trim?: string | null,
+  self?: MarketSelf | null,
+): MarketComps | null {
+  const r = lookupMarketValueInner(make, model, year, trim, self);
+  if (!r || !self) return r;
+  const checked =
+    selfKeys(self.id, self.source, self.sourceDealId).length > 0 &&
+    selfIndex != null;
+  return checked ? { ...r, selfChecked: true } : r;
+}
+
+function findSelf(self?: MarketSelf | null): SelfEntry | null {
+  if (!self || !selfIndex) return null;
+  for (const k of selfKeys(self.id, self.source, self.sourceDealId)) {
+    const e = selfIndex.get(k);
+    if (e) return e;
+  }
+  return null;
+}
+
+function lookupMarketValueInner(
+  make?: string | null,
+  model?: string | null,
+  year?: number | null,
+  trim?: string | null,
+  self?: MarketSelf | null,
 ): MarketComps | null {
   if (!computed) return null;
+  const e = findSelf(self);
   // PRIMARY tier: the trim-level bucket when it's deep enough. Backtested ~30% more accurate (a base trim
   // no longer priced off a performance/luxury trim). Falls through to the model-level logic below when the
   // trim bucket is thin or absent, so coverage never drops.
   if (trim && computedTrim && normalizeTrim(trim)) {
-    const t = computedTrim.get(trimKey(make, model, year, trim));
+    const tk = trimKey(make, model, year, trim);
+    const raw = computedTrim.get(tk);
+    const t =
+      e && e.tk === tk
+        ? bucketWithoutSelf(rawTrimBuckets?.get(tk), tk, e, raw)
+        : raw;
     if (t && t.retail != null && t.nRetail >= 6) return t;
   }
-  const exact = computed.get(key(make, model, year)) || null;
+  const k = key(make, model, year);
+  const rawExact = computed.get(k);
+  const exact =
+    (e && e.k === k
+      ? bucketWithoutSelf(rawBuckets?.get(k), k, e, rawExact)
+      : rawExact) || null;
   // A solid exact-bucket figure (medium+) is the most trustworthy — use it directly.
   if (exact && exact.retail != null && exact.nRetail >= 6) return exact;
 
   // Thin or missing exact bucket → try the year-adjusted same-model tier.
-  const adj = lookupModelAdjusted(make, model, year);
+  const mk = modelKey(make, model);
+  const adjRaw =
+    e && e.lane === "retail" && e.sk === mk && e.year != null
+      ? lookupModelAdjusted(make, model, year, null)
+      : null;
+  let adj = lookupModelAdjusted(
+    make,
+    model,
+    year,
+    e && e.lane === "retail" && e.sk === mk && e.year != null
+      ? { year: e.year, price: e.price }
+      : null,
+  );
+  if (adj && adjRaw && CONF_RANK[adj.confidence] > CONF_RANK[adjRaw.confidence])
+    adj = { ...adj, confidence: adjRaw.confidence };
   const exactUsable =
     exact && exact.retail != null && exact.nRetail >= MIN_SAMPLES
       ? exact
