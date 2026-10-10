@@ -113,7 +113,7 @@ describe("market_timing_signals + stripe_events server-only migration", () => {
     );
   });
 
-  it("column recheck migration: has_any_column_privilege for S/I/U/REFERENCES, no client role membership", () => {
+  it("column recheck migration: has_any_column_privilege for S/I/U/REFERENCES, no privileged membership, no superuser/bypassrls", () => {
     const body = columnRecheck.replace(/--[^\n]*/g, "");
     expect(body).not.toMatch(/\b(GRANT|REVOKE|ALTER|CREATE|DROP|COMMENT)\b/i);
     expect(body).toMatch(/ARRAY\['anon', 'authenticated'\]/);
@@ -122,9 +122,16 @@ describe("market_timing_signals + stripe_events server-only migration", () => {
       /has_any_column_privilege\(r, 'public\.market_timing_signals', p\)/,
     );
     expect(body).toMatch(/has_any_column_privilege\(r, 'public\.stripe_events', p\)/);
-    expect(body).toMatch(/pg_has_role\(r, g, 'MEMBER'\)/);
     expect(body).toContain(
-      "ARRAY['service_role', 'postgres', 'supabase_admin', 'authenticator']",
+      "ARRAY['service_role', 'postgres', 'supabase_admin', 'authenticator', 'pg_read_all_data', 'pg_write_all_data']",
+    );
+    // nested IF, not EXISTS(...) AND pg_has_role(...): pg_has_role errors on a missing role
+    expect(body).toMatch(
+      /IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = g\) THEN\s+IF pg_has_role\(r, g, 'MEMBER'\) THEN/,
+    );
+    expect(body).not.toMatch(/\bAND\s+pg_has_role\b/i);
+    expect(body).toMatch(
+      /FROM pg_roles WHERE rolname = r AND \(rolsuper OR rolbypassrls\)/,
     );
   });
 

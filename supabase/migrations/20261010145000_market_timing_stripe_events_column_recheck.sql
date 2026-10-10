@@ -5,8 +5,9 @@
 -- GRANT SELECT (id) ON public.stripe_events TO anon would pass every earlier check and still be
 -- readable over PostgREST, so this checks has_any_column_privilege for every column-grantable
 -- privilege (SELECT, INSERT, UPDATE, REFERENCES).
--- It also fails if a client role is a member of a privileged role (GRANT service_role TO anon),
--- which would give it every privilege that role holds.
+-- It also fails if a client role is a member of a privileged role (GRANT service_role TO anon,
+-- or the predefined pg_read_all_data / pg_write_all_data, which bypass table grants), or if a
+-- client role has SUPERUSER or BYPASSRLS.
 --
 -- Order: apply after 20261010140000_market_timing_stripe_events_recheck. Needs Ren SIGN before any
 -- hosted apply.
@@ -27,11 +28,19 @@ BEGIN
       END IF;
     END LOOP;
 
-    FOREACH g IN ARRAY ARRAY['service_role', 'postgres', 'supabase_admin', 'authenticator'] LOOP
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = g) AND pg_has_role(r, g, 'MEMBER') THEN
-        RAISE EXCEPTION '% is a member of %', r, g;
+    FOREACH g IN ARRAY ARRAY['service_role', 'postgres', 'supabase_admin', 'authenticator', 'pg_read_all_data', 'pg_write_all_data'] LOOP
+      -- Nested IF: plpgsql does not promise AND short-circuits, and pg_has_role errors on a
+      -- role that does not exist.
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = g) THEN
+        IF pg_has_role(r, g, 'MEMBER') THEN
+          RAISE EXCEPTION '% is a member of %', r, g;
+        END IF;
       END IF;
     END LOOP;
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r AND (rolsuper OR rolbypassrls)) THEN
+      RAISE EXCEPTION '% has SUPERUSER or BYPASSRLS', r;
+    END IF;
   END LOOP;
 END
 $$;
