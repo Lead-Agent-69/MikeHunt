@@ -1,6 +1,5 @@
 "use client";
 
-import { zipToState } from "@/lib/geo/zip-state";
 import React, {
   useState,
   useEffect,
@@ -2577,14 +2576,16 @@ function ScanPageInner() {
         if (p.maxYear) setMaxYear(String(p.maxYear));
         if (p.minPrice) setMinPrice(String(p.minPrice));
         if (p.maxMileage) setMaxMileage(String(p.maxMileage));
-        // A ZIP narrows to its state until radius search lands here ("near 60601" → IL).
-        const zipState = p.zip && !p.state ? zipToState(p.zip) : null;
-        if (zipState) setState(zipState);
+        // "near 60601" / "within 50 miles of 60601" → ZIP + radius search.
+        if (p.zip) {
+          setZip(String(p.zip));
+          setRadius(String(p.radius || 100));
+        }
 
         const structured = !!(
           p.make ||
           p.state ||
-          zipState ||
+          p.zip ||
           p.maxPrice ||
           p.minPrice ||
           p.targetProfit ||
@@ -2645,6 +2646,9 @@ function ScanPageInner() {
   );
   const [minPrice, setMinPrice] = useState("any");
   const [maxYear, setMaxYear] = useState("any");
+  // Guest-friendly ZIP + radius search ("" = off).
+  const [zip, setZip] = useState("");
+  const [radius, setRadius] = useState("100");
   const [showMore, setShowMore] = useState(false);
   const [planPreviewing, setPlanPreviewing] = useState(false);
   const [runImporting, setRunImporting] = useState(false);
@@ -2725,6 +2729,8 @@ function ScanPageInner() {
         "minProfit",
         "minYear",
         "maxYear",
+        "zip",
+        "radius",
         "minMileage",
         "maxMileage",
         "damage",
@@ -2760,6 +2766,10 @@ function ScanPageInner() {
     setMinProfit(urlParams.get("minProfit") || "any");
     setMinYear(urlParams.get("minYear") || "any");
     setMaxYear(urlParams.get("maxYear") || "any");
+    setZip(
+      /^\d{5}$/.test(urlParams.get("zip") || "") ? urlParams.get("zip")! : "",
+    );
+    setRadius(urlParams.get("radius") || "100");
     setMaxMileage(urlParams.get("maxMileage") || "any");
     setMinMileage(urlParams.get("minMileage") || "any");
     setDamage(urlParams.get("damage") || "all");
@@ -2969,6 +2979,7 @@ function ScanPageInner() {
     setMinProfit("any");
     setMinYear("any");
     setMaxYear("any");
+    setZip("");
     setMaxMileage("any");
     setTitleType("all");
     setLane("all");
@@ -3026,6 +3037,11 @@ function ScanPageInner() {
     { label: "Max price", value: maxPrice, clear: () => setMaxPrice("any") },
     { label: "Year from", value: minYear, clear: () => setMinYear("any") },
     { label: "Year to", value: maxYear, clear: () => setMaxYear("any") },
+    {
+      label: "Near",
+      value: zip ? `${zip} · ${radius} mi` : "any",
+      clear: () => setZip(""),
+    },
     {
       label: "Min miles",
       value: minMileage,
@@ -3274,6 +3290,10 @@ function ScanPageInner() {
       if (smartPlan.scope.minYear)
         params.set("minYear", String(smartPlan.scope.minYear));
       if (maxYear !== "any") params.set("maxYear", maxYear);
+      if (/^\d{5}$/.test(zip)) {
+        params.set("zip", zip);
+        params.set("radius", radius);
+      }
       if (minMileage !== "any")
         params.set("minMileage", minMileage.replace("k", "000"));
       if (smartPlan.scope.maxMileage)
@@ -3341,6 +3361,8 @@ function ScanPageInner() {
     sellerTypeFilter,
     minPrice,
     maxYear,
+    zip,
+    radius,
     minMileage,
     damage,
     body,
@@ -3525,6 +3547,10 @@ function ScanPageInner() {
       params.set("minPrice", minPrice.replace("k", "000"));
     if (minYear !== "any") params.set("minYear", minYear);
     if (maxYear !== "any") params.set("maxYear", maxYear);
+    if (/^\d{5}$/.test(zip)) {
+      params.set("zip", zip);
+      params.set("radius", radius);
+    }
     if (maxMileage !== "any")
       params.set("maxMileage", maxMileage.replace("k", "000"));
     if (minMileage !== "any")
@@ -3567,6 +3593,8 @@ function ScanPageInner() {
     minPrice,
     minYear,
     maxYear,
+    zip,
+    radius,
     maxMileage,
     availability,
     verdict,
@@ -4935,6 +4963,39 @@ function ScanPageInner() {
                 value={maxYear}
                 onChange={setMaxYear}
               />
+            </FilterGroup>
+
+            <FilterGroup label="Near">
+              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+                ZIP
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={5}
+                  aria-label="ZIP"
+                  placeholder="Any"
+                  value={zip}
+                  onChange={(e) =>
+                    setZip(e.target.value.replace(/\D/g, "").slice(0, 5))
+                  }
+                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+                Within
+                <select
+                  aria-label="Radius"
+                  value={radius}
+                  onChange={(e) => setRadius(e.target.value)}
+                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+                >
+                  {["25", "50", "100", "200", "500"].map((r) => (
+                    <option key={r} value={r}>
+                      {r} mi
+                    </option>
+                  ))}
+                </select>
+              </label>
             </FilterGroup>
 
             <FilterGroup label="Condition">
