@@ -379,7 +379,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     auctionEndAt: deal.auctionEndAt,
     bidCount: (deal as any).bidCount,
     firstSeenAt: deal.firstSeenAt,
-    lastSeenAt: deal.lastSeenAt,
+    lastSeenAt: deal.lastSeenAt ?? undefined,
     imageUrl: images[0],
     vin: deal.vin,
     sourceUrl: deal.sourceUrl,

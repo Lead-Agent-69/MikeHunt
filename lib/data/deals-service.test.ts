@@ -171,3 +171,20 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     expect(deals[0].seller).toBe("Bob's Yard");
   });
 });
+
+describe("DealsService.mapDbToDeal last_seen", () => {
+  const map = (row: Record<string, unknown>) =>
+    (new DealsService() as any).mapDbToDeal({ id: "x", ...row });
+
+  it("is null when last_seen_at is missing or bad, never a 1970 date", () => {
+    for (const v of [null, undefined, "", "not a date"]) {
+      expect(map({ last_seen_at: v }).lastSeenAt, String(v)).toBeNull();
+    }
+  });
+
+  it("is a Date for a real timestamp", () => {
+    const d = map({ last_seen_at: "2026-10-10T05:00:00Z" }).lastSeenAt;
+    expect(d).toBeInstanceOf(Date);
+    expect(d.toISOString()).toBe("2026-10-10T05:00:00.000Z");
+  });
+});
