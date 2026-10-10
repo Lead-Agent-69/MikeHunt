@@ -180,3 +180,15 @@ describe("fetchPublicImage signal + byte cap", () => {
     expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(10 * 1024 * 1024);
   });
 });
+
+describe("image byte cap can't be disabled by a bad maxBytes", () => {
+  it.each([NaN, -1, 0, Infinity, -Infinity])(
+    "maxBytes=%s falls back to the 10MB cap",
+    async (m) => {
+      axiosGet.mockReset();
+      axiosGet.mockResolvedValueOnce(ok());
+      await fetchPublicImage(IMG, isAllowedImageUrl, {}, { maxBytes: m });
+      expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(10 * 1024 * 1024);
+    },
+  );
+});
