@@ -1,4 +1,4 @@
-import { createElement, act } from "react";
+import { createElement, act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,7 +39,7 @@ const render = () =>
         {
           route: "/find",
           openToAllDesks: createElement(CheckAnyListingAnyDesk),
-        },
+        } as ComponentProps<typeof FlipDeskGate>,
         createElement("div", { "data-testid": "flip-page" }),
       ),
     ),
