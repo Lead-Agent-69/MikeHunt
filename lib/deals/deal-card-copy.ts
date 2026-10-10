@@ -24,10 +24,20 @@ export function dealCardCopy(flip: boolean) {
     /** Title-case row label in Buyer math. */
     basisRowLabel: flip ? "Resale basis" : "Market value",
     /** Price-grid label for the valuation basis. */
-    basisLabel(soldAnchored: boolean, hasBasis: boolean): string {
+    basisLabel(
+      soldAnchored: boolean,
+      hasBasis: boolean,
+      source?: ValuationSource,
+    ): string {
       if (soldAnchored)
         return flip ? "Comp-backed resale" : "Comp-backed value";
-      if (hasBasis) return "Ask-based estimate";
+      if (hasBasis) {
+        if (source === "comparables") return "Listing comparison estimate";
+        if (source === "third_party") return "External estimate";
+        if (source === "historical_estimate") return "History estimate";
+        if (source === "baseline") return "Model estimate";
+        return "Ask-based estimate";
+      }
       return flip ? "Resale basis" : "Market value";
     },
     basisTitle(source: ValuationSource): string {

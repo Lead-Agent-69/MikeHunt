@@ -38,6 +38,35 @@ afterEach(() => {
   savedPrefs.value = null;
 });
 
+// First test in the file pays the cold route import (slow on the Windows CI runner);
+// give it headroom so a timeout can't leak its rpc mock into the next test.
+it("excludes reported repair risk from every rail when not requested", async () => {
+  rpc.mockResolvedValue({
+    data: [
+      {
+        ...baseRow,
+        source: "independent_dealer",
+        source_url: "https://dealer.example/car",
+        condition: "clean_title",
+        damage_type: "front end",
+      },
+    ],
+    error: null,
+  });
+  const { GET } = await import("./route");
+  const excluded = await (
+    await GET(req("/api/discover?includeRepairable=0"))
+  ).json();
+  expect(excluded.uniqueVehicles).toBe(0);
+  expect(excluded.rails.every((rail: any) => rail.deals.length === 0)).toBe(
+    true,
+  );
+  const included = await (
+    await GET(req("/api/discover?includeRepairable=1"))
+  ).json();
+  expect(included.uniqueVehicles).toBe(1);
+}, 30_000);
+
 function req(path: string) {
   return new NextRequest(`http://localhost:3000${path}`);
 }

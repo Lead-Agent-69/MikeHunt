@@ -50,6 +50,18 @@ const request = (query: string) =>
   new NextRequest(`http://localhost/auth/callback?${query}`);
 
 describe("password recovery callback", () => {
+  it("retains exchanged cookies and a new account's intended vehicle through onboarding", async () => {
+    const response = await GET(request("code=oauth&next=/deal/123"));
+    expect(response.cookies.get("sb-test-auth-token")?.value).toBe("session");
+    expect(response.headers.get("location")).toBe(
+      "http://localhost/onboarding?next=%2Fdeal%2F123",
+    );
+  });
+  it("preserves a returning account's intended vehicle", async () => {
+    mocks.bootstrap.mockResolvedValueOnce({ onboarded: true });
+    const response = await GET(request("code=oauth&next=/deal/123"));
+    expect(response.headers.get("location")).toBe("http://localhost/deal/123");
+  });
   it("exchanges the code and retains session cookies without onboarding or provisioning", async () => {
     const response = await GET(request("code=recovery&next=/reset-password"));
     expect(response.headers.get("location")).toBe(

@@ -60,21 +60,7 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).toContain("$3,000 under market est.");
     expect(html).toContain("$15,000");
     expect(html).toContain("Needs check");
-    expect(html).toContain("Low confidence");
     expect(html).not.toContain("Possible buy");
-  });
-
-  it("still recognizes supported evidence for a personal buyer", () => {
-    const html = renderToStaticMarkup(
-      createElement(DealCard, {
-        ...deal,
-        flipDesk: false,
-        valuation: { source: "third_party", confidence: "medium" },
-      }),
-    );
-    expect(html).toContain("Possible buy");
-    expect(html).toContain("Medium confidence");
-    expect(html).not.toContain("Net Profit Est.");
   });
 
   it("never renders $NaN when the server redacted profit for this desk", () => {
@@ -118,6 +104,40 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("Net Profit Est.");
     expect(html).not.toContain("+$0");
     expect(html).not.toMatch(/spread/i);
+  });
+
+  it("does not label stale sold anchors as comp-backed value or high confidence", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: false,
+        soldAnchored: true,
+        valuation: {
+          source: "comparables",
+          confidence: "high",
+          compCount: 5,
+          soldCount: 3,
+          soldLane: "clean",
+          soldAt: new Date(Date.now() - 181 * 86400000).toISOString(),
+        },
+      }),
+    );
+    expect(html).not.toContain("Comp-backed value");
+    expect(html).not.toContain("High confidence");
+    expect(html).toContain("Sold comparisons not verified");
+  });
+  it("does not describe modeled repair and transport amounts as known costs", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        repairEstimate: 400,
+        transportEstimate: 600,
+      }),
+    );
+    expect(html).not.toContain("Known costs");
+    expect(html).toContain("Cost scenario (est.)");
+    expect(html).toContain("Repair (est.): $400");
+    expect(html).toContain("Transport (est.): $600");
   });
 });
 

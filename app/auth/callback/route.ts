@@ -8,6 +8,7 @@ import {
 } from "@/lib/preferences/merge-guest-prefs";
 import { createServerComponentClient } from "@/lib/supabase";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { postLoginDestination } from "@/lib/auth/post-login-destination";
 
 // OAuth (PKCE) callback — Supabase redirects here after Google sign-in with a `code`. We exchange it for
 // a session (writing the auth cookies) and forward to `next` (the deal feed by default). Public
@@ -81,9 +82,10 @@ export async function GET(request: NextRequest) {
             }
             // A user who has not chosen their buying preferences gets the same
             // onboarding path whether they joined by email or Google.
-            if (!account.onboarded && next === "/discover") {
-              response.headers.set("location", `${base}/onboarding`);
-            }
+            response.headers.set(
+              "location",
+              `${base}${postLoginDestination(account.onboarded, next)}`,
+            );
           } catch (bootstrapError) {
             console.error("OAuth account bootstrap failed:", bootstrapError);
             response.headers.set(

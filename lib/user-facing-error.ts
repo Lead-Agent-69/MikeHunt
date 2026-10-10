@@ -16,6 +16,12 @@ export function userFacingErrorMessage(
   const message = raw.replace(/\s+/g, " ").trim();
 
   if (!message) return fallback;
+  if (
+    /unexpected (end|token)|json.*(parse|input)|execute ['"]?json|syntaxerror/i.test(
+      message,
+    )
+  )
+    return fallback;
   if (/abort(ed|ing)?|cancelled/i.test(message)) {
     return "That request was cancelled. Try again when you're ready.";
   }
@@ -26,7 +32,7 @@ export function userFacingErrorMessage(
     return "We couldn't reach MIKEHUNT right now. Check your connection and try again.";
   }
   if (
-    /supabase|postgrest|postgres|database|docker|runner|scrap(er|ing)|worker|rpc|kong|service.?role|api.?key|relation .+ does not exist|stack|exception/i.test(
+    /supabase|postgrest|postgres|database|docker|runner|scrap(er|ing)|worker|rpc|kong|service.?role|api.?key|relation .+ does not exist|stack|exception|unexpected (end|token)|json.*(parse|input)|execute ['"]?json|syntaxerror/i.test(
       message,
     )
   ) {

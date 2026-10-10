@@ -5,6 +5,7 @@ import {
 } from "./inventory-view-scope";
 import {
   applyInventoryLane,
+  applyRepairEligibility,
   applyVehicleDetails,
   applyInventoryNumericFilters,
   sellerTypeSourceValues,
@@ -121,6 +122,18 @@ describe("inventory filter contract", () => {
     "maxMileage=-1",
   ])("rejects invalid policy or range %s", (params) => {
     expect(validateInventoryRanges(new URLSearchParams(params))).toBeTruthy();
+  });
+  it("applies repair exclusions before pagination without conflating clean title with no damage", () => {
+    const q = query();
+    expect(applyRepairEligibility(q, "0")).toBe(q);
+    expect(q.or.mock.calls[0][0]).toBe(
+      "condition.is.null,condition.in.(clean_title,run_drive)",
+    );
+    expect(q.or.mock.calls[1][0]).toContain("damage_type.is.null");
+    expect(q.or.mock.calls[1][0]).toContain("damage_type.ilike.unknown");
+    const enabled = query();
+    applyRepairEligibility(enabled, "1");
+    expect(enabled.or).not.toHaveBeenCalled();
   });
   it("accepts custom ranges and rejects inverted, negative or malformed ranges", () => {
     expect(

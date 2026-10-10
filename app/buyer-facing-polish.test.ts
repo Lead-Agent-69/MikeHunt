@@ -28,7 +28,7 @@ describe("buyer-facing polish", () => {
     expect(source).not.toContain("Scanning the market");
     expect(source).not.toContain("Open scanner");
     expect(source).toContain(
-      "Clean-title-only is enabled; listings with unknown or repairable titles are excluded.",
+      "Clean-title-only is enabled; listings with unknown or branded titles are excluded.",
     );
     // Distance claims belong on cards with real miles — not a standing Discover subtitle.
     expect(source).not.toContain(
@@ -119,7 +119,9 @@ describe("buyer-facing polish", () => {
     expect(onboarding).not.toContain("Set up later");
     expect(onboarding).not.toContain('router.push("/discover")');
     expect(discover).toContain("savedBuyerScope");
-    expect(discover).toContain("normalizeBuyerIntent(prefs.buyerScope)");
+    expect(discover).toContain("resolveBuyerIntentScope(");
+    expect(discover).toContain("authed,");
+    expect(discover).toContain("prefs.buyerScope,");
     expect(proxy).toContain("user_profiles");
     expect(proxy).toContain("onboarded");
     expect(proxy).toContain('url.pathname = "/onboarding"');

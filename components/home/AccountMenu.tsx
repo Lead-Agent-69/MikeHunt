@@ -28,6 +28,8 @@ import {
   FileCheck,
   Truck,
   Sparkles,
+  Zap,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -40,6 +42,7 @@ import {
   accountMenuForMode,
   navItemForViewer,
 } from "@/components/layout/nav-items";
+import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const MENU_ICONS: Record<string, LucideIcon> = {
   "/saved": Bookmark,
@@ -85,6 +88,10 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!open) return;
+    ref.current?.querySelector<HTMLElement>(`[id="${panelId}"] a`)?.focus();
+  }, [open, panelId]);
+  useEffect(() => {
     if (!open || !dealerId) return;
     const controller = new AbortController();
     setAdminUserId(null);
@@ -127,12 +134,12 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }, [open]);
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
+    const onDoc = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node))
         setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("pointerdown", onDoc);
+    return () => document.removeEventListener("pointerdown", onDoc);
   }, []);
 
   async function logout() {
@@ -169,6 +176,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     return (
       <Link
         href={viewer.href}
+        prefetch={false}
         title={
           viewer.signInRequired ? `Sign in to use ${entry.name}` : undefined
         }
@@ -187,11 +195,18 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }
 
   const item =
-    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] rounded-[var(--r2)] flex items-center gap-2";
+    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] active:bg-[var(--s2)] transition-colors rounded-lg flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]";
 
   return (
     <div
       ref={ref}
+      onBlur={(event) => {
+        if (
+          event.relatedTarget instanceof Node &&
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setOpen(false);
+      }}
       className={floating ? "fixed top-3 right-3 z-[60]" : "relative z-[60]"}
     >
       <button
@@ -199,7 +214,8 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         aria-label="Account menu"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] shadow-[var(--shadow2)]"
+        title="Account and tools"
+        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] active:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] shadow-[var(--shadow2)]"
       >
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>
@@ -239,6 +255,9 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               {menu.primary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
+              <div className="lg:hidden border-t border-[var(--b1)] mt-1 pt-1">
+                <ThemeToggle showLabel />
+              </div>
               {dealerId && adminUserId === dealerId && (
                 <>
                   <div className="my-1 border-t border-[var(--b1)]" />

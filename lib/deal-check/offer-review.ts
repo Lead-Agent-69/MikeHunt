@@ -27,8 +27,12 @@ export function reviewOffer(offer: Offer) {
   const values = [
     offer.selling_price,
     offer.taxes,
-    ...offer.fees.map((line) => line.amount),
-    ...offer.addons.map((line) => line.amount),
+    ...offer.fees
+      .filter((line) => !/\(already included\)/i.test(line.name))
+      .map((line) => line.amount),
+    ...offer.addons
+      .filter((line) => !/\(already included\)/i.test(line.name))
+      .map((line) => line.amount),
   ];
   const sum =
     values.reduce<number>(

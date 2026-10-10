@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { offerSchema, reviewOffer } from "./offer-review";
 describe("offer cost arithmetic", () => {
+  it("does not count explicitly included document fees twice", () => {
+    const offer = offerSchema.parse({
+      selling_price: 18000,
+      fees: [{ name: "Administration (already included)", amount: 300 }],
+      taxes: 1200,
+      total_out_the_door: 19200,
+    });
+    expect(reviewOffer(offer).difference).toBe(0);
+    expect(reviewOffer(offer).sum).toBe(19200);
+  });
   it("reconciles the offer independently of contradictory AI observations", () => {
     const offer = offerSchema.parse({
       selling_price: 18000,

@@ -91,7 +91,12 @@ export default function SavedCarsPage() {
   const flipDesk = isFlipBuyerMode(
     intent?.buyerMode || prefs?.buyerScope?.buyerMode,
   );
-  const { dealerId, loading: dealerLoading } = useDealerId();
+  const {
+    dealerId,
+    loading: dealerLoading,
+    error: accountError,
+    retry: retryAccount,
+  } = useDealerId();
   const localSaved = useLocalSavedVehicles();
   const [filter, setFilter] = useState<
     "all" | "active" | "price_drops" | "gone"
@@ -127,9 +132,10 @@ export default function SavedCarsPage() {
   );
 
   const authError =
-    !dealerLoading && !dealerId
+    accountError ||
+    (!dealerLoading && !dealerId
       ? "Please sign in to view your saved cars."
-      : null;
+      : null);
   const unsyncedLocalItems = localSaved.items.filter(
     (item) =>
       !saves?.some(
@@ -143,14 +149,18 @@ export default function SavedCarsPage() {
   // Signed-in users with a failed /api/saved-cars fetch are not "missing" auth —
   // treat that as sync unavailable so we never push a Sign-in CTA while authed.
   // "checking" until auth resolved AND the first account fetch settled — never flash an error
-  // while the session or the request is still in flight (lib/ui/load-state-copy).
-  const supabaseStatus = savedSyncStatus({
-    authLoading: dealerLoading,
-    userId: dealerId,
-    fetchLoading: isLoading,
-    hasData: saves !== undefined,
-    error,
-  });
+  // while the session or the request is still in flight (lib/ui/load-state-copy). An account
+  // lookup failure is "unavailable" once auth has settled.
+  const supabaseStatus =
+    !dealerLoading && accountError
+      ? "unavailable"
+      : savedSyncStatus({
+          authLoading: dealerLoading,
+          userId: dealerId,
+          fetchLoading: isLoading,
+          hasData: saves !== undefined,
+          error,
+        });
   const cloudSyncReady = supabaseStatus === "ready";
   const loading = supabaseStatus === "checking";
   const signedIn = Boolean(dealerId);
@@ -362,7 +372,7 @@ export default function SavedCarsPage() {
           <Input
             type="url"
             aria-label="Vehicle listing URL"
-            placeholder="Paste Craigslist, Copart, or IAA URL..."
+            placeholder="Paste a vehicle listing link..."
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
             className="text-sm bg-[var(--s0)] border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
@@ -538,8 +548,11 @@ export default function SavedCarsPage() {
           ) : authError || error ? (
             <ErrorState
               title="Couldn't load saved cars"
-              message={authError || error?.message || "An error occurred"}
-              onRetry={() => mutate()}
+              message={
+                authError ||
+                "We couldn't load your saved vehicles. Check your connection and retry."
+              }
+              onRetry={() => (accountError ? retryAccount() : mutate())}
             />
           ) : loading ? (
             <div className="grid grid-cols-1 gap-4">
@@ -741,26 +754,23 @@ function LocalSavedSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--t3)]">
-            Local-only saves ({items.length})
+            Saved on this device ({items.length})
           </h3>
           <p className="text-xs text-[var(--t4)]">
             {syncUnavailableMessage ||
-              "These saves are stored on this device and have not reached cloud sync yet."}
+              "These vehicles are saved only in this browser. Account saves are shown separately."}
           </p>
         </div>
         <Badge
           className="border-none text-[10px] font-bold uppercase"
           style={{ background: "var(--glo)", color: "var(--green)" }}
         >
-          Waiting to sync
+          On this device
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {items.map((item) => {
-          const trustSummary =
-            item.trustExplanation?.summary ||
-            item.trustExplanation?.reasons?.slice(0, 3).join(" · ");
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           const contactHref = item.sellerContactUrl || item.sourceUrl;
           return (
@@ -803,27 +813,25 @@ function LocalSavedSection({
                         : ""}
                       Saved {new Date(item.savedAt).toLocaleDateString()}
                     </p>
-                    {item.dataQuality && (
+                    {item.dataQuality?.missing.length ? (
                       <p className="text-[11px] font-semibold text-[var(--t4)]">
-                        Data quality {item.dataQuality.score}/100
-                        {item.dataQuality.missing.length
-                          ? ` · missing ${item.dataQuality.missing
-                              .slice(0, 2)
-                              .map(qualityFieldLabel)
-                              .join(", ")}`
-                          : ""}
+                        {`Still needed: ${item.dataQuality.missing
+                          .slice(0, 2)
+                          .map(qualityFieldLabel)
+                          .join(", ")}`}
                       </p>
-                    )}
-                    {trustSummary ? (
-                      <p className="text-[11px] leading-relaxed text-[var(--t4)]">
-                        Trust proof: {trustSummary}
-                        {typeof item.trustExplanation?.score === "number"
-                          ? ` (${Math.round(item.trustExplanation.score)}/100)`
-                          : ""}
-                        {nextTrustChecks.length
-                          ? ` · verify ${nextTrustChecks.slice(0, 2).join(", ")}`
-                          : ""}
-                      </p>
+                    ) : null}
+                    {nextTrustChecks.length ? (
+                      <details className="text-[11px] leading-relaxed text-[var(--t4)]">
+                        <summary className="cursor-pointer">
+                          Still needs checking
+                        </summary>
+                        <ul className="list-disc pl-4">
+                          {nextTrustChecks.map((check) => (
+                            <li key={check}>{check}</li>
+                          ))}
+                        </ul>
+                      </details>
                     ) : null}
                     {(item.seller ||
                       item.sellerPhone ||

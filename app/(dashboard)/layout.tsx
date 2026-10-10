@@ -12,7 +12,7 @@ export default function DashboardLayout({
   return (
     <div className="flex flex-col min-h-screen bg-transparent text-[var(--t1)]">
       <TopNav />
-      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 pb-20 md:pb-6">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
         <WorkspaceNav />
         <DiscoverySaveProvider>{children}</DiscoverySaveProvider>
       </main>

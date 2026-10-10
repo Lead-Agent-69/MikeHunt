@@ -21,14 +21,20 @@ const row = (
   model: "Accord",
   year,
   sold_price: price,
-  title,
+  title:
+    title && !/salvage|rebuilt|flood/i.test(title)
+      ? `${title}, clean title`
+      : title,
   sold_at,
   location_state: "IL",
 });
 
 describe("sold title lanes", () => {
   it("keeps salvage wording out of the clean median", () => {
-    expect(soldTitleLane("2018 Honda Accord EX")).toBe("clean");
+    expect(soldTitleLane("2018 Honda Accord EX")).toBe("unknown");
+    expect(soldTitleLane("2018 Honda Accord EX, clean title")).toBe("clean");
+    expect(soldTitleLane("not clean title")).toBe("unknown");
+    expect(soldTitleLane("clean title unconfirmed")).toBe("unknown");
     expect(soldTitleLane("2018 Honda Accord salvage title")).toBe("salvage");
     expect(soldTitleLane("2018 Honda Accord REBUILT")).toBe("salvage");
     expect(soldTitleLane(null)).toBe("unknown");
@@ -115,6 +121,9 @@ describe("sold title lanes", () => {
     expect(isWithinSoldWindow(null, NOW)).toBe(false);
     expect(isWithinSoldWindow("not a date", NOW)).toBe(false);
     expect(isWithinSoldWindow(iso(-3), NOW)).toBe(false);
+    expect(isWithinSoldWindow(new Date(NOW + 1000).toISOString(), NOW)).toBe(
+      false,
+    );
 
     // Three clean sales, but two are over a year old: no published median.
     const stale = summarizeCleanSold(
@@ -154,5 +163,21 @@ describe("sold title lanes", () => {
       median: 14000,
       n: 3,
     });
+  });
+  it("excludes nonfinite prices and unreported title brands from the backend sample", () => {
+    const rows = [
+      row(10000, "2018 Honda Accord", "2026-04-01T00:00:00Z"),
+      row(Infinity, "2018 Honda Accord", "2026-04-02T00:00:00Z"),
+      {
+        ...row(14000, "2018 Honda Accord", "2026-04-03T00:00:00Z"),
+        title: "2018 Honda Accord EX",
+      },
+    ];
+    expect(summarizeCleanSold(rows, NOW)).toMatchObject({
+      median: null,
+      count: 1,
+      unknownCount: 1,
+    });
+    expect(Array.from(buildSoldIndexes(rows, NOW).clean.values())[0].n).toBe(1);
   });
 });

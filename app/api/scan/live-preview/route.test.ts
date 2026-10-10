@@ -81,6 +81,37 @@ describe("GET /api/scan/live-preview", () => {
   beforeEach(optInGovDeals);
   afterEach(restoreSources);
 
+  it("excludes reported damage independently of clean title, including cached preview rows", async () => {
+    const { invalidate } = await import("@/lib/cache");
+    invalidate("scan:live-preview:");
+    vi.mocked(previewGovDeals).mockResolvedValueOnce([
+      {
+        condition: "clean_title",
+        damage_type: "front end",
+        title: "Ford SUV",
+        location_state: "FL",
+        ask_price: 5000,
+      } as any,
+    ]);
+    const { GET } = await import("./route");
+    try {
+      const included = await GET(
+        req(
+          "/api/scan/live-preview?lane=government&source=govdeals&includeRepairable=1",
+        ),
+      );
+      expect((await included.json()).total).toBe(1);
+      const excluded = await GET(
+        req(
+          "/api/scan/live-preview?lane=government&source=govdeals&includeRepairable=0",
+        ),
+      );
+      expect((await excluded.json()).total).toBe(0);
+    } finally {
+      invalidate("scan:live-preview:");
+    }
+  });
+
   it("does not preview an explicit source outside the buyer lane", async () => {
     const { GET } = await import("./route");
     const res = await GET(

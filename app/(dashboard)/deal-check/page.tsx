@@ -35,6 +35,8 @@ export default function DealCheckPage() {
   });
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const fileReader = useRef<FileReader | null>(null);
   const lastPayload = useRef<{ image?: string; text?: string } | null>(null);
   const showLoader = useDelayedLoading(loading);
   const resultFocus = useRef<HTMLDivElement>(null);
@@ -45,27 +47,43 @@ export default function DealCheckPage() {
     resultFocus.current?.scrollIntoView?.({ block: "start" });
   }, [result]);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(
+    () => () => {
+      requestId.current += 1;
+      controller.current?.abort();
+      fileReader.current?.abort();
+    },
+    [],
+  );
 
   function beginRequest() {
     requestId.current += 1;
     controller.current?.abort();
     setLoading(false);
+    fileReader.current?.abort();
     return requestId.current;
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) {
-      setError("Choose an image under 8 MB.");
+    e.target.value = "";
+    const id = beginRequest();
+    setLoading(false);
+    lastPayload.current = null;
+    if (
+      !/^(image\/png|image\/jpeg|image\/webp)$/.test(file.type) ||
+      file.size > 5_900_000
+    ) {
+      setError("Choose a PNG, JPEG or WebP photo under 6 MB.");
+      lastPayload.current = null;
       return;
     }
-    const id = beginRequest();
     setError(null);
     setResult(null);
     setTextInput("");
     const reader = new FileReader();
+    fileReader.current = reader;
     reader.onload = () => {
       if (id !== requestId.current) return;
       const dataUrl = reader.result as string;
@@ -105,8 +123,14 @@ export default function DealCheckPage() {
         body: JSON.stringify(payload),
         signal: abortController.signal,
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (id !== requestId.current) return;
+      if (!json || typeof json !== "object" || Array.isArray(json)) {
+        setError(
+          "The analysis service didn't return a usable response. Your details are still here. Please try again.",
+        );
+        return;
+      }
       if (!res.ok)
         setError(
           userFacingErrorMessage(
@@ -375,6 +399,10 @@ export default function DealCheckPage() {
               </p>
             </section>
           )}
+          <p className="text-sm text-[var(--t3)]">
+            Read from your document by AI. Verify these details against the
+            original; this is not an inspection or a buy recommendation.
+          </p>
           {/* Market comparison */}
           {mc && (
             <div className="glass-panel p-5">
@@ -394,8 +422,8 @@ export default function DealCheckPage() {
                     {money(mc.vsMarket)}
                   </Mono>
                   <p className="text-xs text-[var(--t4)]">
-                    Difference from sampled asking-price average · avg{" "}
-                    {money(mc.marketAvg)} ({mc.sampleSize} comps)
+                    Difference from {money(mc.marketAvg)} average across{" "}
+                    {mc.sampleSize} active asking prices.
                   </p>
                 </div>
               </div>
@@ -403,7 +431,7 @@ export default function DealCheckPage() {
               {mc.comps && mc.comps.length > 0 && (
                 <div className="mt-6 border-t border-[var(--b2)] pt-4">
                   <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-3">
-                    Sampled active listings
+                    Other active listings, not verified sold comparisons
                   </p>
                   <div className="space-y-2">
                     {mc.comps.map((comp: any) => (
@@ -436,6 +464,11 @@ export default function DealCheckPage() {
                       </a>
                     ))}
                   </div>
+                  <p className="mt-3 text-xs text-[var(--t3)]">
+                    Title, damage, fees, and condition may differ. These
+                    listings cannot establish a fair purchase price or a buy
+                    recommendation.
+                  </p>
                 </div>
               )}
             </div>
@@ -520,14 +553,14 @@ function Row({
   bold?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-start justify-between gap-3">
       <span
-        className={`text-sm ${bold ? "font-bold text-[var(--t1)]" : "text-[var(--t3)]"}`}
+        className={`min-w-0 break-words text-sm ${bold ? "font-bold text-[var(--t1)]" : "text-[var(--t3)]"}`}
       >
         {label}
       </span>
       <Mono
-        className={`text-sm ${bold ? "font-black text-[var(--t1)]" : "text-[var(--t2)]"}`}
+        className={`shrink-0 text-sm ${bold ? "font-black text-[var(--t1)]" : "text-[var(--t2)]"}`}
         style={{ fontFamily: "var(--fm)" }}
       >
         {value}

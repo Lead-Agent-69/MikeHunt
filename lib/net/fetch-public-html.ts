@@ -67,8 +67,13 @@ export function locationHeader(
  */
 export async function fetchPublicHtml(
   rawUrl: string,
-  allowUrl?: (url: string) => Promise<boolean>,
+  policyOrOptions?:
+    | ((url: string) => Promise<boolean>)
+    | { signal?: AbortSignal; maxBytes?: number },
 ): Promise<{ html: string; finalUrl: string } | null> {
+  const allowUrl =
+    typeof policyOrOptions === "function" ? policyOrOptions : undefined;
+  const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
   let current = await assertPublicHttpUrl(rawUrl);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (allowUrl && !(await allowUrl(current.toString())))
@@ -83,6 +88,8 @@ export async function fetchPublicHtml(
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         },
         timeout: 6000,
+        signal: options.signal,
+        maxContentLength: options.maxBytes ?? Infinity,
         maxRedirects: 0,
         responseType: "text",
         validateStatus: () => true,

@@ -1,6 +1,7 @@
 # Cars Release And Remaining Work Handoff
 
 Updated October 9, 2026 (America/Chicago). Scope: PR #166 and the current cars application.
+PR #166 is retargeted to main after repository unification; master is no longer the release branch.
 This supersedes historical cars completion claims in the product register, not the separate
 housing handoff. A merged release is not signed-in production acceptance or Copart/Visor parity.
 
@@ -153,7 +154,7 @@ audit and responsive/accessibility acceptance. A healthy container snapshot is i
 
 ## Release Procedure And Rollback
 
-1. Integrate master without dropping newer fixes; resolve conflicts and run npm run verify.
+1. Integrate main without dropping newer fixes; resolve conflicts and run npm run verify.
 2. Push exact reviewed head, mark PR ready, merge normally without bypassing protections.
 3. Verify Vercel production deployment against merged commit, then smoke Discover/Scan,
    role-aware nav, retired routes, recovery, SalvageZone results and photo proxy.

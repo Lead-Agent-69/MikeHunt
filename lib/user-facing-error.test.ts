@@ -18,4 +18,14 @@ describe("userFacingErrorMessage", () => {
       "Choose at least one vehicle type.",
     );
   });
+  it("hides malformed and empty response parser failures", () => {
+    for (const error of [
+      new SyntaxError("Unexpected end of JSON input"),
+      "Failed to execute 'json' on 'Response': Unexpected end of JSON input",
+      "Unexpected token '<', HTML is not valid JSON",
+    ])
+      expect(userFacingErrorMessage(error, "Please retry this analysis.")).toBe(
+        "Please retry this analysis.",
+      );
+  });
 });

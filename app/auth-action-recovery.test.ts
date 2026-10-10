@@ -29,6 +29,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  );
+  vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
       ok: true,
@@ -110,4 +118,36 @@ it("does not expose admin tools for a different identity", async () => {
   await render(AccountMenu);
   await click("Account menu");
   expect(host.textContent).not.toContain("Admin dashboard");
+});
+
+it("offers real links, focuses the first link, and restores focus on Escape", async () => {
+  await render(AccountMenu);
+  await click("Account menu");
+  const firstLink = host.querySelector('a[href="/settings"]');
+  expect(document.activeElement).toBe(firstLink);
+  expect(host.querySelector('a[href="/saved"]')).not.toBeNull();
+  expect(host.querySelector('a[href="/settings"]')).not.toBeNull();
+  expect(host.querySelector('a[href="/tools"]')).not.toBeNull();
+  expect(host.querySelector('a[href="/scan?sort=score"]')).toBeNull();
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+  });
+  expect(host.querySelector('[aria-label="Account navigation"]')).toBeNull();
+  expect(document.activeElement?.getAttribute("aria-label")).toBe(
+    "Account menu",
+  );
+});
+
+it("closes on an outside touch/pointer without trapping page scrolling", async () => {
+  await render(AccountMenu);
+  await click("Account menu");
+  expect(
+    host.querySelector('[aria-label="Account navigation"]'),
+  ).not.toBeNull();
+  await act(async () => {
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+  });
+  expect(host.querySelector('[aria-label="Account navigation"]')).toBeNull();
 });

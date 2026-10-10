@@ -5,11 +5,44 @@ import {
   buyerIntentLabel,
   discoverQueryForBuyingFor,
   normalizeBuyerIntent,
+  resolveBuyerIntentScope,
   scanHrefForBuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
 
 describe("buyer intent profile", () => {
+  it("uses account preferences over an older browser profile, including explicit repair inclusion", () => {
+    const local = normalizeBuyerIntent({
+      buyerMode: "personal",
+      state: "FL",
+      includeRepairable: false,
+    });
+    const saved = {
+      buyerMode: "personal",
+      state: "MO",
+      includeRepairable: true,
+    };
+    expect(resolveBuyerIntentScope(true, saved, local)).toMatchObject(saved);
+    expect(resolveBuyerIntentScope(true, {}, local)).toBeNull();
+    expect(resolveBuyerIntentScope(false, saved, local)).toEqual(local);
+  });
+  it("preserves explicit repair inclusion independently of title and DIY capability", () => {
+    const intent = normalizeBuyerIntent({
+      buyerMode: "personal",
+      titleType: "clean",
+      includeRepairable: true,
+    });
+    expect(buildBuyerIntentQuery(intent).get("includeRepairable")).toBe("1");
+    expect(buildBuyerIntentQuery(intent).get("titleType")).toBe("clean");
+    expect(
+      buildBuyerIntentQuery(
+        normalizeBuyerIntent({ buyerMode: "personal" }),
+      ).get("includeRepairable"),
+    ).toBe("0");
+    expect(
+      normalizeBuyerIntent({ includeRepairable: false })?.includeRepairable,
+    ).toBe(false);
+  });
   it("retains multiple categories alongside make filters and an explicit nationwide override", () => {
     const intent = normalizeBuyerIntent({
       vehicles: ["SUVs", "Trucks"],

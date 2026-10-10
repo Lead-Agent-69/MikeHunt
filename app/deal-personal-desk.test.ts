@@ -16,7 +16,7 @@ describe("deal page personal desk", () => {
     expect(page).toContain("PersonalListingLead");
     expect(page).toContain("What to verify");
     expect(page).toContain("<VehicleSummary");
-    expect(page).toContain("Original listing");
+    expect(page).toContain("sourceLinkLabel(deal.sourceUrl)");
     expect(page).toMatch(
       /store\.userType === "dealer" && serverDeal && \(\s*<ContactSeller/,
     );
@@ -113,29 +113,27 @@ describe("deal page personal desk", () => {
     expect(page).toContain(
       "source-provided and are not a mechanic inspection.",
     );
-    expect(page).toContain("Listing completeness");
-    expect(page).toContain("field coverage");
-    expect(page).toContain("Condition / damage");
-    expect(page).toContain(
-      "This counts source-provided fields, not inspection findings.",
+    expect(page).toContain("<ListingVerification");
+    expect(page).not.toContain("Source inventory:");
+    expect(page).not.toContain("of source rows include photos.");
+    expect(page).not.toContain("Buyer math");
+    expect(page).not.toContain("{detailMathConfidence} confidence");
+    expect(page.indexOf("<ImageGallery")).toBeLessThan(
+      page.indexOf("<PersonalListingLead"),
     );
-    expect(page).toContain("Source inventory:");
-    expect(page).toContain("Latest source listing:");
-    expect(page).toContain("of source rows include photos.");
   });
-  it("uses supported valuation evidence and buyer-appropriate wording in the readiness panel", () => {
+  it("uses explicit listing verification instead of unsupported confidence scores", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
-    expect(page).toContain("detailValuationConfidence(");
-    expect(page).toContain("valuation confidence");
+    expect(page).toContain("<ListingVerification");
+    expect(page).toContain(
+      "serverDeal.decisionEvidence?.acquisitionReady === true",
+    );
     expect(page).not.toContain(
       "Listing proof, source health, and buyer math before you bid.",
     );
     expect(page).not.toContain("(detailQuality?.score || 0) >= 78");
-    expect(page).toContain("detailCopy.basisRowLabel");
-    expect(page).toContain("detailCopy.checksPrefix");
     expect(page).toContain('store.userType === "dealer" ? "profit" : "score"');
-    expect(page).toContain("Retry source check");
     expect(page).not.toContain("Source status is loading for this listing.");
-    expect(page).toContain("listingChecklistFields(detailQuality)");
+    expect(page).not.toContain("listingChecklistFields(detailQuality)");
   });
 });

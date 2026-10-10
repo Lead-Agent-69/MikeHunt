@@ -3,11 +3,10 @@
 import React, { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
 import { Bell, Grid3X3, Lock } from "lucide-react";
-import { useLocalSavedSearches } from "@/hooks/useLocalSavedSearches";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -36,12 +35,13 @@ function IconBtn({
       href={href}
       title={title}
       aria-label={title}
-      className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors text-[var(--t3)] hover:text-[var(--t1)]"
+      className="relative flex h-11 w-11 items-center justify-center rounded-lg transition-colors text-[var(--t3)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
       style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
     >
       {children}
       {badge != null && badge > 0 && (
         <span
+          aria-hidden="true"
           className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full text-[10px] font-bold text-white"
           style={{ background: "var(--amber)", lineHeight: 1 }}
         >
@@ -55,15 +55,21 @@ function IconBtn({
 // One shared active-tab indicator: layoutId lets a single motion layer spring between tabs
 // (and between the primary tabs and "More") instead of each one fading in place.
 function NavPill() {
+  const reducedMotion = useReducedMotion();
   return (
     <motion.span
-      layoutId="topnav-pill"
+      layoutId={reducedMotion ? undefined : "topnav-pill"}
+      aria-hidden="true"
       className="absolute inset-0 rounded-full"
       style={{
         background: "var(--grad)",
         boxShadow: "0 2px 12px var(--amber-lo)",
       }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      transition={
+        reducedMotion
+          ? { duration: 0 }
+          : { type: "spring", stiffness: 400, damping: 30 }
+      }
     />
   );
 }
@@ -102,7 +108,6 @@ function TopNavContent() {
     { name: "Alerts", href: "/alerts", icon: Bell },
     signedOut,
   );
-  const localSearches = useLocalSavedSearches();
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [scopedStates, setScopedStates] = useState<string[] | undefined>();
@@ -205,16 +210,15 @@ function TopNavContent() {
         <Link
           href="/discover"
           aria-label="MIKEHUNT home"
-          className="flex items-center gap-2.5 group"
+          className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
           <MikeHuntLogo
             size="sm"
-            className="transition-transform group-hover:scale-[1.02]"
-            wordmarkClassName="block md:hidden lg:block"
+            wordmarkClassName="block lg:hidden xl:block"
           />
         </Link>
         {activeJob && (
-          <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex md:hidden">
+          <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex lg:hidden">
             {activeJob === "Pipeline" &&
             primaryNav.some((item) => item.name === "Plan")
               ? "Plan"
@@ -226,8 +230,8 @@ function TopNavContent() {
       {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
           overlap them as the window narrows. */}
       <nav
-        aria-label="Primary navigation"
-        className="hidden md:flex items-center gap-0.5 shrink-0"
+        aria-label="Primary desktop navigation"
+        className="hidden lg:flex items-center gap-0.5 shrink-0"
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);
@@ -240,7 +244,7 @@ function TopNavContent() {
               }
               aria-current={active ? "page" : undefined}
               aria-label={item.name}
-              className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors ${
+              className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
                 active
                   ? "text-white"
                   : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
@@ -248,6 +252,7 @@ function TopNavContent() {
             >
               {active && <NavPill />}
               <item.icon
+                aria-hidden="true"
                 className="relative z-10 h-3.5 w-3.5"
                 strokeWidth={active ? 2.5 : 2}
               />
@@ -271,7 +276,7 @@ function TopNavContent() {
 
       {/* RIGHT: Actions */}
       <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
-        <div className="hidden items-center justify-end gap-2 md:flex">
+        <div className="hidden items-center justify-end gap-2 lg:flex">
           <MyStatesButton
             onChange={changeLocation}
             statesOverride={scopedStates}
@@ -283,17 +288,13 @@ function TopNavContent() {
             title={
               alertsLink.signInRequired
                 ? "Sign in to see activity and alerts"
-                : totalAlertCount
-                  ? `${totalAlertCount} alert source${
-                      totalAlertCount === 1 ? "" : "s"
-                    }: ${alertCount} unread, ${localSearches.count} saved search${
-                      localSearches.count === 1 ? "" : "es"
-                    }`
+                : alertCount
+                  ? `Activity: ${alertCount} unread notification${alertCount === 1 ? "" : "s"}`
                   : "Activity"
             }
-            badge={alertsLink.signInRequired ? undefined : totalAlertCount}
+            badge={alertsLink.signInRequired ? undefined : alertCount}
           >
-            <Bell style={{ width: 17, height: 17 }} />
+            <Bell aria-hidden="true" style={{ width: 17, height: 17 }} />
           </IconBtn>
           <AccountMenu floating={false} />
           <IconBtn href="/tools" title="All tools">
@@ -301,7 +302,7 @@ function TopNavContent() {
           </IconBtn>
         </div>
 
-        <div className="flex items-center justify-end gap-2 md:hidden">
+        <div className="flex items-center justify-end gap-2 lg:hidden">
           <MyStatesButton
             onChange={changeLocation}
             statesOverride={scopedStates}
