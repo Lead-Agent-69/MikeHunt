@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   soldCaptureLqdtEnabled,
+  fetchMaestroPage,
+  fetchMaestroDetail,
+  MAESTRO_SEARCH_MAX_BYTES,
+  MAESTRO_DETAIL_MAX_BYTES,
   maestroAssetToDeal,
   maestroAssetToSoldComp,
   type MaestroAsset,
@@ -219,5 +223,55 @@ describe("SOLD_CAPTURE_LQDT (default ON, accepted risk 2026-10-10)", () => {
   it("turns off with 0 / false / off / no", () => {
     for (const v of ["0", "false", "OFF", " no "])
       expect(soldCaptureLqdtEnabled({ SOLD_CAPTURE_LQDT: v })).toBe(false);
+  });
+});
+
+describe("maestro fetch bounds (Ren #316)", () => {
+  const big = (n: number) =>
+    new Response("x", {
+      status: 200,
+      headers: { "content-length": String(n) },
+    });
+
+  it("search: timeout signal on every call; oversize page throws (caught by the page loop)", async () => {
+    const f = vi.fn(async (_u: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return big(MAESTRO_SEARCH_MAX_BYTES + 1);
+    });
+    await expect(
+      fetchMaestroPage("12", ["94A"], 1, 120, f as unknown as typeof fetch),
+    ).rejects.toThrow(/exceeds cap/);
+  });
+
+  it("search: a normal page parses", async () => {
+    const f = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ assetSearchResults: [{ assetId: 1 }] }), {
+          status: 200,
+        }),
+    );
+    expect(
+      await fetchMaestroPage(
+        "12",
+        ["94A"],
+        1,
+        120,
+        f as unknown as typeof fetch,
+      ),
+    ).toEqual([{ assetId: 1 }]);
+  });
+
+  it("detail: timeout signal + 1 MB cap", async () => {
+    const f = vi.fn(async (_u: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return big(MAESTRO_DETAIL_MAX_BYTES + 1);
+    });
+    await expect(
+      fetchMaestroDetail(
+        { assetId: 1, accountId: 2 } as any,
+        "12",
+        f as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow(/exceeds cap/);
   });
 });
