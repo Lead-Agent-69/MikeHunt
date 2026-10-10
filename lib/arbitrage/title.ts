@@ -12,6 +12,8 @@
 import {
   LISTING_CONDITIONS,
   soldTitleCategory,
+  titleCategory as dealsTitleCategory,
+  type TitleCategory as DealsTitleCategory,
 } from "@/lib/deals/title-category";
 
 export type TitleCategory =
@@ -31,9 +33,8 @@ export function titleCategory(condition?: string | null): TitleCategory {
   return "Unknown";
 }
 
-const SOLD_TO_ARBITRAGE: Readonly<
-  Record<ReturnType<typeof soldTitleCategory>, TitleCategory>
-> = {
+// Shared (lib/deals/title-category) bucket → this module's capitalized label.
+const FROM_SHARED: Readonly<Record<DealsTitleCategory, TitleCategory>> = {
   clean: "Clean",
   rebuilt: "Rebuilt",
   salvage: "Salvage",
@@ -53,8 +54,8 @@ export function soldCompTitleCategory(headline?: string | null): TitleCategory {
     .trim()
     .toLowerCase();
   if ((LISTING_CONDITIONS as readonly string[]).includes(exact))
-    return titleCategory(exact);
-  return SOLD_TO_ARBITRAGE[soldTitleCategory(headline)];
+    return FROM_SHARED[dealsTitleCategory({ condition: exact })];
+  return FROM_SHARED[soldTitleCategory(headline)];
 }
 
 /** Category for any comp: sold rows by headline, asking-price rows by condition. */
