@@ -3,6 +3,13 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  titleCategory,
+  titleCategoryOrFilter,
+  titleSourceOf,
+  type TitleCategory,
+  type TitleSource,
+} from "@/lib/deals/title-category";
 
 export type Deal = {
   id: string;
@@ -15,6 +22,10 @@ export type Deal = {
   vin?: string;
   mileage?: number;
   condition: string;
+  /** lib/deals/title-category bucket of `condition`. */
+  titleCategory?: TitleCategory;
+  /** options.titleSource only (other options keys stay server-side). */
+  titleSource?: TitleSource | null;
   askPrice: number;
   buyNowPrice?: number;
   buy_now_price?: number;
@@ -83,6 +94,8 @@ export type DealFilters = {
   source?: string[];
   make?: string[];
   condition?: string[];
+  /** Title buckets (lib/deals/title-category) applied on the condition enum. */
+  titleTypes?: TitleCategory[];
   location?: string;
   /** Exact `location_state` match (validated 2-letter codes, uppercased). */
   states?: string[];
@@ -124,6 +137,8 @@ export class DealsService {
       vin: row.vin,
       mileage: row.mileage,
       condition: row.condition,
+      titleCategory: titleCategory(row),
+      titleSource: titleSourceOf(row),
       askPrice: Number(row.ask_price || 0),
       buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
       mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
@@ -225,6 +240,9 @@ export class DealsService {
           : query.in("location_state", filters.states);
     }
 
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
+
     if (filters.location) {
       query = query.or(
         `location_city.ilike.%${filters.location}%,location_state.ilike.%${filters.location}%`,
@@ -320,6 +338,9 @@ export class DealsService {
           ? query.eq("location_state", filters.states[0])
           : query.in("location_state", filters.states);
     }
+
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
 
     if (filters.minProfit) {
       query = query.gte("profit_estimate", filters.minProfit);
