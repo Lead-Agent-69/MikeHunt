@@ -147,7 +147,6 @@ export default function SearchesPage() {
           flipDesk && formTargetProfit ? Number(formTargetProfit) : null,
         require_go: flipDesk && formRequireGo,
         notify_email: Boolean(user) && formNotifyEmail,
-        notify_sms: false,
         is_active: true,
       };
 
