@@ -30,6 +30,7 @@ export function TitleBadge({
   repairableEvidence,
   size = "sm",
   hideUnknown = false,
+  showDamage = true,
   className = "",
 }: {
   condition?: string | null;
@@ -39,6 +40,8 @@ export function TitleBadge({
   size?: "sm" | "md";
   /** Skip the badge entirely when the title is unknown and there's no damage chip. */
   hideUnknown?: boolean;
+  /** Set false where a separate damage chip is already shown. */
+  showDamage?: boolean;
   className?: string;
 }) {
   const m = titleBadgeModel({
@@ -69,7 +72,7 @@ export function TitleBadge({
           {PARTS_ONLY_LABEL}
         </span>
       )}
-      {m.damage && (
+      {showDamage && m.damage && (
         <span className={chip} style={SUB_CHIP_STYLE}>
           {TITLE_DAMAGE_LABELS[m.damage]}
         </span>

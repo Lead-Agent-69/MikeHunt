@@ -1,4 +1,39 @@
-import type { MultiSiteFilters } from "./types";
+import type {
+  MultiSiteBody,
+  MultiSiteDrivetrain,
+  MultiSiteFilters,
+  MultiSiteFuel,
+  MultiSiteTransmission,
+} from "./types";
+
+const pick = <T extends string>(
+  v: unknown,
+  aliases: Record<string, T>,
+): T | undefined => {
+  const k = String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, " ");
+  return k ? aliases[k] : undefined;
+};
+
+const BODY: Record<string, MultiSiteBody> = {
+  sedan: "sedan", suv: "suv", crossover: "suv", "suv crossover": "suv", truck: "truck",
+  pickup: "truck", "pickup truck": "truck", coupe: "coupe", hatchback: "hatchback",
+  minivan: "minivan", van: "van", wagon: "wagon", convertible: "convertible",
+};
+const DRIVE: Record<string, MultiSiteDrivetrain> = {
+  awd: "awd", "all wheel drive": "awd", "4wd": "4wd", "4x4": "4wd", "four wheel drive": "4wd",
+  fwd: "fwd", "front wheel drive": "fwd", rwd: "rwd", "rear wheel drive": "rwd",
+};
+const FUEL: Record<string, MultiSiteFuel> = {
+  gas: "gas", gasoline: "gas", petrol: "gas", diesel: "diesel", hybrid: "hybrid",
+  electric: "electric", ev: "electric", "plugin hybrid": "plugin_hybrid",
+  "plug in hybrid": "plugin_hybrid", phev: "plugin_hybrid",
+};
+const TRANS: Record<string, MultiSiteTransmission> = {
+  automatic: "automatic", auto: "automatic", manual: "manual", stick: "manual",
+};
 
 const int = (v: unknown): number | undefined => {
   const n =
@@ -44,6 +79,11 @@ export function normalizeFilters(
       title === "clean" || title === "salvage" || title === "rebuilt"
         ? title
         : undefined,
+    trim: clean(raw.trim),
+    body: pick(raw.body, BODY),
+    drivetrain: pick(raw.drivetrain, DRIVE),
+    fuel: pick(raw.fuel, FUEL),
+    transmission: pick(raw.transmission, TRANS),
   };
 }
 

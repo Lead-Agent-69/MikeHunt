@@ -92,6 +92,7 @@ import {
   sourceReadinessFallback,
 } from "@/lib/deals/detail-readiness";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { TitleBadge } from "@/components/shared/TitleBadge";
 
 type SourceHealthItem = {
   id: string;
@@ -963,6 +964,18 @@ export default function DealPage({
               size="lg"
               showChannel
             />
+            <TitleBadge
+              size="md"
+              condition={serverDeal?.condition}
+              damageType={serverDeal?.damageType ?? serverDeal?.damage_type}
+              titleSource={
+                serverDeal?.titleSource ?? serverDeal?.options?.titleSource
+              }
+              repairableEvidence={
+                serverDeal?.decisionEvidence?.state === "repairable" ||
+                /repairable/i.test(serverDeal?.decisionEvidence?.label || "")
+              }
+            />
           </div>
           <VehicleSummary
             deal={{
@@ -991,7 +1004,7 @@ export default function DealPage({
               onClick={() => setFindSimilarOpen(true)}
               className="min-h-11 rounded-lg inline-flex items-center gap-1.5"
               data-testid="find-similar-cta"
-              aria-label="Find similar vehicles in saved inventory"
+              aria-label="Find similar vehicles in collected inventory"
             >
               <Search className="w-3.5 h-3.5" />
               Find similar
@@ -1230,7 +1243,7 @@ export default function DealPage({
           onClick={() => setFindSimilarOpen(true)}
           className="min-h-11 inline-flex items-center gap-1.5 text-sm font-bold hover:underline"
           data-testid="find-similar-cta-rail"
-          aria-label="Find similar vehicles in saved inventory"
+          aria-label="Find similar vehicles in collected inventory"
         >
           <Search className="w-3.5 h-3.5" />
           Find similar
@@ -1827,7 +1840,7 @@ export default function DealPage({
               onClick={() => setFindSimilarOpen(true)}
               className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm min-h-11 rounded-lg inline-flex items-center gap-1.5"
               data-testid="find-similar-cta-bar"
-              aria-label="Find similar vehicles in saved inventory"
+              aria-label="Find similar vehicles in collected inventory"
             >
               <Search className="w-3.5 h-3.5" />
               Find similar
@@ -1885,6 +1898,7 @@ export default function DealPage({
         isOpen={findSimilarOpen}
         onClose={() => setFindSimilarOpen(false)}
         snapshot={{
+          id,
           vin: serverDeal?.vin || store.vin || "",
           year: Number(serverDeal?.year ?? store.year) || 0,
           make: String(serverDeal?.make ?? store.make ?? ""),

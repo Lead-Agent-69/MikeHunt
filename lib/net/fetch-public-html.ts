@@ -3,9 +3,9 @@ import https from "https";
 import axios from "axios";
 import {
   UrlNotAllowedError,
-  assertPublicHttpUrl,
   resolvePublicAddresses,
 } from "@/lib/net/public-url";
+import { pinnedAgent, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 const MAX_REDIRECTS = 3;
 
@@ -47,8 +47,6 @@ export const publicHttpsAgent = new https.Agent({
   keepAlive: false,
   lookup: publicLookup as never,
 });
-const httpAgent = publicHttpAgent;
-const httpsAgent = publicHttpsAgent;
 
 export function locationHeader(
   headers: Record<string, unknown>,
@@ -74,8 +72,11 @@ export async function fetchPublicHtml(
   const allowUrl =
     typeof policyOrOptions === "function" ? policyOrOptions : undefined;
   const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
-  let current = await assertPublicHttpUrl(rawUrl);
+  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
+  let target = await resolvePinnedTarget(rawUrl);
+  let current = target.url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const agent = pinnedAgent(target);
     if (allowUrl && !(await allowUrl(current.toString())))
       throw new Error("Page disallowed by source policy");
     let response;
@@ -93,8 +94,8 @@ export async function fetchPublicHtml(
         maxRedirects: 0,
         responseType: "text",
         validateStatus: () => true,
-        httpAgent,
-        httpsAgent,
+        httpAgent: agent,
+        httpsAgent: agent,
       });
     } catch (error) {
       if (error instanceof UrlNotAllowedError) throw error;
@@ -105,7 +106,8 @@ export async function fetchPublicHtml(
     if (status >= 300 && status < 400) {
       const loc = locationHeader(response.headers || {});
       if (!loc) return null;
-      current = await assertPublicHttpUrl(new URL(loc, current).toString());
+      target = await resolvePinnedTarget(new URL(loc, current).toString());
+      current = target.url;
       continue;
     }
     if (status < 200 || status >= 300) return null;

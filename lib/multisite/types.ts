@@ -11,7 +11,27 @@ export interface MultiSiteFilters {
   radiusMi?: number;
   /** Title brand. Only some sites can filter on it; the rest ignore it. */
   title?: "clean" | "salvage" | "rebuilt" | "any";
+  /** Trim words ("EX-L", "Lariat"). Sent as a keyword where a site has no trim code we can map. */
+  trim?: string;
+  body?: MultiSiteBody;
+  drivetrain?: MultiSiteDrivetrain;
+  fuel?: MultiSiteFuel;
+  transmission?: MultiSiteTransmission;
 }
+
+export type MultiSiteBody =
+  | "sedan"
+  | "suv"
+  | "truck"
+  | "coupe"
+  | "hatchback"
+  | "minivan"
+  | "van"
+  | "wagon"
+  | "convertible";
+export type MultiSiteDrivetrain = "awd" | "4wd" | "fwd" | "rwd";
+export type MultiSiteFuel = "gas" | "diesel" | "hybrid" | "electric" | "plugin_hybrid";
+export type MultiSiteTransmission = "automatic" | "manual";
 
 export type MultiSiteId =
   | "autotempest"
@@ -23,7 +43,11 @@ export type MultiSiteId =
   | "facebook_marketplace"
   | "carmax"
   | "autolist"
-  | "truecar";
+  | "truecar"
+  | "kbb"
+  | "edmunds"
+  | "copart"
+  | "iaai";
 
 export interface MultiSiteLink {
   site: MultiSiteId;
@@ -33,6 +57,11 @@ export interface MultiSiteLink {
   dropped: (keyof MultiSiteFilters)[];
   /** Format confirmed in a real browser (Kera's parity audit, 2026-10-09). */
   verified: boolean;
+  /**
+   * Filters this link carries with a parameter format taken from the site's own URLs but not yet
+   * confirmed in a real browser. If one is wrong the site ignores it; nothing else breaks.
+   */
+  unconfirmed?: (keyof MultiSiteFilters)[];
 }
 
 export interface MultiSiteSite {
