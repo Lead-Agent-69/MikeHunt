@@ -68,6 +68,7 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@/lib/deals/deal-desk-access", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   resolveCallerDesk: async () => "personal",
+  resolveCallerAccess: async () => ({ desk: "personal", signedIn: false }),
 }));
 
 import { GET as scan } from "./route";

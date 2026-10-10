@@ -653,3 +653,35 @@ describe("GET /api/discover title categories", () => {
     expect(JSON.stringify(body)).not.toContain("555-0100");
   });
 });
+
+describe("seller identity for guests", () => {
+  const sellerRow = () => ({
+    ...baseRow,
+    id: "deal-seller",
+    source: "independent_dealer",
+    source_url: "https://dealer.example/seller-car",
+    condition: "clean_title",
+    options: { titleSource: "listing", seller: "Jane Q. Private" },
+  });
+
+  it("a signed-out guest gets no seller name on any card", async () => {
+    rpc.mockResolvedValueOnce({ data: [sellerRow()], error: null });
+    const { GET } = await import("./route");
+    const body = await (await GET(req("/api/discover"))).json();
+    expect(body.rails.flatMap((r: any) => r.deals).length).toBeGreaterThan(0);
+    expect(JSON.stringify(body)).not.toContain("Jane Q. Private");
+  });
+
+  // Discover cards don't carry a seller name today (options.seller only feeds the quality grade);
+  // the guest strip is the backstop if a card ever does.
+  it("the rails go through redactSellerForGuest when signed out", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("app/api/discover/route.ts", "utf8");
+    expect(src).toContain(
+      "const { desk, signedIn } = await resolveCallerAccess();",
+    );
+    expect(src).toContain(
+      "deals: r.deals.map((d: any) => redactSellerForGuest(d))",
+    );
+  });
+});
