@@ -16,15 +16,21 @@ const TRAILING = /[')\].,;:!?]+$/;
 /**
  * Source-path schemes in stack traces (file:///app/.next/server/chunks/1.js, webpack-internal:///(rsc)/./
  * lib/x.ts, app:///_next/...). They name our own code, not a listing or a user, and Sentry needs them
- * to symbolicate, so they are never scrubbed (Ren #314 f).
+ * to symbolicate, so they are kept (Ren #314 f) — but only with an EMPTY authority (three slashes):
+ * file://evil.com/c?e=… or rsc://attacker.com/… is a real remote URL and is scrubbed like any other
+ * (Ren #323). A kept path loses everything from the first ? or #.
  */
-const SOURCE_PATH = /^(?:file|webpack|webpack-internal|turbopack|node|rsc|app(?=:\/\/\/)):\/\//i;
+const SOURCE_PATH = /^(?:file|webpack|webpack-internal|turbopack|node|rsc|app):\/\/\//i;
 
 /** Replace every URL in free text with "[url]" (trailing quote/paren/punctuation kept). */
 export function scrubUrls(text: string): string {
   return String(text ?? "").replace(URL_IN_TEXT, (m) => {
-    if (SOURCE_PATH.test(m)) return m;
     const tail = m.match(TRAILING)?.[0] ?? "";
+    const body = m.slice(0, m.length - tail.length);
+    if (SOURCE_PATH.test(body)) {
+      const q = body.search(/[?#]/);
+      return q < 0 ? m : body.slice(0, q) + tail;
+    }
     return `[url]${tail}`;
   });
 }

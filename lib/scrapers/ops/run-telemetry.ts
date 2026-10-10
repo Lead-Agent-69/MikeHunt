@@ -346,11 +346,23 @@ export function isContactKey(key: string): boolean {
  * scrubber can no longer recognise is never stored. Also drops trailing whole tokens of phone
  * characters that still hold 3+ digits ("(555)").
  */
+/** Longest tail dropped at a cut (Ren #323): longer than any phone and nearly any email fragment. */
+export const MAX_PARTIAL_DROP = 64;
+
 export function dropPartialTail(cut: string): string {
   const partial = cut.match(/\S*$/)?.[0] ?? "";
   // A cut inside one long word-only string ("yyyy…") keeps it; anything with digits, @, dots,
   // slashes or colons, or any partial token after other text, goes.
-  let t = partial.length === cut.length && !/[\d@./:+]/.test(partial) ? cut : cut.slice(0, cut.length - partial.length);
+  let t: string;
+  if (partial.length > MAX_PARTIAL_DROP) {
+    // Minified HTML / long unbroken runs: drop only the last MAX_PARTIAL_DROP chars, which covers any
+    // email or phone fragment the cut could have made, instead of throwing away the whole snippet.
+    t = cut.slice(0, cut.length - MAX_PARTIAL_DROP);
+  } else if (partial.length === cut.length && !/[\d@./:+]/.test(partial)) {
+    t = cut;
+  } else {
+    t = cut.slice(0, cut.length - partial.length);
+  }
   // Then whole trailing tokens made only of phone characters, e.g. "(555)" left before the cut.
   const tail = t.match(/(?:^|\s)[\d()+.\-\u2013\u2014/][\d\s()+.\-\u2013\u2014/]*$/)?.[0] ?? "";
   if ((tail.match(/\d/g) || []).length >= 3) t = t.slice(0, t.length - tail.length);
