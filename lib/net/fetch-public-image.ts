@@ -1,10 +1,7 @@
 import axios from "axios";
-import { UrlNotAllowedError, assertPublicHttpUrl } from "@/lib/net/public-url";
-import {
-  locationHeader,
-  publicHttpAgent,
-  publicHttpsAgent,
-} from "@/lib/net/fetch-public-html";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
+import { locationHeader } from "@/lib/net/fetch-public-html";
+import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 export const MAX_IMAGE_REDIRECTS = 3;
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -34,10 +31,11 @@ export function safeImageContentType(raw: string | null | undefined): string | n
 /**
  * GET an image from a public http(s) URL.
  * - Every hop (the first URL and each redirect Location) must pass `isAllowed`
- *   (the caller's host allowlist) AND assertPublicHttpUrl (no private, loopback,
+ *   (the caller's host allowlist) AND the pinned public-URL check (no private, loopback,
  *   link-local, metadata, or weird IP encodings).
  * - Redirects are followed manually (axios maxRedirects: 0), capped at MAX_IMAGE_REDIRECTS.
- * - Sockets go through the public-only DNS lookup, so a rebinding answer can't reach a private IP.
+ * - Each hop's host is resolved once, validated and pinned (lib/net/pinned-dns), with proxy: false,
+ *   so neither a rebinding answer nor HTTP(S)_PROXY can redirect the socket.
  * Throws UrlNotAllowedError for a blocked hop (no request is sent to it).
  */
 export async function fetchPublicImage(
@@ -46,7 +44,9 @@ export async function fetchPublicImage(
   headers: Record<string, string> = {},
 ): Promise<PublicImageResult> {
   if (!isAllowed(rawUrl)) throw new UrlNotAllowedError("Host not allowed");
-  let current = await assertPublicHttpUrl(rawUrl);
+  // Resolve once per hop, validate, and pin the socket to that answer.
+  let target = await resolvePinnedTarget(rawUrl);
+  let current = target.url;
 
   for (let hop = 0; hop <= MAX_IMAGE_REDIRECTS; hop++) {
     let response;
@@ -58,8 +58,7 @@ export async function fetchPublicImage(
         responseType: "arraybuffer",
         maxContentLength: MAX_IMAGE_BYTES,
         validateStatus: () => true,
-        httpAgent: publicHttpAgent,
-        httpsAgent: publicHttpsAgent,
+        ...pinnedAxiosOptions(target),
       });
     } catch (error) {
       if (error instanceof UrlNotAllowedError) throw error;
@@ -75,7 +74,8 @@ export async function fetchPublicImage(
       if (!loc) return { ok: false, status: 502, reason: "redirect without location" };
       const next = new URL(loc, current).toString();
       if (!isAllowed(next)) throw new UrlNotAllowedError("Redirect host not allowed");
-      current = await assertPublicHttpUrl(next);
+      target = await resolvePinnedTarget(next);
+      current = target.url;
       continue;
     }
     if (status < 200 || status >= 300) {
