@@ -52,7 +52,8 @@ describe("dedup migration", () => {
   });
   it("flags VIN conflicts instead of merging", () => {
     expect(sql).toContain("'vin_conflict'");
-    expect(sql).toContain("count(DISTINCT d.year) > 1");
+    expect(sql).toContain("max(d.year) - min(d.year) >= 2");
+    expect(sql).toContain("WHERE public.vin_check_digit_ok(d.vin)");
   });
   it("fuzzy rules: cross-host, 3% price, 2% miles, >= 1,000 miles, different VINs never match", () => {
     expect(sql).toContain("b.host IS DISTINCT FROM a.host");

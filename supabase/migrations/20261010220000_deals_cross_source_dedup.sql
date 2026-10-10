@@ -8,9 +8,10 @@
 --
 -- public.dedupe_deals(p_ids uuid[] DEFAULT NULL) RETURNS jsonb
 --   p_ids = the rows a scrape batch just wrote (NULL = full pass). Three steps:
---   1. Exact VIN (17-char, normalized upper). Canonical = earliest-seen ACTIVE row (stable; when it
---      goes inactive the next active copy is promoted). confidence 1.000.
---      Conflict: the same VIN on rows with different model years or makes is NOT merged. Every row
+--   1. Exact VIN (17-char, normalized upper, check digit valid: public.vin_check_digit_ok from
+--      20261010210000; a bad-check-digit VIN never groups rows). Canonical = earliest-seen ACTIVE
+--      row (stable; when it goes inactive or is deleted the next copy is promoted). confidence 1.000.
+--      Conflict: the same VIN on rows with different makes, or years 2+ apart, is NOT merged. Every row
 --      in the group gets 'vin_conflict' in quality_flags (keeps them out of scoring) and any VIN link
 --      among them is cleared.
 --   2. Fuzzy, for active rows without a usable VIN match, CROSS-HOST only (a dealer's own two
@@ -22,6 +23,8 @@
 --   3. Fuzzy links whose price / mileage drifted apart, or whose canonical went inactive, are
 --      re-checked and released.
 --
+-- detect_duplicates_by_vin (old VIN-only entry point, grouped by VIN alone so conflicts merged) now
+-- delegates to dedupe_deals for the rows carrying those VINs. Same signature.
 -- Also: discover_deals returns duplicate_of_id (Discover groups copies under one card), and
 -- count_by_state / get_market_pulse count canonical rows only. Signatures and grants unchanged.
 --
@@ -51,7 +54,7 @@ BEGIN
   INSERT INTO _dd_vin
   SELECT DISTINCT upper(btrim(d.vin))
   FROM public.deals d
-  WHERE upper(btrim(d.vin)) ~ '^[A-HJ-NPR-Z0-9]{17}$'
+  WHERE public.vin_check_digit_ok(d.vin) -- a bad check digit is never a dedup key
     AND (p_ids IS NULL OR d.id = ANY(p_ids));
 
   -- Groups (all rows of each touched VIN, active or not).
@@ -65,11 +68,12 @@ BEGIN
                                  ORDER BY coalesce(d.active, false) DESC, d.first_seen_at ASC, d.id ASC)
   FROM public.deals d
   JOIN _dd_vin v ON upper(btrim(d.vin)) = v.vin;
-  -- Conflict = the group disagrees on model year or make (count(DISTINCT) can't be a window).
+  -- Conflict = the group disagrees on make, or on year by 2+ (model year vs listed year is often off
+  -- by one for the same car). count(DISTINCT) can't be a window, so compute it per group here.
   UPDATE _dd_grp g SET conflict = c.conflict
   FROM (
     SELECT g2.vin,
-           (count(DISTINCT d.year) > 1 OR count(DISTINCT lower(btrim(d.make))) > 1) AS conflict
+           (count(DISTINCT lower(btrim(d.make))) > 1 OR max(d.year) - min(d.year) >= 2) AS conflict
     FROM _dd_grp g2 JOIN public.deals d ON d.id = g2.id
     GROUP BY g2.vin
   ) c
@@ -145,6 +149,18 @@ BEGIN
     RETURNING 1
   ) SELECT count(*) INTO v_promoted FROM p;
 
+  -- Canonical deleted (retention hard-delete): its copies are released; for VIN groups step 1 has
+  -- already re-pointed them at the oldest remaining copy, so this only frees fuzzy copies, and the
+  -- fuzzy pass below re-links them to each other with the oldest as canonical.
+  WITH x AS (
+    UPDATE public.deals d
+    SET duplicate_of_id = NULL, duplicate_confidence = NULL
+    WHERE d.duplicate_of_id IS NOT NULL
+      AND (p_ids IS NULL OR d.id = ANY(p_ids))
+      AND NOT EXISTS (SELECT 1 FROM public.deals c WHERE c.id = d.duplicate_of_id)
+    RETURNING 1
+  ) SELECT v_promoted + count(*) INTO v_promoted FROM x;
+
   -- ── 2. Fuzzy cross-source ──────────────────────────────────────────────────────────────────
   CREATE TEMP TABLE IF NOT EXISTS _dd_cand (
     id uuid PRIMARY KEY, host text, year smallint, mk text, md text, tr text,
@@ -159,7 +175,7 @@ BEGIN
          lower(regexp_replace(coalesce(d.trim, ''), '[^a-zA-Z0-9]', '', 'g')),
          d.ask_price, d.mileage, d.location_state::text, left(substring(d.location_zip FROM '\d{5}'), 3),
          lower(btrim(d.location_city)),
-         CASE WHEN upper(btrim(d.vin)) ~ '^[A-HJ-NPR-Z0-9]{17}$' THEN upper(btrim(d.vin)) END,
+         CASE WHEN public.vin_check_digit_ok(d.vin) THEN upper(btrim(d.vin)) END,
          d.images[1], d.title, d.first_seen_at
   FROM public.deals d
   WHERE coalesce(d.active, false)
@@ -225,6 +241,26 @@ GRANT EXECUTE ON FUNCTION public.dedupe_deals(uuid[]) TO service_role;
 
 COMMENT ON FUNCTION public.dedupe_deals(uuid[]) IS
   'Cross-source dedup: exact VIN, then fuzzy (year/make/model/trim, price 3%, miles 2%, zip3/city). Links copies via duplicate_of_id; never deletes. VIN conflicts are flagged, not merged.';
+
+CREATE OR REPLACE FUNCTION public.detect_duplicates_by_vin(vin_filter text[] DEFAULT NULL)
+RETURNS void
+LANGUAGE plpgsql
+SET search_path TO 'pg_catalog', 'public'
+AS $$
+BEGIN
+  IF vin_filter IS NULL THEN
+    PERFORM public.dedupe_deals(NULL);
+  ELSE
+    PERFORM public.dedupe_deals(ARRAY(
+      SELECT d.id FROM public.deals d
+      WHERE upper(btrim(d.vin)) IN (SELECT upper(btrim(v)) FROM unnest(vin_filter) AS v)
+    ));
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.detect_duplicates_by_vin(text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.detect_duplicates_by_vin(text[]) TO service_role;
 
 -- Discover groups linked copies under one card: also return duplicate_of_id (same signature).
 CREATE OR REPLACE FUNCTION public.discover_deals(p_state text DEFAULT NULL::text, p_max_price numeric DEFAULT 0, p_limit integer DEFAULT 24000, p_states text[] DEFAULT NULL::text[])

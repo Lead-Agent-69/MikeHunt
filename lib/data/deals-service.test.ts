@@ -81,6 +81,7 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
       "range",
       "not",
       "single",
+      "is",
     ]) {
       listChain[m] = vi.fn(() => listChain);
     }

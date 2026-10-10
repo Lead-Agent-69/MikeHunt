@@ -219,7 +219,8 @@ export class DealsService {
     let query = this.supabase
       .from("deals")
       .select("*", { count: "exact" })
-      .eq("active", true);
+      .eq("active", true)
+      .is("duplicate_of_id", null); // canonical rows only (cross-source dedup)
 
     if (filters.source?.length) {
       query = query.in("source", filters.source);
@@ -328,6 +329,7 @@ export class DealsService {
       .from("deals")
       .select("*", { count: "exact" })
       .eq("active", true)
+      .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
       .or(
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
@@ -381,6 +383,7 @@ export class DealsService {
       .from("deals")
       .select("*")
       .eq("active", true)
+      .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
       .gte("profit_score", 70)
       .order("profit_score", { ascending: false })
       .limit(limit);

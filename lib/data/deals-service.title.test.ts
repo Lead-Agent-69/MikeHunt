@@ -17,6 +17,7 @@ vi.mock("@/lib/supabase", () => ({
         "order",
         "limit",
         "range",
+        "is",
       ])
         q[m] = (...args: unknown[]) => {
           calls.push([m, ...args]);
