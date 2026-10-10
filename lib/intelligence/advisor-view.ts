@@ -10,6 +10,8 @@ import type { Basis, CheckListingRead } from "@/lib/intelligence/check-listing";
 import { titleCategory } from "@/lib/deals/title-category";
 
 export const NOT_ENOUGH_DATA = "Not enough data";
+/** Shown when the read couldn't be fetched (rate limit, market data down). */
+export const NOT_ENOUGH_DATA_YET = "Not enough data yet";
 
 export const BASIS_LABEL: Readonly<Record<Basis, string>> = {
   measured: "from recent sales",
@@ -18,6 +20,9 @@ export const BASIS_LABEL: Readonly<Record<Basis, string>> = {
 };
 
 export type AdvisorNumber = { value: number; basisLabel: string };
+
+/** One line of the flip-desk cost breakdown (Why sheet). `sign` is how it moves profit. */
+export type AdvisorCostLine = { label: string; value: number; sign: "+" | "-" | "=" };
 
 export type AdvisorView =
   | { state: "insufficient"; headline: string; reason: string }
@@ -33,6 +38,11 @@ export type AdvisorView =
       /** Flip desks only. */
       sellMarket: (AdvisorNumber & { state: string | null }) | null;
       confidence: "high" | "medium";
+      /** "Medium confidence" under the verdict; null when high. */
+      confidenceNote: string | null;
+      /** Flip desks only: buy, fees, transport, recon, repair, selling, sale, profit. Only lines
+       *  the API returned; empty on personal desks. */
+      breakdown: AdvisorCostLine[];
       why: string[];
       assumptions: string[];
       compsLine: string;
@@ -57,6 +67,41 @@ function compsLine(read: CheckListingRead): string {
       ? `${read.comps.sold} sold, ${read.comps.asks} listed`
       : `${read.comps.asks} listed`;
   return `Based on ${n} comparable car${n === 1 ? "" : "s"} (${kind}).`;
+}
+
+const finite = (n: unknown): n is number =>
+  typeof n === "number" && Number.isFinite(n);
+
+/**
+ * The engine's cost line, top to bottom, from fields the API actually returned. Profit and
+ * sale only appear with a real basis; a missing field is left out, never filled in.
+ */
+export function costBreakdown(read: CheckListingRead): AdvisorCostLine[] {
+  const p = read.profit;
+  const sale = shown(read.resale.value, read.resale.basis);
+  const net = shown(p.net, p.basis);
+  if (!sale || !net) return [];
+  const lines: AdvisorCostLine[] = [];
+  if (finite(read.vehicle.price))
+    lines.push({ label: "Buy", value: read.vehicle.price, sign: "-" });
+  const costs: Array<[string, unknown]> = [
+    ["Fees", p.fees],
+    ["Transport", p.transport],
+    ["Recon", p.recon],
+    ["Repair", p.repair],
+    ["Selling cost", p.sellingCost],
+  ];
+  for (const [label, v] of costs)
+    if (finite(v) && v > 0) lines.push({ label, value: v, sign: "-" });
+  lines.push({
+    label: read.resale.state
+      ? `Expected sale in ${read.resale.state}`
+      : "Expected sale",
+    value: sale.value,
+    sign: "+",
+  });
+  lines.push({ label: "Profit", value: net.value, sign: "=" });
+  return lines;
 }
 
 export function advisorView(
@@ -96,6 +141,9 @@ export function advisorView(
     profit: opts.flipDesk ? shown(read.profit.net, read.profit.basis) : null,
     sellMarket: resale ? { ...resale, state: read.resale.state } : null,
     confidence: read.confidence.label as "high" | "medium",
+    confidenceNote:
+      read.confidence.label === "medium" ? "Medium confidence" : null,
+    breakdown: opts.flipDesk ? costBreakdown(read) : [],
     why: read.why.slice(0, 4),
     assumptions: read.assumptions,
     compsLine: compsLine(read),
