@@ -16,6 +16,7 @@
 // silently opening; local dev stays usable so a dev box doesn't need secrets to run.
 
 import { NextRequest, NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/auth/bearer";
 
 /** The shared secret, or null when neither is configured. */
 export function scrapeSecret(): string | null {
@@ -23,11 +24,11 @@ export function scrapeSecret(): string | null {
   return secret && secret.length > 0 ? secret : null;
 }
 
-/** True when the request presents `Authorization: Bearer <secret>`. Fails closed if unset. */
+/** True when the request presents `Authorization: Bearer <secret>` (constant-time). Fails closed if unset. */
 export function hasScrapeSecret(request: NextRequest): boolean {
   const secret = scrapeSecret();
   if (!secret) return false;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
+  return bearerMatches(request.headers.get("authorization"), secret);
 }
 
 export interface ScrapeGateOptions {

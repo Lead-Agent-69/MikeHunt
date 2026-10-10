@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
-import { URL_IN_TEXT } from "@/lib/security/scrub-urls";
+import { scrubUrls } from "@/lib/security/scrub-urls";
 import * as Sentry from "@sentry/nextjs";
 import { generateText } from "ai";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -45,13 +45,11 @@ Extract ONLY what is literally on the document — do not invent numbers or calc
 /** Copy of a browser/import error with every URL replaced, so no user-pasted link reaches Sentry. */
 function scrubbedBrowserError(e: unknown): Error {
   const name = e instanceof Error ? e.name : "Error";
-  const message = (e instanceof Error ? e.message : String(e))
-    .replace(URL_IN_TEXT, "[url]")
-    .slice(0, 500);
+  const message = scrubUrls(e instanceof Error ? e.message : String(e)).slice(0, 500);
   const safe = new Error(message);
   safe.name = name;
   if (e instanceof Error && e.stack) {
-    safe.stack = e.stack.replace(URL_IN_TEXT, "[url]");
+    safe.stack = scrubUrls(e.stack);
   }
   return safe;
 }
