@@ -57,6 +57,9 @@ export function digestEmailHtml(items: DigestItem[], appUrl: string): string {
   </body></html>`;
 }
 
+/** Most inbox rows one user's digest covers (and stamps) per run. */
+export const DIGEST_ROWS_PER_USER = 50;
+
 export async function sendSavedSearchDigests(
   sb: SupabaseClient,
 ): Promise<{ users: number; emailsSent: number; rows: number }> {
@@ -70,7 +73,14 @@ export async function sendSavedSearchDigests(
     if (sErr || !searches?.length) return result;
     const emailSearches = searches.filter((s: any) => s.notify_email !== false);
     if (!emailSearches.length) return result;
-    const nameById = new Map(emailSearches.map((s: any) => [s.id, s.name]));
+    // Each inbox row is only shown with a search owned by the same user, so another user's search
+    // name can never leak into someone's digest even if search_id were wrong.
+    const searchById = new Map<string, { userId: string; name: string }>(
+      emailSearches.map((s: any) => [
+        s.id,
+        { userId: String(s.user_id), name: String(s.name ?? "") },
+      ]),
+    );
 
     const since = new Date(Date.now() - WINDOW_HOURS * 3_600_000).toISOString();
     const { data: rows, error: rErr } = await sb
@@ -78,16 +88,20 @@ export async function sendSavedSearchDigests(
       .select(
         "id, user_id, search_id, deal_id, deals ( id, year, make, model, ask_price, location_city, location_state )",
       )
-      .in("search_id", Array.from(nameById.keys()))
+      .in("search_id", Array.from(searchById.keys()))
       .is("digest_sent_at", null)
       .gte("created_at", since)
+      .order("created_at", { ascending: false })
       .limit(5000);
     if (rErr || !rows?.length) return result;
 
     const byUser = new Map<string, any[]>();
     for (const r of rows as any[]) {
+      if (searchById.get(r.search_id)?.userId !== r.user_id) continue;
       if (!byUser.has(r.user_id)) byUser.set(r.user_id, []);
-      byUser.get(r.user_id)!.push(r);
+      const list = byUser.get(r.user_id)!;
+      // Newest first (ORDER BY created_at DESC); rows past the per-user cap stay undigested.
+      if (list.length < DIGEST_ROWS_PER_USER) list.push(r);
     }
 
     let paidOnly: ((uid: string) => Promise<boolean>) | null = null;
@@ -114,7 +128,7 @@ export async function sendSavedSearchDigests(
         location: [r.deals?.location_city, r.deals?.location_state]
           .filter(Boolean)
           .join(", "),
-        searchName: String(nameById.get(r.search_id) || "Saved search"),
+        searchName: searchById.get(r.search_id)?.name || "Saved search",
       }));
 
       const res = await sendEmail({
