@@ -82,6 +82,8 @@ export type DealFilters = {
   make?: string[];
   condition?: string[];
   location?: string;
+  /** Exact `location_state` match (validated 2-letter codes, uppercased). */
+  states?: string[];
   minProfit?: number;
   minScore?: number;
   sortBy?:
@@ -210,6 +212,13 @@ export class DealsService {
       query = query.in("condition", filters.condition);
     }
 
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
+    }
+
     if (filters.location) {
       query = query.or(
         `location_city.ilike.%${filters.location}%,location_state.ilike.%${filters.location}%`,
@@ -298,6 +307,13 @@ export class DealsService {
       .or(
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
+
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
+    }
 
     if (filters.minProfit) {
       query = query.gte("profit_estimate", filters.minProfit);
