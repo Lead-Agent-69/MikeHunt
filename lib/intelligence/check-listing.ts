@@ -125,7 +125,10 @@ export interface CheckListingRead {
     repair: number;
     sellingCost: number | null;
   } | null;
-  confidence: { label: "high" | "medium" | "low" | "none"; score: number | null };
+  confidence: {
+    label: "high" | "medium" | "low" | "none";
+    score: number | null;
+  };
   /** Two to four short sentences: the evidence behind the verdict. */
   why: string[];
   /** Every estimate that is not measured, for the "Why" sheet. */
@@ -139,7 +142,11 @@ export interface CheckListingRead {
   };
   /** Model-wide trend (all years and trims). Informational only: never changes the verdict. */
   trend: { pctChange: number; dataPoints: number; usedInVerdict: false } | null;
-  priceHistory: { firstPrice: number; firstSeenAt: string; changes: number } | null;
+  priceHistory: {
+    firstPrice: number;
+    firstSeenAt: string;
+    changes: number;
+  } | null;
 }
 
 export interface ReadOptions {
@@ -162,12 +169,17 @@ export function targetProfitFor(resale: number): number {
 const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 const basisOf = (o: ScoredOpportunity): Basis =>
-  o.spread.compKind === "sold" && o.spread.compScope !== "title_discount_fallback"
+  o.spread.compKind === "sold" &&
+  o.spread.compScope !== "title_discount_fallback"
     ? "measured"
     : "estimate";
 
 /** Highest ask at which the engine's own cost line still clears `target` (lib/arbitrage). */
-export function maxBuyFor(o: ScoredOpportunity, source: string | null | undefined, target: number) {
+export function maxBuyFor(
+  o: ScoredOpportunity,
+  source: string | null | undefined,
+  target: number,
+) {
   return maxAskForNet(o.spread, source, target) ?? 0;
 }
 
@@ -208,8 +220,8 @@ function prepare(
       },
       now,
     );
-    // A row we track keeps its own freshness, even when its page was just read: a frozen
-    // (terms-gated, not refreshed) or ended listing is not called live.
+    // A row we track keeps its own freshness (isLiveDeal), even when its page was just read: a
+    // stale, frozen (terms-gated, not refreshed) or ended listing is not called live.
     live = { state: f.state, label: f.label };
     lastSeenAt = self.lastSeenAt;
   } else if (opts.fetchedNow) {
@@ -230,14 +242,27 @@ function prepare(
   // The listing itself never counts as a comp: by deal id, by id or source + source id
   // (comps-aggregate isSelfComp, e.g. ebay_motors + item id), and by normalized URL / VIN
   // (market-comps isSameVehicleOrListing). The engine re-checks id / source ids.
-  const target = { vin: input.vin ?? null, url: input.url ?? self?.sourceUrl ?? null };
+  const target = {
+    vin: input.vin ?? null,
+    url: input.url ?? self?.sourceUrl ?? null,
+  };
   const ids = new Set([self?.id, input.dealId].filter(Boolean) as string[]);
-  const selfIds = { id: listing.id, source: listing.source, sourceDealId: listing.sourceDealId };
+  const selfIds = {
+    id: listing.id,
+    source: listing.source,
+    sourceDealId: listing.sourceDealId,
+  };
   const pool = comps.filter((c) => {
     if (c.id && ids.has(c.id)) return false;
     if (isSelfComp(c, selfIds)) return false;
-    const extra = c as ArbitrageComp & { url?: string | null; vin?: string | null };
-    return !isSameVehicleOrListing({ vin: extra.vin ?? null, source_url: extra.url ?? null }, target);
+    const extra = c as ArbitrageComp & {
+      url?: string | null;
+      vin?: string | null;
+    };
+    return !isSameVehicleOrListing(
+      { vin: extra.vin ?? null, source_url: extra.url ?? null },
+      target,
+    );
   });
 
   return {
@@ -260,7 +285,11 @@ function prepare(
     soldN: pool.filter((c) => c.kind === "sold").length,
     trend:
       opts.timing && Number.isFinite(opts.timing.pctChange)
-        ? { pctChange: opts.timing.pctChange, dataPoints: opts.timing.dataPoints, usedInVerdict: false }
+        ? {
+            pctChange: opts.timing.pctChange,
+            dataPoints: opts.timing.dataPoints,
+            usedInVerdict: false,
+          }
         : null,
     history: summarizeHistory(opts.priceHistory || []),
   };
@@ -268,13 +297,17 @@ function prepare(
 
 const notLiveHeadline = (live: CheckListingRead["live"]) =>
   `Not live: ${live.label || "this listing is no longer current"}. The price may not be buyable.`;
-/** Frozen (terms-gated, not refreshed) or ended listings are not buyable at the shown price.
- *  "stale" only lowers confidence through the engine's last-seen penalty. */
+/** A tracked listing that is not live per lib/deals/freshness (stale, frozen or ended) is not
+ *  buyable at the shown price: verdict "not_live", never Buy / Wait / Pass. */
 const isNotLive = (live: CheckListingRead["live"]) =>
-  live.state === "frozen" || live.state === "ended";
+  live.state !== "unknown" && live.state !== "live";
 
-function historyLine(history: CheckListingRead["priceHistory"], price: number): string | null {
-  if (!history || history.changes <= 0 || history.firstPrice === price) return null;
+function historyLine(
+  history: CheckListingRead["priceHistory"],
+  price: number,
+): string | null {
+  if (!history || history.changes <= 0 || history.firstPrice === price)
+    return null;
   return price < history.firstPrice
     ? `This listing has dropped ${money(history.firstPrice - price)} since we first saw it.`
     : `This listing has gone up ${money(price - history.firstPrice)} since we first saw it.`;
@@ -290,7 +323,10 @@ export function readListing(
   const { listing, pool, location, state, now } = p;
 
   // Dealer resale where the car sits (its own state, else national).
-  const here = evaluateOpportunity(listing, pool, { sellMarket: location, now });
+  const here = evaluateOpportunity(listing, pool, {
+    sellMarket: location,
+    now,
+  });
 
   // Where to sell: every state with enough same-state comps, plus the buyer's home.
   const counts = new Map<string, number>();
@@ -303,11 +339,14 @@ export function readListing(
       .filter(([, n]) => n >= COMP_MIN_SAMPLES)
       .map(([s]) => s),
   );
-  const home = opts.buyerHome?.state ? String(opts.buyerHome.state).toUpperCase() : null;
+  const home = opts.buyerHome?.state
+    ? String(opts.buyerHome.state).toUpperCase()
+    : null;
   let best: ScoredOpportunity | null = null;
   for (const st of Array.from(markets).concat(home ? [home] : [])) {
     const o = evaluateOpportunity(listing, pool, {
-      sellMarket: st === home && opts.buyerHome ? opts.buyerHome : { state: st },
+      sellMarket:
+        st === home && opts.buyerHome ? opts.buyerHome : { state: st },
       now,
     });
     if (!("status" in o) || o.status !== "scored") continue;
@@ -334,7 +373,15 @@ export function readListing(
       headline: isNotLive(p.live)
         ? notLiveHeadline(p.live)
         : `Not enough data: fewer than ${COMP_MIN_SAMPLES} comparable cars to value this one.`,
-      fairValue: { value: null, basis: "insufficient", state, comps: 0, label: null, kind: "none", range: null },
+      fairValue: {
+        value: null,
+        basis: "insufficient",
+        state,
+        comps: 0,
+        label: null,
+        kind: "none",
+        range: null,
+      },
       maxBuy: { value: null, basis: "insufficient", targetProfit: null },
       resale: { value: null, basis: "insufficient", state: null },
       profit: {
@@ -352,7 +399,13 @@ export function readListing(
         "Check again after the next sweep, or widen to nearby years.",
       ],
       assumptions: "assumptions" in here ? here.assumptions : [],
-      comps: { asks: p.askN, sold: p.soldN, compKind: "none", compScope: "none", newestAt: null },
+      comps: {
+        asks: p.askN,
+        sold: p.soldN,
+        compKind: "none",
+        compScope: "none",
+        newestAt: null,
+      },
     };
   }
 
@@ -387,7 +440,8 @@ export function readListing(
           : `Pass: at ${money(input.price)} it loses ~${money(Math.abs(net))} after costs.`;
 
   const why: string[] = [];
-  const kindWord = sell.spread.compKind === "sold" ? "recent sales" : "live asks";
+  const kindWord =
+    sell.spread.compKind === "sold" ? "recent sales" : "live asks";
   why.push(
     `Valued on ${sell.spread.compsCount} ${kindWord}${sell.comps.geoScope === "state" && sellState ? ` in ${sellState}` : " nationwide"}${sell.spread.compKind === "ask" ? " (asks less 5% to estimate a sale)" : ""}.`,
   );
@@ -411,7 +465,8 @@ export function readListing(
     fairValue: {
       value: fallback?.spread.expectedResale ?? null,
       basis: fallback ? basisOf(fallback) : "insufficient",
-      state: fallback?.comps.geoScope === "state" ? fallback.comps.sellState : null,
+      state:
+        fallback?.comps.geoScope === "state" ? fallback.comps.sellState : null,
       comps: fallback?.spread.compsCount ?? 0,
       label: fallback
         ? `Dealer resale · ${fallback.spread.compsCount} ${fallback.spread.compKind === "sold" ? "recent sales" : "live asks less 5%"}`
@@ -443,17 +498,25 @@ export function readListing(
   };
 }
 
-function retailAssumptions(fv: RetailFairValue, mileage: number | null): string[] {
+function retailAssumptions(
+  fv: RetailFairValue,
+  mileage: number | null,
+): string[] {
   const out: string[] = [];
   if (fv.basis === "sold")
-    out.push("Retail basis: completed sales to retail buyers (auction and wholesale sales left out).");
+    out.push(
+      "Retail basis: completed sales to retail buyers (auction and wholesale sales left out).",
+    );
   else if (fv.basis === "ask")
     out.push(
       "Retail basis: live retail asking prices with no discount. No recent sales on file, so this is what sellers ask, not what cars sell for.",
     );
-  if (mileage) out.push("Compared only with cars within 25,000 miles of this one.");
+  if (mileage)
+    out.push("Compared only with cars within 25,000 miles of this one.");
   if (fv.titleCategory === "Unknown")
-    out.push("Listing title not stated: compared with clean and unknown-title cars.");
+    out.push(
+      "Listing title not stated: compared with clean and unknown-title cars.",
+    );
   return out;
 }
 
@@ -488,7 +551,9 @@ export function readPersonal(
   if (fv.value != null && fv.label) {
     why.push(`${fv.label}.`);
     if (fv.range)
-      why.push(`The middle half of those cars are ${money(fv.range.p25)} to ${money(fv.range.p75)}.`);
+      why.push(
+        `The middle half of those cars are ${money(fv.range.p25)} to ${money(fv.range.p75)}.`,
+      );
   } else {
     why.push(
       `We found ${p.askN} live asks and ${p.soldN} sales for this car${p.state ? ` around ${p.state}` : ""}; after matching title and miles we need at least ${COMP_MIN_SAMPLES} to price it.`,
@@ -512,7 +577,12 @@ export function readPersonal(
     live: p.live,
     fairValue: {
       value: fv.value,
-      basis: fv.basis === "sold" ? "measured" : fv.basis === "ask" ? "estimate" : "insufficient",
+      basis:
+        fv.basis === "sold"
+          ? "measured"
+          : fv.basis === "ask"
+            ? "estimate"
+            : "insufficient",
       state: fv.state,
       comps: fv.n,
       label: fv.label,
@@ -522,7 +592,12 @@ export function readPersonal(
     priceRating: notLive ? null : rv.rating,
     maxBuy: {
       value: fv.value == null ? null : Math.floor(fv.value / 50) * 50,
-      basis: fv.basis === "sold" ? "measured" : fv.basis === "ask" ? "estimate" : "insufficient",
+      basis:
+        fv.basis === "sold"
+          ? "measured"
+          : fv.basis === "ask"
+            ? "estimate"
+            : "insufficient",
       targetProfit: null,
     },
     resale: { value: null, basis: "insufficient", state: null },
@@ -548,6 +623,54 @@ function summarizeHistory(points: readonly PricePoint[]) {
     .sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
   if (!rows.length) return null;
   let changes = 0;
-  for (let i = 1; i < rows.length; i++) if (rows[i].price !== rows[i - 1].price) changes++;
-  return { firstPrice: rows[0].price, firstSeenAt: rows[0].observedAt, changes };
+  for (let i = 1; i < rows.length; i++)
+    if (rows[i].price !== rows[i - 1].price) changes++;
+  return {
+    firstPrice: rows[0].price,
+    firstSeenAt: rows[0].observedAt,
+    changes,
+  };
+}
+
+/**
+ * Personal-desk verdict gate (server-side): with confidence "none" or "low" the card says
+ * "Not enough data" instead of Buy / Wait / Pass. The fair value and its basis stay visible; the
+ * price rating is dropped. A not-live listing keeps "not_live". Flip reads pass through.
+ */
+export function gatePersonal(read: CheckListingRead): CheckListingRead {
+  if (read.desk !== "personal") return read;
+  const weak =
+    read.confidence.label === "none" || read.confidence.label === "low";
+  if (
+    !weak ||
+    read.verdict === "not_live" ||
+    read.verdict === "not_enough_data"
+  )
+    return read;
+  const fair = read.fairValue.value;
+  return {
+    ...read,
+    verdict: "not_enough_data",
+    priceRating: null,
+    headline:
+      fair == null
+        ? "Not enough data: too few comparable cars to price this one."
+        : `Not enough data to call it: only ${read.fairValue.comps} comparable cars${read.confidence.label === "low" ? " or an unconfirmed title" : ""}. Typical price ~${money(fair)}.`,
+  };
+}
+
+/**
+ * The card for a desk. Flip: the engine read (profit, resale, where to sell). Everyone else:
+ * the retail read, with the verdict gated on confidence. Nothing flip-only is computed for, or
+ * returned to, a personal caller.
+ */
+export function readForDesk(
+  input: CheckListingInput,
+  comps: readonly ArbitrageComp[],
+  opts: ReadOptions,
+  flipDesk: boolean,
+): CheckListingRead {
+  return flipDesk
+    ? readListing(input, comps, opts)
+    : gatePersonal(readPersonal(input, comps, opts));
 }
