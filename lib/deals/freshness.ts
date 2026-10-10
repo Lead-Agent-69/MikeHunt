@@ -21,6 +21,7 @@
  */
 import { TOS_RESTRICTED_SOURCES } from "@/lib/scrapers/terms-restricted";
 import { sourceFromUrl } from "@/lib/sources/source-meta";
+import { urlHostMatches } from "@/lib/net/host-match";
 
 export const STALE_AFTER_HOURS = 72;
 /** A gated source re-seen within this window means an operator opt-in is refreshing it. */
@@ -74,8 +75,10 @@ export function gatedSourceForRow(input: FreshnessInput): string | null {
   if (source && TOS_RESTRICTED_SOURCES[source]) return source;
   const fromUrl = sourceFromUrl(input.sourceUrl ?? input.source_url ?? null);
   if (fromUrl && TOS_RESTRICTED_SOURCES[fromUrl]) return fromUrl;
-  const url = String(input.sourceUrl ?? input.source_url ?? "").toLowerCase();
-  if (url.includes("copart.com")) return "copart";
+  if (
+    urlHostMatches(input.sourceUrl ?? input.source_url ?? null, ["copart.com"])
+  )
+    return "copart";
   return null;
 }
 
