@@ -7,8 +7,14 @@
 --     also holds rules: a CREATE RULE on deals that mentions sold_listings put deals (a table that is
 --     meant to be client-readable) into the closure and failed the check.
 --   * Function bodies are matched on schema plus name. A bare name match let a reference to
---     other_schema.deals_v count as public.deals_v. A public object also matches unqualified
---     (search_path), and quoted identifiers match.
+--     other_schema.deals_v count as public.deals_v. An unqualified name matches only when it can
+--     resolve to the object: the object's schema is in the function's own search_path
+--     (proconfig, e.g. SET search_path = api, public), or the function sets no search_path (it then
+--     runs with the caller's, which can be anything). Quoted identifiers match. relname and nspname
+--     are regex-escaped before they are used in a pattern.
+--   * Column grants: has_table_privilege(r, view, 'SELECT') is false after
+--     GRANT SELECT (vin) ON public.v1 TO anon, so the view loop also checks
+--     has_any_column_privilege(r, view, 'SELECT').
 --
 -- Known misses (not detectable from the catalog without running the code):
 --   * Dynamic SQL: a definer function that builds the table or view name at run time and runs it
@@ -40,8 +46,8 @@ BEGIN
     SELECT oid FROM closure WHERE oid <> 'public.sold_listings'::regclass
   LOOP
     FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
-      IF has_table_privilege(r, obj, 'SELECT') THEN
-        RAISE EXCEPTION 'view % reads sold_listings (directly or through views) and is SELECT-able by %',
+      IF has_table_privilege(r, obj, 'SELECT') OR has_any_column_privilege(r, obj, 'SELECT') THEN
+        RAISE EXCEPTION 'view % reads sold_listings (directly or through views) and is SELECT-able (table or column privilege) by %',
           obj::regclass, r;
       END IF;
     END LOOP;
@@ -60,29 +66,43 @@ BEGIN
         AND v.oid <> c.oid
     ),
     named AS (
-      SELECT c.oid, cl.relname, cn.nspname
+      -- regex-escaped names (N3): a name containing . $ ( ) etc. must match literally
+      SELECT c.oid,
+             cn.nspname,
+             regexp_replace(cl.relname, '([.^$*+?()\[\]{}|\\])', '\\\1', 'g') AS rel_re,
+             regexp_replace(cn.nspname, '([.^$*+?()\[\]{}|\\])', '\\\1', 'g') AS nsp_re
       FROM closure c
       JOIN pg_class cl ON cl.oid = c.oid
       JOIN pg_namespace cn ON cn.oid = cl.relnamespace
+    ),
+    definers AS (
+      SELECT p2.oid,
+             p2.prosrc,
+             -- the function's own search_path (SET search_path = ...), lower-cased, unquoted
+             (SELECT array_agg(lower(btrim(btrim(sp), '"')))
+                FROM unnest(p2.proconfig) cfg,
+                     unnest(string_to_array(substr(cfg, length('search_path=') + 1), ',')) sp
+               WHERE cfg LIKE 'search_path=%') AS path,
+             EXISTS (SELECT 1 FROM unnest(p2.proconfig) cfg WHERE cfg LIKE 'search_path=%') AS sets_path
+      FROM pg_proc p2
+      JOIN pg_namespace ns ON ns.oid = p2.pronamespace
+      WHERE p2.prosecdef
+        AND ns.nspname NOT IN ('pg_catalog', 'information_schema')
     )
-    SELECT DISTINCT p2.oid
-    FROM pg_proc p2
-    JOIN pg_namespace ns ON ns.oid = p2.pronamespace
+    SELECT DISTINCT fd.oid
+    FROM definers fd
     JOIN named n ON true
-    WHERE p2.prosecdef
-      AND ns.nspname NOT IN ('pg_catalog', 'information_schema')
-      AND (
-        -- schema-qualified: schema.name, "schema"."name"
-        p2.prosrc ~* ('"?\m' || n.nspname || '\M"?\s*\.\s*"?\m' || n.relname || '\M"?')
-        -- public objects may also be named bare (search_path), but not as some_other_schema.name
-        OR (n.nspname = 'public'
-            AND p2.prosrc ~* ('(^|[^.\w"])"?\m' || n.relname || '\M"?'))
-        OR EXISTS (
-          SELECT 1 FROM pg_depend d
-          WHERE d.classid = 'pg_proc'::regclass
-            AND d.objid = p2.oid
-            AND d.refobjid = n.oid
-        )
+    WHERE
+      -- schema-qualified: schema.name, "schema"."name"
+      fd.prosrc ~* ('"?\m' || n.nsp_re || '\M"?\s*\.\s*"?\m' || n.rel_re || '\M"?')
+      -- unqualified: only when it can resolve to this object (N2)
+      OR ((NOT fd.sets_path OR lower(n.nspname) = ANY (fd.path))
+          AND fd.prosrc ~* ('(^|[^.\w"])"?\m' || n.rel_re || '\M"?'))
+      OR EXISTS (
+        SELECT 1 FROM pg_depend d
+        WHERE d.classid = 'pg_proc'::regclass
+          AND d.objid = fd.oid
+          AND d.refobjid = n.oid
       )
   LOOP
     FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP

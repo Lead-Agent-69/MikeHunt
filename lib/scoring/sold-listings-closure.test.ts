@@ -34,20 +34,28 @@ type Fn = { key: string; stmt: string; secdef: boolean };
 const CLIENT = String.raw`\b(anon|authenticated|PUBLIC)\b`;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** "public.x", "x", "\"Other\".\"x\"" -> "public.x" / "other.x" (schema plus name). */
+// An identifier, optionally schema-qualified; quoted parts may contain any character but '"'.
+const IDENT = String.raw`(?:"[^"]+"|[\w$]+)(?:\s*\.\s*(?:"[^"]+"|[\w$]+))?`;
+
+/** "public.x", "x", "\"Other\".\"x\"", "public.\"s.v\"" -> "public.x" / "other.x" / "public.s.v"
+ *  (schema plus name; unquoted parts are folded to lower case). */
 function keyOf(token: string): string {
-  const parts = token
-    .split(".")
-    .map((p) => p.replace(/"/g, "").trim().toLowerCase());
+  const parts = Array.from(token.matchAll(/"([^"]+)"|([\w$]+)/g)).map((m) =>
+    m[1] !== undefined ? m[1] : m[2].toLowerCase(),
+  );
   return parts.length > 1
     ? `${parts[parts.length - 2]}.${parts[parts.length - 1]}`
     : `public.${parts[0]}`;
 }
+const splitKey = (key: string): [string, string] => {
+  const i = key.indexOf(".");
+  return [key.slice(0, i), key.slice(i + 1)];
+};
 
 /** Regex source for a reference to `key`. A public object may be written bare (search_path); an
  *  object in any other schema must be schema-qualified. other.x never matches public.x. */
 function refRe(key: string): string {
-  const [schema, name] = key.split(".");
+  const [schema, name] = splitKey(key);
   const n = String.raw`"?${esc(name)}"?(?![\w$"])`;
   const q = String.raw`"?${esc(schema)}"?\s*\.\s*`;
   return schema === "public"
@@ -57,11 +65,46 @@ function refRe(key: string): string {
 const mentions = (text: string, keys: Set<string>) =>
   Array.from(keys).some((k) => new RegExp(refRe(k), "i").test(text));
 
+/** The function's own search_path (SET search_path = a, b / TO a, b), lower-cased, unquoted;
+ *  null when the function sets none (it then runs with the caller's path, which can be anything). */
+function fnSearchPath(stmt: string): string[] | null {
+  const m = stmt.match(
+    /\bSET\s+search_path\s*(?:=|\bTO\b)\s*((?:"[^"]*"|'[^']*'|[\w$]+)(?:\s*,\s*(?:"[^"]*"|'[^']*'|[\w$]+))*)/i,
+  );
+  if (!m) return null;
+  return m[1]
+    .split(",")
+    .map((x) =>
+      x
+        .trim()
+        .replace(/^['"]|['"]$/g, "")
+        .toLowerCase(),
+    )
+    .filter(Boolean);
+}
+
+/** Does a function body read any closure object? Schema-qualified names always count; a bare name
+ *  counts only if it can resolve to the object: its schema is on the function's search_path, or the
+ *  function sets no search_path. */
+function fnReads(stmt: string, keys: Set<string>): boolean {
+  const path = fnSearchPath(stmt);
+  return Array.from(keys).some((k) => {
+    const [schema, name] = splitKey(k);
+    const qualified = String.raw`(?<![\w$."])"?${esc(schema)}"?\s*\.\s*"?${esc(name)}"?(?![\w$"])`;
+    if (new RegExp(qualified, "i").test(stmt)) return true;
+    if (path !== null && !path.includes(schema)) return false;
+    const bareRef = String.raw`(?<![\w$."])"?${esc(name)}"?(?![\w$"]|\s*\.)`;
+    return new RegExp(bareRef, "i").test(stmt);
+  });
+}
+
 // Views and materialized views only. CREATE RULE (also stored in pg_rewrite) never joins the chain:
 // a rule on deals that mentions sold_listings does not make deals a sold_listings reader.
 function views(body: string) {
-  const re =
-    /CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w."]+)([^;]*);/gi;
+  const re = new RegExp(
+    String.raw`CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?(${IDENT})([^;]*);`,
+    "gi",
+  );
   return Array.from(body.matchAll(re)).map((m) => ({
     key: keyOf(m[1]),
     def: m[2],
@@ -70,7 +113,10 @@ function views(body: string) {
 
 function functions(body: string): Fn[] {
   const out: Fn[] = [];
-  const re = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([\w."]+)\s*\(/gi;
+  const re = new RegExp(
+    String.raw`CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(${IDENT})\s*\(`,
+    "gi",
+  );
   for (const m of Array.from(body.matchAll(re))) {
     const rest = body.slice(m.index ?? 0);
     const tag = rest.match(/\$(\w*)\$/);
@@ -98,7 +144,12 @@ function functions(body: string): Fn[] {
 // ALTER FUNCTION name(...) ... SECURITY DEFINER
 const alteredToDefiner = (body: string) =>
   Array.from(
-    body.matchAll(/ALTER\s+FUNCTION\s+([\w."]+)\s*(\([^)]*\))?([^;]*);/gi),
+    body.matchAll(
+      new RegExp(
+        String.raw`ALTER\s+FUNCTION\s+(${IDENT})\s*(\([^)]*\))?([^;]*);`,
+        "gi",
+      ),
+    ),
   )
     .filter((m) => /SECURITY\s+DEFINER/i.test(m[3]))
     .map((m) => keyOf(m[1]));
@@ -211,7 +262,7 @@ function audit(migrations: Migration[]) {
 
     for (const k of Array.from(definerNow)) {
       const def = fnDefs.get(k);
-      if (!def || !mentions(def.stmt, closure)) continue;
+      if (!def || !fnReads(def.stmt, closure)) continue;
       if (granted(body, "function", k)) {
         findings.push(
           `${f}: SECURITY DEFINER function ${k} reads sold_listings and is granted to a client role`,
@@ -235,7 +286,7 @@ function audit(migrations: Migration[]) {
       if (
         !definerNow.has(k) &&
         def &&
-        mentions(def.stmt, closure) &&
+        fnReads(def.stmt, closure) &&
         granted(body, "function", k)
       ) {
         findings.push(
@@ -302,6 +353,56 @@ const BAD: Record<string, { files: Migration[]; expect: RegExp }> = {
     ],
     expect: /existing SECURITY DEFINER function public\.f .* re-granted/,
   },
+  "column grant on an existing revoked view (N1)": {
+    files: [at(1, V1), at(2, "GRANT SELECT (vin) ON public.v1 TO anon;")],
+    expect: /existing view public\.v1 .* re-granted/,
+  },
+  "column grant on a new view over sold_listings (N1)": {
+    files: [
+      at(
+        1,
+        "CREATE VIEW public.v3 AS SELECT vin FROM public.sold_listings; GRANT SELECT (vin) ON public.v3 TO authenticated;",
+      ),
+    ],
+    expect: /view public\.v3 .* granted/,
+  },
+  "definer with SET search_path = api, public reads bare sv (api.sv over sold_listings) (N2)":
+    {
+      files: [
+        at(
+          1,
+          "CREATE VIEW api.sv AS SELECT vin FROM public.sold_listings; REVOKE ALL ON api.sv FROM PUBLIC, anon, authenticated;",
+        ),
+        at(
+          2,
+          "CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = api, public AS $q$ SELECT count(*) FROM sv $q$;",
+        ),
+      ],
+      expect: /SECURITY DEFINER function public\.f .* not revoked/,
+    },
+  "definer with no search_path reads bare sv (api.sv) (N2)": {
+    files: [
+      at(
+        1,
+        "CREATE VIEW api.sv AS SELECT vin FROM public.sold_listings; REVOKE ALL ON api.sv FROM PUBLIC, anon, authenticated;",
+      ),
+      at(
+        2,
+        "CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER AS $q$ SELECT count(*) FROM sv $q$; GRANT EXECUTE ON FUNCTION public.f() TO anon;",
+      ),
+    ],
+    expect: /SECURITY DEFINER function public\.f .* granted/,
+  },
+  "regex characters in a name are matched literally (N3)": {
+    files: [
+      at(
+        1,
+        'CREATE VIEW public."s$v" AS SELECT vin FROM public.sold_listings; REVOKE ALL ON public."s$v" FROM PUBLIC, anon, authenticated;',
+      ),
+      at(2, 'GRANT SELECT ON public."s$v" TO anon;'),
+    ],
+    expect: /existing view public\.s\$v .* re-granted/,
+  },
   "schema-wide grant": {
     files: [at(1, "GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;")],
     expect: /schema-wide GRANT/,
@@ -330,6 +431,24 @@ const GOOD: Record<string, Migration[]> = {
       "CREATE FUNCTION public.g() RETURNS bigint LANGUAGE sql SECURITY DEFINER AS $q$ SELECT count(*) FROM other.deals_v $q$; GRANT EXECUTE ON FUNCTION public.g() TO anon;",
     ),
     at(4, "GRANT SELECT ON other.deals_v TO anon;"),
+  ],
+  "definer with SET search_path = public does not resolve bare sv to api.sv (N2)":
+    [
+      at(
+        1,
+        "CREATE VIEW api.sv AS SELECT vin FROM public.sold_listings; REVOKE ALL ON api.sv FROM PUBLIC, anon, authenticated;",
+      ),
+      at(
+        2,
+        "CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = public AS $q$ SELECT count(*) FROM sv $q$; GRANT EXECUTE ON FUNCTION public.f() TO anon;",
+      ),
+    ],
+  "a dot in a view name is not a wildcard (N3)": [
+    at(
+      1,
+      'CREATE VIEW public."s.v" AS SELECT vin FROM public.sold_listings; REVOKE ALL ON public."s.v" FROM PUBLIC, anon, authenticated;',
+    ),
+    at(2, "GRANT SELECT ON public.sxv TO anon;"),
   ],
   "an invoker view on a revoked view": [
     at(1, V1),
@@ -386,14 +505,26 @@ describe("sold_listings dependency closure stays server-only", () => {
         /JOIN pg_class v ON v\.oid = rw\.ev_class AND v\.relkind IN \('v', 'm'\)/g,
       )?.length,
     ).toBe(2);
-    expect(body).toContain(
-      "n.nspname || '\\M\"?\\s*\\.\\s*\"?\\m' || n.relname",
-    );
-    expect(body).toMatch(/n\.nspname = 'public'\s+AND p2\.prosrc ~\*/);
     expect(body).not.toMatch(/~\* \('\\m' \|\| cl\.relname \|\| '\\M'\)/);
-    expect(body).toMatch(/has_table_privilege\(r, obj, 'SELECT'\)/);
+    // N1: column grants count as SELECT
+    expect(body).toContain(
+      "IF has_table_privilege(r, obj, 'SELECT') OR has_any_column_privilege(r, obj, 'SELECT') THEN",
+    );
     expect(body).toMatch(/WHERE p2\.prosecdef/);
     expect(body).toMatch(/has_function_privilege\(r, obj, 'EXECUTE'\)/);
+    // N2: bare names only when the schema is on the function's own search_path, or none is set
+    expect(body).toMatch(/WHERE cfg LIKE 'search_path=%'\) AS path/);
+    expect(body).toContain(
+      "(NOT fd.sets_path OR lower(n.nspname) = ANY (fd.path))",
+    );
+    // N3: names are regex-escaped before use
+    expect(
+      body.match(
+        /regexp_replace\(c[ln]\.(relname|nspname), '\(\[\.\^\$\*\+\?\(\)\\\[\\\]\{\}\|\\\\\]\)', '\\\\\\1', 'g'\)/g,
+      )?.length,
+    ).toBe(2);
+    expect(body).toContain("n.nsp_re || '\\M\"?\\s*\\.\\s*\"?\\m' || n.rel_re");
+    expect(body).not.toMatch(/\|\| n\.(relname|nspname) \|\|/);
     // known misses are documented in the migration
     expect(raw).toMatch(/Dynamic SQL/);
     expect(raw).toMatch(/Definer calling invoker/);
