@@ -1,5 +1,9 @@
 ﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import {
+  enforceGoProfitFloor,
+  MIN_GO_NET_PROFIT,
+} from "@/lib/scoring/go-policy";
 
 export type UserType = "dealer" | "private" | "parts";
 
@@ -28,6 +32,7 @@ interface DealState {
   reconCost: number;
   titleFee: number;
   floorRate: number; // Daily holding cost
+  targetProfit: number;
   estimatedDaysToSell: number;
 
   // Private Buyer specific costs
@@ -119,6 +124,7 @@ export const useDealStore = create<DealState>()(
       reconCost: 0,
       titleFee: 0,
       floorRate: 35,
+      targetProfit: MIN_GO_NET_PROFIT,
       estimatedDaysToSell: 30,
 
       annualInsurance: 1200,
@@ -324,6 +330,8 @@ export const useDealStore = create<DealState>()(
         let newVerdict: "GO" | "HOLD" | "PASS" = "PASS";
         if (score >= 80) newVerdict = "GO";
         else if (score >= 60) newVerdict = "HOLD";
+        if (s.userType === "dealer")
+          newVerdict = enforceGoProfitFloor(newVerdict, margin, s.targetProfit);
 
         set({
           totalCost: total,

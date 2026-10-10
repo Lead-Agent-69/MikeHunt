@@ -5,6 +5,7 @@ import { createServerComponentClient } from "@/lib/supabase";
 import { rankAlternatives } from "@/lib/deals/rank-alternatives";
 import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
 import { isAuctionSource } from "@/lib/deal-terms";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import {
   redactListingForNonFlipDesk,
   resolveCallerFlipDesk,
@@ -22,6 +23,7 @@ const json = (body: unknown) => NextResponse.json(body, { headers: NO_STORE });
 // in-memory gate until that migration is applied). Falls back to attribute-based matches under the
 // same filters when embeddings aren't populated yet.
 function mapRow(d: any) {
+  d = applyGoProfitPolicy(d);
   return {
     id: d.id,
     year: d.year,

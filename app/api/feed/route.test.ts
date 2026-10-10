@@ -169,6 +169,7 @@ describe("GET /api/feed desk redaction", () => {
       const item = await load(mode);
       expect(item.netProfit).toBe(2700);
       expect(item.score).toBe(87);
+      expect(item.verdict).toBe("hold");
     },
   );
 
@@ -183,6 +184,7 @@ describe("GET /api/feed desk redaction", () => {
     const item = await load(mode, signedIn);
     expect(item).not.toHaveProperty("netProfit");
     expect(item).not.toHaveProperty("score");
+    expect(item).not.toHaveProperty("verdict");
     expect(JSON.stringify(item)).not.toContain("2700");
     expect(item).toMatchObject({
       id: "deal-9",

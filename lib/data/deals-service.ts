@@ -3,6 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { enforceGoProfitFloor } from "@/lib/scoring/go-policy";
 import {
   titleCategory,
   titleCategoryOrFilter,
@@ -197,9 +198,8 @@ export class DealsService {
       estimated_repair_cost: row.estimated_repair_cost
         ? Number(row.estimated_repair_cost)
         : undefined,
-      true_net_profit: row.true_net_profit
-        ? Number(row.true_net_profit)
-        : undefined,
+      true_net_profit:
+        row.true_net_profit != null ? Number(row.true_net_profit) : undefined,
       ai_wholesale_estimate: row.ai_wholesale_estimate
         ? Number(row.ai_wholesale_estimate)
         : undefined,
@@ -213,7 +213,10 @@ export class DealsService {
         row.recommended_max_bid != null
           ? Number(row.recommended_max_bid)
           : undefined,
-      dealVerdict: row.deal_verdict || undefined,
+      dealVerdict: enforceGoProfitFloor(
+        row.deal_verdict || undefined,
+        row.true_net_profit != null ? Number(row.true_net_profit) : null,
+      ),
       dealAnalysis: row.deal_analysis || undefined,
       priceDropAmount:
         row.price_drop_amount != null

@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import { calculateProfit } from "./profit-calculator";
 
 describe("explicit acquisition scenario costs", () => {
+  it("keeps high-scoring lower-margin opportunities on HOLD without discarding their math", () => {
+    const base = {
+      askPrice: 1000,
+      salePrice: 3999,
+      repairCost: 0,
+      holdingDays: 0,
+      transportCost: 0,
+    };
+    const result = calculateProfit(base);
+    expect(result.score).toBeGreaterThanOrEqual(90);
+    expect(result.profit).toBe(2999);
+    expect(result.verdict).toBe("hold");
+    expect(result.warnings.join(" ")).toContain("$3,000 GO threshold");
+    expect(calculateProfit({ ...base, salePrice: 4000 }).verdict).toBe("go");
+    expect(
+      calculateProfit({ ...base, salePrice: 4000, targetProfit: 5000 }).verdict,
+    ).toBe("hold");
+    expect(
+      calculateProfit({ ...base, salePrice: 6000, targetProfit: 5000 }).verdict,
+    ).toBe("go");
+  });
   it("preserves a confirmed zero instead of substituting repair, transport or holding defaults", () => {
     const result = calculateProfit({
       askPrice: 10000,

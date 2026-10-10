@@ -331,6 +331,7 @@ export function analyzeDeal(
   deal: Partial<Deal>,
   opts?: {
     homeState?: string | null;
+    targetProfit?: number | null;
     /** Buyer home with coords / ZIP / state. Coords give a real haversine distance. */
     home?: GeoPoint | null;
     /**
@@ -593,6 +594,7 @@ export function analyzeDeal(
   const signals = marketSignals(deal.make, deal.model);
 
   const result = calculateProfit({
+    targetProfit: opts?.targetProfit,
     askPrice,
     auctionFee,
     titleFee: fm.titleFee,

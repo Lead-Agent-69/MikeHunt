@@ -12,6 +12,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
 import { scoreInterest } from "@/lib/intelligence/interest-patterns";
@@ -29,6 +30,7 @@ const COLS =
   "id, source, source_url, title, year, make, model, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, mileage, condition, deal_analysis";
 
 function mapItem(d: any) {
+  d = applyGoProfitPolicy(d);
   return {
     id: d.id,
     source: d.source,

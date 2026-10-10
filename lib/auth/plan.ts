@@ -1,8 +1,4 @@
-// Plan + usage gating. Stripe billing already sets user_profiles.plan; this is the read/enforce side
-// that was missing — so free vs paid actually means something. Kept deliberately light: on a
-// browse-heavy app a per-request scan counter would burn in seconds, so the metered unit is a
-// "deal analysis" (opening a specific deal's full intel), which is the valuable action. Paid plans
-// are unmetered; a free dealer gets FREE_DEAL_VIEWS_PER_DAY distinct deals/day.
+// Legacy billing labels remain compatible; customer tools do not require payment.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -14,8 +10,6 @@ export type Plan =
   | "elite"
   | "lifetime";
 
-export const FREE_DEAL_VIEWS_PER_DAY = 10;
-
 const PAID: Plan[] = ["pro", "pro_plus", "elite", "lifetime"];
 
 export function isPaid(plan: Plan | string | null | undefined): boolean {
@@ -23,7 +17,7 @@ export function isPaid(plan: Plan | string | null | undefined): boolean {
 }
 
 export function hasFullCustomerAccess(plan: Plan | string | null | undefined) {
-  return plan === "community" || isPaid(plan);
+  return plan === "free" || plan === "community" || isPaid(plan);
 }
 
 /** Read the dealer's plan (defaults to free). */
@@ -55,8 +49,7 @@ export interface MeterResult {
 }
 
 /**
- * Meter a deal-analysis view. Paid → always allowed. Free → up to FREE_DEAL_VIEWS_PER_DAY DISTINCT
- * deals per day (re-opening a deal already seen today is free). Backed by the deal_views table.
+ * Retain best-effort view telemetry without paywalling customer tools.
  */
 export async function meterDealView(
   supabase: SupabaseClient,
@@ -64,61 +57,13 @@ export async function meterDealView(
   dealId: string,
   plan: Plan,
 ): Promise<MeterResult> {
-  // Free platform mode: when GATING_ENABLED is not 'true', grant unrestricted access to all dealers
-  if (process.env.GATING_ENABLED !== "true" || hasFullCustomerAccess(plan)) {
-    const today = new Date().toISOString().slice(0, 10);
-    try {
-      await supabase
-        .from("deal_views")
-        .insert({ user_id: userId, deal_id: dealId, day: today });
-    } catch {
-      /* duplicate key / view logging is best-effort */
-    }
-    return { allowed: true, remaining: Infinity, limit: Infinity, plan };
-  }
-
   const today = new Date().toISOString().slice(0, 10);
-
-  // Already counted today? Re-viewing the same deal is free.
-  const { data: existing } = await supabase
-    .from("deal_views")
-    .select("deal_id")
-    .eq("user_id", userId)
-    .eq("day", today)
-    .eq("deal_id", dealId)
-    .maybeSingle();
-
-  const { count } = await supabase
-    .from("deal_views")
-    .select("deal_id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("day", today);
-  const used = count || 0;
-
-  if (existing) {
-    return {
-      allowed: true,
-      remaining: Math.max(0, FREE_DEAL_VIEWS_PER_DAY - used),
-      limit: FREE_DEAL_VIEWS_PER_DAY,
-      plan,
-    };
+  try {
+    await supabase
+      .from("deal_views")
+      .insert({ user_id: userId, deal_id: dealId, day: today });
+  } catch {
+    /* View logging must never prevent opening a listing. */
   }
-  if (used >= FREE_DEAL_VIEWS_PER_DAY) {
-    return {
-      allowed: false,
-      remaining: 0,
-      limit: FREE_DEAL_VIEWS_PER_DAY,
-      plan,
-    };
-  }
-  // Count this new view (best-effort; a race at the boundary just allows one extra — acceptable).
-  await supabase
-    .from("deal_views")
-    .insert({ user_id: userId, deal_id: dealId, day: today });
-  return {
-    allowed: true,
-    remaining: FREE_DEAL_VIEWS_PER_DAY - used - 1,
-    limit: FREE_DEAL_VIEWS_PER_DAY,
-    plan,
-  };
+  return { allowed: true, remaining: Infinity, limit: Infinity, plan };
 }

@@ -52,6 +52,7 @@ import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
 import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
@@ -79,6 +80,7 @@ function mapDeal(
   d: any,
   alsoOn: { source: string; askPrice: number; url: string }[],
 ) {
+  d = applyGoProfitPolicy(d);
   const options = rowOptions(d);
   const contact = sellerContactFields(d);
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });

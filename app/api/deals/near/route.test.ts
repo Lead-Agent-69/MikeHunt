@@ -11,6 +11,7 @@ const user = vi.hoisted(() => ({
 }));
 const geocode = vi.hoisted(() => vi.fn());
 const calls = vi.hoisted(() => [] as [string, ...unknown[]][]);
+const desk = vi.hoisted(() => ({ flip: false }));
 const dealRows = vi.hoisted(() => ({
   rows: [] as any[],
   error: null as { message: string } | null,
@@ -22,7 +23,7 @@ vi.mock("@/lib/server-supabase", () => ({
 vi.mock("@/lib/geo/geocode", () => ({ geocodeZip: geocode }));
 vi.mock("@/lib/deals/deal-desk-access", async () => {
   const actual = await vi.importActual<any>("@/lib/deals/deal-desk-access");
-  return { ...actual, resolveCallerFlipDesk: async () => false };
+  return { ...actual, resolveCallerFlipDesk: async () => desk.flip };
 });
 vi.mock("@/lib/supabase", () => {
   // Minimal PostgREST-style builder: records the deals filters and applies eq/gte/lte so the
@@ -50,6 +51,16 @@ vi.mock("@/lib/supabase", () => {
       },
       gte: (col: string, val: number) => {
         filters.push((r) => r[col] >= val);
+        return b;
+      },
+      or: (expression: string) => {
+        calls.push(["or", expression]);
+        filters.push(
+          (r) =>
+            r.deal_verdict === "hold" ||
+            (r.deal_verdict === "go" &&
+              (r.true_net_profit == null || r.true_net_profit < 3000)),
+        );
         return b;
       },
       lte: (col: string, val: number) => {
@@ -103,6 +114,7 @@ const near = (qs: string) =>
   );
 
 beforeEach(() => {
+  desk.flip = false;
   user.current = { id: "u1" };
   calls.length = 0;
   dealRows.error = null;
@@ -155,6 +167,7 @@ describe("GET /api/deals/near zip-radius", () => {
   });
 
   it("an explicit verdict still narrows; verdict=all and junk do not", async () => {
+    desk.flip = true;
     expect((await near("zip=33601&radius=50&verdict=go")).deals).toEqual([]);
     expect(calls).toContainEqual(["eq", "deal_verdict", "go"]);
     expect(
@@ -168,6 +181,19 @@ describe("GET /api/deals/near zip-radius", () => {
     expect(
       (await near("zip=33601&radius=50&verdict=bogus")).deals,
     ).toHaveLength(2);
+  });
+  it("does not let personal buyers probe profit verdicts through nearby filters", async () => {
+    const body = await near("zip=33601&radius=50&verdict=go");
+    expect(body.deals).toHaveLength(2);
+    expect(
+      calls.some(
+        ([operation, column]) =>
+          operation === "eq" && column === "deal_verdict",
+      ),
+    ).toBe(false);
+    expect(
+      body.deals.every((deal: any) => deal.dealVerdict === undefined),
+    ).toBe(true);
   });
 
   it("a ZIP that can't be geocoded asks for a location instead of silently returning nothing", async () => {

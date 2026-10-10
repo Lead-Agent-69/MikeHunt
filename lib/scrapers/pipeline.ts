@@ -781,18 +781,6 @@ async function notifyNewMatches(
     deal: any;
   }>,
 ): Promise<void> {
-  // Email/SMS push is a Pro feature when gating is on. Free dealers keep the in-app inbox (already
-  // written upstream); they just don't get pushed. No-op until GATING_ENABLED=true.
-  if (process.env.GATING_ENABLED === "true" && matches.length) {
-    const { getUserPlan, isPaid } = await import("@/lib/auth/plan");
-    const paid = new Map<string, boolean>();
-    for (const uid of Array.from(new Set(matches.map((m) => m.user_id)))) {
-      paid.set(uid, isPaid(await getUserPlan(supabase, uid)));
-    }
-    matches = matches.filter((m) => paid.get(m.user_id));
-    if (!matches.length) return;
-  }
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
   // Cache resolved contact info so we never look up the same user twice per run.
   const contactCache = new Map<

@@ -39,6 +39,9 @@ export function validGrant(grant: AccessGrant, now = Date.now()): boolean {
     grant.host === grant.host.toLowerCase() &&
     !/[\s/:*]/.test(grant.host) &&
     ["api", "feed", "website"].includes(grant.route) &&
+    [grant.collect, grant.display, grant.derive].every(
+      (use) => typeof use === "boolean",
+    ) &&
     /^https:\/\//.test(grant.evidence || "") &&
     normalizedHost(grant.evidence) &&
     Number.isFinite(reviewed) &&

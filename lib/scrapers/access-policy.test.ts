@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accessDecision,
   normalizedHost,
+  validGrant,
   type AccessGrant,
 } from "./access-policy";
 const now = Date.parse("2026-10-10T00:00:00Z");
@@ -82,5 +83,11 @@ describe("reviewed source access", () => {
   });
   it("rejects invalid URLs", () => {
     expect(normalizedHost("bad")).toBeNull();
+  });
+  it("requires boolean rights, not truthy strings from malformed evidence", () => {
+    expect(validGrant({ ...grant, display: "true" } as any, now)).toBe(false);
+    expect(validGrant({ ...grant, collect: undefined } as any, now)).toBe(
+      false,
+    );
   });
 });

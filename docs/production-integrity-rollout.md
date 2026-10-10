@@ -4,6 +4,11 @@ This release implements the integrity and visibility foundation. It is not certi
 
 ## Deployment Gate
 
+Run `node scripts/release-ledger.mjs` and `npx tsx scripts/release-preflight.ts` for read-only queue and
+configuration evidence. See `docs/value-release-execution.md` for the value-preservation checklist and
+`docs/source-permission-requests.md` for requests prepared for Jonah. Passing configuration checks is
+not permission to deploy or evidence of notification delivery.
+
 The reviewed registry at `lib/scrapers/access-grants.json` is intentionally empty. Do not deploy the application changes independently of the database migration, and do not apply the migration to production without reviewing the inventory impact. The migration preserves existing records but holds them and sets deals inactive. Approved inventory must be re-observed before publication; existing inventory is not automatically reactivated by granting access.
 
 1. Review each source's documented access rights, exact host, route, permitted uses, and expiration. Do not infer authorization from public availability, robots allowance, operator overrides, or a successful request.
@@ -11,7 +16,7 @@ The reviewed registry at `lib/scrapers/access-grants.json` is intentionally empt
 3. Run `npx tsx scripts/sync-source-access.ts` for validation only.
 4. Test the full migration chain against a disposable staging copy. Local SQL fixtures cover key invariants, not every production dependency.
 5. Stop ingestion workers, apply the reviewed migration, then deploy compatible app and worker versions with `SCRAPER_COMMIT_SHA` and `SCRAPER_WORKER_ID` set.
-6. Synchronize reviewed evidence with `npx tsx scripts/sync-source-access.ts --apply`. Synchronization revokes old rights first and leaves inventory inactive until re-observation. A failed sync is fail-closed.
+6. Synchronize reviewed evidence with `npx tsx scripts/sync-source-access.ts --apply`. Identical grants remain uninterrupted. Removed or changed rights are revoked before replacement; affected inventory stays held until re-observation. A failed replacement leaves changed rights revoked, without holding unrelated unchanged approved inventory.
 7. Re-observe a small approved source, verify receipts and public visibility, then run a 48-hour canary before widening coverage.
 
 ## Implemented Controls
