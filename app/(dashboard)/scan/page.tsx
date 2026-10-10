@@ -74,6 +74,15 @@ import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
+import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
+import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import { SearchSourceNotice } from "@/components/search/SearchSourceNotice";
+import { MarketSearchHandoff } from "@/components/search/MarketSearchHandoff";
+import {
+  INVENTORY_DETAIL_FIELDS,
+  readInventoryDetails,
+  SCAN_EXTRA_KEYS,
+} from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
 
 const ProfitSimulatorDrawer = dynamic(
@@ -1052,13 +1061,18 @@ function EmptyState({
   sourceHealth?: SourceHealthItem[];
   broadHref?: string;
 }) {
-  const checkedSources = sourceHealth.filter((item) =>
-    ["ready", "no_rows", "needs_run"].includes(item.readiness),
+  const checkedSources = sourceHealth.filter(
+    (item) => item.readiness === "ready",
   );
   const blockedSources = sourceHealth.filter((item) =>
-    ["needs_login", "blocked", "disabled", "not_configured"].includes(
-      item.readiness,
-    ),
+    [
+      "needs_login",
+      "blocked",
+      "disabled",
+      "not_configured",
+      "needs_run",
+      "no_rows",
+    ].includes(item.readiness),
   );
   const scopedRows = sourceHealth.reduce(
     (sum, item) => sum + (Number(item.activeRows) || 0),
@@ -1111,7 +1125,7 @@ function EmptyState({
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
-          ? "Nothing in saved inventory matches these filters. Try another location, a higher budget, or a broader vehicle search."
+          ? "No results were returned from indexed inventory. Source coverage may be partial; try another location, budget, or broader vehicle search."
           : "Adjust your filters, widen search locations in Settings, or wait for background coverage to fill this scope."}
       </p>
 
@@ -1121,19 +1135,19 @@ function EmptyState({
             <div className="font-black text-[var(--t1)]">
               {checkedSources.length}
             </div>
-            <div className="text-[var(--t5)]">listing sites searched</div>
+            <div className="text-[var(--t5)]">sources reporting ready</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
               {scopedRows.toLocaleString()}
             </div>
-            <div className="text-[var(--t5)]">matching vehicles</div>
+            <div className="text-[var(--t5)]">indexed rows in broad scope</div>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
               {blockedSources.length}
             </div>
-            <div className="text-[var(--t5)]">sites could not be checked</div>
+            <div className="text-[var(--t5)]">sources with coverage gaps</div>
           </div>
         </div>
       )}
@@ -2581,6 +2595,7 @@ function ScanPageInner() {
 
   // Filters
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [extraFilters, setExtraFilters] = useState<Record<string, string>>({});
   const [sellerTypeFilter, setSellerTypeFilter] = useState("all");
   const [titleType, setTitleType] = useState("all");
   const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
@@ -2636,6 +2651,31 @@ function ScanPageInner() {
     useState<ScrapePlanResult | null>(null);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const autoPreviewKeyRef = useRef<string | null>(null);
+  const activePreviewRequestRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setLivePreviewRows([]);
+    setLivePreviewProof([]);
+    autoPreviewKeyRef.current = null;
+    activePreviewRequestRef.current = null;
+  }, [
+    sourceFilter,
+    sellerTypeFilter,
+    lane,
+    state,
+    search,
+    make,
+    makesFilter,
+    model,
+    titleType,
+    maxPrice,
+    minYear,
+    maxMileage,
+    extraFilters,
+    dealerHostsFilter,
+    dealerSourceIdsFilter,
+    sellerTypeFilter,
+  ]);
 
   useEffect(() => {
     const q = urlParams.get("q");
@@ -2687,10 +2727,12 @@ function ScanPageInner() {
         "madeInUsa",
         "category",
         "reset",
+        ...SCAN_EXTRA_KEYS,
       ].map((key) => urlParams.get(key)),
     ].some(Boolean);
 
     setSearchInput(q || "");
+    setExtraFilters(readInventoryDetails(urlParams, SCAN_EXTRA_KEYS));
     setSearch(q || "");
     setSourceFilter(source || "all");
     setSellerTypeFilter(sellerTypeParam || "all");
@@ -2846,7 +2888,7 @@ function ScanPageInner() {
 
   // How many advanced filters are active (shown on the "More filters" button).
   const advancedCount = useMemo(() => {
-    let c = 0;
+    let c = Object.values(extraFilters).filter(Boolean).length;
     if (verdict !== "all") c++;
     if (dealerHostsFilter.length) c++;
     if (dealerSourceIdsFilter.length) c++;
@@ -2872,6 +2914,7 @@ function ScanPageInner() {
     return c;
   }, [
     verdict,
+    extraFilters,
     dealerHostsFilter.length,
     dealerSourceIdsFilter.length,
     sourceFilter,
@@ -2896,6 +2939,7 @@ function ScanPageInner() {
   ]);
 
   const resetFilters = useCallback(() => {
+    setExtraFilters({});
     setSearch("");
     setSearchInput("");
     setState("all");
@@ -2931,6 +2975,17 @@ function ScanPageInner() {
   }, []);
 
   const appliedFilters = [
+    ...INVENTORY_DETAIL_FIELDS.filter((field) => extraFilters[field.key]).map(
+      (field) => ({
+        label: field.label,
+        value:
+          field.options?.find(
+            (option) => option.value === extraFilters[field.key],
+          )?.label || extraFilters[field.key],
+        clear: () =>
+          setExtraFilters((current) => ({ ...current, [field.key]: "" })),
+      }),
+    ),
     {
       label: "Search",
       value: search,
@@ -3294,7 +3349,9 @@ function ScanPageInner() {
 
   // Dynamic facets — only offer makes that have live inventory (in the selected state).
   const facetKey = useMemo(() => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(
+      Object.entries(extraFilters).filter(([, value]) => Boolean(value)),
+    );
     if (state !== "all") params.set("state", state);
     if (selectedStates) params.set("states", selectedStates);
     if (lane !== "all") params.set("lane", lane);
@@ -3340,6 +3397,7 @@ function ScanPageInner() {
     return `/api/scan/facets${params.toString() ? `?${params.toString()}` : ""}`;
   }, [
     state,
+    extraFilters,
     selectedStates,
     lane,
     maxPrice,
@@ -3434,7 +3492,12 @@ function ScanPageInner() {
   }, [facets?.titleTypes]);
   // Build SWR key from filters
   const swrKey = useMemo(() => {
-    const params = new URLSearchParams({ sort });
+    const params = new URLSearchParams({
+      ...Object.fromEntries(
+        Object.entries(extraFilters).filter(([, value]) => Boolean(value)),
+      ),
+      sort,
+    });
     params.set("includeRepairable", repairEligibility);
     if (search) params.set("q", search);
     if (sourceFilter !== "all") params.set("source", sourceFilter);
@@ -3482,6 +3545,7 @@ function ScanPageInner() {
     return `/api/scan?${params.toString()}`;
   }, [
     search,
+    extraFilters,
     repairEligibility,
     sourceFilter,
     sellerTypeFilter,
@@ -3602,14 +3666,15 @@ function ScanPageInner() {
     dealerHostsFilter,
     dealerSourceIdsFilter,
   ]);
-  const { data: scrapeHealth, mutate: mutateScrapeHealth } = useSWR(
-    scrapeHealthKey,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-      dedupingInterval: 60000,
-    },
-  );
+  const {
+    data: scrapeHealth,
+    error: scrapeHealthError,
+    isLoading: scrapeHealthLoading,
+    mutate: mutateScrapeHealth,
+  } = useSWR(scrapeHealthKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
   const sourceHealthById = useMemo(() => {
     return new Map(
       ((scrapeHealth?.sources || []) as SourceHealthItem[]).map((source) => [
@@ -4125,6 +4190,10 @@ function ScanPageInner() {
           filter: "active=eq.true",
         },
         (payload) => {
+          if (Object.values(extraFilters).some(Boolean)) {
+            void mutate();
+            return;
+          }
           const d = payload.new;
           if (
             isAuctionChannel(d.source) &&
@@ -4176,7 +4245,16 @@ function ScanPageInner() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [state, sourceFilter, sellerTypeFilter, lane, sort, addToast, mutate]);
+  }, [
+    state,
+    sourceFilter,
+    sellerTypeFilter,
+    lane,
+    sort,
+    addToast,
+    mutate,
+    extraFilters,
+  ]);
 
   // Client-side filtering + sorting with useMemo (instant, no re-fetch).
   // The API ignores `sort`, so the sort control is honored here.
@@ -4517,6 +4595,18 @@ function ScanPageInner() {
       )}
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
+      <InventoryViewLinks query={swrKey.split("?")[1] || ""} current="/scan" />
+      <SearchSourceNotice
+        sources={
+          Array.isArray(scrapeHealth?.sources)
+            ? scrapeHealth.sources
+            : undefined
+        }
+        error={!!scrapeHealthError}
+        loading={scrapeHealthLoading}
+        configured={scrapeHealth?.configured}
+        onRetry={() => void mutateScrapeHealth()}
+      />
       <details className="glass-panel px-4 py-3 space-y-3">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Filters &amp; view
@@ -4784,6 +4874,13 @@ function ScanPageInner() {
         {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
         {showMore && (
           <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
+            <InventoryDetailFilters
+              values={extraFilters}
+              keys={SCAN_EXTRA_KEYS}
+              onChange={(key, value) =>
+                setExtraFilters((current) => ({ ...current, [key]: value }))
+              }
+            />
             <FilterGroup label="From">
               <FilterSelect
                 label="Seller Type"
@@ -4857,18 +4954,9 @@ function ScanPageInner() {
                 onChange={setDamage}
                 options={[
                   { value: "all", label: "Damage: All" },
-                  ...[
-                    "Front",
-                    "Rear",
-                    "Side",
-                    "Hail",
-                    "Flood",
-                    "Fire",
-                    "Mechanical",
-                  ].map((value) => ({
-                    value: value.toLowerCase(),
-                    label: value,
-                  })),
+                  ...(INVENTORY_DETAIL_FIELDS.find(
+                    (field) => field.key === "damage",
+                  )?.options || []),
                 ]}
               />
               <FilterSelect
@@ -5040,6 +5128,8 @@ function ScanPageInner() {
         </details>
       )}
 
+      <MarketSearchHandoff query={swrKey.split("?")[1] || ""} />
+
       {/* ── Results grid ── */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -5059,7 +5149,7 @@ function ScanPageInner() {
           sourceHealth={scrapeHealth?.sources || []}
           broadHref={`/scan?${new URLSearchParams({
             ...(lane && lane !== "all" ? { lane } : {}),
-            sort: "profit",
+            sort: defaultScanSort(savedBuyerIntent?.buyerMode),
           }).toString()}`}
         />
       )}
@@ -5168,12 +5258,18 @@ function ScanPageInner() {
                         },
                       }),
                     });
-                    cloudSynced = res.ok;
-                    alreadyCloudSaved = res.status === 409;
+                    const result = await res.json();
+                    cloudSynced =
+                      res.ok &&
+                      result.success === true &&
+                      typeof result.id === "string" &&
+                      !result.demo;
+                    alreadyCloudSaved =
+                      res.status === 409 && typeof result.id === "string";
                   } catch {
                     cloudSynced = false;
                   }
-                  localSaved.save({
+                  const localConfirmed = localSaved.save({
                     id: car.id,
                     title:
                       `${car.year || ""} ${car.make || ""} ${car.model || ""}`.trim() ||
@@ -5211,12 +5307,21 @@ function ScanPageInner() {
                         : car.lastSeenAt?.toISOString(),
                     savedAt: new Date().toISOString(),
                   });
+                  if (!cloudSynced && !alreadyCloudSaved && !localConfirmed) {
+                    addToast(
+                      "The vehicle was not saved. Device storage and cloud save are unavailable.",
+                      "error",
+                    );
+                    return;
+                  }
                   addToast(
                     cloudSynced
-                      ? "Watching with cloud alerts and a local backup."
+                      ? localConfirmed
+                        ? "Saved to your account with a device backup."
+                        : "Saved to your account. Device backup is unavailable."
                       : alreadyCloudSaved
-                        ? "Already watching in cloud; local backup refreshed."
-                        : "Watching locally. Sign in when Google OAuth is ready to sync alerts.",
+                        ? "Already saved to your account."
+                        : "Saved on this device only. Cloud alerts are not enabled.",
                     "success",
                   );
                 }}

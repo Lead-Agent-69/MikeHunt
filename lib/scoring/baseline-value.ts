@@ -57,6 +57,8 @@ const has = (s: string, ...needles: string[]) =>
 export function classifySegment(make: string, model: string): Segment {
   const m = (model || "").toLowerCase();
   const mk = (make || "").toLowerCase();
+  if (mk.trim() === "ford" && m.replace(/[\s-]+/g, "") === "broncosport")
+    return "compact_suv";
 
   if (
     has(

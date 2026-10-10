@@ -64,10 +64,10 @@ export const BUYER_MODES: Record<
     label: "Parts / teardown",
     question: "Is this worth parting out?",
     priorities: [
-      "High-value cores",
+      "Teardown budgets",
       "Title and salvage risk",
       "Yard time",
-      "Parts demand",
+      "Source evidence",
     ],
   },
   reseller: {
@@ -85,7 +85,7 @@ export const BUYER_MODES: Record<
     question: "Does this fit our business?",
     priorities: [
       "Inventory fit",
-      "Local demand",
+      "Comparable inventory",
       "Recon capacity",
       "Capital and turnover",
     ],
@@ -461,5 +461,5 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
     return normalized;
   }, []);
 
-  return { intent, save };
+  return { intent, save, isLoading };
 }

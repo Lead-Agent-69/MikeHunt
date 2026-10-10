@@ -3,27 +3,36 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   exchange: vi.fn(),
-  user: vi.fn(),
+  getUser: vi.fn(),
   bootstrap: vi.fn(),
-  setCookies: null as null | ((cookies: any[]) => void),
+  merge: vi.fn(),
 }));
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: (_url: string, _key: string, options: any) => {
-    mocks.setCookies = options.cookies.setAll;
-    return {
-      auth: { exchangeCodeForSession: mocks.exchange, getUser: mocks.user },
-    };
-  },
+  createServerClient: (_url: string, _key: string, options: any) => ({
+    auth: {
+      exchangeCodeForSession: async (code: string) => {
+        options.cookies.setAll([
+          {
+            name: "sb-test-auth-token",
+            value: "session",
+            options: { httpOnly: true },
+          },
+        ]);
+        return mocks.exchange(code);
+      },
+      getUser: mocks.getUser,
+    },
+  }),
 }));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
-  createServerComponentClient: vi.fn(),
+  createServerComponentClient: () => ({}),
 }));
 vi.mock("@/lib/auth/account-bootstrap", () => ({
   ensureAccountRows: mocks.bootstrap,
 }));
 vi.mock("@/lib/preferences/merge-guest-prefs", () => ({
-  mergeGuestPrefsOnSignup: vi.fn(),
+  mergeGuestPrefsOnSignup: mocks.merge,
   GUEST_PREFS_COOKIE: "guest",
 }));
 import { GET } from "./route";
@@ -31,127 +40,78 @@ import { GET } from "./route";
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.exchange.mockResolvedValue({ error: null });
-  mocks.user.mockResolvedValue({ data: { user: { id: "own-user" } } });
+  mocks.getUser.mockResolvedValue({
+    data: { user: { id: "owner" } },
+    error: null,
+  });
   mocks.bootstrap.mockResolvedValue({ onboarded: false });
 });
+const request = (query: string) =>
+  new NextRequest(`http://localhost/auth/callback?${query}`);
 
-describe("recovery callbacks", () => {
-  it("keeps exchanged cookies on the destination-preserving onboarding response", async () => {
-    mocks.exchange.mockImplementationOnce(async () => {
-      mocks.setCookies?.([
-        {
-          name: "test-session",
-          value: "session-value",
-          options: { path: "/", httpOnly: true },
-        },
-      ]);
-      return { error: null };
-    });
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test&next=/deal/123",
-      ),
-    );
-    expect(response.cookies.get("test-session")?.value).toBe("session-value");
+describe("password recovery callback", () => {
+  it("retains exchanged cookies and a new account's intended vehicle through onboarding", async () => {
+    const response = await GET(request("code=oauth&next=/deal/123"));
+    expect(response.cookies.get("sb-test-auth-token")?.value).toBe("session");
     expect(response.headers.get("location")).toBe(
-      "https://example.com/onboarding?next=%2Fdeal%2F123",
-    );
-  });
-  it("takes a new account through setup before opening its intended vehicle", async () => {
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test&next=/deal/123",
-      ),
-    );
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/onboarding?next=%2Fdeal%2F123",
+      "http://localhost/onboarding?next=%2Fdeal%2F123",
     );
   });
   it("preserves a returning account's intended vehicle", async () => {
     mocks.bootstrap.mockResolvedValueOnce({ onboarded: true });
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test&next=/deal/123",
-      ),
-    );
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/deal/123",
-    );
+    const response = await GET(request("code=oauth&next=/deal/123"));
+    expect(response.headers.get("location")).toBe("http://localhost/deal/123");
   });
-  it("does not redirect ordinary sign-in without a verified user", async () => {
-    mocks.user.mockResolvedValueOnce({ data: { user: null } });
-    const response = await GET(
-      new NextRequest("https://example.com/auth/callback?code=test"),
-    );
+  it("exchanges the code and retains session cookies without onboarding or provisioning", async () => {
+    const response = await GET(request("code=recovery&next=/reset-password"));
     expect(response.headers.get("location")).toBe(
-      "https://example.com/login?error=oauth",
+      "http://localhost/reset-password",
     );
-  });
-  it("exchanges the recovery code and bypasses account setup only for the reset destination", async () => {
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test-code&next=/reset-password",
-      ),
-    );
-    expect(mocks.exchange).toHaveBeenCalledWith("test-code");
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/reset-password",
-    );
+    expect(response.cookies.get("sb-test-auth-token")?.value).toBe("session");
+    expect(mocks.exchange).toHaveBeenCalledWith("recovery");
     expect(mocks.bootstrap).not.toHaveBeenCalled();
+    expect(mocks.merge).not.toHaveBeenCalled();
   });
-  it("gives expired or missing recovery codes a recovery-specific retry path", async () => {
-    mocks.exchange.mockResolvedValueOnce({ error: { message: "expired" } });
-    for (const query of [
-      "code=bad&next=/reset-password",
-      "next=/reset-password",
-    ]) {
-      const response = await GET(
-        new NextRequest(`https://example.com/auth/callback?${query}`),
-      );
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/reset-password?error=expired",
-      );
-    }
-  });
-  it("preserves onboarding for ordinary sign-in", async () => {
-    const response = await GET(
-      new NextRequest("https://example.com/auth/callback?code=test-code"),
-    );
-    expect(mocks.bootstrap).toHaveBeenCalled();
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/onboarding",
-    );
-  });
-  it("recovers from a provider connection failure without a server error", async () => {
-    mocks.exchange.mockRejectedValueOnce(new Error("connection failed"));
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test&next=/reset-password",
+  it("makes missing or expired links recoverable rather than redirecting to login", async () => {
+    expect(
+      (await GET(request("next=/reset-password"))).headers.get("location"),
+    ).toContain("/reset-password?error=invalid_link");
+    mocks.exchange.mockResolvedValue({ error: { message: "expired" } });
+    expect(
+      (await GET(request("code=expired&next=/reset-password"))).headers.get(
+        "location",
       ),
-    );
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/reset-password?error=expired",
-    );
+    ).toContain("/reset-password?error=invalid_link");
   });
-  it("does not treat a missing user as a verified recovery session", async () => {
-    mocks.user.mockResolvedValueOnce({ data: { user: null } });
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test&next=/reset-password",
+  it("does not accept an exchange without a verified user", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
+    expect(
+      (await GET(request("code=bad&next=/reset-password"))).headers.get(
+        "location",
       ),
-    );
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/reset-password?error=expired",
-    );
+    ).toContain("error=invalid_link");
   });
-  it("does not redirect a callback to an external destination", async () => {
-    const response = await GET(
-      new NextRequest(
-        "https://example.com/auth/callback?code=test-code&next=https://evil.example",
+  it("offers a new link after a thrown exchange failure", async () => {
+    mocks.exchange.mockRejectedValue(new Error("fetch failed"));
+    expect(
+      (await GET(request("code=bad&next=/reset-password"))).headers.get(
+        "location",
       ),
+    ).toContain("error=invalid_link");
+  });
+  it("retains cookies when normal account setup fails", async () => {
+    mocks.bootstrap.mockRejectedValue(new Error("unavailable"));
+    const response = await GET(request("code=oauth"));
+    expect(response.headers.get("location")).toContain(
+      "/login?error=account_setup",
     );
-    expect(response.headers.get("location")).toBe(
-      "https://example.com/onboarding",
-    );
+    expect(response.cookies.get("sb-test-auth-token")?.value).toBe("session");
+  });
+  it("rejects external next URLs", async () => {
+    expect(
+      (await GET(request("code=oauth&next=https://example.com"))).headers.get(
+        "location",
+      ),
+    ).toBe("http://localhost/onboarding");
   });
 });

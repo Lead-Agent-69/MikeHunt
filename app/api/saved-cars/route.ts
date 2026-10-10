@@ -225,6 +225,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // A stale tab must not save into a different account after a session switch.
+    const expectedOwner = request.headers.get("X-Save-Owner");
+    if (expectedOwner && expectedOwner !== userId)
+      return NextResponse.json(
+        { error: "Account changed. Reload and retry." },
+        { status: 409 },
+      );
+
     // The dealer row is provisioned with id === auth user id (see /api/auth/provision).
     const dealerId: string = userId;
 

@@ -33,7 +33,8 @@ describe("navigation usability", () => {
       expect(source).toContain("focus-visible:outline");
       expect(source).toContain("min-h-11");
     }
-    expect(account).toContain("motion-reduce:transition-none");
+    expect(account).not.toContain("group-open/tools:rotate-180");
+    expect(account).toContain("All tools");
     expect(account).toContain("<ThemeToggle showLabel />");
     expect(account).toContain(
       "event.currentTarget.contains(event.relatedTarget)",

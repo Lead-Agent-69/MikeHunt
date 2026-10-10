@@ -8,7 +8,8 @@ describe("public pages do not expose internal ops copy", () => {
     const page = read("app/(dashboard)/upgrade/page.tsx");
     expect(page).not.toMatch(/Stripe keys/i);
     expect(page).not.toMatch(/once .* configured/i);
-    expect(page).toContain("Paid plans aren&apos;t available yet.");
+    expect(page).toContain("Free workspace upgrade");
+    expect(page).toContain("No card, checkout, recurring charge");
   });
 
   it("changelog drops admin/internal entries and filters DB rows", () => {

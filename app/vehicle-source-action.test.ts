@@ -32,3 +32,13 @@ it("shows a retail listing action and prevents unsafe or missing links", () => {
     expect(html).not.toContain("href=");
   }
 });
+
+it("does not present a seller homepage as a vehicle listing", () => {
+  const html = renderToStaticMarkup(
+    createElement(VehicleSourceAction, {
+      sourceUrl: "https://www.alanjay.com/",
+    }),
+  );
+  expect(html).toContain("Seller website");
+  expect(html).not.toContain("View listing");
+});

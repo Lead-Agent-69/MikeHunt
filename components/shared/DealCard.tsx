@@ -15,6 +15,7 @@ import {
   evidenceConfidence,
   hasRecentSoldEvidence,
 } from "@/lib/valuation/evidence-confidence";
+import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { sellerTypeLabel } from "@/lib/sources/source-meta";
 
@@ -787,7 +788,12 @@ export const DealCard = memo(function DealCard({
                 </span>
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
-                {sourceUrl ? "Direct source link" : "No source link"} ·{" "}
+                {sourceUrl
+                  ? isSourceLandingPage(sourceUrl)
+                    ? "Seller website"
+                    : "Listing link"
+                  : "No source link"}{" "}
+                ·{" "}
                 {trustSignals.length
                   ? `${trustSignals.length}/6 key signals present`
                   : "No key signals present"}

@@ -1,5 +1,9 @@
 # Visor.vin Migration Audit
 
+> Historical planning inventory, not production acceptance. Route presence does not
+> establish feature parity, delivered alerts, sold-data coverage or intelligence quality.
+> See [the October 9 competitive review](competitive-gap-review-2026-10-09.md) for current gates.
+
 **How this was gathered:** visor.vin's app is Cloudflare-JS-walled (403 to bots), but its
 `robots.txt` + `sitemaps/*.xml` are open. The `changelog` sitemap is visor.vin's complete shipped-
 feature history (66 entries) and the `core` sitemap lists the real app routes. That's the spec.

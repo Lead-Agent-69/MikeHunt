@@ -170,14 +170,13 @@ export default function SavedCarsPage() {
 
     const dealId = saves?.find((item: any) => item.id === id)?.deal_id;
     try {
-      // Optimistic update
-      mutate(
-        saves?.filter((item: any) => item.id !== id),
-        false,
-      );
-
       const res = await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.success === true && result.id === id) {
+        await mutate(
+          (current) => current?.filter((item: any) => item.id !== id),
+          false,
+        );
         // Reco: the save was logged server-side; record the unsave (best-effort).
         signalUnsave(dealId);
         // Revalidate from server
@@ -189,41 +188,47 @@ export default function SavedCarsPage() {
       }
     } catch (e: any) {
       console.error(e);
+      toast.error("Saved vehicle removal was not confirmed. Please retry.");
       mutate(); // Revert on error
     }
   };
 
   const handleUpdateStatus = async (id: string, newStatus: SavedCarStatus) => {
     try {
-      // Optimistic update
-      mutate(
-        saves?.map((item: any) =>
-          item.id === id ? { ...item, status: newStatus } : item,
-        ),
-        false,
-      );
-
       const res = await fetch(`/api/saved-cars/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
+      const result = await res.json();
+      if (res.ok && result.id === id && result.status === newStatus) {
         // Revalidate from server
         mutate();
+        return true;
       } else {
-        // Revert on error
+        toast.error("Saved status was not confirmed changed");
         mutate();
+        return false;
       }
     } catch (e: any) {
       console.error(e);
-      mutate(); // Revert on error
+      toast.error("Saved status was not confirmed changed");
+      mutate();
+      return false;
     }
   };
 
   const handleSaveNewUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputUrl) return;
+    if (!inputUrl || adding) return;
+    try {
+      const parsed = new URL(inputUrl);
+      if (!["http:", "https:"].includes(parsed.protocol))
+        throw new Error("Invalid URL");
+    } catch {
+      toast.error("Enter a valid http or https listing URL.");
+      return;
+    }
 
     setAdding(true);
     try {
@@ -259,9 +264,16 @@ export default function SavedCarsPage() {
             ],
           },
         };
-        saveLocalVehicle(localVehicle);
+        if (!saveLocalVehicle(localVehicle)) {
+          toast.error(
+            "Device storage is unavailable. The vehicle was not saved.",
+          );
+          return;
+        }
         setInputUrl("");
-        toast.success("Vehicle saved on this device.");
+        toast.success(
+          "Saved on this device only. Cloud save and alerts are not enabled for this bookmark.",
+        );
       } else {
         toast.error(
           userFacingErrorMessage(
@@ -292,10 +304,15 @@ export default function SavedCarsPage() {
           ],
         },
       };
-      saveLocalVehicle(localVehicle);
+      if (!saveLocalVehicle(localVehicle)) {
+        toast.error(
+          "Device storage is unavailable. The vehicle was not saved.",
+        );
+        return;
+      }
       setInputUrl("");
       toast.success(
-        "Vehicle saved on this device. Account save could not complete.",
+        "Saved on this device only. Cloud save and alerts are not enabled for this bookmark.",
       );
     } finally {
       setAdding(false);
@@ -319,7 +336,7 @@ export default function SavedCarsPage() {
           <span>{comparisonIds.length} of 4 selected</span>
           {comparisonIds.length >= 2 ? (
             <Link
-              className="font-bold text-[var(--blue)]"
+              className="inline-flex min-h-11 items-center font-bold text-[var(--blue)]"
               href={`/compare?ids=${encodeURIComponent(comparisonIds.join(","))}`}
             >
               Compare selected vehicles
@@ -331,7 +348,7 @@ export default function SavedCarsPage() {
           )}
           <button
             onClick={() => setComparisonIds([])}
-            className="ml-auto text-sm"
+            className="ml-auto min-h-11 text-sm"
           >
             Clear selection
           </button>
@@ -406,63 +423,113 @@ export default function SavedCarsPage() {
         ))}
       </div>
 
-      <div className="border-y border-[var(--b1)] py-4" role="status">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-              Saved vehicles
-            </p>
-            <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-              {accountError && !loading
-                ? "We couldn't check your account."
-                : savedWatchlistHeadline(supabaseStatus, canShowLocalSaves)}
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
-              {loading
-                ? "Loading saved vehicles from your account."
-                : accountError
-                  ? "Check your connection and retry. Saves on this device are still available."
-                  : cloudSyncReady
-                    ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
-                    : signedIn
-                      ? "You are signed in. Retry the connection or keep using local saves on this device."
-                      : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
-            </p>
+      <details
+        open={signedIn && !loading && !cloudSyncReady}
+        className="border-y border-[var(--b1)]"
+      >
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)]">
+          {loading
+            ? "Checking watchlist sync..."
+            : cloudSyncReady
+              ? "Account watchlist connected"
+              : signedIn
+                ? "Account sync needs attention"
+                : "Saved on this device"}
+          {unsyncedLocalItems.length > 0 &&
+            ` · ${unsyncedLocalItems.length} local only`}
+        </summary>
+        <div className="pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--t5)]">
+                Saved vehicles
+              </p>
+              <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
+                {savedWatchlistHeadline(supabaseStatus, canShowLocalSaves)}
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
+                {cloudSyncReady
+                  ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
+                  : signedIn
+                    ? supabaseStatus === "checking"
+                      ? "Loading saved vehicles from your account."
+                      : "You are signed in. Retry the connection or keep using local saves on this device."
+                    : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p className="text-lg font-black text-[var(--t1)]">
+                  {unsyncedLocalItems.length}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  local only
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p
+                  className="text-sm font-black uppercase"
+                  style={{
+                    color:
+                      supabaseStatus === "ready"
+                        ? "var(--green)"
+                        : "var(--amber)",
+                  }}
+                >
+                  {supabaseStatus}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  data
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
+                <p
+                  className="text-sm font-black uppercase"
+                  style={{
+                    color: dealerId ? "var(--green)" : "var(--amber)",
+                  }}
+                >
+                  {dealerLoading
+                    ? "checking"
+                    : dealerId
+                      ? "connected"
+                      : "guest"}
+                </p>
+                <p className="text-[10px] font-black uppercase text-[var(--t5)]">
+                  account
+                </p>
+              </div>
+            </div>
           </div>
-          {canShowLocalSaves && (
-            <p className="text-sm text-[var(--t3)]">
-              {unsyncedLocalItems.length} saved on this device
-            </p>
+          {!cloudSyncReady && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
+              <p className="text-xs leading-relaxed text-[var(--amber-d)]">
+                {loading
+                  ? "Checking your account watchlist..."
+                  : signedIn
+                    ? "Your local saves remain available. Retry to load account saves."
+                    : "Your local saves remain available. Sign in to access account saves across devices."}
+              </p>
+              {signedIn ? (
+                <button
+                  type="button"
+                  onClick={() => mutate()}
+                  className="min-h-11 rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+                >
+                  Retry
+                </button>
+              ) : (
+                <a
+                  href="/login"
+                  className="inline-flex min-h-11 items-center rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
+                >
+                  Sign in
+                </a>
+              )}
+            </div>
           )}
         </div>
-        {!loading && !cloudSyncReady && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
-            <p className="text-xs leading-relaxed text-[var(--amber-d)]">
-              {accountError
-                ? "Retry to check your account."
-                : signedIn
-                  ? "Your local saves remain available. Retry to load account saves."
-                  : "Your local saves remain available. Sign in to access account saves across devices."}
-            </p>
-            {signedIn || accountError ? (
-              <button
-                type="button"
-                onClick={() => (accountError ? retryAccount() : mutate())}
-                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
-              >
-                Retry
-              </button>
-            ) : (
-              <a
-                href="/login"
-                className="rounded-[var(--r1)] bg-[var(--t1)] px-3 py-1.5 text-xs font-black text-[var(--s0)]"
-              >
-                Sign in
-              </a>
-            )}
-          </div>
-        )}
-      </div>
+      </details>
 
       {/* BOOKMARKLET & PWA SIDEBAR */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -734,7 +801,9 @@ function LocalSavedSection({
                       style={{ background: "var(--s1)", color: "var(--t3)" }}
                     >
                       {sourceMeta(item.source).label}
-                      {item.sellerType ? ` · ${sellerTypeLabel(item.sellerType)}` : ""}
+                      {item.sellerType
+                        ? ` · ${sellerTypeLabel(item.sellerType)}`
+                        : ""}
                       {item.locationState ? ` · ${item.locationState}` : ""}
                     </Badge>
                     <h4 className="truncate text-base font-black text-[var(--t1)]">

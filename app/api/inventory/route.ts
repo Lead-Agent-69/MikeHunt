@@ -212,23 +212,76 @@ export async function PATCH(request: NextRequest) {
     const dealerId = user.id;
 
     const body = await request.json();
-    const { id, stage, listed_platforms, soldPrice, soldWhere } = body;
+    const { id, stage, listed_platforms, soldPrice, soldWhere, expense } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
-    if (!stage && !listed_platforms) {
+    if (!stage && !listed_platforms && !expense) {
       return NextResponse.json(
-        { error: "stage or listed_platforms required" },
+        { error: "stage, listed_platforms or expense required" },
         { status: 400 },
       );
     }
+    const validStages = [
+      "acquired",
+      "transport",
+      "recon",
+      "listed",
+      "offer",
+      "sold",
+      "wholesale",
+    ];
+    if (stage && !validStages.includes(stage))
+      return NextResponse.json(
+        { error: "Invalid inventory stage" },
+        { status: 400 },
+      );
+    if (
+      stage === "sold" &&
+      (typeof soldPrice !== "number" ||
+        !Number.isFinite(soldPrice) ||
+        soldPrice < 0)
+    )
+      return NextResponse.json(
+        { error: "Actual non-negative sale price required" },
+        { status: 400 },
+      );
+    const expenseFields: Record<string, string> = {
+      transport: "transport_cost",
+      repair: "repair_cost",
+      recon: "recon_cost",
+      title: "title_fee",
+      other: "other_costs",
+    };
+    const expenseField =
+      expense &&
+      Object.prototype.hasOwnProperty.call(expenseFields, expense.category)
+        ? expenseFields[expense.category]
+        : undefined;
+    if (
+      expense &&
+      (!expenseField ||
+        typeof expense.amount !== "number" ||
+        !Number.isFinite(expense.amount) ||
+        expense.amount <= 0 ||
+        typeof expense.expectedTotal !== "number" ||
+        !Number.isFinite(expense.expectedTotal) ||
+        expense.expectedTotal < 0 ||
+        stage ||
+        listed_platforms)
+    )
+      return NextResponse.json(
+        { error: "Invalid expense record" },
+        { status: 400 },
+      );
 
     // Verify ownership before updating (ensure this inventory row belongs to the authenticated dealer)
     const { data: row, error: fetchErr } = await supabase
       .from("inventory")
       .select("*")
       .eq("id", id)
+      .eq("dealer_id", dealerId)
       .single();
 
     if (fetchErr || !row) {
@@ -237,9 +290,29 @@ export async function PATCH(request: NextRequest) {
     if (row.dealer_id !== dealerId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    if (stage === "sold" && row.stage === "sold")
+      return NextResponse.json(
+        { error: "Sale already recorded. Reload Pipeline." },
+        { status: 409 },
+      );
 
     // Build update payload
     const update: any = {};
+    if (expenseField) {
+      const current = Number(row[expenseField] ?? 0);
+      if (
+        current !== expense.expectedTotal ||
+        !Number.isFinite(current + expense.amount)
+      )
+        return NextResponse.json(
+          {
+            error:
+              "Costs changed. Reload Pipeline before recording this expense.",
+          },
+          { status: 409 },
+        );
+      update[expenseField] = Math.round((current + expense.amount) * 100) / 100;
+    }
     if (stage) update.stage = stage;
     if (Array.isArray(listed_platforms))
       update.listed_platforms = listed_platforms;
@@ -251,16 +324,28 @@ export async function PATCH(request: NextRequest) {
       update.sold_date = new Date().toISOString();
     }
 
-    const { data, error: updErr } = await supabase
+    let write = supabase
       .from("inventory")
       .update(update)
       .eq("id", id)
-      .select()
-      .single();
+      .eq("dealer_id", dealerId);
+    // Match the read snapshot so concurrent records cannot silently replace a cost or stage.
+    if (expenseField)
+      write =
+        row[expenseField] == null
+          ? write.is(expenseField, null)
+          : write.eq(expenseField, row[expenseField]);
+    if (stage) write = write.eq("stage", row.stage);
+    const { data, error: updErr } = await write.select().maybeSingle();
 
     if (updErr) {
       return NextResponse.json({ error: updErr.message }, { status: 500 });
     }
+    if (!data)
+      return NextResponse.json(
+        { error: "Inventory changed. Reload Pipeline before retrying." },
+        { status: 409 },
+      );
 
     // On sale, complete (or create) the deal_outcomes row with the REAL costs the inventory tracked,
     // so calibration learns from prediction-vs-actual. Best-effort; never blocks the stage change.

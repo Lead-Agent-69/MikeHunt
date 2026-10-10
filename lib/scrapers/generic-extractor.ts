@@ -131,7 +131,7 @@ export function readVehicle(obj: Record<string, any>): RawVehicle | null {
           ? (mileageRaw as any)?.value
           : mileageRaw,
       ) ?? undefined,
-    url: str(pick(obj, F.url)) || undefined,
+    url: str(pick(obj, F.url)) || str(obj.offers?.url) || undefined,
     image: imageOf(pick(obj, F.image)),
     title: str(pick(obj, F.title)) || undefined,
   };
@@ -197,7 +197,7 @@ function toDeal(v: RawVehicle, source: string): Partial<Deal> | null {
   };
 }
 
-/** Deep-walk any JSON for vehicle-shaped objects. Bounded depth; dedupes by vin|year+make+model. */
+/** Deep-walk any JSON for vehicle-shaped objects. Bounded depth. */
 function walkForVehicles(root: any, out: RawVehicle[], depth = 0): void {
   if (!root || typeof root !== "object" || depth > 8 || out.length > 500)
     return;
@@ -256,7 +256,10 @@ function dedupe(list: RawVehicle[]): RawVehicle[] {
   const seen = new Set<string>();
   const out: RawVehicle[] = [];
   for (const v of list) {
-    const key = v.vin || `${v.year}|${v.make}|${v.model}`.toLowerCase();
+    const key =
+      v.vin ||
+      v.url ||
+      `${v.year}|${v.make}|${v.model}|${v.trim || ""}|${v.price ?? ""}|${v.mileage ?? ""}`.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(v);

@@ -6,15 +6,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell, Lock } from "lucide-react";
+import { Bell, Grid3X3, Lock } from "lucide-react";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import {
   navItemForViewer,
   primaryNavForMode,
   primaryJobForPath,
+  navItemIsActive,
 } from "./nav-items";
 
 function IconBtn({
@@ -112,17 +114,7 @@ function TopNavContent() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const statesParam = params.get("states");
-    const stateParam = params.get("state");
-    const nextStates = statesParam
-      ? statesParam
-          .split(",")
-          .map((state) => state.trim().toUpperCase())
-          .filter(Boolean)
-      : stateParam
-        ? [stateParam.trim().toUpperCase()]
-        : undefined;
-    setScopedStates(nextStates?.length ? nextStates : undefined);
+    setScopedStates(inventoryScopeStates(params));
   }, [pathname, searchParams]);
 
   // Unread alerts are account data. Poll only once we know there is a session; a signed-out
@@ -170,9 +162,10 @@ function TopNavContent() {
       window.removeEventListener("scroll", onScroll, { capture: true });
   }, []);
 
+  const totalAlertCount = alertCount;
   const changeLocation = (states: string[]) => {
     setScopedStates(states);
-    if (pathname === "/discover" || pathname === "/scan") {
+    if (["/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname)) {
       const params = new URLSearchParams(window.location.search);
       params.delete("state");
       params.delete("states");
@@ -180,6 +173,7 @@ function TopNavContent() {
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
       window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      window.dispatchEvent(new Event("inventory-scope-change"));
     } else router.refresh();
   };
 
@@ -225,7 +219,10 @@ function TopNavContent() {
         </Link>
         {activeJob && (
           <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex lg:hidden">
-            {activeJob}
+            {activeJob === "Pipeline"
+              ? primaryNav.find((item) => item.href === "/fleet")?.name ||
+                activeJob
+              : activeJob}
           </span>
         )}
       </div>
@@ -237,19 +234,17 @@ function TopNavContent() {
         className="hidden lg:flex items-center gap-0.5 shrink-0"
       >
         {primaryNav.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href === "/discover" && pathname === "/") ||
-            activeJob === item.name;
+          const active = navItemIsActive(item, pathname);
           return (
             <Link
               key={item.name}
               href={item.href}
               title={
-                item.signInRequired ? `Sign in to use ${item.name}` : undefined
+                item.signInRequired ? `Sign in to use ${item.name}` : item.name
               }
               aria-current={active ? "page" : undefined}
-              className={`relative flex min-h-11 items-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
+              aria-label={item.name}
+              className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
                 active
                   ? "text-white"
                   : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
@@ -261,7 +256,9 @@ function TopNavContent() {
                 className="relative z-10 h-3.5 w-3.5"
                 strokeWidth={active ? 2.5 : 2}
               />
-              <span className="relative z-10">{item.name}</span>
+              <span className="relative z-10 hidden lg:inline">
+                {item.name}
+              </span>
               {item.signInRequired && (
                 <>
                   <Lock
@@ -300,6 +297,9 @@ function TopNavContent() {
             <Bell aria-hidden="true" style={{ width: 17, height: 17 }} />
           </IconBtn>
           <AccountMenu floating={false} />
+          <IconBtn href="/tools" title="All tools">
+            <Grid3X3 className="h-5 w-5" aria-hidden="true" />
+          </IconBtn>
         </div>
 
         <div className="flex items-center justify-end gap-2 lg:hidden">

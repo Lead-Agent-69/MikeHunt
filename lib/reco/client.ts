@@ -46,7 +46,7 @@ export function sendDealSignal(input: DealSignalInput): void {
 
 // Readers for the reco GET endpoints. Components used to inline these fetches; keep the
 // fire-and-forget sendDealSignal above, and use these when the UI needs a typed response.
-// Any error (401 guest, 5xx, network) resolves to null so callers can hide the UI quietly.
+// Optional prompts fail quietly; For You exposes service failures for a retry state.
 
 export interface SimilarPrompt {
   facet: string;
@@ -88,18 +88,23 @@ export interface ForYouApiResponse {
 
 export async function fetchForYou(
   limit = 12,
+  eligibleIds?: string[],
 ): Promise<ForYouApiResponse | null> {
   if (typeof window === "undefined") return null;
-  try {
-    const res = await fetch(
-      `/api/reco/for-you?limit=${Math.max(1, Math.min(48, limit))}`,
-      {
-        credentials: "same-origin",
-      },
-    );
-    if (!res.ok) return null;
-    return (await res.json()) as ForYouApiResponse;
-  } catch {
-    return null;
-  }
+  const params = new URLSearchParams({
+    limit: String(
+      Number.isFinite(limit)
+        ? Math.max(1, Math.min(48, Math.floor(limit)))
+        : 12,
+    ),
+  });
+  if (eligibleIds)
+    params.set("ids", Array.from(new Set(eligibleIds)).slice(0, 120).join(","));
+  const res = await fetch(`/api/reco/for-you?${params}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error("Recommendations are temporarily unavailable");
+  return (await res.json()) as ForYouApiResponse;
 }

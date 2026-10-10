@@ -17,7 +17,10 @@ import {
 } from "lucide-react";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
+import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { toast } from "sonner";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { confirmOnboardingSave } from "@/lib/preferences/confirm-onboarding";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -143,14 +146,22 @@ export default function OnboardingPage() {
       new URLSearchParams(window.location.search).get("edit") === "1";
     Promise.all([fetch("/api/profile"), fetch("/api/preferences")])
       .then(async ([profileResponse, preferencesResponse]) => {
-        if (!profileResponse.ok || !preferencesResponse.ok) {
+        if (!profileResponse.ok || !preferencesResponse.ok)
           throw new Error("Profile unavailable");
-        }
         const [profileData, preferencesData] = await Promise.all([
           profileResponse.json(),
           preferencesResponse.json(),
         ]);
         if (!active) return;
+        confirmOnboardingSave(
+          preferencesData,
+          "preferences",
+          {},
+          isSupabaseConfigured(),
+        );
+        if (isSupabaseConfigured() && profileData?.authed === false)
+          throw new Error("Session expired");
+        setLoadError(false);
         if (profileData?.profile?.onboarded && !editing) {
           const destination = safeNextPath(
             new URLSearchParams(window.location.search).get("next"),
@@ -254,7 +265,17 @@ export default function OnboardingPage() {
   const selectedMode: BuyerMode | null = prefsHydrated ? buyerMode : null;
 
   async function finish() {
-    if (!buyerMode || !vehicle || !scopeChosen) return;
+    if (saving || !prefsHydrated || !buyerMode || !vehicle || !scopeChosen)
+      return;
+    if (
+      (maxPrice &&
+        (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0)) ||
+      ((buyerMode === "dealer" || buyerMode === "reseller") &&
+        (!Number.isFinite(Number(targetProfit)) || Number(targetProfit) < 0))
+    ) {
+      toast.error("Enter a valid non-negative budget and target profit.");
+      return;
+    }
     setSaving(true);
     const preferences = {
       buyerScope: {
@@ -275,6 +296,12 @@ export default function OnboardingPage() {
         throw new Error(
           "We could not save your buying profile. Please try again.",
         );
+      confirmOnboardingSave(
+        await preferenceResult.json(),
+        "preferences",
+        preferences,
+        isSupabaseConfigured(),
+      );
       const profileResult = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -292,6 +319,12 @@ export default function OnboardingPage() {
       if (!profileResult.ok || !preferenceResult.ok) {
         throw new Error("We could not save your buying profile.");
       }
+      confirmOnboardingSave(
+        await profileResult.json(),
+        "profile",
+        { onboarded: true },
+        isSupabaseConfigured(),
+      );
       toast.success("Your buying profile is ready");
       writeLocalBuyerIntent(intent);
       const requested = new URLSearchParams(window.location.search).get("next");
@@ -544,9 +577,15 @@ export default function OnboardingPage() {
                 Your workspace
               </h3>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--t3)]">
-                {accountMenuForMode(buyerMode).tools.map((tool) => (
-                  <li key={tool.href}>{tool.name}</li>
-                ))}
+                {accountMenuForMode(buyerMode)
+                  .tools.filter(
+                    (tool) =>
+                      buyerMode === "dealer" ||
+                      FOCUSED_TOOLS.has(tool.href.split("?")[0]),
+                  )
+                  .map((tool) => (
+                    <li key={tool.href}>{tool.name}</li>
+                  ))}
               </ul>
             </div>
           </div>
@@ -568,8 +607,9 @@ export default function OnboardingPage() {
               Evidence before a recommendation
             </div>
             <p className="mt-1 text-xs leading-relaxed">
-              Every listing keeps its source, last verified time, and missing
-              evidence visible before you act.
+              Review the original source, available listing observations, and
+              missing evidence before you act. Observations are not an
+              inspection or a verified sale price.
             </p>
           </div>
         </div>
@@ -638,15 +678,22 @@ export default function OnboardingPage() {
         {loadError && (
           <div role="alert" className="mt-4 text-sm text-[var(--red)]">
             <p>
-              Your saved profile could not load. Retry before making changes.
+              Your saved buying profile could not be loaded. Retry before saving
+              changes.
             </p>
             <button
               type="button"
-              className="min-h-11 font-bold underline"
-              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+              onClick={() => {
+                setLoadError(false);
+                setLoadAttempt((value) => value + 1);
+              }}
+              className="mt-2 min-h-11 font-semibold"
             >
               Retry loading profile
             </button>
+            <a href="/login" className="ml-4 font-semibold">
+              Sign in again
+            </a>
           </div>
         )}
         <div className="mt-8 flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-5">
@@ -667,16 +714,18 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={() => (isLast ? finish() : setStep(step + 1))}
-            disabled={!prefsHydrated || saving || (step === 1 && !scopeChosen)}
+            disabled={saving || !prefsHydrated || (step === 1 && !scopeChosen)}
             className="inline-flex min-h-12 items-center gap-2 rounded-lg bg-[var(--accent)] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
           >
             {saving
               ? "Saving..."
-              : !prefsHydrated
-                ? "Loading profile…"
-                : isLast
-                  ? "See my matches"
-                  : "Continue"}
+              : loadError
+                ? "Profile unavailable"
+                : !prefsHydrated
+                  ? "Loading profile..."
+                  : isLast
+                    ? "See my matches"
+                    : "Continue"}
             {!saving && <ArrowRight size={16} aria-hidden="true" />}
           </button>
         </div>
