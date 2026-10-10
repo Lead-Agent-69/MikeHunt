@@ -54,10 +54,10 @@ export const BUYER_MODES: Record<
     label: "DIY enthusiast",
     question: "Can I realistically fix this?",
     priorities: [
-      "Required skills",
-      "Tools and workspace",
-      "Parts",
-      "Repair uncertainty",
+      "Reported damage",
+      "Title status",
+      "Listing photos",
+      "Inspect before you buy",
     ],
   },
   parts: {
