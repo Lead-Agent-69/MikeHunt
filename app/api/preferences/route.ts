@@ -17,6 +17,7 @@ import {
   locationPatchTouchesDemand,
 } from "@/lib/preferences/kick-location-demand";
 import { syncPrefsHomeLocationToProfile } from "@/lib/preferences/sync-home-state";
+import { mergePreferencePatch } from "@/lib/preferences/merge-patch";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: located.error }, { status: 400 });
   patch = located.patch;
 
-  const guestMerged = { ...readGuestPrefs(req), ...patch };
+  const guestMerged = mergePreferencePatch(readGuestPrefs(req), patch);
   const guestLocation = locationPatchTouchesDemand(patch);
 
   function guestWithDemand(prefs: Record<string, unknown>) {
@@ -139,6 +140,11 @@ export async function PUT(req: NextRequest) {
   }
 
   if (!isSupabaseConfigured()) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
     return guestWithDemand(guestMerged);
   }
 
@@ -148,10 +154,17 @@ export async function PUT(req: NextRequest) {
   } = await getServerUser();
   if (authError)
     return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
-  if (!user?.id) return guestWithDemand(guestMerged);
+  if (!user?.id) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
+    return guestWithDemand(guestMerged);
+  }
 
   const sb = createServerComponentClient();
-  // Preserve unrelated keys; a failed read must never become an empty baseline.
+  // Merge server-side so one app's save never drops another's keys.
   const { data: existing, error: readError } = await sb
     .from("user_preferences")
     .select("prefs")
@@ -162,10 +175,10 @@ export async function PUT(req: NextRequest) {
       { error: "Preferences unavailable" },
       { status: 503 },
     );
-  let merged: Record<string, unknown> = {
-    ...((existing?.prefs as object) || {}),
-    ...patch,
-  };
+  let merged: Record<string, unknown> = mergePreferencePatch(
+    (existing?.prefs as Record<string, unknown>) || {},
+    patch,
+  );
 
   let locationDemand: {
     states: string[];

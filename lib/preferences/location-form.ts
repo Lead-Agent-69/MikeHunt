@@ -12,6 +12,7 @@ import {
   type HomeLocation,
   type SearchLocation,
 } from "./locations";
+import { zipToState } from "@/lib/geo/zip-state";
 
 export const RADIUS_OPTIONS_MI = [25, 50, 100, 250, 500] as const;
 
@@ -53,6 +54,8 @@ export function homeLocationFromForm(
   if (!state) return { error: "Choose your home state." };
   const zip = formZip(input.zip);
   if (zip === null) return { error: "ZIP must be 5 digits." };
+  if (zip && zipToState(zip) && zipToState(zip) !== state)
+    return { error: "ZIP does not match the selected state." };
   return {
     home: compact({
       state,

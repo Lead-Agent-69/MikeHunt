@@ -70,6 +70,7 @@ export async function GET(req: NextRequest) {
     .single();
 
   if (error) {
+    if (error.code === "PGRST116") return NextResponse.json({ profile: {} });
     return NextResponse.json({ error: "Profile unavailable" }, { status: 503 });
   }
 
@@ -103,8 +104,59 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return NextResponse.json({ error: "Invalid profile" }, { status: 400 });
+  for (const key of [
+    "auction_fee_default",
+    "recon_cost_default",
+    "daily_floor_rate",
+    "target_profit",
+    "budget_min",
+    "budget_max",
+  ]) {
+    if (
+      body[key] !== undefined &&
+      (typeof body[key] !== "number" ||
+        !Number.isFinite(body[key]) ||
+        body[key] < 0 ||
+        body[key] > 1000000)
+    ) {
+      return NextResponse.json(
+        { error: "Costs and budgets must be between $0 and $1,000,000" },
+        { status: 400 },
+      );
+    }
+  }
+  if (
+    body.home_zip !== undefined &&
+    body.home_zip !== null &&
+    !/^\d{5}$/.test(body.home_zip)
+  )
+    return NextResponse.json(
+      { error: "ZIP must be 5 digits" },
+      { status: 400 },
+    );
+  if (body.home_lat !== undefined || body.home_lng !== undefined) {
+    if (
+      typeof body.home_lat !== "number" ||
+      typeof body.home_lng !== "number" ||
+      !Number.isFinite(body.home_lat) ||
+      !Number.isFinite(body.home_lng) ||
+      Math.abs(body.home_lat) > 90 ||
+      Math.abs(body.home_lng) > 180
+    )
+      return NextResponse.json(
+        { error: "Invalid coordinates" },
+        { status: 400 },
+      );
+  }
 
   if (!isSupabaseConfigured()) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your profile" },
+        { status: 401 },
+      );
     return guestProfileResponse({
       ...readGuestProfile(req),
       ...body,
@@ -121,6 +173,11 @@ export async function POST(req: NextRequest) {
   if (authError)
     return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
   if (!user) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your profile" },
+        { status: 401 },
+      );
     return guestProfileResponse({
       ...readGuestProfile(req),
       ...body,
@@ -132,8 +189,6 @@ export async function POST(req: NextRequest) {
   const updates = {
     id: user.id,
     ...(body.name !== undefined && { name: body.name }),
-    ...(body.phone !== undefined && { phone: body.phone }),
-    ...(body.city !== undefined && { city: body.city }),
     ...(body.home_state !== undefined && { home_state: body.home_state }),
     ...(body.state !== undefined &&
       body.home_state === undefined && { home_state: body.state }),

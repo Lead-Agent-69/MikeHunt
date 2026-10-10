@@ -46,8 +46,9 @@ describe("listing photo navigation", () => {
     expect(opener).not.toBeNull();
     opener.focus();
     await act(async () => opener.click());
-    expect(host.querySelector("dialog")?.open).toBe(true);
-    expect(host.querySelector("dialog")?.getAttribute("aria-label")).toBe(
+    expect(document.querySelector("dialog")?.open).toBe(true);
+    expect(host.querySelector("dialog")).toBeNull();
+    expect(document.querySelector("dialog")?.getAttribute("aria-label")).toBe(
       "Honda Civic listing photos",
     );
     await act(async () =>
@@ -55,11 +56,11 @@ describe("listing photo navigation", () => {
         new KeyboardEvent("keydown", { key: "ArrowRight" }),
       ),
     );
-    expect(host.querySelector("dialog")?.textContent).toContain("2 / 2");
+    expect(document.querySelector("dialog")?.textContent).toContain("2 / 2");
     await act(async () =>
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })),
     );
-    expect(host.querySelector("dialog")?.open ?? false).toBe(false);
+    expect(document.querySelector("dialog")?.open ?? false).toBe(false);
     expect(document.activeElement).toBe(opener);
     expect(document.body.style.overflow).not.toBe("hidden");
   });
