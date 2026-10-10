@@ -12,7 +12,11 @@ import {
   RECALLS_TTL_MS,
 } from "@/lib/vehicle/vin-enrichment";
 import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
-import { extrasFresh } from "@/lib/vehicle/extras-ttl";
+import {
+  extrasFresh,
+  extrasStatus,
+  planExtras,
+} from "@/lib/vehicle/extras-ttl";
 
 // GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs. Full NHTSA vPIC decode
 // (DecodeVinValuesExtended: trim, series, body, engine, drive, transmission, GVWR, plant) cached in
@@ -70,15 +74,19 @@ export async function GET(
       recalls: recalls?.count ?? cached.recalls_count ?? null,
       recallCampaigns: recalls?.campaigns ?? [],
       recallsScope: "model_year",
+      extrasStatus: extrasStatus(cached),
       decodeStale: dec.stale,
       cached: true,
     });
   }
 
-  // Crash-test stars + EPA MPG in parallel (all free, no key), once per VIN.
+  // Crash-test stars + EPA MPG in parallel (all free, no key). planExtras: a stale complete set is
+  // looked up again after 180 days; an incomplete one retries only the missing values, up to 3 times.
+  const plan = planExtras(cached);
+  const runExtras = canQuery && (plan.safety || plan.mpg);
   const [safety, fuel] = canQuery
     ? await Promise.all([
-        cached?.safety_overall != null || hasExtras
+        !plan.safety
           ? Promise.resolve(null)
           : getSafetyRating(
               decoded.make!,
@@ -87,7 +95,7 @@ export async function GET(
               undefined,
               { deadline },
             ),
-        cached?.mpg_combined != null || hasExtras
+        !plan.mpg
           ? Promise.resolve(null)
           : getFuelEconomy(
               decoded.make!,
@@ -116,14 +124,26 @@ export async function GET(
     safety_rollover: safety?.rollover ?? cached?.safety_rollover ?? null,
     // When the extras were last attempted. extrasFresh() keeps a complete set 180 days and retries an
     // incomplete one (a failed or empty safety/EPA lookup) after 6h.
-    extras_at: hasExtras ? cached.extras_at : new Date().toISOString(),
+    extras_at: runExtras
+      ? new Date().toISOString()
+      : (cached?.extras_at ?? null),
+    extras_attempts: runExtras
+      ? plan.nextAttempts
+      : (cached?.extras_attempts ?? 0),
   };
   // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
   // handler returns, so every call would otherwise re-hit NHTSA.
   // Only enrich a row that exists: an un-cached decode (write budget spent) must not be created here.
   if (dec.persisted) {
     try {
-      await sb.from("vin_decodes").upsert(extras, { onConflict: "vin" });
+      const r: any = await sb
+        .from("vin_decodes")
+        .upsert(extras, { onConflict: "vin" });
+      // 20261010401000 not applied yet: store everything but the attempt counter.
+      if (r?.error && /extras_attempts/.test(String(r.error.message ?? ""))) {
+        const { extras_attempts: _drop, ...rest } = extras;
+        await sb.from("vin_decodes").upsert(rest, { onConflict: "vin" });
+      }
     } catch {
       /* non-fatal */
     }
@@ -135,6 +155,7 @@ export async function GET(
     recalls: recalls?.count ?? null,
     recallCampaigns: recalls?.campaigns ?? [],
     recallsScope: "model_year",
+    extrasStatus: extrasStatus({ ...(cached ?? {}), ...extras }),
     decodeStale: dec.stale,
     cached: false,
   });
