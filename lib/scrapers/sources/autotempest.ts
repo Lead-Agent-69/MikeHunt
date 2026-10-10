@@ -9,6 +9,7 @@
 // origin is also kept in metadata.origin_site. A unique aggregator id keeps it from colliding with
 // our direct scrapers' rows.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
@@ -150,7 +151,7 @@ async function fetchPage(
   });
   if (cursor) params.set("searchAfter", JSON.stringify(cursor));
 
-  const res = await fetch(`${API}?${params.toString()}`, {
+  const res = await scraperFetch(`${API}?${params.toString()}`, {
     headers: {
       "User-Agent": UA,
       Accept: "application/json",

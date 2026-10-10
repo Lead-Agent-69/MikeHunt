@@ -4,6 +4,7 @@ export const maxDuration = 300;
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cacheVehiclePhotos } from "@/lib/images/cache";
+import { photoCacheAllowed } from "@/lib/scrapers/access-class";
 import { canManageOperations } from "@/lib/auth/admin-operations";
 
 // POST /api/admin/cache-photos — download + permanently host the photos of top deals in Supabase
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   const sb = admin();
   let q = sb
     .from("deals")
-    .select("id, images")
+    .select("id, images, source, source_url")
     .eq("active", true)
     .or("images_cached.is.null,images_cached.eq.false")
     .not("images", "is", null)
@@ -87,7 +88,13 @@ export async function POST(req: Request) {
 
   let cached = 0;
   let photos = 0;
+  let skippedAccess = 0;
   for (const d of deals) {
+    // Ren #269: only api/allowed sources may be copied into Storage (lib/scrapers/access-class.ts).
+    if (!photoCacheAllowed(d)) {
+      skippedAccess++;
+      continue;
+    }
     const urls: string[] = Array.isArray(d.images) ? d.images : [];
     const httpUrls = urls.filter((u) => /^https?:\/\//.test(u));
     if (!httpUrls.length) {
@@ -119,6 +126,7 @@ export async function POST(req: Request) {
       scanned: deals.length,
       cachedDeals: cached,
       photos,
+      skippedAccess,
       goRemaining: remaining ?? null,
     },
     { headers: CORS },
