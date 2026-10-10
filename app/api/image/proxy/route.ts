@@ -120,6 +120,9 @@ const ALLOWED_IMAGE_HOSTS = new Set([
   "www.summitautoexchange.com",
   "307motors.com",
   "www.307motors.com",
+  // NM (Elle's section V, 2026-10-10): L&L Auto Sales; photos come from static.overfuel.com (above).
+  "landlusedcars.com",
+  "www.landlusedcars.com",
 ]);
 
 /** ~1 day at the CDN / edge; browsers may refresh a bit sooner. */
