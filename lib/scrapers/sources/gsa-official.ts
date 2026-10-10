@@ -14,6 +14,7 @@
 
 import type { Deal } from "@/types";
 import { extractMake } from "../tools/deal-normalizer";
+import { isCarOrTruck } from "../vehicle-class";
 import { politeUserAgent } from "../polite/identity";
 import { parseRetryAfterMs } from "../polite/backoff";
 
@@ -51,14 +52,10 @@ export function gsaMinIntervalMs(demo: boolean) {
   return demo ? DEMO_MIN_INTERVAL_MS : KEY_MIN_INTERVAL_MS;
 }
 
-// Things with a model year that aren't road vehicles we can value.
-const NOT_A_CAR =
-  /\b(cessna|aircraft|helicopter|blackhawk|vessel|boat|whaler|trailer|tractor|loader|forklift|crane|counter|machine|generator|mower|excavator|backhoe|dozer|skid ?steer|polaris|atv|utv|gator|golf cart)\b/i;
-
 /** Map one official-API lot to a Deal. Null for non-vehicles. */
 export function gsaApiLotToDeal(lot: GsaApiLot): Partial<Deal> | null {
   const name = (lot.itemName || "").replace(/\s+/g, " ").trim();
-  if (!name || NOT_A_CAR.test(name)) return null;
+  if (!name || !isCarOrTruck(name)) return null; // cars and trucks only
   if (lot.auctionStatus && !/active|preview/i.test(lot.auctionStatus))
     return null;
   const ym = name.match(/\b(19[5-9]\d|20[0-4]\d)\b/);
