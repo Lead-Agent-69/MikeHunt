@@ -222,11 +222,11 @@ export default function UpgradePage() {
       </motion.div>
 
       <p className="text-center text-xs text-[var(--t4)] mt-6">
-        Billing activates once Stripe keys are configured. See your{" "}
+        Paid plans aren&apos;t available yet. See the{" "}
         <Link href="/changelog" className="text-[var(--amber)]">
           changelog
-        </Link>
-        .
+        </Link>{" "}
+        for what&apos;s new.
       </p>
     </div>
   );

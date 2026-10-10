@@ -15,6 +15,7 @@ import {
   evidenceConfidence,
   hasRecentSoldEvidence,
 } from "@/lib/valuation/evidence-confidence";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -130,7 +131,8 @@ export const DealCard = memo(function DealCard({
   const lastSeenText = lastSeenAt
     ? new Date(lastSeenAt).toLocaleDateString()
     : null;
-  const freshnessText = relativeFreshness(lastSeenAt || firstSeenAt);
+  // Age from first_seen, re-check from last_seen — never call an old re-scraped listing new.
+  const freshnessText = listingFreshnessLabel({ firstSeenAt, lastSeenAt });
   const auctionEndText = auctionEndAt
     ? new Date(auctionEndAt).toLocaleDateString()
     : null;

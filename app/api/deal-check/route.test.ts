@@ -15,6 +15,7 @@ vi.mock("@/lib/net/fetch-public-html", () => ({ fetchPublicHtml }));
 const getServerUser = vi.hoisted(() =>
   vi.fn(async () => ({ data: { user: { id: "u1" } } })),
 );
+const captureException = vi.hoisted(() => vi.fn());
 const generateText = vi.hoisted(() =>
   vi.fn(async () => ({
     text: '{"vehicle":{"year":null,"make":null,"model":null,"vin":null,"mileage":null},"selling_price":1000,"fees":[],"addons":[],"taxes":null,"total_out_the_door":null,"red_flags":[]}',
@@ -22,6 +23,7 @@ const generateText = vi.hoisted(() =>
 );
 
 vi.mock("ai", () => ({ generateText }));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
 vi.mock("@/lib/scrapers/tools/patchright-engine", () => ({
   fetchPublicWithPatchright: fetchWithPatchright,
 }));
@@ -70,6 +72,7 @@ function post(text: string) {
 beforeEach(() => {
   fetchWithPatchright.mockClear();
   fetchPublicHtml.mockClear();
+  captureException.mockClear();
 });
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
@@ -158,6 +161,52 @@ describe("POST /api/deal-check URL paste SSRF guard", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("reports a browser launch failure to Sentry without the URL and still 422s", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("VERCEL", "");
+    fetchPublicHtml.mockResolvedValueOnce(null as any);
+    fetchWithPatchright.mockRejectedValueOnce(
+      new Error(
+        "browserType.launch: Executable doesn't exist (navigating to https://93.184.216.34/listing?vin=SECRET)",
+      ),
+    );
+    try {
+      const res = await post("https://93.184.216.34/listing?vin=SECRET");
+      expect(res.status).toBe(422);
+      expect((await res.json()).error).toContain("Paste the listing details");
+      expect(fetchWithPatchright).toHaveBeenCalledTimes(1);
+      expect(captureException).toHaveBeenCalledTimes(1);
+      const [err, ctx] = captureException.mock.calls[0];
+      expect(ctx).toEqual({
+        tags: { route: "deal-check", stage: "page-read" },
+      });
+      expect(String((err as Error).message)).not.toContain("93.184.216.34");
+      expect(String((err as Error).stack)).not.toContain("SECRET");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("reports an HTTP read failure to Sentry without the URL", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchPublicHtml.mockRejectedValueOnce(
+      new Error("fetch failed for https://93.184.216.34/listing?vin=SECRET"),
+    );
+    const res = await post("https://93.184.216.34/listing?vin=SECRET");
+    expect(res.status).toBe(422);
+    expect(captureException).toHaveBeenCalledTimes(1);
+    const [err] = captureException.mock.calls[0];
+    expect(String((err as Error).message)).not.toContain("SECRET");
+  });
+
+  it("does not report blocked redirect hops to Sentry", async () => {
+    const { UrlNotAllowedError } = await import("@/lib/net/public-url");
+    fetchPublicHtml.mockRejectedValueOnce(new UrlNotAllowedError());
+    const res = await post("https://93.184.216.34/listing");
+    expect(res.status).toBe(400);
+    expect(captureException).not.toHaveBeenCalled();
   });
 
   it("still requires sign-in", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { ArrowLeftRight, Truck } from "lucide-react";
@@ -9,6 +9,8 @@ import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
+import { usePreferences } from "@/hooks/usePreferences";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -27,6 +29,22 @@ function MovePageInner() {
   const [toState, setToState] = useState(
     US_STATES.includes(toParam) ? toParam : "",
   );
+  // No invented TX → CA default: origin comes from the deal (?from=) or the saved home
+  // state; destination is the home state when moving a deal, otherwise the user picks it.
+  const [routeTouched, setRouteTouched] = useState(false);
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const homeState = prefsLoading
+    ? ""
+    : discoverHomeState(prefs.homeLocation, prefs.carsState);
+  const urlFrom = US_STATES.includes(fromParam) ? fromParam : "";
+  useEffect(() => {
+    if (routeTouched || prefsLoading || !homeState) return;
+    if (urlFrom) {
+      setToState((prev) => prev || homeState);
+    } else {
+      setFromState((prev) => prev || homeState);
+    }
+  }, [routeTouched, prefsLoading, homeState, urlFrom]);
   const { data, error, isLoading, mutate } = useSWR(
     dealerId && !dealerLoading && fromState && toState && fromState !== toState
       ? `/api/transport/quote?from=${fromState}&to=${toState}`
@@ -70,7 +88,10 @@ function MovePageInner() {
               label="From State"
               options={stateOptions}
               value={fromState}
-              onChange={(e) => setFromState(e.target.value)}
+              onChange={(e) => {
+                setRouteTouched(true);
+                setFromState(e.target.value);
+              }}
             />
           </div>
           <button
@@ -79,6 +100,7 @@ function MovePageInner() {
             title="Swap states"
             className="premium-focus mt-5 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[var(--b2)]"
             onClick={() => {
+              setRouteTouched(true);
               setFromState(toState);
               setToState(fromState);
             }}
@@ -90,7 +112,10 @@ function MovePageInner() {
               label="To State"
               options={stateOptions}
               value={toState}
-              onChange={(e) => setToState(e.target.value)}
+              onChange={(e) => {
+                setRouteTouched(true);
+                setToState(e.target.value);
+              }}
             />
           </div>
         </div>
@@ -98,6 +123,11 @@ function MovePageInner() {
       {dealerLoading || isLoading ? <Skeleton className="h-24 w-full" /> : null}
       {!dealerLoading && !dealerId ? (
         <p role="status">Please sign in to plan transport.</p>
+      ) : null}
+      {!fromState || !toState ? (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          Enter a route to see transport estimates.
+        </p>
       ) : null}
       {fromState && toState && fromState === toState ? (
         <p role="status" className="text-sm text-[var(--t3)]">

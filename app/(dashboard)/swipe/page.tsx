@@ -197,7 +197,7 @@ export default function SwipePage() {
   const [saved, setSaved] = useState(0);
   const [passed, setPassed] = useState(0);
 
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     `/api/deals?sortBy=lastSeenAt&sortOrder=desc&limit=${PAGE}&offset=${
       batch * PAGE
     }`,
@@ -291,12 +291,18 @@ export default function SwipePage() {
 
       {isLoading && !cards.length ? (
         <StackSkeleton />
-      ) : error ? (
-        <div className="glass-panel" style={{ padding: 0 }}>
+      ) : error && !data ? (
+        <div
+          className="glass-panel"
+          style={{ padding: 0 }}
+          data-testid="swipe-load-error"
+          role="alert"
+        >
           <EmptyState
             icon="alert-triangle"
-            title="Couldn't load deals"
-            message="Something went wrong fetching the queue. Try again in a moment."
+            title="Couldn't load the swipe queue"
+            message="This is not an empty triage deck. Saved inventory is still on Discover and Scan — retry when ready."
+            action={{ label: "Try again", onClick: () => mutate() }}
           />
         </div>
       ) : exhausted ? (
@@ -341,7 +347,7 @@ export default function SwipePage() {
           <EmptyState
             icon="search"
             title="No deals to triage yet"
-            message="No listings are in the queue yet."
+            message="No saved-inventory listings are in the queue yet."
           />
         </div>
       ) : (

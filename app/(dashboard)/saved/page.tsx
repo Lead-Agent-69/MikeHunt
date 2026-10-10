@@ -28,6 +28,10 @@ import {
   Mail,
 } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
+import {
+  savedSyncStatus,
+  savedWatchlistHeadline,
+} from "@/lib/ui/load-state-copy";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import {
@@ -127,7 +131,6 @@ export default function SavedCarsPage() {
     },
   );
 
-  const loading = isLoading || dealerLoading;
   const authError =
     accountError ||
     (!dealerLoading && !dealerId
@@ -145,17 +148,21 @@ export default function SavedCarsPage() {
   const canShowLocalSaves = unsyncedLocalItems.length > 0;
   // Signed-in users with a failed /api/saved-cars fetch are not "missing" auth —
   // treat that as sync unavailable so we never push a Sign-in CTA while authed.
+  // "checking" until auth resolved AND the first account fetch settled — never flash an error
+  // while the session or the request is still in flight (lib/ui/load-state-copy). An account
+  // lookup failure is "unavailable" once auth has settled.
   const supabaseStatus =
-    dealerLoading || isLoading
-      ? "checking"
-      : accountError
-        ? "unavailable"
-        : !dealerId
-          ? "guest"
-          : error
-            ? "unavailable"
-            : "ready";
+    !dealerLoading && accountError
+      ? "unavailable"
+      : savedSyncStatus({
+          authLoading: dealerLoading,
+          userId: dealerId,
+          fetchLoading: isLoading,
+          hasData: saves !== undefined,
+          error,
+        });
   const cloudSyncReady = supabaseStatus === "ready";
+  const loading = supabaseStatus === "checking";
   const signedIn = Boolean(dealerId);
 
   const handleDelete = async (id: string) => {
@@ -406,23 +413,13 @@ export default function SavedCarsPage() {
               Saved vehicles
             </p>
             <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-              {loading
-                ? "Loading your saved vehicles..."
-                : accountError
-                  ? "We couldn't check your account."
-                  : cloudSyncReady
-                    ? "Your account watchlist is connected."
-                    : signedIn && canShowLocalSaves
-                      ? "Account sync is unavailable — local watchlist still works."
-                      : signedIn
-                        ? "Could not load your account watchlist."
-                        : canShowLocalSaves
-                          ? "Your watchlist is saved on this device."
-                          : "Save a vehicle to start watching locally."}
+              {accountError && !loading
+                ? "We couldn't check your account."
+                : savedWatchlistHeadline(supabaseStatus, canShowLocalSaves)}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               {loading
-                ? "Your saved vehicles will appear here shortly."
+                ? "Loading saved vehicles from your account."
                 : accountError
                   ? "Check your connection and retry. Saves on this device are still available."
                   : cloudSyncReady
