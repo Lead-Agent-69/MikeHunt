@@ -48,6 +48,18 @@ const deal = (o: Record<string, unknown> = {}) => ({
 });
 const req = () => new NextRequest("https://x.test/api/market/timing?make=Ford&model=Explorer");
 
+/** Deprecated aliases must carry exactly the honest fields' values. */
+function expectAliases(body: any) {
+  expect(body).toHaveProperty("current_median_price");
+  expect(body).toHaveProperty("matched_count");
+  expect(body).toHaveProperty("prior_median_price");
+  expect(body.current_avg_price).toBe(body.current_median_price);
+  expect(body.data_points).toBe(body.matched_count);
+  expect(body.matched_count).toBe(body.sampleSize);
+  expect(body.timing_signal).toBe(body.signal);
+  expect(body.pct_change_30d).toBe(body.signal ? body.trendPct : null);
+}
+
 beforeEach(() => {
   state.rows = [];
   state.error = null;
@@ -75,6 +87,8 @@ describe("/api/market/timing like-for-like", () => {
       pct_change_30d: null, reasoning: null, trendPct: null,
     });
     expect(body.window).toMatchObject({ days: 30, recentDays: 7 });
+    expect(body).toMatchObject({ current_median_price: null, prior_median_price: null, matched_count: 0 });
+    expectAliases(body);
   });
 
   it("same-listing drop: WAIT with basis + sample size", async () => {
@@ -88,6 +102,8 @@ describe("/api/market/timing like-for-like", () => {
       sampleSize: 10, data_points: 10, trendPct: -6, pct_change_30d: -6,
     });
     expect(body.reasoning).toMatch(/softening/);
+    expect(body).toMatchObject({ current_median_price: 18_800, prior_median_price: 20_000, matched_count: 10 });
+    expectAliases(body);
   });
 
   it("price_history error degrades to no signal", async () => {
@@ -95,5 +111,6 @@ describe("/api/market/timing like-for-like", () => {
     const body = await (await GET(req())).json();
     expect(body).toMatchObject({ signal: null, confidence: "none" });
     expect(body.reason).toMatch(/unavailable/);
+    expectAliases(body);
   });
 });

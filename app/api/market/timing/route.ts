@@ -9,11 +9,38 @@ import {
   type TimingObservation,
 } from "@/lib/market/timing";
 
-// GET /api/market/timing?make=Ford&model=F-150
-// Buy-now / wait signal from a LIKE-FOR-LIKE price trend (lib/market/timing.ts): the same listing's
-// ask over time first, a year/mileage/trim mix-adjusted index second, no signal below the minimum
-// sample. It no longer reads market_timing_signals, which averaged different cars week to week.
-// Also returns a real average days-to-sell from logged outcomes once enough exist.
+/**
+ * GET /api/market/timing?make=Ford&model=F-150
+ *
+ * Buy-now / wait signal from a LIKE-FOR-LIKE price trend (lib/market/timing.ts): the same listing's
+ * ask over time first, a year/mileage/trim mix-adjusted index second, no signal below the minimum
+ * sample. It does not read market_timing_signals. Window: 30 days, recent = last 7 days.
+ * Fixed-price asks only (auction bids and asks under $500 excluded). Model matches on its first token.
+ *
+ * Response fields:
+ * - make, model: echo of the query.
+ * - signal: "BUY_NOW" | "WAIT" | "NEUTRAL" | null. Null unless confidence is high or medium.
+ * - confidence: "high" | "medium" | "low" | "none". Low = trend shown with a caveat, no verdict.
+ * - basis: "same_listing" | "mix_adjusted" | "none". Which method produced the trend.
+ * - trendPct: like-for-like change in percent (1 dp); null when confidence is none.
+ * - current_median_price: median CURRENT ask of the matched sample (context, not a verdict); null if none.
+ * - prior_median_price: median EARLIER ask of the same matched sample (same_listing: each listing's
+ *   ask before the recent window; mix_adjusted: prior-window asks in matched cohorts); null if none.
+ * - matched_count: same_listing = listings compared with their own earlier ask; mix_adjusted =
+ *   distinct listings in cohorts seen in both windows. sampleSize is the same number (camelCase).
+ * - window: { from, recentFrom, to, days, recentDays } (ISO timestamps, day counts).
+ * - reason: plain-language explanation of the result, including why there is no signal.
+ * - caveat: set only for low confidence; otherwise null.
+ * - detail: { sameListingPairs, mixCohorts, mixRecentListings, mixPriorListings } diagnostics.
+ * - avg_days_to_sell: mean days_to_sell from deal_outcomes when 3+ exist; otherwise null.
+ *
+ * Deprecated compatibility aliases (same values, kept for MarketTiming and older readers):
+ * - timing_signal = signal
+ * - pct_change_30d = trendPct when signal is set, else null (it is a 7-day like-for-like change, not 30d)
+ * - current_avg_price = current_median_price (a median, despite the name)
+ * - data_points = matched_count (a matched count, not raw observations)
+ * - reasoning = canned one-line text for signal, or null
+ */
 const REASONING: Record<string, string> = {
   BUY_NOW: "Prices are rising — buying now beats waiting.",
   WAIT: "Prices are softening — waiting may land a better basis.",
@@ -114,15 +141,19 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     make,
     model,
-    // Legacy fields (MarketTiming badge, other readers). timing_signal is null unless confidence is
-    // high or medium; pct_change_30d is the like-for-like trend, never a raw mix average.
+    // @deprecated compatibility aliases (see the doc comment): same values as the honest fields below.
+    // timing_signal = signal; pct_change_30d = trendPct (only with a signal);
+    // current_avg_price = current_median_price; data_points = matched_count.
     timing_signal: timing.signal,
     pct_change_30d: timing.signal ? timing.trendPct : null,
     current_avg_price: timing.medianAsk,
     data_points: timing.sampleSize,
     reasoning: timing.signal ? REASONING[timing.signal] : null,
     avg_days_to_sell: avgDaysToSell,
-    // Like-for-like detail.
+    // Honestly named fields.
+    current_median_price: timing.medianAsk,
+    prior_median_price: timing.priorMedianAsk,
+    matched_count: timing.sampleSize,
     signal: timing.signal,
     confidence: timing.confidence,
     basis: timing.basis,

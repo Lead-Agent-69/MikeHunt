@@ -85,7 +85,7 @@ describe("computeMarketTiming", () => {
       rise.push(...listing(`r${i}`, [[20, 20_000], [3, 21_200]])); // +6%
     }
     const d = computeMarketTiming(drop, NOW);
-    expect(d).toMatchObject({ basis: "same_listing", confidence: "high", signal: "WAIT", trendPct: -6, sampleSize: 20 });
+    expect(d).toMatchObject({ basis: "same_listing", confidence: "high", signal: "WAIT", trendPct: -6, sampleSize: 20, medianAsk: 18_800, priorMedianAsk: 20_000 });
     const r = computeMarketTiming(rise, NOW);
     expect(r).toMatchObject({ basis: "same_listing", confidence: "high", signal: "BUY_NOW", trendPct: 6 });
   });
@@ -160,6 +160,8 @@ describe("computeMarketTiming", () => {
     expect(r.trendPct).toBe(10);
     expect(r.signal).toBe("BUY_NOW");
     expect(r.detail.mixCohorts).toBe(6);
+    expect(r.priorMedianAsk).toBe(12_500);
+    expect(r.medianAsk).toBe(13_750);
   });
 
   it("mix-adjusted ignores cohorts seen in only one window", () => {

@@ -53,6 +53,8 @@ export interface TimingResult {
   trendPct: number | null;
   /** Median current ask of the listings behind the trend (context only, not a verdict). */
   medianAsk: number | null;
+  /** Median earlier ask of the same matched sample (same_listing: baselines; mix: prior-window asks). */
+  priorMedianAsk: number | null;
   window: TimingWindow;
   reason: string;
   detail: {
@@ -122,6 +124,7 @@ interface Partial_ {
   trendPct: number | null;
   sampleSize: number;
   medianAsk: number | null;
+  priorMedianAsk: number | null;
 }
 
 function sameListing(
@@ -130,6 +133,7 @@ function sameListing(
 ): Partial_ & { pairs: number } {
   const changes: number[] = [];
   const asks: number[] = [];
+  const bases: number[] = [];
   const clip = TIMING_THRESHOLDS.maxPairChange;
   for (const obs of Array.from(byDeal.values())) {
     const before = obs.filter((o) => Date.parse(o.observedAt) < recentStart);
@@ -143,6 +147,7 @@ function sameListing(
     const ch = current.price / baseline.price - 1;
     changes.push(Math.max(-clip, Math.min(clip, ch)));
     asks.push(current.price);
+    bases.push(baseline.price);
   }
   const n = changes.length;
   const { low, medium, high } = TIMING_THRESHOLDS.sameListing;
@@ -155,6 +160,7 @@ function sameListing(
     trendPct: confidence === "none" ? null : round1(mean * 100),
     sampleSize: n,
     medianAsk: n ? Math.round(median(asks)) : null,
+    priorMedianAsk: n ? Math.round(median(bases)) : null,
   };
 }
 
@@ -183,6 +189,7 @@ function mixAdjusted(
   let priorN = 0;
   const ids = new Set<string>();
   const asks: number[] = [];
+  const priorAsks: number[] = [];
   for (const c of Array.from(cohorts.values())) {
     if (!c.recent.length || !c.prior.length) continue;
     const w = Math.min(c.recent.length, c.prior.length);
@@ -193,6 +200,7 @@ function mixAdjusted(
     priorN += c.prior.length;
     c.ids.forEach((i) => ids.add(i));
     asks.push(...c.recent);
+    priorAsks.push(...c.prior);
   }
   const m = TIMING_THRESHOLDS.mixAdjusted;
   const perWindow = Math.min(recentN, priorN);
@@ -211,6 +219,7 @@ function mixAdjusted(
       confidence === "none" || !wSum ? null : round1((Math.exp(lrSum / wSum) - 1) * 100),
     sampleSize: ids.size,
     medianAsk: asks.length ? Math.round(median(asks)) : null,
+    priorMedianAsk: priorAsks.length ? Math.round(median(priorAsks)) : null,
   };
 }
 
@@ -270,6 +279,7 @@ export function computeMarketTiming(
       sampleSize: Math.max(same.sampleSize, mix.sampleSize),
       trendPct: null,
       medianAsk: null,
+      priorMedianAsk: null,
       window,
       reason:
         `Not enough like-for-like data: ${same.pairs} same-listing price pairs ` +
@@ -299,6 +309,7 @@ export function computeMarketTiming(
     sampleSize: p.sampleSize,
     trendPct: p.trendPct,
     medianAsk: p.medianAsk,
+    priorMedianAsk: p.priorMedianAsk,
     window,
     reason,
     detail,
