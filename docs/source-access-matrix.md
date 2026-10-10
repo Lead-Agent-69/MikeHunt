@@ -73,3 +73,34 @@ Format: `salvage-or-rebuilt / all active`. This counts all sources, including Co
 | WI 11/13   | WY 1/1     |            |            |           |            |
 
 KS, OK and TN rows come from auctions only. None of them has a dedicated rebuilder or dealer source yet. Zero or near-zero salvage states: AK, ID, ND, SD, WY, RI, ME, MT. Next step: the GSA official API (nationwide), then 4cdg-platform dealers in those states. The dealer-CMS parser covers any `vehiclesDetail.php` site by adding one config entry.
+
+## 5. Gap states: KS, OK, TN, AK, ID, ND (researched 2026-10-09 CT)
+
+Cars and trucks only. "Ingest" means we pull listings into MikeHunt. "Link" means a deep link only, because that marketplace's terms ban automated access.
+Registry: `lib/sources/gov-surplus-outlets.ts` (`govOutletsForState`).
+
+| State | Outlet | Platform | Path | Today |
+| --- | --- | --- | --- | --- |
+| All | GSA Auctions (federal) | api.gsa.gov | **Ingest** (official API, `GSA_API_KEY` set on Vercel + Zeus) | Live check: 100 vehicle lots / 29 states. OK 2, ID 5, AK 2. KS/TN/ND 0 that day |
+| KS | State Surplus Property | GovDeals `KansasSurplusProperty` | Link (Liquidity Services terms ban bots) | — |
+| KS | KDOT fleet | Purple Wave | Link (terms ban robots) | — |
+| OK | OMES State Surplus | GovDeals `surplusok` | Link | — |
+| TN | General Services State Surplus | GovDeals `tnsurplus` (weekly, closes Wed) | Link | — |
+| AK | State Surplus Property | GovDeals `stateofalaska` | Link | — |
+| AK | DOT&PF State Equipment Fleet | dot.alaska.gov notices | Notice (link) | — |
+| ID | State agencies | Public Surplus `state,id` | Link (terms ban bots) | — |
+| ID | SCO Available Surplus Property | SharePoint list + RSS | Notice. Inter-agency postings with VIN/mileage and estimated value, **not** sale prices, so not ingested as deals | Candidate "coming to auction" signal |
+| ND | NDDOT State Fleet auctions | Orr Auctioneers / BidOrr (~90 vehicles per sale) | Notice + link | Next: Fargo Nov 18, Bismarck Dec 2 |
+| ND | OMB State Surplus Property | omb.nd.gov | Notice | — |
+
+Checked and **not** usable for ingest (terms ban automated access; link only):
+- **Purple Wave:** Terms of Website Use say no "robot, spider or other automatic device".
+- **HiBid / AuctionTime (Sandhills):** terms ban scraping, data extraction and aggregating.
+- **Proxibid:** robots disallows search.
+- **GovDeals / AllSurplus:** Liquidity Services User Agreement, and the site answers 403 to bots.
+- **Public Surplus:** terms ban robots.
+
+Per-state count change from this PR: no new ingested rows for KS/OK/TN/AK/ID/ND beyond what GSA
+lists there. Every gap state now has an official outlet a buyer can open in one tap.
+Next terms-safe ingest options for these states are small-dealer CMS sites (`lib/scrapers/platforms/dealer-cms.ts`,
+one config entry each) once a KS/TN/OK salvage dealer on that platform is found.
