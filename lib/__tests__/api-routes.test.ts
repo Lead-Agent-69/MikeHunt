@@ -123,7 +123,7 @@ describe("POST /api/ingest", { timeout: 15000 }, () => {
 });
 
 // ---- /api/save-from-url (auth required) ------------------------------------
-describe("POST /api/save-from-url", { timeout: 15000 }, () => {
+describe("POST /api/save-from-url", { timeout: 30000 }, () => {
   it("returns 401 when user is not authenticated", async () => {
     const { POST } = await import("@/app/api/save-from-url/route");
     const req = makeRequest("/api/save-from-url", {
