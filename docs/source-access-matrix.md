@@ -73,3 +73,68 @@ Format: `salvage-or-rebuilt / all active`. This counts all sources, including Co
 | WI 11/13   | WY 1/1     |            |            |           |            |
 
 KS, OK and TN rows come from auctions only. None of them has a dedicated rebuilder or dealer source yet. Zero or near-zero salvage states: AK, ID, ND, SD, WY, RI, ME, MT. Next step: the GSA official API (nationwide), then 4cdg-platform dealers in those states. The dealer-CMS parser covers any `vehiclesDetail.php` site by adding one config entry.
+
+## Per-state curated dealer counts (platform sweep, 2026-10-10)
+
+Curated registry plus shared-parser sites per state, before and after the 4cdg / VehiclesNETWORK platform sweep (PR #249). Each new site was verified with one polite fetch: robots allowed, terms silent on automated access, and 3+ priced cars parsed by the shared dealer-CMS parser.
+
+Platform footprints:
+- **Creative Design Group / Smart Marketing (4cdg)**: "Website Designed by Creative Design Group", `vehiclesDetail.php?<id>`.
+- **VehiclesNETWORK**: "Powered by VehiclesNETWORK", `/autos/<year>-<make>-<model>-<city>-<st>-<id>`.
+
+Excluded by policy: Dealer Car Search sites, ProSalvage, Sam's Riverside (pre-existing entry kept, never removed), Copart/IAA brokers, and the 4cdg multi-dealer marketplaces.
+
+| State | Before | After |
+|---|---:|---:|
+| AL | 1 | 1 |
+| AK | 0 | 2 ⬆ |
+| AZ | 1 | 2 ⬆ |
+| AR | 3 | 3 |
+| CA | 3 | 6 ⬆ |
+| CO | 2 | 2 |
+| CT | 0 | 0 |
+| DE | 0 | 0 |
+| FL | 14 | 14 |
+| GA | 3 | 3 |
+| HI | 0 | 0 |
+| ID | 0 | 0 |
+| IL | 12 | 13 ⬆ |
+| IN | 3 | 3 |
+| IA | 15 | 15 |
+| KS | 0 | 1 ⬆ |
+| KY | 13 | 13 |
+| LA | 0 | 1 ⬆ |
+| ME | 0 | 0 |
+| MD | 0 | 0 |
+| MA | 0 | 0 |
+| MI | 3 | 3 |
+| MN | 5 | 6 ⬆ |
+| MS | 0 | 0 |
+| MO | 16 | 18 ⬆ |
+| MT | 1 | 2 ⬆ |
+| NE | 1 | 2 ⬆ |
+| NV | 1 | 1 |
+| NH | 2 | 2 |
+| NJ | 4 | 4 |
+| NM | 0 | 0 |
+| NY | 1 | 1 |
+| NC | 2 | 2 |
+| ND | 2 | 2 |
+| OH | 2 | 2 |
+| OK | 0 | 1 ⬆ |
+| OR | 1 | 1 |
+| PA | 5 | 5 |
+| RI | 0 | 0 |
+| SC | 0 | 0 |
+| SD | 2 | 2 |
+| TN | 0 | 0 |
+| TX | 2 | 6 ⬆ |
+| UT | 10 | 10 |
+| VT | 0 | 0 |
+| VA | 2 | 2 |
+| WA | 0 | 0 |
+| WV | 0 | 0 |
+| WI | 1 | 1 |
+| WY | 0 | 0 |
+
+Still at 0: CT, DE, HI, ID, MD, ME, MA, MS, NM, RI, SC, TN, VT, WA, WV, WY. Candidates found there were JS-only inventories, BHPH sites without prices, Dealer Car Search sites, or unreachable. Government outlets for KS/OK/TN/AK/ID/ND are tracked separately (#231).
