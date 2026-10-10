@@ -3,6 +3,12 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { sendPushToUser } from "@/lib/notifications/push";
+import {
+  createDelivery,
+  markDeliverySent,
+  openPixelHtml,
+  trackingUrls,
+} from "@/lib/alerts/delivery-tracking";
 
 export interface AlertServiceOptions {
   supabaseUrl?: string;
@@ -113,8 +119,20 @@ export class ScraperAlertService {
       return false;
     }
 
+    // Delivery tracking (fails soft): the link goes through /api/t/c/<id>, which resolves to our own
+    // /deal/<id> page server-side, plus an open pixel. Only the opaque delivery id is in the URLs.
+    const deliveryId = await createDelivery(this.supabase, {
+      userId: alert.userId,
+      kind: "price_drop",
+      channel: "email",
+      dealId: alert.dealId,
+    });
+    const base = String(this.options.appUrl || "").replace(/\/+$/, "");
+    const tracked = deliveryId ? trackingUrls(deliveryId, base) : null;
+    const viewUrl = tracked ? tracked.clickUrl : `${base}/deal/${alert.dealId}`;
+
     try {
-      await resend.emails.send({
+      const { data: sentData, error: sendError } = await resend.emails.send({
         from: this.options.fromEmail!,
         to: email,
         subject: `Price Drop Alert: ${alert.dealTitle}`,
@@ -126,13 +144,23 @@ export class ScraperAlertService {
             <p><strong>Old Price:</strong> $${alert.oldPrice.toLocaleString()}</p>
             <p><strong>New Price:</strong> $${alert.newPrice.toLocaleString()}</p>
             <p><strong>Drop:</strong> $${alert.dropAmount.toLocaleString()} (${alert.dropPercentage.toFixed(1)}%)</p>
-            <a href="${this.options.appUrl}/deals/${alert.dealId}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Deal</a>
+            <a href="${viewUrl}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Deal</a>
           </div>
+          ${tracked ? openPixelHtml(tracked.pixelUrl) : ""}
         `,
       });
-      return true;
+      await markDeliverySent(this.supabase, deliveryId, {
+        ok: !sendError,
+        providerMessageId: sentData?.id,
+        error: sendError?.message,
+      });
+      return !sendError;
     } catch (error) {
       console.error("[AlertService] Failed to send email:", error);
+      await markDeliverySent(this.supabase, deliveryId, {
+        ok: false,
+        error: error instanceof Error ? error.message : "send failed",
+      });
       return false;
     }
   }
@@ -171,12 +199,17 @@ export class ScraperAlertService {
         const sent = await this.sendPriceDropEmail(alert);
         if (sent) emailsSent += 1;
         // Web push rides the same opt-out as email; no-ops cleanly when VAPID isn't configured.
-        pushesSent += await sendPushToUser(this.supabase, alert.userId, {
-          title: `Price drop: ${alert.dealTitle}`,
-          body: `$${alert.oldPrice.toLocaleString()} → $${alert.newPrice.toLocaleString()} (${alert.dropPercentage.toFixed(1)}% off)`,
-          url: `/deals/${alert.dealId}`,
-          tag: `price-drop-${alert.dealId}`,
-        });
+        pushesSent += await sendPushToUser(
+          this.supabase,
+          alert.userId,
+          {
+            title: `Price drop: ${alert.dealTitle}`,
+            body: `$${alert.oldPrice.toLocaleString()} → $${alert.newPrice.toLocaleString()} (${alert.dropPercentage.toFixed(1)}% off)`,
+            url: `/deal/${alert.dealId}`,
+            tag: `price-drop-${alert.dealId}`,
+          },
+          { kind: "price_drop", dealId: alert.dealId },
+        );
       }
       await this.markAlertSent(alert.id);
     }

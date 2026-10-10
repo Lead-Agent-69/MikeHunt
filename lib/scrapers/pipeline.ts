@@ -13,6 +13,11 @@ import { normalizeCondition } from "./normalize-condition";
 import { extractContactInfo } from "./tools/extract-contact";
 import { enrichVins } from "./enrich-vin";
 import { sendAlertMatchEmail } from "@/lib/notifications/email";
+import {
+  createDelivery,
+  markDeliverySent,
+  trackingUrls,
+} from "@/lib/alerts/delivery-tracking";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
 import { withinMiles } from "@/lib/geo/distance";
@@ -730,6 +735,7 @@ async function notifyNewMatches(
   supabase: ReturnType<typeof getSupabase>,
   matches: Array<{
     user_id: string;
+    search_id?: string;
     notify_email: boolean;
     notify_sms: boolean;
     deal: any;
@@ -816,32 +822,72 @@ async function notifyNewMatches(
 
     const contact = await getContact(m.user_id);
 
+    // Delivery tracking (fails soft): links go through /api/t/c/<id> (server-resolved to our own
+    // /deal/<id>), email adds an open pixel. Only the opaque delivery id appears in the URLs.
+    const track = {
+      userId: m.user_id,
+      kind: "saved_search_match" as const,
+      dealId: deal.id,
+      searchId: m.search_id,
+    };
+
     if (m.notify_email && contact.email) {
+      const deliveryId = await createDelivery(supabase, {
+        ...track,
+        channel: "email",
+      });
+      const tracked =
+        deliveryId && appUrl ? trackingUrls(deliveryId, appUrl) : null;
       try {
-        await sendAlertMatchEmail({
+        const res = await sendAlertMatchEmail({
           to: contact.email,
           dealerName: "there",
           vehicleTitle,
           askPrice,
           estimatedProfit,
-          dealUrl,
+          dealUrl: tracked ? tracked.clickUrl : dealUrl,
+          pixelUrl: tracked?.pixelUrl,
+        });
+        await markDeliverySent(supabase, deliveryId, {
+          ok: !!res?.success,
+          providerMessageId: res?.success ? res.id : null,
+          error: res?.success ? null : res?.error,
         });
       } catch (err) {
         console.warn("[pipeline] Alert email send failed:", err);
+        await markDeliverySent(supabase, deliveryId, {
+          ok: false,
+          error: err instanceof Error ? err.message : "send failed",
+        });
       }
     }
 
     if (m.notify_sms && contact.phone) {
+      const deliveryId = await createDelivery(supabase, {
+        ...track,
+        channel: "sms",
+      });
+      const tracked =
+        deliveryId && appUrl ? trackingUrls(deliveryId, appUrl) : null;
       try {
-        await sendAlertMatchSMS({
+        const res = await sendAlertMatchSMS({
           to: contact.phone,
           vehicleTitle,
           askPrice,
           estimatedProfit,
-          dealUrl,
+          dealUrl: tracked ? tracked.clickUrl : dealUrl,
+        });
+        await markDeliverySent(supabase, deliveryId, {
+          ok: !!res?.success,
+          providerMessageId: res?.success ? res.sid : null,
+          error: res?.success ? null : res?.error,
         });
       } catch (err) {
         console.warn("[pipeline] Alert SMS send failed:", err);
+        await markDeliverySent(supabase, deliveryId, {
+          ok: false,
+          error: err instanceof Error ? err.message : "send failed",
+        });
       }
     }
   }
