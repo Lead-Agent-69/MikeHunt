@@ -25,9 +25,10 @@ export async function GET(
   // Tier 1.5 — our own VIN graph + the raw sighting timeline.
   let graph: VinHistory | null = null;
   let sightings: any[] = [];
+  let historyUnavailable = false;
   try {
     const sb = createServerComponentClient();
-    const { data } = await sb
+    const { data, error } = await sb
       .from("deals")
       .select(
         "source, condition, damage_type, mileage, created_at, location_state, ask_price",
@@ -35,6 +36,7 @@ export async function GET(
       .eq("vin", vin)
       .order("created_at", { ascending: true })
       .limit(40);
+    if (error || !data) throw new Error("Listing history unavailable");
     graph = sightingsToHistory(data || []);
     sightings = (data || []).map((r) => ({
       source: r.source,
@@ -46,11 +48,16 @@ export async function GET(
       askPrice: r.ask_price,
     }));
   } catch {
-    /* graph best-effort */
+    historyUnavailable = true;
   }
 
   // Tier 2 — authoritative NMVTIS (only when a key is configured).
   const nmvtis = await fetchNmvtis(vin);
+  if (historyUnavailable && !nmvtis)
+    return NextResponse.json(
+      { error: "Vehicle history could not be checked. Please try again." },
+      { status: 503 },
+    );
 
   // Nothing to say only if no flags, no NMVTIS, AND fewer than 2 sightings (a single listing is no
   // history). 2+ sightings is itself a story worth showing even without a red flag.

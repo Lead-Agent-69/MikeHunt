@@ -40,8 +40,8 @@ export async function GET(req: NextRequest) {
     .select(
       "year, make, model, trim, mileage, sold_price, sold_at, title, source, source_url, currency_code, country_code",
     )
-    .ilike("make", make)
-    .ilike("model", `%${model.split(" ")[0]}%`)
+    .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
+    .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
     .eq("currency_code", "USD")
     .eq("country_code", "US")
     .gt("sold_price", 0)
@@ -69,6 +69,12 @@ export async function GET(req: NextRequest) {
 
   const recentRows = (data || []).filter(
     (row: any) =>
+      String(row.make || "")
+        .trim()
+        .toLowerCase() === make.toLowerCase() &&
+      String(row.model || "")
+        .trim()
+        .toLowerCase() === model.toLowerCase() &&
       Number.isFinite(Number(row.sold_price)) &&
       Number(row.sold_price) > 0 &&
       isWithinSoldWindow(row.sold_at),

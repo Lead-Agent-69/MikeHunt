@@ -2,6 +2,14 @@ import { describe, it, expect } from "vitest";
 import { historyFromText, sightingsToHistory } from "./vin-history";
 
 describe("sightingsToHistory (our VIN graph — washed-title catcher)", () => {
+  it("does not claim corroboration or independence from a single listing", () => {
+    const history = sightingsToHistory([
+      { source: "recar", damage_type: "repairable" },
+    ]);
+    expect(history?.note).toContain("1 stored listing sighting.");
+    expect(history?.note).not.toMatch(/cross-referenced|no single-site/i);
+    expect(history?.authoritative).toBe(false);
+  });
   it("flags a VIN seen at a salvage auction even if currently listed clean", () => {
     const h = sightingsToHistory([
       { source: "copart", condition: "repairable", damage_type: "FRONT END" },

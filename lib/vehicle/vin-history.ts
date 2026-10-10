@@ -41,7 +41,8 @@ export interface VinSighting {
 }
 
 // A sighting is "branded" if its condition/damage marks it as anything but a clean retail car.
-const BRANDED_RE = /salvage|rebuilt|reconstruct|flood|fire|junk|parts|hail|wreck|prior salvage/;
+const BRANDED_RE =
+  /salvage|rebuilt|reconstruct|flood|fire|junk|parts|hail|wreck|prior salvage/;
 function isBrandedSighting(r: VinSighting): boolean {
   const cond = (r.condition || "").toLowerCase();
   const dmg = (r.damage_type || "").toLowerCase();
@@ -54,7 +55,11 @@ function isBrandedSighting(r: VinSighting): boolean {
 function isCleanClaim(r: VinSighting): boolean {
   const cond = (r.condition || "").toLowerCase();
   const dmg = (r.damage_type || "").toLowerCase();
-  return /clean/.test(cond) && !BRANDED_RE.test(cond) && (dmg === "" || dmg === "none");
+  return (
+    /clean/.test(cond) &&
+    !BRANDED_RE.test(cond) &&
+    (dmg === "" || dmg === "none")
+  );
 }
 
 const mi = (v: unknown) => Number(v) || 0;
@@ -119,10 +124,14 @@ export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
   // Cross-state movement — a branded car retitled in another state is the classic washing route. On its
   // own it's mild; alongside a brand flag it strengthens the case.
   const states = new Set(
-    rows.map((r) => (r.location_state || "").toUpperCase().trim()).filter(Boolean),
+    rows
+      .map((r) => (r.location_state || "").toUpperCase().trim())
+      .filter(Boolean),
   );
   if (states.size > 1 && sawBranded)
-    flags.add(`Seen branded then moved across states (${Array.from(states).join(" → ")})`);
+    flags.add(
+      `Seen branded then moved across states (${Array.from(states).join(" → ")})`,
+    );
 
   if (!flags.size) return null;
   return {
@@ -130,7 +139,7 @@ export function sightingsToHistory(rows: VinSighting[]): VinHistory | null {
     authoritative: false,
     titleBrands: Array.from(flags),
     cleanClaims: [],
-    note: `Cross-referenced across ${rows.length} sighting${rows.length === 1 ? "" : "s"} in our multi-channel records — a signal no single-site report sees.`,
+    note: `${rows.length} stored listing sighting${rows.length === 1 ? "" : "s"}. These source-reported signals are not an independent vehicle-history report.`,
   };
 }
 
@@ -144,11 +153,13 @@ export function graphRisk(
   flags: string[],
 ): { misrepresented: boolean; severity: "high" | "info"; warning?: string } {
   const cond = (currentCondition || "").toLowerCase();
-  const currentClean = /clean/.test(cond) && !/salvage|rebuilt|flood|fire/.test(cond);
+  const currentClean =
+    /clean/.test(cond) && !/salvage|rebuilt|flood|fire/.test(cond);
   const f = flags.join(" ").toLowerCase();
   const washing = /washing/.test(f);
   const rollback = /rollback/.test(f);
-  const branded = /salvage|rebuilt|flood|\bfire\b|junk|auction|damage|across states/.test(f);
+  const branded =
+    /salvage|rebuilt|flood|\bfire\b|junk|auction|damage|across states/.test(f);
   if (rollback)
     return {
       misrepresented: true,

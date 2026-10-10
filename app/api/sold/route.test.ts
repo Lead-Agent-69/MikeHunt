@@ -57,8 +57,20 @@ describe("source-reported sold evidence", () => {
   it("keeps missing titles unknown and rejects invalid/future sale amounts", async () => {
     const sold_at = new Date(Date.now() - 86400000).toISOString();
     state.result.data = [
-      { title: "2018 Honda Accord EX", sold_price: 14000, sold_at },
-      { title: "2018 Honda Accord clean title", sold_price: 16000, sold_at },
+      {
+        make: "Honda",
+        model: "Accord",
+        title: "2018 Honda Accord EX",
+        sold_price: 14000,
+        sold_at,
+      },
+      {
+        make: "Honda",
+        model: "Accord",
+        title: "2018 Honda Accord clean title",
+        sold_price: 16000,
+        sold_at,
+      },
       { title: "clean title", sold_price: Infinity, sold_at },
       {
         title: "clean title",
@@ -79,5 +91,29 @@ describe("source-reported sold evidence", () => {
     expect(data).toMatchObject({ median: null, count: 0, windowDays: 180 });
     expect(data.note).toMatch(/cannot be confirmed/);
     expect(data.checkedAt).toBeTruthy();
+  });
+  it("excludes other full models and missing vehicle identities from comparisons", async () => {
+    const sold_at = new Date(Date.now() - 86400000).toISOString();
+    state.result.data = [
+      ...Array(3).fill({
+        make: "Honda",
+        model: "Accord Hybrid",
+        title: "clean title",
+        sold_price: 19000,
+        sold_at,
+      }),
+      { title: "Honda Accord clean title", sold_price: 18000, sold_at },
+      {
+        make: "Honda",
+        model: "Accord",
+        title: "clean title",
+        sold_price: 14000,
+        sold_at,
+      },
+    ];
+    const data = await (await GET(request())).json();
+    expect(data.count).toBe(1);
+    expect(data.median).toBeNull();
+    expect(data.sales).toHaveLength(1);
   });
 });

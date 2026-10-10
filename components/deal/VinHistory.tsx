@@ -9,10 +9,21 @@ import {
   type VinHistory as VinHistoryT,
 } from "@/lib/vehicle/vin-history";
 import { CarfaxLink } from "./CarfaxLink";
+import { RefreshCw } from "lucide-react";
 
 // VIN history — the "should I buy" red flags. Tier 1 (free) from the listing text shows instantly;
 // if an NMVTIS key is configured, the authoritative report upgrades it. Always shows something.
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = async (u: string) => {
+  const response = await fetch(u);
+  if (!response.ok) throw new Error("Vehicle history unavailable");
+  const data = await response.json();
+  if (
+    !data ||
+    !["none", "listing-text", "vin-graph", "nmvtis"].includes(data.source)
+  )
+    throw new Error("Vehicle history unavailable");
+  return data;
+};
 
 export function VinHistory({
   vin,
@@ -31,13 +42,13 @@ export function VinHistory({
     [title, condition, damageType],
   );
   // Server tiers — our VIN graph (free, unique) + NMVTIS (authoritative, key-gated).
-  const { data } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     vin && vin.length === 17 ? `/api/vin/${vin}/history` : null,
     fetcher,
     { revalidateOnFocus: false },
   );
   const route: VinHistoryT | null =
-    data && data.source && data.source !== "none"
+    !error && data && data.source && data.source !== "none"
       ? (data as VinHistoryT)
       : null;
   // The raw cross-market sighting timeline (where/when we've seen this exact VIN).
@@ -81,7 +92,13 @@ export function VinHistory({
     >
       <div
         className="h-1 w-full"
-        style={{ background: hasFlags ? "var(--red)" : "var(--green)" }}
+        style={{
+          background: hasFlags
+            ? "var(--red)"
+            : h.authoritative
+              ? "var(--green)"
+              : "var(--b1)",
+        }}
       />
       <CardContent className="p-6">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -94,7 +111,7 @@ export function VinHistory({
               {h.authoritative
                 ? "NMVTIS · verified"
                 : h.source === "vin-graph"
-                  ? "our records · cross-referenced"
+                  ? "stored listing records · reported"
                   : "from listing · claimed"}
             </span>
           </div>
@@ -116,14 +133,37 @@ export function VinHistory({
         ) : (
           <div
             className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-md mb-3"
-            style={{ background: "var(--glo)", color: "var(--green)" }}
+            style={{
+              background: h.authoritative ? "var(--glo)" : "var(--s2)",
+              color: h.authoritative ? "var(--green)" : "var(--t3)",
+            }}
           >
             <Ico name="check-circle" size={15} />
             {h.authoritative
               ? "No title brands on record"
-              : "No red flags disclosed"}
+              : "Independent history not verified"}
           </div>
         )}
+
+        {isLoading ? (
+          <p role="status" className="mb-3 text-sm text-[var(--t3)]">
+            Checking stored vehicle history...
+          </p>
+        ) : error ? (
+          <div role="status" className="mb-3 text-sm text-[var(--t3)]">
+            <p>
+              Vehicle history could not be checked. Known listing warnings
+              remain visible.
+            </p>
+            <button
+              type="button"
+              onClick={() => void mutate()}
+              className="inline-flex min-h-11 items-center gap-2 text-[var(--blue)]"
+            >
+              <RefreshCw size={16} aria-hidden="true" /> Retry history
+            </button>
+          </div>
+        ) : null}
 
         {h.cleanClaims.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">

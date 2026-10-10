@@ -166,6 +166,8 @@ Do not mark any item complete solely because a screen/component exists or unit t
 
 ### Backend Sale-Record Integrity
 
+- Follow-up QA fixes: sold-record lookup now requires the full make/model identity instead of a first-word wildcard. VIN history labels stored listing sightings as reported, not independent corroboration. Failed listing-history reads return unavailable rather than empty history; the view preserves known listing warnings, uses neutral unverified status, and offers request-backed retry. These fixes do not establish trim/mileage-matched sold coverage or independent report authenticity.
+
 - Sold-price aggregation now requires explicit clean-title wording for the clean lane. A vehicle listing name without salvage keywords is no longer presumed clean. Source-reported title wording is not independent title verification.
 - Backend samples reject nonfinite prices and future sale dates. Paginated market/sold indexes use stable ID ordering; failed or bounded incomplete loads cannot publish partial samples or silently reuse old sold anchors.
 - The sold-record API returns a friendly unavailable response on query failure, separate from an empty valid sample. It supplies a check timestamp and 180-day observation window. The detail view offers retry and labels records source-reported, not authenticated transactions.
