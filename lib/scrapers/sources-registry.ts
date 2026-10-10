@@ -6,6 +6,8 @@
  * rate limits, and scraper configuration.
  */
 
+import { SOURCES_MASTER_ADDITIONS } from "./sources-registry-additions";
+
 export type SourceType =
   | "auction"
   | "dealer"
@@ -1249,6 +1251,8 @@ export const STATE_DEALER_CANDIDATES: SourceConfig[] =
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const ALL_SOURCES: SourceConfig[] = [
+  // Sources-master additions (docs/sources-master.md); catalog-only.
+  ...SOURCES_MASTER_ADDITIONS,
   ...SALVAGE_AUCTIONS,
   ...INDEPENDENT_DEALERS,
   ...GOVERNMENT_SOURCES,
