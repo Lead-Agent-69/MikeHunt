@@ -28,6 +28,8 @@ describe("Ren #312 P1: independent_dealer is allowed only on curated hosts", () 
   });
 
   it("a curated host stored as independent_dealer is allowed and cacheable (unless blocked, restored or grandfathered)", () => {
+    // Official API hosts (access-class.ts API_HOSTS) outrank the dealer rule and stay "api", also cacheable.
+    const apiHosts = ["gsaauctions.gov", "api.gsa.gov", "ppms.gov"];
     let checked = 0;
     for (const s of CURATED_SITES) {
       const h = hostOf(s.url);
@@ -35,7 +37,7 @@ describe("Ren #312 P1: independent_dealer is allowed only on curated hosts", () 
       const row = { source: "independent_dealer", source_url: `https://www.${h}/inventory/1` };
       expect({ h, c: accessClassFor(row), p: photoCacheAllowed(row) }).toEqual({
         h,
-        c: "allowed",
+        c: apiHosts.includes(h) ? "api" : "allowed",
         p: true,
       });
       checked++;
