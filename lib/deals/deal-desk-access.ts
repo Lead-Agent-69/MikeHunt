@@ -128,6 +128,66 @@ function safeOptions(options: unknown, depth = 0): unknown {
   return out;
 }
 
+// ── Seller identity for a signed-in non-flip desk (Ren #308 P3) ────────────────────────────────
+// The raw seller value can be an object ({ name, profileUrl, phone, ... }) or a string that is really
+// a phone / email / link. A non-flip desk gets the display name only, as a plain string, and never a
+// profile link or contact; a value that looks like contact is dropped instead of shown.
+const SELLER_NAME_FIELDS = ["seller", "sellerName", "seller_name"] as const;
+const SELLER_LINK_FIELDS = [
+  "sellerUrl",
+  "seller_url",
+  "sellerProfileUrl",
+  "seller_profile_url",
+  "sellerLink",
+  "seller_link",
+] as const;
+const PHONE_LIKE = /(?:\+?\d[\s().-]*){7,}/;
+const EMAIL_LIKE = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
+const LINK_LIKE =
+  /(?:https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(?:com|net|org|io|co|us|biz|info|me)\b/i;
+
+/** Display name from a raw seller value, or null when there is none or it looks like contact. */
+export function sellerDisplayName(value: unknown): string | null {
+  let name: unknown = value;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const o = value as Record<string, unknown>;
+    name = o.name ?? o.displayName ?? o.display_name ?? o.sellerName ?? null;
+  }
+  if (typeof name !== "string") return null;
+  const s = name.replace(/\s+/g, " ").trim();
+  if (!s || PHONE_LIKE.test(s) || EMAIL_LIKE.test(s) || LINK_LIKE.test(s))
+    return null;
+  return s.slice(0, 80);
+}
+
+function sellerNameOnlyIn(target: Record<string, any>) {
+  for (const key of SELLER_LINK_FIELDS) delete target[key];
+  for (const key of [...SELLER_NAME_FIELDS, ...Array.from(RAW_SELLER_KEYS)]) {
+    if (!(key in target)) continue;
+    const name = sellerDisplayName(target[key]);
+    if (name) target[key] = name;
+    else delete target[key];
+  }
+}
+
+/** Copy with seller identity reduced to a display-name string (top level and options). Never mutates. */
+export function sellerNameOnly<T extends Record<string, any>>(
+  item: T,
+): Record<string, any> {
+  const out: Record<string, any> = { ...item };
+  sellerNameOnlyIn(out);
+  if (
+    out.options &&
+    typeof out.options === "object" &&
+    !Array.isArray(out.options)
+  ) {
+    const opts: Record<string, any> = { ...out.options };
+    sellerNameOnlyIn(opts);
+    out.options = opts;
+  }
+  return out;
+}
+
 export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   deal: T,
 ): Record<string, any> {
@@ -140,7 +200,7 @@ export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   else delete out.dealAnalysis;
   delete out.deal_analysis;
   out.deskAccess = "personal";
-  return out;
+  return sellerNameOnly(out);
 }
 
 // ── Listing cards (Discover, Feed, Similar) ──────────────────────────────────────────────────────
@@ -237,7 +297,7 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
       o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
     );
   }
-  return out;
+  return sellerNameOnly(out);
 }
 
 // Seller identity a signed-out guest never gets: the display name of a (often private) seller plus

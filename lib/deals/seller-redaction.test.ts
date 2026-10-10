@@ -35,10 +35,8 @@ describe("seller redaction", () => {
       redactDealForNonFlipDesk(deal),
       redactListingForNonFlipDesk(deal),
     ]) {
-      expect(out.options.seller).toEqual({
-        name: "Jane Q. Private",
-        address: "12 Elm St",
-      });
+      // Ren #308 P3: name only, as a string (no address, profile link or contact).
+      expect(out.options.seller).toBe("Jane Q. Private");
       expect(out.options.sellerType).toBe("private");
     }
   });

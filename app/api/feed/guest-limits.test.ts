@@ -48,7 +48,13 @@ vi.mock("@/lib/supabase", () => ({
   createServerComponentClient: () => ({ from: () => query() }),
 }));
 
-import { GET, FEED_MAX_OFFSET, FEED_MAX_LIMIT, FEED_GUEST_RATE } from "./route";
+import {
+  GET,
+  FEED_MAX_OFFSET,
+  FEED_MAX_LIMIT,
+  FEED_GUEST_RATE,
+  FEED_USER_RATE,
+} from "./route";
 
 const req = (qs: string, ip: string) =>
   new NextRequest(`https://app.test/api/feed?${qs}`, {
@@ -110,5 +116,29 @@ describe("GET /api/feed guest bounds", () => {
     });
     for (let i = 0; i < FEED_GUEST_RATE.limit + 5; i++)
       expect((await GET(req("offset=0", "10.0.0.11"))).status).toBe(200);
+  });
+});
+
+describe("GET /api/feed signed-in per-user limit (Ren #308 P3)", () => {
+  beforeEach(() => {
+    getServerUser.mockReset();
+    db.calls = [];
+    db.rows = [];
+  });
+
+  it("limits one signed-in user across IPs; another user is unaffected", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "u-limit" } }, error: null });
+    for (let i = 0; i < FEED_USER_RATE.limit; i++)
+      expect((await GET(req("offset=0", `10.1.0.${i % 250}`))).status).toBe(200);
+    const blocked = await GET(req("offset=0", "10.1.9.9"));
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).toBeTruthy();
+    getServerUser.mockResolvedValue({ data: { user: { id: "u-other" } }, error: null });
+    expect((await GET(req("offset=0", "10.1.9.9"))).status).toBe(200);
+  });
+
+  it("the per-user limit is well above a person paging the feed", () => {
+    expect(FEED_USER_RATE.limit).toBeGreaterThan(FEED_GUEST_RATE.limit);
+    expect(FEED_USER_RATE.windowMs).toBe(60_000);
   });
 });

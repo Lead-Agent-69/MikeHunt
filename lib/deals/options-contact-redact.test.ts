@@ -31,7 +31,8 @@ describe("non-flip desks never get seller contact out of options", () => {
       expect(raw).not.toContain(v);
     }
     expect(out.options).not.toHaveProperty("contact");
-    expect(out.options.seller).toEqual({ name: "Lot 9" });
+    // Ren #308 P3: a non-flip desk gets the seller as a display-name string only.
+    expect(out.options.seller).toBe("Lot 9");
     expect(out.options.auction).toEqual({ bidCount: 3 });
     expect(out.options.sellerType).toBe("dealer");
   });
@@ -162,14 +163,15 @@ describe("isContactKey segment matching for tel / cell", () => {
     const out = redactListingForNonFlipDesk({
       id: "d",
       options: {
-        seller: { seller_tel: "5550110", excellent_paint: true },
+        details: { seller_tel: "5550110", excellent_paint: true },
         list: [{ sellerCell: "5550111", hotel_lot: "B" }],
       },
     } as any) as any;
     const raw = JSON.stringify(out);
     expect(raw).not.toContain("5550110");
     expect(raw).not.toContain("5550111");
-    expect(out.options.seller.excellent_paint).toBe(true);
+    expect(out.options.details.excellent_paint).toBe(true);
+    expect(out.options.details).not.toHaveProperty("seller_tel");
     expect(out.options.list[0].hotel_lot).toBe("B");
   });
 });

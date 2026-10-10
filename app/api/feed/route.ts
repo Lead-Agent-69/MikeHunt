@@ -34,6 +34,10 @@ const COLS =
 export const FEED_MAX_LIMIT = 30;
 export const FEED_MAX_OFFSET = 600;
 export const FEED_GUEST_RATE = { limit: 30, windowMs: 60_000 };
+// Signed-in For You: per user (not per IP, so rotating IPs doesn't help), 120 requests a minute.
+// A person paging the feed makes a handful; this only stops a script walking the 250-card pool.
+// Per-instance memory like every lib/rate-limit bucket (Ren #308 P3), not a global quota.
+export const FEED_USER_RATE = { limit: 120, windowMs: 60_000 };
 
 function mapItem(d: any) {
   return {
@@ -107,6 +111,12 @@ async function getFeed(req: NextRequest) {
 
   // ── FOR YOU (signed in): a taste-ranked pool, cached per user for 60s and paginated over. ──
   if (user?.id) {
+    const userRl = rateLimit(req, {
+      key: "feed-user",
+      identity: `user:${user.id}`,
+      ...FEED_USER_RATE,
+    });
+    if (!userRl.allowed) return tooManyRequests(userRl);
     const ranked = await cached(
       `feed:${user.id}:${flipDesk ? "flip" : "personal"}:${scopeKey}`,
       60_000,
