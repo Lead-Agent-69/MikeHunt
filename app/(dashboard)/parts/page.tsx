@@ -18,6 +18,8 @@ import { Tag } from "@/components/shared/Tag";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
 
+// Illustrative typical used-part values (static examples, not priced for any
+// specific vehicle). The UI labels them as examples — never as this vehicle's value.
 const PARTS = [
   { name: "Engine (Complete)", value: 3800 },
   { name: "Transmission", value: 2400 },
@@ -148,12 +150,13 @@ export default function PartsPage() {
 
   const vehicle = inventory.find((i) => i.id === selectedVehicle);
   const salvageCost = vehicle?.totalCost || 0;
+  const hasCost = salvageCost > 0;
   const partsValue = PARTS.filter((p) => selectedParts.includes(p.name)).reduce(
     (acc, p) => acc + p.value,
     0,
   );
-  const net = partsValue - salvageCost;
-  const roi = salvageCost > 0 ? (net / salvageCost) * 100 : 0;
+  const net = hasCost ? partsValue - salvageCost : null;
+  const roi = hasCost && net !== null ? (net / salvageCost) * 100 : null;
 
   const togglePart = (name: string) => {
     setSelectedParts((prev) =>
@@ -278,8 +281,7 @@ export default function PartsPage() {
                 </h2>
                 {inventory.length === 0 ? (
                   <p className="text-xs md:text-sm text-[var(--t3)] font-medium">
-                    No salvage vehicles in inventory. Mark a vehicle as
-                    parts_only or salvage_title in Fleet.
+                    No parts or salvage vehicles saved yet.
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -301,7 +303,9 @@ export default function PartsPage() {
                           {item.year} {item.make} {item.model}
                         </span>
                         <Mono className="text-sm font-bold text-[var(--amber)]">
-                          ${item.totalCost.toLocaleString()}
+                          {item.totalCost > 0
+                            ? `$${item.totalCost.toLocaleString()}`
+                            : "— cost needed"}
                         </Mono>
                       </button>
                     ))}
@@ -316,6 +320,10 @@ export default function PartsPage() {
                 <h2 className="text-xs md:text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-3 md:mb-4">
                   2. Select Parts to Harvest
                 </h2>
+                <p className="text-xs text-[var(--t3)] -mt-2 mb-3 md:mb-4">
+                  Example values: typical used-part prices, not priced for this
+                  vehicle.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 md:gap-3">
                   {PARTS.map((part) => (
                     <button
@@ -335,7 +343,7 @@ export default function PartsPage() {
                         {part.name}
                       </span>
                       <Mono className="text-sm font-bold text-[var(--t3)]">
-                        ${part.value.toLocaleString()}
+                        ~${part.value.toLocaleString()} typical
                       </Mono>
                     </button>
                   ))}
@@ -351,40 +359,67 @@ export default function PartsPage() {
                     Salvage Cost
                   </p>
                   <Mono className="text-3xl font-bold text-[var(--t1)]">
-                    ${salvageCost.toLocaleString()}
+                    {hasCost ? `$${salvageCost.toLocaleString()}` : "—"}
                   </Mono>
+                  {!hasCost && (
+                    <span className="text-xs font-bold text-[var(--t4)] mt-1">
+                      cost needed
+                    </span>
+                  )}
                 </div>
                 <div className="glass-panel p-4 md:p-6 flex flex-col justify-center items-center group min-h-[100px]">
                   <p className="text-[10px] text-[var(--t4)] font-bold uppercase tracking-widest mb-2 group-hover:text-[var(--t2)] transition-colors">
-                    Parts Value
+                    Example Parts Value
                   </p>
                   <Mono className="text-3xl font-bold text-[var(--t1)]">
                     ${partsValue.toLocaleString()}
                   </Mono>
                 </div>
-                <div
-                  className="glass-panel p-4 md:p-6 flex flex-col justify-center items-center"
-                  style={{ background: net >= 0 ? "var(--glo)" : "var(--rlo)" }}
-                >
-                  <p
-                    className="text-[10px] font-bold uppercase tracking-widest mb-2"
-                    style={{ color: net >= 0 ? "var(--green)" : "var(--red)" }}
+                {net === null || roi === null ? (
+                  <div className="glass-panel p-4 md:p-6 flex flex-col justify-center items-center min-h-[100px]">
+                    <p className="text-[10px] text-[var(--t4)] font-bold uppercase tracking-widest mb-2">
+                      Net / ROI
+                    </p>
+                    <Mono className="text-3xl font-bold text-[var(--t3)]">
+                      —
+                    </Mono>
+                    <span className="text-xs font-bold text-[var(--t4)] mt-1">
+                      cost needed
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    className="glass-panel p-4 md:p-6 flex flex-col justify-center items-center"
+                    style={{
+                      background: net >= 0 ? "var(--glo)" : "var(--rlo)",
+                    }}
                   >
-                    Net / ROI
-                  </p>
-                  <Mono
-                    className="text-3xl font-bold"
-                    style={{ color: net >= 0 ? "var(--green)" : "var(--red)" }}
-                  >
-                    {net >= 0 ? "+" : "-"}${Math.abs(net).toLocaleString()}
-                  </Mono>
-                  <span
-                    className="text-sm font-bold mt-1"
-                    style={{ color: net >= 0 ? "var(--green)" : "var(--red)" }}
-                  >
-                    {roi.toFixed(0)}% ROI
-                  </span>
-                </div>
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-widest mb-2"
+                      style={{
+                        color: net >= 0 ? "var(--green)" : "var(--red)",
+                      }}
+                    >
+                      Example Net / ROI
+                    </p>
+                    <Mono
+                      className="text-3xl font-bold"
+                      style={{
+                        color: net >= 0 ? "var(--green)" : "var(--red)",
+                      }}
+                    >
+                      {net >= 0 ? "+" : "-"}${Math.abs(net).toLocaleString()}
+                    </Mono>
+                    <span
+                      className="text-sm font-bold mt-1"
+                      style={{
+                        color: net >= 0 ? "var(--green)" : "var(--red)",
+                      }}
+                    >
+                      {roi.toFixed(0)}% ROI
+                    </span>
+                  </div>
+                )}
               </div>
 
               <button
