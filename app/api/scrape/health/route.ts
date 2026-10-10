@@ -27,6 +27,7 @@ import {
   summarizeDemand,
   wantHitRatio,
   wantHitGapStates,
+  wantHitByState,
   WANT_HIT_TARGET,
   type DemandRow,
 } from "@/lib/scrapers/sweep-demand";
@@ -936,6 +937,12 @@ async function buildDemandCoverage(
       (demand.anchors || []).map((st) => [st, primaryCounts[st] || 0]),
     ),
     primaryCountsAll: primaryCounts,
+    // Per demanded state: rows, hit / miss, and how many rows short of the 5-row bar.
+    perState: wantHitByState({
+      anchors: demand.anchors || [],
+      primaryCounts,
+      minRows: 5,
+    }),
     note: "want-hit = fraction of ring-0 demand states with ≥5 active primary-source rows; gapStates lead the Zeus sweep plan while wantHit < target",
   };
 }
