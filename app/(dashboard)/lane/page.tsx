@@ -1,5 +1,6 @@
 "use client";
 
+import { readCondition } from "@/lib/intelligence/condition";
 import React, { useState, useEffect, useRef } from "react";
 import { Ico } from "@/components/shared/Ico";
 import {
@@ -207,6 +208,16 @@ export default function LaneModePage() {
       currency: "USD",
       maximumFractionDigits: 0,
     }).format(val || 0);
+  // Missing/zero valuation outputs are not "$0": they mean comps are missing.
+  const fmtOrDash = (val: number | null | undefined) =>
+    Number(val) > 0 ? fmt(Number(val)) : "—";
+  // Profit colour: green only when positive; negative red; zero/missing neutral.
+  const profitColor = (val: number | null | undefined) =>
+    Number(val) > 0
+      ? "var(--green)"
+      : Number(val) < 0
+        ? "var(--red)"
+        : "var(--t3)";
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] md:flex-row overflow-hidden bg-[var(--s0)]">
@@ -304,7 +315,7 @@ export default function LaneModePage() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-xs font-black text-[var(--t1)]">
-                      {fmt(deal.recommended_max_bid)}
+                      {fmtOrDash(deal.recommended_max_bid)}
                     </div>
                     <div
                       className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
@@ -333,8 +344,9 @@ export default function LaneModePage() {
                 <div className="text-sm font-mono text-[var(--t3)] mt-1 flex items-center gap-2">
                   <span>VIN: {activeDeal.vin}</span>
                   <span>·</span>
-                  <span className="capitalize">
-                    {activeDeal.condition?.replace("_", " ")}
+                  <span>
+                    {readCondition(activeDeal.condition, activeDeal.damage_type)
+                      ?.label || "Condition not reported"}
                   </span>
                 </div>
               </div>
@@ -385,8 +397,13 @@ export default function LaneModePage() {
                     Recommended Max Bid
                   </div>
                   <div className="text-4xl font-black text-[var(--amber)] tracking-tight">
-                    {fmt(activeDeal.recommended_max_bid)}
+                    {fmtOrDash(activeDeal.recommended_max_bid)}
                   </div>
+                  {!(Number(activeDeal.recommended_max_bid) > 0) && (
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)] mt-1">
+                      Needs comps
+                    </p>
+                  )}
                   <p className="text-xs text-[var(--t3)] mt-2 leading-relaxed">
                     This is your absolute ceiling bid at the block to maintain
                     your target ROI. Overbidding reduces profit.
@@ -398,15 +415,27 @@ export default function LaneModePage() {
                       Resale Target
                     </div>
                     <div className="text-sm font-bold text-[var(--t1)]">
-                      {fmt(activeDeal.sell_estimate)}
+                      {fmtOrDash(activeDeal.sell_estimate)}
                     </div>
+                    {!(Number(activeDeal.sell_estimate) > 0) && (
+                      <div className="text-[9px] text-[var(--t4)]">
+                        Needs comps
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div className="text-[9px] text-[var(--t3)] uppercase tracking-wider">
                       Est. Profit
                     </div>
-                    <div className="text-sm font-bold text-[var(--green)]">
-                      {fmt(activeDeal.true_net_profit)}
+                    <div
+                      className="text-sm font-bold"
+                      style={{
+                        color: profitColor(activeDeal.true_net_profit),
+                      }}
+                    >
+                      {activeDeal.true_net_profit == null
+                        ? "—"
+                        : fmt(activeDeal.true_net_profit)}
                     </div>
                   </div>
                 </div>
@@ -467,7 +496,9 @@ export default function LaneModePage() {
                   size={18}
                   className="text-[var(--amber)]"
                 />
-                Live Sold Comps / MMR Basis
+                {activeDeal.deal_analysis?.valuation?.comparableSales?.length
+                  ? "Sold comps / MMR basis"
+                  : "Sold comps"}
               </h3>
 
               {activeDeal.deal_analysis?.valuation?.comparableSales &&
@@ -511,8 +542,9 @@ export default function LaneModePage() {
                 </div>
               ) : (
                 <div className="text-center py-6 text-[var(--t3)] text-xs border border-dashed border-[var(--b2)] rounded-[var(--r2)]">
-                  No comps found for {activeDeal.year} {activeDeal.make}{" "}
-                  {activeDeal.model} in this region.
+                  No sold comparisons on file for {activeDeal.year}{" "}
+                  {activeDeal.make} {activeDeal.model} yet. Max bid and resale
+                  stay unconfirmed until comps are saved.
                 </div>
               )}
             </div>
