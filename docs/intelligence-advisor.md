@@ -86,7 +86,10 @@ Request (any one of these is enough to start):
   or a ZIP in another state is a `400`. Same for the buyer-home override `homeZip` / `homeState`: the
   signed-in buyer's saved home (`resolveBuyerHome`, server-side) is used by default and body values only
   override it. No default state.
-- Rate limit: 10 requests / min per client (`check-listing` bucket).
+- Rate limit: guests 5 requests / min per IP (`check-listing`), signed-in users 20 / min per `user.id`
+  (`check-listing-user`).
+- Anything thrown returns a generic JSON `500` (`{ error, code: "INTERNAL" }`, no error text) with
+  `Cache-Control: private, no-store`; same for `/batch`.
 
 `POST /api/check-listing/batch`, for list cards (tracked deals only):
 - Request `{ "dealIds": ["<uuid>", …] }` (1–20; more is `400 TOO_MANY`), optional `homeState` / `homeZip`.

@@ -21,8 +21,11 @@ import {
 } from "@/lib/intelligence/check-listing-data";
 import { parseCheckListingBody } from "@/lib/intelligence/check-listing-input";
 import {
-  CHECK_SINGLE_RATE,
+  CHECK_GUEST_RATE,
+  CHECK_USER_RATE,
+  INTERNAL_ERROR,
   NO_STORE,
+  serverUserId,
   buyerHomeFor,
   loadTrackedDeals,
   savedBuyerHome,
@@ -44,9 +47,25 @@ const json = (body: unknown, status = 200) =>
 // redirects re-checked) with schema.org JSON-LD parsing. Prices come only from the page, our DB or
 // the user; nothing is invented. Works signed out (personal desk: retail fair value where the car
 // sits, verdict gated on confidence); flip desks see dealer resale, profit and where to sell.
-// Responses are private, no-store. Rate limit: 10 / min per client (list cards use /batch).
+// Responses are private, no-store. Rate limit: guests 5 / min per IP, signed in 20 / min per user
+// (list cards use /batch, its own bucket). Anything thrown is a generic JSON 500.
 export async function POST(req: NextRequest) {
-  const rl = rateLimit(req, { ...CHECK_SINGLE_RATE });
+  try {
+    return await check(req);
+  } catch (e) {
+    console.error(
+      "[check-listing] failed:",
+      e instanceof Error ? e.name : "error",
+    );
+    return json(INTERNAL_ERROR, 500);
+  }
+}
+
+async function check(req: NextRequest) {
+  const userId = await serverUserId();
+  const rl = userId
+    ? rateLimit(req, { ...CHECK_USER_RATE, identity: `user:${userId}` })
+    : rateLimit(req, { ...CHECK_GUEST_RATE });
   if (!rl.allowed) {
     const limited = tooManyRequests(rl);
     limited.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
@@ -165,7 +184,7 @@ export async function POST(req: NextRequest) {
       ? Promise.resolve(data)
       : loadCheckListingData(supabase, full).catch(() => null),
     resolveCallerFlipDesk(),
-    savedBuyerHome(supabase),
+    savedBuyerHome(supabase, userId),
   ]);
   if (!loaded)
     return json(

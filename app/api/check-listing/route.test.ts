@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const scrape = vi.hoisted(() => vi.fn());
-const flip = vi.hoisted(() => ({ on: false }));
+const flip = vi.hoisted(() => ({ on: false, boom: false }));
 const tables = vi.hoisted(() => ({
   rows: {} as Record<string, any[]>,
   calls: [] as string[],
@@ -12,28 +12,37 @@ const auth = vi.hoisted(() => ({
   user: null as null | { id: string },
   single: {} as Record<string, any>,
 }));
-const limits = vi.hoisted(() => ({ keys: [] as string[] }));
+const limits = vi.hoisted(() => ({
+  keys: [] as string[],
+  calls: [] as { key: string; limit: number; identity?: string }[],
+}));
+const vin = vi.hoisted(() => ({ fail: null as Error | null }));
 
 vi.mock("@/lib/save-from-url/scrape-listing", () => ({
   scrapeOrParseListing: scrape,
 }));
 vi.mock("@/lib/deals/deal-desk-access", () => ({
-  resolveCallerFlipDesk: async () => flip.on,
+  resolveCallerFlipDesk: async () => {
+    if (flip.boom) throw new Error("db password leaked in stack");
+    return flip.on;
+  },
 }));
 vi.mock("@/lib/server-supabase", () => ({
   getServerUser: async () => ({ data: { user: auth.user }, error: null }),
 }));
 vi.mock("@/lib/vehicle/nhtsa", () => ({
-  decodeVin: async () => ({
-    year: 2018,
-    make: "HONDA",
-    model: "Civic",
-    trim: "EX",
-  }),
+  decodeVin: async () => {
+    if (vin.fail) throw vin.fail;
+    return { year: 2018, make: "HONDA", model: "Civic", trim: "EX" };
+  },
 }));
 vi.mock("@/lib/rate-limit", () => ({
-  rateLimit: (_req: unknown, o: { key: string }) => {
+  rateLimit: (
+    _req: unknown,
+    o: { key: string; limit: number; identity?: string },
+  ) => {
     limits.keys.push(o.key);
+    limits.calls.push({ key: o.key, limit: o.limit, identity: o.identity });
     return { allowed: true };
   },
   tooManyRequests: () => new Response(null, { status: 429 }),
@@ -131,6 +140,7 @@ describe("POST /api/check-listing", () => {
   beforeEach(() => {
     scrape.mockReset();
     flip.on = false;
+    flip.boom = false;
     auth.user = null;
     auth.single = {};
     limits.keys = [];
@@ -437,9 +447,58 @@ describe("POST /api/check-listing", () => {
   });
 });
 
+describe("POST /api/check-listing: limits and errors", () => {
+  beforeEach(() => {
+    flip.on = false;
+    flip.boom = false;
+    auth.user = null;
+    auth.single = {};
+    limits.keys = [];
+    limits.calls = [];
+    vin.fail = null;
+    tables.rows = { deals: SIX() };
+    invalidate("check-listing:");
+  });
+
+  it("guests: 5 / min per IP; signed in: 20 / min per user.id", async () => {
+    await post({ make: "Honda", model: "Civic", price: 9000, zip: "60432" });
+    expect(limits.calls).toEqual([
+      { key: "check-listing", limit: 5, identity: undefined },
+    ]);
+    limits.calls = [];
+    auth.user = { id: "u42" };
+    await post({ make: "Honda", model: "Civic", price: 9000, zip: "60432" });
+    expect(limits.calls).toEqual([
+      { key: "check-listing-user", limit: 20, identity: "user:u42" },
+    ]);
+  });
+
+  it("anything thrown is a generic JSON 500, private, no message leak", async () => {
+    vin.fail = new Error("connection string postgres://secret");
+    const res = await post({ vin: "1HGCV1F30LA000000", price: 9000 });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({
+      error: "Something went wrong checking this listing. Please try again.",
+      code: "INTERNAL",
+    });
+    expect(text).not.toMatch(/secret|postgres/);
+  });
+
+  it("the batch endpoint also returns a generic private 500", async () => {
+    flip.boom = true;
+    const res = await batch({ dealIds: [uuid(11)] });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await res.text()).not.toMatch(/password/);
+  });
+});
+
 describe("POST /api/check-listing/batch", () => {
   beforeEach(() => {
     flip.on = false;
+    flip.boom = false;
     auth.user = null;
     limits.keys = [];
     tables.calls = [];

@@ -14,7 +14,9 @@ import { parseLocation } from "@/lib/intelligence/check-listing-input";
 import {
   CHECK_BATCH_MAX,
   CHECK_BATCH_RATE,
+  INTERNAL_ERROR,
   NO_STORE,
+  serverUserId,
   buyerHomeFor,
   loadTrackedDeals,
   savedBuyerHome,
@@ -35,8 +37,21 @@ const json = (body: unknown, status = 200) =>
 // → { desk, reads: { [dealId]: CheckListingRead }, missing: string[] }
 // Market data per deal is computed on demand and cached in memory for 10 min keyed by
 // dealId + updated_at (unredacted); the desk read (flip vs personal, gated) runs per request.
-// Responses are private, no-store. Free tier: no external services.
+// Responses are private, no-store. Free tier: no external services. Anything thrown is a
+// generic JSON 500.
 export async function POST(req: NextRequest) {
+  try {
+    return await batch(req);
+  } catch (e) {
+    console.error(
+      "[check-listing/batch] failed:",
+      e instanceof Error ? e.name : "error",
+    );
+    return json(INTERNAL_ERROR, 500);
+  }
+}
+
+async function batch(req: NextRequest) {
   const rl = rateLimit(req, { ...CHECK_BATCH_RATE });
   if (!rl.allowed) {
     const limited = tooManyRequests(rl);
@@ -73,7 +88,7 @@ export async function POST(req: NextRequest) {
   const [rows, flipDesk, saved] = await Promise.all([
     loadTrackedDeals(supabase, ids),
     resolveCallerFlipDesk(),
-    savedBuyerHome(supabase),
+    serverUserId().then((uid) => savedBuyerHome(supabase, uid)),
   ]);
   const buyerHome = buyerHomeFor(saved, home);
 

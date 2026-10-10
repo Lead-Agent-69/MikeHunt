@@ -19,10 +19,16 @@ export const NO_STORE = { "Cache-Control": "private, no-store" } as const;
 export const CHECK_CACHE_TTL_MS = 10 * 60_000;
 /** Most deals one batch request may ask for. */
 export const CHECK_BATCH_MAX = 20;
-/** Single check (may scrape a URL): 10 requests / min per client. */
-export const CHECK_SINGLE_RATE = {
+/** Single check (may scrape a URL), guests: 5 requests / min per client IP. */
+export const CHECK_GUEST_RATE = {
   key: "check-listing",
-  limit: 10,
+  limit: 5,
+  windowMs: 60_000,
+} as const;
+/** Single check, signed in: 20 requests / min per user.id (IP rotation doesn't help). */
+export const CHECK_USER_RATE = {
+  key: "check-listing-user",
+  limit: 20,
   windowMs: 60_000,
 } as const;
 /** List cards, a separate bucket: 30 requests × 20 deals = 600 cards / min per client. */
@@ -136,26 +142,38 @@ export function trackedDealData(
   );
 }
 
-/**
- * The signed-in buyer's saved home (resolveBuyerHome: prefs.homeLocation, then the legacy profile
- * columns, never a default state). Null when signed out or nothing is saved.
- */
-export async function savedBuyerHome(supabase: any): Promise<GeoPoint | null> {
+/** The signed-in caller's user id, or null (signed out / auth unavailable). */
+export async function serverUserId(): Promise<string | null> {
   try {
     const {
       data: { user },
     } = await getServerUser();
-    if (!user?.id) return null;
+    return user?.id ? String(user.id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The signed-in buyer's saved home (resolveBuyerHome: prefs.homeLocation, then the legacy profile
+ * columns, never a default state). Null when signed out or nothing is saved.
+ */
+export async function savedBuyerHome(
+  supabase: any,
+  userId: string | null,
+): Promise<GeoPoint | null> {
+  if (!userId) return null;
+  try {
     const [{ data: profile }, { data: prefRow }] = await Promise.all([
       supabase
         .from("user_profiles")
         .select("home_state, home_zip, home_lat, home_lng")
-        .eq("id", user.id)
+        .eq("id", userId)
         .maybeSingle(),
       supabase
         .from("user_preferences")
         .select("prefs")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle(),
     ]);
     return resolveBuyerHome({
@@ -167,6 +185,12 @@ export async function savedBuyerHome(supabase: any): Promise<GeoPoint | null> {
     return null;
   }
 }
+
+/** JSON 500 for anything thrown: generic text only, never the error message. */
+export const INTERNAL_ERROR = {
+  error: "Something went wrong checking this listing. Please try again.",
+  code: "INTERNAL",
+} as const;
 
 /** Saved home by default; validated body home values only override it. Never a default state. */
 export function buyerHomeFor(
