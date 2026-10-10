@@ -146,6 +146,13 @@ describe("wiring", () => {
       "REVOKE ALL ON public.alert_deliveries FROM anon, authenticated",
     );
     expect(sql).not.toMatch(/CREATE POLICY/i);
+    expect(sql).not.toMatch(/GRANT[^;]*\bTO\s+(anon|authenticated|public)\b/i);
+    expect(sql).toContain(
+      "REVOKE ALL ON FUNCTION public.alert_delivery_event(UUID, TEXT) FROM PUBLIC, anon, authenticated",
+    );
+    expect(sql).toContain(
+      "GRANT EXECUTE ON FUNCTION public.alert_delivery_event(UUID, TEXT) TO service_role",
+    );
     expect(sql).not.toMatch(/\bemail\b\s+TEXT/i);
   });
 

@@ -42,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_alert_deliveries_search ON public.alert_deliverie
 
 ALTER TABLE public.alert_deliveries ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.alert_deliveries FROM anon, authenticated;
+-- Writes come from server code with the service role; admin reads go through
+-- /api/admin/alert-deliveries (admin-gated) using the service role too.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alert_deliveries TO service_role;
 
 -- Atomic engagement bump used by the pixel / click / receipt routes (service role only).
 CREATE OR REPLACE FUNCTION public.alert_delivery_event(p_id UUID, p_event TEXT)
@@ -68,3 +71,5 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.alert_delivery_event(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+-- Revoking from PUBLIC would otherwise also drop service_role's implicit EXECUTE.
+GRANT EXECUTE ON FUNCTION public.alert_delivery_event(UUID, TEXT) TO service_role;
