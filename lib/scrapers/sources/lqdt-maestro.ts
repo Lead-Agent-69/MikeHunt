@@ -20,6 +20,7 @@ import {
   writeSoldListings,
   type SoldListingInsert,
   readTextCapped,
+  govTitle,
 } from "@/lib/sources/open-gov/sold-comps";
 
 const API = "https://maestro.lqdt1.com/search/list";
@@ -368,11 +369,11 @@ export function maestroAssetToSoldComp(
     mileage: detailMileage(a) ?? null,
     sold_price: price,
     sold_at: endedAt.toISOString(),
-    title:
-      `${title} (${venue} sold lot, winning bid before buyer's premium)`.slice(
-        0,
-        180,
-      ),
+    // Built from year/make/model and scrubbed, never the lot's free-text description (VINs, phones).
+    title: govTitle(
+      [year, make, model],
+      `${venue} sold lot, winning bid before buyer's premium`,
+    ),
     source: marketplace,
     source_item_id: `${opts.idPrefix}-${assetId}-${accountId}`,
     source_url: `https://www.${marketplace}.com/asset/${assetId}/${accountId}`,

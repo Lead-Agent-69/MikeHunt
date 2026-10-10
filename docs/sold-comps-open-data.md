@@ -79,3 +79,16 @@ All three scripts dry-run by default and print counts by month. Add `--write` to
 `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`). Scheduling Norfolk daily on Zeus is a deploy step.
 
 GovDeals/AllSurplus (maestro) fetches: search 30s timeout / 8 MB cap per page, detail 15s / 1 MB.
+
+Ren #324 nits (follow-up, migration `20261010412000`):
+- `sold_listings_attribution_nonblank`: `attribution IS NULL OR attribution ~ '\S'` (btrim only strips
+  spaces). Its self-check compares attribution_len, attribution_nonblank, gov_attribution and
+  last_bid_attribution by normalized definition, exactly.
+- Gov-lane titles are built from year/make/model and scrubbed of VIN- and phone-shaped tokens
+  (`govTitle`, `scrubGovText`); `/api/sold` rebuilds them for stored rows instead of echoing `title`.
+- `GovLane` renders a link only for a parsed http(s) URL (`safeHttpUrl`).
+- sale_channel list: one source of truth in `lib/scoring/sale-channels.ts`, enforced by
+  `sale-channels.test.ts` (latest migration's list == the constant; no later migration narrows an
+  earlier one). 410000 is frozen with a gov-only list: never re-run it alone after a later definer
+  (#320's 500000 adds 'ebay'); re-run that definer right after. 412000's self-check fails if 'ebay'
+  is missing once 500000 is recorded.

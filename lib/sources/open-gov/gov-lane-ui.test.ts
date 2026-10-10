@@ -41,3 +41,34 @@ describe("GovLane (gov auction results with source credits)", () => {
     ).toBe("");
   });
 });
+
+describe("GovLane href scheme check (client side)", () => {
+  it("drops javascript:, data:, protocol-relative and malformed links", async () => {
+    const { safeHttpUrl } = await import("@/components/deal/RecentlySold");
+    for (const bad of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      "data:text/html,x",
+      "//evil.example/x",
+      "not a url",
+      "",
+      null,
+    ])
+      expect(safeHttpUrl(bad), String(bad)).toBeUndefined();
+    expect(safeHttpUrl("https://gsaauctions.gov/x")).toBe(
+      "https://gsaauctions.gov/x",
+    );
+    const html = render({
+      sales: [
+        {
+          title: "x",
+          price: 1,
+          attribution: CC,
+          sourceUrl: "javascript:alert(1)",
+        },
+      ],
+    });
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("href=");
+  });
+});
