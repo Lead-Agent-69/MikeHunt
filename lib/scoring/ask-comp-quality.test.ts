@@ -84,7 +84,7 @@ describe("asking-price comparison quality", () => {
     const fake = {
       from: (table: string) => {
         const query: any = {};
-        for (const method of ["select", "eq", "gt", "lt", "gte"])
+        for (const method of ["select", "eq", "gt", "lt", "gte", "order"])
           query[method] = (...args: unknown[]) => {
             filters.push([method, ...args]);
             return query;

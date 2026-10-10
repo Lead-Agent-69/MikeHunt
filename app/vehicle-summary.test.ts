@@ -76,10 +76,10 @@ describe("first-screen listing facts", () => {
   it("keeps photos before secondary checklists and explicit planning actions reachable", () => {
     const source = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
     expect(source.indexOf('aria-label="Listing photos"')).toBeLessThan(
-      source.indexOf("<PersonalListingLead"),
+      source.indexOf("<ListingVerification"),
     );
     expect(source).toContain('"Save vehicle"');
-    expect(source).toContain('href="/fleet"');
+    expect(source).toContain("<VehicleSourceAction");
     expect(source).toContain('"Record purchase"');
     expect(source).toContain('aria-label="Vehicle actions"');
     expect(source).not.toContain("max-w-5xl mx-auto animate-fadeUp");
