@@ -1,6 +1,8 @@
 /**
  * Per-domain pacing: at most `maxConcurrent` (1 by default, never more than 2) requests in flight per
- * domain, and a minimum gap between request starts of max(robots Crawl-delay, minGapMs) plus jitter.
+ * domain, and a randomized gap between request starts: max(robots Crawl-delay, minGapMs) plus a random
+ * 0–100% jitter (POLITE_JITTER_RATIO). The first request to a domain is also staggered by a random
+ * 0–50% of the gap, so parallel domains never fire in lockstep.
  */
 export interface DomainLimiterOptions {
   maxConcurrent?: number;
@@ -38,7 +40,10 @@ export class DomainLimiter {
     );
     this.minGapMs =
       opts.minGapMs ?? Number(process.env.POLITE_MIN_GAP_MS || 3_000);
-    this.jitterRatio = opts.jitterRatio ?? 0.5;
+    const envJitter = Number(process.env.POLITE_JITTER_RATIO);
+    this.jitterRatio =
+      opts.jitterRatio ??
+      (Number.isFinite(envJitter) && envJitter >= 0 ? Math.min(envJitter, 3) : 1);
     this.random = opts.random ?? Math.random;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = opts.now ?? Date.now;
@@ -47,7 +52,7 @@ export class DomainLimiter {
   private slot(domain: string): DomainSlot {
     let s = this.slots.get(domain);
     if (!s) {
-      s = { active: 0, waiters: [], nextStartAt: 0, crawlDelayMs: 0 };
+      s = { active: 0, waiters: [], nextStartAt: -1, crawlDelayMs: 0 };
       this.slots.set(domain, s);
     }
     return s;
@@ -83,6 +88,11 @@ export class DomainLimiter {
       s.active += 1;
     }
     try {
+      if (s.nextStartAt < 0) {
+        // First touch of this domain: a small random stagger, then normal pacing.
+        const base = Math.max(this.minGapMs, s.crawlDelayMs);
+        s.nextStartAt = this.now() + Math.round(base * 0.5 * this.random());
+      }
       const wait = s.nextStartAt - this.now();
       // Reserve the next start before sleeping so concurrent callers queue behind us.
       s.nextStartAt = Math.max(this.now(), s.nextStartAt) + this.gapMs(domain);

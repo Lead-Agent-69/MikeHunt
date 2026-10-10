@@ -32,6 +32,14 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export interface PoliteFetchOptions {
   accept?: string;
+  /** HTTP method (default GET). Only bodiless GETs use the conditional cache. */
+  method?: string;
+  body?: string;
+  /**
+   * Extra request headers (Content-Type, Referer, ...). User-Agent and browser-fingerprint headers
+   * (sec-ch-*, sec-fetch-*) are dropped: we always identify as MikeHunt.
+   */
+  headers?: Record<string, string>;
   /** Serve from cache without any request when the cached copy is younger than this. */
   freshForMs?: number;
   /** Retries for 429/503/5xx/network errors (not for 403). Default 2. */
@@ -61,6 +69,16 @@ export interface PoliteResponse {
 /** Bot-challenge / denial markers. Seeing one means "stop", not "escalate". */
 export const CHALLENGE_RE =
   /just a moment\.\.\.|attention required|cf-chl|_cf_chl|challenge-platform|px-captcha|captcha-delivery\.com|pardon our interruption|access to this page has been denied|verify you are (a )?human|_incapsula_resource/i;
+
+/** Caller headers minus anything that would disguise who we are. */
+export function honestHeaders(h: Record<string, string> = {}): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(h)) {
+    if (/^(user-agent|sec-ch-|sec-fetch-|cookie$)/i.test(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
 
 export function looksLikeChallenge(body: string): boolean {
   return CHALLENGE_RE.test(String(body || "").slice(0, 15_000));
@@ -127,14 +145,20 @@ export class PoliteCrawler {
     this.cache = deps.cache ?? defaultPageCache();
   }
 
-  private headers(extra: Record<string, string> = {}, accept?: string) {
+  private headers(
+    extra: Record<string, string> = {},
+    accept?: string,
+    caller: Record<string, string> = {},
+  ) {
     return {
-      "User-Agent": politeUserAgent(),
       Accept:
         accept ??
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.8",
+      ...honestHeaders(caller),
       ...extra,
+      // Last, so nothing can replace it.
+      "User-Agent": politeUserAgent(),
     };
   }
 
@@ -207,7 +231,9 @@ export class PoliteCrawler {
       return { ...base, skipped: "robots" };
     }
 
-    const cached = this.cache.get(url);
+    const method = (opts.method || "GET").toUpperCase();
+    const cacheable = method === "GET" && opts.body == null;
+    const cached = cacheable ? this.cache.get(url) : undefined;
     if (
       cached &&
       opts.freshForMs &&
@@ -234,7 +260,13 @@ export class PoliteCrawler {
       try {
         res = await this.limiter.run(domain, () =>
           this.fetchImpl(url, {
-            headers: this.headers(conditionalHeaders(cached), opts.accept),
+            method,
+            ...(opts.body != null ? { body: opts.body } : {}),
+            headers: this.headers(
+              conditionalHeaders(cached),
+              opts.accept,
+              opts.headers,
+            ),
             signal: opts.signal
               ? AbortSignal.any([
                   opts.signal,
@@ -281,7 +313,8 @@ export class PoliteCrawler {
           return { ...base, status, challenge: true, headers };
         }
         this.breaker.recordSuccess(domain);
-        this.cache.set({
+        if (cacheable)
+          this.cache.set({
           url,
           status,
           body,
@@ -342,12 +375,15 @@ export function politeMetricsSnapshot() {
 }
 
 /**
- * Route the legacy engine/smartFetch paths through politeFetch. Opt-in (SCRAPER_POLITE_MODE=1) so the
- * existing scrapers keep running exactly as before; new sources (dealer CMS family, GSA) always use
- * politeFetch directly.
+ * Polite mode is the DEFAULT for every scraper: the engine, smartFetch and every direct source
+ * fetch (scraperFetch) go through politeFetch. Opt out per worker with SCRAPER_POLITE_MODE=0
+ * (also "off" / "false"), which restores the legacy fetch paths unchanged.
  */
 export function politeModeEnabled(): boolean {
-  return process.env.SCRAPER_POLITE_MODE === "1";
+  const v = String(process.env.SCRAPER_POLITE_MODE ?? "")
+    .trim()
+    .toLowerCase();
+  return !(v === "0" || v === "off" || v === "false" || v === "no");
 }
 
 /** Tests only. */

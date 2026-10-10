@@ -2,6 +2,7 @@
 // Completed-listing price observations, not independently verified settlements.
 // Hidden accepted offers and ambiguous prices cannot be treated as sold-price evidence.
 
+import { politeModeEnabled, scraperFetch } from "@/lib/scrapers/polite";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
@@ -213,6 +214,11 @@ async function curlGet(
   url: string,
   jar: string,
 ): Promise<{ html: string; status: number }> {
+  if (politeModeEnabled()) {
+    // Polite mode (default): one honest request (robots.txt, our UA, pacing). No cookie-jar curl.
+    const r = await scraperFetch(url, { headers: { Accept: "text/html" } });
+    return { html: r.ok ? await r.text() : "", status: r.status };
+  }
   const { stdout } = await execFileAsync(
     "curl",
     [
@@ -249,8 +255,8 @@ async function curlGet(
 export async function scrapeEbaySold(): Promise<number> {
   console.log("[eBay Sold] Starting real-sold-price scrape...");
   const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
-  // Warm-up: seed cookies from the homepage.
-  try {
+  // Warm-up: seed cookies from the homepage (legacy mode only).
+  if (!politeModeEnabled()) try {
     await execFileAsync("curl", [
       "-s",
       "-m",

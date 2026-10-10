@@ -149,7 +149,7 @@ async function injectStealth(page: Page, config: ScraperConfig) {
 }
 
 // ─── Polite mode (default) ───────────────────────────────────────────────────
-// SCRAPER_POLITE_MODE=1 (opt-in): every page goes through politeFetch (honest UA, robots + Crawl-delay,
+// Default ON (opt out with SCRAPER_POLITE_MODE=0): every page goes through politeFetch (honest UA, robots + Crawl-delay,
 // per-domain pacing, conditional GETs, Retry-After, ban-risk breaker). No FlareSolverr, no stealth
 // scripts, no proxies, no random UAs. A block or challenge stops that site; it is never escalated.
 

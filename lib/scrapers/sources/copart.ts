@@ -9,6 +9,7 @@
 // fall back to the ACV estimate as the value reference (never a fabricated bargain). The live hammer
 // price is the one thing still behind a dealer login.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 
@@ -112,7 +113,7 @@ async function fetchCopartPage(
   page: number,
   size: number,
 ): Promise<any | null> {
-  const res = await fetch(COPART_API, {
+  const res = await scraperFetch(COPART_API, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
