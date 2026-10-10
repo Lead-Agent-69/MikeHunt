@@ -76,12 +76,15 @@ export function InlineError({
   retryLabel = "Try again",
   testId,
   className = "",
+  retryRef,
 }: {
   message: React.ReactNode;
   onRetry?: () => void;
   retryLabel?: string;
   testId?: string;
   className?: string;
+  /** Lets a caller move focus to Try again (e.g. after a server error). */
+  retryRef?: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <div
@@ -103,6 +106,7 @@ export function InlineError({
       </span>
       {onRetry && (
         <button
+          ref={retryRef}
           type="button"
           onClick={onRetry}
           className="inline-flex min-h-11 items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 text-xs font-black text-[var(--t2)]"

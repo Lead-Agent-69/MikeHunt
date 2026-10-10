@@ -183,6 +183,10 @@ describe("Check any listing UX", () => {
     expect(card.querySelector("details")?.open).toBe(true);
     // Only the asking price from the input appears as money.
     expect(card.textContent!.match(/\$\d[\d,]*/g)).toEqual(["$9,500"]);
+    expect(card.textContent).toContain(
+      "Not enough comparable sales yet to value this car.",
+    );
+    expect(card.textContent).not.toMatch(/Values are not enough/);
   });
 
   it("personal desk Pass: neutral pill, word in --t1, fair value with range, no profit", async () => {
@@ -224,6 +228,7 @@ describe("Check any listing UX", () => {
     expect(err.getAttribute("role")).toBe("alert");
     const retry = err.querySelector("button")!;
     expect(retry.textContent).toContain("Try again");
+    expect(document.activeElement).toBe(retry);
     await act(async () => retry.click());
     await act(async () => {
       await Promise.resolve();
@@ -240,9 +245,9 @@ describe("Check any listing UX", () => {
     );
     act(() => root.render(createElement(CheckAnyListing, {})));
     await submit();
-    expect($("check-error")?.querySelector("button")?.textContent).toContain(
-      "Try again",
-    );
+    const retry = $("check-error")?.querySelector("button");
+    expect(retry?.textContent).toContain("Try again");
+    expect(document.activeElement).toBe(retry);
   });
 
   it("input error (4xx): message, no retry, focus back on the input", async () => {

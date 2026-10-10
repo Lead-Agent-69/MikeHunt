@@ -60,10 +60,15 @@ const RATING: Record<string, string> = {
 };
 
 const BASIS: Record<string, string> = {
-  measured: "from recent sales",
-  estimate: "estimated from recent asking prices",
-  insufficient: "not enough data yet",
+  measured: "Values are from recent sales.",
+  estimate: "Values are estimated from recent asking prices.",
+  insufficient: "Not enough comparable sales yet to value this car.",
 };
+
+/** The basis sentence under "Why". Thin data reads as its own sentence, not "Values are …". */
+export function basisSentence(basis: string): string {
+  return BASIS[basis] || `Values are ${basis}.`;
+}
 
 type Failure = { message: string; retryable: boolean };
 
@@ -87,6 +92,7 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
   const lastQuery = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLHeadingElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
   const ids = useId();
   const inputId = `${ids}-q`;
   const hintId = `${ids}-hint`;
@@ -130,11 +136,13 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
     }
   }
 
-  // Move focus to the outcome so keyboard and screen-reader users land on the answer.
+  // Move focus to the outcome so keyboard and screen-reader users land on the answer:
+  // the verdict, Try again after a server/network error, or the input for a fixable one.
   useEffect(() => {
     if (read) resultRef.current?.focus();
+    else if (failure && failure.retryable && !busy) retryRef.current?.focus();
     else if (failure && !failure.retryable) inputRef.current?.focus();
-  }, [read, failure]);
+  }, [read, failure, busy]);
 
   const v = read ? VERDICT[read.verdict] : null;
   const car = read?.vehicle;
@@ -235,6 +243,7 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
           className="mt-3"
           testId="check-error"
           message={failure.message}
+          retryRef={retryRef}
           onRetry={
             failure.retryable ? () => void run(lastQuery.current) : undefined
           }
@@ -335,7 +344,7 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
             </ul>
             <p className="mt-2 text-xs text-[var(--t3)]">
               {read.fairValue.label ? `${read.fairValue.label}. ` : ""}
-              Values are {BASIS[read.fairValue.basis] || read.fairValue.basis}.
+              {basisSentence(read.fairValue.basis)}
               Confidence: {read.confidence.label}. Compared {read.comps.asks}{" "}
               asking prices and {read.comps.sold} sales.
             </p>

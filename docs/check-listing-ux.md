@@ -23,7 +23,7 @@ Same card order and wording as the deal-page advisor card (May, #266/#267).
 | Loading              | Button "Checking…" (disabled, `aria-busy`); `LoadingState` "Checking this listing…" (one `role=status`) where the card goes.                                                                    |
 | Not enough data yet  | Verdict pill "Not enough data yet", headline, vehicle line, "No price is shown until enough comparable cars are tracked…", Why open by default. No Buy ≤, fair value or profit.                 |
 | Not live             | Verdict pill "Not live" (neutral); the engine's numbers stay visible with its "price may not be buyable" headline.                                                                              |
-| Error                | `InlineError` (PageStates). 5xx, 429, bad body or offline: message + "Try again" (re-runs the last query). Other 4xx (bad link, missing price/model): message only; focus returns to the input. |
+| Error                | `InlineError` (PageStates). 5xx, 429, bad body or offline: message + "Try again" (re-runs the last query; takes focus). Other 4xx (bad link, missing price/model): message only; focus returns to the input. |
 
 ## Honesty
 
