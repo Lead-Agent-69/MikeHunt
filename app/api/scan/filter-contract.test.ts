@@ -244,8 +244,11 @@ describe("Scan and facets query parity", () => {
     }
   });
 
-  it("filters titleType (comma-multi) on the condition enum in scan and facets", async () => {
-    for (const handler of [scan, facets]) {
+  it("filters titleType (comma-multi) on the condition enum in scan and the facets cascade", async () => {
+    for (const handler of [
+      scan,
+      (r: NextRequest) => facets(new NextRequest(`${r.url}&make=Ford`)),
+    ]) {
       calls.splice(0);
       await handler(
         new NextRequest(
@@ -268,5 +271,55 @@ describe("Scan and facets query parity", () => {
     ).json();
     expect(calls).toContainEqual(["or", "condition.in.(clean_title)"]);
     expect(body.vehicles[0].titleCategory).toBe("clean");
+  });
+
+  it.each([
+    ["clean", "condition.in.(clean_title)"],
+    ["rebuilt", "condition.in.(rebuilt_title)"],
+    ["salvage", "condition.in.(parts_only,salvage_title)"],
+    ["rebuildable", "condition.in.(repairable)"],
+    ["unknown", "condition.in.(run_drive,flood,fire,hail),condition.is.null"],
+    ["rebuilt,rebuildable", "condition.in.(repairable,rebuilt_title)"],
+  ])(
+    "scan titleType=%s filters the condition enum",
+    async (titleType, expected) => {
+      calls.splice(0);
+      await scan(
+        new NextRequest(`https://example.test/api/scan?titleType=${titleType}`),
+      );
+      expect(calls).toContainEqual(["or", expected]);
+      expect(calls.some(([m, c]) => m === "eq" && c === "condition")).toBe(
+        false,
+      );
+    },
+  );
+
+  it("facets count title buckets without the selected titleType, other facets keep it", async () => {
+    calls.splice(0);
+    const body = await (
+      await facets(
+        new NextRequest(
+          "https://example.test/api/scan/facets?titleType=salvage&state=TX",
+        ),
+      )
+    ).json();
+    // The mock inventory is all clean_title: the clean bucket still counts them...
+    expect(body.titleTypes.find((b: any) => b.value === "clean").count).toBe(
+      1100,
+    );
+    // ...while the salvage-filtered makes facet is empty, and no DB title filter ran.
+    expect(body.makes).toEqual([]);
+    expect(
+      calls.some(([m, f]) => m === "or" && String(f).startsWith("condition")),
+    ).toBe(false);
+    expect(calls).toContainEqual(["eq", "location_state", "TX"]);
+  });
+
+  it("scan rows expose options.titleSource only", async () => {
+    const body = await (
+      await scan(new NextRequest("https://example.test/api/scan?state=TX"))
+    ).json();
+    expect(body.vehicles[0]).toHaveProperty("titleSource", null);
+    expect(body.vehicles[0]).not.toHaveProperty("options");
   });
 });

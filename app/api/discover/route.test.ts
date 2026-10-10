@@ -577,7 +577,9 @@ describe("GET /api/discover title categories", () => {
     ["dealer", { buyerMode: "dealer" }, true],
     ["parts", { buyerMode: "parts" }, true],
     ["personal", { buyerMode: "personal" }, false],
-    ["diy", { buyerMode: "diy" }, false],
+    // includesRepairable(): DIY defaults in, personal out; an explicit choice wins.
+    ["diy", { buyerMode: "diy" }, true],
+    ["diy opted out", { buyerMode: "diy", includeRepairable: false }, false],
     [
       "personal + includeRepairable",
       { buyerMode: "personal", includeRepairable: true },
@@ -627,4 +629,27 @@ describe("GET /api/discover title categories", () => {
       rail(body, "salvageRebuildable").deals.map((d: any) => d.id),
     ).toEqual(["copart-salvage"]);
   }, 15_000);
+
+  it("cards carry options.titleSource without leaking other options keys", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        {
+          ...titleRows[3],
+          options: {
+            titleSource: "listing",
+            contact: { phone: "555-0100", email: "x@y.z" },
+            internalNote: "secret",
+          },
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const body = await (await GET(req("/api/discover"))).json();
+    const card = body.rails.flatMap((r: any) => r.deals)[0];
+    expect(card.titleSource).toBe("listing");
+    expect(card.options).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("internalNote");
+    expect(JSON.stringify(body)).not.toContain("555-0100");
+  });
 });

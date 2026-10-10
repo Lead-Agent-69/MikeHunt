@@ -20,7 +20,9 @@ const PARTS_HIDDEN = ["roi", "auctionLots", "fresh"] as const;
 
 /**
  * Salvage & Rebuildable (title category salvage/rebuildable, any source or lane): flip and parts
- * desks always; personal/DIY only when their saved buyerScope.includeRepairable === true.
+ * desks always; personal/DIY only when includeRepairable is true. Callers pass
+ * includesRepairable(buyerScope) (lib/intelligence/repair-risk): DIY defaults in, personal out,
+ * an explicit saved choice wins.
  */
 export const SALVAGE_REBUILDABLE_RAIL = "salvageRebuildable";
 

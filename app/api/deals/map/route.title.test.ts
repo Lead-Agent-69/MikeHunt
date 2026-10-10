@@ -9,7 +9,21 @@ vi.mock("@/lib/supabase", () => ({
   createServerComponentClient: () => ({
     from: () => {
       const q: any = {};
-      for (const m of ["select", "eq", "or", "gt", "order", "range", "in"])
+      for (const m of [
+        "select",
+        "eq",
+        "or",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "order",
+        "range",
+        "in",
+        "not",
+        "ilike",
+        "is",
+      ])
         q[m] = (...args: unknown[]) => {
           calls.push([m, ...args]);
           return q;
@@ -52,6 +66,7 @@ describe("GET /api/deals/map titleType", () => {
         location_state: "MO",
         condition: "parts_only",
         damage_type: "Front End",
+        title_source: "source_default",
       },
     ];
     const body = await (
@@ -68,7 +83,10 @@ describe("GET /api/deals/map titleType", () => {
       condition: "parts_only",
       damageType: "Front End",
       titleCategory: "salvage",
+      titleSource: "source_default",
     });
+    expect(select).toContain("title_source:options->>titleSource");
+    expect(select).not.toMatch(/(^|,\s*)options(\s*,|$)/);
     // Personal desk: still no profit in the payload.
     expect(JSON.stringify(body)).not.toContain("3000");
   });

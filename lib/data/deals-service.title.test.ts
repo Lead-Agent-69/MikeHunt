@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const calls = vi.hoisted(() => [] as Array<[string, ...unknown[]]>);
+const rows = vi.hoisted(() => ({ value: [] as any[] }));
 
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
@@ -22,7 +23,7 @@ vi.mock("@/lib/supabase", () => ({
           return q;
         };
       q.then = (resolve: (v: unknown) => unknown) =>
-        resolve({ data: [], error: null, count: 0 });
+        resolve({ data: rows.value, error: null, count: rows.value.length });
       return q;
     },
   }),
@@ -47,5 +48,23 @@ describe("DealsService titleTypes", () => {
     expect(
       calls.some(([m, f]) => m === "or" && String(f).startsWith("condition")),
     ).toBe(false);
+  });
+
+  it("maps titleCategory + options.titleSource onto each deal", async () => {
+    rows.value = [
+      {
+        id: "d1",
+        source: "independent_dealer",
+        title: "2015 Civic",
+        condition: "salvage_title",
+        options: { titleSource: "source_default", seller: "D&G" },
+      },
+    ];
+    const { deals } = await new DealsService().getDeals({});
+    expect(deals[0]).toMatchObject({
+      titleCategory: "salvage",
+      titleSource: "source_default",
+    });
+    rows.value = [];
   });
 });

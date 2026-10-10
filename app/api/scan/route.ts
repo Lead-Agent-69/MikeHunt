@@ -52,6 +52,7 @@ import {
   parseTitleTypes,
   titleCategory,
   titleCategoryOrFilter,
+  titleSourceOf,
 } from "@/lib/deals/title-category";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
@@ -443,6 +444,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     condition,
     titleType,
     titleCategory: titleCategory({ condition: r.condition }),
+    titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
     mmrValue,

@@ -4,8 +4,11 @@ import {
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
 import {
+  titleCategory,
   titleCategoryOrFilter,
+  titleSourceOf,
   type TitleCategory,
+  type TitleSource,
 } from "@/lib/deals/title-category";
 
 export type Deal = {
@@ -19,6 +22,10 @@ export type Deal = {
   vin?: string;
   mileage?: number;
   condition: string;
+  /** lib/deals/title-category bucket of `condition`. */
+  titleCategory?: TitleCategory;
+  /** options.titleSource only (other options keys stay server-side). */
+  titleSource?: TitleSource | null;
   askPrice: number;
   buyNowPrice?: number;
   buy_now_price?: number;
@@ -130,6 +137,8 @@ export class DealsService {
       vin: row.vin,
       mileage: row.mileage,
       condition: row.condition,
+      titleCategory: titleCategory(row),
+      titleSource: titleSourceOf(row),
       askPrice: Number(row.ask_price || 0),
       buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
       mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,

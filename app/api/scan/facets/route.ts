@@ -16,6 +16,7 @@ import {
 import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
 import {
   parseTitleTypes,
+  matchesTitleCategories,
   titleCategoryCounts,
   titleCategoryOrFilter,
 } from "@/lib/deals/title-category";
@@ -162,6 +163,11 @@ export async function GET(req: NextRequest) {
   const sourceIds = (params.get("dealerSourceIds") || "")
     .split(",")
     .filter(Boolean);
+  const titleTypes = parseTitleTypes(params.get("titleType"));
+  // Title buckets are counted WITHOUT the selected titleType (every other filter still applies),
+  // so picking "Salvage" doesn't zero out the other title chips. The summary query skips the
+  // title filter and the remaining facets are narrowed in memory with the same enum mapping.
+  const applyTitleInDb = cascade;
   const build = () => {
     let query = supabase
       .from("deals")
@@ -231,9 +237,9 @@ export async function GET(req: NextRequest) {
     }
     const sellers = sellerTypeSourceValues(seller);
     if (sellers.length) query = query.in("source", sellers);
-    const titleFilter = titleCategoryOrFilter(
-      parseTitleTypes(params.get("titleType")),
-    );
+    const titleFilter = applyTitleInDb
+      ? titleCategoryOrFilter(titleTypes)
+      : null;
     if (titleFilter) query = query.or(titleFilter);
     const availability = params.get("availability");
     if (availability && availability !== "all")
@@ -270,8 +276,16 @@ export async function GET(req: NextRequest) {
     const rows = categoryQuery
       ? candidates.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
       : candidates;
-    if (!cascade)
-      return NextResponse.json({ ...buildScanFacetSummary(rows), bounded });
+    if (!cascade) {
+      const titled = rows.filter((row) =>
+        matchesTitleCategories(row, titleTypes),
+      );
+      return NextResponse.json({
+        ...buildScanFacetSummary(titled),
+        titleTypes: titleCategoryCounts(rows),
+        bounded,
+      });
+    }
     const models = new Map<string, number>();
     for (const row of rows) inc(models, row.model);
     return NextResponse.json({

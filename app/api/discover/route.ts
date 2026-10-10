@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic";
-import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
+import {
+  hasReportedRepairRisk,
+  includesRepairable,
+} from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
 import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
@@ -64,6 +67,7 @@ import {
   matchesTitleCategories,
   parseTitleTypes,
   titleCategory,
+  titleSourceOf,
 } from "@/lib/deals/title-category";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
@@ -122,6 +126,7 @@ function mapDeal(
     condition: d.condition,
     damageType: d.damage_type,
     titleCategory: titleCategory(d),
+    titleSource: titleSourceOf(d),
     askPrice: Number(d.ask_price || 0),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
     // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
@@ -847,7 +852,7 @@ export async function GET(request: NextRequest) {
     let forYou: any[] = [];
     let forYouSubtitle = "Matched to your saved search";
     let personalized = false;
-    // Saved buyerScope.includeRepairable — gates the Salvage & Rebuildable rail for personal/DIY.
+    // includesRepairable(saved buyerScope) — gates the Salvage & Rebuildable rail for personal/DIY.
     let scopeIncludesRepairable = false;
     try {
       const {
@@ -872,7 +877,12 @@ export async function GET(request: NextRequest) {
         const scope = ((
           prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
         )?.buyerScope || {}) as BuyerScopePrefs;
-        scopeIncludesRepairable = scope.includeRepairable === true;
+        // Product default (includesRepairable): an explicit saved choice wins; otherwise every
+        // mode but "personal" (DIY, parts, flip) includes repairable / salvage supply.
+        scopeIncludesRepairable = includesRepairable({
+          includeRepairable: scope.includeRepairable,
+          buyerMode: scope.buyerMode ?? undefined,
+        });
         // "Where you live": prefs.homeLocation (Settings/onboarding) first, then the legacy
         // user_profiles columns (never the untouched CA default). Coords → haversine distance.
         const buyerHome = resolveBuyerHome({
