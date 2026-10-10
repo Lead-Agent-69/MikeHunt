@@ -85,7 +85,15 @@ export type PinnedResponse = {
   url: string;
 };
 
-/** Single request to a pinned target, no redirect following, body discarded. */
+/** Hard ceiling for one pinned request, connect + headers, regardless of trickle. */
+export const PINNED_REQUEST_DEADLINE_MS = 10_000;
+
+/**
+ * Single request to a pinned target: no redirect following, and the body is never read (the
+ * response is destroyed as soon as headers arrive, so a GET can't stream us an unbounded body).
+ * `timeoutMs` is an overall deadline, not just socket idle time. Node's http.request with an
+ * explicit agent never consults HTTP(S)_PROXY, so the pin can't be bypassed through a proxy.
+ */
 export function pinnedRequest(
   target: PinnedTarget,
   init: {
@@ -95,26 +103,49 @@ export function pinnedRequest(
   } = {},
 ): Promise<PinnedResponse> {
   const mod = target.url.protocol === "https:" ? https : http;
+  const deadline = Math.min(init.timeoutMs ?? 5000, PINNED_REQUEST_DEADLINE_MS);
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn();
+    };
     const req = mod.request(
       target.url,
       {
         method: init.method || "GET",
         agent: pinnedAgent(target),
         headers: init.headers,
-        timeout: init.timeoutMs ?? 5000,
+        timeout: deadline,
       },
       (res) => {
-        res.resume();
-        resolve({
+        const out = {
           status: res.statusCode || 0,
           headers: res.headers,
           url: target.url.toString(),
-        });
+        };
+        // Never read the body: drop the socket.
+        res.destroy();
+        req.destroy();
+        finish(() => resolve(out));
       },
     );
-    req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
+    const timer = setTimeout(
+      () => req.destroy(new Error("pinned request deadline exceeded")),
+      deadline,
+    );
+    req.on("timeout", () => req.destroy(new Error("socket timeout")));
+    req.on("error", (err) => finish(() => reject(err)));
     req.end();
   });
+}
+
+/** Axios options that route a request through the pin and nowhere else. */
+export function pinnedAxiosOptions(target: PinnedTarget) {
+  const agent = pinnedAgent(target);
+  // proxy: false — axios otherwise honors HTTP(S)_PROXY / an explicit proxy, which would make the
+  // proxy (not our pinned lookup) resolve the hostname.
+  return { httpAgent: agent, httpsAgent: agent, proxy: false as const };
 }

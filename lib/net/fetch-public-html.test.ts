@@ -101,3 +101,14 @@ describe("fetchPublicHtml pins DNS (save-from-url path)", () => {
     expect(dns.lookup).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("fetchPublicHtml proxy + size defaults", () => {
+  it("sends proxy: false and caps the page at ~5MB by default", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce({ status: 200, data: "<p>Car</p>" });
+    await fetchPublicHtml("https://listings.example/ford/escape");
+    const init = axiosGet.mock.calls[0][1];
+    expect(init.proxy).toBe(false);
+    expect(init.maxContentLength).toBe(5 * 1024 * 1024);
+  });
+});

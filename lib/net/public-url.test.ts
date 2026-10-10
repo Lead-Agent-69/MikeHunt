@@ -25,6 +25,7 @@ vi.mock("dns/promises", () => {
 import {
   UrlNotAllowedError,
   assertPublicHttpUrl,
+  classifyHostname,
   ipv4EmbeddedInV6,
   isBlockedIp,
 } from "./public-url";
@@ -120,5 +121,49 @@ describe("public URL guard", () => {
   it("accepts a hostname that resolves to a public address", async () => {
     const url = await assertPublicHttpUrl("https://public.example/ford/f150");
     expect(url.hostname).toBe("public.example");
+  });
+});
+
+describe("IPv6 blocklist additions (Ren #229 follow-up)", () => {
+  it.each([
+    // ff00::/8 multicast
+    "ff02::1",
+    "ff05::1:3",
+    "FF0E::1",
+    // ::/96 IPv4-compatible
+    "::7f00:1",
+    "::127.0.0.1",
+    "::a9fe:a9fe",
+    "::8.8.8.8",
+    "0:0:0:0:0:0:5db8:d822",
+    // fec0::/10 site-local
+    "fec0::1",
+    "fed0::1",
+    "feff:ffff::1",
+    // 2001::/32 Teredo
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+    "2001::1",
+    "2001:0000:abcd::1",
+    // unparseable fails closed
+    "fe80:::1",
+    "1:2:3:4:5:6:7:8:9",
+  ])("blocks %s", (ip) => {
+    expect(isBlockedIp(ip)).toBe(true);
+  });
+
+  it.each([
+    "2606:4700:4700::1111",
+    "2001:4860:4860::8888", // 2001:4860::/32 is Google, not Teredo
+    "2001:1::1", // 2001:0001:: is outside 2001::/32
+    "2a00:1450:4001::200e",
+    "fe00::1", // just below fe80::/10
+  ])("allows public %s", (ip) => {
+    expect(isBlockedIp(ip)).toBe(false);
+  });
+
+  it("classifyHostname blocks bracketed literals in the new ranges", () => {
+    for (const h of ["[ff02::1]", "[::127.0.0.1]", "[fec0::1]", "[2001::1]"]) {
+      expect(classifyHostname(h), h).toBe("blocked");
+    }
   });
 });
