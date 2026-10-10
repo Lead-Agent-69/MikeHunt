@@ -30,6 +30,7 @@ import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
+  dealerCmsSiteFromCurated,
   type DealerCmsSite,
 } from "@/lib/scrapers/platforms/dealer-cms";
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
@@ -1133,7 +1134,8 @@ export async function scrapeCuratedSites(
       );
     }
     try {
-      const dealerCms = dealerCmsSiteFor(site.url);
+      const dealerCms =
+        dealerCmsSiteFor(site.url) ?? dealerCmsSiteFromCurated(site);
       const cdgDealer = dealerCms ? undefined : cdgDealerForSite(site.url);
       const firstPages = [
         site.url,

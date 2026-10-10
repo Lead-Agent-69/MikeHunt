@@ -192,19 +192,44 @@ const ACRONYM_MAKES = new Set(["GMC", "BMW", "VW", "AMC", "MG"]);
 const MAX_YEAR = new Date().getFullYear() + 1;
 
 export function parsePrice(text: string): number | undefined {
+  const ok = (raw: string) => {
+    const n = Number(raw.replace(/,/g, ""));
+    return n >= 100 && n < 2_000_000 ? n : undefined;
+  };
+  // A labelled sale price wins over payment / down-payment amounts printed earlier on the card
+  // (VehiclesNETWORK cards show "Payment Amount: $325.00" before "Sale Price $ 10,900 00").
+  const labelled = text.match(
+    /\b(?:sale|our|cash|internet|special|asking|retail|selling|pre-owned)\s+price\s*:?\s*\$\s*([\d,]{3,})/i,
+  );
+  if (labelled && ok(labelled[1])) return ok(labelled[1]);
   const re = /\$\s*([\d,]{3,})(?:\.\d{2})?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
-    const n = Number(m[1].replace(/,/g, ""));
-    if (n >= 100 && n < 2_000_000) return n;
+    const before = text.slice(Math.max(0, m.index - 30), m.index);
+    const after = text.slice(re.lastIndex, re.lastIndex + 12);
+    if (
+      /(?:payment(?:\s+amount)?\s*:?|down\s+payment\s*:?|down\s*:|per month\s*:?)\s*$/i.test(before)
+    )
+      continue;
+    if (
+      /^\s*(?:(?:\/|per\s)\s*(?:mo|month|wk|week)|down\b|bi-?weekly|weekly|monthly)/i.test(after)
+    )
+      continue;
+    const n = ok(m[1]);
+    if (n) return n;
   }
   return undefined;
 }
 
-export function parseMiles(text: string): number | undefined {
+export function parseMiles(raw: string): number | undefined {
   const ok = (n: number) => (n > 0 && n < 1_000_000 ? n : undefined);
+  // Dollar amounts never read as miles ("$9,300 Miles: 41,200" read 9,300).
+  const text = raw.replace(/\$\s*[\d,]+(?:\.\d{2})?/g, " ");
+  // Labelled form first ("Miles: 83,698"), then "83,698 miles". The number must stand alone, so the
+  // trailing 4 of "Big Horn 2500 4x4 Miles: …" is never read as the odometer.
   const m =
-    text.match(/([\d,]{1,9})\s*(?:mi\b|mi\.|miles\b)/i) ||
+    text.match(/\b(?:mileage|odometer|miles)\s*:\s*([\d,]{1,9})\b/i) ||
+    text.match(/(?<![\w.,])([\d,]{1,9})\s*(?:mi\b|mi\.|miles\b)/i) ||
     text.match(/\b(?:mileage|odometer)\s*:?\s*([\d,]{1,9})\b/i);
   if (m) return ok(Number(m[1].replace(/,/g, "")));
   // "47k / Front / $5,450" (Gary's)
@@ -337,7 +362,17 @@ export function parseListingPage(
     const uniq: string[] = [];
     for (const h of headings)
       if (!uniq.some((u) => u.includes(h))) uniq.push(h);
-    let title = dedupeWords(clean(uniq.join(" ").replace(NOISE, " ")));
+    // Spec labels printed as headings/<strong> ("Mileage:", "Stock No.:", "124K Miles", "Features",
+    // "Pre-Owned Price") are not part of the title (VehiclesNETWORK cards).
+    const titleParts = uniq.filter(
+      (h) =>
+        !/:\s*$/.test(h) &&
+        !/^[\d,.]+\s*k?\s*miles$/i.test(h) &&
+        !/^(?:features|photos?|\d+\s+photos|pre-owned|certified)$/i.test(h) &&
+        // "Pre-Owned Special Price", "Documentation Fee", "Total Price" price-box labels
+        !(/\b(?:price|fee)\b/i.test(h) && !/^(?:19[5-9]\d|20\d{2})\s/.test(h)),
+    );
+    let title = dedupeWords(clean(titleParts.join(" ").replace(NOISE, " ")));
     if (!/\b(19|20)\d{2}\b/.test(title)) {
       const year = text.match(/\b(19[5-9]\d|20\d{2})\b/)?.[1];
       if (year) title = `${year} ${title}`;
@@ -374,7 +409,19 @@ export function parseListingPage(
       text.match(/(?:stock\s*#|#:?)\s*([A-Z0-9][A-Z0-9-]{2,})/i)?.[1] ??
       undefined;
     const img = card.find("img[src]").first().attr("src");
-    const parts = splitTitle(title);
+    let parts = splitTitle(title);
+    if (parts.year && !parts.model) {
+      // "2025 Kia" heading with the model on its own line below (<p>K5 GT Line</p>, 4cdg featured grid).
+      const sub = card
+        .find("p, .model, [class*=subtitle]")
+        .map((_, el) => clean($(el).text()))
+        .get()
+        .find((t) => t.length >= 2 && t.length <= 40 && /[a-z]/i.test(t) && !/\$|call|sale/i.test(t));
+      if (sub) {
+        title = `${title} ${sub}`;
+        parts = splitTitle(title);
+      }
+    }
     cards.push({
       id,
       url: abs(href!, pageUrl),
@@ -396,7 +443,7 @@ export function parseListingPage(
   $("a[href]").each((_, a) => {
     const href = $(a).attr("href") || "";
     const n = Number(
-      href.match(/[?&]page=(\d+)/)?.[1] ??
+      href.match(/[?&](?:ai_)?page=(\d+)/)?.[1] ??
         href.match(/\/rebuildables\/(\d+)\/?$/)?.[1] ??
         0,
     );
@@ -501,6 +548,79 @@ export function cardToDeal(
     location_state: site.state,
     images: card.image ? [card.image] : [],
   };
+}
+
+/**
+ * Website platforms the shared parser reads with no per-site config. A curated registry entry tagged
+ * with one of these joins the shared parser automatically (and its state's demand ring by its state tag).
+ *  - "4cdg": Creative Design Group / Smart Marketing dealer sites ("Website Designed by Creative Design
+ *    Group"), list pages link to `vehiclesDetail.php?<id>`, paginate with `?page=n`.
+ *  - "vehiclesnetwork": VehiclesNETWORK (apogeeINVENT) independent-dealer sites ("Powered by
+ *    VehiclesNETWORK"), inventory at `/autos`, detail `autos/<year>-<make>-<model>-<city>-<st>-<id>`,
+ *    paginate with `?ai_page=n`.
+ */
+export type DealerPlatform = "4cdg" | "vehiclesnetwork";
+
+export const VEHICLESNETWORK_DETAIL =
+  /(?:^|\/)autos\/((?:19|20)\d{2}-[A-Za-z0-9-]+-\d+)\/?(?:[?#].*)?$/i;
+
+const CONDITION_FOR_TYPE: Record<string, string> = {
+  salvage_yard: "salvage_title",
+  auction_proxy: "salvage_title",
+  rebuilder_dealer: "rebuilt_title",
+  independent_dealer: "run_drive",
+  clean_retail: "clean",
+};
+
+export function dealerCmsSiteFromCurated(site: {
+  url: string;
+  name: string;
+  state?: string;
+  city?: string;
+  type: string;
+  inventoryUrl?: string;
+  platform?: DealerPlatform;
+}): DealerCmsSite | undefined {
+  if (!site.platform || !site.state) return undefined;
+  let origin: string;
+  let host: string;
+  try {
+    const u = new URL(site.url);
+    origin = u.origin;
+    host = u.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return undefined;
+  }
+  const inventoryUrl = new URL(
+    site.inventoryUrl ||
+      (site.platform === "vehiclesnetwork" ? "/autos" : "/vehicles.php"),
+    origin,
+  ).toString();
+  const base: DealerCmsSite = {
+    sourceId: `${site.platform}-${host.replace(/[^a-z0-9]+/g, "-")}`,
+    name: site.name,
+    baseUrl: origin,
+    inventoryUrl,
+    city: site.city,
+    state: site.state,
+    defaultCondition: CONDITION_FOR_TYPE[site.type] ?? "run_drive",
+    defaultDamage:
+      site.type === "rebuilder_dealer" || site.type === "salvage_yard"
+        ? "repairable"
+        : undefined,
+    maxPages: 10,
+  };
+  if (site.platform === "vehiclesnetwork")
+    return {
+      ...base,
+      detailPattern: VEHICLESNETWORK_DETAIL,
+      pageUrl: (n) => {
+        const u = new URL(inventoryUrl);
+        u.searchParams.set("ai_page", String(n));
+        return u.toString();
+      },
+    };
+  return base;
 }
 
 export function dealerCmsSiteFor(url: string): DealerCmsSite | undefined {
