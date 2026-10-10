@@ -13,6 +13,7 @@ import {
   BadgeDollarSign,
   FileText,
   Gauge,
+  RotateCcw,
   Search,
   ShieldCheck,
   TrendingUp,
@@ -24,6 +25,10 @@ import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
 import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
+import {
+  isSourceLandingPage,
+  sourceLinkLabel,
+} from "@/lib/sources/listing-link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +69,7 @@ import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
+import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 import { estimateTeardownValue } from "@/lib/intelligence/teardown";
 import {
@@ -79,6 +85,12 @@ import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
+import {
+  detailValuationConfidence,
+  listingChecklistFields,
+  sourceReadinessFallback,
+} from "@/lib/deals/detail-readiness";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 type SourceHealthItem = {
@@ -164,8 +176,6 @@ function money(value?: number | null) {
 }
 
 function PersonalListingLead({ deal }: { deal: any }) {
-  const ask = Number(deal?.ask_price || deal?.askPrice || 0);
-  const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
   const seenLabel = listingFreshnessLabel({
     firstSeenAt: deal?.firstSeenAt || deal?.first_seen_at,
@@ -186,14 +196,9 @@ function PersonalListingLead({ deal }: { deal: any }) {
         Check this listing
       </p>
       <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
-        {title || "This vehicle"}
+        Checks before purchase
       </h2>
-      <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-        Asking price
-      </p>
-      <p className="mt-1 text-2xl font-black text-[var(--t1)]">
-        {ask > 0 ? money(ask) : "Price not provided"}
-      </p>
+
       <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
         <span className="font-black">All-in cost is not confirmed.</span>{" "}
         Repair, transport, taxes, and registration still need to be checked.
@@ -214,7 +219,7 @@ function PersonalListingLead({ deal }: { deal: any }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
           >
-            Original listing
+            {sourceLinkLabel(deal.sourceUrl)}
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
           <p className="mt-1 text-xs text-[var(--t5)]">
@@ -359,8 +364,13 @@ function DecisionCommandPanel({
                   make: deal.make,
                   model: deal.model,
                   trim: deal.trim,
+                  condition:
+                    deal.titleType ||
+                    deal.title_type ||
+                    deal.condition ||
+                    "unknown",
                   askPrice: deal.askPrice,
-                  trueNetProfit: deal.true_net_profit || deal.trueNetProfit,
+                  trueNetProfit: deal.true_net_profit ?? deal.trueNetProfit,
                   sellEstimate: deal.sellEstimate,
                   locationCity: deal.locationCity,
                   locationState: deal.locationState,
@@ -381,7 +391,7 @@ function DecisionCommandPanel({
                 rel="noopener noreferrer"
                 className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
               >
-                Original listing
+                {sourceLinkLabel(deal.sourceUrl)}
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             )}
@@ -465,7 +475,7 @@ function DetailDisclosure({
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary className="interactive-surface flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:hidden md:p-5 [&::-webkit-details-marker]:hidden">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
             {eyebrow}
           </p>
@@ -523,7 +533,6 @@ export default function DealPage({
   const calibration = calData?.calibration ?? null;
   const { id } = React.use(params);
   const router = useRouter();
-  const [saving, setSaving] = React.useState(false);
   const [watching, setWatching] = React.useState(false);
   const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
   const [findSimilarOpen, setFindSimilarOpen] = React.useState(false);
@@ -554,54 +563,8 @@ export default function DealPage({
   const authError =
     !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
 
-  const handleSaveToFleet = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/inventory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vin: store.vin || "", // VIN often isn't in the listing — can be filled in later
-          year: store.year,
-          make: store.make,
-          model: store.model,
-          condition: store.titleType || "clean",
-          purchasePrice: store.askPrice,
-          auctionFee: store.auctionFee,
-          transportCost: store.transportCost,
-          repairCost: store.repairCost,
-          reconCost: store.reconCost,
-          titleFee: store.titleFee,
-          marketValue: store.marketValue,
-          stage: "acquired",
-          // Close-the-loop: snapshot the source deal + the engine's prediction at purchase time.
-          dealId: id,
-          predictedProfit: dealData?.deal?.trueNetProfit ?? store.netProfit,
-          predictedSell: dealData?.deal?.sellEstimate ?? store.marketValue,
-          predictedTransport:
-            dealData?.deal?.dealAnalysis?.costs?.transport ??
-            store.transportCost,
-          predictedRecon:
-            dealData?.deal?.dealAnalysis?.costs?.repair ?? store.reconCost,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        toast.error("Failed to save to fleet");
-      } else {
-        toast.success("Added to fleet", {
-          description: `${[store.year, store.make, store.model].filter(Boolean).join(" ")} is now in your pipeline.`,
-          action: { label: "View Fleet", onClick: () => router.push("/fleet") },
-        });
-      }
-    } catch (e: any) {
-      toast.error("Failed to save");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleWatchPrice = async () => {
+    if (watching) return;
     const syncSavedCar = async () => {
       try {
         const savedRes = await fetch("/api/saved-cars", {
@@ -609,20 +572,18 @@ export default function DealPage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dealId: id }),
         });
-        if (savedRes.ok || savedRes.status === 409) return true;
+        const result = await savedRes.json();
+        if (
+          (savedRes.ok || savedRes.status === 409) &&
+          typeof result.id === "string" &&
+          !result.demo
+        )
+          return true;
         return false;
       } catch {
         return false;
       }
     };
-
-    if (isLocallyWatched) {
-      void syncSavedCar();
-      toast.success("Already watching this deal", {
-        action: { label: "View Saved", onClick: () => router.push("/saved") },
-      });
-      return;
-    }
 
     setWatching(true);
     try {
@@ -634,9 +595,15 @@ export default function DealPage({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
-          saveDealLocally();
+          if (!saveDealLocally()) {
+            toast.error(
+              "Device storage is unavailable. The vehicle was not saved.",
+            );
+            return;
+          }
           toast.success("Saved locally", {
-            description: "Sign in later to sync price alerts.",
+            description:
+              "Saved on this device only. Cloud alerts are not enabled.",
             action: {
               label: "View Saved",
               onClick: () => router.push("/saved"),
@@ -644,30 +611,47 @@ export default function DealPage({
           });
           return;
         }
-        if (res.status === 409) {
+        if (res.status === 409 && data.id && data.deal_id === id) {
+          const saved = await syncSavedCar();
           saveDealLocally();
-          void syncSavedCar();
-          toast.success("Already watching this deal", {
-            action: {
-              label: "View Saved",
-              onClick: () => router.push("/saved"),
+          toast.success(
+            saved
+              ? "Already in your account watchlist and Saved"
+              : "Already in your account watchlist; Saved sync is unavailable",
+            {
+              action: {
+                label: "View Saved",
+                onClick: () => router.push("/saved"),
+              },
             },
-          });
+          );
           return;
         }
         throw new Error(data.error || "Failed to add to watchlist");
       }
-      await syncSavedCar();
-      saveDealLocally();
-      toast.success("Watching this deal for price changes", {
+      const watch = await res.json();
+      if (!watch.id || watch.deal_id !== id || watch.user_id !== dealerId)
+        throw new Error("Watchlist save was not confirmed");
+      const saved = await syncSavedCar();
+      const local = saveDealLocally();
+      toast.success("Added to your account watchlist", {
+        description: !saved
+          ? "The Saved list sync is unavailable. Retry to sync it."
+          : !local
+            ? "Device backup is unavailable."
+            : "Saved to your account with a device backup.",
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
-    } catch (e: any) {
-      saveDealLocally();
+    } catch {
+      if (!saveDealLocally()) {
+        toast.error(
+          "Device storage is unavailable. The vehicle was not saved.",
+        );
+        return;
+      }
       toast.success("Saved locally", {
         description:
-          e?.message ||
-          "Server watchlist was not available, but this vehicle is saved.",
+          "Saved on this device only. Cloud alerts were not confirmed enabled.",
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
     } finally {
@@ -708,7 +692,7 @@ export default function DealPage({
       .filter(Boolean)
       .join(" ");
     if (!id || !title) return;
-    const ask = serverDeal?.ask_price;
+    const ask = serverDeal?.askPrice ?? serverDeal?.ask_price;
     recordRecent({
       id,
       kind: "car",
@@ -746,7 +730,12 @@ export default function DealPage({
     }
     return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
   }, [serverDeal]);
-  const { data: sourceHealthData } = useSWR(sourceHealthKey, fetcher, {
+  const {
+    data: sourceHealthData,
+    error: sourceHealthError,
+    isLoading: sourceHealthLoading,
+    mutate: retrySourceHealth,
+  } = useSWR(sourceHealthKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });
@@ -755,6 +744,11 @@ export default function DealPage({
     const healthId = sourceHealthIdForDeal(serverDeal, sources);
     return sources.find((source) => source.id === healthId);
   }, [serverDeal, sourceHealthData?.sources]);
+  const sourceFallback = sourceReadinessFallback(
+    Boolean(sourceHealthLoading),
+    Boolean(sourceHealthError),
+  );
+  const detailCopy = dealCardCopy(store.userType === "dealer");
   const proofLinks = React.useMemo(() => {
     if (!serverDeal) return { scan: "/scan", sources: "/scan" };
     const params = new URLSearchParams();
@@ -777,13 +771,13 @@ export default function DealPage({
       params.set("lane", "auction");
     }
     if (sourceHealth?.id) params.set("source", sourceHealth.id);
-    params.set("sort", "profit");
+    params.set("sort", store.userType === "dealer" ? "profit" : "score");
     const query = params.toString();
     return {
       scan: `/scan${query ? `?${query}` : ""}`,
       sources: `/scan${query ? `?${query}` : ""}`,
     };
-  }, [serverDeal, sourceHealth?.id]);
+  }, [serverDeal, sourceHealth?.id, store.userType]);
   const detailQuality = React.useMemo(() => {
     if (!serverDeal) return null;
     return gradeDataQuality({
@@ -817,7 +811,7 @@ export default function DealPage({
       `${serverDeal?.year ?? store.year ?? ""} ${serverDeal?.make ?? store.make ?? ""} ${serverDeal?.model ?? store.model ?? ""}`.trim() ||
       "Saved vehicle";
 
-    localSaved.save({
+    return localSaved.save({
       id,
       title,
       year: serverDeal?.year ?? store.year,
@@ -953,15 +947,15 @@ export default function DealPage({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto animate-fadeUp pb-24">
+    <div className="space-y-6 max-w-5xl mx-auto pb-40 md:pb-24">
       {/* Reco: "Interested in similar?" after enough dwell, signed-in only */}
       <SimilarInterestPrompt
         dealId={id}
         enabled={Boolean(dealerId && serverDeal)}
       />
-      {/* HEADER & USER TYPE */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
+      {/* Listing identity, reports and primary research action. */}
+      <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <SourceBadge
               source={dealData?.deal?.source}
@@ -969,104 +963,70 @@ export default function DealPage({
               size="lg"
               showChannel
             />
-            <Badge
-              className="text-white uppercase tracking-wider text-[10px] border-none"
-              style={{ background: "var(--grad)" }}
-            >
-              {store.titleType} title reported
-            </Badge>
           </div>
-          <h1 className="text-xl font-bold leading-tight text-[var(--t1)] sm:text-2xl">
-            {store.year} {store.make} {store.model}
-          </h1>
-          <p className="mt-2 text-lg font-semibold text-[var(--t1)]">
-            {Number(serverDeal?.ask_price || serverDeal?.askPrice) > 0
-              ? money(Number(serverDeal?.ask_price || serverDeal?.askPrice))
-              : "Price not provided"}
-            <span className="ml-2 text-xs font-normal text-[var(--t4)]">
-              {serverDeal?.decisionEvidence?.state === "auction_watch"
-                ? "Reported auction amount"
-                : "Asking price"}
-            </span>
-          </p>
-          <p className="text-[var(--t4)] text-sm">
-            {[
-              [dealData?.deal?.locationCity, dealData?.deal?.locationState]
-                .filter(Boolean)
-                .join(", "),
-              store.miles ? `${store.miles.toLocaleString()} mi` : null,
-            ]
-              .filter(Boolean)
-              .join(" • ") || "Deal details"}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <VehicleSummary
+            deal={{
+              ...serverDeal,
+              askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price,
+              titleType: serverDeal?.titleType ?? serverDeal?.title_type,
+              damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
+            }}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
             {dealData?.deal?.sourceUrl && (
               <a
                 href={dealData.deal.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+                className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
               >
-                View original listing
+                {sourceLinkLabel(dealData.deal.sourceUrl)}
                 <span aria-hidden>↗</span>
               </a>
             )}
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setFindSimilarOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+              className="min-h-11 rounded-lg inline-flex items-center gap-1.5"
               data-testid="find-similar-cta"
               aria-label="Find similar vehicles in saved inventory"
             >
               <Search className="w-3.5 h-3.5" />
               Find similar
-            </button>
+            </Button>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
-          {store.userType === "dealer" && (
-            <div
-              className="flex p-1 rounded-xl"
-              style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
-            >
-              {(["dealer", "private", "parts"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => store.setUserType(t)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all border-none ${store.userType === t ? "text-white" : "text-[var(--t4)] hover:text-[var(--t1)]"}`}
-                  style={
-                    store.userType === t ? { background: "var(--grad)" } : {}
-                  }
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* LISTING PHOTOS — all on one page (Visor-style gallery + lightbox) */}
-      {serverDeal?.images && serverDeal.images.length > 0 && (
-        <div>
+      {/* Keep the actual vehicle visible before secondary checklists and analysis. */}
+      {serverDeal?.images?.length ? (
+        <section aria-label="Listing photos">
           <ImageGallery
             images={serverDeal.images}
-            title={`${serverDeal.year ?? ""} ${serverDeal.make ?? ""} ${serverDeal.model ?? ""}`.trim()}
+            title={[serverDeal.year, serverDeal.make, serverDeal.model]
+              .filter(Boolean)
+              .join(" ")}
             sourceUrl={serverDeal.sourceUrl}
           />
           <p className="mt-2 text-xs text-[var(--t5)]">
-            {serverDeal.images.length} listing photo
-            {serverDeal.images.length === 1 ? "" : "s"}. Photos are
+            {serverDeal.images.length} listing photos. Photos are
             source-provided and are not a mechanic inspection.
           </p>
-        </div>
+        </section>
+      ) : (
+        <p
+          role="status"
+          className="border-y border-[var(--b1)] py-4 text-sm text-[var(--t3)]"
+        >
+          No listing photos reported. Check the original listing for condition
+          evidence.
+        </p>
       )}
-
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
         <section
-          className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
+          className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
           aria-label="Vehicle evidence status"
         >
           <h2 className="text-lg font-bold text-[var(--t1)]">
@@ -1126,6 +1086,12 @@ export default function DealPage({
           summary={serverDeal.decisionEvidence?.summary}
           nextCheck={serverDeal.decisionEvidence?.nextCheck}
         />
+      )}
+      {serverDeal?.sourceUrl && isSourceLandingPage(serverDeal.sourceUrl) && (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          Only the seller website is saved. Confirm the exact vehicle with the
+          seller.
+        </p>
       )}
 
       {/* ENGINE DECISION — flip desk only. Personal, DIY, and parts buyers do not get net profit,
@@ -1257,6 +1223,20 @@ export default function DealPage({
             </Card>
           );
         })()}
+
+      <section aria-label="Current alternatives">
+        <button
+          type="button"
+          onClick={() => setFindSimilarOpen(true)}
+          className="min-h-11 inline-flex items-center gap-1.5 text-sm font-bold hover:underline"
+          data-testid="find-similar-cta-rail"
+          aria-label="Find similar vehicles in saved inventory"
+        >
+          <Search className="w-3.5 h-3.5" />
+          Find similar
+        </button>
+        <SimilarDeals dealId={id} />
+      </section>
 
       <DetailDisclosure
         eyebrow="Vehicle examination"
@@ -1777,29 +1757,6 @@ export default function DealPage({
             },
             { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
             { id: "ai-brief", content: <AIBrief dealId={id} /> },
-            {
-              id: "similar-deals",
-              content: (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-                      Similar
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setFindSimilarOpen(true)}
-                      className="text-xs font-bold text-[var(--amber)] hover:underline inline-flex items-center gap-1"
-                      data-testid="find-similar-cta-rail"
-                      aria-label="Find similar vehicles in saved inventory"
-                    >
-                      <Search className="w-3 h-3" />
-                      Find similar
-                    </button>
-                  </div>
-                  <SimilarDeals dealId={id} />
-                </div>
-              ),
-            },
             // Max-bid math and outcome logging are flip-desk tools.
             ...(store.userType === "dealer"
               ? [
@@ -1853,8 +1810,9 @@ export default function DealPage({
 
       {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
           the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}
-      <div
-        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(56px+env(safe-area-inset-bottom))] md:bottom-0"
+      <section
+        aria-label="Vehicle actions"
+        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(58px+env(safe-area-inset-bottom))] lg:bottom-0"
         style={{
           background: "var(--s0)",
           borderTop: "1px solid var(--b1)",
@@ -1867,7 +1825,7 @@ export default function DealPage({
               type="button"
               variant="outline"
               onClick={() => setFindSimilarOpen(true)}
-              className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl inline-flex items-center gap-1.5"
+              className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm min-h-11 rounded-lg inline-flex items-center gap-1.5"
               data-testid="find-similar-cta-bar"
               aria-label="Find similar vehicles in saved inventory"
             >
@@ -1881,13 +1839,13 @@ export default function DealPage({
               variant="outline"
               onClick={handleWatchPrice}
               disabled={watching}
-              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl"
+              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
             >
               {watching
                 ? "Adding…"
                 : isLocallyWatched
-                  ? "Watching"
-                  : "Watch Price"}
+                  ? "Saved"
+                  : "Save vehicle"}
             </Button>
           </motion.div>
 
@@ -1901,18 +1859,26 @@ export default function DealPage({
 
           {store.userType === "dealer" && (
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                onClick={handleSaveToFleet}
-                disabled={saving}
-                className="text-white font-bold text-xs md:text-sm h-10 md:h-11 rounded-xl"
-                style={{ background: "var(--grad)" }}
-              >
-                {saving ? "Saving..." : "Add to Fleet"}
-              </Button>
+              <AcquireToPipelineButton
+                label="Record purchase"
+                deal={{
+                  id,
+                  vin: serverDeal?.vin || "",
+                  year: serverDeal?.year,
+                  make: serverDeal?.make,
+                  model: serverDeal?.model,
+                  condition:
+                    serverDeal?.titleType || serverDeal?.condition || "unknown",
+                  trueNetProfit: serverDeal?.trueNetProfit,
+                  sellEstimate: serverDeal?.sellEstimate,
+                  locationCity: serverDeal?.locationCity,
+                  locationState: serverDeal?.locationState,
+                }}
+              />
             </motion.div>
           )}
         </div>
-      </div>
+      </section>
 
       <FindSimilarModal
         flipDesk={store.userType === "dealer"}

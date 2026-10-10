@@ -6,16 +6,16 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("Today personal-buyer honesty", () => {
   const page = read("app/(dashboard)/today/page.tsx");
 
-  it("gates the sold-flip calibration upsell to flip desks", () => {
-    expect(page).toContain("{flipDesk && <CalibrationNudge />}");
-    expect(page).not.toMatch(/^\s*<CalibrationNudge \/>/m);
+  it("redirects the retired duplicate desk instead of presenting a calibration upsell", () => {
+    expect(page).toContain("redirect(`/discover");
+    expect(page).not.toContain("CalibrationNudge");
   });
 
   it("does not claim live data — it is saved inventory", () => {
     expect(page).not.toContain('"live deals"');
     expect(page).not.toContain('"LIVE"');
     expect(page).not.toContain("every live listing");
-    expect(page).toContain('"saved listings"');
+    expect(page).not.toContain("IntelRail");
   });
 
   it("ticker renders each stat once (no duplicated marquee clone)", () => {
@@ -27,10 +27,9 @@ describe("Today personal-buyer honesty", () => {
 
 describe("Today mispricing rail is home-state scoped", () => {
   const page = read("app/(dashboard)/today/page.tsx");
-  it("passes the saved home state to /api/mispricing after prefs load", () => {
-    expect(page).not.toContain('endpoint="/api/mispricing"');
-    expect(page).toContain("effectiveHome(prefs)?.state");
-    expect(page).toContain("`/api/mispricing${homeState ? `?state=");
-    expect(page).toMatch(/\{!prefsLoading && \(\s*<IntelRail\s+endpoint=\{mispricingEndpoint\}/);
+  it("preserves incoming buyer scope when redirecting to Discover", () => {
+    expect(page).toContain("Object.entries(await searchParams)");
+    expect(page).toContain("params.append(key, item)");
+    expect(page).toContain("params.toString()");
   });
 });

@@ -37,4 +37,16 @@ describe("image-url free-tier routing", () => {
       "https://xyz.supabase.co/storage/v1/object/public/vehicle-photos/d/0.jpg";
     expect(proxiedImage(hosted)).toBe(hosted);
   });
+  it("proxies SalvageZone photos that require the seller referrer", () => {
+    const url =
+      "https://www.salvagezone.com/images/vehicles/9251TOYOTA_012.jpg";
+    expect(needsImageProxy(url)).toBe(true);
+    expect(galleryImageSrc(url, 0)).toBe(
+      `/api/image/proxy?url=${encodeURIComponent(url)}`,
+    );
+    expect(galleryImageSrc(url, 2)).toBe(proxiedImage(url));
+    expect(
+      needsImageProxy("https://salvagezone.com.evil.example/photo.jpg"),
+    ).toBe(false);
+  });
 });

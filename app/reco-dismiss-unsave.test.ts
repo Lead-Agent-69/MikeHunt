@@ -34,7 +34,7 @@ describe("reco dismiss / unsave signals", () => {
     const saved = readFileSync("app/(dashboard)/saved/page.tsx", "utf8");
     const alerts = readFileSync("app/(dashboard)/alerts/page.tsx", "utf8");
     expect(saved).toMatch(
-      /if \(res\.ok\) \{[\s\S]{0,200}signalUnsave\(dealId\)/,
+      /if \(res\.ok && result\.success === true && result\.id === id\) \{[\s\S]*?signalUnsave\(dealId\)/,
     );
     expect(alerts).toContain("if (res.ok) signalDismiss(dealId);");
     expect(alerts).toContain("if (res.ok) signalUnsave(dealId);");

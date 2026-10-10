@@ -9,6 +9,8 @@ import type { HomeLocation, SearchLocation } from "@/lib/preferences/locations";
 
 export interface Prefs {
   profileContact?: { phone?: string; city?: string; state?: string };
+  workspaceMode?: "focused" | "expanded";
+  workspaceAccess?: "community";
   /** Where the user lives (signup / profile). Weighted 3x for scraping; local radius + same-state comps. */
   homeLocation?: HomeLocation | null;
   /** Markets the user added on purpose (max 10). Weighted 2x; own comps + travel/shipping in ranking. */

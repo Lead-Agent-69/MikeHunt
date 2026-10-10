@@ -11,8 +11,6 @@ export const FLIP_TOOL_ROUTES = {
   "/fleet": "Pipeline",
   "/auctions": "Auction run lists",
   "/arbitrage": "Arbitrage",
-  "/finance": "Finance",
-  "/list": "Listing Manager",
   "/find": "Arbitrage routes",
   "/best-buy": "Next Best Buy",
   "/market": "Market sourcing",

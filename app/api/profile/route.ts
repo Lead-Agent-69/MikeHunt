@@ -53,7 +53,9 @@ export async function GET(req: NextRequest) {
     error: authError,
   } = await getServerUser();
 
-  if (authError || !user) {
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+  if (!user) {
     return NextResponse.json({
       profile: readGuestProfile(req),
       authed: false,
@@ -69,7 +71,7 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     if (error.code === "PGRST116") return NextResponse.json({ profile: {} });
-    return internalError("profile", error);
+    return NextResponse.json({ error: "Profile unavailable" }, { status: 503 });
   }
 
   // Settings Dealer Defaults bind profile.home_state; LocationPrefs may only have
@@ -168,7 +170,9 @@ export async function POST(req: NextRequest) {
     error: authError,
   } = await getServerUser();
 
-  if (authError || !user) {
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+  if (!user) {
     if (req.headers.get("x-require-account") === "true")
       return NextResponse.json(
         { error: "Sign in again to save your profile" },

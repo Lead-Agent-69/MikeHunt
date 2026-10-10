@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           data: { user },
         } = await supabase.auth.getUser();
         if (user) {
-          // Recovery must reach the password form even when profile setup is incomplete.
+          // Recovery must not depend on buyer-profile provisioning or onboarding.
           if (next === "/reset-password") return response;
           try {
             const account = await ensureAccountRows(user);
@@ -88,16 +88,14 @@ export async function GET(request: NextRequest) {
             );
           } catch (bootstrapError) {
             console.error("OAuth account bootstrap failed:", bootstrapError);
-            return NextResponse.redirect(`${base}/login?error=account_setup`);
+            response.headers.set(
+              "location",
+              `${base}/login?error=account_setup`,
+            );
+            return response;
           }
         }
-        if (next === "/reset-password" && !user) {
-          return NextResponse.redirect(`${base}/reset-password?error=expired`);
-        }
-        if (!user) {
-          return NextResponse.redirect(`${base}/login?error=oauth`);
-        }
-        return response;
+        if (user) return response;
       }
     } catch {
       console.error("Authentication callback could not complete");
@@ -106,7 +104,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.redirect(
     next === "/reset-password"
-      ? `${base}/reset-password?error=expired`
+      ? `${base}/reset-password?error=invalid_link`
       : `${base}/login?error=oauth`,
   );
 }

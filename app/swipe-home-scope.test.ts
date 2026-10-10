@@ -9,12 +9,14 @@ describe("Swipe home-state scope", () => {
   it("scopes the queue to the saved home state", () => {
     expect(page).toContain("usePreferences");
     expect(page).toContain("effectiveHome(prefs)");
-    expect(page).toContain("&state=");
+    expect(page).toContain('params.set("state", homeState)');
+    expect(page).toContain('params.get("scope") !== "explicit"');
+    expect(page).toContain('!params.has("states")');
     expect(page).not.toContain("&location=");
   });
 
   it("waits for prefs before fetching (no nationwide flash)", () => {
-    expect(page).toMatch(/swipeReady\s*\n?\s*\?\s*`\/api\/deals/);
+    expect(page).toMatch(/swipeReady\s*\n?\s*\?\s*`\/api\/scan/);
     expect(page).toContain("keepPreviousData: false");
     expect(page).toContain("Loading your home state…");
     expect(page).not.toContain("best-scored deals first");
@@ -29,11 +31,11 @@ describe("Swipe buyer-mode gating + labels", () => {
     expect(page).toMatch(
       /flipDesk &&\s*\(deal\.sellEstimate \|\| deal\.recommendedMaxBid\)/,
     );
-    expect(page).toMatch(/\{flipDesk \? \(\s*<div className="text-right">/);
+    expect(page).toMatch(/\{flipDesk && \(\s*<div className="text-right">/);
   });
 
   it("renders human source/condition labels, not raw enums", () => {
-    expect(page).toContain("sourceMeta(deal.source).label");
+    expect(page).toContain("sourceLabel(deal.source, deal.sourceUrl)");
     expect(page).toContain("readCondition(deal.condition");
     expect(page).not.toContain(
       '<span className="capitalize">{deal.condition}</span>',

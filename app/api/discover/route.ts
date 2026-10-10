@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
 import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
@@ -20,6 +21,7 @@ import {
   LANE_COLORS,
 } from "@/lib/discovery/categorize";
 import {
+  buyerDistanceFields,
   compareFlip,
   comparePersonal,
   dropsForNoRepair,
@@ -33,7 +35,7 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
-import { discoverHomeState } from "@/lib/discovery/home-state";
+import { resolveBuyerHome } from "@/lib/geo/buyer-home";
 import {
   buildDiscoverCoverage,
   unavailableCoverage,
@@ -440,9 +442,8 @@ async function publicPreviewDeals(
           location_state: row.location_state,
           first_seen_at: row.scraped_at,
         } as any,
-        {
-          homeState: state && /^[A-Z]{2}$/.test(state) ? state : undefined,
-        },
+        // No buyer home here: the ?state filter is where the user is LOOKING, not where they live.
+        // Unknown distance books the conservative default instead of a same-state minimum.
       );
       const deal = mapDeal(
         {
@@ -617,7 +618,9 @@ export async function GET(request: NextRequest) {
           },
         );
         if (rpcErr) throw new Error(rpcErr.message);
-        const marketRows: any[] = Array.isArray(rpcData) ? rpcData : [];
+        const marketRows: any[] = Array.isArray(rpcData)
+          ? rpcData.filter((row: any) => isWithinAuctionWindow(row))
+          : [];
         const rows: any[] = marketRows.filter((row: any) => {
           if (
             excludeRepairable &&
@@ -853,7 +856,9 @@ export async function GET(request: NextRequest) {
         const [{ data: profile }, { data: prefRow }] = await Promise.all([
           supabase
             .from("user_profiles")
-            .select("home_state, preferred_makes, budget_max, target_profit")
+            .select(
+              "home_state, home_zip, home_lat, home_lng, preferred_makes, budget_max, target_profit",
+            )
             .eq("id", user.id)
             .maybeSingle(),
           supabase
@@ -866,11 +871,18 @@ export async function GET(request: NextRequest) {
           prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
         )?.buyerScope || {}) as BuyerScopePrefs;
         // "Where you live": prefs.homeLocation (Settings/onboarding) first, then the legacy
-        // user_profiles.home_state column.
-        const usableHome = discoverHomeState(
-          (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
-          profile?.home_state,
-        );
+        // user_profiles columns (never the untouched CA default). Coords → haversine distance.
+        const buyerHome = resolveBuyerHome({
+          prefsHomeLocation: (
+            prefRow?.prefs as { homeLocation?: unknown } | null
+          )?.homeLocation,
+          profile,
+        });
+        const usableHome = buyerHome?.state || "";
+        const withDistance = (d: any) => ({
+          ...d,
+          ...buyerDistanceFields(d, buyerHome),
+        });
         const savedMakes = scope as {
           makes?: string[];
           preferredMakes?: string[];
@@ -901,8 +913,9 @@ export async function GET(request: NextRequest) {
           !!scope.repairCapability;
         if (usableHome) {
           roi = [...roiPool]
-            .sort((a, b) => compareFlip(a, b, usableHome))
-            .slice(0, N);
+            .sort((a, b) => compareFlip(a, b, buyerHome))
+            .slice(0, N)
+            .map(withDistance);
         }
         if (hasScope) {
           personalized = true;
@@ -928,7 +941,7 @@ export async function GET(request: NextRequest) {
                   return false;
                 if (maxPrice > 0 && d.askPrice > maxPrice) return false;
                 if (minProfit > 0) {
-                  const profit = transportAdjustedProfit(d, usableHome);
+                  const profit = transportAdjustedProfit(d, buyerHome);
                   if ((profit ?? 0) < minProfit) return false;
                 }
                 return true;
@@ -936,15 +949,17 @@ export async function GET(request: NextRequest) {
               .sort(
                 (a, b) =>
                   byGradeRank[b.grade] - byGradeRank[a.grade] ||
-                  compareFlip(a, b, usableHome),
+                  compareFlip(a, b, buyerHome),
               )
-              .slice(0, N);
+              .slice(0, N)
+              .map(withDistance);
           } else {
             forYouSubtitle = "Matched to your saved search, newest first";
             forYou = merged
               .filter((d) => !dropsForNoRepair(d, repair))
-              .sort((a, b) => comparePersonal(a, b, scope, makes, usableHome))
-              .slice(0, N);
+              .sort((a, b) => comparePersonal(a, b, scope, makes, buyerHome))
+              .slice(0, N)
+              .map(withDistance);
           }
         }
       }

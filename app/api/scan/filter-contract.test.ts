@@ -19,6 +19,7 @@ function query() {
     "order",
     "in",
     "is",
+    "neq",
   ]) {
     q[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
@@ -78,7 +79,64 @@ describe("Scan and facets query parity", () => {
     calls.splice(0);
     invalidate("scan-category:");
   });
+  it("shares unreported-value range rules between results and facet counts", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      const response = await handler(
+        new NextRequest(
+          "https://example.test/api/scan?pricePolicy=include&maxPrice=10000&mileagePolicy=include&maxMileage=0",
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(calls).toContainEqual([
+        "or",
+        "ask_price.is.null,ask_price.lte.0,and(ask_price.gt.0,ask_price.lte.10000)",
+      ]);
+      expect(calls).toContainEqual([
+        "or",
+        "mileage.is.null,mileage.lt.0,and(mileage.gte.0,mileage.lte.0)",
+      ]);
+      expect(calls).not.toContainEqual(["gt", "ask_price", 0]);
+      expect(calls).not.toContainEqual(["lte", "mileage", 0]);
+    }
+  });
+  it("rejects unsupported policy values rather than silently ignoring them", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      expect(
+        (
+          await handler(
+            new NextRequest("https://example.test/api/scan?pricePolicy=typo"),
+          )
+        ).status,
+      ).toBe(400);
+      expect(calls).toEqual([]);
+    }
+  });
 
+  it("shares extended filters and enables auction inventory for auction dates", async () => {
+    const search =
+      "auctionFrom=2026-10-07&auctionTo=2026-10-08&minBuyNow=500&runDrive=unknown&hasPhotos=yes&zip=78701";
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      const response = await handler(
+        new NextRequest(`https://example.test/api/scan?${search}`),
+      );
+      expect(response.status).toBe(200);
+      expect(calls).toContainEqual(["is", "run_drive", null]);
+      expect(calls).toContainEqual(["gte", "buy_now_price", 500]);
+      expect(calls).toContainEqual([
+        "lt",
+        "auction_end_at",
+        "2026-10-09T00:00:00.000Z",
+      ]);
+      expect(calls).toContainEqual(["neq", "images", "{}"]);
+      expect(calls).toContainEqual(["eq", "location_zip", "78701"]);
+      expect(
+        calls.some((call) => call[0] === "not" && call[1] === "source"),
+      ).toBe(false);
+    }
+  });
   it("uses the same category classifier in results and facets before display pagination", async () => {
     const response = await scan(
       new NextRequest(

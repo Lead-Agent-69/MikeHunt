@@ -31,10 +31,10 @@ ENV NODE_ENV=production
 # Turn on the headed real-Chrome tier; xvfb-run (below) gives it the display it needs.
 ENV ENABLE_HEADED_SCRAPERS=1
 ENV SCRAPE_INTERVAL_MS=1800000
-# Do NOT bake SCRAPE_SOURCES here. Image default is terms-safe (lib/scrapers/ci-sources.ts:
-# candidates minus TOS_RESTRICTED_SOURCES, i.e. gsa_auctions and
-# curated_dealers). Opt into terms-restricted sources only via
-# runtime env (compose/.env.local.scraper); the scraper logs a warning each sweep if set.
+# Do NOT bake SCRAPE_SOURCES here. The default source list lives in code
+# (lib/scrapers/ci-sources.ts + sweep-schedule.ts): terms-safe sources plus
+# OPERATOR_RESTORED_SOURCES (restored 2026-10-09 by operator decision; logged every run).
+# SCRAPE_TERMS_SAFE_ONLY=1 at runtime turns the restored set off again.
 # CACHE_PHOTOS_MAX=0 leaves deals.images as source URLs (no vehicle-photos upload).
 ENV CACHE_PHOTOS_MAX=0
 

@@ -49,12 +49,13 @@ function read(): LocalSavedVehicle[] {
 }
 
 function write(list: LocalSavedVehicle[]) {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") return false;
   try {
     localStorage.setItem(KEY, JSON.stringify(list.slice(0, CAP)));
     window.dispatchEvent(new Event(EVENT));
+    return true;
   } catch {
-    /* private mode or quota: non-fatal */
+    return false;
   }
 }
 
@@ -97,14 +98,14 @@ export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
 }
 
 export function saveLocalVehicle(vehicle: LocalSavedVehicle) {
-  if (!vehicle?.id) return;
+  if (!vehicle?.id) return false;
   const list = read().filter((item) => item.id !== vehicle.id);
-  write([{ ...vehicle, savedAt: new Date().toISOString() }, ...list]);
+  return write([{ ...vehicle, savedAt: new Date().toISOString() }, ...list]);
 }
 
 export function removeLocalVehicle(id: string) {
-  if (!id) return;
-  write(read().filter((item) => item.id !== id));
+  if (!id) return false;
+  return write(read().filter((item) => item.id !== id));
 }
 
 export function useLocalSavedVehicles() {

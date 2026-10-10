@@ -16,7 +16,7 @@ describe("invent-scan copy honesty", () => {
     expect(page).toContain("DiscoveryCard");
     expect(page).not.toContain('from "@/components/shared/DealCard"');
     expect(page).toContain(
-      "No flash deals in saved inventory right now.",
+      "No qualifying price opportunities in indexed inventory for this location.",
     );
     expect(page).toContain('href: "/discover"');
   });
@@ -42,8 +42,12 @@ describe("invent-scan copy honesty", () => {
     expect(rail).not.toMatch(/moving fast/i);
     expect(rail).not.toMatch(/constantly scanning/i);
     expect(rail).not.toMatch(/show up here instantly/i);
-    expect(rail).toContain("New to market");
-    expect(rail).toContain("10%+ below resale");
+    expect(rail).toContain(
+      "Recently observed asking prices below a market estimate",
+    );
+    expect(rail).not.toContain("CountdownChip");
+    expect(rail).not.toContain("secondsRemaining");
+    expect(rail).toContain("Retry opportunities");
   });
 
   it("Find hub does not invent a live scanner or instant deals", () => {

@@ -12,7 +12,9 @@ describe("Settings hides dealer sections from personal buyers", () => {
   });
 
   it("flip sections wait for prefs and are gated on the flip desk", () => {
-    expect(settings).toContain("!prefsLoading && isFlipBuyerMode(savedBuyerMode)");
+    expect(settings).toContain(
+      "!prefsLoading && isFlipBuyerMode(savedBuyerMode)",
+    );
     expect(settings).toMatch(
       /\{showProfitTarget \? "Business profile" : "Contact details"\}/,
     );

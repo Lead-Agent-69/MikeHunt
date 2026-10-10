@@ -1,112 +1,65 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
-import { motion } from "framer-motion";
+import { RotateCcw } from "lucide-react";
 import { DiscoveryCard } from "./DiscoveryCard";
-import type { DiscoveryDeal } from "./types";
+import { loadPriceOpportunities } from "@/lib/discovery/price-opportunities";
 
-interface FlashDeal extends DiscoveryDeal {
-  secondsRemaining: number | null;
-  belowMarketPct: number | null;
-}
-
-interface FlashResponse {
-  deals: FlashDeal[];
-  count: number;
-  state: string;
-}
-
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to load flash deals");
-    return res.json();
-  });
-
-// Turn seconds remaining into a compact "Hh Mm" / "Mm" countdown.
-function formatRemaining(seconds: number): string {
-  if (seconds <= 0) return "Ending";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m left`;
-  return `${m}m left`;
-}
-
-function CountdownChip({ initialSeconds }: { initialSeconds: number | null }) {
-  const [remaining, setRemaining] = useState(initialSeconds ?? 0);
-
-  useEffect(() => {
-    setRemaining(initialSeconds ?? 0);
-  }, [initialSeconds]);
-
-  // Recompute every 60s — the feed represents "new in the last 24h", so minute resolution is fine.
-  useEffect(() => {
-    if (initialSeconds == null) return;
-    const id = setInterval(() => {
-      setRemaining((s) => Math.max(0, s - 60));
-    }, 60_000);
-    return () => clearInterval(id);
-  }, [initialSeconds]);
-
-  if (initialSeconds == null) return null;
-
-  return (
-    <div
-      className="pointer-events-none absolute right-2.5 top-2.5 z-10 rounded-full px-2 py-0.5 text-[10px] font-bold text-white"
-      style={{ background: "rgba(20,10,20,0.72)", backdropFilter: "blur(8px)" }}
-    >
-      ⏳ {formatRemaining(remaining)}
-    </div>
-  );
-}
-
-/**
- * Flash Deals rail — pinned strip on Discover. Fresh-to-market GO deals priced well below resale,
- * each with a countdown to its 24h window. Renders nothing when empty. No invented urgency copy.
- */
 export function FlashRail({ state }: { state?: string }) {
-  const { data, error } = useSWR<FlashResponse>(
-    `/api/flash-deals${state ? `?state=${state}` : ""}`,
-    fetcher,
+  const params = new URLSearchParams();
+  if (state) params.set("state", state);
+  const query = params.toString();
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/flash-deals${query ? `?${query}` : ""}`,
+    loadPriceOpportunities,
     { revalidateOnFocus: false, dedupingInterval: 60_000 },
   );
-
-  if (error || !data || data.deals.length === 0) return null;
-
+  if (!error && !isLoading && data?.deals.length === 0) return null;
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="space-y-3"
-    >
-      <div className="px-1">
-        <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
-          🔥 Flash Deals
+    <section aria-label="Price opportunities" className="space-y-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-[var(--t1)]">
+          Price opportunities
         </h2>
-        <p className="mt-0.5 text-xs text-[var(--t4)]">
-          New to market · 10%+ below resale · within 24h
-        </p>
-      </div>
-      <motion.div
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
-        style={{
-          scrollSnapType: "x mandatory",
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        {data.deals.map((deal) => (
-          <div
-            key={`flash-${deal.id}`}
-            className="relative"
-            style={{ flex: "0 0 auto" }}
+        <Link
+          href={`/flash-deals${query ? `?${query}` : ""}`}
+          className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+        >
+          View all opportunities
+        </Link>
+      </header>
+      <p className="text-xs text-[var(--t3)]">
+        Recently observed asking prices below a market estimate. Verify
+        condition, costs and availability.
+      </p>
+      {error ? (
+        <div role="alert" className="space-y-2">
+          <p className="text-sm">
+            Price opportunities are unavailable, not confirmed empty.
+          </p>
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold"
           >
-            <CountdownChip initialSeconds={deal.secondsRemaining} />
-            <DiscoveryCard deal={deal} />
-          </div>
-        ))}
-      </motion.div>
-    </motion.section>
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Retry opportunities
+          </button>
+        </div>
+      ) : isLoading && !data ? (
+        <p role="status" className="text-sm">
+          Loading price opportunities...
+        </p>
+      ) : (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {data?.deals.map((deal) => (
+            <div key={deal.id} className="w-[280px] shrink-0">
+              <DiscoveryCard deal={deal} />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

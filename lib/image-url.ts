@@ -6,6 +6,7 @@ const HOTLINK_BLOCK_DOMAINS = [
   "craigslist.org",
   "fbcdn.net",
   "facebook.com",
+  "salvagezone.com",
 ] as const;
 
 const OUR_STORAGE_MARKERS = [

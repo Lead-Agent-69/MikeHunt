@@ -57,6 +57,7 @@ export interface ScraperConfig {
   // User agents to rotate
   userAgents?: string[];
   abortSignal?: AbortSignal;
+  fetchPageHtml?: (url: string) => Promise<string>;
 }
 
 // ─── Proxy pool (enhanced with ProxyManager) ─────────────────────────────────
@@ -254,7 +255,11 @@ export async function* paginate<T>(
     const result = await limit(async () => {
       await sleep(config.requestDelay);
       config.abortSignal?.throwIfAborted();
-      if (config.renderMode === "static") {
+      if (config.fetchPageHtml) {
+        const html = await config.fetchPageHtml(url);
+        config.abortSignal?.throwIfAborted();
+        return parsePage(html);
+      } else if (config.renderMode === "static") {
         const $ = await fetchHtml(url, config);
         config.abortSignal?.throwIfAborted();
         return parsePage($);

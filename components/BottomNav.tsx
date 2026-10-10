@@ -11,15 +11,14 @@ import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
   mobileNavForMode,
   navItemForViewer,
-  navItemMatchesPath,
-  primaryJobForPath,
+  navItemIsActive,
 } from "@/components/layout/nav-items";
 
 export function BottomNav() {
   const pathname = usePathname();
   const reducedMotion = useReducedMotion();
   const localSaved = useLocalSavedVehicles();
-  const activeJob = primaryJobForPath(pathname);
+
   const { intent } = useBuyerIntent();
   const { dealerId, loading: authLoading } = useDealerId();
   const signedOut = !authLoading && !dealerId;
@@ -37,9 +36,10 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 grid"
       style={{
         background: "var(--glass)",
+        gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
         backdropFilter: "blur(18px) saturate(180%)",
         WebkitBackdropFilter: "blur(18px) saturate(180%)",
         borderTop: "1px solid var(--b1)",
@@ -49,10 +49,7 @@ export function BottomNav() {
       }}
     >
       {tabs.map((item) => {
-        const isActive =
-          navItemMatchesPath(item, pathname) ||
-          (item.name === "Discover" && pathname === "/") ||
-          activeJob === item.name;
+        const isActive = navItemIsActive(item, pathname);
         return (
           <Link
             key={item.name}

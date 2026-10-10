@@ -1,6 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { internalError } from "@/lib/api/http-error";
+import {
+  applyInventoryViewScope,
+  inventoryViewParams,
+} from "@/lib/search/inventory-view-scope";
+import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -47,7 +53,18 @@ function mapItem(d: any) {
 }
 
 export async function GET(req: NextRequest) {
+  try {
+    return await getFeed(req);
+  } catch (error) {
+    return internalError("feed", error);
+  }
+}
+
+async function getFeed(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
+  const rangeError = validateInventoryRanges(sp);
+  if (rangeError)
+    return NextResponse.json({ error: rangeError }, { status: 400 });
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
   const limit = Math.min(Math.max(Number(sp.get("limit")) || 12, 1), 30);
 
@@ -61,19 +78,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Multi-state scope: `?states=MO,IL` (the user's chosen states) or a single `?state=MO`. Empty = all.
-  const scopeStates = (sp.get("states")?.split(",") ?? [sp.get("state")])
-    .map((s) => s?.trim().toUpperCase())
-    .filter((s): s is string => !!s);
-  const scopeKey = scopeStates.length ? scopeStates.join("-") : "all";
+  const scopeKey = inventoryViewParams(sp).toString();
 
   const supabase = createServerComponentClient();
   const {
     data: { user },
   } = await getServerUser();
   // Net profit and profit score only go to a saved reseller / dealer desk. Anon, personal, diy,
-  // parts, unknown, or a failed prefs read get redacted cards (fail closed). Ranking still uses the
-  // score internally; it just isn't sent.
+  // parts, unknown, or a failed prefs read get redacted cards and non-economic ranking.
   const flipDesk = user?.id
     ? isFlipDeskMode(await readSavedBuyerMode(supabase, user.id))
     : false;
@@ -83,7 +95,7 @@ export async function GET(req: NextRequest) {
   // ── FOR YOU (signed in): a taste-ranked pool, cached per user for 60s and paginated over. ──
   if (user?.id) {
     const ranked = await cached(
-      `feed:${user.id}:${scopeKey}`,
+      `feed:${user.id}:${flipDesk ? "flip" : "personal"}:${scopeKey}`,
       60_000,
       async () => {
         const profile = await buildInterestProfile(supabase, user.id);
@@ -91,16 +103,18 @@ export async function GET(req: NextRequest) {
           .from("deals")
           .select(COLS)
           .eq("active", true)
-          .gt("ask_price", 0)
           .not("images", "is", null)
-          .order("profit_score", { ascending: false, nullsFirst: false })
+          .neq("images", "{}")
+          .order(flipDesk ? "profit_score" : "last_seen_at", {
+            ascending: false,
+            nullsFirst: false,
+          })
           .order("last_seen_at", { ascending: false })
+          .order("id", { ascending: true })
           .limit(250);
-        if (scopeStates.length === 1)
-          q = q.eq("location_state", scopeStates[0]);
-        else if (scopeStates.length > 1)
-          q = q.in("location_state", scopeStates);
-        const { data } = await q;
+        q = applyInventoryViewScope(q, sp);
+        const { data, error } = await q;
+        if (error) throw error;
         const items = (data || [])
           .filter((d: any) => Array.isArray(d.images) && d.images[0])
           .map(mapItem);
@@ -118,17 +132,25 @@ export async function GET(req: NextRequest) {
             profile,
           );
           if (affinity >= 0.35) it.forYouReason = reason;
-          return { it, rank: (it.score ?? 0) / 100 + affinity * 1.25 };
+          return {
+            it,
+            rank: (flipDesk ? (it.score ?? 0) / 100 : 0) + affinity * 1.25,
+          };
         });
         scored.sort((a, b) => b.rank - a.rank);
         return scored.map((s) => s.it);
       },
     );
-    return NextResponse.json({
-      items: forDesk(ranked.slice(offset, offset + limit)),
-      nextOffset: offset + limit,
-      personalized: true,
-    });
+    return NextResponse.json(
+      {
+        items: forDesk(ranked.slice(offset, offset + limit)),
+        nextOffset: offset + limit,
+        personalized: true,
+        boundedPool: true,
+        poolLimit: 250,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 
   // ── ANON: plain best-first, fresh, photo-only feed. ──
@@ -136,23 +158,15 @@ export async function GET(req: NextRequest) {
     .from("deals")
     .select(COLS)
     .eq("active", true)
-    .gt("ask_price", 0)
     .not("images", "is", null)
-    .order("profit_score", { ascending: false, nullsFirst: false })
-    .order("last_seen_at", { ascending: false })
+    .neq("images", "{}")
+    .order("last_seen_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
     .range(offset, offset + limit - 1);
-  if (scopeStates.length === 1) q = q.eq("location_state", scopeStates[0]);
-  else if (scopeStates.length > 1) q = q.in("location_state", scopeStates);
+  q = applyInventoryViewScope(q, sp);
 
   const { data, error } = await q;
-  if (error)
-    return NextResponse.json({
-      items: [],
-      nextOffset: offset,
-      /* error detail logged server-side */
-
-      error: "Feed unavailable",
-    });
+  if (error) throw error;
 
   const items = (data || [])
     .filter((d: any) => Array.isArray(d.images) && d.images[0])

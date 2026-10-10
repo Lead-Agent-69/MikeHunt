@@ -70,7 +70,10 @@ export async function GET(req: NextRequest) {
 
   // ?state=MO scopes peers + results to one state. Anything that is not a 2-letter code
   // (e.g. "NATIONWIDE", "") means no state filter rather than an always-empty match.
-  const rawState = new URL(req.url).searchParams.get("state")?.trim().toUpperCase();
+  const rawState = new URL(req.url).searchParams
+    .get("state")
+    ?.trim()
+    .toUpperCase();
   const state = rawState && /^[A-Z]{2}$/.test(rawState) ? rawState : undefined;
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ deals: [], count: 0, configured: false });

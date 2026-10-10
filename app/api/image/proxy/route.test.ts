@@ -11,6 +11,7 @@ describe("image proxy host safety", () => {
     "https://rebuilders.stjamesautoparts.com/images/car.jpg",
     "https://www.dgautollc.com/images/car.jpg",
     "https://i.dealerzone.com/photo.jpg",
+    "https://www.salvagezone.com/images/vehicles/9251TOYOTA_012.jpg",
   ])("allows a verified live inventory image host: %s", (url) => {
     expect(isAllowedImageUrl(url)).toBe(true);
   });
@@ -19,6 +20,7 @@ describe("image proxy host safety", () => {
     "http://127.0.0.1:3000/api/system/status",
     "http://169.254.169.254/latest/meta-data",
     "https://lqdt1.com.attacker.example/photo.jpg",
+    "https://salvagezone.com.attacker.example/photo.jpg",
     "file:///C:/Windows/System32/drivers/etc/hosts",
     "not-a-url",
   ])("rejects private, lookalike, or invalid targets: %s", (url) => {

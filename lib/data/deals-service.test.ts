@@ -140,6 +140,28 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     expect(hasMore).toBe(false);
   });
 
+  it("preserves explicit negative operability reports without inferring them from condition", async () => {
+    listChain.__result = {
+      data: [
+        { ...sampleRow, id: "reported", run_drive: false, keys_present: true },
+        {
+          ...sampleRow,
+          id: "unknown",
+          condition: "run_drive",
+          run_drive: null,
+          keys_present: null,
+        },
+      ],
+      error: null,
+      count: 2,
+    };
+    const { deals } = await serviceWithListMock().getDeals({ limit: 10 });
+    expect(deals[0].runAndDrive).toBe(false);
+    expect(deals[0].hasKeys).toBe(true);
+    expect(deals[1].runAndDrive).toBeUndefined();
+    expect(deals[1].hasKeys).toBeUndefined();
+  });
+
   it("searchDeals maps rows without losing this", async () => {
     listChain.__result = { data: [sampleRow], error: null, count: 1 };
     const { deals } = await serviceWithListMock().searchDeals("Honda", {

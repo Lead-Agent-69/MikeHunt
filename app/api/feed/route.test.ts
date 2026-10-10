@@ -3,6 +3,12 @@ import { NextRequest } from "next/server";
 
 const getServerUser = vi.hoisted(() => vi.fn());
 const savedMode = vi.hoisted(() => ({ value: null as string | null }));
+const db = vi.hoisted(() => ({
+  calls: [] as unknown[][],
+  error: null as unknown,
+  rows: [] as any[],
+  cacheKeys: [] as string[],
+}));
 
 const ROW = {
   id: "deal-9",
@@ -33,20 +39,33 @@ function query() {
     "eq",
     "gt",
     "not",
+    "neq",
     "order",
     "limit",
     "range",
     "in",
+    "is",
+    "or",
+    "ilike",
+    "gte",
+    "lte",
+    "lt",
   ])
-    q[m] = () => q;
+    q[m] = (...args: unknown[]) => {
+      db.calls.push([m, ...args]);
+      return q;
+    };
   q.then = (resolve: (v: unknown) => unknown) =>
-    resolve({ data: [ROW], error: null });
+    resolve({ data: db.rows, error: db.error });
   return q;
 }
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
 vi.mock("@/lib/cache", () => ({
-  cached: (_k: string, _t: number, run: () => unknown) => run(),
+  cached: (key: string, _t: number, run: () => unknown) => {
+    db.cacheKeys.push(key);
+    return run();
+  },
 }));
 vi.mock("@/lib/intelligence/interest-profile", () => ({
   buildInterestProfile: async () => ({}),
@@ -89,7 +108,60 @@ async function load(mode: string | null, signedIn = true) {
 }
 
 describe("GET /api/feed desk redaction", () => {
-  beforeEach(() => getServerUser.mockReset());
+  beforeEach(() => {
+    getServerUser.mockReset();
+    db.calls = [];
+    db.error = null;
+    db.rows = [ROW];
+    db.cacheKeys = [];
+  });
+
+  it("returns a retryable error rather than an empty personalized feed after a failed inventory read", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    savedMode.value = "personal";
+    db.error = { message: "private database detail" };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const response = await GET(new NextRequest("https://app.test/api/feed"));
+    expect(response.status).toBe(500);
+    expect(await response.text()).not.toContain("private database detail");
+    spy.mockRestore();
+  });
+
+  it("applies shared details before ranking and scopes cache keys by filters and desk", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    savedMode.value = "personal";
+    const response = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?state=TX&runDrive=unknown&maxPrice=20000&sources=govdeals",
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(db.calls).toContainEqual(["eq", "location_state", "TX"]);
+    expect(db.calls).toContainEqual(["is", "run_drive", null]);
+    expect(db.calls).toContainEqual(["lte", "ask_price", 20000]);
+    expect(db.cacheKeys[0]).toContain(":personal:");
+    expect(db.cacheKeys[0]).toContain("runDrive=unknown");
+    expect(
+      db.calls.some(
+        (call) => call[0] === "order" && call[1] === "profit_score",
+      ),
+    ).toBe(false);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("does not rank personal matches by resale profit score", async () => {
+    db.rows = [
+      { ...ROW, id: "first", profit_score: 1 },
+      { ...ROW, id: "second", profit_score: 100 },
+    ];
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    savedMode.value = "personal";
+    const body = await (
+      await GET(new NextRequest("https://app.test/api/feed"))
+    ).json();
+    expect(body.items.map((item: any) => item.id)).toEqual(["first", "second"]);
+    expect(body.boundedPool).toBe(true);
+  });
 
   it.each(["dealer", "reseller"])(
     "keeps net profit and score for a saved %s desk",

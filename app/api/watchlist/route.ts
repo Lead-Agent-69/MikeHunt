@@ -32,16 +32,17 @@ export async function POST(request: NextRequest) {
     const { deal_id, alert_threshold, notes } = watchlistSchema.parse(body);
 
     // Check if already in watchlist
-    const { data: existing } = await supabase
+    const { data: existing, error: readError } = await supabase
       .from("watchlist")
       .select("id")
       .eq("user_id", user.id)
       .eq("deal_id", deal_id)
-      .single();
+      .maybeSingle();
+    if (readError) throw readError;
 
     if (existing) {
       return NextResponse.json(
-        { error: "Already in watchlist" },
+        { error: "Already in watchlist", id: existing.id, deal_id },
         { status: 409 },
       );
     }
@@ -67,13 +68,21 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+    if (!data?.id || data.user_id !== user.id || data.deal_id !== deal_id)
+      throw new Error("Watchlist save was not confirmed");
 
     return NextResponse.json(data);
   } catch (error) {
     console.error("Watchlist error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: errorMessage }, { status: 400 });
+    return NextResponse.json(
+      {
+        error:
+          error instanceof z.ZodError
+            ? "Invalid watchlist request"
+            : "Watchlist save unavailable",
+      },
+      { status: error instanceof z.ZodError ? 400 : 503 },
+    );
   }
 }
 

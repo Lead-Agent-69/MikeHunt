@@ -1,232 +1,149 @@
 "use client";
-
-import React, { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion, type Variants } from "framer-motion";
-import {
-  GradientText,
-  ShineBorder,
-  Spotlight,
-} from "@/components/ui/premium-visuals";
-import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { Check, Grid3X3, Loader2, Sparkles } from "lucide-react";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
-import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
-
-// Static plan display (amounts/features). Checkout resolves price IDs server-side from the plan id.
-const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    cadence: "",
-    features: [
-      "10 VIN lookups/day",
-      "3 saved searches",
-      "GO/HOLD/PASS verdicts",
-    ],
-    cta: "Current plan",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$29",
-    cadence: "/mo",
-    highlight: true,
-    features: [
-      "Unlimited lookups",
-      "Unlimited alerts",
-      "Deal Check",
-      "Price history + timing",
-      "Deal IQ + calibration",
-    ],
-    cta: "Upgrade to Pro",
-  },
-  {
-    id: "pro_plus",
-    name: "Pro Plus",
-    price: "$79",
-    cadence: "/mo",
-    features: [
-      "Everything in Pro",
-      "Bulk/fleet sourcing",
-      "Parts intelligence",
-      "Public API access",
-    ],
-    cta: "Go Pro Plus",
-  },
-  {
-    id: "lifetime",
-    name: "Lifetime",
-    price: "$499",
-    cadence: " once",
-    features: ["Everything, forever", "All future features"],
-    cta: "Buy Lifetime",
-  },
-];
-
-const cardVariants: Variants = {
-  hidden: { opacity: 0, y: 24, scale: 0.97 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: "spring", stiffness: 260, damping: 26 },
-  },
-};
+import { type WorkspaceMode } from "@/lib/workspace";
 
 export default function UpgradePage() {
+  const workspace = useWorkspace();
   const { intent } = useBuyerIntent();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function checkout(plan: string) {
-    setBusy(plan);
-    setError(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [selected, setSelected] = useState<WorkspaceMode>("expanded");
+  const dealer = intent?.buyerMode === "dealer";
+  useEffect(() => {
+    if (workspace.mode) setSelected(workspace.mode);
+  }, [workspace.mode]);
+  async function apply() {
+    if (pending) return;
+    setPending(true);
+    setError("");
+    setSaved(false);
     try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
-      });
-      const json = await res.json();
-      if (json.url) window.location.href = json.url;
-      else
-        setError(
-          userFacingErrorMessage(
-            json.error,
-            "We couldn't start checkout. Please try again.",
-          ),
-        );
-    } catch (e: any) {
+      await workspace.choose(dealer ? "expanded" : selected);
+      setSaved(true);
+    } catch {
       setError(
-        userFacingErrorMessage(
-          e,
-          "We couldn't start checkout. Please try again.",
-        ),
+        "Your change was not confirmed. Reload this page before retrying.",
       );
     } finally {
-      setBusy(null);
+      setPending(false);
     }
   }
-
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
-      <motion.div
-        className="text-center mb-10"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <h1 className="text-4xl font-black mb-1">
-          <GradientText>Upgrade MikeHunt Pro</GradientText>
-        </h1>
-        <p className="text-[var(--t3)]">
-          {isFlipBuyerMode(intent?.buyerMode)
-            ? "Every plan profits you more than it costs. Cancel anytime."
-            : "Pick the plan that fits how you buy. Cancel anytime."}
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-6 pb-28">
+      <header className="space-y-2 border-b border-[var(--b1)] pb-5">
+        <h1 className="text-2xl font-bold">Free workspace upgrade</h1>
+        <p className="text-sm text-[var(--t2)]">
+          Customer tools are free. No card, checkout, recurring charge or trial
+          expiry.
         </p>
-      </motion.div>
-
-      {error && (
-        <div className="glass-panel p-3 text-center text-[var(--red)] text-sm mb-6">
-          {error}
-        </div>
-      )}
-
-      <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-        initial="hidden"
-        animate="show"
-        variants={{ show: { transition: { staggerChildren: 0.08 } } }}
-      >
-        {PLANS.map((p) => {
-          const card = (
-            <div
-              className="glass-panel relative h-full p-5 flex flex-col overflow-hidden"
-              style={
-                p.highlight
-                  ? { borderColor: "var(--amber-bd)", borderWidth: 1.5 }
-                  : undefined
-              }
-            >
-              {p.highlight && <Spotlight />}
-              {p.highlight && (
-                <span className="relative text-[10px] font-bold text-[var(--amber-d)] uppercase tracking-widest mb-1">
-                  Most popular
-                </span>
-              )}
-              <p className="relative text-sm font-bold text-[var(--t1)]">
-                {p.name}
-              </p>
-              <p className="relative mt-1 mb-4">
-                <span className="text-3xl font-black text-[var(--t1)]">
-                  {p.price}
-                </span>
-                <span className="text-sm text-[var(--t4)]">{p.cadence}</span>
-              </p>
-              <ul className="relative space-y-1.5 flex-1 mb-4">
-                {p.features.map((f) => (
-                  <li key={f} className="text-xs text-[var(--t2)] flex gap-1.5">
-                    <span className="text-[var(--green)]">✓</span> {f}
-                  </li>
-                ))}
-              </ul>
-              {p.id === "free" ? (
-                <button
-                  disabled
-                  className="relative w-full py-2 rounded-[var(--r3)] text-sm font-bold bg-[var(--s2)] text-[var(--t4)]"
-                >
-                  {p.cta}
-                </button>
-              ) : (
-                <motion.button
-                  onClick={() => checkout(p.id)}
-                  disabled={busy === p.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="relative w-full py-2 rounded-[var(--r3)] text-sm font-bold text-white disabled:opacity-50"
-                  style={{
-                    background: p.highlight ? "var(--grad)" : "var(--t1)",
-                    boxShadow: p.highlight
-                      ? "0 6px 20px var(--amber-lo)"
-                      : "var(--shadow2)",
+      </header>
+      <section className="space-y-3" aria-label="Workspace choice">
+        <h2 className="text-base font-semibold">Choose your workspace</h2>
+        {dealer ? (
+          <p className="text-sm text-[var(--t3)]">
+            Dealer workspaces include every customer tool.
+          </p>
+        ) : (
+          <fieldset className="space-y-3" disabled={pending}>
+            <legend className="sr-only">Workspace layout</legend>
+            {(["focused", "expanded"] as const).map((mode) => (
+              <label
+                key={mode}
+                className="flex cursor-pointer items-start gap-3 border-b border-[var(--b1)] py-3"
+              >
+                <input
+                  type="radio"
+                  name="workspace"
+                  value={mode}
+                  checked={selected === mode}
+                  onChange={() => {
+                    setSelected(mode);
+                    setSaved(false);
                   }}
-                >
-                  {busy === p.id ? "Starting…" : p.cta}
-                </motion.button>
-              )}
-            </div>
-          );
-
-          return (
-            <motion.div
-              key={p.id}
-              variants={cardVariants}
-              whileHover={{ y: -5 }}
-              transition={{ type: "spring", stiffness: 300, damping: 24 }}
-              className="h-full"
-            >
-              {p.highlight ? (
-                <ShineBorder
-                  className="h-full rounded-[var(--r4)]"
-                  color={["var(--amber)", "var(--purple)", "var(--coral)"]}
-                >
-                  {card}
-                </ShineBorder>
-              ) : (
-                card
-              )}
-            </motion.div>
-          );
-        })}
-      </motion.div>
-
-      <p className="text-center text-xs text-[var(--t4)] mt-6">
-        Paid plans aren&apos;t available yet. See the{" "}
-        <Link href="/changelog" className="text-[var(--amber)]">
-          changelog
-        </Link>{" "}
-        for what&apos;s new.
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="block font-semibold">
+                    {mode === "focused" ? "Focused" : "Expanded"}
+                  </span>
+                  <span className="mt-1 block text-sm text-[var(--t3)]">
+                    {mode === "focused"
+                      ? "Search, saved vehicles, comparison and planning."
+                      : "Additional browsing views and specialist tools for your buying profile."}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        <p className="text-sm text-[var(--t3)]">
+          Both choices include free deal analysis. Your buying profile stays the
+          same. Admin operations are not included.
+        </p>
+      </section>
+      {error && (
+        <p role="alert" className="text-sm text-[var(--red)]">
+          {error}
+        </p>
+      )}
+      {workspace.error && (
+        <p role="alert" className="text-sm text-[var(--red)]">
+          Your workspace could not be loaded. Reload this page to try again.
+        </p>
+      )}
+      {saved && (
+        <p
+          role="status"
+          className="flex items-center gap-2 text-sm text-[var(--green)]"
+        >
+          <Check className="h-4 w-4" aria-hidden="true" />
+          Free access and workspace choice confirmed.
+        </p>
+      )}
+      {!workspace.isLoading && !workspace.error && !workspace.authed ? (
+        <Link
+          href="/login?next=%2Fupgrade"
+          className="inline-flex min-h-11 items-center gap-2 bg-[var(--t1)] px-4 font-semibold text-[var(--s0)]"
+        >
+          <Sparkles className="h-4 w-4" aria-hidden="true" />
+          Sign in for free access
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={apply}
+          disabled={pending || workspace.isLoading || !!workspace.error}
+          className="inline-flex min-h-11 items-center gap-2 bg-[var(--t1)] px-4 font-semibold text-[var(--s0)] disabled:opacity-50"
+        >
+          {pending ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          )}
+          {pending
+            ? "Confirming..."
+            : workspace.community
+              ? "Save workspace choice"
+              : "Enable free upgrade"}
+        </button>
+      )}
+      <div className="border-t border-[var(--b1)] pt-4">
+        <Link
+          href="/tools"
+          className="inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--blue)]"
+        >
+          <Grid3X3 className="h-4 w-4" aria-hidden="true" />
+          Open tools
+        </Link>
+      </div>
+      <p className="text-xs text-[var(--t3)]">
+        External inspection, transport and marketplace services may have their
+        own charges. This choice does not cancel an existing subscription.
       </p>
     </div>
   );

@@ -276,7 +276,7 @@ export function calculateProfit(inputs: DealInputs): ProfitResult {
 /**
  * Estimate repair cost based on damage type
  */
-function estimateRepairCost(damageType?: string): number {
+export function estimateRepairCost(damageType?: string): number {
   if (!damageType) return 0;
 
   // Auction feeds (Copart/IAA) emit free-text like "FRONT END", "ALL OVER", "REAR END",

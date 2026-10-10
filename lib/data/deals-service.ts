@@ -32,6 +32,8 @@ export type Deal = {
   auctionEndAt?: Date;
   bidCount?: number;
   damageType?: string;
+  runAndDrive?: boolean;
+  hasKeys?: boolean;
   seller?: string;
   sellerType?: "dealer" | "auction" | "private";
   // Seller contact extracted at scrape time (options.contact). Powers in-app Call/Text/Email so the
@@ -143,6 +145,10 @@ export class DealsService {
           ? Number(bidCount)
           : undefined,
       damageType: row.damage_type,
+      runAndDrive:
+        typeof row.run_drive === "boolean" ? row.run_drive : undefined,
+      hasKeys:
+        typeof row.keys_present === "boolean" ? row.keys_present : undefined,
       seller: row.seller || options.seller,
       sellerType: row.seller_type || options.sellerType,
       contact:

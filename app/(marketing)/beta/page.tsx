@@ -4,8 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 
 // Early access, stated plainly: no spot counters, countdowns, join counts, or testimonials.
-// No price is shown here. The beta checkout and the /upgrade plan do not agree on one yet, so
-// this page does not quote a number. Joining means creating an account; the auth pages send a
+// Customer upgrades are free; the legacy checkout redirects to workspace options.
+// Joining means creating an account; the auth pages send a
 // new account to /onboarding and an onboarded one to /discover.
 
 const BETA_FEATURES = [
@@ -22,7 +22,7 @@ const BETA_FEATURES = [
   {
     title: "Deal check without invented profit",
     description:
-      "Check a listing against comparable asking prices and the details to confirm before you buy.",
+      "Review an offer's entered or extracted costs and the details to confirm before you buy.",
   },
 ] as const;
 

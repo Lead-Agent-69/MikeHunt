@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Info, Radar } from "lucide-react";
+import { Info, Radar, RotateCcw } from "lucide-react";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 import { coverageNotice } from "@/lib/discovery/coverage-notice";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -10,8 +10,10 @@ import { isLocationDemandWarming } from "@/lib/preferences/location-demand-warmi
 /** Honest coverage note on Discover. Renders nothing unless coverage is thin/none (or scanning). */
 export function CoverageNotice({
   coverage,
+  onRetry,
 }: {
   coverage: DiscoverCoverage | null | undefined;
+  onRetry?: () => void;
 }) {
   const { prefs } = usePreferences();
   const warming = isLocationDemandWarming(prefs);
@@ -32,14 +34,27 @@ export function CoverageNotice({
       <div className="min-w-0">
         <p className="font-bold text-[var(--t1)]">{notice.headline}</p>
         <p className="mt-0.5 text-[var(--t3)]">{notice.detail}</p>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
-          <Link href="/settings" className="text-[var(--t2)] underline">
-            Widen search locations in Settings
-          </Link>
-          <Link href="/searches" className="text-[var(--t2)] underline">
-            Save a search and get alerts
-          </Link>
-        </div>
+        {notice.tone === "unavailable" ? (
+          onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[var(--blue)]"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              Retry inventory coverage
+            </button>
+          )
+        ) : (
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
+            <Link href="/settings" className="text-[var(--t2)] underline">
+              Widen search locations in Settings
+            </Link>
+            <Link href="/searches" className="text-[var(--t2)] underline">
+              Save a search and get alerts
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

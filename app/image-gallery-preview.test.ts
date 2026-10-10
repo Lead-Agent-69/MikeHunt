@@ -5,6 +5,14 @@ import { ImageGallery } from "@/components/shared/ImageGallery";
 
 vi.mock("framer-motion", () => ({
   motion: {
+    dialog: React.forwardRef<HTMLDialogElement, Record<string, unknown>>(
+      function MotionDialog(
+        { initial, animate, exit, transition, ...props },
+        ref,
+      ) {
+        return React.createElement("dialog", { ...props, ref });
+      },
+    ),
     div: React.forwardRef<HTMLDivElement, Record<string, unknown>>(
       function MotionDiv(props, ref) {
         const motionProps = new Set([
@@ -36,6 +44,18 @@ describe("listing photo preview", () => {
   let host: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.open = true;
+      },
+    });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.open = false;
+      },
+    });
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     host = document.createElement("div");
     host.style.transform = "translateY(20px)";
@@ -53,6 +73,8 @@ describe("listing photo preview", () => {
   });
   afterEach(() => {
     act(() => root.unmount());
+    Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+    Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
     host.remove();
     document.body.style.overflow = "";
     vi.unstubAllGlobals();

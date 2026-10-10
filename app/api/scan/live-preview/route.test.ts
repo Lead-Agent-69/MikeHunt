@@ -77,6 +77,16 @@ function restoreSources() {
   else process.env.SCRAPE_SOURCES = prevSources;
 }
 
+// These suites pin the terms-safe gate itself. Since 2026-10-09 the default restores the
+// operator's sources (OPERATOR_RESTORED_SOURCES / OPERATOR_RESTORED_HOSTS); the gate still runs
+// whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
+beforeEach(() => {
+  vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("GET /api/scan/live-preview", () => {
   beforeEach(optInGovDeals);
   afterEach(restoreSources);
