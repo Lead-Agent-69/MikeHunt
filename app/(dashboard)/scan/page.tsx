@@ -4338,7 +4338,7 @@ function ScanPageInner() {
           <button
             onClick={clearNew}
             className="w-full shrink-0 rounded-full px-4 py-2 text-sm font-semibold animate-pulse sm:w-auto"
-            style={{ background: "var(--amber)", color: "#111" }}
+            style={{ background: "var(--amber)", color: "var(--on-accent)" }}
             aria-live="polite"
           >
             {newCount} new — tap to refresh
@@ -5083,11 +5083,17 @@ function ScanPageInner() {
       {/* ── Acquisition lane segments — browse the way a flipper sorts inventory ── */}
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { v: "all", l: "All deals", c: "var(--t3)" },
-          { v: "auction", l: "Auction lots", c: "#f59e0b" },
-          { v: "damaged", l: "Salvage & Repairable", c: "#ef4444" },
-          { v: "clean-retail", l: "Clean retail", c: "#22c55e" },
-          { v: "private", l: "Private", c: "#3b82f6" },
+          // fg keeps the selected chip label at >=4.5:1 on its fill.
+          { v: "all", l: "All deals", c: "var(--t3)", fg: "var(--on-accent)" },
+          { v: "auction", l: "Auction lots", c: "#f59e0b", fg: "#0b1220" },
+          {
+            v: "damaged",
+            l: "Salvage & Repairable",
+            c: "#ef4444",
+            fg: "#0b1220",
+          },
+          { v: "clean-retail", l: "Clean retail", c: "#22c55e", fg: "#0b1220" },
+          { v: "private", l: "Private", c: "#3b82f6", fg: "#0b1220" },
         ].map((seg) => {
           const on = lane === seg.v;
           return (
@@ -5098,7 +5104,7 @@ function ScanPageInner() {
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors"
               style={
                 on
-                  ? { background: seg.c, color: "#fff" }
+                  ? { background: seg.c, color: seg.fg }
                   : { background: "var(--s1)", color: "var(--t3)" }
               }
             >

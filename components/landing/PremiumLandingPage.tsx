@@ -77,7 +77,7 @@ export function PremiumLandingPage() {
             </Link>
             <Link
               href="/register"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-white transition-colors hover:bg-[var(--amber-d)]"
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] transition-colors hover:bg-[var(--amber-d)]"
             >
               Get started <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -110,7 +110,7 @@ export function PremiumLandingPage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/register"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-5 text-base font-bold text-white transition-colors hover:bg-[var(--amber-d)]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-5 text-base font-bold text-[var(--on-accent)] transition-colors hover:bg-[var(--amber-d)]"
               >
                 Build your buying plan{" "}
                 <ArrowRight size={18} aria-hidden="true" />

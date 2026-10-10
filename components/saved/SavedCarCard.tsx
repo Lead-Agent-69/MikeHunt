@@ -530,7 +530,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 <Button
                   size="sm"
                   onClick={() => setModalOpen(true)}
-                  className="text-white font-bold text-xs px-3 min-h-11 border-none flex items-center gap-1.5 rounded-lg"
+                  className="text-[var(--on-accent)] font-bold text-xs px-3 min-h-11 border-none flex items-center gap-1.5 rounded-lg"
                   style={{ background: "var(--t1)" }}
                 >
                   <Sparkles className="w-3.5 h-3.5" />

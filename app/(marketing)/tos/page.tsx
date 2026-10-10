@@ -159,7 +159,7 @@ export default function TermsOfService() {
                   Questions about these terms? Contact us at{" "}
                   <a
                     href="mailto:legal@mikehunt.app"
-                    className="text-[var(--amber)] hover:underline"
+                    className="text-[var(--amber)] underline underline-offset-2"
                   >
                     legal@mikehunt.app
                   </a>

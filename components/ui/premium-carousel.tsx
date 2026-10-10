@@ -175,7 +175,7 @@ export function PremiumCarousel({
                     <span className="text-sm text-white/50">{activeItem.mileage}</span>
                   )}
                   {activeItem.cta && (
-                    <button className="px-5 py-2.5 text-sm font-bold text-white bg-[var(--grad)] rounded-full hover:opacity-90 transition-opacity">
+                    <button className="px-5 py-2.5 text-sm font-bold text-white bg-[image:var(--grad)] rounded-full hover:opacity-90 transition-opacity">
                       {activeItem.cta}
                     </button>
                   )}

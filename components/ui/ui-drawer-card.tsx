@@ -114,7 +114,7 @@ export function UIDrawerCard({ item, isOpen, onClose, className }: UIDrawerCardP
                 )}
 
                 {/* CTA */}
-                <button className="w-full mt-6 py-3 text-sm font-bold text-white bg-[var(--grad)] rounded-xl hover:opacity-90 transition-opacity">
+                <button className="w-full mt-6 py-3 text-sm font-bold text-white bg-[image:var(--grad)] rounded-xl hover:opacity-90 transition-opacity">
                   View Full Details
                 </button>
               </div>

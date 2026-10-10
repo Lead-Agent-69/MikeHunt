@@ -11,8 +11,15 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex flex-col min-h-screen bg-transparent text-[var(--t1)]">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <TopNav />
-      <main className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="focus:outline-none flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6"
+      >
         <WorkspaceNav />
         <DiscoverySaveProvider>{children}</DiscoverySaveProvider>
       </main>

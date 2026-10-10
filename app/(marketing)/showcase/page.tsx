@@ -189,9 +189,10 @@ export default function ShowcasePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
                 className={`px-4 py-2 text-sm font-semibold rounded-full whitespace-nowrap transition-all ${
                   activeTab === tab.id
-                    ? "bg-[var(--grad)] text-white"
+                    ? "bg-[image:var(--grad)] text-white"
                     : "text-[var(--t4)] hover:text-[var(--t1)] hover:bg-[var(--s2)]"
                 }`}
               >

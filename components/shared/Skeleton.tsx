@@ -35,8 +35,9 @@ export function Skeleton({
         animationClasses[animation],
         className,
       )}
-      aria-live="polite"
-      aria-busy="true"
+      // Decorative placeholder. Each skeleton announcing itself floods screen
+      // readers; the region that is loading should carry aria-busy instead.
+      aria-hidden="true"
     />
   );
 }

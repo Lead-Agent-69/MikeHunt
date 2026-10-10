@@ -60,7 +60,7 @@ export const SITE_TYPE_META: Record<
   auction_proxy: {
     label: "Auction reseller",
     blurb: "Resells Copart/IAA lots — mostly salvage/auction risk.",
-    accent: "var(--purple)",
+    accent: "var(--purple-fg)",
   },
   clean_retail: {
     label: "Clean retail",

@@ -105,7 +105,7 @@ export default function InsightsPage() {
         </div>
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 px-4 py-2 rounded-[var(--r3)] font-bold text-white transition-all hover:scale-105 active:scale-95 shrink-0"
+          className="flex items-center gap-2 px-4 py-2 rounded-[var(--r3)] font-bold text-[var(--on-accent)] transition-all hover:scale-105 active:scale-95 shrink-0"
           style={{ background: "var(--amber)" }}
         >
           <Ico name={open ? "x" : "plus"} size={16} />

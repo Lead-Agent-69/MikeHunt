@@ -145,7 +145,7 @@ export default function PrivacyPolicy() {
                   </ul>
                   <p className="mt-4">
                     To exercise these rights, email{" "}
-                    <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] hover:underline">
+                    <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] underline underline-offset-2">
                       privacy@mikehunt.app
                     </a>
                   </p>
@@ -176,7 +176,7 @@ export default function PrivacyPolicy() {
               content: (
                 <p className="text-[var(--t3)]">
                   California residents have additional rights under the CCPA, including the right to know what personal information we collect, the right to delete personal information, and the right to opt out of the sale of personal information. We do not sell personal information. To exercise your CCPA rights, contact us at{" "}
-                  <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] hover:underline">
+                  <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] underline underline-offset-2">
                     privacy@mikehunt.app
                   </a>
                 </p>
@@ -197,7 +197,7 @@ export default function PrivacyPolicy() {
               content: (
                 <p className="text-[var(--t3)]">
                   For privacy-related inquiries, contact our Privacy Team at{" "}
-                  <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] hover:underline">
+                  <a href="mailto:privacy@mikehunt.app" className="text-[var(--amber)] underline underline-offset-2">
                     privacy@mikehunt.app
                   </a>
                 </p>
