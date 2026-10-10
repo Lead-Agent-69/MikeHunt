@@ -8,10 +8,13 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { isCarOrTruck } from "../vehicle-class";
 
 const ORIGIN = "https://municibid.com";
 // C160883 = the Automotive category (verified live). list view · active only · ending-soonest sort.
-const BROWSE = `${ORIGIN}/Browse/C160883/Automotive?ViewStyle=list&StatusFilter=active_only&SortFilterOptions=1`;
+// The site moved to a React layout (2026-10): /browse?category=160883&page=N with <article class="listing-row">
+// cards. The old ASP.NET URL now 301s to a page without data-listingid, which is why runs found 0.
+const BROWSE = `${ORIGIN}/browse?category=160883`;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -33,8 +36,82 @@ function parseEnd(raw: string | undefined): string | undefined {
   return isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
-/** Parse a Municibid Automotive browse page into vehicle auction rows. */
+/** Current layout: <article class="listing-row"> cards. */
+export function parseMunicibidRows(html: string): Partial<Deal>[] {
+  const byId = new Map<string, Partial<Deal>>();
+  const cards = html.split(/<article class="listing-row"/).slice(1);
+  for (const raw of cards) {
+    const card = raw.split(/<\/article>/)[0];
+    const link = card.match(/href="\/listing\/(\d+)\/([a-z0-9-]+)"/i);
+    if (!link) continue;
+    const id = link[1];
+    const title = clean(
+      (card.match(/listing-row__title"><a[^>]*>([\s\S]*?)<\/a>/) || [])[1] ||
+        link[2].replace(/-/g, " "),
+    ).replace(/:\s*/g, " ");
+    if (!isCarOrTruck(title)) continue;
+    const ym = title.match(/\b(19[5-9]\d|20[0-4]\d)\b/);
+    if (!ym) continue;
+    const price = Math.round(
+      parseFloat(
+        (
+          (clean(card).match(/Current Bid:\s*\$\s*([\d,]+(?:\.\d+)?)/i) ||
+            [])[1] || "0"
+        ).replace(/,/g, ""),
+      ),
+    );
+    if (!price) continue;
+    const after = title
+      .slice((ym.index || 0) + 4)
+      .trim()
+      .split(/\s+/);
+    const where = clean(
+      (card.match(/listing-row__where"><span>([\s\S]*?)<\/span>/) || [])[1] ||
+        "",
+    );
+    const loc = where.match(/^(.+?),\s*([A-Z]{2})$/);
+    const agency = clean(
+      (card.match(/listing-row__agency"[^>]*>([\s\S]*?)<\/a>/) || [])[1] || "",
+    );
+    const bids = (clean(card).match(/Bid\(s\):\s*(\d+)/i) || [])[1];
+    const img = (card.match(
+      /<img[^>]+src="(https:\/\/storagemunicibid[^"]+)"/i,
+    ) || [])[1];
+    byId.set(id, {
+      source: "gov_auction",
+      source_deal_id: `mb-${id}`,
+      source_url: `${ORIGIN}/listing/${id}/${link[2]}`,
+      title,
+      year: parseInt(ym[0], 10),
+      make: after[0] || "",
+      model: after.slice(1, 3).join(" "),
+      ask_price: price,
+      condition: "run_drive",
+      location_city: loc ? loc[1].trim() : undefined,
+      location_state: loc ? loc[2] : undefined,
+      seller_type: "auction",
+      seller: agency || "Municibid (gov surplus)",
+      bid_count: bids ? parseInt(bids, 10) : undefined,
+      images: img ? [img] : [],
+      metadata: {
+        auction: true,
+        channel: "gov_surplus",
+        marketplace: "municibid",
+      },
+      scraped_at: new Date().toISOString(),
+    });
+  }
+  return Array.from(byId.values());
+}
+
+/** Parse a Municibid Automotive browse page into vehicle auction rows (current layout first). */
 export function parseMunicibidHtml(html: string): Partial<Deal>[] {
+  if (html.includes('class="listing-row"')) return parseMunicibidRows(html);
+  return parseMunicibidLegacy(html);
+}
+
+/** Pre-2026-10 ASP.NET layout (data-listingid cards). */
+function parseMunicibidLegacy(html: string): Partial<Deal>[] {
   const byId = new Map<string, Partial<Deal>>();
   // The id appears twice per card; split on it and keep, per id, the chunk that actually has a bid.
   const parts = html.split(/data-listingid="(\d+)"/);
@@ -47,6 +124,7 @@ export function parseMunicibidHtml(html: string): Partial<Deal>[] {
     if (!slug) continue;
     const title = clean(slug.replace(/[-_]+/g, " "));
 
+    if (!isCarOrTruck(title)) continue; // cars and trucks only
     const ym = title.match(/\b(19[5-9]\d|20[0-4]\d)\b/); // a model year => a real vehicle (not parts)
     if (!ym) continue;
     const year = parseInt(ym[0], 10);
