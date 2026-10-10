@@ -1,15 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import { buildMultiSiteLinks } from "@/lib/multisite";
 import type { MultiSiteFilters } from "@/lib/multisite";
+
+// Plain names for the filters a site's link can't carry (shown as text, not a hover tooltip).
+export const FILTER_NAMES: Record<keyof MultiSiteFilters, string> = {
+  make: "make",
+  model: "model",
+  yearMin: "year from",
+  yearMax: "year to",
+  priceMin: "min price",
+  priceMax: "max price",
+  milesMax: "max miles",
+  zip: "ZIP",
+  radiusMi: "radius",
+  title: "title",
+  trim: "trim",
+  body: "body",
+  drivetrain: "drivetrain",
+  fuel: "fuel",
+  transmission: "transmission",
+};
 
 // "Also search on": one set of filters, opened on other sites' own search pages.
 // These are plain links to each site's public search URL. We don't fetch or scrape them.
 // Carvana and Visor are left out on purpose (their terms don't allow it).
 
 const FIELD =
-  "min-h-[40px] w-full rounded-lg border border-[var(--b2)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] placeholder:text-[var(--t4)]";
+  "min-h-11 w-full rounded-lg border border-[var(--b2)] bg-[var(--s2)] px-3 text-sm text-[var(--t1)] placeholder:text-[var(--t4)]";
 
 const num = (v: string) => {
   const n = Number(v.replace(/[^\d]/g, ""));
@@ -87,6 +107,18 @@ export function AlsoSearchOn({
   const [transmission, setTransmission] = useState<string>(
     initial?.transmission ?? "",
   );
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreId = useId();
+  const moreSet = [
+    trim,
+    priceMin,
+    milesMax,
+    title,
+    body,
+    drivetrain,
+    fuel,
+    transmission,
+  ].filter((v) => v.trim()).length;
 
   const links = useMemo(() => {
     if (!make.trim()) return [];
@@ -128,7 +160,7 @@ export function AlsoSearchOn({
   return (
     <section className="glass-panel p-4 md:p-5" data-testid="also-search-on">
       <h2 className="text-base font-bold text-[var(--t1)]">Also search on</h2>
-      <p className="mt-1 text-xs text-[var(--t4)]">
+      <p className="mt-1 text-xs text-[var(--t3)]">
         Set your search once, then open it on other sites in a new tab.
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-7">
@@ -192,11 +224,31 @@ export function AlsoSearchOn({
           ))}
         </select>
       </div>
-      <details className="mt-2" data-testid="also-search-on-more">
-        <summary className="cursor-pointer text-xs font-semibold text-[var(--t3)]">
+      <div className="mt-2" data-testid="also-search-on-more">
+        <button
+          type="button"
+          aria-expanded={moreOpen}
+          aria-controls={moreId}
+          onClick={() => setMoreOpen((o) => !o)}
+          className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--t2)]"
+        >
+          <span
+            aria-hidden="true"
+            className={`inline-block transition-transform ${moreOpen ? "rotate-90" : ""}`}
+          >
+            ›
+          </span>
           More filters
-        </summary>
-        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
+          {moreSet ? (
+            <span className="text-[var(--t3)]">({moreSet} set)</span>
+          ) : null}
+        </button>
+        {/* Tailwind 3's [hidden] rule loses to .grid, so the display class toggles too. */}
+        <div
+          id={moreId}
+          hidden={!moreOpen}
+          className={`mt-2 grid-cols-2 gap-2 md:grid-cols-4 ${moreOpen ? "grid" : "hidden"}`}
+        >
           <input
             aria-label="Trim"
             placeholder="Trim"
@@ -245,7 +297,7 @@ export function AlsoSearchOn({
             </select>
           ))}
         </div>
-      </details>
+      </div>
       {links.length ? (
         <ul
           className="mt-3 flex flex-wrap gap-2"
@@ -257,33 +309,53 @@ export function AlsoSearchOn({
                 href={l.url}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="inline-flex min-h-[40px] items-center rounded-full border border-[var(--b2)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] hover:border-[var(--green)]"
-                title={
-                  l.dropped.length
-                    ? `Set ${l.dropped.join(", ")} on ${l.label} — its link can't carry it`
-                    : `Open on ${l.label}`
-                }
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--b2)] bg-[var(--s2)] px-4 text-sm font-semibold text-[var(--t1)] hover:border-[var(--green)]"
               >
                 {l.label}
                 {l.dropped.length ? (
-                  <span className="ml-1 text-xs font-normal text-[var(--t4)]">
+                  <span
+                    aria-hidden="true"
+                    className="text-xs font-normal text-[var(--t3)]"
+                  >
                     *
                   </span>
                 ) : null}
+                <ExternalLink
+                  size={14}
+                  aria-hidden="true"
+                  className="text-[var(--t3)]"
+                />
+                <span className="sr-only">
+                  {l.dropped.length
+                    ? ` (opens in a new tab; set ${l.dropped.map((d) => FILTER_NAMES[d]).join(", ")} there)`
+                    : " (opens in a new tab)"}
+                </span>
               </a>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-xs text-[var(--t4)]">
+        <p className="mt-3 text-xs text-[var(--t3)]">
           Enter a make to get links.
         </p>
       )}
       {links.some((l) => l.dropped.length) ? (
-        <p className="mt-2 text-[11px] text-[var(--t4)]">
-          * That site&apos;s link can&apos;t carry every filter. Hover to see
-          which ones to set there.
-        </p>
+        <div
+          className="mt-2 text-xs text-[var(--t3)]"
+          data-testid="also-search-on-dropped"
+          aria-hidden="true"
+        >
+          <p>* Their link can&apos;t carry every filter. Set these there:</p>
+          <ul className="mt-0.5 space-y-0.5">
+            {links
+              .filter((l) => l.dropped.length)
+              .map((l) => (
+                <li key={l.site}>
+                  {l.label}: {l.dropped.map((d) => FILTER_NAMES[d]).join(", ")}
+                </li>
+              ))}
+          </ul>
+        </div>
       ) : null}
     </section>
   );
