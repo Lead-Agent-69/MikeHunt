@@ -60,11 +60,15 @@ describe("fetchPublicHtml", () => {
     expect(axiosGet).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        signal: controller.signal,
         maxContentLength: 2000000,
         maxRedirects: 0,
       }),
     );
+    // The caller's signal is combined with the overall deadline (AbortSignal.any).
+    const signal: AbortSignal = axiosGet.mock.calls[0][1].signal;
+    expect(signal.aborted).toBe(false);
+    controller.abort();
+    expect(signal.aborted).toBe(true);
   });
   it("checks page policy before each redirect request", async () => {
     axiosGet.mockResolvedValueOnce({
@@ -110,5 +114,31 @@ describe("fetchPublicHtml proxy + size defaults", () => {
     const init = axiosGet.mock.calls[0][1];
     expect(init.proxy).toBe(false);
     expect(init.maxContentLength).toBe(5 * 1024 * 1024);
+  });
+});
+
+describe("fetchPublicHtml overall deadline signal", () => {
+  it("always passes a signal, and it follows the caller's abort", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValue({ status: 200, data: "<p>Car</p>" });
+    await fetchPublicHtml("https://listings.example/a");
+    expect(axiosGet.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+
+    const caller = new AbortController();
+    await fetchPublicHtml("https://listings.example/b", {
+      signal: caller.signal,
+    });
+    const combined: AbortSignal = axiosGet.mock.calls[1][1].signal;
+    expect(combined).not.toBe(caller.signal);
+    expect(combined.aborted).toBe(false);
+    caller.abort();
+    expect(combined.aborted).toBe(true);
+  });
+
+  it("the overall deadline is 10s", async () => {
+    const { PUBLIC_FETCH_DEADLINE_MS, publicFetchSignal } =
+      await import("./fetch-public-html");
+    expect(PUBLIC_FETCH_DEADLINE_MS).toBe(10_000);
+    expect(publicFetchSignal().aborted).toBe(false);
   });
 });
