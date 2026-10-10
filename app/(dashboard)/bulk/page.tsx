@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
+import { sourceLabel } from "@/lib/sources/source-meta";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -170,7 +171,7 @@ export default function BulkPage() {
                             {" "}
                             · {[d.city, d.state]
                               .filter(Boolean)
-                              .join(", ")} · {d.source}
+                              .join(", ")} · {sourceLabel(d.source)}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">

@@ -18,10 +18,12 @@ import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { todaySourceProofLabel } from "@/lib/discovery/count-labels";
+import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-/** The one cohesive front door: the autonomous system's live pulse, then everything worth acting on. */
+/** The one cohesive front door: saved-inventory pulse, then everything worth acting on. */
 function SystemPulse() {
   const { intent } = useBuyerIntent();
   // Profit sort is for reseller/dealer desks; everyone else (and unknown) sorts by score.
@@ -37,7 +39,7 @@ function SystemPulse() {
 
   const cells = [
     {
-      label: "live deals",
+      label: "saved listings",
       value: (f?.activeDeals ?? 0).toLocaleString(),
       tone: "var(--t1)",
       href: `/scan?sort=${sort}`,
@@ -59,8 +61,8 @@ function SystemPulse() {
       href: `/scan?sort=${sort}`,
     },
     {
-      label: f?.stale ? "data stale" : "data fresh",
-      value: f?.stale ? "•" : "LIVE",
+      label: f?.stale ? "saved data stale" : "saved data updated",
+      value: f?.stale ? "Stale" : "Fresh",
       tone: f?.stale ? "var(--red)" : "var(--green)",
       href: "/scan?sort=newest",
     },
@@ -277,6 +279,11 @@ export default function TodayPage() {
   // Flip-economics widgets (highest-margin spotlight, avg profit by model,
   // "deals like your winners") are for reseller/dealer desks only. Unknown = personal.
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
+  // Scope the peer-mispricing rail to the saved home state (like Discover) so an MO buyer is not
+  // shown an NJ listing. Wait for prefs so the first fetch is not an unscoped nationwide one.
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const homeState = effectiveHome(prefs)?.state || "";
+  const mispricingEndpoint = `/api/mispricing${homeState ? `?state=${encodeURIComponent(homeState)}` : ""}`;
   return (
     <div
       className="max-w-6xl mx-auto px-4 py-6 space-y-6"
@@ -294,7 +301,8 @@ export default function TodayPage() {
       <BuyerIntentToday />
       <SystemPulse />
       {flipDesk && <NextBestBuySpotlight />}
-      <CalibrationNudge />
+      {/* Sold-flip calibration is a flip-desk upsell; personal/DIY/parts never see it. */}
+      {flipDesk && <CalibrationNudge />}
       {flipDesk && <MarketPulse />}
 
       {/* Everything worth acting on — each rail self-fetches and hides when empty */}
@@ -315,11 +323,17 @@ export default function TodayPage() {
             : "Listings in the state you live in"
         }
       />
-      <IntelRail
-        endpoint="/api/mispricing"
-        title="Underpriced vs peers"
-        subtitle="Statistical outliers priced well under their cluster"
-      />
+      {!prefsLoading && (
+        <IntelRail
+          endpoint={mispricingEndpoint}
+          title="Underpriced vs peers"
+          subtitle={
+            homeState
+              ? `Priced well under similar listings in ${homeState}`
+              : "Statistical outliers priced well under their cluster"
+          }
+        />
+      )}
 
       <div className="glass-panel p-5 flex items-center justify-between">
         <div>
@@ -327,7 +341,7 @@ export default function TodayPage() {
             Want the full grid?
           </p>
           <p className="text-xs text-[var(--t4)]">
-            Search, filter, and scan every live listing.
+            Search, filter, and scan every saved listing.
           </p>
         </div>
         <Link

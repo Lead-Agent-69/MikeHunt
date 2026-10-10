@@ -331,9 +331,54 @@ export function displaySource(
 }
 
 export function sourceMeta(source?: string | null): SourceMeta {
-  return (
-    META[canonicalSource(source)] ?? { ...FALLBACK, label: source || "Other" }
-  );
+  const meta = META[canonicalSource(source)];
+  if (meta) return meta;
+  const label = source ? humanizeEnumLabel(source) : FALLBACK.label;
+  return { ...FALLBACK, label, short: label };
+}
+
+/**
+ * Human label for a raw DB enum / slug ("INDEPENDENT_DEALER", "run_drive", "parts-only") so users never
+ * see database values. Already-human strings with mixed case or spaces pass through untouched.
+ */
+export function humanizeEnumLabel(value?: string | null): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (!/[_-]/.test(raw) && raw !== raw.toUpperCase() && raw !== raw.toLowerCase())
+    return raw;
+  const words = raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Display name for a deal's source channel (deal_source enum or URL-derived dealer id). */
+export function sourceLabel(
+  source?: string | null,
+  sourceUrl?: string | null,
+): string {
+  if (!source && !sourceUrl) return "";
+  return sourceMeta(displaySource(source, sourceUrl)).label;
+}
+
+const SELLER_TYPE_LABELS: Record<string, string> = {
+  dealer: "Dealer",
+  independent_dealer: "Independent dealer",
+  private: "Private seller",
+  private_party: "Private seller",
+  auction: "Auction",
+  wholesale: "Wholesale",
+  retail: "Retail",
+  gov: "Government surplus",
+  government: "Government surplus",
+};
+
+/** Human label for a seller-type value (dealer / private / auction / raw enum). */
+export function sellerTypeLabel(value?: string | null): string {
+  const key = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (!key) return "";
+  return SELLER_TYPE_LABELS[key] ?? humanizeEnumLabel(value);
 }
 
 /** Low-alpha tint of a hex color for badge backgrounds (works on light + dark). */

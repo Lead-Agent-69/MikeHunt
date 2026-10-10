@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import Link from "next/link";
+import { sourceLabel } from "@/lib/sources/source-meta";
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
@@ -52,7 +53,7 @@ export function DiscoverHero({ state }: { state?: string }) {
           <p className="mt-1 text-xs text-[var(--t3)]">
             {top.ask ? `Ask ${money(top.ask)}` : "Ask not listed"}
             {top.city ? ` · ${top.city}` : ""}
-            {top.source ? ` · ${String(top.source).replace(/_/g, " ")}` : ""}
+            {top.source ? ` · ${sourceLabel(String(top.source))}` : ""}
           </p>
         </Link>
       ) : null}
