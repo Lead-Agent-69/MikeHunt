@@ -12,6 +12,7 @@ import {
   Layers,
   LogIn,
   LogOut,
+  Lock,
   ShieldCheck,
   MapPin,
   ScanSearch,
@@ -20,14 +21,12 @@ import {
   Store,
   Wrench,
   ArrowLeftRight,
-  Banknote,
   ChartNoAxesCombined,
   CircleUserRound,
+  Grid3X3,
   ClipboardList,
   FileCheck,
-  ListPlus,
   Truck,
-  CalendarDays,
   Sparkles,
   Zap,
   ChevronDown,
@@ -39,7 +38,10 @@ import {
 } from "@/lib/supabase";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
-import { accountMenuForMode } from "@/components/layout/nav-items";
+import {
+  accountMenuForMode,
+  navItemForViewer,
+} from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 const MENU_ICONS: Record<string, LucideIcon> = {
@@ -63,11 +65,6 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   "/fleet": ClipboardList,
   "/move": Truck,
   "/recon": Wrench,
-  "/list": ListPlus,
-  "/bulk": Layers,
-  "/finance": Banknote,
-  "/today": CalendarDays,
-  "/flash-deals": Zap,
   "/upgrade": Sparkles,
 };
 
@@ -80,15 +77,15 @@ function menuIcon(href: string): LucideIcon {
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
   const { intent } = useBuyerIntent();
-  // Buyer tools are mode-specific; operator access is checked separately by the server.
+  // Keep account shortcuts compact; the role-aware tool catalog lives at /tools.
   const menu = accountMenuForMode(intent?.buyerMode);
   const { dealerId, loading: authLoading } = useDealerId();
   const signedOut = !authLoading && !dealerId;
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const panelId = useId();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
-  const panelId = useId();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -113,6 +110,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }, [open, dealerId]);
   useEffect(() => {
     if (!open) return;
+    ref.current?.querySelector<HTMLAnchorElement>("a")?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
@@ -124,7 +122,15 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const onFocus = (event: FocusEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("focusin", onFocus);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -148,10 +154,12 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         window.location.assign("/api/auth/demo-logout?next=/login");
         return;
       }
+      setOpen(false);
       router.replace("/login");
       router.refresh();
     } catch {
       setLogoutError("Could not log out. Check your connection and try again.");
+    } finally {
       setLoggingOut(false);
     }
   }
@@ -164,15 +172,24 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     icon?: LucideIcon;
   }) {
     const Icon = icon ?? menuIcon(entry.href);
-    const label = entry.href === "/alerts" ? "Activity" : entry.name;
+    const viewer = navItemForViewer({ ...entry, icon: Icon }, signedOut);
     return (
       <Link
-        href={entry.href}
+        href={viewer.href}
         prefetch={false}
+        title={
+          viewer.signInRequired ? `Sign in to use ${entry.name}` : undefined
+        }
         onClick={() => setOpen(false)}
         className={item}
       >
-        <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+        <Icon className="h-4 w-4" aria-hidden="true" /> {entry.name}
+        {viewer.signInRequired && (
+          <>
+            <Lock className="ml-auto h-3 w-3" aria-hidden="true" />
+            <span className="sr-only"> (sign in required)</span>
+          </>
+        )}
       </Link>
     );
   }
@@ -203,13 +220,19 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>
       {open && (
-        <div
+        <nav
           id={panelId}
-          role="region"
-          aria-label="Account and tools"
-          className="absolute z-[70] top-12 right-0 w-72 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-150px-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain p-1.5 rounded-lg border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
+          aria-label="Account navigation"
+          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
         >
-          {signedOut ? (
+          <div className="px-3 py-2 text-xs font-bold text-[var(--t3)]">
+            Account
+          </div>
+          {authLoading ? (
+            <p role="status" className="px-3 py-2 text-sm">
+              Checking account...
+            </p>
+          ) : signedOut ? (
             <>
               <MenuLink
                 entry={{ name: "Sign in", href: "/login" }}
@@ -221,36 +244,15 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
             </>
           ) : (
             <>
-              {menu.primary
-                .filter((entry) => entry.href !== "/saved")
-                .map((entry) => (
-                  <MenuLink key={entry.href} entry={entry} />
-                ))}
-              <div className="my-1 border-t border-[var(--b1)]" />
-              <details className="group/tools">
-                <summary
-                  className={`${item} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}
-                >
-                  <ScanSearch className="h-4 w-4" aria-hidden="true" />
-                  Explore tools
-                  <ChevronDown
-                    className="ml-auto h-4 w-4 transition-transform motion-reduce:transition-none group-open/tools:rotate-180"
-                    aria-hidden="true"
-                  />
-                </summary>
-                {menu.tools.map((entry, index) => (
-                  <div key={entry.href}>
-                    {entry.group !== menu.tools[index - 1]?.group && (
-                      <p className="px-3 pt-3 pb-1 text-xs font-semibold text-[var(--t3)]">
-                        {entry.group}
-                      </p>
-                    )}
-                    <MenuLink entry={entry} />
-                  </div>
-                ))}
-              </details>
-              <div className="my-1 border-t border-[var(--b1)]" />
               {menu.secondary.map((entry) => (
+                <MenuLink key={entry.href} entry={entry} />
+              ))}
+              <MenuLink
+                entry={{ name: "Buying profile", href: "/onboarding?edit=1" }}
+                icon={Settings}
+              />
+              <div className="my-1 border-t border-[var(--b1)]" />
+              {menu.primary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
               <div className="lg:hidden border-t border-[var(--b1)] mt-1 pt-1">
@@ -270,7 +272,11 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               )}
             </>
           )}
-          {!signedOut && (
+          <MenuLink
+            entry={{ name: "All tools", href: "/tools" }}
+            icon={Grid3X3}
+          />
+          {!signedOut && !authLoading && (
             <>
               <div className="my-1 border-t border-[var(--b1)]" />
               <button
@@ -279,7 +285,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
                 className={`${item} text-[var(--red)] hover:text-[var(--red)]`}
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                {loggingOut ? "Logging out…" : "Log out"}
+                {loggingOut ? "Logging out..." : "Log out"}
               </button>
               {logoutError && (
                 <p role="alert" className="px-3 py-2 text-xs text-[var(--red)]">
@@ -288,7 +294,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               )}
             </>
           )}
-        </div>
+        </nav>
       )}
     </div>
   );

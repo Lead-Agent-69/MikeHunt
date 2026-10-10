@@ -13,12 +13,14 @@ import {
   type Facet,
   type AffinityProfile,
 } from "@/lib/intelligence/affinity";
-import { readUserSignals } from "@/lib/reco/signals";
+import { readUserSignals, UUID_RE } from "@/lib/reco/signals";
 import {
   effectiveHome,
   effectiveSearchLocations,
 } from "@/lib/preferences/locations";
 import { isFlipDeskMode, listingsForDesk } from "@/lib/deals/deal-desk-access";
+import { buyerHomeFromPrefs } from "@/lib/geo/buyer-home";
+import { buyerDistanceFields } from "@/lib/discovery/for-you-rank";
 
 // GET /api/reco/for-you?limit=24 — signed-in "For You" ranked from the user's own view signals.
 //
@@ -87,6 +89,13 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl);
 
   const headers = { "Cache-Control": "private, no-store" };
+  const params = new URL(req.url).searchParams;
+  const scoped = params.has("ids");
+  const eligibleIds = Array.from(
+    new Set(
+      (params.get("ids") || "").split(",").filter((id) => UUID_RE.test(id)),
+    ),
+  ).slice(0, 120);
   const limit = Math.min(
     48,
     Math.max(1, Number(new URL(req.url).searchParams.get("limit")) || 24),
@@ -111,8 +120,14 @@ export async function GET(req: NextRequest) {
         .select("prefs")
         .eq("user_id", user.id)
         .maybeSingle(),
-    ).catch(() => ({ data: null })),
+    ).catch(() => ({ data: null, error: true })),
   ]);
+  if (signals.failed || (prefsRes as any)?.error) {
+    return NextResponse.json(
+      { error: "Recommendations are temporarily unavailable" },
+      { status: 503, headers },
+    );
+  }
   const rows = signals.rows;
   const signalsAvailable = signals.available;
   const prefs = ((prefsRes as any)?.data?.prefs ?? null) as Record<
@@ -120,12 +135,25 @@ export async function GET(req: NextRequest) {
     any
   > | null;
   const homeState = effectiveHome(prefs)?.state || null;
+  // Saved home (state + agreeing ZIP) for the card's distance basis. No home → "unknown".
+  const buyerHome = buyerHomeFromPrefs(prefs);
   const searchStates = effectiveSearchLocations(prefs).map((l) => l.state);
   const states = Array.from(
     new Set([homeState, ...searchStates].filter(Boolean) as string[]),
   );
   const flipDesk = isFlipDeskMode(prefs?.buyerScope?.buyerMode);
   const profile = buildAffinityProfile(rows);
+  if (scoped && eligibleIds.length === 0) {
+    return NextResponse.json(
+      {
+        items: [],
+        personalized: profile.signalCount > 0,
+        signalsAvailable,
+        deskAccess: flipDesk ? "flip" : "personal",
+      },
+      { headers },
+    );
+  }
 
   const base = () => {
     let q = sb
@@ -134,7 +162,9 @@ export async function GET(req: NextRequest) {
       .eq("active", true)
       .gt("ask_price", 0)
       .not("images", "is", null);
-    if (states.length === 1) q = q.eq("location_state", states[0]);
+    // Discover's eligible IDs already reflect the current filters, including location overrides.
+    if (scoped) q = q.in("id", eligibleIds);
+    else if (states.length === 1) q = q.eq("location_state", states[0]);
     else if (states.length > 1) q = q.in("location_state", states);
     return q;
   };
@@ -159,6 +189,12 @@ export async function GET(req: NextRequest) {
           .limit(POOL)
       : Promise.resolve({ data: [] as any[] }),
   ]);
+  if ((fresh as any)?.error || (liked as any)?.error) {
+    return NextResponse.json(
+      { error: "Recommendations are temporarily unavailable" },
+      { status: 503, headers },
+    );
+  }
   const byId = new Map<string, any>();
   for (const d of [
     ...((fresh as any)?.data || []),
@@ -178,7 +214,7 @@ export async function GET(req: NextRequest) {
       source: d.source,
       title_class: null,
       firstSeenAt: d.first_seen_at,
-      quality: d.profit_score,
+      quality: flipDesk ? d.profit_score : null,
       row: d,
     })),
     profile,
@@ -187,6 +223,7 @@ export async function GET(req: NextRequest) {
 
   const cards = ranked.map((r) => ({
     ...mapCard(r.item.row),
+    ...buyerDistanceFields(r.item.row, buyerHome),
     forYouReason: r.reason,
     slot: r.slot,
   }));

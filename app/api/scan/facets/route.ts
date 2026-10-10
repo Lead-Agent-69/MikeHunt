@@ -8,11 +8,18 @@ import {
 } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { hasAuctionDetailFilters } from "@/lib/search/extended-inventory-filters";
 import {
   hasVehicleCategoryQuery,
   rowMatchesBuyerQuery,
 } from "@/lib/discovery/for-you-rank";
 import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
+import {
+  parseTitleTypes,
+  matchesTitleCategories,
+  titleCategoryCounts,
+  titleCategoryOrFilter,
+} from "@/lib/deals/title-category";
 import {
   applyInventoryLane,
   applyVehicleDetails,
@@ -42,20 +49,6 @@ function topCounts(map: Map<string, number>, limit = 40) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([value, count]) => ({ value, count }));
-}
-
-function titleBucket(condition?: string | null) {
-  const c = String(condition || "").toLowerCase();
-  return (
-    (
-      {
-        salvage_title: "salvage",
-        rebuilt_title: "rebuilt",
-        parts_only: "parts",
-        clean_title: "clean",
-      } as Record<string, string>
-    )[c] || null
-  );
 }
 
 function sellerBucket(source?: string | null, sourceUrl?: string | null) {
@@ -90,14 +83,12 @@ export function buildScanFacetSummary(
   const makes = new Map<string, number>();
   const states = new Set<string>();
   const years = new Set<number>();
-  const titleTypes = new Map<string, number>();
   const sellerTypes = new Map<string, number>();
   const sources = new Map<string, number>();
   for (const r of rows || []) {
     if (r.make) makes.set(r.make, (makes.get(r.make) || 0) + 1);
     if (r.location_state) states.add(r.location_state);
     if (r.year) years.add(Number(r.year));
-    inc(titleTypes, titleBucket(r.condition));
     inc(sellerTypes, sellerBucket(r.source, r.source_url));
     const sourceId =
       dealerSourceIdFromUrl(r.source_url) ||
@@ -112,19 +103,8 @@ export function buildScanFacetSummary(
       .map(([make, count]) => ({ make, count })),
     states: Array.from(states).sort(),
     years: Array.from(years).sort((a, b) => b - a),
-    titleTypes: topCounts(titleTypes, 10).map((item) => ({
-      ...item,
-      label:
-        item.value === "clean"
-          ? "Clean title"
-          : item.value === "salvage"
-            ? "Salvage title"
-            : item.value === "rebuilt"
-              ? "Rebuilt title"
-              : item.value === "parts"
-                ? "Parts only"
-                : item.value,
-    })),
+    // All five buckets, fixed order, zeros included (salvage also carries a partsOnly count).
+    titleTypes: titleCategoryCounts(rows || []),
     sellerTypes: topCounts(sellerTypes, 10).map((item) => ({
       ...item,
       label:
@@ -183,6 +163,11 @@ export async function GET(req: NextRequest) {
   const sourceIds = (params.get("dealerSourceIds") || "")
     .split(",")
     .filter(Boolean);
+  const titleTypes = parseTitleTypes(params.get("titleType"));
+  // Title buckets are counted WITHOUT the selected titleType (every other filter still applies),
+  // so picking "Salvage" doesn't zero out the other title chips. The summary query skips the
+  // title filter and the remaining facets are narrowed in memory with the same enum mapping.
+  const applyTitleInDb = cascade;
   const build = () => {
     let query = supabase
       .from("deals")
@@ -192,8 +177,9 @@ export async function GET(req: NextRequest) {
           : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
       )
       .eq("active", true);
+    query = applyLiveAuctionWindow(query);
     if (
-      params.get("buyNow") !== "1" &&
+      !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
         lane,
         sellerType: seller,
@@ -203,11 +189,6 @@ export async function GET(req: NextRequest) {
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
     query = applyInventoryLane(query, lane);
     query = applyVehicleDetails(query, params);
-    if (
-      Number(params.get("maxPrice")) > 0 ||
-      Number(params.get("minPrice")) > 0
-    )
-      query = query.gt("ask_price", 0);
     if (flipDesk && Number(params.get("minProfit")) > 0)
       query = query.gte("true_net_profit", Number(params.get("minProfit")));
     const verdict = params.get("verdict");
@@ -238,15 +219,11 @@ export async function GET(req: NextRequest) {
         `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
       );
     for (const [key, column, minimum] of [
-      ["minPrice", "ask_price", true],
-      ["maxPrice", "ask_price", false],
       ["minYear", "year", true],
       ["maxYear", "year", false],
-      ["minMileage", "mileage", true],
-      ["maxMileage", "mileage", false],
     ] as const) {
       const value = Number(params.get(key));
-      if (value > 0 || (column === "mileage" && params.has(key)))
+      if (value > 0)
         query = minimum ? query.gte(column, value) : query.lte(column, value);
     }
     if (cascade) query = query.ilike("make", make!);
@@ -260,19 +237,10 @@ export async function GET(req: NextRequest) {
     }
     const sellers = sellerTypeSourceValues(seller);
     if (sellers.length) query = query.in("source", sellers);
-    const title = params.get("titleType");
-    if (title && title !== "all")
-      query = query.eq(
-        "condition",
-        (
-          {
-            clean: "clean_title",
-            rebuilt: "rebuilt_title",
-            salvage: "salvage_title",
-            parts: "parts_only",
-          } as Record<string, string>
-        )[title] || title,
-      );
+    const titleFilter = applyTitleInDb
+      ? titleCategoryOrFilter(titleTypes)
+      : null;
+    if (titleFilter) query = query.or(titleFilter);
     const availability = params.get("availability");
     if (availability && availability !== "all")
       query = query.eq("availability_status", availability);
@@ -308,8 +276,16 @@ export async function GET(req: NextRequest) {
     const rows = categoryQuery
       ? candidates.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
       : candidates;
-    if (!cascade)
-      return NextResponse.json({ ...buildScanFacetSummary(rows), bounded });
+    if (!cascade) {
+      const titled = rows.filter((row) =>
+        matchesTitleCategories(row, titleTypes),
+      );
+      return NextResponse.json({
+        ...buildScanFacetSummary(titled),
+        titleTypes: titleCategoryCounts(rows),
+        bounded,
+      });
+    }
     const models = new Map<string, number>();
     for (const row of rows) inc(models, row.model);
     return NextResponse.json({
@@ -323,3 +299,4 @@ export async function GET(req: NextRequest) {
     return internalError("scan:facets", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

@@ -819,7 +819,7 @@ export type Database = {
           buy_now_price: number | null
           cargurus_price: number | null
           color: string | null
-          condition: Database["public"]["Enums"]["listing_condition"]
+          condition: Database["public"]["Enums"]["listing_condition"] | null
           created_at: string
           damage_type: string | null
           deal_analysis: Json | null
@@ -893,7 +893,7 @@ export type Database = {
           buy_now_price?: number | null
           cargurus_price?: number | null
           color?: string | null
-          condition: Database["public"]["Enums"]["listing_condition"]
+          condition?: Database["public"]["Enums"]["listing_condition"] | null
           created_at?: string
           damage_type?: string | null
           deal_analysis?: Json | null
@@ -967,7 +967,7 @@ export type Database = {
           buy_now_price?: number | null
           cargurus_price?: number | null
           color?: string | null
-          condition?: Database["public"]["Enums"]["listing_condition"]
+          condition?: Database["public"]["Enums"]["listing_condition"] | null
           created_at?: string
           damage_type?: string | null
           deal_analysis?: Json | null

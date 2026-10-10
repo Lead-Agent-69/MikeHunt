@@ -1,8 +1,34 @@
-import { describe, expect, it } from "vitest";
-import { toLocalSavedVehicle } from "@/hooks/useLocalSavedVehicles";
+import { describe, expect, it, vi } from "vitest";
+import {
+  toLocalSavedVehicle,
+  saveLocalVehicle,
+  removeLocalVehicle,
+} from "@/hooks/useLocalSavedVehicles";
 import type { DiscoveryDeal } from "@/components/discovery/types";
 
 describe("local saved vehicle snapshots", () => {
+  it("confirms device writes and reports blocked storage instead of success", () => {
+    const vehicle = {
+      id: "local-test",
+      title: "Vehicle",
+      askPrice: 0,
+      source: "unknown",
+      savedAt: "2026-10-09",
+    };
+    expect(saveLocalVehicle(vehicle)).toBe(true);
+    expect(removeLocalVehicle(vehicle.id)).toBe(true);
+    const write = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("Quota exceeded");
+      });
+    try {
+      expect(saveLocalVehicle(vehicle)).toBe(false);
+      expect(removeLocalVehicle(vehicle.id)).toBe(false);
+    } finally {
+      write.mockRestore();
+    }
+  });
   it("preserves buyer proof fields from discovery deals", () => {
     const saved = toLocalSavedVehicle({
       id: "deal-1",

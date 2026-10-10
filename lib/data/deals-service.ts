@@ -3,6 +3,13 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  titleCategory,
+  titleCategoryOrFilter,
+  titleSourceOf,
+  type TitleCategory,
+  type TitleSource,
+} from "@/lib/deals/title-category";
 
 export type Deal = {
   id: string;
@@ -15,6 +22,10 @@ export type Deal = {
   vin?: string;
   mileage?: number;
   condition: string;
+  /** lib/deals/title-category bucket of `condition`. */
+  titleCategory?: TitleCategory;
+  /** options.titleSource only (other options keys stay server-side). */
+  titleSource?: TitleSource | null;
   askPrice: number;
   buyNowPrice?: number;
   buy_now_price?: number;
@@ -32,6 +43,8 @@ export type Deal = {
   auctionEndAt?: Date;
   bidCount?: number;
   damageType?: string;
+  runAndDrive?: boolean;
+  hasKeys?: boolean;
   seller?: string;
   sellerType?: "dealer" | "auction" | "private";
   // Seller contact extracted at scrape time (options.contact). Powers in-app Call/Text/Email so the
@@ -81,7 +94,11 @@ export type DealFilters = {
   source?: string[];
   make?: string[];
   condition?: string[];
+  /** Title buckets (lib/deals/title-category) applied on the condition enum. */
+  titleTypes?: TitleCategory[];
   location?: string;
+  /** Exact `location_state` match (validated 2-letter codes, uppercased). */
+  states?: string[];
   minProfit?: number;
   minScore?: number;
   sortBy?:
@@ -120,6 +137,8 @@ export class DealsService {
       vin: row.vin,
       mileage: row.mileage,
       condition: row.condition,
+      titleCategory: titleCategory(row),
+      titleSource: titleSourceOf(row),
       askPrice: Number(row.ask_price || 0),
       buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
       mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
@@ -141,6 +160,10 @@ export class DealsService {
           ? Number(bidCount)
           : undefined,
       damageType: row.damage_type,
+      runAndDrive:
+        typeof row.run_drive === "boolean" ? row.run_drive : undefined,
+      hasKeys:
+        typeof row.keys_present === "boolean" ? row.keys_present : undefined,
       seller: row.seller || options.seller,
       sellerType: row.seller_type || options.sellerType,
       contact:
@@ -209,6 +232,16 @@ export class DealsService {
     if (filters.condition?.length) {
       query = query.in("condition", filters.condition);
     }
+
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
+    }
+
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
 
     if (filters.location) {
       query = query.or(
@@ -298,6 +331,16 @@ export class DealsService {
       .or(
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
+
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
+    }
+
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
 
     if (filters.minProfit) {
       query = query.gte("profit_estimate", filters.minProfit);

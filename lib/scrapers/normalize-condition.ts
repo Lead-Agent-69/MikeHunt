@@ -25,6 +25,10 @@ export function normalizeCondition(raw?: string | null): string | undefined {
     .replace(/[_\s-]+/g, " ");
   if (!x) return undefined;
 
+  // Certified pre-owned is a dealer program, not a title brand: leave the title unknown (null) unless
+  // the listing states one (e.g. "Certified, clean title" still maps to clean_title below).
+  if (/^(cpo|cert(ified)?( pre owned)?)$/.test(x)) return undefined;
+
   // Already a valid enum value (snake or spaced form).
   const snake = x.replace(/ /g, "_");
   if (VALID.has(snake)) return snake;
@@ -45,9 +49,31 @@ export function normalizeCondition(raw?: string | null): string | undefined {
     return "repairable";
   if (/\bsalvage|total(ed)? loss|wreck/.test(x)) return "salvage_title";
   if (/\b(clean|clear)\b/.test(x)) return "clean_title";
-  if (/\b(runs?( and | & |\/)drives?|run drive|drives|operable|starts)\b/.test(x))
+  if (
+    /\b(runs?( and | & |\/)drives?|run drive|drives|operable|starts)\b/.test(x)
+  )
     return "run_drive";
 
   // Unknown phrasing — return undefined (column is nullable) rather than break the insert.
   return undefined;
+}
+
+/**
+ * Where a listing's title/condition came from:
+ *   "listing"        — stated on the listing (card, heading or detail page)
+ *   "source_default" — assumed from the source (salvage yard → salvage, ReCar → rebuilt, a retail
+ *                      marketplace's non-CPO stock → clean); the listing itself said nothing
+ * Recorded in deals.options.titleSource; absent = not recorded.
+ */
+export type TitleSource = "listing" | "source_default";
+
+/** Prefer what the listing states; else the source default (tagged); else nothing (title unknown). */
+export function resolveListingCondition(
+  stated: string | undefined | null,
+  sourceDefault?: string | null,
+): { condition?: string; title_source?: TitleSource } {
+  if (stated) return { condition: stated, title_source: "listing" };
+  if (sourceDefault)
+    return { condition: sourceDefault, title_source: "source_default" };
+  return {};
 }

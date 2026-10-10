@@ -10,6 +10,7 @@ import {
 } from "@/lib/vehicle/vin-history";
 import { CarfaxLink } from "./CarfaxLink";
 import { RefreshCw } from "lucide-react";
+import { humanizeEnumLabel } from "@/lib/sources/source-meta";
 
 // VIN history — the "should I buy" red flags. Tier 1 (free) from the listing text shows instantly;
 // if an NMVTIS key is configured, the authoritative report upgrades it. Always shows something.
@@ -211,7 +212,7 @@ export function VinHistory({
                       <span
                         style={{ color: branded ? "var(--red)" : "var(--t3)" }}
                       >
-                        {s.condition}
+                        {humanizeEnumLabel(s.condition)}
                       </span>
                     )}
                     {s.mileage > 0 && (

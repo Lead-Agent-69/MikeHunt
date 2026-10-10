@@ -31,10 +31,10 @@ describe("May's MO pass: data/perf honesty wiring", () => {
     expect(pipeline).toContain("PURCHASE_CHECKLIST_KEY");
   });
 
-  it("Today and Discover label listings vs VIN-merged vehicles", () => {
-    expect(read("app/(dashboard)/today/page.tsx")).toContain(
-      "todaySourceProofLabel(",
-    );
+  it("consolidates Today into scoped Discover and keeps inventory count semantics", () => {
+    const today = read("app/(dashboard)/today/page.tsx");
+    expect(today).toContain("redirect(`/discover");
+    expect(today).toContain("params.append(key, item)");
     expect(read("app/(dashboard)/discover/page.tsx")).toContain(
       "discoverMatchLabel(data)",
     );

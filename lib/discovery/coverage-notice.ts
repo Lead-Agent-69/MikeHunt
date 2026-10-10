@@ -1,7 +1,7 @@
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 
 export type CoverageNotice = {
-  tone: "none" | "thin" | "scanning";
+  tone: "none" | "thin" | "scanning" | "unavailable";
   headline: string;
   detail: string;
 };
@@ -16,8 +16,7 @@ const plural = (n: number, one: string, many = `${one}s`) =>
   `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
 /**
- * Buyer-facing coverage notice for Discover. Only for status "thin" or "none";
- * "ok", "unavailable" and a missing block return null so nothing extra shows.
+ * Missing and adequate coverage stay quiet; unavailable coverage is never treated as empty.
  * Every number is read straight from the API's coverage block.
  *
  * When `warming.scanning` is set (prefs.locationDemandAt within the warming window),
@@ -29,6 +28,13 @@ export function coverageNotice(
   warming?: CoverageWarming | null,
 ): CoverageNotice | null {
   if (!coverage) return null;
+  if (coverage.status === "unavailable")
+    return {
+      tone: "unavailable",
+      headline: "Inventory coverage could not be verified.",
+      detail:
+        "Available results may be incomplete. This does not mean there are no cars for sale; source freshness and coverage are currently unknown.",
+    };
   if (coverage.status !== "thin" && coverage.status !== "none") return null;
 
   const days = coverage.windowDays;

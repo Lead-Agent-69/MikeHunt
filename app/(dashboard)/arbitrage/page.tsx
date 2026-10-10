@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
+import { ErrorState } from "@/components/shared/PageStates";
 
 // /arbitrage — "buy there, sell here." Tailored to the dealer's home state, every out-of-state deal is
 // scored for import profit (resale − ask − real transport − selling load) from REAL inventory, tiered by
@@ -114,25 +115,13 @@ export default function ArbitragePage() {
       </div>
 
       {error && !data ? (
-        <div
-          role="alert"
-          className="rounded-[var(--r3)] border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.08)] p-4 text-center"
-          data-testid="arbitrage-load-error"
-        >
-          <p className="text-sm font-bold text-[var(--red)]">
-            Could not load arbitrage routes right now.
-          </p>
-          <p className="mt-1 text-xs text-[var(--t3)]">
-            Saved inventory is still available on Discover and Scan — this page
-            is not running a live market scan.
-          </p>
-          <button
-            type="button"
-            onClick={() => mutate()}
-            className="mt-3 min-h-[44px] rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 text-xs font-black text-[var(--t2)]"
-          >
-            Try again
-          </button>
+        <div data-testid="arbitrage-load-error">
+          <ErrorState
+            compact
+            title="Could not load arbitrage routes right now."
+            message="Saved inventory is still available on Discover and Scan — this page is not running a live market scan."
+            onRetry={() => mutate()}
+          />
         </div>
       ) : null}
 
@@ -181,57 +170,57 @@ export default function ArbitragePage() {
 
       {/* Tier tabs — hide when soft-fail so we never invent empty-market success */}
       {!(error && !data) && (
-      <>
-      <div className="flex gap-1.5">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className="flex-1 rounded-[var(--r2)] px-3 py-2 text-left transition-all"
-            style={
-              tab === t.key
-                ? { background: "var(--grad)", color: "#fff" }
-                : { background: "var(--s1)", color: "var(--t3)" }
-            }
-          >
-            <div className="text-sm font-bold">
-              {t.label}{" "}
-              <span className={tab === t.key ? "opacity-80" : "opacity-50"}>
-                {t.n ?? 0}
-              </span>
-            </div>
-            <div
-              className={`text-[10px] ${tab === t.key ? "opacity-80" : "opacity-50"}`}
-            >
-              {t.sub}
-            </div>
-          </button>
-        ))}
-      </div>
+        <>
+          <div className="flex gap-1.5">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className="flex-1 rounded-[var(--r2)] px-3 py-2 text-left transition-all"
+                style={
+                  tab === t.key
+                    ? { background: "var(--grad)", color: "#fff" }
+                    : { background: "var(--s1)", color: "var(--t3)" }
+                }
+              >
+                <div className="text-sm font-bold">
+                  {t.label}{" "}
+                  <span className={tab === t.key ? "opacity-80" : "opacity-50"}>
+                    {t.n ?? 0}
+                  </span>
+                </div>
+                <div
+                  className={`text-[10px] ${tab === t.key ? "opacity-80" : "opacity-50"}`}
+                >
+                  {t.sub}
+                </div>
+              </button>
+            ))}
+          </div>
 
-      {/* Opportunity list */}
-      <div className="flex flex-col gap-2">
-        {tab === "local" ? (
-          local.length ? (
-            local.map((d) => <LocalRow key={d.id} d={d} />)
-          ) : (
-            <Empty text={`No active ${home} inventory right now.`} />
-          )
-        ) : (tab === "regional" ? regional : national).length ? (
-          (tab === "regional" ? regional : national).map((o, i) => (
-            <OppRow key={o.deal.id || i} o={o} />
-          ))
-        ) : (
-          <Empty
-            text={
-              isLoading
-                ? "Loading saved listings…"
-                : `No ${tab} import opportunities clearing $1.5k after transport yet.`
-            }
-          />
-        )}
-      </div>
-      </>
+          {/* Opportunity list */}
+          <div className="flex flex-col gap-2">
+            {tab === "local" ? (
+              local.length ? (
+                local.map((d) => <LocalRow key={d.id} d={d} />)
+              ) : (
+                <Empty text={`No active ${home} inventory right now.`} />
+              )
+            ) : (tab === "regional" ? regional : national).length ? (
+              (tab === "regional" ? regional : national).map((o, i) => (
+                <OppRow key={o.deal.id || i} o={o} />
+              ))
+            ) : (
+              <Empty
+                text={
+                  isLoading
+                    ? "Loading saved listings…"
+                    : `No ${tab} import opportunities clearing $1.5k after transport yet.`
+                }
+              />
+            )}
+          </div>
+        </>
       )}
     </div>
   );

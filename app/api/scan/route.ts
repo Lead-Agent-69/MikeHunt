@@ -24,12 +24,17 @@ import type { DiscoverDesk } from "@/lib/discovery/desk-rails";
 import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import { expandFreeTextQuery } from "@/lib/search/expand-free-text";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
   CATEGORY_PROJECTION,
   matchingCategoryIds,
 } from "@/lib/search/category-inventory";
 import { cached } from "@/lib/cache";
+import {
+  SCAN_EXTRA_KEYS,
+  hasAuctionDetailFilters,
+} from "@/lib/search/extended-inventory-filters";
 import {
   uniqueDbSources,
   sellerTypeSourceValues,
@@ -44,6 +49,12 @@ import {
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import {
+  parseTitleTypes,
+  titleCategory,
+  titleCategoryOrFilter,
+  titleSourceOf,
+} from "@/lib/deals/title-category";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
@@ -433,6 +444,8 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     mileage,
     condition,
     titleType,
+    titleCategory: titleCategory({ condition: r.condition }),
+    titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
     mmrValue,
@@ -987,6 +1000,8 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
   const { searchParams } = new URL(req.url);
+  // "honda civic under 15000" → make/model/maxPrice instead of a literal title match (Kera bug).
+  expandFreeTextQuery(searchParams);
   const rangeError = validateInventoryRanges(searchParams);
   if (rangeError)
     return NextResponse.json({ error: rangeError }, { status: 400 });
@@ -1044,8 +1059,6 @@ export async function GET(req: NextRequest) {
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
   const minPrice = parseInt(searchParams.get("minPrice") || "0");
   const verdict = searchParams.get("verdict") || "";
-  const minMileage = parseInt(searchParams.get("minMileage") || "0");
-  const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
@@ -1064,6 +1077,11 @@ export async function GET(req: NextRequest) {
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
   if (!isSupabaseConfigured()) {
+    if (SCAN_EXTRA_KEYS.some((key) => searchParams.get(key)))
+      return NextResponse.json(
+        { error: "Detailed source inventory is temporarily unavailable" },
+        { status: 503, headers: SCAN_CACHE_HEADERS },
+      );
     const preview = await publicPreviewFallback({
       includeRepairable: searchParams.get("includeRepairable"),
       lane,
@@ -1089,8 +1107,10 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
+  query = applyLiveAuctionWindow(query);
+
   if (
-    searchParams.get("buyNow") !== "1" &&
+    !hasAuctionDetailFilters(searchParams) &&
     !wantsAuctionInventory({
       lane,
       sellerType,
@@ -1153,13 +1173,6 @@ export async function GET(req: NextRequest) {
   }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
-  if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
-  if (maxPrice > 0 || minPrice > 0) query = query.gt("ask_price", 0);
-  if (minPrice > 0) query = query.gte("ask_price", minPrice);
-  // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
-  // for an explicit mileage search.
-  if (searchParams.has("minMileage")) query = query.gte("mileage", minMileage);
-  if (searchParams.has("maxMileage")) query = query.lte("mileage", maxMileage);
   query = applyVehicleDetails(query, searchParams);
 
   if (source && source.toLowerCase() !== "all") {
@@ -1195,16 +1208,9 @@ export async function GET(req: NextRequest) {
     if (sellerSources.length) query = query.in("source", sellerSources);
   }
 
-  if (titleType && titleType !== "all") {
-    const conditionMapping: Record<string, string> = {
-      clean: "clean_title",
-      rebuilt: "rebuilt_title",
-      salvage: "salvage_title",
-      parts: "parts_only",
-    };
-    const mappedCondition = conditionMapping[titleType] || titleType;
-    query = query.eq("condition", mappedCondition);
-  }
+  // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
+  const titleFilter = titleCategoryOrFilter(parseTitleTypes(titleType));
+  if (titleFilter) query = query.or(titleFilter);
 
   query = applyInventoryLane(query, lane);
   query = applyRepairEligibility(query, searchParams.get("includeRepairable"));
@@ -1375,3 +1381,4 @@ export async function POST(req: NextRequest) {
     return internalError("scan", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

@@ -41,9 +41,12 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      // If table doesn't exist yet, return empty array gracefully
+      // Missing storage is unavailable, not proof that the user has no saved budgets.
       if (error.code === "42P01" || error.code === "PGRST205")
-        return NextResponse.json([]);
+        return NextResponse.json(
+          { error: "Saved budgets are temporarily unavailable." },
+          { status: 503 },
+        );
       throw error;
     }
 
@@ -86,9 +89,18 @@ export async function POST(request: NextRequest) {
     const { vehicle_name, total_estimate, parts_list } = body;
 
     if (
-      !vehicle_name ||
+      typeof vehicle_name !== "string" ||
+      !vehicle_name.trim() ||
+      vehicle_name.length > 200 ||
       typeof total_estimate !== "number" ||
-      !Array.isArray(parts_list)
+      !Number.isFinite(total_estimate) ||
+      total_estimate < 0 ||
+      total_estimate > 1e9 ||
+      !Array.isArray(parts_list) ||
+      parts_list.length > 30 ||
+      parts_list.some(
+        (part: unknown) => typeof part !== "string" || part.length > 500,
+      )
     ) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }

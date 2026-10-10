@@ -6,7 +6,7 @@ const settings = readFileSync("app/(dashboard)/settings/page.tsx", "utf8");
 describe("Settings fields by buyer desk", () => {
   it("shows Target Profit Threshold to reseller/dealer desks only", () => {
     expect(settings).toMatch(
-      /const showProfitTarget = isFlipBuyerMode\(\s*intent\?\.buyerMode \|\| prefs\?\.buyerScope\?\.buyerMode,?\s*\)/,
+      /const showProfitTarget = !prefsLoading && isFlipBuyerMode\(savedBuyerMode\)/,
     );
     expect(settings).toMatch(
       /\{showProfitTarget && \(\s*<Field\s+label="Target Profit Threshold \(\$\)"/,
@@ -16,6 +16,7 @@ describe("Settings fields by buyer desk", () => {
   it("leaves the stored target_profit field alone", () => {
     // Hiding the input must not drop the value from the profile payload.
     expect(settings).toContain("target_profit: 3500");
-    expect(settings).toContain("targetProfit: profile.target_profit");
+    expect(settings).toContain("target_profit: profile.target_profit");
+    expect(settings).not.toContain("dh_dealer_defaults");
   });
 });

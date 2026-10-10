@@ -18,6 +18,7 @@ function savedTheme(): Theme {
 function prefersDark(): boolean {
   return (
     typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
     window.matchMedia("(prefers-color-scheme: dark)").matches
   );
 }
@@ -48,7 +49,7 @@ export function useTheme() {
 
   // When on "system", follow OS theme changes live.
   useEffect(() => {
-    if (theme !== "system") return;
+    if (theme !== "system" || typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme("system");
     mq.addEventListener("change", onChange);

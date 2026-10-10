@@ -98,7 +98,7 @@ const baseRow = {
   images: ["https://example.com/truck.jpg"],
   first_seen_at: "2026-10-02T00:00:00.000Z",
   last_seen_at: "2026-10-02T04:00:00.000Z",
-  auction_end_at: "2026-10-05T04:00:00.000Z",
+  auction_end_at: new Date(Date.now() + 86400000).toISOString(),
   deal_analysis: {
     sellBasis: "market",
     soldAnchored: true,
@@ -109,6 +109,27 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("excludes ended auctions from rails and coverage while keeping unknown closing times", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        { ...baseRow, id: "ended", auction_end_at: "2020-01-01T00:00:00Z" },
+        { ...baseRow, id: "open" },
+        { ...baseRow, id: "unknown", auction_end_at: null },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const response = await GET(req("/api/discover?lane=government"));
+    const body = await response.json();
+    const ids = body.rails.flatMap((rail: any) =>
+      rail.deals.map((deal: any) => deal.id),
+    );
+    expect(ids).not.toContain("ended");
+    expect(ids).toContain("open");
+    expect(ids).toContain("unknown");
+    expect(body.totalListings).toBe(2);
+    expect(body.marketListings).toBe(2);
+  });
   it("keeps auctions out of ordinary discovery without losing dealer cars", async () => {
     rpc.mockResolvedValueOnce({
       data: [
@@ -480,5 +501,155 @@ describe("GET /api/discover scoped feed contract", () => {
         });
       },
     );
+  });
+});
+
+describe("GET /api/discover title categories", () => {
+  const titleRows = [
+    {
+      ...baseRow,
+      id: "copart-salvage",
+      source: "copart",
+      source_url: "https://www.copart.com/lot/1",
+      condition: "salvage_title",
+      damage_type: null,
+    },
+    {
+      ...baseRow,
+      id: "dealer-rebuildable",
+      source: "independent_dealer",
+      source_url: "https://dealer.example/r",
+      condition: "repairable",
+      damage_type: null,
+    },
+    {
+      ...baseRow,
+      id: "carfax-clean",
+      source: "independent_dealer",
+      source_url: "https://dealer.example/c",
+      title: "2018 Ford F-150 Clean Carfax",
+      condition: "run_drive",
+      damage_type: null,
+    },
+    {
+      ...baseRow,
+      id: "real-clean",
+      source: "independent_dealer",
+      source_url: "https://dealer.example/k",
+      condition: "clean_title",
+      damage_type: null,
+    },
+  ];
+  const ids = (body: any) =>
+    body.rails.flatMap((rail: any) => rail.deals.map((d: any) => d.id));
+  const rail = (body: any, key: string) =>
+    body.rails.find((r: any) => r.key === key);
+
+  it("titleType=clean matches the condition enum, never 'Clean Carfax' title text", async () => {
+    rpc.mockResolvedValueOnce({ data: titleRows, error: null });
+    const { GET } = await import("./route");
+    const body = await (
+      await GET(req("/api/discover?titleType=clean&sellerType=all"))
+    ).json();
+    expect(ids(body)).toContain("real-clean");
+    expect(ids(body)).not.toContain("carfax-clean");
+    expect(body.titleTypes).toEqual(["clean"]);
+  });
+
+  it("supports comma-multi titleType including unknown", async () => {
+    rpc.mockResolvedValueOnce({ data: titleRows, error: null });
+    const { GET } = await import("./route");
+    const body = await (
+      await GET(
+        req("/api/discover?titleType=unknown,rebuildable&sellerType=all"),
+      )
+    ).json();
+    expect(new Set(ids(body))).toEqual(
+      new Set(["carfax-clean", "dealer-rebuildable"]),
+    );
+    const card = body.rails
+      .flatMap((r: any) => r.deals)
+      .find((d: any) => d.id === "carfax-clean");
+    expect(card.titleCategory).toBe("unknown");
+  });
+
+  it.each([
+    ["dealer", { buyerMode: "dealer" }, true],
+    ["parts", { buyerMode: "parts" }, true],
+    ["personal", { buyerMode: "personal" }, false],
+    // includesRepairable(): DIY defaults in, personal out; an explicit choice wins.
+    ["diy", { buyerMode: "diy" }, true],
+    ["diy opted out", { buyerMode: "diy", includeRepairable: false }, false],
+    [
+      "personal + includeRepairable",
+      { buyerMode: "personal", includeRepairable: true },
+      true,
+    ],
+    [
+      "diy + includeRepairable",
+      { buyerMode: "diy", includeRepairable: true },
+      true,
+    ],
+  ])(
+    "salvageRebuildable rail for %s desk",
+    async (_label, buyerScope, shown) => {
+      rpc.mockResolvedValueOnce({ data: titleRows, error: null });
+      getServerUser.mockImplementation(async () => ({
+        data: { user: { id: "u-title" } },
+      }));
+      savedPrefs.value = { buyerScope };
+      const { GET } = await import("./route");
+      const body = await (await GET(req("/api/discover"))).json();
+      const r = rail(body, "salvageRebuildable");
+      if (!shown) {
+        expect(r).toBeUndefined();
+        return;
+      }
+      // Ordinary discovery keeps auctions out of the pool (auction-scope), so only the dealer row.
+      expect(r.deals.map((d: any) => d.id)).toEqual(["dealer-rebuildable"]);
+      if (buyerScope.buyerMode !== "dealer") {
+        // Non-flip desks still get redacted cards.
+        for (const d of r.deals) expect(d.trueNetProfit).toBeUndefined();
+      }
+    },
+    15_000,
+  );
+
+  it("salvageRebuildable includes auction-lane salvage when auctions are in scope", async () => {
+    rpc.mockResolvedValueOnce({ data: titleRows, error: null });
+    getServerUser.mockImplementation(async () => ({
+      data: { user: { id: "u-title-flip" } },
+    }));
+    savedPrefs.value = { buyerScope: { buyerMode: "dealer" } };
+    const { GET } = await import("./route");
+    const body = await (await GET(req("/api/discover?lane=auction"))).json();
+    // dealLane() files the Copart lot under "auction", not "salvage"; the title rail still has it.
+    expect(rail(body, "salvage")).toBeUndefined();
+    expect(
+      rail(body, "salvageRebuildable").deals.map((d: any) => d.id),
+    ).toEqual(["copart-salvage"]);
+  }, 15_000);
+
+  it("cards carry options.titleSource without leaking other options keys", async () => {
+    rpc.mockResolvedValueOnce({
+      data: [
+        {
+          ...titleRows[3],
+          options: {
+            titleSource: "listing",
+            contact: { phone: "555-0100", email: "x@y.z" },
+            internalNote: "secret",
+          },
+        },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const body = await (await GET(req("/api/discover"))).json();
+    const card = body.rails.flatMap((r: any) => r.deals)[0];
+    expect(card.titleSource).toBe("listing");
+    expect(card.options).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("internalNote");
+    expect(JSON.stringify(body)).not.toContain("555-0100");
   });
 });

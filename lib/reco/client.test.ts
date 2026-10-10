@@ -37,7 +37,7 @@ describe("reco client readers", () => {
     await expect(fetchSimilarPrompt()).resolves.toBeNull();
   });
 
-  it("fetchForYou passes limit and returns null on network error", async () => {
+  it("fetchForYou scopes listings without cache and exposes service failures", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -48,10 +48,20 @@ describe("reco client readers", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     (globalThis as any).window = globalThis;
-    const body = await fetchForYou(12);
+    const body = await fetchForYou(12, ["one", "one", "two"]);
     expect(body?.signalsAvailable).toBe(true);
     expect(fetchMock.mock.calls[0][0]).toContain("limit=12");
-    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(
+      new URL(fetchMock.mock.calls[0][0], "http://localhost").searchParams.get(
+        "ids",
+      ),
+    ).toBe("one,two");
+    expect(fetchMock.mock.calls[0][1].cache).toBe("no-store");
+    fetchMock.mockResolvedValue({ ok: false, status: 401 });
     await expect(fetchForYou()).resolves.toBeNull();
+    fetchMock.mockResolvedValue({ ok: false, status: 503 });
+    await expect(fetchForYou()).rejects.toThrow("temporarily unavailable");
+    fetchMock.mockRejectedValue(new Error("offline"));
+    await expect(fetchForYou()).rejects.toThrow("offline");
   });
 });

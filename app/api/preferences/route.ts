@@ -17,6 +17,7 @@ import {
   locationPatchTouchesDemand,
 } from "@/lib/preferences/kick-location-demand";
 import { syncPrefsHomeLocationToProfile } from "@/lib/preferences/sync-home-state";
+import { mergePreferencePatch } from "@/lib/preferences/merge-patch";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,10 @@ export async function GET(req: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
   if (!user?.id)
     return NextResponse.json({
       prefs: readGuestPrefs(req),
@@ -110,7 +114,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: located.error }, { status: 400 });
   patch = located.patch;
 
-  const guestMerged = { ...readGuestPrefs(req), ...patch };
+  const guestMerged = mergePreferencePatch(readGuestPrefs(req), patch);
   const guestLocation = locationPatchTouchesDemand(patch);
 
   function guestWithDemand(prefs: Record<string, unknown>) {
@@ -136,25 +140,45 @@ export async function PUT(req: NextRequest) {
   }
 
   if (!isSupabaseConfigured()) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
     return guestWithDemand(guestMerged);
   }
 
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
-  if (!user?.id) return guestWithDemand(guestMerged);
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+  if (!user?.id) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
+    return guestWithDemand(guestMerged);
+  }
 
   const sb = createServerComponentClient();
   // Merge server-side so one app's save never drops another's keys.
-  const { data: existing } = await sb
+  const { data: existing, error: readError } = await sb
     .from("user_preferences")
     .select("prefs")
     .eq("user_id", user.id)
     .maybeSingle();
-  let merged: Record<string, unknown> = {
-    ...((existing?.prefs as object) || {}),
-    ...patch,
-  };
+  if (readError)
+    return NextResponse.json(
+      { error: "Preferences unavailable" },
+      { status: 503 },
+    );
+  let merged: Record<string, unknown> = mergePreferencePatch(
+    (existing?.prefs as Record<string, unknown>) || {},
+    patch,
+  );
 
   let locationDemand: {
     states: string[];
@@ -180,16 +204,20 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  const { error } = await sb.from("user_preferences").upsert(
-    {
-      user_id: user.id,
-      prefs: merged,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  if (error) {
-    console.error("[preferences]", error.message);
+  const { data: saved, error } = await sb
+    .from("user_preferences")
+    .upsert(
+      {
+        user_id: user.id,
+        prefs: merged,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    )
+    .select("user_id,prefs")
+    .single();
+  if (error || saved?.user_id !== user.id || !saved?.prefs) {
+    console.error("[preferences]", error?.message || "Unconfirmed save");
     return NextResponse.json(
       { error: "Preferences unavailable" },
       { status: 500 },
@@ -206,7 +234,8 @@ export async function PUT(req: NextRequest) {
   }
 
   return NextResponse.json({
-    prefs: merged,
+    prefs: saved.prefs,
+    authed: true,
     ...(locationDemand ? { locationDemand } : {}),
   });
 }

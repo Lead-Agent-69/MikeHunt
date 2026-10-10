@@ -99,6 +99,7 @@ export const DEFAULT_SWEEP_SOURCES = [
   "autotempest",
   "carvana",
   "craigslist",
+  "offerup",
   "ebay_motors",
   "curated_dealers",
   "ebay_sold",
@@ -106,9 +107,55 @@ export const DEFAULT_SWEEP_SOURCES = [
   "independent_dealer",
   "publicsurplus",
   "govdeals",
+  "allsurplus",
+  "municibid",
   "gsa_auctions",
   "copart",
 ] as const;
+
+/**
+ * Restored by operator decision (Jonah 2026-10-09: "never remove or disable sources", "if you ever
+ * disabled any working market get them back working").
+ *
+ * This is exactly the SCRAPE_SOURCES list that was baked into Dockerfile.scraper and fly.toml until
+ * #90 (ddbb0ca, 2026-10-05) removed it, minus truecar (headed-only, never terms-gated) and
+ * gsa_auctions/curated_dealers (never gated). #85, #115 and #119 then made every id here
+ * default-off through TOS_RESTRICTED_SOURCES. Their scrapers, parsers and polite-crawl limits were
+ * never removed, so restoring them is a default change only.
+ *
+ * TOS_RESTRICTED_SOURCES stays as the record of each site's terms, and health still reports
+ * `termsRestricted` + `termsReason` for them. Kill switch: SCRAPE_TERMS_SAFE_ONLY=1 returns to the
+ * terms-safe default without a deploy of new code.
+ */
+export const OPERATOR_RESTORED_SOURCES: readonly string[] = [
+  "craigslist",
+  "offerup",
+  "carvana",
+  "autotempest",
+  "ebay_sold",
+  "ebay_motors",
+  "cars_com",
+  "autotrader",
+  "carparts_com",
+  "publicsurplus",
+  "govdeals",
+  "allsurplus",
+  "municibid",
+  "copart",
+];
+
+function termsSafeOnly(
+  raw: string | undefined = process.env.SCRAPE_TERMS_SAFE_ONLY,
+) {
+  return /^(1|true|yes|on)$/i.test(String(raw || "").trim());
+}
+
+/** Restricted ids the operator restored by default (empty when the kill switch is on). */
+export function operatorRestoredSources(
+  killSwitch: string | undefined = process.env.SCRAPE_TERMS_SAFE_ONLY,
+): string[] {
+  return termsSafeOnly(killSwitch) ? [] : [...OPERATOR_RESTORED_SOURCES];
+}
 
 /**
  * Sources whose own terms ban automated access (robots, spiders, scrapers) without written
@@ -160,9 +207,12 @@ export function resolveSweepSources(
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  const restored = new Set(operatorRestoredSources());
   const list = explicit.length
     ? Array.from(new Set(explicit))
-    : DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
+    : DEFAULT_SWEEP_SOURCES.filter(
+        (id) => !TOS_RESTRICTED_SOURCES[id] || restored.has(id),
+      );
   return orderSourcesByTier(list);
 }
 
@@ -179,13 +229,14 @@ export function isAutomationAllowedSource(
     .trim()
     .toLowerCase();
   if (!TOS_RESTRICTED_SOURCES[id]) return true;
+  if (operatorRestoredSources().includes(id)) return true;
   return String(raw || "")
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .includes(id);
 }
 
-/** Restricted sources the operator opted into through SCRAPE_SOURCES. */
+/** Restricted sources the operator opted into (SCRAPE_SOURCES or the restored default). */
 export function optedInRestrictedSources(sources: readonly string[]) {
   return sources.filter((id) => TOS_RESTRICTED_SOURCES[id]);
 }

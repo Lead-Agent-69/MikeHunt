@@ -9,6 +9,7 @@ import { VehicleComparison } from "@/components/saved/VehicleComparison";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { LoadingState } from "@/components/shared/PageStates";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -202,9 +203,7 @@ function CompareContent() {
             </div>
           </div>
 
-          {isLoading && (
-            <div className="text-center py-8 text-[var(--t3)]">Comparing…</div>
-          )}
+          {isLoading && <LoadingState label="Comparing…" />}
           {error && (
             <p role="alert">
               Market comparison couldn't be loaded. Please try again.

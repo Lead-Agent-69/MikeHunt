@@ -8,8 +8,10 @@
 // out) so the crawler spends its budget on pages that actually hold vehicles. Best-effort throughout —
 // any fetch failure just yields fewer URLs, never throws. Pure parsers are exported + unit-tested.
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+import { politeUserAgent } from "./polite/identity";
+
+// Honest identity (see polite/identity.ts). Callers on Zeus should pass a politeFetch-backed fetchImpl.
+const UA = politeUserAgent();
 
 type FetchLike = (
   url: string,

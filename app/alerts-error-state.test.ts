@@ -12,6 +12,6 @@ describe("/alerts load error", () => {
   it("tells the buyer when server alerts fail instead of showing an empty inbox", () => {
     expect(source).toContain("{error && (");
     expect(source).toContain("Server alerts couldn&apos;t load right now.");
-    expect(source).toContain("onClick={() => mutate()}");
+    expect(source).toContain("onRetry={() => mutate()}");
   });
 });

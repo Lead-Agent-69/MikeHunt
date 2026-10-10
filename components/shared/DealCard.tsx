@@ -15,7 +15,9 @@ import {
   evidenceConfidence,
   hasRecentSoldEvidence,
 } from "@/lib/valuation/evidence-confidence";
+import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { sellerTypeLabel } from "@/lib/sources/source-meta";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -84,6 +86,7 @@ export const DealCard = memo(function DealCard({
   sellBasis,
   valuation,
   soldAnchored,
+  needsComps = false,
   repairEstimate,
   transportEstimate,
   warnings = [],
@@ -139,7 +142,7 @@ export const DealCard = memo(function DealCard({
   const actionDetails = [
     auctionEndText ? `Ends ${auctionEndText}` : null,
     bidCount != null ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : null,
-    seller ? seller : sellerType ? `${sellerType} seller` : null,
+    seller ? seller : sellerType ? sellerTypeLabel(sellerType) : null,
   ].filter(Boolean);
   const resaleBasis = sellEstimate || mmrValue || 0;
   // Wording follows the flipDesk prop: reseller/dealer keep resale/bid copy, everyone else gets buyer copy.
@@ -786,7 +789,12 @@ export const DealCard = memo(function DealCard({
                 </span>
               </div>
               <p className="mt-1 text-[11px] leading-relaxed text-[var(--t4)]">
-                {sourceUrl ? "Direct source link" : "No source link"} ·{" "}
+                {sourceUrl
+                  ? isSourceLandingPage(sourceUrl)
+                    ? "Seller website"
+                    : "Listing link"
+                  : "No source link"}{" "}
+                ·{" "}
                 {trustSignals.length
                   ? `${trustSignals.length}/6 key signals present`
                   : "No key signals present"}
@@ -953,14 +961,25 @@ export const DealCard = memo(function DealCard({
               <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
                 Net Profit Est.
               </p>
-              <Mono
-                className="text-2xl font-black leading-none"
-                style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
-              >
-                {isPositive ? "+" : "-"}$
-                {Math.abs(profitEstimate).toLocaleString()}
-              </Mono>
-              {recommendedMaxBid != null && (
+              {needsComps ? (
+                <>
+                  <Mono className="text-2xl font-black leading-none text-[var(--t3)]">
+                    —
+                  </Mono>
+                  <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
+                    Needs comps
+                  </p>
+                </>
+              ) : (
+                <Mono
+                  className="text-2xl font-black leading-none"
+                  style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
+                >
+                  {isPositive ? "+" : "-"}$
+                  {Math.abs(profitEstimate).toLocaleString()}
+                </Mono>
+              )}
+              {!needsComps && recommendedMaxBid != null && (
                 <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
                   Max bid{" "}
                   <Mono className="text-[var(--t2)] font-bold">

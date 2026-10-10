@@ -17,6 +17,14 @@ import {
   type DealLane,
 } from "@/lib/discovery/categorize";
 import { cached } from "@/lib/cache";
+import { fetchAllRows } from "@/lib/db/paginate";
+import {
+  applyVehicleDetails,
+  applySelectedSources,
+  validateInventoryRanges,
+  VEHICLE_CATEGORY_FILTERS,
+  INVENTORY_SOURCE_FILTERS,
+} from "@/lib/search/inventory-filters";
 
 // /api/market/explore — the advanced sourcing engine. A dealer filters the whole market by state(s),
 // channel/lane, price, year, mileage, make, condition, verdict, and source — and chooses CURATED (the
@@ -57,69 +65,147 @@ export async function GET(req: NextRequest) {
     const sp = new URL(req.url).searchParams;
     const states = csv(sp.get("states")).map((s) => s.toUpperCase());
     const lanes = csv(sp.get("lanes")) as DealLane[];
-    const makes = csv(sp.get("makes")).map((m) => m.toLowerCase());
+    const makes = csv(sp.get("makes"))
+      .map((m) =>
+        m
+          .toLowerCase()
+          .replace(/[^a-z0-9 -]/g, "")
+          .trim(),
+      )
+      .filter(Boolean)
+      .slice(0, 25);
+    const categories = csv(sp.get("categories"));
+    if (
+      categories.some(
+        (category) =>
+          !Object.prototype.hasOwnProperty.call(
+            VEHICLE_CATEGORY_FILTERS,
+            category,
+          ),
+      )
+    )
+      return NextResponse.json(
+        { error: "Choose a valid vehicle category" },
+        { status: 400 },
+      );
+    const detailParams = new URLSearchParams(sp);
+    for (const [oldKey, key] of [
+      ["priceMin", "minPrice"],
+      ["priceMax", "maxPrice"],
+      ["yearMin", "minYear"],
+      ["yearMax", "maxYear"],
+      ["mileageMax", "maxMileage"],
+    ]) {
+      if (sp.has(oldKey)) detailParams.set(key, sp.get(oldKey)!);
+    }
+    const rangeError = validateInventoryRanges(detailParams);
+    if (rangeError)
+      return NextResponse.json({ error: rangeError }, { status: 400 });
+    const flipDesk = await resolveCallerFlipDesk();
     const conditions = csv(sp.get("conditions"));
-    const verdicts = csv(sp.get("verdicts"));
-    const sources = csv(sp.get("sources"));
+    const verdicts = flipDesk ? csv(sp.get("verdicts")) : [];
+    const sources = csv(sp.get("sources"))
+      .map((source) => source.replace(/[^a-zA-Z0-9_-]/g, ""))
+      .filter(Boolean);
+    if (
+      sources.some(
+        (source) =>
+          !INVENTORY_SOURCE_FILTERS.some((option) => option.id === source),
+      )
+    )
+      return NextResponse.json(
+        { error: "Choose a valid inventory source" },
+        { status: 400 },
+      );
     const sellerTypes = csv(sp.get("sellerTypes")).map((s) => s.toLowerCase());
-    const minRoi = parseFloat(sp.get("minRoi") || "0") || 0;
-    const priceMin = parseInt(sp.get("priceMin") || "0") || 0;
-    const priceMax = parseInt(sp.get("priceMax") || "0") || 0;
+    const minRoi = flipDesk ? parseFloat(sp.get("minRoi") || "0") || 0 : 0;
     const yearMin = parseInt(sp.get("yearMin") || "0") || 0;
     const yearMax = parseInt(sp.get("yearMax") || "0") || 0;
-    const mileageMax = parseInt(sp.get("mileageMax") || "0") || 0;
-    const minProfit = parseInt(sp.get("minProfit") || "0") || 0;
-    const mode = sp.get("mode") === "all" ? "all" : "curated";
-    const sort = sp.get("sort") || "profitEstimate";
+    const minProfit = flipDesk ? parseInt(sp.get("minProfit") || "0") || 0 : 0;
+    const mode = !flipDesk || sp.get("mode") === "all" ? "all" : "curated";
+    const requestedSort = sp.get("sort") || "profitEstimate";
+    const sort =
+      !flipDesk &&
+      ["profitEstimate", "profitScore", "sellEstimate"].includes(requestedSort)
+        ? "askPrice"
+        : requestedSort;
     const sortDir = sp.get("sortDir") === "asc" ? "asc" : "desc";
     const page = Math.max(0, parseInt(sp.get("page") || "0") || 0);
-    const pageSize = Math.min(200, parseInt(sp.get("pageSize") || "50") || 50);
+    const pageSize = Math.max(
+      1,
+      Math.min(200, parseInt(sp.get("pageSize") || "50") || 50),
+    );
     // Free-text search across make/model/title (sanitized so it can't break the PostgREST or-filter).
     const search = (sp.get("q") || "")
       .trim()
-      .replace(/[,()%]/g, " ")
+      .replace(/[^a-zA-Z0-9 -]/g, " ")
       .slice(0, 60);
+    const cacheParams = new URLSearchParams(sp);
+    cacheParams.delete("page");
+    cacheParams.delete("pageSize");
 
     // Same filter combo within 30s → serve the computed result instantly (no re-scan/re-facet).
     const payload = await cached(
-      `mkt:explore:${sp.toString()}`,
+      `mkt:explore:${flipDesk ? "flip" : "personal"}:${cacheParams.toString()}`,
       30_000,
       async () => {
         const supabase = createServerComponentClient();
-        let q = supabase
-          .from("deals")
-          .select(
-            "id, source, title, year, make, model, trim, vin, mileage, condition, damage_type, ask_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type, is_arbitrage_opportunity, location_state",
-          )
-          .eq("active", true)
-          .gt("ask_price", 0)
-          .limit(CAP);
+        const build = () => {
+          let q = supabase
+            .from("deals")
+            .select(
+              "id, source, source_url, title, year, make, model, trim, body_class, fuel_type, vin, mileage, condition, damage_type, ask_price, buy_now_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type:options->>sellerType, is_arbitrage_opportunity, location_state",
+            )
+            .eq("active", true);
 
-        // SQL-able filters (push down what we can).
-        if (states.length) q = q.in("location_state", states);
-        if (search)
-          q = q.or(
-            `make.ilike.%${search}%,model.ilike.%${search}%,title.ilike.%${search}%`,
-          );
-        if (makes.length)
-          q = q.or(makes.map((m) => `make.ilike.${m}`).join(",")); // case-insensitive make match
-        if (conditions.length) q = q.in("condition", conditions);
-        if (verdicts.length) q = q.in("deal_verdict", verdicts);
-        if (sources.length) q = q.in("source", sources);
-        if (sellerTypes.length) q = q.in("seller_type", sellerTypes);
-        if (priceMin > 0) q = q.gte("ask_price", priceMin);
-        if (priceMax > 0) q = q.lte("ask_price", priceMax);
-        if (yearMin > 0) q = q.gte("year", yearMin);
-        if (yearMax > 0) q = q.lte("year", yearMax);
-        if (mileageMax > 0) q = q.lte("mileage", mileageMax);
-        if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
-        // CURATED = the deals a dealer should actually look at (engine says go/hold or flagged arbitrage).
-        // WHOLE MARKET = no verdict gate. The toggle the user asked for.
-        if (mode === "curated" && !verdicts.length)
-          q = q.in("deal_verdict", ["go", "hold"]);
+          // SQL-able filters (push down what we can).
+          if (states.length) q = q.in("location_state", states);
+          if (search)
+            q = q.or(
+              `make.ilike.%${search}%,model.ilike.%${search}%,title.ilike.%${search}%,vin.ilike.%${search}%`,
+            );
+          if (makes.length)
+            q = q.or(makes.map((m) => `make.ilike.${m}`).join(",")); // case-insensitive make match
+          if (conditions.length) q = q.in("condition", conditions);
+          if (verdicts.length) q = q.in("deal_verdict", verdicts);
+          q = applySelectedSources(q, sources);
+          q = applyVehicleDetails(q, detailParams);
+          if (categories.length)
+            q = q.or(
+              categories
+                .map(
+                  (category) =>
+                    VEHICLE_CATEGORY_FILTERS[
+                      category as keyof typeof VEHICLE_CATEGORY_FILTERS
+                    ].filter,
+                )
+                .join(","),
+            );
+          const model = (sp.get("model") || "")
+            .replace(/[^a-zA-Z0-9 -]/g, "")
+            .trim()
+            .slice(0, 60);
+          if (model) q = q.ilike("model", `%${model}%`);
+          // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
+          // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
+          if (sellerTypes.length)
+            q = q.in("options->>sellerType", sellerTypes);
+          if (yearMin > 0) q = q.gte("year", yearMin);
+          if (yearMax > 0) q = q.lte("year", yearMax);
+          if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
+          // CURATED = the deals a dealer should actually look at (engine says go/hold or flagged arbitrage).
+          // WHOLE MARKET = no verdict gate. The toggle the user asked for.
+          if (mode === "curated" && !verdicts.length)
+            q = q.in("deal_verdict", ["go", "hold"]);
 
-        const { data, error } = await q;
-        if (error) throw new Error(error.message);
+          return q.order("id", { ascending: true });
+        };
+        const observed = await fetchAllRows<any>(
+          (from, to) => build().range(from, to),
+          { pageSize: 500, max: CAP + 1 },
+        );
+        const capped = observed.length > CAP;
+        const data = observed.slice(0, CAP);
 
         let rows = (data || []).map((d: any) => ({
           id: d.id,
@@ -129,6 +215,9 @@ export async function GET(req: NextRequest) {
           model: d.model,
           trim: d.trim,
           askPrice: Number(d.ask_price || 0),
+          buyNowPrice:
+            d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
+          bodyClass: d.body_class || undefined,
           mileage: d.mileage ?? undefined,
           sellEstimate:
             d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
@@ -221,18 +310,11 @@ export async function GET(req: NextRequest) {
           );
 
         const total = rows.length;
-        const pageRows = rows.slice(
-          page * pageSize,
-          page * pageSize + pageSize,
-        );
-
         return {
-          rows: pageRows,
+          rows,
           total,
-          capped: (data?.length || 0) >= CAP,
+          capped,
           mode,
-          page,
-          pageSize,
           facets: {
             states: stateCounts,
             lanes: laneCounts,
@@ -245,14 +327,19 @@ export async function GET(req: NextRequest) {
         };
       },
     );
+    const paged = {
+      ...payload,
+      rows: payload.rows.slice(page * pageSize, (page + 1) * pageSize),
+      page,
+      pageSize,
+    };
     // Cache is shared; redact AFTER so a personal caller never gets a flip-desk hit.
-    const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json(
       flipDesk
-        ? { ...payload, deskAccess: "flip" }
+        ? { ...paged, deskAccess: "flip" }
         : {
-            ...payload,
-            rows: listingsForDesk(payload.rows || [], false),
+            ...paged,
+            rows: listingsForDesk(paged.rows || [], false),
             facets: payload.facets
               ? { ...payload.facets, laneProfit: {} }
               : payload.facets,

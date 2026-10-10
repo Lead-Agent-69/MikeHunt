@@ -26,6 +26,14 @@ import {
 } from "./bypass/stealth-engine";
 import { userAgentRotator } from "./bypass/user-agent-pool";
 import { escalatedFetch } from "./tools/escalation";
+import {
+  domainOf,
+  politeCrawler,
+  politeFetch,
+  politeModeEnabled,
+  politeUserAgent,
+  type PoliteResponse,
+} from "./polite";
 
 let _adaptiveEngine: AdaptiveEngine | null = null;
 
@@ -57,6 +65,7 @@ export interface ScraperConfig {
   // User agents to rotate
   userAgents?: string[];
   abortSignal?: AbortSignal;
+  fetchPageHtml?: (url: string) => Promise<string>;
 }
 
 // ─── Proxy pool (enhanced with ProxyManager) ─────────────────────────────────
@@ -139,6 +148,82 @@ async function injectStealth(page: Page, config: ScraperConfig) {
   }
 }
 
+// ─── Polite mode (default) ───────────────────────────────────────────────────
+// SCRAPER_POLITE_MODE=1 (opt-in): every page goes through politeFetch (honest UA, robots + Crawl-delay,
+// per-domain pacing, conditional GETs, Retry-After, ban-risk breaker). No FlareSolverr, no stealth
+// scripts, no proxies, no random UAs. A block or challenge stops that site; it is never escalated.
+
+export class PoliteBlockedError extends Error {
+  constructor(
+    readonly url: string,
+    readonly response: PoliteResponse,
+  ) {
+    super(
+      response.skipped
+        ? `polite: ${response.skipped === "robots" ? "robots.txt disallows" : response.skipped === "breaker" ? "domain paused after repeated 403/429" : "invalid URL"} ${url}`
+        : response.challenge
+          ? `polite: bot challenge at ${url}; domain paused, not bypassing`
+          : `polite: HTTP ${response.status || "network error"} for ${url}`,
+    );
+    this.name = "PoliteBlockedError";
+  }
+}
+
+/** Fetch a page politely or throw PoliteBlockedError (so the orchestrator records a real reason). */
+export async function politeHtml(
+  url: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const res = await politeFetch(url, { signal });
+  if (!res.ok) throw new PoliteBlockedError(url, res);
+  return res.body;
+}
+
+/**
+ * Render a JS-built page in a plain headless browser that identifies itself honestly: our UA, no
+ * stealth patches, no proxy, paced by the same per-domain limiter. Only called after politeFetch
+ * confirmed robots allows the URL and returned a clean (non-challenge) page.
+ */
+export async function politeRender(
+  url: string,
+  config: ScraperConfig,
+): Promise<string> {
+  const domain = domainOf(url) || url;
+  const browser = await getPoliteBrowser();
+  return politeCrawler().limiter.run(domain, async () => {
+    const context = await browser.newContext({
+      userAgent: politeUserAgent(),
+      viewport: { width: 1400, height: 900 },
+      locale: "en-US",
+      extraHTTPHeaders: config.headers,
+      javaScriptEnabled: true,
+    });
+    try {
+      const page = await context.newPage();
+      await page.route("**/*", (route) => {
+        const type = route.request().resourceType();
+        if (["image", "media", "font", "stylesheet"].includes(type))
+          route.abort();
+        else route.continue();
+      });
+      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+      return await page.content();
+    } finally {
+      await context.close().catch(() => {});
+    }
+  });
+}
+
+let _politeBrowser: Browser | null = null;
+async function getPoliteBrowser(): Promise<Browser> {
+  if (_politeBrowser?.isConnected()) return _politeBrowser;
+  _politeBrowser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox"],
+  });
+  return _politeBrowser;
+}
+
 // ─── Core fetch — static HTML, with tiered escalation ────────────────────────
 // Redesign: direct fetch → FlareSolverr (auto, when FLARESOLVERR_URL is set). Block-page detection
 // means Cloudflare/challenge responses transparently retry through FlareSolverr instead of silently
@@ -148,6 +233,9 @@ export async function fetchHtml(
   url: string,
   config: ScraperConfig,
 ): Promise<cheerio.CheerioAPI> {
+  if (politeModeEnabled()) {
+    return cheerio.load(await politeHtml(url, config.abortSignal));
+  }
   const result = await escalatedFetch(url, {
     headers: {
       "Accept-Encoding": "gzip, deflate, br",
@@ -184,6 +272,20 @@ export async function fetchBrowser(
   html: string;
   close: () => Promise<void>;
 }> {
+  if (politeModeEnabled()) {
+    let html = await politeHtml(url, config.abortSignal);
+    // Thin server HTML (JS-built site): render it honestly instead of escalating to stealth.
+    if (html.length < 1500 && process.env.POLITE_ALLOW_RENDER !== "0") {
+      html = await politeRender(url, config);
+    }
+    const $root = cheerio.load(html);
+    return {
+      page: undefined as unknown as Page,
+      $: (sel: string) => $root(sel),
+      html,
+      close: async () => {},
+    };
+  }
   const browser = await getBrowser(config);
   const proxy = config.useProxies ? getProxy() : undefined;
 
@@ -254,6 +356,25 @@ export async function* paginate<T>(
     const result = await limit(async () => {
       await sleep(config.requestDelay);
       config.abortSignal?.throwIfAborted();
+      if (config.fetchPageHtml) {
+        const html = await config.fetchPageHtml(url);
+        config.abortSignal?.throwIfAborted();
+        return parsePage(html);
+      }
+      if (politeModeEnabled()) {
+        const html = await politeHtml(url, config.abortSignal);
+        const first = await parsePage(html);
+        if (
+          first.items.length ||
+          config.renderMode === "static" ||
+          process.env.POLITE_ALLOW_RENDER === "0"
+        )
+          return first;
+        // Clean page, no listings in the server HTML: the inventory is built by JS. Render it with
+        // an honest headless browser (same robots/pacing) rather than any stealth tier.
+        config.abortSignal?.throwIfAborted();
+        return parsePage(await politeRender(url, config));
+      }
       if (config.renderMode === "static") {
         const $ = await fetchHtml(url, config);
         config.abortSignal?.throwIfAborted();
@@ -306,6 +427,10 @@ export function normalizeUrl(url: string, base: string): string {
 
 // ─── Cleanup ─────────────────────────────────────────────────────────────────
 export async function closeBrowser() {
+  if (_politeBrowser) {
+    await _politeBrowser.close().catch(() => {});
+    _politeBrowser = null;
+  }
   if (_browser) {
     await _browser.close();
     _browser = null;

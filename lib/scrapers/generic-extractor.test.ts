@@ -40,6 +40,18 @@ describe("readVehicle — shape-agnostic field reading", () => {
 });
 
 describe("extractFromJsonLd", () => {
+  it("preserves separate cars of the same model and offer detail links", () => {
+    const car = {
+      "@type": "Car",
+      name: "2020 Honda Accord",
+      offers: { price: 15000, url: "/cars/a" },
+    };
+    const other = { ...car, offers: { price: 15000, url: "/cars/b" } };
+    const html = `<script type="application/ld+json">${JSON.stringify([car, other, car])}</script>`;
+    const rows = extractFromJsonLd(html);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.url)).toEqual(["/cars/a", "/cars/b"]);
+  });
   it("reads schema.org Vehicle with nested brand + offers", () => {
     const html = `<script type="application/ld+json">${JSON.stringify({
       "@context": "https://schema.org",

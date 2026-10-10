@@ -21,6 +21,13 @@ const put = (body: string) =>
   });
 
 describe("PUT /api/preferences", () => {
+  it("does not downgrade an account save to a device cookie", async () => {
+    const req = put(JSON.stringify({ homeLocation: { state: "MO" } }));
+    req.headers.set("x-require-account", "true");
+    const res = await PUT(req);
+    expect(res.status).toBe(401);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
   it("persists a watched dealer list for guests in the prefs cookie", async () => {
     const res = await PUT(
       put(JSON.stringify({ watchedDealerHosts: ["a.com", "a.com"] })),

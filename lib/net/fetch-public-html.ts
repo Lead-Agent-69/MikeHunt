@@ -67,10 +67,17 @@ export function locationHeader(
  */
 export async function fetchPublicHtml(
   rawUrl: string,
-  options: { signal?: AbortSignal; maxBytes?: number } = {},
+  policyOrOptions?:
+    | ((url: string) => Promise<boolean>)
+    | { signal?: AbortSignal; maxBytes?: number },
 ): Promise<{ html: string; finalUrl: string } | null> {
+  const allowUrl =
+    typeof policyOrOptions === "function" ? policyOrOptions : undefined;
+  const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
   let current = await assertPublicHttpUrl(rawUrl);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (allowUrl && !(await allowUrl(current.toString())))
+      throw new Error("Page disallowed by source policy");
     let response;
     try {
       response = await axios.get(current.toString(), {

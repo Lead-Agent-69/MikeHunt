@@ -54,20 +54,20 @@ export const BUYER_MODES: Record<
     label: "DIY enthusiast",
     question: "Can I realistically fix this?",
     priorities: [
-      "Required skills",
-      "Tools and workspace",
-      "Parts",
-      "Repair uncertainty",
+      "Reported damage",
+      "Title status",
+      "Listing photos",
+      "Inspect before you buy",
     ],
   },
   parts: {
     label: "Parts / teardown",
     question: "Is this worth parting out?",
     priorities: [
-      "High-value cores",
+      "Teardown budgets",
       "Title and salvage risk",
       "Yard time",
-      "Parts demand",
+      "Source evidence",
     ],
   },
   reseller: {
@@ -85,7 +85,7 @@ export const BUYER_MODES: Record<
     question: "Does this fit our business?",
     priorities: [
       "Inventory fit",
-      "Local demand",
+      "Comparable inventory",
       "Recon capacity",
       "Capital and turnover",
     ],
@@ -107,7 +107,7 @@ export function normalizeBuyerMode(value: unknown): BuyerMode | undefined {
   return undefined;
 }
 
-const VEHICLE_TO_QUERY: Record<string, string> = {
+export const VEHICLE_TO_QUERY: Record<string, string> = {
   "All vehicle types": "",
   Trucks: "truck",
   SUVs: "suv",
@@ -439,7 +439,16 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
   );
 
   useEffect(() => {
-    const sync = () => setIntent(readLocalBuyerIntent());
+    const sync = () =>
+      setIntent(
+        isLoading
+          ? null
+          : resolveBuyerIntentScope(
+              authed,
+              prefs.buyerScope,
+              readLocalBuyerIntent(),
+            ),
+      );
     sync();
     window.addEventListener(BUYER_INTENT_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -447,7 +456,7 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
       window.removeEventListener(BUYER_INTENT_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, []);
+  }, [authed, isLoading, prefs.buyerScope]);
 
   // Account preferences take precedence over a desk left by another browser user.
   useEffect(() => {
@@ -461,5 +470,5 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
     return normalized;
   }, []);
 
-  return { intent, save };
+  return { intent, save, isLoading };
 }

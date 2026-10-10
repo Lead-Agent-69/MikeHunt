@@ -13,6 +13,15 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { eligibleAskingPrices } from "@/lib/ai/asking-price-context";
+import {
+  ASK_COMP_WINDOW_DAYS,
+  dealCheckMarketValue,
+  MARKET_UNKNOWN_REASON,
+  marketBasisLabel,
+} from "@/lib/deal-check/market-comps";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // POST /api/deal-check  { image: <data URL> }
 // Photograph an auction run sheet / wholesaler offer OR paste a URL/text → model extracts the line items
@@ -223,8 +232,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Market comparison from our own deals.
+  // Market comparison from our own deals, via aggregateComps (lib/deal-check/market-comps.ts):
+  // the vehicle being checked is excluded, asks must be seen live in the last 7 days, and fewer
+  // than 3 independent comps means the market value is unknown, never a number.
+  // `marketComparison` keeps its old shape (null when there is no value); `marketValue` always
+  // says whether a value is known and why not.
   let marketComparison: any = null;
+  let marketValue: {
+    known: boolean;
+    value: number | null;
+    reason: string | null;
+    sampleSize: number;
+  } = {
+    known: false,
+    value: null,
+    reason:
+      "Market value unknown: the vehicle's make and model or the price could not be read.",
+    sampleSize: 0,
+  };
   try {
     const v = extracted.vehicle || {};
     if (v.make && v.model && extracted.selling_price) {
@@ -232,43 +257,97 @@ export async function POST(req: NextRequest) {
       let q = supabase
         .from("deals")
         .select(
-          "id, year, make, model, mileage, ask_price, source, source_url, condition, damage_type, title, auction_end_at",
+          "id, year, make, model, mileage, ask_price, source, source_deal_id, source_url, vin, location_state, last_seen_at, condition, damage_type, title, auction_end_at",
         )
         .eq("active", true)
         .ilike("make", v.make)
         .ilike("model", `%${String(v.model).split(" ")[0]}%`)
         .gt("ask_price", 0)
+        .gte(
+          "last_seen_at",
+          new Date(
+            Date.now() - ASK_COMP_WINDOW_DAYS * 86_400_000,
+          ).toISOString(),
+        )
         .limit(300);
       if (v.year)
         q = q.gte("year", Number(v.year) - 1).lte("year", Number(v.year) + 1);
-      const { data } = await q;
-      const askingRows = eligibleAskingPrices(data || []);
-      if (askingRows.length >= 3) {
-        const avg = Math.round(
-          askingRows.reduce((s: number, d: any) => s + Number(d.ask_price), 0) /
-            askingRows.length,
-        );
+      const { data, error } = await q;
+      if (error) throw new Error("comps unavailable");
+      const pastedUrl =
+        typeof inputText === "string" && /^https?:\/\//i.test(inputText.trim())
+          ? inputText.trim()
+          : null;
+      const market = dealCheckMarketValue({
+        target: {
+          id:
+            typeof body.dealId === "string" && UUID_RE.test(body.dealId)
+              ? body.dealId
+              : null,
+          vin: v.vin,
+          url: pastedUrl,
+        },
+        askRows: eligibleAskingPrices((data || []) as any[]),
+      });
+      const agg = market.aggregate;
+      if (agg.value != null) {
         const sell = Number(extracted.selling_price);
-
-        // Sort by price proximity to average or just take cheapest ones
-        // Let's sort by price ascending to show the best comps
-        const sortedComps = [...askingRows].sort(
-          (a, b) => Number(a.ask_price) - Number(b.ask_price),
-        );
-        const topComps = sortedComps.slice(0, 5);
-
+        // Cheapest other live listings, for context. Never the vehicle being checked.
+        const topComps = [...market.askRows]
+          .sort((a, b) => Number(a.ask_price) - Number(b.ask_price))
+          .slice(0, 5)
+          .map((r: any) => ({
+            id: r.id,
+            year: r.year,
+            make: r.make,
+            model: r.model,
+            mileage: r.mileage,
+            ask_price: r.ask_price,
+            source: r.source,
+            source_url: r.source_url,
+            condition: r.condition,
+            damage_type: r.damage_type,
+            title: r.title,
+            auction_end_at: r.auction_end_at,
+          }));
         marketComparison = {
-          marketAvg: avg,
-          vsMarket: sell - avg,
-          evidenceType: "active_asking_prices",
-          sampleSize: askingRows.length,
+          // Kept as `marketAvg` for existing clients; it is the aggregateComps value (median,
+          // ask→sold adjusted for asks), not a mean of asks.
+          marketAvg: agg.value,
+          vsMarket: sell - agg.value,
+          evidenceType:
+            agg.kind === "sold" ? "sold_prices" : "active_asking_prices",
+          sampleSize: agg.n,
           comps: topComps,
+          basis: { kind: agg.kind, scope: agg.scope, method: "median" },
+          basisLabel: marketBasisLabel(agg),
+          confidence: agg.confidence,
+          excludedSelf: market.excludedSelf,
+        };
+        marketValue = {
+          known: true,
+          value: agg.value,
+          reason: null,
+          sampleSize: agg.n,
+        };
+      } else {
+        marketValue = {
+          known: false,
+          value: null,
+          reason: MARKET_UNKNOWN_REASON,
+          sampleSize: market.askRows.length,
         };
       }
     }
   } catch {
-    /* best-effort */
+    marketComparison = null;
+    marketValue = {
+      known: false,
+      value: null,
+      reason: "Market value unknown: comparable listings could not be loaded.",
+      sampleSize: 0,
+    };
   }
 
-  return NextResponse.json({ extracted, marketComparison });
+  return NextResponse.json({ extracted, marketComparison, marketValue });
 }
