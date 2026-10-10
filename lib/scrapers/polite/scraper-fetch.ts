@@ -4,9 +4,11 @@
  * Retry-After/backoff, the ban-risk breaker and per-domain metrics. The caller's User-Agent and
  * browser-fingerprint headers are dropped. A request polite mode refuses (robots disallow, paused
  * domain, challenge page) comes back as status 599 with `x-polite-skipped`, so callers' existing
- * `if (!res.ok)` handling stops cleanly. With SCRAPER_POLITE_MODE=0 it is plain fetch.
+ * `if (!res.ok)` handling stops cleanly. With SCRAPER_POLITE_MODE=0 it is plain fetch. Grandfathered
+ * hosts (robots-exempt.ts) keep their original request inside politeGate.
  */
-import { politeFetch, politeModeEnabled } from "./polite-fetch";
+import { politeFetch, politeGate, politeModeEnabled } from "./polite-fetch";
+import { isRobotsExemptUrl } from "./robots-exempt";
 
 export const POLITE_SKIP_STATUS = 599;
 
@@ -25,6 +27,10 @@ export async function scraperFetch(
 ): Promise<Response> {
   const href = String(url);
   if (!politeModeEnabled()) return fetch(href, init);
+  // Grandfathered source (Jonah's rule): the original request, headers and all, exactly as before,
+  // with only the polite per-domain delay, breaker and 403/429 accounting around it.
+  if (isRobotsExemptUrl(href))
+    return politeGate(href, () => fetch(href, init), (r) => r.status);
   if (init.body != null && typeof init.body !== "string")
     throw new Error("scraperFetch: only string bodies are supported in polite mode");
   const headers = headerRecord(init.headers);

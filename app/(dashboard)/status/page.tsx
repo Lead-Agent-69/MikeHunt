@@ -1637,6 +1637,16 @@ export default function StatusPage() {
                     {politeness.rate429Pct}%). {politeness.cacheHitPct}% were
                     unchanged pages (304).
                   </p>
+                  {(politeness.challenged ?? 0) > 0 && (
+                    <p className="text-[var(--t4)]">
+                      Challenged: {politeness.challenged} bot-challenge page
+                      {politeness.challenged === 1 ? "" : "s"} (
+                      {(politeness.challengedDomains || [])
+                        .map((d: any) => `${d.domain} ×${d.challenges}`)
+                        .join(", ")}
+                      ). Backed off, retried next schedule.
+                    </p>
+                  )}
                   {(politeness.pausedDomains || []).length > 0 && (
                     <p className="text-[var(--t4)]">
                       Paused:{" "}

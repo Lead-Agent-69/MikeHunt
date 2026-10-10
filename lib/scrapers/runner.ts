@@ -511,6 +511,24 @@ function buildOrchestratorOptions(
 export async function runScrapers(options: RunScraperOptions = {}) {
   const registry = createScraperRegistry();
 
+  // Jonah's rule: sources that produced rows in the last 7 days keep running as before (robots.txt
+  // skip off, polite delays on). Refresh that set (hourly, keeps the old set on error).
+  if (
+    !options.dryRun &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { refreshRecentProducers } = await import("./polite/robots-exempt");
+    const r = await refreshRecentProducers(
+      createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY),
+    );
+    if (r)
+      console.log(
+        `[runScrapers] robots-exempt (rows in last 7d): ${r.sources} source ids, ${r.hosts} hosts`,
+      );
+  }
+
   // Self-healing: drop sources whose last few runs all failed (they retry after a cooldown). Skipped
   // only when running a batch — an explicit single-source request is always honored.
   let sourceIds = options.sourceIds;

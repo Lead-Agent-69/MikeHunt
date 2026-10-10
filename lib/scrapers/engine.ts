@@ -31,6 +31,8 @@ import {
   politeCrawler,
   politeFetch,
   politeModeEnabled,
+  politeRobotsPathFor,
+  politeGate,
   politeUserAgent,
   type PoliteResponse,
 } from "./polite";
@@ -233,10 +235,11 @@ export async function fetchHtml(
   url: string,
   config: ScraperConfig,
 ): Promise<cheerio.CheerioAPI> {
-  if (politeModeEnabled()) {
+  if (politeRobotsPathFor(url)) {
     return cheerio.load(await politeHtml(url, config.abortSignal));
   }
-  const result = await escalatedFetch(url, {
+  // Legacy path (polite mode off, or a grandfathered source): unchanged, plus polite delays/breaker.
+  const result = await politeGate(url, () => escalatedFetch(url, {
     headers: {
       "Accept-Encoding": "gzip, deflate, br",
       "Cache-Control": "no-cache",
@@ -245,7 +248,7 @@ export async function fetchHtml(
     userAgent: randomUA(config.userAgents),
     label: config.name,
     retries: 3,
-  });
+  }));
 
   if (result.html) {
     if (result.strategy === "flaresolverr") {
@@ -272,7 +275,7 @@ export async function fetchBrowser(
   html: string;
   close: () => Promise<void>;
 }> {
-  if (politeModeEnabled()) {
+  if (politeRobotsPathFor(url)) {
     let html = await politeHtml(url, config.abortSignal);
     // Thin server HTML (JS-built site): render it honestly instead of escalating to stealth.
     if (html.length < 1500 && process.env.POLITE_ALLOW_RENDER !== "0") {
@@ -316,14 +319,18 @@ export async function fetchBrowser(
     }
   });
 
-  await pRetry(
-    async () => {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      if (waitForSelector) {
-        await page.waitForSelector(waitForSelector, { timeout: 10000 });
-      }
-    },
-    { retries: 2, minTimeout: 3000 },
+  // Legacy browser path (polite mode off, or a grandfathered source): unchanged navigation, with the
+  // polite per-domain delay and breaker around it.
+  await politeGate(url, () =>
+    pRetry(
+      async () => {
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+        if (waitForSelector) {
+          await page.waitForSelector(waitForSelector, { timeout: 10000 });
+        }
+      },
+      { retries: 2, minTimeout: 3000 },
+    ),
   );
 
   const html = await page.content();
@@ -361,7 +368,7 @@ export async function* paginate<T>(
         config.abortSignal?.throwIfAborted();
         return parsePage(html);
       }
-      if (politeModeEnabled()) {
+      if (politeRobotsPathFor(url)) {
         const html = await politeHtml(url, config.abortSignal);
         const first = await parsePage(html);
         if (

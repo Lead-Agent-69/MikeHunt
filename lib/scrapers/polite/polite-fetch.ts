@@ -12,6 +12,7 @@
  *  - Every outcome is counted per domain for the /status ban-risk panel (metrics.ts).
  */
 import { DomainBreaker } from "./breaker";
+import { isRobotsExemptUrl } from "./robots-exempt";
 import {
   backoffMs,
   isBanSignal,
@@ -31,6 +32,12 @@ import {
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export interface PoliteFetchOptions {
+  /**
+   * Skip the robots.txt disallow check for a grandfathered source (Jonah's never-stop-a-working-
+   * scraper rule; see robots-exempt.ts). Hosts flagged in the registry or seen producing rows in the
+   * last 7 days are exempt automatically. Delays, backoff, breaker and caching still apply.
+   */
+  robotsExempt?: boolean;
   accept?: string;
   /** HTTP method (default GET). Only bodiless GETs use the conditional cache. */
   method?: string;
@@ -225,10 +232,12 @@ export class PoliteCrawler {
       return { ...base, skipped: "breaker" };
     }
 
-    const robots = await this.robotsFor(origin, domain);
-    if (!robotsRecordAllows(robots, url)) {
-      this.metrics.recordRobotsDenied(domain);
-      return { ...base, skipped: "robots" };
+    if (!(opts.robotsExempt || isRobotsExemptUrl(url))) {
+      const robots = await this.robotsFor(origin, domain);
+      if (!robotsRecordAllows(robots, url)) {
+        this.metrics.recordRobotsDenied(domain);
+        return { ...base, skipped: "robots" };
+      }
     }
 
     const method = (opts.method || "GET").toUpperCase();
@@ -309,7 +318,7 @@ export class PoliteCrawler {
         const body = await res.text();
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs());
           return { ...base, status, challenge: true, headers };
         }
         this.breaker.recordSuccess(domain);
@@ -332,7 +341,7 @@ export class PoliteCrawler {
       if (status === 403) {
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs());
           return { ...base, status, challenge: true, headers };
         }
         return { ...base, status, headers };
@@ -379,6 +388,58 @@ export function politeMetricsSnapshot() {
  * fetch (scraperFetch) go through politeFetch. Opt out per worker with SCRAPER_POLITE_MODE=0
  * (also "off" / "false"), which restores the legacy fetch paths unchanged.
  */
+/**
+ * A bot-challenge page is recorded as a "challenged" outcome (metrics.challenges, shown on /status)
+ * and backs the domain off briefly. It is NOT a permanent skip: the default 30 minutes is shorter
+ * than the sweep interval (4h), so the source is retried on its next schedule.
+ */
+export function challengeBackoffMs(): number {
+  const min = Number(process.env.POLITE_CHALLENGE_BACKOFF_MIN);
+  return (Number.isFinite(min) && min >= 0 ? Math.min(min, 120) : 30) * 60_000;
+}
+
+/** Polite robots path for this URL: polite mode on and the host is not grandfathered. */
+export function politeRobotsPathFor(url: string): boolean {
+  return politeModeEnabled() && !isRobotsExemptUrl(url);
+}
+
+/**
+ * Run a grandfathered source's own legacy request (FlareSolverr, browser, curl, axios...) exactly as
+ * before, with only the polite layer around it: the per-domain random delay and concurrency slot,
+ * the circuit breaker (a paused domain throws instead of being hit), and ban/challenge accounting
+ * from the returned status. Outside polite mode it just runs `fn`.
+ */
+export async function politeGate<T>(
+  url: string,
+  fn: () => Promise<T>,
+  statusOf?: (result: T) => number | undefined,
+): Promise<T> {
+  if (!politeModeEnabled()) return fn();
+  const domain = domainOf(url);
+  if (!domain) return fn();
+  const c = politeCrawler();
+  if (c.breaker.isOpen(domain)) {
+    c.metrics.recordBreakerSkip(domain);
+    throw new Error(`polite: ${domain} paused by circuit breaker (retried next schedule)`);
+  }
+  let result: T;
+  try {
+    result = await c.limiter.run(domain, fn);
+  } catch (error) {
+    c.metrics.recordNetworkError(domain);
+    throw error;
+  }
+  const status = statusOf?.(result);
+  if (status !== undefined) {
+    c.metrics.recordStatus(domain, status);
+    if (status === 403 || status === 429) c.breaker.recordBanSignal(domain, status);
+    else if (status >= 200 && status < 400) c.breaker.recordSuccess(domain);
+  } else {
+    c.metrics.recordStatus(domain, 200);
+  }
+  return result;
+}
+
 export function politeModeEnabled(): boolean {
   const v = String(process.env.SCRAPER_POLITE_MODE ?? "")
     .trim()

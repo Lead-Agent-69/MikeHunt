@@ -65,9 +65,14 @@ export class DomainBreaker {
   }
 
   /** Pause immediately (e.g. a bot challenge page: we will not try to pass it). */
-  pause(domain: string, reason: string, now: number = Date.now()) {
+  pause(
+    domain: string,
+    reason: string,
+    now: number = Date.now(),
+    ms: number = this.pauseMs,
+  ) {
     const s = this.state(domain);
-    s.pausedUntil = Math.max(s.pausedUntil, now + this.pauseMs);
+    s.pausedUntil = Math.max(s.pausedUntil, now + ms);
     s.reason = reason;
     s.strikes = [];
   }

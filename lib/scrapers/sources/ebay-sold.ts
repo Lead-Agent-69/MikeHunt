@@ -2,7 +2,7 @@
 // Completed-listing price observations, not independently verified settlements.
 // Hidden accepted offers and ambiguous prices cannot be treated as sold-price evidence.
 
-import { politeModeEnabled, scraperFetch } from "@/lib/scrapers/polite";
+import { politeGate, politeRobotsPathFor, scraperFetch } from "@/lib/scrapers/polite";
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
@@ -214,11 +214,20 @@ async function curlGet(
   url: string,
   jar: string,
 ): Promise<{ html: string; status: number }> {
-  if (politeModeEnabled()) {
-    // Polite mode (default): one honest request (robots.txt, our UA, pacing). No cookie-jar curl.
+  if (politeRobotsPathFor(url)) {
+    // Polite robots path (not grandfathered): one honest request. No cookie-jar curl.
     const r = await scraperFetch(url, { headers: { Accept: "text/html" } });
     return { html: r.ok ? await r.text() : "", status: r.status };
   }
+  // eBay sold is grandfathered (Jonah restored it): the curl path exactly as before, with the polite
+  // per-domain delay and breaker around it.
+  return politeGate(url, () => legacyCurlGet(url, jar), (r) => r.status || undefined);
+}
+
+async function legacyCurlGet(
+  url: string,
+  jar: string,
+): Promise<{ html: string; status: number }> {
   const { stdout } = await execFileAsync(
     "curl",
     [
@@ -256,7 +265,7 @@ export async function scrapeEbaySold(): Promise<number> {
   console.log("[eBay Sold] Starting real-sold-price scrape...");
   const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
   // Warm-up: seed cookies from the homepage (legacy mode only).
-  if (!politeModeEnabled()) try {
+  if (!politeRobotsPathFor("https://www.ebay.com/")) try {
     await execFileAsync("curl", [
       "-s",
       "-m",
