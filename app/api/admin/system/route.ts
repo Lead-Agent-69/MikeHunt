@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/auth/bearer";
 import { getServerUser } from "@/lib/server-supabase";
 import { isAdminEmail, isAdminConfigured } from "@/lib/auth/admin";
 
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 async function isAuthorized(req: NextRequest): Promise<boolean> {
   const secret = process.env.INGEST_SECRET;
   const header = req.headers.get("authorization");
-  if (secret && header === `Bearer ${secret}`) return true;
+  if (secret && bearerMatches(header, secret)) return true;
 
   try {
     const {

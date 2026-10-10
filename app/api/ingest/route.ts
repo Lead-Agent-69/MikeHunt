@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { bearerMatches } from "@/lib/auth/bearer";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
 import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
           { status: 503, headers: CORS },
         );
       }
-    } else if (req.headers.get("authorization") !== `Bearer ${secret}`) {
+    } else if (!bearerMatches(req.headers.get("authorization"), secret)) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401, headers: CORS },
