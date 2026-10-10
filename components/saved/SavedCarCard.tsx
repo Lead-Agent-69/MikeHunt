@@ -631,7 +631,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         flipDesk={flipDesk}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        snapshot={snapshot as any}
+        snapshot={{ ...snapshot, id: save.deal_id }}
       />
     </>
   );
