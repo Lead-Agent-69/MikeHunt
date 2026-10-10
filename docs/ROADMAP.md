@@ -44,7 +44,7 @@ the _actual_ current codebase, not the handoff docs' older snapshots.
 | #   | Visor feature                          | What we have                                                   | To finish                                                                      |
 | --- | -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | 5   | Full price history per listing         | `price_history` (PriceSparkline) + `vin_price_history`         | Timeline w/ drop badges + "3 drops in 7d = motivated seller"                   |
-| 6   | Days on market + regional days-to-sell | `first_seen_at`; `/api/market/timing` returns avg days-to-sell | **Days-on-market badge** on cards (green/amber/red); regional avg on dashboard |
+| 6   | Days on market + regional days-to-sell | `first_seen_at`; `/api/market/timing` returns avg days-to-sell (fields: docs/intelligence-advisor.md#market-timing-apimarkettiming) | **Days-on-market badge** on cards (green/amber/red); regional avg on dashboard |
 | 13  | Time travel (market as it was)         | `market_aggregates` now populated (cron fixed)                 | `/api/market/snapshot?daysAgo=` → "30d ago avg $X" on timing badge             |
 | 21  | Market insights dashboard              | `/insights` (calibration, Market Pulse), Deal IQ               | Home **summary card**: "17 new GO today · avg 14d to sell · Accords −3%"       |
 
