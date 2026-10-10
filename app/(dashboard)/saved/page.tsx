@@ -1,7 +1,7 @@
 ﻿// app/(dashboard)/saved/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { signalUnsave } from "@/components/reco/deal-signals";
@@ -45,6 +45,11 @@ import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { sellerTypeLabel, sourceMeta } from "@/lib/sources/source-meta";
+import {
+  scrollWhenReachable,
+  takeBackNavigationEntry,
+  useSaveListPosition,
+} from "@/hooks/useListRestore";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -130,6 +135,18 @@ export default function SavedCarsPage() {
       dedupingInterval: 30000, // 30 seconds
     },
   );
+
+  // Back from a deal: the list renders from SWR's cache, so only the scroll position is stored.
+  // Restore once the saves are on screen (filter is part of the key).
+  const restoreKey = `saved:${filter}`;
+  const restoredFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!saves || restoredFor.current === restoreKey) return;
+    restoredFor.current = restoreKey;
+    const back = takeBackNavigationEntry<null>(restoreKey);
+    if (back) return scrollWhenReachable(back.y);
+  }, [saves, restoreKey]);
+  useSaveListPosition<null>(saves ? restoreKey : null, () => null);
 
   const authError =
     accountError ||

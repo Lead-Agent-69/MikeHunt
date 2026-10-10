@@ -85,6 +85,11 @@ import {
   SCAN_EXTRA_KEYS,
 } from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
+import {
+  scrollWhenReachable,
+  takeBackNavigationEntry,
+  useSaveListPosition,
+} from "@/hooks/useListRestore";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -2490,6 +2495,12 @@ function FilterGroup({
 
 let _toastId = 0;
 
+/** What /scan keeps in sessionStorage for Back: the appended pages beyond SWR's page 0. */
+interface ScanRestoreState {
+  extra: any[];
+  morePage: number;
+}
+
 function ScanPageInner() {
   const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
@@ -3972,19 +3983,31 @@ function ScanPageInner() {
     setLoadingMore(false);
     setLoadMoreError(null);
     setPlanMessage(null);
-    setExtra([]);
-    setMorePage(0);
+    // Back from a deal: bring back the pages that were already appended for this exact search
+    // (page 0 comes from the SWR cache) so the saved scroll position exists again.
+    const back = takeBackNavigationEntry<ScanRestoreState>(
+      swrKey ? `scan:${swrKey}` : null,
+    );
+    const restoring = !!back?.state && back.state.morePage > 0;
+    setExtra(restoring ? back!.state.extra : []);
+    setMorePage(restoring ? back!.state.morePage : 0);
+    const cancelRestore = back ? scrollWhenReachable(back.y) : null;
     setLivePreviewRows([]);
     setLivePreviewProof([]);
     setImportRunProof([]);
     setImportPlanProof(null);
     autoPreviewKeyRef.current = null;
     return () => {
+      cancelRestore?.();
       plans.cancel();
       previews.cancel();
       pages.cancel();
     };
   }, [swrKey, sourceSearchKey]);
+  useSaveListPosition<ScanRestoreState>(
+    swrKey ? `scan:${swrKey}` : null,
+    () => ({ extra, morePage }),
+  );
 
   // Derive state from SWR + the appended pages.
   const results = useMemo(
