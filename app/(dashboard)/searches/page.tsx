@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Ico } from "@/components/shared/Ico";
 import { createClientComponentClient } from "@/lib/supabase";
+import { SearchTuning } from "@/components/searches/SearchTuning";
 import { parseSearchQuery } from "@/lib/nlp/parse-search";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { US_STATES } from "@/lib/utils/titleRules";
@@ -659,6 +660,9 @@ export default function SearchesPage() {
                     </span>
                   )}
                 </div>
+                {!search.local && (
+                  <SearchTuning search={search} onChanged={fetchSearches} />
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Link
