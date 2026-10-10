@@ -19,6 +19,11 @@ import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { sourceLabel } from "@/lib/sources/source-meta";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import { ErrorState } from "@/components/shared/PageStates";
+import {
+  scrollWhenReachable,
+  useBackNavigationEntry,
+  useSaveListPosition,
+} from "@/hooks/useListRestore";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -52,6 +57,13 @@ interface FeedItem {
 
 const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
+
+interface FeedRestoreState {
+  items: FeedItem[];
+  offset: number;
+  done: boolean;
+  boundedPool: boolean;
+}
 
 export default function FeedPage() {
   const { query: viewQuery, ready: viewReady } = useInventoryViewScope();
@@ -150,14 +162,32 @@ export default function FeedPage() {
     busy.current = false;
   }, []);
 
+  // Back from a deal: re-hydrate the pages already loaded and return to the same card.
+  const backNav = useBackNavigationEntry();
   useEffect(() => {
     if (scope === null || !viewReady) return;
+    const back = backNav.take<FeedRestoreState>(`feed:${query}`);
+    if (back?.state?.items?.length) {
+      generation.current++;
+      busy.current = false;
+      offset.current = back.state.offset;
+      setItems(back.state.items);
+      setDone(back.state.done);
+      setBoundedPool(back.state.boundedPool);
+      setConfigured(true);
+      setLoadError(false);
+      return scrollWhenReachable(back.y);
+    }
     setItems([]);
     setDone(false);
     setLoadError(false);
     void loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, viewReady]);
+  useSaveListPosition<FeedRestoreState>(
+    scope === null || !viewReady ? null : `feed:${query}`,
+    () => ({ items, offset: offset.current, done, boundedPool }),
+  );
   useEffect(
     () => () => {
       generation.current++;
