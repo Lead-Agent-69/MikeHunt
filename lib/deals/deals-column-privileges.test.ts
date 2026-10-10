@@ -118,23 +118,80 @@ describe("no anon / browser select of non-granted deals columns", () => {
     expect(src).toContain("createServerComponentClient()");
   });
 
-  it("no server code falls back from the service role to the anon key (fail closed)", () => {
-    const walk = (dir: string): string[] =>
-      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-        const p = `${dir}/${e.name}`;
-        if (e.isDirectory()) return e.name === "node_modules" ? [] : walk(p);
-        return /\.(ts|tsx|mjs|js)$/.test(e.name) && !/\.test\./.test(e.name)
-          ? [p]
-          : [];
-      });
+  // Server code: app/api, server lib modules, scripts. Client components ("use client") are the
+  // browser and legitimately hold the anon key; they are checked by the deals-read tests below.
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) return e.name === "node_modules" ? [] : walk(p);
+      return /\.(ts|tsx|mjs|js)$/.test(e.name) && !/\.test\./.test(e.name)
+        ? [p]
+        : [];
+    });
+  const serverFiles = () =>
+    ["app/api", "lib", "scripts"]
+      .flatMap(walk)
+      .filter((f) => !/^\s*["']use client["']/.test(readFileSync(f, "utf8")));
+
+  // Files allowed to name the anon key, and why. Anything else that does is a failure.
+  const ANON_KEY_ALLOWED: Record<string, string> = {
+    "lib/supabase.ts": "browser client factory (createClientComponentClient)",
+    "lib/server-supabase.ts": "cookie session client for auth.getUser only",
+    "lib/supabase/server.ts": "cookie session client for auth",
+    "lib/system-readiness.ts": "env presence check, no client",
+    "lib/auth/provider-readiness.ts": "env presence check, no client",
+    "app/api/dealers/profile/route.ts":
+      "cookie session client: RLS-scoped to the signed-in dealer's own row",
+    "lib/data/dealers-service.ts":
+      "public dealers directory under RLS; must never read deals (asserted below)",
+  };
+
+  it("no server code falls back from the service role to the anon key (|| or ??)", () => {
+    const fallback =
+      /SUPABASE_SERVICE_ROLE_KEY[\s\S]{0,40}?(\|\||\?\?)\s*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/;
     const offenders = ["app", "lib", "scripts"]
       .flatMap(walk)
-      .filter((f) =>
-        /SUPABASE_SERVICE_ROLE_KEY\s*\|\|\s*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/.test(
-          readFileSync(f, "utf8"),
-        ),
-      );
+      .filter((f) => fallback.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
+  });
+
+  it("guard regex catches ||, ?? and multi-line fallbacks (self-test)", () => {
+    const fallback =
+      /SUPABASE_SERVICE_ROLE_KEY[\s\S]{0,40}?(\|\||\?\?)\s*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/;
+    expect(
+      fallback.test(
+        "process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      ),
+    ).toBe(true);
+    expect(
+      fallback.test(
+        "process.env.SUPABASE_SERVICE_ROLE_KEY ??\n      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      ),
+    ).toBe(true);
+    expect(fallback.test('process.env.SUPABASE_SERVICE_ROLE_KEY || ""')).toBe(
+      false,
+    );
+  });
+
+  it("no server file builds a client from the anon key outside the allowlist", () => {
+    const offenders = serverFiles().filter(
+      (f) =>
+        readFileSync(f, "utf8").includes("NEXT_PUBLIC_SUPABASE_ANON_KEY") &&
+        !(f in ANON_KEY_ALLOWED),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("direct createClient(url, ANON_KEY) only in allowlisted files, and those never read deals", () => {
+    const direct =
+      /createClient\(\s*[^,]+,\s*(process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY|resolvedPublicAnonKey\(\))/;
+    for (const f of serverFiles()) {
+      const src = readFileSync(f, "utf8");
+      if (!direct.test(src)) continue;
+      expect(Object.keys(ANON_KEY_ALLOWED), f).toContain(f);
+      expect(src, f).not.toMatch(/from\(["'](deals|top_deals)["']\)/);
+      expect(src, f).not.toMatch(/rpc\(["']discover_deals["']/);
+    }
   });
 
   it("demandIndex counts via the server client on a granted column", () => {
