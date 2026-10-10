@@ -3,6 +3,7 @@
 // the CarGurus/Kayak mechanism: a market-relative deal grade + segment/price/title tags so the
 // app can present the most useful, browsable view. Pure functions, $0, no external APIs.
 
+import { titleCategoryDetail } from "@/lib/deals/title-category";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
@@ -59,13 +60,13 @@ export function priceTier(ask?: number | null): PriceTier {
   return "luxury";
 }
 
+// Thin adapter over the shared title-category helper so tags and badges never disagree. Keeps the
+// legacy TitleClass shape: parts_only stays "parts", and rebuildable (repairable) has no title class.
 export function titleClass(condition?: string | null): TitleClass {
-  const c = (condition || "").toLowerCase();
-  if (c.includes("salvage")) return "salvage";
-  if (c.includes("rebuilt")) return "rebuilt";
-  if (c.includes("parts")) return "parts";
-  if (c.includes("clean")) return "clean";
-  return "unknown";
+  const d = titleCategoryDetail({ condition });
+  if (d.partsOnly) return "parts";
+  if (d.category === "rebuildable") return "unknown";
+  return d.category;
 }
 
 // Acquisition lanes — the way a flipping dealer actually sorts inventory. One lane per deal

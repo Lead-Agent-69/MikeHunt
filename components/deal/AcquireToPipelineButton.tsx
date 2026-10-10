@@ -1,110 +1,230 @@
 "use client";
 
-import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, Plus, ExternalLink, Sparkles, Loader2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
 
 interface AcquireButtonProps {
   deal: {
-    id: string;
+    id?: string;
     vin?: string;
     year?: number;
     make?: string;
     model?: string;
     trim?: string;
     askPrice?: number;
+    condition?: string;
     trueNetProfit?: number;
     sellEstimate?: number;
     locationCity?: string;
     locationState?: string;
   };
   className?: string;
+  label?: string;
+  onRecorded?: () => void | boolean | Promise<void | boolean>;
 }
 
-export function AcquireToPipelineButton({ deal, className = "" }: AcquireButtonProps) {
+export function AcquireToPipelineButton({
+  deal,
+  className = "",
+  label = "Record purchase",
+  onRecorded,
+}: AcquireButtonProps) {
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [acquired, setAcquired] = useState(false);
+  const [pricePaid, setPricePaid] = useState("");
+  const [condition, setCondition] = useState(deal.condition || "unknown");
   const [error, setError] = useState<string | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLButtonElement>(null);
+  const recordedLink = useRef<HTMLAnchorElement>(null);
+  const title =
+    [deal.year, deal.make, deal.model].filter(Boolean).join(" ") || "Vehicle";
 
-  async function handleAcquire() {
+  useEffect(() => {
+    if (!open) return;
+    const element = dialog.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      (recordedLink.current || opener.current)?.focus();
+    };
+  }, [open]);
+
+  async function record(event: React.FormEvent) {
+    event.preventDefault();
+    if (loading) return;
+    const paid = Number(pricePaid);
+    if (!pricePaid.trim() || !Number.isFinite(paid) || paid < 0) {
+      setError("Enter the actual non-negative purchase price paid.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/inventory", {
+      const response = await fetch("/api/inventory", {
+        signal: AbortSignal.timeout(20000),
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          dealId: deal.id,
-          vin: deal.vin || `UNASSIGNED-${deal.id.slice(0, 8)}`,
-          year: deal.year || new Date().getFullYear(),
-          make: deal.make || "Unknown",
-          model: deal.model || "Unknown",
+          dealId: deal.id || undefined,
+          vin: deal.vin || "",
+          year: deal.year || 0,
+          make: deal.make || "",
+          model: deal.model || "",
           trim: deal.trim,
-          purchasePrice: deal.askPrice || 0,
+          condition,
+          purchasePrice: paid,
           stage: "acquired",
           predictedProfit: deal.trueNetProfit,
           predictedSell: deal.sellEstimate,
           purchasedCity: deal.locationCity,
           purchasedState: deal.locationState,
-          notes: `Acquired via MikeHunt Deal IQ on ${new Date().toLocaleDateString()}`,
         }),
       });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || "Failed to add vehicle to fleet pipeline");
-      }
-
+      const result = await response.json();
+      if (!response.ok || !result.item?.id)
+        throw new Error("Unconfirmed purchase record");
       setAcquired(true);
-    } catch (err: any) {
-      console.error("Acquisition error:", err);
-      setError(err.message || "Could not acquire");
+      setOpen(false);
+      try {
+        const status = await onRecorded?.();
+        if (status === false) throw new Error("Unconfirmed shortlist status");
+      } catch {
+        setError(
+          "Purchase recorded. Saved-list status did not update; check Pipeline. Do not record it again.",
+        );
+      }
+    } catch {
+      setError(
+        "Purchase record was not confirmed. Check Pipeline before retrying to avoid a duplicate.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  if (acquired) {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-black text-emerald-400">
-          <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-          Acquired to Fleet
-        </span>
-        <Link
-          href="/fleet"
-          className="flex items-center gap-1 px-3 py-2 rounded-2xl bg-[var(--s1)] border border-[var(--b2)] text-xs font-bold text-[var(--t1)] hover:border-emerald-500/40 transition-colors"
-        >
-          View in Pipeline
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-1">
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={handleAcquire}
-        disabled={loading}
-        className={`flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-xs sm:text-sm font-black text-black bg-gradient-to-r from-emerald-400 via-green-400 to-emerald-500 shadow-lg shadow-green-500/25 transition-all disabled:opacity-50 ${className}`}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin text-black" />
-            Pushing to Pipeline...
-          </>
-        ) : (
-          <>
-            <Sparkles className="h-4 w-4 fill-black" />
-            Acquire &amp; Push to Fleet
-          </>
-        )}
-      </motion.button>
-      {error && <span className="text-[10px] text-[var(--red)] font-semibold">{error}</span>}
+    <div className="min-w-0">
+      {acquired ? (
+        <Link
+          ref={recordedLink}
+          href="/fleet"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b2)] px-3 text-sm font-semibold text-[var(--t1)]"
+        >
+          <Check size={16} aria-hidden="true" /> Purchase recorded{" "}
+          <ExternalLink size={14} aria-hidden="true" />
+        </Link>
+      ) : (
+        <button
+          ref={opener}
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm font-semibold text-[var(--t1)] ${className}`}
+        >
+          <Plus size={16} aria-hidden="true" />
+          {label}
+        </button>
+      )}
+      {error && !open && (
+        <p role="alert" className="mt-2 max-w-sm text-xs text-[var(--red)]">
+          {error}
+        </p>
+      )}
+      {open && (
+        <dialog
+          ref={dialog}
+          aria-label="Record vehicle purchase"
+          onCancel={(event) => {
+            event.preventDefault();
+            if (!loading) setOpen(false);
+          }}
+          className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">Record purchase</h2>
+              <p className="mt-1 text-sm">{title}</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close purchase form"
+              title="Close"
+              disabled={loading}
+              onClick={() => setOpen(false)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <p className="my-4 text-sm text-[var(--t3)]">
+            Inventory record only. No bid or payment is submitted.
+          </p>
+          <form onSubmit={record}>
+            <fieldset disabled={loading} className="min-w-0 space-y-4">
+              <label className="block text-sm">
+                Purchase price paid ($)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  autoFocus
+                  value={pricePaid}
+                  onChange={(event) => setPricePaid(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3"
+                />
+              </label>
+              <label className="block text-sm">
+                Recorded title / condition
+                <select
+                  value={condition}
+                  onChange={(event) => setCondition(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3"
+                >
+                  {Array.from(
+                    new Set([
+                      "unknown",
+                      "clean",
+                      "salvage",
+                      "rebuilt",
+                      "damaged",
+                      "parts",
+                      condition,
+                    ]),
+                  ).map((value) => (
+                    <option key={value} value={value}>
+                      {value.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {error && (
+                <p role="alert" className="text-sm text-[var(--red)]">
+                  {error}
+                </p>
+              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="min-h-11 rounded-lg border border-[var(--b2)] px-3"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--t1)] px-3 font-semibold text-[var(--s0)]"
+                >
+                  {loading && <Loader2 size={16} className="animate-spin" />}
+                  {loading ? "Recording..." : "Confirm purchase record"}
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </dialog>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ const ALLOWED_IMAGE_DOMAINS = [
   "stjamesautoparts.com",
   "dgautollc.com",
   "dealerzone.com",
+  "salvagezone.com",
 ] as const;
 
 const ALLOWED_IMAGE_HOSTS = new Set([

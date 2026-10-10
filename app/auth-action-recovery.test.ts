@@ -123,18 +123,18 @@ it("does not expose admin tools for a different identity", async () => {
 it("offers real links, focuses the first link, and restores focus on Escape", async () => {
   await render(AccountMenu);
   await click("Account menu");
-  const firstLink = host.querySelector('a[href="/searches"]');
+  const firstLink = host.querySelector('a[href="/settings"]');
   expect(document.activeElement).toBe(firstLink);
-  expect(host.querySelector('a[href="/saved"]')).toBeNull();
+  expect(host.querySelector('a[href="/saved"]')).not.toBeNull();
   expect(host.querySelector('a[href="/settings"]')).not.toBeNull();
-  expect(host.querySelector("details")?.open).toBe(false);
-  expect(host.querySelector('a[href="/scan?sort=score"]')).not.toBeNull();
+  expect(host.querySelector('a[href="/tools"]')).not.toBeNull();
+  expect(host.querySelector('a[href="/scan?sort=score"]')).toBeNull();
   await act(async () => {
     document.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
   });
-  expect(host.querySelector('[aria-label="Account and tools"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Account navigation"]')).toBeNull();
   expect(document.activeElement?.getAttribute("aria-label")).toBe(
     "Account menu",
   );
@@ -143,8 +143,11 @@ it("offers real links, focuses the first link, and restores focus on Escape", as
 it("closes on an outside touch/pointer without trapping page scrolling", async () => {
   await render(AccountMenu);
   await click("Account menu");
+  expect(
+    host.querySelector('[aria-label="Account navigation"]'),
+  ).not.toBeNull();
   await act(async () => {
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
   });
-  expect(host.querySelector('[aria-label="Account and tools"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Account navigation"]')).toBeNull();
 });

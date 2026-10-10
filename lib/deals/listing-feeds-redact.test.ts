@@ -101,7 +101,6 @@ describe("listing feeds wire the shared desk redaction", () => {
     "app/api/deals/best-buy/route.ts",
     "app/api/flash-deals/route.ts",
     "app/api/mispricing/route.ts",
-    "app/api/bulk/route.ts",
     "app/api/market/explore/route.ts",
     "app/api/public/v1/deals/route.ts",
     "app/api/deals/map/route.ts",

@@ -16,6 +16,7 @@ const getServerUser = vi.hoisted(() =>
   vi.fn(async () => ({ data: { user: { id: "u1" } } })),
 );
 const captureException = vi.hoisted(() => vi.fn());
+const dealRows = vi.hoisted(() => ({ rows: [] as any[], error: null as any }));
 const generateText = vi.hoisted(() =>
   vi.fn(async () => ({
     text: '{"vehicle":{"year":null,"make":null,"model":null,"vin":null,"mileage":null},"selling_price":1000,"fees":[],"addons":[],"taxes":null,"total_out_the_door":null,"red_flags":[]}',
@@ -52,7 +53,8 @@ vi.mock("@/lib/supabase", () => ({
       "limit",
     ])
       c[m] = () => c;
-    c.then = (r: any) => Promise.resolve({ data: [] }).then(r);
+    c.then = (r: any) =>
+      Promise.resolve({ data: dealRows.rows, error: dealRows.error }).then(r);
     return c;
   },
 }));
@@ -76,6 +78,12 @@ beforeEach(() => {
 });
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
+  it("rejects malformed model extraction instead of returning unusable success", async () => {
+    generateText.mockResolvedValueOnce({
+      text: '{"selling_price":"unknown","fees":{}}',
+    });
+    expect((await post("Fictional offer text")).status).toBe(422);
+  });
   it("rejects malformed extraction instead of displaying unchecked fields", async () => {
     generateText.mockResolvedValueOnce({
       text: '{"selling_price":"3000","fees":"none"}',
@@ -213,5 +221,94 @@ describe("POST /api/deal-check URL paste SSRF guard", () => {
     getServerUser.mockResolvedValueOnce({ data: { user: null } } as any);
     const res = await post("https://93.184.216.34/listing");
     expect(res.status).toBe(401);
+  });
+});
+
+describe("POST /api/deal-check market value", () => {
+  const extraction = (vin: string | null = null) => ({
+    text: JSON.stringify({
+      vehicle: { year: 2020, make: "Acura", model: "MDX", vin, mileage: 40000 },
+      selling_price: 30000,
+      fees: [],
+      addons: [],
+      taxes: null,
+      total_out_the_door: null,
+      red_flags: [],
+    }),
+  });
+  const row = (id: string, ask_price: number, extra: any = {}) => ({
+    id,
+    year: 2020,
+    make: "Acura",
+    model: "MDX",
+    mileage: 40000,
+    ask_price,
+    source: "cars_com",
+    source_deal_id: `cc-${id}`,
+    source_url: `https://www.cars.com/vehicledetail/${id}/`,
+    vin: null,
+    location_state: "MO",
+    last_seen_at: new Date().toISOString(),
+    condition: "used",
+    damage_type: null,
+    title: "2020 Acura MDX",
+    auction_end_at: null,
+    ...extra,
+  });
+
+  beforeEach(() => {
+    dealRows.rows = [];
+    dealRows.error = null;
+  });
+
+  it("uses the aggregateComps median, not a mean of asks, and excludes the same VIN", async () => {
+    const vin = "5J8YD4H50LL000001";
+    dealRows.rows = [
+      row("self", 10000, { vin }),
+      row("b", 28000),
+      row("c", 30000),
+      row("d", 32000),
+      row("e", 60000),
+    ];
+    generateText.mockResolvedValueOnce(extraction(vin));
+    const body = await (await post("2020 Acura MDX 30000")).json();
+    expect(body.marketValue).toMatchObject({ known: true, sampleSize: 4 });
+    // median(28k,30k,32k,60k) = 31k (upper-mid of even sample is averaged) × 0.95
+    expect(body.marketComparison.marketAvg).toBe(Math.round(31000 * 0.95));
+    expect(body.marketComparison.vsMarket).toBe(
+      30000 - Math.round(31000 * 0.95),
+    );
+    expect(body.marketComparison).toMatchObject({
+      evidenceType: "active_asking_prices",
+      sampleSize: 4,
+      excludedSelf: 1,
+      basis: { kind: "ask", scope: "national", method: "median" },
+    });
+    expect(body.marketComparison.comps.map((c: any) => c.id)).not.toContain(
+      "self",
+    );
+    expect(body.marketComparison.comps[0]).not.toHaveProperty("vin");
+  });
+
+  it("says market value is unknown instead of a number when fewer than 3 comps remain", async () => {
+    const vin = "5J8YD4H50LL000001";
+    dealRows.rows = [
+      row("self", 10000, { vin }),
+      row("b", 28000),
+      row("c", 30000),
+    ];
+    generateText.mockResolvedValueOnce(extraction(vin));
+    const body = await (await post("2020 Acura MDX 30000")).json();
+    expect(body.marketComparison).toBeNull();
+    expect(body.marketValue).toMatchObject({ known: false, value: null });
+    expect(body.marketValue.reason).toMatch(/unknown/i);
+  });
+
+  it("says unknown when comps cannot be loaded", async () => {
+    dealRows.error = { message: "boom" };
+    generateText.mockResolvedValueOnce(extraction());
+    const body = await (await post("2020 Acura MDX 30000")).json();
+    expect(body.marketComparison).toBeNull();
+    expect(body.marketValue).toMatchObject({ known: false, value: null });
   });
 });

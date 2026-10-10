@@ -58,7 +58,10 @@ export async function GET(req: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
   if (!user?.id)
     return NextResponse.json({
       prefs: readGuestPrefs(req),
@@ -141,16 +144,24 @@ export async function PUT(req: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
   if (!user?.id) return guestWithDemand(guestMerged);
 
   const sb = createServerComponentClient();
-  // Merge server-side so one app's save never drops another's keys.
-  const { data: existing } = await sb
+  // Preserve unrelated keys; a failed read must never become an empty baseline.
+  const { data: existing, error: readError } = await sb
     .from("user_preferences")
     .select("prefs")
     .eq("user_id", user.id)
     .maybeSingle();
+  if (readError)
+    return NextResponse.json(
+      { error: "Preferences unavailable" },
+      { status: 503 },
+    );
   let merged: Record<string, unknown> = {
     ...((existing?.prefs as object) || {}),
     ...patch,
@@ -180,16 +191,20 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  const { error } = await sb.from("user_preferences").upsert(
-    {
-      user_id: user.id,
-      prefs: merged,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
-  if (error) {
-    console.error("[preferences]", error.message);
+  const { data: saved, error } = await sb
+    .from("user_preferences")
+    .upsert(
+      {
+        user_id: user.id,
+        prefs: merged,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    )
+    .select("user_id,prefs")
+    .single();
+  if (error || saved?.user_id !== user.id || !saved?.prefs) {
+    console.error("[preferences]", error?.message || "Unconfirmed save");
     return NextResponse.json(
       { error: "Preferences unavailable" },
       { status: 500 },
@@ -206,7 +221,8 @@ export async function PUT(req: NextRequest) {
   }
 
   return NextResponse.json({
-    prefs: merged,
+    prefs: saved.prefs,
+    authed: true,
     ...(locationDemand ? { locationDemand } : {}),
   });
 }

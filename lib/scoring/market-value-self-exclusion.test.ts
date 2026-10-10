@@ -20,6 +20,9 @@ const row = (id: string, ask_price: number, extra: any = {}) => ({
   damage_type: null,
   title: "2018 Honda Accord",
   mileage: 40000,
+  // main's 7-day ask window (#166): comps must have been seen live recently.
+  last_seen_at: new Date().toISOString(),
+  auction_end_at: null,
   ...extra,
 });
 
@@ -138,6 +141,41 @@ describe("market-value exact self-exclusion", () => {
     expect(all.nWholesale).toBe(3);
     expect(loo.nWholesale).toBe(2);
     expect(loo.nRetail).toBe(3);
+  });
+});
+
+describe("self-exclusion composes with main's ask-comp filters", () => {
+  it("a stale row never enters the pool, so excluding it removes nothing", async () => {
+    await loadMarketIndex(
+      client([
+        row("stale", 9000, {
+          last_seen_at: new Date(Date.now() - 9 * 86400000).toISOString(),
+        }),
+        row("b", 20000),
+        row("c", 21000),
+        row("d", 22000),
+      ]),
+    );
+    const r = lookupMarketValue("Honda", "Accord", YEAR, null, {
+      id: "stale",
+    })!;
+    expect(r.nRetail).toBe(3);
+    expect(r.excludedSelf ?? 0).toBe(0);
+  });
+
+  it("an independent_dealer clean row is a retail comp and is excluded exactly", async () => {
+    await loadMarketIndex(
+      client([
+        row("self", 9000, { source: "independent_dealer", condition: "clean" }),
+        row("b", 20000),
+        row("c", 21000),
+        row("d", 22000),
+      ]),
+    );
+    expect(lookupMarketValue("Honda", "Accord", YEAR)!.nRetail).toBe(4);
+    const r = lookupMarketValue("Honda", "Accord", YEAR, null, { id: "self" })!;
+    expect(r.nRetail).toBe(3);
+    expect(r.excludedSelf).toBe(1);
   });
 });
 

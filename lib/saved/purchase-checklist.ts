@@ -53,5 +53,7 @@ export async function fetchPurchaseChecklist(
   const response = await fetch(url);
   if (!response.ok)
     throw new Error("We couldn't load your purchase checklist.");
-  return response.json();
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error("Unconfirmed saved vehicles");
+  return rows;
 }

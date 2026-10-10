@@ -8,169 +8,148 @@ import {
 } from "@/lib/supabase";
 import { PasswordField } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
-import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
-import { authErrorMessage } from "@/lib/auth/auth-error-message";
+import { friendlyAuthError } from "@/lib/auth/friendly-error";
 
 export default function ResetPasswordPage() {
-  const [status, setStatus] = useState<
-    "checking" | "ready" | "invalid" | "complete"
-  >("checking");
+  const [ready, setReady] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [supabase] = useState(createClientComponentClient);
+  const [complete, setComplete] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    async function checkRecovery() {
+    let active = true;
+    async function checkSession() {
       try {
         if (
           !isSupabaseConfigured() ||
           new URLSearchParams(window.location.search).has("error") ||
           new URLSearchParams(window.location.hash.slice(1)).has("error")
         ) {
-          if (!cancelled) setStatus("invalid");
-          return;
+          throw new Error(
+            "This reset link is invalid or expired. Request a new link below.",
+          );
         }
-        const {
-          data: { user },
-          error: sessionError,
-        } = await supabase.auth.getUser();
-        if (!cancelled) setStatus(user && !sessionError ? "ready" : "invalid");
-      } catch {
-        if (!cancelled) setStatus("invalid");
+        const { data, error } =
+          await createClientComponentClient().auth.getUser();
+        if (error || !data.user)
+          throw new Error(
+            "This reset link is invalid or expired. Request a new link below.",
+          );
+        if (active) setReady(true);
+      } catch (error) {
+        if (active) setError(friendlyAuthError(error));
+      } finally {
+        if (active) setChecking(false);
       }
     }
-    void checkRecovery();
+    void checkSession();
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [supabase]);
+  }, []);
 
-  async function handleUpdate(event: React.FormEvent) {
+  async function save(event: React.FormEvent) {
     event.preventDefault();
-    if (status !== "ready" || saving) return;
+    if (saving || !ready || complete) return;
     setError(null);
     if (password.length < 12) {
-      setError("Use at least 12 characters for your new password.");
+      setError("Use at least 12 characters.");
       return;
     }
     if (password !== confirmation) {
-      setError("The passwords do not match. Please check both fields.");
+      setError("The passwords do not match.");
       return;
     }
     setSaving(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password,
-      });
-      if (updateError) {
-        setError(
-          authErrorMessage(
-            updateError.message,
-            "We couldn't update your password. Request a new reset link if this one has expired.",
-          ),
-        );
-      } else {
-        setPassword("");
-        setConfirmation("");
-        setStatus("complete");
+      const supabase = createClientComponentClient();
+      const { data: identity, error: sessionError } =
+        await supabase.auth.getUser();
+      if (sessionError || !identity.user) {
+        setReady(false);
+        throw new Error("Your session has expired. Request a new reset link.");
       }
-    } catch {
-      setError("We couldn't connect. Check your connection and try again.");
+      const { data, error } = await supabase.auth.updateUser({ password });
+      if (error) throw new Error(error.message);
+      if (!data.user || data.user.id !== identity.user.id)
+        throw new Error(
+          "The password update could not be confirmed. Please try again.",
+        );
+      setPassword("");
+      setConfirmation("");
+      setComplete(true);
+    } catch (error) {
+      setError(friendlyAuthError(error));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 pb-6 pt-24 sm:p-6 bg-[var(--s1)]">
-      <div className="absolute top-0 left-0 p-6">
-        <Link href="/" aria-label="MIKEHUNT home">
-          <MikeHuntLogo size="md" />
-        </Link>
-      </div>
-      <section
-        className="w-full max-w-md glass-panel p-6 sm:p-8"
-        aria-labelledby="reset-title"
-      >
-        <h1
-          id="reset-title"
-          className="text-2xl font-bold text-[var(--t1)] mb-3"
-        >
-          {status === "complete" ? "Password updated" : "Choose a new password"}
+    <main className="min-h-screen flex items-center justify-center bg-[var(--s1)] px-6 py-12">
+      <section className="w-full max-w-md">
+        <h1 className="text-2xl font-bold text-[var(--t1)] mb-4">
+          Set a new password
         </h1>
-        {status === "checking" && (
-          <p role="status" className="text-[var(--t3)]">
-            Checking your reset link...
+        {checking && <p role="status">Checking your reset link...</p>}
+        {error && (
+          <p role="alert" className="mb-4 text-sm text-[var(--red)]">
+            {error}
           </p>
         )}
-        {status === "invalid" && (
-          <div role="alert" className="text-[var(--t3)]">
-            <p>
-              This reset link is missing, expired, or was opened in a different
-              browser. Request a new link and open the latest email in the
-              browser where you requested it.
+        {complete ? (
+          <div>
+            <p role="status" className="mb-4">
+              Your password has been updated.
             </p>
-            <Link
-              href="/forgot-password"
-              className="mt-4 inline-block font-semibold text-[var(--amber)]"
-            >
-              Request a new reset link
-            </Link>
-          </div>
-        )}
-        {status === "complete" && (
-          <div role="status">
-            <p className="text-[var(--t3)]">Your new password is saved.</p>
             <Link
               href="/discover"
-              className="mt-4 inline-block font-semibold text-[var(--amber)]"
+              className="text-[var(--amber-d)] font-semibold"
             >
-              Continue to MIKEHUNT
+              Continue to Discover
             </Link>
           </div>
-        )}
-        {status === "ready" && (
-          <form onSubmit={handleUpdate} className="flex flex-col gap-4">
-            <p className="text-sm text-[var(--t3)]">
-              Use a unique password with at least 12 characters.
-            </p>
-            {error && (
-              <p role="alert" className="text-sm text-[var(--red)]">
-                {error}
-              </p>
-            )}
+        ) : ready ? (
+          <form onSubmit={save} className="flex flex-col gap-4">
             <PasswordField
               label="New password"
               name="password"
               autoComplete="new-password"
               minLength={12}
               required
+              disabled={saving}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              disabled={saving}
             />
+            <p className="text-sm text-[var(--t3)]">At least 12 characters</p>
             <PasswordField
               label="Confirm new password"
               name="confirmation"
               autoComplete="new-password"
               minLength={12}
               required
+              disabled={saving}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
-              disabled={saving}
             />
-            <Btn type="submit" loading={saving} className="w-full">
+            <Btn type="submit" loading={saving}>
               {saving ? "Updating..." : "Update password"}
             </Btn>
           </form>
+        ) : (
+          !checking && (
+            <Link
+              href="/forgot-password"
+              className="text-[var(--amber-d)] font-semibold"
+            >
+              Request a new reset link
+            </Link>
+          )
         )}
-        <Link
-          href="/login"
-          className="mt-6 inline-block text-sm text-[var(--t3)] hover:underline"
-        >
+        <Link href="/login" className="block mt-6 text-sm text-[var(--t3)]">
           Back to sign in
         </Link>
       </section>

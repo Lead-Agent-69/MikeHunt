@@ -11,7 +11,7 @@ describe("onboarding goal scope", () => {
     expect(source).toContain('fetch("/api/preferences"');
     expect(source).not.toContain('fetch("/api/scrape/run"');
     expect(source).toContain("onboarding-buyers.webp");
-    expect(source).toContain("aria-pressed={buyerMode === mode}");
+    expect(source).toContain("aria-pressed={selectedMode === mode}");
     expect(source).toContain("useState<string[]>([])");
     expect(source).toContain("vehicles.includes(item)");
     expect(source.indexOf("if (!profileResult.ok")).toBeLessThan(

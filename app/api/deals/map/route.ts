@@ -11,6 +11,8 @@ import { parseMapVerdicts } from "@/lib/deals/map-verdict";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
+import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
+import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
 
 // GET /api/deals/map?verdict=actionable&limit= — active deals as map points. Precise geocoded coords
@@ -34,7 +36,11 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return withNoStore(tooManyRequests(rl));
 
   const sp = new URL(req.url).searchParams;
-  const verdictFilter = parseMapVerdicts(sp.get("verdict"));
+  const rangeError = validateInventoryRanges(sp);
+  if (rangeError)
+    return withNoStore(
+      NextResponse.json({ error: rangeError }, { status: 400 }),
+    );
   const limit = Math.min(
     2000,
     Math.max(1, parseInt(sp.get("limit") || "1000", 10) || 1000),
@@ -47,6 +53,13 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServerComponentClient();
+  let flipDesk = false;
+  try {
+    flipDesk = await resolveCallerFlipDesk();
+  } catch {
+    flipDesk = false;
+  }
+  const verdictFilter = parseMapVerdicts(flipDesk ? sp.get("verdict") : "all");
   // Page past the PostgREST 1000-row cap so the map reflects ALL located inventory up to `limit`
   // (a single .limit() silently dropped everything past 1000).
   let data: any[];
@@ -61,9 +74,13 @@ export async function GET(req: NextRequest) {
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
           .or("lat.not.is.null,location_state.not.is.null")
-          .gt("ask_price", 0)
-          .order("profit_score", { ascending: false, nullsFirst: false })
+          .order(flipDesk ? "profit_score" : "last_seen_at", {
+            ascending: false,
+            nullsFirst: false,
+          })
+          .order("id", { ascending: true })
           .range(from, to);
+        q = applyInventoryViewScope(q, sp);
         if (verdictFilter.mode === "eq") {
           q = q.eq("deal_verdict", verdictFilter.values[0]);
         } else if (verdictFilter.mode === "in") {
@@ -89,19 +106,19 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  let flipDesk = false;
-  try {
-    flipDesk = await resolveCallerFlipDesk();
-  } catch {
-    flipDesk = false;
-  }
-
   const points = (data || [])
     .map((d: any) => {
       let lat: number | null = null;
       let lng: number | null = null;
       let approx = false;
-      if (d.lat != null && d.lng != null) {
+      if (
+        d.lat != null &&
+        d.lng != null &&
+        Number.isFinite(Number(d.lat)) &&
+        Number.isFinite(Number(d.lng)) &&
+        Math.abs(Number(d.lat)) <= 90 &&
+        Math.abs(Number(d.lng)) <= 180
+      ) {
         lat = Number(d.lat);
         lng = Number(d.lng);
       } else {
@@ -119,9 +136,15 @@ export async function GET(req: NextRequest) {
           ? ` · ${d.location_state}`
           : "";
       // Profit only in the label for a flip desk; personal buyers see ask + place.
+      const priceText =
+        Number(d.ask_price) > 0 ? money(d.ask_price) : "Price not reported";
+      const profitText =
+        d.true_net_profit == null
+          ? "Profit not reported"
+          : `${Number(d.true_net_profit) >= 0 ? "+" : ""}${money(d.true_net_profit)} estimated profit`;
       const label = flipDesk
-        ? `${money(d.ask_price)} · ${Number(d.true_net_profit) >= 0 ? "+" : ""}${money(d.true_net_profit)} profit${place}`
-        : `${money(d.ask_price)}${place}`;
+        ? `${priceText} · ${profitText}${place}`
+        : `${priceText}${place}`;
       return {
         id: d.id,
         name: `${d.year} ${d.make} ${d.model}`.trim(),
@@ -131,7 +154,7 @@ export async function GET(req: NextRequest) {
         approx,
         url: `/deal/${encodeURIComponent(d.id)}`,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
-        type: typeForVerdict(d.deal_verdict),
+        type: flipDesk ? typeForVerdict(d.deal_verdict) : "dealer",
         label,
       };
     })
@@ -141,6 +164,8 @@ export async function GET(req: NextRequest) {
     NextResponse.json({
       points,
       count: points.length,
+      limited: data.length >= limit,
+      limit,
       deskAccess: flipDesk ? "flip" : "personal",
     }),
   );

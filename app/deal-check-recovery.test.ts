@@ -6,6 +6,13 @@ import DealCheckPage from "./(dashboard)/deal-check/page";
 let root: Root;
 let host: HTMLDivElement;
 let fetchMock: ReturnType<typeof vi.fn>;
+async function renderDocumentMode() {
+  await act(async () => root.render(React.createElement(DealCheckPage)));
+  const readOffer = Array.from(host.querySelectorAll("button")).find(
+    (button) => button.textContent?.trim() === "Read offer",
+  )!;
+  await act(async () => readOffer.click());
+}
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
@@ -27,7 +34,7 @@ it("retains input and offers retry after an empty response without announcing su
       throw new SyntaxError("Unexpected end of JSON input");
     },
   });
-  await act(async () => root.render(React.createElement(DealCheckPage)));
+  await renderDocumentMode();
   const input = host.querySelector("textarea")!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(
@@ -46,7 +53,7 @@ it("retains input and offers retry after an empty response without announcing su
   );
   expect(host.textContent).toContain("Your details are still here");
   expect(host.textContent).not.toContain("Unexpected end");
-  expect(host.textContent).not.toContain("Analysis ready");
+  expect(host.textContent).not.toContain("Document details");
   expect(input.value).toContain("Acura MDX");
   fetchMock.mockResolvedValueOnce({
     ok: true,
@@ -64,25 +71,25 @@ it("retains input and offers retry after an empty response without announcing su
     (button) => button.textContent === "Try again",
   )!;
   await act(async () => retry.click());
-  expect(host.textContent).toContain("Analysis ready");
+  expect(host.textContent).toContain("Acura MDX");
+  expect(host.textContent).toContain("Read from your document by AI");
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-it("keeps upload and analyze actions outside the text input and opens the file chooser by button", async () => {
-  await act(async () => root.render(React.createElement(DealCheckPage)));
-  const upload = Array.from(host.querySelectorAll("button")).find(
-    (b) => b.textContent === "Upload Photo",
+it("keeps upload and analyze actions outside the text input with a labeled native file control", async () => {
+  await renderDocumentMode();
+  const upload = Array.from(host.querySelectorAll("label")).find(
+    (label) => label.textContent?.trim() === "Upload Photo",
   )!;
   const file = host.querySelector<HTMLInputElement>('input[type="file"]')!;
-  const click = vi.spyOn(file, "click").mockImplementation(() => {});
-  expect(upload.type).toBe("button");
+  expect(upload.contains(file)).toBe(true);
+  expect(file.getAttribute("aria-label")).toBe("Upload offer photo");
+  expect(file.disabled).toBe(false);
   expect(upload.parentElement?.className).not.toContain("absolute");
-  await act(async () => upload.click());
-  expect(click).toHaveBeenCalledOnce();
 });
 
 it("rejects an unsupported photo without sending it for analysis", async () => {
-  await act(async () => root.render(React.createElement(DealCheckPage)));
+  await renderDocumentMode();
   const file = host.querySelector<HTMLInputElement>('input[type="file"]')!;
   Object.defineProperty(file, "files", {
     value: [new File(["data"], "test.heic", { type: "image/heic" })],
@@ -112,7 +119,7 @@ it("aborts a pending file read on unmount and ignores its stale completion", asy
       readAsDataURL() {}
     },
   );
-  await act(async () => root.render(React.createElement(DealCheckPage)));
+  await renderDocumentMode();
   const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
   Object.defineProperty(input, "files", {
     value: [new File(["qa"], "qa.png", { type: "image/png" })],

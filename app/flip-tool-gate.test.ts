@@ -44,11 +44,9 @@ describe("flip tool routes", () => {
         "/arbitrage",
         "/auctions",
         "/best-buy",
-        "/finance",
         "/find",
         "/fleet",
         "/lane",
-        "/list",
         "/market",
       ].sort(),
     );

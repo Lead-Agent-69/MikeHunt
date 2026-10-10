@@ -209,10 +209,16 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
         zoomControl={false}
       >
-        {/* Dark theme basemap */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url={
+            process.env.NEXT_PUBLIC_MAP_TILE_URL ||
+            "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          }
+          attribution={
+            process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION ||
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          }
+          maxZoom={19}
         />
 
         <ClusteredMarkers points={validPoints} />

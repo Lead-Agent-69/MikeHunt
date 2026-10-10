@@ -22,6 +22,13 @@ vi.mock("swr", () => ({
 vi.mock("next/dynamic", () => ({
   default: () => () => React.createElement("div", { "data-testid": "map" }),
 }));
+vi.mock("@/hooks/useInventoryViewScope", () => ({
+  useInventoryViewScope: () => ({
+    query: "",
+    ready: true,
+    intent: { buyerMode: "dealer" },
+  }),
+}));
 import MapPage from "./(dashboard)/map/page";
 
 beforeEach(() => {
@@ -35,7 +42,7 @@ describe("Map inventory states", () => {
   it("starts with Go and Hold candidates and exposes an all-inventory recovery", () => {
     const html = renderToStaticMarkup(React.createElement(MapPage));
     expect(state.fetcher.mock.calls[0][0]).toBe(
-      "/api/deals/map?verdict=actionable",
+      "/api/deals/map?&verdict=actionable",
     );
     expect(html).toContain("No listings in this view");
     expect(html).toContain("Show all listings");

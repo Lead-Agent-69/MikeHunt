@@ -32,6 +32,8 @@ export type Deal = {
   auctionEndAt?: Date;
   bidCount?: number;
   damageType?: string;
+  runAndDrive?: boolean;
+  hasKeys?: boolean;
   seller?: string;
   sellerType?: "dealer" | "auction" | "private";
   // Seller contact extracted at scrape time (options.contact). Powers in-app Call/Text/Email so the
@@ -82,6 +84,8 @@ export type DealFilters = {
   make?: string[];
   condition?: string[];
   location?: string;
+  /** Exact `location_state` match (validated 2-letter codes, uppercased). */
+  states?: string[];
   minProfit?: number;
   minScore?: number;
   sortBy?:
@@ -141,6 +145,10 @@ export class DealsService {
           ? Number(bidCount)
           : undefined,
       damageType: row.damage_type,
+      runAndDrive:
+        typeof row.run_drive === "boolean" ? row.run_drive : undefined,
+      hasKeys:
+        typeof row.keys_present === "boolean" ? row.keys_present : undefined,
       seller: row.seller || options.seller,
       sellerType: row.seller_type || options.sellerType,
       contact:
@@ -208,6 +216,13 @@ export class DealsService {
 
     if (filters.condition?.length) {
       query = query.in("condition", filters.condition);
+    }
+
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
     }
 
     if (filters.location) {
@@ -298,6 +313,13 @@ export class DealsService {
       .or(
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
+
+    if (filters.states?.length) {
+      query =
+        filters.states.length === 1
+          ? query.eq("location_state", filters.states[0])
+          : query.in("location_state", filters.states);
+    }
 
     if (filters.minProfit) {
       query = query.gte("profit_estimate", filters.minProfit);

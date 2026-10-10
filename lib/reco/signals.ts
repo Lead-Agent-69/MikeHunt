@@ -62,10 +62,11 @@ export type SignalsRead = {
   rows: SignalRow[];
   /**
    * false when the deal_signals relation is missing; true when the table exists
-   * (even if this user has zero rows). Other read errors still fail soft to []
-   * with available:true so a transient blip is not mistaken for "table missing".
+   * (even if this user has zero rows). Transient read errors set failed instead
+   * of pretending that the user has no history.
    */
   available: boolean;
+  failed?: boolean;
 };
 
 /** Read a user's recent signals, newest first. Missing table → { rows:[], available:false }. */
@@ -88,10 +89,11 @@ export async function readUserSignals(
     if (isMissingDealSignalsTable(error)) {
       return { rows: [], available: false };
     }
-    if (error || !Array.isArray(data)) return { rows: [], available: true };
+    if (error || !Array.isArray(data))
+      return { rows: [], available: true, failed: true };
     return { rows: data as SignalRow[], available: true };
   } catch {
-    return { rows: [], available: true };
+    return { rows: [], available: true, failed: true };
   }
 }
 

@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { hasAuctionDetailFilters } from "@/lib/search/extended-inventory-filters";
 import {
   hasVehicleCategoryQuery,
   rowMatchesBuyerQuery,
@@ -192,8 +193,9 @@ export async function GET(req: NextRequest) {
           : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
       )
       .eq("active", true);
+    query = applyLiveAuctionWindow(query);
     if (
-      params.get("buyNow") !== "1" &&
+      !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
         lane,
         sellerType: seller,
@@ -203,11 +205,6 @@ export async function GET(req: NextRequest) {
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
     query = applyInventoryLane(query, lane);
     query = applyVehicleDetails(query, params);
-    if (
-      Number(params.get("maxPrice")) > 0 ||
-      Number(params.get("minPrice")) > 0
-    )
-      query = query.gt("ask_price", 0);
     if (flipDesk && Number(params.get("minProfit")) > 0)
       query = query.gte("true_net_profit", Number(params.get("minProfit")));
     const verdict = params.get("verdict");
@@ -238,15 +235,11 @@ export async function GET(req: NextRequest) {
         `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
       );
     for (const [key, column, minimum] of [
-      ["minPrice", "ask_price", true],
-      ["maxPrice", "ask_price", false],
       ["minYear", "year", true],
       ["maxYear", "year", false],
-      ["minMileage", "mileage", true],
-      ["maxMileage", "mileage", false],
     ] as const) {
       const value = Number(params.get(key));
-      if (value > 0 || (column === "mileage" && params.has(key)))
+      if (value > 0)
         query = minimum ? query.gte(column, value) : query.lte(column, value);
     }
     if (cascade) query = query.ilike("make", make!);
@@ -323,3 +316,4 @@ export async function GET(req: NextRequest) {
     return internalError("scan:facets", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

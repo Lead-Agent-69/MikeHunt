@@ -279,7 +279,8 @@ export const INDEPENDENT_DEALERS: SourceConfig[] = [
     updateFrequency: "Daily",
     priority: "P1",
     status: "active",
-    notes: "30 years experience. Huge inventory.",
+    notes:
+      "30 years experience. Huge inventory. Terms ban bots, so it is not crawled (source-compliance); buyers reach it through the link-out. Kept, not removed.",
   },
   {
     id: "salvagezone",
@@ -743,7 +744,8 @@ export const DEALER_PLATFORMS: SourceConfig[] = [
     updateFrequency: "Daily",
     priority: "P2",
     status: "active",
-    notes: "Dealer network. Price data.",
+    notes:
+      "Dealer network. Price data. Listing pages answer 403 (bot wall) to an honest crawler and robots disallow /used-cars-for-sale/listing/*, so we use the 'Also search on' deep link instead of scraping. Scraper code kept.",
   },
   {
     id: "bring-a-trailer",

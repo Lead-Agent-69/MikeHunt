@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR from "swr";
+import Link from "next/link";
 import { fetcher } from "@/lib/swr-config";
 import { Panel } from "@/components/shared/Panel";
 import { Tag } from "@/components/shared/Tag";
@@ -13,7 +14,7 @@ import { FleetKPIs } from "@/components/fleet/FleetKPIs";
 import { CapitalVelocityTracker } from "@/components/fleet/CapitalVelocityTracker";
 import { useDealerId } from "@/hooks/useDealerId";
 import { isSupabaseConfigured } from "@/lib/supabase";
-import { Clock3 } from "lucide-react";
+import { Clock3, X } from "lucide-react";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -305,20 +306,50 @@ const EXPENSE_CATS: { value: ExpenseCategory; label: string }[] = [
 
 interface ExpenseModalProps {
   item: InventoryItem;
+  returnFocus: HTMLElement | null;
   onClose: () => void;
   onSaved: (updatedItem: InventoryItem) => void;
 }
 
-function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
+function useRecordDialog(
+  onClose: () => void,
+  saving: boolean,
+  returnFocus: HTMLElement | null,
+) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => {
+      element?.close();
+      returnFocus?.focus();
+    };
+  }, [returnFocus]);
+  return {
+    ref: dialog,
+    onCancel: (event: React.SyntheticEvent) => {
+      event.preventDefault();
+      if (!saving) onClose();
+    },
+  };
+}
+
+function ExpenseModal({
+  item,
+  onClose,
+  onSaved,
+  returnFocus,
+}: ExpenseModalProps) {
   const [cat, setCat] = useState<ExpenseCategory>("repair");
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const recordDialog = useRecordDialog(onClose, saving, returnFocus);
 
   const handleSave = async () => {
-    const val = parseFloat(amount);
-    if (!amount || isNaN(val) || val <= 0) {
+    if (saving) return;
+    const val = Number(amount);
+    if (!amount.trim() || !Number.isFinite(val) || val <= 0) {
       setErr("Enter a valid amount");
       return;
     }
@@ -335,24 +366,28 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
       const field = fieldMap[cat];
       const existing = (item as any)[field] ?? 0;
       const res = await fetch("/api/inventory", {
+        signal: AbortSignal.timeout(20000),
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, [field]: existing + val }),
+        body: JSON.stringify({
+          id: item.id,
+          expense: { category: cat, amount: val, expectedTotal: existing },
+        }),
       });
       const data = await res.json();
-      if (data.item) onSaved(data.item);
+      if (res.ok && data.item?.id === item.id) onSaved(data.item);
       else
         setErr(
           userFacingErrorMessage(
             data.error,
-            "We couldn't save that change. Please try again.",
+            "Expense was not confirmed. Reload Pipeline before retrying to avoid counting it twice.",
           ),
         );
     } catch (e) {
       setErr(
         userFacingErrorMessage(
           e,
-          "We couldn't save that change. Please try again.",
+          "Expense was not confirmed. Reload Pipeline before retrying to avoid counting it twice.",
         ),
       );
     } finally {
@@ -361,15 +396,12 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ background: "rgba(7,7,10,.7)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <dialog
+      {...recordDialog}
+      aria-label="Log vehicle expense"
+      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
     >
-      <div
-        className="w-full max-w-md panel p-5 space-y-4"
-        style={{ animation: "popIn 180ms var(--ease-out) both" }}
-      >
+      <fieldset disabled={saving} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-sm" style={{ color: "var(--t1)" }}>
@@ -381,10 +413,12 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-[var(--r3)]"
+            aria-label="Close expense form"
+            title="Close"
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-[var(--r3)]"
             style={{ color: "var(--t4)", background: "var(--s4)" }}
           >
-            ✕
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -399,8 +433,9 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
             {EXPENSE_CATS.map((c) => (
               <button
                 key={c.value}
+                aria-pressed={cat === c.value}
                 onClick={() => setCat(c.value)}
-                className="py-2 px-2 rounded-[var(--r3)] text-xs font-semibold transition-all"
+                className="min-h-11 py-2 px-2 rounded-[var(--r3)] text-xs font-semibold transition-all"
                 style={{
                   background: cat === c.value ? "var(--amber-lo)" : "var(--s4)",
                   color: cat === c.value ? "var(--amber)" : "var(--t3)",
@@ -415,6 +450,7 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
 
         <div className="space-y-1.5">
           <label
+            htmlFor="expense-amount"
             className="block text-xs font-medium"
             style={{ color: "var(--t2)" }}
           >
@@ -428,6 +464,8 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
               $
             </span>
             <input
+              id="expense-amount"
+              autoFocus
               type="number"
               min="0"
               step="0.01"
@@ -441,26 +479,10 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
             />
           </div>
           {err && (
-            <p className="text-xs" style={{ color: "var(--red)" }}>
+            <p role="alert" className="text-xs" style={{ color: "var(--red)" }}>
               {err}
             </p>
           )}
-        </div>
-
-        <div className="space-y-1.5">
-          <label
-            className="block text-xs font-medium"
-            style={{ color: "var(--t2)" }}
-          >
-            Note (optional)
-          </label>
-          <input
-            type="text"
-            className="field"
-            placeholder="e.g. New rear brakes"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
         </div>
 
         <div className="flex gap-2">
@@ -487,39 +509,49 @@ function ExpenseModal({ item, onClose, onSaved }: ExpenseModalProps) {
             )}
           </button>
         </div>
-      </div>
-    </div>
+      </fieldset>
+    </dialog>
   );
 }
 
 // ─── Mark Sold Modal ──────────────────────────────────────────────────────────
 interface MarkSoldModalProps {
   item: InventoryItem;
+  returnFocus: HTMLElement | null;
   onClose: () => void;
   onSold: (updatedItem: InventoryItem) => void;
 }
 
-function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
-  const [price, setPrice] = useState(item.listPrice?.toString() ?? "");
+function MarkSoldModal({
+  item,
+  onClose,
+  onSold,
+  returnFocus,
+}: MarkSoldModalProps) {
+  const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const recordDialog = useRecordDialog(onClose, saving, returnFocus);
 
   const handleSold = async () => {
-    const val = parseFloat(price);
-    if (!price || isNaN(val) || val <= 0) {
-      setErr("Enter a valid sale price");
+    if (saving) return;
+    const val = Number(price);
+    if (!price.trim() || !Number.isFinite(val) || val < 0) {
+      setErr("Enter the actual non-negative sale price received");
       return;
     }
     setSaving(true);
     setErr(null);
     try {
       const res = await fetch("/api/inventory", {
+        signal: AbortSignal.timeout(20000),
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: item.id, stage: "sold", soldPrice: val }),
       });
       const data = await res.json();
-      if (data.item) onSold(data.item);
+      if (res.ok && data.item?.id === item.id && data.item.stage === "sold")
+        onSold(data.item);
       else
         setErr(
           userFacingErrorMessage(
@@ -539,19 +571,17 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
     }
   };
 
-  const profit = parseFloat(price) - item.totalCost;
-  const hasPrice = !isNaN(parseFloat(price)) && parseFloat(price) > 0;
+  const profit = Number(price) - item.totalCost;
+  const hasPrice =
+    price.trim() !== "" && Number.isFinite(Number(price)) && Number(price) >= 0;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      style={{ background: "rgba(7,7,10,.7)", backdropFilter: "blur(4px)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+    <dialog
+      {...recordDialog}
+      aria-label="Record vehicle sale"
+      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
     >
-      <div
-        className="w-full max-w-md panel p-5 space-y-4"
-        style={{ animation: "popIn 180ms var(--ease-out) both" }}
-      >
+      <fieldset disabled={saving} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-sm" style={{ color: "var(--t1)" }}>
@@ -563,19 +593,22 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-[var(--r3)]"
+            aria-label="Close sale form"
+            title="Close"
+            className="w-11 h-11 shrink-0 flex items-center justify-center rounded-[var(--r3)]"
             style={{ color: "var(--t4)", background: "var(--s4)" }}
           >
-            ✕
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         <div className="space-y-1.5">
           <label
+            htmlFor="sale-price"
             className="block text-xs font-medium"
             style={{ color: "var(--t2)" }}
           >
-            Sale Price ($)
+            Actual sale price received ($)
           </label>
           <div className="relative">
             <span
@@ -585,11 +618,13 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
               $
             </span>
             <input
+              id="sale-price"
+              autoFocus
               type="number"
               min="0"
-              step="100"
+              step="0.01"
               className="field pl-7"
-              placeholder={item.listPrice?.toString() ?? "0"}
+              placeholder="0.00"
               value={price}
               onChange={(e) => {
                 setPrice(e.target.value);
@@ -598,7 +633,7 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
             />
           </div>
           {err && (
-            <p className="text-xs" style={{ color: "var(--red)" }}>
+            <p role="alert" className="text-xs" style={{ color: "var(--red)" }}>
               {err}
             </p>
           )}
@@ -616,7 +651,7 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
               className="text-xs font-medium"
               style={{ color: "var(--t3)" }}
             >
-              {profit >= 0 ? "🟢 Profit" : "🔴 Loss"}
+              {profit >= 0 ? "Recorded margin" : "Recorded loss"}
             </span>
             <Mono
               className="text-sm font-bold"
@@ -631,6 +666,11 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
             </Mono>
           </div>
         )}
+        <p className="text-xs text-[var(--t3)]">
+          Based on recorded costs only; excludes unrecorded expenses and
+          estimated carrying costs. This records a completed sale, not a listing
+          or payment.
+        </p>
 
         <div className="flex gap-2">
           <button
@@ -656,8 +696,8 @@ function MarkSoldModal({ item, onClose, onSold }: MarkSoldModalProps) {
             )}
           </button>
         </div>
-      </div>
-    </div>
+      </fieldset>
+    </dialog>
   );
 }
 
@@ -672,6 +712,8 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
   const [advancing, setAdvancing] = useState(false);
   const [showExpense, setShowExpense] = useState(false);
   const [showMarkSold, setShowMarkSold] = useState(false);
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const recordOpener = useRef<HTMLElement | null>(null);
 
   const rate = item.dailyFloorRate > 0 ? item.dailyFloorRate : DAILY_FLOOR_RATE;
   const days = Math.max(
@@ -688,22 +730,36 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
   const isPast = days > breakEven;
 
   const handleAdvance = useCallback(async () => {
+    if (advancing) return;
     const idx = STAGE_ORDER.indexOf(item.stage as Stage);
     const next = STAGE_ORDER[idx + 1];
     if (!next) return;
+    if (next === "sold") {
+      recordOpener.current = document.activeElement as HTMLElement | null;
+      setShowMarkSold(true);
+      return;
+    }
     setAdvancing(true);
+    setAdvanceError(null);
     try {
       const res = await fetch("/api/inventory", {
+        signal: AbortSignal.timeout(20000),
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: item.id, stage: next }),
       });
       const data = await res.json();
-      if (data.item) onUpdated(data.item);
+      if (!res.ok || data.item?.id !== item.id || data.item.stage !== next)
+        throw new Error("Unconfirmed stage update");
+      onUpdated(data.item);
+    } catch {
+      setAdvanceError(
+        "Stage change was not confirmed. Reload Pipeline before retrying.",
+      );
     } finally {
       setAdvancing(false);
     }
-  }, [item.id, item.stage, onUpdated]);
+  }, [item.id, item.stage, advancing, onUpdated]);
 
   const costRows = [
     { label: "Purchase", val: item.purchasePrice, hide: false, warn: false },
@@ -882,17 +938,28 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
         </div>
 
         {/* Action buttons */}
+        {advanceError && (
+          <p role="alert" className="text-xs text-[var(--red)]">
+            {advanceError}
+          </p>
+        )}
         {item.stage !== "sold" && (
           <div className="flex gap-2">
             <button
-              onClick={() => setShowExpense(true)}
+              onClick={(event) => {
+                recordOpener.current = event.currentTarget;
+                setShowExpense(true);
+              }}
               className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors border-none text-[var(--t2)]"
               style={{ background: "var(--s2)" }}
             >
               Log Expense
             </button>
             <button
-              onClick={() => setShowMarkSold(true)}
+              onClick={(event) => {
+                recordOpener.current = event.currentTarget;
+                setShowMarkSold(true);
+              }}
               className="flex-1 py-2 rounded-xl text-xs font-bold transition-colors border-none text-[var(--green)]"
               style={{ background: "var(--glo)" }}
             >
@@ -926,6 +993,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
       {showExpense && (
         <ExpenseModal
           item={item}
+          returnFocus={recordOpener.current}
           onClose={() => setShowExpense(false)}
           onSaved={(u) => {
             onUpdated(u);
@@ -936,6 +1004,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
       {showMarkSold && (
         <MarkSoldModal
           item={item}
+          returnFocus={recordOpener.current}
           onClose={() => setShowMarkSold(false)}
           onSold={(u) => {
             onUpdated(u);
@@ -1018,20 +1087,12 @@ function EmptyFleetFilter({ label }: { label: string }) {
 
 function FleetPageHeader({ count }: { count: number }) {
   return (
-    <div className="glass-panel overflow-hidden p-4 md:p-5">
+    <header className="border-b border-[var(--b1)] pb-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-            Fleet
-          </p>
           <h1 className="mt-1 text-xl font-black text-[var(--t1)] md:text-2xl">
-            Bought units, costs, recon, and outcomes
+            Pipeline
           </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-            This is the operating board after a vehicle moves from candidate to
-            owned unit. It keeps acquisition cost, floor cost, recon, listing
-            status, offers, and final sale in one timeline.
-          </p>
         </div>
         {count > 0 && (
           <span className="w-fit rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t3)]">
@@ -1039,22 +1100,7 @@ function FleetPageHeader({ count }: { count: number }) {
           </span>
         )}
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {[
-          ["Acquire", "Save the winning deal"],
-          ["Operate", "Track transport and recon"],
-          ["Learn", "Log sale outcomes"],
-        ].map(([label, detail]) => (
-          <div
-            key={label}
-            className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2"
-          >
-            <div className="text-xs font-black text-[var(--t1)]">{label}</div>
-            <div className="mt-0.5 text-[11px] text-[var(--t5)]">{detail}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+    </header>
   );
 }
 

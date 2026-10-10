@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const getServerUser = vi.hoisted(() => vi.fn());
 const mode = vi.hoisted(() => ({ value: null as string | null }));
 const signalsError = vi.hoisted(() => ({ value: null as any }));
+const inventoryError = vi.hoisted(() => ({ value: null as any }));
+const queryCalls = vi.hoisted(() => [] as Array<[string, ...any[]]>);
 const NOW_ISO = new Date().toISOString();
 
 const DEAL = {
@@ -28,7 +30,10 @@ const DEAL = {
 function chain(rows: any[], error: any = null) {
   const q: any = {};
   for (const m of ["select", "eq", "gt", "gte", "not", "order", "limit", "in"])
-    q[m] = () => q;
+    q[m] = (...args: any[]) => {
+      queryCalls.push([m, ...args]);
+      return q;
+    };
   q.then = (resolve: (v: unknown) => unknown) =>
     resolve({ data: error ? null : rows, error });
   return q;
@@ -76,7 +81,7 @@ vi.mock("@/lib/supabase", () => ({
               ],
           signalsError.value,
         );
-      return chain([DEAL]);
+      return chain([DEAL], inventoryError.value);
     },
   }),
 }));
@@ -85,6 +90,38 @@ import { GET } from "./route";
 const get = () => GET(new NextRequest("http://localhost/api/reco/for-you"));
 
 describe("GET /api/reco/for-you", () => {
+  beforeEach(() => {
+    signalsError.value = null;
+    inventoryError.value = null;
+    queryCalls.length = 0;
+    mode.value = "personal";
+    getServerUser.mockResolvedValue({ data: { user: { id: "u1" } } });
+  });
+  it("scopes candidates to the active search without overriding its location", async () => {
+    const id = "bac11941-cbdf-414f-8a10-d272327e786b";
+    await GET(new NextRequest(`http://localhost/api/reco/for-you?ids=${id}`));
+    expect(queryCalls).toContainEqual(["in", "id", [id]]);
+    expect(queryCalls).not.toContainEqual(["eq", "location_state", "TX"]);
+  });
+  it("empty or invalid eligible IDs never expand to the whole inventory", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost/api/reco/for-you?ids=invalid"),
+    );
+    expect((await response.json()).items).toEqual([]);
+    expect(queryCalls.some((call) => call[0] === "gt")).toBe(false);
+  });
+  it("transient signal failures are not presented as a cold start", async () => {
+    signalsError.value = { code: "42501", message: "private failure" };
+    const response = await get();
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("private failure");
+  });
+  it("inventory failures are not presented as empty recommendations", async () => {
+    inventoryError.value = { message: "private failure" };
+    const response = await get();
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+  });
   it("guests get 401", async () => {
     getServerUser.mockResolvedValue({ data: { user: null } });
     expect((await get()).status).toBe(401);

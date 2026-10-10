@@ -6,7 +6,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type Plan = "free" | "pro" | "pro_plus" | "elite" | "lifetime";
+export type Plan =
+  | "free"
+  | "community"
+  | "pro"
+  | "pro_plus"
+  | "elite"
+  | "lifetime";
 
 export const FREE_DEAL_VIEWS_PER_DAY = 10;
 
@@ -14,6 +20,10 @@ const PAID: Plan[] = ["pro", "pro_plus", "elite", "lifetime"];
 
 export function isPaid(plan: Plan | string | null | undefined): boolean {
   return !!plan && PAID.includes(plan as Plan);
+}
+
+export function hasFullCustomerAccess(plan: Plan | string | null | undefined) {
+  return plan === "community" || isPaid(plan);
 }
 
 /** Read the dealer's plan (defaults to free). */
@@ -26,7 +36,15 @@ export async function getUserPlan(
     .select("plan")
     .eq("id", userId)
     .maybeSingle();
-  return ((data?.plan as Plan) || "free") as Plan;
+  if (isPaid(data?.plan)) return data?.plan as Plan;
+  const { data: preference, error } = await supabase
+    .from("user_preferences")
+    .select("prefs")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return !error && preference?.prefs?.workspaceAccess === "community"
+    ? "community"
+    : "free";
 }
 
 export interface MeterResult {
@@ -47,7 +65,7 @@ export async function meterDealView(
   plan: Plan,
 ): Promise<MeterResult> {
   // Free platform mode: when GATING_ENABLED is not 'true', grant unrestricted access to all dealers
-  if (process.env.GATING_ENABLED !== "true" || isPaid(plan)) {
+  if (process.env.GATING_ENABLED !== "true" || hasFullCustomerAccess(plan)) {
     const today = new Date().toISOString().slice(0, 10);
     try {
       await supabase
@@ -56,7 +74,7 @@ export async function meterDealView(
     } catch {
       /* duplicate key / view logging is best-effort */
     }
-    return { allowed: true, remaining: Infinity, limit: Infinity, plan: "pro" };
+    return { allowed: true, remaining: Infinity, limit: Infinity, plan };
   }
 
   const today = new Date().toISOString().slice(0, 10);

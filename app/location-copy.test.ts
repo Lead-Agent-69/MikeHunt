@@ -26,10 +26,7 @@ describe("location copy for buyers", () => {
   });
 
   it("home-state rails say 'Listings in your home state' off the flip desk", () => {
-    for (const page of [
-      "app/(dashboard)/today/page.tsx",
-      "app/(dashboard)/discover/page.tsx",
-    ]) {
+    for (const page of ["app/(dashboard)/discover/page.tsx"]) {
       const source = read(page);
       expect(source).toMatch(
         /flipDesk \? "(📍 )?Near you" : "Listings in your home state"/,

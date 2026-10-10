@@ -5,18 +5,21 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
-import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
+import {
+  sourceMeta,
+  buyTerms,
+  tint,
+  sellerTypeLabel,
+  sourceLabel,
+} from "@/lib/sources/source-meta";
 import { CONFIDENCE_META } from "@/lib/valuation/confidence";
 import {
   readCondition,
   CONDITION_TIER_COLOR,
 } from "@/lib/intelligence/condition";
-import {
-  toLocalSavedVehicle,
-  useLocalSavedVehicles,
-} from "@/hooks/useLocalSavedVehicles";
+import { useDiscoverySave } from "./DiscoverySaveProvider";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
-import { Clock3, Flame, Zap } from "lucide-react";
+import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 const TITLE_STYLES: Record<
@@ -79,7 +82,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const reducedMotion = useReducedMotion();
-  const localSaves = useLocalSavedVehicles();
+  const bookmark = useDiscoverySave(deal);
   const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
   const title =
@@ -101,7 +104,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       ? deal.sourceUrl
       : `/deal/${deal.id}`;
   const external = href.startsWith("http");
-  const isSaved = localSaves.has(deal.id);
+  const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
   const decision = {
     label: evidence.label,
@@ -182,29 +185,23 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (isSaved) localSaves.remove(deal.id);
-              else localSaves.save(toLocalSavedVehicle(deal));
+              void bookmark.toggle();
             }}
             className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
             }}
-            title={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
-            aria-label={isSaved ? "Remove from saved vehicles" : "Save vehicle"}
+            title={bookmark.label}
+            aria-label={bookmark.label}
+            aria-busy={bookmark.busy}
+            disabled={bookmark.busy}
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
+            <Bookmark
+              size={15}
               fill={isSaved ? "currentColor" : "none"}
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
+              aria-hidden="true"
+            />
           </button>
         </div>
 
@@ -405,12 +402,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               {deal.valueAsOf
                 ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
                 : ""}
-              {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
-              {deal.sellerType === "dealer"
-                ? " · Dealer"
-                : deal.sellerType === "private"
-                  ? " · Private"
-                  : ""}
+              {deal.source ? ` · ${sourceLabel(deal.source)}` : ""}
+              {deal.sellerType === "dealer" || deal.sellerType === "private"
+                ? ` · ${sellerTypeLabel(deal.sellerType)}`
+                : ""}
             </p>
 
             {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}

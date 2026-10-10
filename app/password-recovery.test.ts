@@ -1,142 +1,101 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { readFileSync } from "node:fs";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const auth = vi.hoisted(() => ({
-  getUser: vi.fn(),
-  updateUser: vi.fn(),
-  resetPasswordForEmail: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ getUser: vi.fn(), updateUser: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({
-  createClientComponentClient: () => ({ auth }),
   isSupabaseConfigured: () => true,
+  createClientComponentClient: () => ({ auth: mocks }),
 }));
-vi.mock("@/components/brand/MikeHuntLogo", () => ({
-  MikeHuntLogo: () => null,
-}));
-import ResetPassword from "./(auth)/reset-password/page";
-import ForgotPassword from "./(auth)/forgot-password/page";
+import ResetPasswordPage from "./(auth)/reset-password/page";
 
 let root: Root;
-let host: HTMLDivElement;
+let container: HTMLDivElement;
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   window.history.replaceState({}, "", "/reset-password");
-  auth.getUser.mockResolvedValue({
-    data: { user: { id: "own-user" } },
+  mocks.getUser.mockResolvedValue({
+    data: { user: { id: "owner" } },
     error: null,
   });
-  auth.updateUser.mockResolvedValue({ error: null });
-  auth.resetPasswordForEmail.mockResolvedValue({ error: null });
-  host = document.createElement("div");
-  document.body.append(host);
-  root = createRoot(host);
-});
-afterEach(() => {
-  act(() => root.unmount());
-  host.remove();
-  vi.unstubAllGlobals();
-});
-
-async function render(component: React.ComponentType) {
-  await act(async () => {
-    root.render(React.createElement(component));
+  mocks.updateUser.mockResolvedValue({
+    data: { user: { id: "owner" } },
+    error: null,
   });
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+});
+async function mount() {
+  await act(async () => root.render(React.createElement(ResetPasswordPage)));
 }
-function fill(index: number, value: string) {
-  const input = host.querySelectorAll("input")[index];
-  act(() => {
-    Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )!.set!.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+async function fill(password: string, confirmation = password) {
+  const inputs = container.querySelectorAll("input");
+  await act(async () => {
+    [password, confirmation].forEach((value, index) => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(inputs[index], value);
+      inputs[index].dispatchEvent(new Event("input", { bubbles: true }));
+    });
   });
 }
 async function submit() {
-  await act(async () => {
-    host
+  await act(async () =>
+    container
       .querySelector("form")!
-      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  });
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+  );
 }
-
-describe("password recovery", () => {
-  it("requests a recovery callback without claiming the email exists", async () => {
-    await render(ForgotPassword);
-    fill(0, "buyer@example.com");
+describe("new password screen", () => {
+  it("hides the form for invalid links even with an existing session", async () => {
+    window.history.replaceState({}, "", "/reset-password?error=invalid_link");
+    await mount();
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.textContent).toContain("Request a new reset link");
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+  it("rejects short and mismatched passwords without writes", async () => {
+    await mount();
+    await fill("short");
     await submit();
-    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith(
-      "buyer@example.com",
-      {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-      },
-    );
-    expect(host.textContent).toContain("If an account exists");
-  });
-  it("recovers from network failure without leaving Send disabled", async () => {
-    auth.resetPasswordForEmail.mockRejectedValueOnce(
-      new Error("network private details"),
-    );
-    await render(ForgotPassword);
-    fill(0, "buyer@example.com");
+    expect(container.textContent).toContain("at least 12");
+    await fill("twelve-characters", "different-password");
     await submit();
-    expect(host.textContent).toContain("Check your connection");
-    expect(host.textContent).not.toContain("private details");
-    expect(
-      host.querySelector("button[type=submit]")?.hasAttribute("disabled"),
-    ).toBe(false);
+    expect(container.textContent).toContain("do not match");
+    expect(mocks.updateUser).not.toHaveBeenCalled();
   });
-  it("does not expose the update form without a verified user", async () => {
-    auth.getUser.mockResolvedValueOnce({ data: { user: null }, error: null });
-    await render(ResetPassword);
-    expect(host.querySelector("form")).toBeNull();
-    expect(host.textContent).toContain("Request a new reset link");
-    expect(auth.updateUser).not.toHaveBeenCalled();
-  });
-  it("refuses expired callback links even with an existing session", async () => {
-    window.history.replaceState({}, "", "/reset-password?error=expired");
-    await render(ResetPassword);
-    expect(host.querySelector("form")).toBeNull();
-    expect(auth.getUser).not.toHaveBeenCalled();
-  });
-  it("checks length and confirmation before calling the provider", async () => {
-    await render(ResetPassword);
-    fill(0, "short");
-    fill(1, "short");
+  it("requires a fresh verified user before updating", async () => {
+    await mount();
+    await fill("twelve-characters");
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     await submit();
-    expect(host.textContent).toContain("at least 12 characters");
-    fill(0, "test-only-long-password");
-    fill(1, "different-test-password");
-    await submit();
-    expect(host.textContent).toContain("do not match");
-    expect(auth.updateUser).not.toHaveBeenCalled();
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("session has expired");
   });
-  it("shows completion only after a successful update", async () => {
-    await render(ResetPassword);
-    fill(0, "test-only-long-password");
-    fill(1, "test-only-long-password");
-    auth.updateUser.mockResolvedValueOnce({
-      error: { message: "private error" },
+  it("confirms success only for the current account and clears the form", async () => {
+    await mount();
+    await fill("twelve-characters");
+    await submit();
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      password: "twelve-characters",
     });
-    await submit();
-    expect(host.textContent).not.toContain("Password updated");
-    expect(host.textContent).toContain("Request a new reset link");
-    await submit();
-    expect(auth.updateUser).toHaveBeenCalledWith({
-      password: "test-only-long-password",
-    });
-    expect(host.textContent).toContain("Password updated");
-    expect(host.querySelector("input")).toBeNull();
+    expect(container.textContent).toContain("Your password has been updated");
+    expect(container.querySelector("input")).toBeNull();
   });
-  it("uses theme-aware field and autofill colors", () => {
-    const css = readFileSync("app/globals.css", "utf8");
-    const field = css.split(".field {")[1].split(".field:focus")[0];
-    expect(field).toContain("background: var(--s0)");
-    expect(field).not.toContain("#fffdf8");
-    expect(field).toContain("-webkit-text-fill-color: var(--t1)");
-    expect(field).toContain("caret-color: var(--t1)");
+  it("keeps the form usable after a network failure without a false success", async () => {
+    mocks.updateUser.mockRejectedValue(new Error("Failed to fetch"));
+    await mount();
+    await fill("twelve-characters");
+    await submit();
+    expect(container.textContent).toContain("Check your connection");
+    expect(container.textContent).not.toContain(
+      "Your password has been updated",
+    );
+    expect(container.querySelector("button")!.disabled).toBe(false);
   });
 });

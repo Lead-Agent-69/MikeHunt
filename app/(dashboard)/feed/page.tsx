@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
   BarChart3,
   ExternalLink,
-  Flame,
   Heart,
   MapPin,
   RefreshCw,
@@ -20,6 +19,11 @@ import {
   type EditorialCardData,
 } from "@/components/ui/editorial-card";
 import { DataSetupState } from "@/components/shared/DataSetupState";
+import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
+import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import { dealCardCopy } from "@/lib/deals/deal-card-copy";
+import { sourceLabel } from "@/lib/sources/source-meta";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -55,9 +59,13 @@ const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
 
 export default function FeedPage() {
+  const { query: viewQuery, ready: viewReady } = useInventoryViewScope();
   const { prefs, isLoading: prefsLoading } = usePreferences();
+  const savedScopeKey = JSON.stringify(savedScopeStates(prefs) || []);
   const [items, setItems] = useState<FeedItem[]>([]);
-  const [offset, setOffset] = useState(0);
+  const offset = useRef(0);
+  const generation = useRef(0);
+  const [boundedPool, setBoundedPool] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [done, setDone] = useState(false);
@@ -66,65 +74,101 @@ export default function FeedPage() {
   const [scope, setScope] = useState<string[] | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
-
-  const loadMore = useCallback(async () => {
-    // The infinite-scroll observer can fire before the saved scope is known; an unscoped
-    // first page would then win the race and ignore the user's states.
-    if (busy.current || done || scope === null) return;
-    busy.current = true;
-    setLoading(true);
-    try {
-      const qs = scope && scope.length ? `&states=${scope.join(",")}` : "";
-      const res = await fetch(`/api/feed?offset=${offset}&limit=12${qs}`);
-      const data = await res.json();
-      if (!res.ok || data.error || data.degraded)
-        throw new Error("Feed unavailable");
-      setLoadError(false);
-      if (data.configured === false) {
-        setConfigured(false);
-        setDone(true);
-        setItems([]);
-        return;
-      }
-      setConfigured(true);
-      const next: FeedItem[] = data.items || [];
-      setItems((prev) => {
-        const seen = new Set(prev.map((p) => p.id));
-        return [...prev, ...next.filter((n) => !seen.has(n.id))];
-      });
-      setOffset(data.nextOffset ?? offset + 12);
-      if (next.length === 0) setDone(true);
-    } catch {
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-      busy.current = false;
+  const query = useMemo(() => {
+    const params = new URLSearchParams(viewQuery);
+    if (scope !== null) {
+      params.delete("state");
+      params.set("states", scope.join(","));
     }
-  }, [offset, done, scope]);
+    return params.toString();
+  }, [viewQuery, scope]);
+
+  const loadMore = useCallback(
+    async (reset = false) => {
+      // The infinite-scroll observer can fire before the saved scope is known; an unscoped
+      // first page would then win the race and ignore the user's states.
+      if ((!reset && (busy.current || done)) || scope === null || !viewReady)
+        return;
+      if (reset) {
+        generation.current++;
+        offset.current = 0;
+      }
+      const requestGeneration = generation.current;
+      busy.current = true;
+      setLoading(true);
+      try {
+        const cursor = offset.current;
+        const res = await fetch(`/api/feed?${query}&offset=${cursor}&limit=12`);
+        const data = await res.json();
+        if (requestGeneration !== generation.current) return;
+        if (!res.ok || data.error || data.degraded)
+          throw new Error("Feed unavailable");
+        setLoadError(false);
+        if (data.configured === false) {
+          setConfigured(false);
+          setDone(true);
+          setItems([]);
+          return;
+        }
+        setConfigured(true);
+        setBoundedPool(Boolean(data.boundedPool));
+        const next: FeedItem[] = data.items || [];
+        setItems((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...next.filter((n) => !seen.has(n.id))];
+        });
+        offset.current = data.nextOffset ?? cursor + 12;
+        if (next.length === 0) setDone(true);
+      } catch {
+        if (requestGeneration === generation.current) setLoadError(true);
+      } finally {
+        if (requestGeneration === generation.current) {
+          setLoading(false);
+          busy.current = false;
+        }
+      }
+    },
+    [done, scope, query, viewReady],
+  );
 
   // Seed the scope from prefs once loaded (carsStates mirror, else home + search locations).
   // Null = not-yet-known; [] = explicitly all.
   useEffect(() => {
     // Wait for /api/preferences: before it loads, prefs is {} and would seed "all states".
-    if (scope === null && !prefsLoading)
-      setScope(savedScopeStates(prefs) || []);
-  }, [prefs, prefsLoading, scope]);
+    if (!prefsLoading && viewReady) {
+      const params = new URLSearchParams(viewQuery);
+      setScope(
+        inventoryScopeStates(params) ??
+          (params.get("scope") === "explicit" ? [] : JSON.parse(savedScopeKey)),
+      );
+    }
+  }, [savedScopeKey, prefsLoading, viewReady, viewQuery]);
 
   // Re-scope the feed when the chosen states change (reset the stream, refetch from the top).
   const rescope = useCallback((states: string[]) => {
+    generation.current++;
     setScope(states);
     setItems([]);
-    setOffset(0);
+    offset.current = 0;
     setDone(false);
     setLoadError(false);
     busy.current = false;
   }, []);
 
   useEffect(() => {
-    if (scope === null) return; // wait until we know the scope
-    loadMore();
+    if (scope === null || !viewReady) return;
+    setItems([]);
+    setDone(false);
+    setLoadError(false);
+    void loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope]);
+  }, [query, viewReady]);
+  useEffect(
+    () => () => {
+      generation.current++;
+    },
+    [],
+  );
 
   useEffect(() => {
     const el = sentinel.current;
@@ -144,12 +188,19 @@ export default function FeedPage() {
       {/* Floating "My States" chip — curate the feed to the states you care about. */}
       <div className="pointer-events-none sticky top-3 z-40 flex justify-end px-3 pt-3">
         <div className="pointer-events-auto">
+          <InventoryViewLinks query={query} current="/feed" />
           <MyStatesButton
             onChange={rescope}
+            statesOverride={scope ?? undefined}
             className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3.5 py-2 text-[13px] font-bold text-white backdrop-blur hover:bg-black/70"
           />
         </div>
       </div>
+      {boundedPool && (
+        <p role="status" className="px-4 py-2 text-xs text-white">
+          Personalized sample: up to 250 photo-backed matches.
+        </p>
+      )}
 
       {/* Editorial Cards — Featured deals grid */}
       {items.length > 0 && (
@@ -171,8 +222,10 @@ export default function FeedPage() {
                     id: it.id,
                     image: proxiedImage(it.image),
                     title: it.title,
-                    category: it.source || "Deal",
+                    category: sourceLabel(it.source, it.sourceUrl) || "Deal",
                     year: it.year?.toString() || "",
+                    price: it.askPrice,
+                    priceLabel: dealCardCopy(false).priceLabel(it.source),
                     description:
                       it.forYouReason ||
                       `${it.make} ${it.model} · ${it.locationCity}, ${it.locationState}`,
@@ -278,7 +331,6 @@ export default function FeedPage() {
 function FeedCard({ it }: { it: FeedItem }) {
   const [saved, setSaved] = useState(false);
   const profitPos = it.netProfit != null && it.netProfit > 0;
-  const actNow = it.prediction?.urgency === "act_now";
 
   const save = async () => {
     if (saved) return;
@@ -317,6 +369,12 @@ function FeedCard({ it }: { it: FeedItem }) {
 
       {/* Top-left: verdict / score badge + a "For you" reason when the feed matched your taste. */}
       <div className="absolute left-4 top-4 flex max-w-[70%] flex-col items-start gap-2">
+        <p className="rounded-lg bg-black/70 px-3 py-2 text-lg font-bold text-white">
+          <span className="mr-2 text-xs font-normal">
+            {dealCardCopy(false).priceLabel(it.source)}
+          </span>
+          {it.askPrice > 0 ? money(it.askPrice) : "Not reported"}
+        </p>
         <div className="flex items-center gap-2">
           {it.verdict === "go" ? (
             <span className="rounded-full bg-[var(--green)] px-3 py-1 text-sm font-black text-black shadow-lg">
@@ -384,7 +442,7 @@ function FeedCard({ it }: { it: FeedItem }) {
       <div className="absolute inset-x-0 bottom-0 p-5 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pr-20 md:pb-10">
         <div className="flex items-baseline gap-3">
           <span className="text-3xl font-black text-white drop-shadow">
-            {money(it.askPrice)}
+            {it.askPrice > 0 ? money(it.askPrice) : "Not reported"}
           </span>
           {profitPos && (
             <span className="text-base font-black text-[var(--green)] drop-shadow">
@@ -405,15 +463,6 @@ function FeedCard({ it }: { it: FeedItem }) {
             it.locationState ||
             "—"}
         </div>
-        {actNow && (
-          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[var(--red)] px-2.5 py-1 text-xs font-black text-white">
-            <Flame className="h-3.5 w-3.5" strokeWidth={2.4} />
-            Act now
-            {it.prediction?.daysToSell
-              ? ` · ~${it.prediction.daysToSell}d`
-              : ""}
-          </span>
-        )}
       </div>
     </section>
   );
