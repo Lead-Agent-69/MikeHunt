@@ -88,7 +88,12 @@ with `decode_clean = false` and returned as `decodeClean: false` so the UI can s
 - mcp.vin is untrusted: only a validated year (1981 to current year + 2), make/model/trim (charset + length)
   and cleaned engine/country survive (`lib/vehicle/mcp-vin.ts`).
 - Safety stars + EPA MPG (`/specs` extras, `lib/vehicle/extras-ttl.ts`): kept 180 days once both are
-  found; if either lookup failed or came back empty, retried after 6h (not pinned for 180 days).
+  found, then BOTH are looked up again (old values kept if the refresh comes back empty). If either is
+  missing, only the missing one is retried after 6h, up to 3 attempts (`vin_decodes.extras_attempts`,
+  migration 20261010401000); after that the gap is reported `"n/a"` in `extrasStatus` for 180 days —
+  the usual case is a heavy-duty truck (`heavyDuty: true`, GVWR > 8,500 lb: no EPA MPG, no NHTSA
+  crash ratings). Before 401000 is applied the counter isn't stored and the 6h retry continues.
+- `fetchObservedPrices` has a 10s timeout and a 2 MB body cap.
 - `readJsonCapped` reads only through the body stream and cancels it at the cap; a Response without a
   stream is refused (no uncapped `text()`/`json()` fallback). VinAudit (`vin-history.ts`, 10s + 1 MB)
   and `observed-price-history.ts` (2 MB) use it too.

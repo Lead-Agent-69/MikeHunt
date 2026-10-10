@@ -3,6 +3,9 @@ import { readJsonCapped } from "./deadline";
 /** Price-history bodies are a few KB; refuse anything past 2 MB (cancelled mid-stream). */
 export const OBSERVED_PRICES_MAX_BYTES = 2 * 1024 * 1024;
 
+/** Price history is a small JSON read; give up after 10s. */
+export const OBSERVED_PRICES_TIMEOUT_MS = 10_000;
+
 export type ObservedPrice = { price: number; observedAt: string };
 
 export function normalizeObservedPrices(value: unknown): ObservedPrice[] {
@@ -33,7 +36,9 @@ export function normalizeObservedPrices(value: unknown): ObservedPrice[] {
 export async function fetchObservedPrices(
   url: string,
 ): Promise<ObservedPrice[]> {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(OBSERVED_PRICES_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error("Price history unavailable");
   const data: unknown = await readJsonCapped(
     response,
