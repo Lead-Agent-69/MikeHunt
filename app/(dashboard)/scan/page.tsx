@@ -116,6 +116,8 @@ interface ScanResult {
   condition?: string;
   damageType?: string;
   titleType?: string;
+  /** options.titleSource from /api/scan (#210): source-default titles get the weaker badge. */
+  titleSource?: string | null;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;
   sellEstimate?: number;
@@ -348,6 +350,7 @@ function mapDealToResult(deal: Deal): ScanResult {
       (deal as any).title_type ||
       (deal as any).titleStatus ||
       (deal as any).title_status,
+    titleSource: (deal as any).titleSource ?? null,
     dealVerdict: deal.dealVerdict,
     recommendedMaxBid: deal.recommendedMaxBid,
     sellEstimate: deal.sellEstimate,
@@ -378,8 +381,8 @@ function mapDealToResult(deal: Deal): ScanResult {
     priceDropDays: deal.priceDropDays,
     auctionEndAt: deal.auctionEndAt,
     bidCount: (deal as any).bidCount,
-    firstSeenAt: deal.firstSeenAt,
-    lastSeenAt: deal.lastSeenAt,
+    firstSeenAt: deal.firstSeenAt ?? undefined,
+    lastSeenAt: deal.lastSeenAt ?? undefined,
     imageUrl: images[0],
     vin: deal.vin,
     sourceUrl: deal.sourceUrl,
@@ -5277,6 +5280,7 @@ function ScanPageInner() {
                 mileage={car.mileage}
                 condition={car.condition}
                 damageType={car.damageType}
+                titleSource={car.titleSource}
                 titleType={car.titleType}
                 dealVerdict={car.dealVerdict}
                 recommendedMaxBid={car.recommendedMaxBid}

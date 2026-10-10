@@ -8,7 +8,9 @@
 //   claim than one the listing states, so it reads "… (reported by source)" in a muted style.
 // - Flood/fire/hail get a damage chip; parts_only is Salvage with a "Parts only" sub-chip.
 import {
+  parseTitleTypes,
   titleCategoryDetail,
+  TITLE_CATEGORY_CONDITIONS,
   TITLE_CATEGORY_LABELS,
   type TitleCategory,
   type TitleDamageChip,
@@ -63,6 +65,21 @@ function damageFrom(
   if (/\bfire|burn/.test(text)) return "fire";
   if (/\bhail\b/.test(text)) return "hail";
   return null;
+}
+
+/**
+ * Older saved snapshots store a title bucket ("salvage", "clean_title") instead of the enum.
+ * Accept exact enum values or bucket tokens only (never free listing text), mapped to the
+ * bucket's first enum value so the badge reads the same as on a live card.
+ */
+export function conditionFromTitleType(value?: string | null): string | null {
+  const [category] = parseTitleTypes(value);
+  if (!category || category === "unknown") return null;
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (TITLE_CATEGORY_CONDITIONS[category].includes(raw as never)) return raw;
+  return TITLE_CATEGORY_CONDITIONS[category][0] ?? null;
 }
 
 export function normalizeTitleSource(value: unknown): TitleSource | null {

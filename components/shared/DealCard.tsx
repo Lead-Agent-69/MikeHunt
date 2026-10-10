@@ -7,7 +7,12 @@ import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
-import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
+import { VERDICT_STYLES } from "./deal-card/utils";
+import { TitleBadge } from "./TitleBadge";
+import {
+  readCondition,
+  CONDITION_TIER_COLOR,
+} from "@/lib/intelligence/condition";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { qualityFieldLabel } from "@/lib/data-quality";
@@ -80,6 +85,7 @@ export const DealCard = memo(function DealCard({
   condition,
   damageType,
   titleType,
+  titleSource,
   dealVerdict,
   recommendedMaxBid,
   sellEstimate,
@@ -125,6 +131,8 @@ export const DealCard = memo(function DealCard({
     Number.isFinite(profitEstimate);
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
+  // Operability ("Runs & drives" / "Needs work") stays its own chip; title lives in TitleBadge.
+  const operability = readCondition(condition, damageType);
   const verdict =
     showFlipEconomics && dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
   const isLivePreview = id.startsWith("live-");
@@ -993,14 +1001,24 @@ export const DealCard = memo(function DealCard({
           )}
 
           {(condition || damageType) && (
-            <span
-              className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-[var(--r1)] max-w-[120px] text-right leading-tight shrink-0"
-              style={{
-                background: damageType ? "var(--rlo)" : "var(--glo)",
-                color: damageType ? "var(--red)" : "var(--green)",
-              }}
-            >
-              {formatCondition(condition, damageType)}
+            <span className="flex max-w-[140px] shrink-0 flex-col items-end gap-1 text-right">
+              <TitleBadge
+                className="justify-end"
+                condition={condition}
+                damageType={damageType}
+                titleSource={titleSource}
+              />
+              {operability && (
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-[var(--r1)] leading-tight"
+                  style={{
+                    background: `${CONDITION_TIER_COLOR[operability.tier]}1f`,
+                    color: CONDITION_TIER_COLOR[operability.tier],
+                  }}
+                >
+                  {operability.label}
+                </span>
+              )}
             </span>
           )}
         </div>

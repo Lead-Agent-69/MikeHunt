@@ -92,6 +92,7 @@ import {
   sourceReadinessFallback,
 } from "@/lib/deals/detail-readiness";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { TitleBadge } from "@/components/shared/TitleBadge";
 
 type SourceHealthItem = {
   id: string;
@@ -962,6 +963,18 @@ export default function DealPage({
               sourceUrl={dealData?.deal?.sourceUrl}
               size="lg"
               showChannel
+            />
+            <TitleBadge
+              size="md"
+              condition={serverDeal?.condition}
+              damageType={serverDeal?.damageType ?? serverDeal?.damage_type}
+              titleSource={
+                serverDeal?.titleSource ?? serverDeal?.options?.titleSource
+              }
+              repairableEvidence={
+                serverDeal?.decisionEvidence?.state === "repairable" ||
+                /repairable/i.test(serverDeal?.decisionEvidence?.label || "")
+              }
             />
           </div>
           <VehicleSummary
