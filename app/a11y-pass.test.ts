@@ -106,7 +106,7 @@ describe("a11y pass wiring", () => {
       "components/shared/ImageGallery.tsx",
       "app/(dashboard)/fleet/page.tsx",
     ]) {
-      expect(read(file), file).toContain("<dialog");
+      expect(read(file), file).toMatch(/<(motion\.)?dialog\b/);
     }
   });
 
