@@ -54,6 +54,8 @@ export interface DealCardProps {
     titleMult?: number;
   };
   soldAnchored?: boolean;
+  /** Comps unverified: render the profit as "Needs comps" / em dash, never a number. */
+  needsComps?: boolean;
   /** Estimated repair/reconditioning cost */
   repairEstimate?: number;
   /** Estimated transport cost */

@@ -46,3 +46,17 @@ export function withNoStore<T extends Response>(res: T): T {
 export function coarseCoord(v: number): number {
   return Math.round(v * 100) / 100;
 }
+
+/** Longest make / model we accept on /api/find-similar (real values are well under this). */
+export const FIND_SIMILAR_MAX_TERM = 64;
+
+/**
+ * Escape a user term for a Postgres (I)LIKE pattern so it matches literally: backslash, % and _
+ * are escaped, and PostgREST's `*` wildcard alias is dropped.
+ */
+export function escapeLike(term: string): string {
+  return term
+    .replace(/\*/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/[%_]/g, (c) => `\\${c}`);
+}
