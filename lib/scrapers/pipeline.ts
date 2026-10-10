@@ -32,6 +32,11 @@ import {
   columnsExist,
   stripColumns,
 } from "@/lib/data-quality/optional-columns";
+import {
+  accessBasisFor,
+  PRICE_HISTORY_PROVENANCE_COLUMNS,
+  PROVENANCE_COLUMNS,
+} from "@/lib/data-quality/provenance";
 
 /** Columns added by 20261010210000 (Ren sign pending). Stripped until hosted has them. */
 export const QUALITY_COLUMNS = ["quality_flags", "completeness"] as const;
@@ -176,6 +181,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
   const inScopeDeals = scope.kept as typeof report.validDeals;
 
+  const fetchedAt = new Date().toISOString();
   const rows = inScopeDeals
     .filter(
       (deal) =>
@@ -188,11 +194,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     )
     .map((deal) => {
       const analysis = analyzeDeal(deal);
-      const source_deal_id = localContext
-        ? stableListingId(deal as Record<string, unknown>)
-        : deal.source_deal_id ||
-          deal.id ||
-          `${deal.source}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // The site's own id when it has one; otherwise a stable hash (VIN, then canonical URL), so a
+      // re-scrape updates the same row instead of minting a new random listing.
+      const source_deal_id = stableListingId(deal as Record<string, unknown>);
 
       // Smart intelligence: extract hidden contact info/VINs from free text
       const extractedContact = extractContactInfo(
@@ -239,6 +243,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         source: deal.source,
         source_deal_id,
         source_url: deal.source_url,
+        // Provenance (20261010230000): when we fetched it and under what access class.
+        fetched_at: fetchedAt,
+        access_basis: accessBasisFor({
+          source: deal.source,
+          source_url: deal.source_url,
+        }),
         // dealer_id is a UUID FK — coerce anything that isn't a real UUID to null so one bad value
         // (e.g. a hostname slug from auto-discovery) can't fail the type and drop the whole batch.
         dealer_id:
@@ -417,6 +427,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   let rowsToWrite: typeof rows = rows;
   if (!(await columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)))
     rowsToWrite = stripColumns(rows as any[], QUALITY_COLUMNS) as typeof rows;
+  if (!(await columnsExist(getSupabase() as any, "deals", PROVENANCE_COLUMNS)))
+    rowsToWrite = stripColumns(
+      rowsToWrite as any[],
+      PROVENANCE_COLUMNS,
+    ) as typeof rows;
 
   const SELECT_COLS =
     "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at";
@@ -535,12 +550,20 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       deal_id: r.id,
       price: r.ask_price,
       observed_at: r.updated_at,
+      source: r.source, // which source saw this price (20261010230000)
     }));
 
   if (priceHistoryRows.length > 0) {
+    const phCols = (await columnsExist(
+      getSupabase() as any,
+      "price_history",
+      PRICE_HISTORY_PROVENANCE_COLUMNS,
+    ))
+      ? priceHistoryRows
+      : stripColumns(priceHistoryRows, PRICE_HISTORY_PROVENANCE_COLUMNS);
     const { error: priceError } = await getSupabase()
       .from("price_history")
-      .insert(priceHistoryRows);
+      .insert(phCols);
 
     if (priceError) {
       console.warn("[upsertDeals] Price history insert warning:", priceError);

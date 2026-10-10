@@ -359,7 +359,11 @@ describe("LocalScraperCache", () => {
       {
         source: "test",
         ids: ["a", "b"],
-        patch: { last_seen_at: "2026-10-05T13:00:00.000Z" },
+        // a touch is a fetch that found the row unchanged: fetched_at moves too (Ren #312 P2)
+        patch: {
+          last_seen_at: "2026-10-05T13:00:00.000Z",
+          fetched_at: "2026-10-05T13:00:00.000Z",
+        },
       },
     ]);
     expect(cache.getQuota().touches).toBe(2);

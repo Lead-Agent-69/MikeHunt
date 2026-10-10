@@ -52,4 +52,29 @@ describe("scrapeOrParseListing", () => {
     );
     expect(listing).toMatchObject({ make: "Ford", ask_price: 18400, year: 2018 });
   });
+
+  it("hashes the canonical URL: tracking params and fragment don't mint a new listing id (Ren #312 P2)", async () => {
+    const page = {
+      status: 200,
+      headers: {},
+      data: `<html><span class="price">$18,400</span><span id="titletextonly">2018 Ford F-150</span></html>`,
+    };
+    const ids: string[] = [];
+    for (const url of [
+      "https://listings.example/2018-ford-f150/",
+      "https://www.listings.example/2018-ford-f150?utm_source=fb&utm_medium=share&fbclid=abc#photos",
+      "https://listings.example/2018-ford-f150?gclid=xyz",
+    ]) {
+      axiosGet.mockResolvedValueOnce(page);
+      const listing = await scrapeOrParseListing(url, "craigslist");
+      ids.push(String(listing?.external_id));
+    }
+    expect(new Set(ids).size).toBe(1);
+    axiosGet.mockResolvedValueOnce(page);
+    const other = await scrapeOrParseListing(
+      "https://listings.example/2018-ford-f150?vehicle=2",
+      "craigslist",
+    );
+    expect(other?.external_id).not.toBe(ids[0]);
+  });
 });

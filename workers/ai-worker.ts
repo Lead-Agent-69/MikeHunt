@@ -2,6 +2,11 @@ import { chromium } from "playwright";
 import { extractVehicleDataFromText } from "../lib/ai/agents/scraper-agent";
 // P0: predictVehicleValuation import removed — LLM invent disabled.
 import { createServerComponentClient } from "../lib/supabase";
+import {
+  accessBasisFor,
+  PROVENANCE_COLUMNS,
+} from "../lib/data-quality/provenance";
+import { columnsExist, stripColumns } from "../lib/data-quality/optional-columns";
 import { aiParsingQueue, aiValuationQueue, isAiPriceInventQueueEnabled } from "../lib/ai/queue";
 
 // P0: refuse to process invent queues unless explicitly re-enabled AFTER invent→store→display is dead.
@@ -154,6 +159,7 @@ aiValuationQueue.process(async (job) => {
   }
 
   const supabase = createServerComponentClient();
+  const fetchedAt = new Date().toISOString();
 
   const dealRecord = {
     source,
@@ -188,12 +194,19 @@ aiValuationQueue.process(async (job) => {
     estimated_repair_cost: estimatedRepairCost,
     true_net_profit: trueNetProfit,
     active: true,
-    last_seen_at: new Date().toISOString(),
+    last_seen_at: fetchedAt,
+    // Provenance (20261010230000, Ren #312 P2): when we fetched it and under what access class.
+    fetched_at: fetchedAt,
+    access_basis: accessBasisFor({ source, source_url: sourceUrl }),
   };
 
+  // Strip the provenance columns until hosted has them (an unknown column rejects the upsert).
+  const [record] = (await columnsExist(supabase as any, "deals", PROVENANCE_COLUMNS))
+    ? [dealRecord]
+    : stripColumns([dealRecord], PROVENANCE_COLUMNS);
   const { error } = await supabase
     .from("deals")
-    .upsert(dealRecord, { onConflict: "source, source_deal_id" });
+    .upsert(record, { onConflict: "source, source_deal_id" });
 
   if (error) {
     console.error(`[AI Valuation] Database error:`, error);

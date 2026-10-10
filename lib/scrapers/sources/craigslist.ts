@@ -1,3 +1,4 @@
+import { politeGate, politeRobotsPathFor, scraperFetch } from "@/lib/scrapers/polite";
 import * as cheerio from "cheerio";
 import axios from "axios";
 import { getWorkingProxy } from "../tools/free-proxy-manager";
@@ -65,7 +66,9 @@ export async function scrapeCraigslist(
       // (useful when GitHub Actions / datacenter IPs get blocked). $0 — no paid proxies.
       let proxy: { host: string; port: number } | null = null;
       let useFree = false;
-      if (process.env.CL_USE_FREE_PROXY === "true") {
+      // Polite mode (default) never uses a proxy.
+      const politeRobots = politeRobotsPathFor(`https://${city}.craigslist.org/`);
+      if (process.env.CL_USE_FREE_PROXY === "true" && !politeRobots) {
         const free = await getWorkingProxy();
         if (free) {
           const [host, port] = free.split(":");
@@ -88,8 +91,16 @@ export async function scrapeCraigslist(
         config.proxy = { host: proxy.host, port: proxy.port };
       }
 
-      const res = await axios.get(url, config);
-      const $ = cheerio.load(res.data);
+      let data: string;
+      if (politeRobots) {
+        const r = await scraperFetch(url, { headers: { Accept: "text/html" } });
+        if (!r.ok) throw new Error(`polite: HTTP ${r.status} for ${city}`);
+        data = await r.text();
+      } else {
+        // Legacy request (polite off, or Craigslist grandfathered by recent rows): unchanged, gated.
+        data = (await politeGate(url, () => axios.get(url, config))).data;
+      }
+      const $ = cheerio.load(data);
       const listings: any[] = [];
 
       // Handle both old and new CL layouts
