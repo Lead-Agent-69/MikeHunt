@@ -16,12 +16,24 @@ describe('QualityController', () => {
     const qc = new QualityController()
     const report = qc.validateBatch('test', [
       { source: 'test', title: '', ask_price: 12000 },
-      { source: 'test', title: 'Bad', ask_price: 50 },
+      { source: 'test', title: 'Bad price', ask_price: -5 },
       { source: 'test', title: 'Too old', ask_price: 1000, year: 1800 },
     ])
     expect(report.valid).toBe(0)
     expect(report.invalid).toBe(3)
     expect(report.validDeals.length).toBe(0)
+  })
+
+  it('keeps implausible-but-parseable values for the sanity flags instead of dropping them', () => {
+    const qc = new QualityController()
+    const report = qc.validateBatch('test', [
+      { source: 'test', title: '$50 teaser', ask_price: 50 },
+      { source: 'test', title: 'Future car', ask_price: 9000, year: 2050 },
+      { source: 'test', title: 'Short VIN', ask_price: 9000, vin: 'ABC123' },
+      { source: 'test', title: 'Odometer typo', ask_price: 9000, mileage: 9_999_999 },
+      { source: 'test', title: 'Supercar', ask_price: 2_500_000 },
+    ])
+    expect(report.valid).toBe(5)
   })
 
   it('detects duplicates within a batch', () => {
