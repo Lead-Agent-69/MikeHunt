@@ -26,7 +26,7 @@ import {
   defaultRangeExtractor,
   useWindowVirtualizer,
 } from "@tanstack/react-virtual";
-import type { Range } from "@tanstack/react-virtual";
+import type { Range, VirtualItem } from "@tanstack/react-virtual";
 
 export type GridDensity = "compact" | "comfortable" | string;
 
@@ -78,6 +78,44 @@ interface VirtualCardGridProps<T> {
   /** For tests / SSR: the viewport to assume before the window is measured. */
   initialViewport?: { width: number; height: number };
   overscan?: number;
+  /**
+   * Keep measured row heights across a deal-page round trip (sessionStorage). Pass the search key:
+   * coming Back, rows keep their real heights instead of estimates, so a restored scrollY lands on
+   * the same cards. Column count is part of the stored key.
+   */
+  restoreKey?: string | null;
+}
+
+const SNAPSHOT_PREFIX = "mh:vgrid:";
+
+export function readRowSnapshot(key: string): VirtualItem[] | undefined {
+  try {
+    const raw = window.sessionStorage.getItem(SNAPSHOT_PREFIX + key);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeRowSnapshot(key: string, rows: VirtualItem[]) {
+  try {
+    window.sessionStorage.setItem(
+      SNAPSHOT_PREFIX + key,
+      JSON.stringify(
+        rows.map(({ key: k, index, start, end, size, lane }) => ({
+          key: k,
+          index,
+          start,
+          end,
+          size,
+          lane,
+        })),
+      ),
+    );
+  } catch {
+    /* best effort */
+  }
 }
 
 export function VirtualCardGrid<T>({
@@ -88,6 +126,7 @@ export function VirtualCardGrid<T>({
   label = "Search results",
   initialViewport,
   overscan = 2,
+  restoreKey = null,
 }: VirtualCardGridProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(
@@ -130,8 +169,17 @@ export function VirtualCardGrid<T>({
     return base;
   }, []);
 
+  const snapshotKey = restoreKey ? `${restoreKey}|${cols}` : null;
+  // Read once per key, on the first render that knows it (the virtualizer only takes it at creation).
+  const [initialCache] = useState(() =>
+    snapshotKey && typeof window !== "undefined"
+      ? readRowSnapshot(snapshotKey)
+      : undefined,
+  );
+
   const virtualizer = useWindowVirtualizer({
     count: rowCount,
+    initialMeasurementsCache: initialCache,
     estimateSize: () => estimateRowHeight(viewportWidth, density),
     overscan,
     gap,
@@ -140,10 +188,26 @@ export function VirtualCardGrid<T>({
     initialRect: initialViewport,
   });
 
-  // Column count changes re-flow rows, so cached row heights are stale.
+  // Column count changes re-flow rows, so cached row heights are stale. Not on mount: measure()
+  // wipes the size cache, including the heights restored from a Back navigation.
+  const lastCols = useRef(cols);
   useEffect(() => {
+    if (lastCols.current === cols) return;
+    lastCols.current = cols;
     virtualizer.measure();
   }, [cols, virtualizer]);
+
+  // Save measured heights when leaving (client navigation unmounts; a hard nav fires pagehide).
+  useEffect(() => {
+    if (!snapshotKey) return;
+    const save = () =>
+      writeRowSnapshot(snapshotKey, virtualizer.takeSnapshot());
+    window.addEventListener("pagehide", save);
+    return () => {
+      window.removeEventListener("pagehide", save);
+      save();
+    };
+  }, [snapshotKey, virtualizer]);
 
   const rows = virtualizer.getVirtualItems();
 

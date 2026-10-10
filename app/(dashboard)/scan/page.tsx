@@ -5237,6 +5237,7 @@ function ScanPageInner() {
           getKey={(car) => car.id}
           density={density}
           label="Vehicle results"
+          restoreKey={swrKey ? `scan:${swrKey}` : null}
           renderItem={(car) => (
             <DealCard
               flipDesk={flipEconomics}

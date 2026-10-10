@@ -22,6 +22,7 @@ import {
   ANIMATED_CARDS,
   VirtualCardGrid,
   columnsFor,
+  readRowSnapshot,
 } from "@/components/scan/VirtualCardGrid";
 
 type Car = { id: string; title: string };
@@ -40,6 +41,14 @@ const setScroll = (y: number) => {
   });
   window.dispatchEvent(new Event("scroll"));
 };
+
+// jsdom has no layout: rows report a real height so the virtualizer measures something.
+Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+  configurable: true,
+  get(this: HTMLElement) {
+    return this.hasAttribute("data-row") ? 700 : 0;
+  },
+});
 
 beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
@@ -137,11 +146,38 @@ describe("/scan VirtualCardGrid", () => {
   });
 });
 
+describe("row-height snapshot for Back navigation", () => {
+  it("saves measured rows on unmount under restoreKey|columns and reads them back", async () => {
+    sessionStorage.clear();
+    // beforeEach dispatched a scroll; rows are only measured once the virtualizer stops "scrolling".
+    await new Promise((r) => setTimeout(r, 250));
+    act(() =>
+      root.render(
+        createElement(VirtualCardGrid<Car>, {
+          items: cars,
+          getKey: (c) => c.id,
+          restoreKey: "scan:/api/scan?q=civic",
+          initialViewport: { width: 390, height: 844 },
+          renderItem: (c) =>
+            createElement("a", { href: `/deal/${c.id}` }, c.title),
+        }),
+      ),
+    );
+    act(() => root.render(createElement("div")));
+    const snap = readRowSnapshot("scan:/api/scan?q=civic|1");
+    expect(snap?.length).toBeGreaterThan(0);
+    expect(snap![0]).toMatchObject({ index: 0, start: expect.any(Number) });
+    expect(snap![0].size).toBe(700);
+    expect(readRowSnapshot("scan:/api/scan?q=civic|3")).toBeUndefined();
+  });
+});
+
 describe("/scan page wiring", () => {
   const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
   it("renders grid view through VirtualCardGrid and keeps load-more after it", () => {
     expect(scan).toContain("<VirtualCardGrid");
     expect(scan).toContain('label="Vehicle results"');
+    expect(scan).toContain("restoreKey={swrKey ? `scan:${swrKey}` : null}");
     expect(scan.indexOf("<VirtualCardGrid")).toBeLessThan(
       scan.indexOf("ref={sentinelRef}"),
     );
