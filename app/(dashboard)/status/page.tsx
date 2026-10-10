@@ -5,6 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
+import { OPERATOR_OVERRIDE_NOTE } from "@/lib/scrapers/access-class";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const ago = (iso?: string | null) => {
@@ -1252,6 +1253,22 @@ export default function StatusPage() {
                         <p className="mt-0.5 text-xs text-[var(--t5)]">
                           {source.id} · {source.type} · P{source.priority}
                         </p>
+                        {source.accessClass ? (
+                          <span
+                            className="mt-1 inline-block rounded-full border border-[var(--b2)] px-2 py-0.5 text-[10px] font-black uppercase text-[var(--t3)]"
+                            title={
+                              source.accessClass === "operator_override" ||
+                              source.accessOverrideActive
+                                ? OPERATOR_OVERRIDE_NOTE
+                                : undefined
+                            }
+                          >
+                            {source.accessClass}
+                            {source.accessOverrideActive
+                              ? " · running under operator override"
+                              : ""}
+                          </span>
+                        ) : null}
                       </div>
                       <div>
                         <span
@@ -1286,6 +1303,10 @@ export default function StatusPage() {
                 })}
               </div>
             </div>
+            <p className="mt-2 text-xs text-[var(--t5)]">
+              Access class: api, allowed, restricted or operator_override.{" "}
+              {OPERATOR_OVERRIDE_NOTE}
+            </p>
           </div>
 
           {/* Freshness */}

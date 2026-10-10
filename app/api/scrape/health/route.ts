@@ -10,6 +10,7 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
 import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
+import { accessClassFor } from "@/lib/scrapers/source-access";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
@@ -567,9 +568,28 @@ function termsOffForSource(sourceId: string, raw?: string) {
   );
 }
 
-function termsFields(sourceId: string) {
-  if (!termsOffForSource(sourceId)) return {};
+/**
+ * Access class label only (see lib/scrapers/source-access.ts). A restricted source the operator has
+ * running (restored default or SCRAPE_SOURCES) is flagged as running under operator override, which
+ * is not permission.
+ */
+function accessFields(sourceId: string) {
+  const access = accessClassFor(sourceId)?.access;
+  if (!access) return {};
   return {
+    accessClass: access,
+    ...(access === "restricted" &&
+    TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()] &&
+    !termsOffForSource(sourceId)
+      ? { accessOverrideActive: true }
+      : {}),
+  };
+}
+
+function termsFields(sourceId: string) {
+  if (!termsOffForSource(sourceId)) return accessFields(sourceId);
+  return {
+    ...accessFields(sourceId),
     termsRestricted: true,
     termsReason: TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
   };
