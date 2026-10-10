@@ -26,6 +26,7 @@ import path from "node:path";
 import { recommendedTier, type AntiBotVendor } from "./platform-detector";
 import { FlareSolverrClient } from "./tools/flaresolverr";
 import { getLocalWriteContext } from "./local-write-context";
+import { politeFetch, politeModeEnabled } from "./polite";
 
 export type FetchTier = "static" | "stealth" | "headed" | "flaresolverr";
 
@@ -324,6 +325,20 @@ export async function smartFetch(
   url: string,
   opts: SmartFetchOptions = {},
 ): Promise<SmartFetchResult> {
+  // Polite mode (default): one honest request through politeFetch. No stealth, headed Chrome,
+  // FlareSolverr or fingerprint rotation. A wall means "not for us" and the host is paused.
+  if (politeModeEnabled()) {
+    const res = await politeFetch(url);
+    if (!res.ok) return { html: "", tier: "static", blocked: true };
+    const valid = !opts.validate || opts.validate(res.body);
+    return {
+      html: res.body,
+      tier: "static",
+      blocked: false,
+      ...(valid ? {} : { unverified: true }),
+    };
+  }
+
   const host = hostOf(url);
 
   // Parked on cooldown after a full block — skip without touching the IP again.

@@ -690,6 +690,63 @@ export async function scrapeIndependentDealer(
   return allDeals.length;
 }
 
+/**
+ * Best inventory INDEX page (not a single-car page) from a site's published sitemap, or "".
+ * Pure ranking lives in pickInventoryIndexUrl so it is unit-tested without the network.
+ */
+export async function inventoryUrlFromSitemap(
+  siteUrl: string,
+): Promise<string> {
+  try {
+    const { discoverListingUrls } = await import("../crawl-discovery");
+    const { politeFetch } = await import("../polite");
+    const urls = await discoverListingUrls(siteUrl, {
+      maxSitemaps: 4,
+      limit: 200,
+      fetchImpl: async (u) => {
+        const res = await politeFetch(u, {
+          accept: "application/xml,text/xml;q=0.9,*/*;q=0.5",
+        });
+        return { ok: res.ok, text: async () => res.body };
+      },
+    });
+    return pickInventoryIndexUrl(urls, siteUrl);
+  } catch {
+    return "";
+  }
+}
+
+const INDEX_PATH_RE =
+  /\/(inventory|vehicles|used-?(cars|vehicles|inventory)?|pre-?owned|for-?sale|listings|stock|showroom|salvage|rebuildables?)(\/|\.php|\.html?|$)/i;
+const DETAIL_HINT_RE =
+  /\b(19[5-9]\d|20[0-4]\d)\b|[A-HJ-NPR-Z0-9]{17}|\/(vdp|detail|details)\//i;
+
+/** Shortest same-site URL whose path looks like an inventory index rather than one car. */
+export function pickInventoryIndexUrl(urls: string[], siteUrl: string): string {
+  let host = "";
+  try {
+    host = new URL(siteUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+  const candidates = urls.filter((u) => {
+    try {
+      const parsed = new URL(u);
+      if (parsed.hostname.replace(/^www\./, "") !== host) return false;
+      return (
+        INDEX_PATH_RE.test(parsed.pathname) &&
+        !DETAIL_HINT_RE.test(parsed.pathname)
+      );
+    } catch {
+      return false;
+    }
+  });
+  candidates.sort(
+    (a, b) => new URL(a).pathname.length - new URL(b).pathname.length,
+  );
+  return candidates[0] || "";
+}
+
 // ── Generic "discover and crawl any dealer site" ─────────────────────────────
 // Given just a website URL, this auto-detects the inventory pattern
 export async function autoDiscoverAndCrawl(
@@ -750,6 +807,16 @@ export async function autoDiscoverAndCrawl(
       }
     });
     if (!inventoryUrl) inventoryUrl = textFallback;
+  }
+
+  // No inventory link on the homepage (JS nav, image-only menus): ask the site's own sitemap, which
+  // robots.txt publishes for exactly this purpose. Fetched through politeFetch (robots, pacing, cache).
+  if (!inventoryUrl) {
+    inventoryUrl = await inventoryUrlFromSitemap(dealerWebsite);
+    if (inventoryUrl)
+      console.log(
+        `[AutoDiscover] ${dealerWebsite}: inventory page from sitemap → ${inventoryUrl}`,
+      );
   }
 
   if (!inventoryUrl) {

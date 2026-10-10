@@ -13,6 +13,7 @@ import {
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
 import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
+import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import {
   isAutomationAllowedSource,
@@ -348,6 +349,13 @@ async function runSweepTick(
   supabase: import("@supabase/supabase-js").SupabaseClient,
 ): Promise<boolean> {
   if (quotaReached()) return false;
+  // SCRAPE_OFF_PEAK_ONLY=1: the background sweep waits for the sites' quiet hours, unless a
+  // want-hit gap is open (users are waiting on that state). Buyer-requested jobs always run.
+  const openGaps = Array.isArray(currentStatus.sweep?.gapStates)
+    ? currentStatus.sweep!.gapStates!.length
+    : 0;
+  if (process.env.SCRAPE_OFF_PEAK_ONLY === "1" && !openGaps && !isOffPeak())
+    return false;
   const { createScraperRegistry, runScrapers } =
     await import("../lib/scrapers/runner");
   const registry = createScraperRegistry();
@@ -760,7 +768,8 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
             : "None of the selected sources could be checked. Please retry or choose another source.",
           listings_found: summary.totalDeals,
           listings_saved: summary.totalSaved,
-          result: summary,
+          // Ban-risk metrics (403/429 per domain, paused domains) ride along for /status.
+          result: { ...summary, politeness: politeMetricsSnapshot() },
           completed_at: new Date().toISOString(),
           heartbeat_at: new Date().toISOString(),
         })
