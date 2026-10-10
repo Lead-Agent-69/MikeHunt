@@ -13,6 +13,7 @@ import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { summarizeReliability } from "@/lib/scrapers/reliability";
 import {
   applyAuthProviderReadiness,
   readAuthProviderReadiness,
@@ -482,6 +483,39 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     () => computeValuationAccuracy(sb).catch(() => null),
   );
 
+  // Scraper success rate (7d, productive runs only) + crawler ban-risk from the latest worker job.
+  // Operator-only: both live in the full payload, never in toPublicStatus.
+  const scraperReliability = await cached(
+    "status:scraper-reliability:v1",
+    300_000,
+    async () => {
+      const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const [{ data: runs }, { data: job }] = await Promise.all([
+        sb
+          .from("scraper_runs")
+          .select("source, status, deals_found, started_at, completed_at")
+          .gt("started_at", since)
+          .order("started_at", { ascending: false })
+          .limit(2000),
+        sb
+          .from("scrape_jobs")
+          .select("completed_at, result")
+          .eq("status", "completed")
+          .not("result->politeness", "is", null)
+          .order("completed_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      return {
+        window: "7d",
+        ...summarizeReliability(runs || []),
+        politeness: job?.result?.politeness
+          ? { reportedAt: job.completed_at, ...job.result.politeness }
+          : null,
+      };
+    },
+  ).catch(() => null);
+
   const mergedSources = mergeStatusSources(health, sourceBreakdown);
   const sourceHealth = summarizeSourceHealth(mergedSources, realData);
 
@@ -541,6 +575,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     },
     sources: mergedSources,
     recentRuns: recent,
+    scraperReliability,
   };
 }
 
