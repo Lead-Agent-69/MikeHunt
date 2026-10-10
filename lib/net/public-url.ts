@@ -54,10 +54,20 @@ function isBlockedV4(parts: number[]): boolean {
 }
 
 function isBlockedV6(ip: string): boolean {
-  const norm = ip.toLowerCase();
-  if (norm === "::" || norm === "::1") return true;
-  if (norm.startsWith("fc") || norm.startsWith("fd")) return true;
-  if (/^fe[89ab]/.test(norm)) return true;
+  const b = parseIpv6(ip);
+  // Unparseable IPv6 fails closed.
+  if (!b) return true;
+  // ::/96 IPv4-compatible (deprecated, RFC 4291), including :: and ::1.
+  if (b.slice(0, 12).every((x) => x === 0)) return true;
+  // fc00::/7 unique local.
+  if ((b[0] & 0xfe) === 0xfc) return true;
+  // fe80::/10 link-local and fec0::/10 site-local (deprecated): fe80::/9.
+  if (b[0] === 0xfe && (b[1] & 0x80) === 0x80) return true;
+  // ff00::/8 multicast.
+  if (b[0] === 0xff) return true;
+  // 2001::/32 Teredo: tunnels to an arbitrary (obfuscated) IPv4.
+  if (b[0] === 0x20 && b[1] === 0x01 && b[2] === 0x00 && b[3] === 0x00)
+    return true;
   return false;
 }
 
