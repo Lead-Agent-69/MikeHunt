@@ -8,6 +8,7 @@ import { Mono } from "@/components/shared/Mono";
 import { buyTerm } from "@/lib/deal-terms";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { NotLiveLabel } from "@/components/shared/NotLiveLabel";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -125,6 +126,7 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
                   : "Last seen unknown"}{" "}
                 · Verify availability
               </p>
+              <NotLiveLabel deal={d} className="block text-[11px]" />
             </div>
           </Link>
         ))}

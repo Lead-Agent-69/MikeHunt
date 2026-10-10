@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { ErrorState } from "@/components/shared/PageStates";
+import { NotLiveLabel } from "@/components/shared/NotLiveLabel";
 
 // /arbitrage — "buy there, sell here." Tailored to the dealer's home state, every out-of-state deal is
 // scored for import profit (resale − ask − real transport − selling load) from REAL inventory, tiered by
@@ -273,6 +274,7 @@ function OppRow({ o }: { o: Opp }) {
             · ~{Math.round(a.distance)}mi · {money(a.transportCost)} haul
           </span>
         </div>
+        <NotLiveLabel deal={d} className="mt-0.5 block text-[11px]" />
       </div>
       <div className="flex items-center gap-4 shrink-0">
         <div className="text-right">
@@ -317,6 +319,7 @@ function LocalRow({ d }: { d: any }) {
         <div className="mt-0.5 font-mono text-[11px] text-[var(--t3)]">
           {d.locationState} · in your market · no transport
         </div>
+        <NotLiveLabel deal={d} className="mt-0.5 block text-[11px]" />
       </div>
       <div className="text-right shrink-0">
         <div className="text-[9px] uppercase tracking-widest text-[var(--t4)]">
