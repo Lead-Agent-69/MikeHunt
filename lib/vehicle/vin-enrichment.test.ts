@@ -223,6 +223,25 @@ describe("getVinDecode cache (vin_decodes, 180-day TTL)", () => {
     expect(Object.keys(w.row)).not.toContain("recalls_count");
   });
 
+  it("write budget spent: serves the live decode but creates no new row", async () => {
+    const sb = fakeSb();
+    const canWrite = vi.fn(() => false);
+    const r = await getVinDecode(sb, F250, { ...opts, canWrite });
+    expect(r).toMatchObject({ cached: false, persisted: false });
+    expect(r?.decode.make).toBeTruthy();
+    expect(canWrite).toHaveBeenCalledTimes(1);
+    expect(sb.upserts.filter((u) => u.table === "vin_decodes")).toHaveLength(0);
+  });
+
+  it("refreshing an existing row doesn't spend the new-row budget", async () => {
+    const legacy = { vin: HONDA, make: "HONDA", model: "Accord", year: 2003 };
+    const sb = fakeSb({ vin_decodes: [legacy] });
+    const canWrite = vi.fn(() => false);
+    const r = await getVinDecode(sb, HONDA, { ...opts, canWrite });
+    expect(r?.persisted).toBe(true);
+    expect(canWrite).not.toHaveBeenCalled();
+  });
+
   it("fresh extended row: served from cache, no NHTSA call", async () => {
     const row = decodeToRow(
       HONDA,

@@ -3,6 +3,8 @@ import { getRecallsCached, getVinDecode } from "@/lib/vehicle/vin-enrichment";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
+import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
+import { callSignal } from "@/lib/vehicle/deadline";
 
 function getSupabase() {
   return createClient(
@@ -57,6 +59,9 @@ export async function GET(
     windowMs: 60_000,
   });
   if (!rl.allowed) return tooManyRequests(rl);
+  const guard = await guardVinRoute(request);
+  if (guard.blocked) return guard.blocked;
+  const { deadline, canWrite } = guard;
   try {
     const { vin: rawVin } = await params;
     // VIN alphabet only (no I/O/Q), 11–17 chars. The VIN is interpolated into upstream URLs, so
@@ -71,7 +76,7 @@ export async function GET(
     // Shared with /api/vin/[vin]/specs: vin_decodes cache (180-day TTL) -> NHTSA vPIC extended
     // decode. NHTSA is authoritative and free; mcp.vin is only a fallback when vPIC is down.
     const sb = getSupabase();
-    const dec = await getVinDecode(sb, vin);
+    const dec = await getVinDecode(sb, vin, { deadline, canWrite });
     let decoded: any = null;
     let source = "live";
     if (dec) {
@@ -96,9 +101,10 @@ export async function GET(
             .join(", ") || undefined,
         decodeClean: d.decodeClean,
       };
-    } else {
+    } else if (!deadline.expired()) {
       try {
         const response = await fetch(`https://mcp.vin/${vin}?format=json`, {
+          signal: callSignal(deadline),
           headers: {
             Accept: "application/json",
             "User-Agent": "MikeHuntPro/1.0",
@@ -154,6 +160,7 @@ export async function GET(
         String(out.make),
         String(out.model),
         Number(out.year),
+        { deadline },
       );
       out.recalls = r?.count ?? undefined;
       recallCampaigns = r?.campaigns ?? [];

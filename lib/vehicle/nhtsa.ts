@@ -3,9 +3,11 @@
 // VIN; recalls change over time. Callers cache results in the vin_decodes table.
 
 import { isValidVin } from "./vin";
+import { callSignal, type UpstreamOpts } from "./deadline";
 
 type FetchLike = (
   url: string,
+  init?: { signal?: AbortSignal },
 ) => Promise<{ ok: boolean; json: () => Promise<any> }>;
 
 export interface VinDecode {
@@ -58,6 +60,7 @@ export async function decodeVin(
   try {
     const res = await fetchImpl(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`,
+      { signal: callSignal() },
     );
     if (!res.ok) return null;
     const body = await res.json();
@@ -142,17 +145,23 @@ export async function getSafetyRating(
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<SafetyRating | null> {
   if (!make || !model || !year) return null;
+  const { deadline } = opts;
   try {
+    if (deadline?.expired()) return null;
     const res1 = await fetchImpl(
       `https://api.nhtsa.gov/SafetyRatings/modelyear/${year}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`,
+      { signal: callSignal(deadline) },
     );
     if (!res1.ok) return null;
     const id = (await res1.json())?.Results?.[0]?.VehicleId;
     if (!id) return null;
+    if (deadline?.expired()) return null;
     const res2 = await fetchImpl(
       `https://api.nhtsa.gov/SafetyRatings/VehicleId/${id}`,
+      { signal: callSignal(deadline) },
     );
     if (!res2.ok) return null;
     const r = (await res2.json())?.Results?.[0];
@@ -253,11 +262,14 @@ export function parseDecodeExtended(r: any): VinDecodeExtended {
 export async function decodeVinExtended(
   vin: string,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<VinDecodeExtended | null> {
   if (!isValidVin(vin)) return null;
+  if (opts.deadline?.expired()) return null;
   try {
     const res = await fetchImpl(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(vin)}?format=json`,
+      { signal: callSignal(opts.deadline) },
     );
     if (!res.ok) return null;
     const r = (await res.json())?.Results?.[0];
@@ -340,8 +352,11 @@ export async function getRecalls(
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<RecallLookup | null> {
   if (!make || !model || !year) return null;
+  const { deadline } = opts;
+  if (deadline?.expired()) return null;
   const byModel = (m: string) =>
     `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
   try {
@@ -349,6 +364,7 @@ export async function getRecalls(
     try {
       const cat = await fetchImpl(
         `https://api.nhtsa.gov/products/vehicle/models?modelYear=${year}&make=${encodeURIComponent(make)}&issueType=r`,
+        { signal: callSignal(deadline) },
       );
       if (cat.ok) {
         const body = await cat.json();
@@ -363,7 +379,9 @@ export async function getRecalls(
     const seen = new Map<string, RecallCampaign>();
     let anyOk = false;
     for (const m of models) {
-      const res = await fetchImpl(byModel(m));
+      // Out of time: a partial union could under-count, so report unknown rather than a low number.
+      if (deadline?.expired()) return null;
+      const res = await fetchImpl(byModel(m), { signal: callSignal(deadline) });
       if (!res.ok) continue;
       const body = await res.json();
       if (typeof body?.Count !== "number" && !Array.isArray(body?.results))
@@ -399,7 +417,8 @@ export async function getRecallCount(
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<number | null> {
-  const r = await getRecalls(make, model, year, fetchImpl);
+  const r = await getRecalls(make, model, year, fetchImpl, opts);
   return r ? r.count : null;
 }

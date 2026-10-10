@@ -1,9 +1,11 @@
 // Free EPA fuel-economy data (fueleconomy.gov) — no key. Two-step: year/make/model → trim options →
 // MPG for the first matching trim. Pure parser + best-effort fetch. Approximate at the trim level.
 
+import { callSignal, type UpstreamOpts } from "./deadline";
+
 type FetchLike = (
   url: string,
-  init?: { headers?: Record<string, string> },
+  init?: { headers?: Record<string, string>; signal?: AbortSignal },
 ) => Promise<{ ok: boolean; json: () => Promise<any> }>;
 
 const JSON_HEADERS = { headers: { Accept: "application/json" } };
@@ -33,12 +35,15 @@ export async function getFuelEconomy(
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<FuelEconomy | null> {
   if (!make || !model || !year) return null;
+  const { deadline } = opts;
   try {
+    if (deadline?.expired()) return null;
     const res1 = await fetchImpl(
       `https://www.fueleconomy.gov/ws/rest/vehicle/menu/options?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`,
-      JSON_HEADERS,
+      { ...JSON_HEADERS, signal: callSignal(deadline) },
     );
     if (!res1.ok) return null;
     const b1 = await res1.json();
@@ -49,9 +54,10 @@ export async function getFuelEconomy(
         : [];
     const id = items[0]?.value;
     if (!id) return null;
+    if (deadline?.expired()) return null;
     const res2 = await fetchImpl(
       `https://www.fueleconomy.gov/ws/rest/vehicle/${id}`,
-      JSON_HEADERS,
+      { ...JSON_HEADERS, signal: callSignal(deadline) },
     );
     if (!res2.ok) return null;
     const fe = parseFuelEconomy(await res2.json());

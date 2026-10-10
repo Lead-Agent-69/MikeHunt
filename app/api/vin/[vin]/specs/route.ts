@@ -11,6 +11,7 @@ import {
   getVinDecode,
   RECALLS_TTL_MS,
 } from "@/lib/vehicle/vin-enrichment";
+import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
 
 // GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs. Full NHTSA vPIC decode
 // (DecodeVinValuesExtended: trim, series, body, engine, drive, transmission, GVWR, plant) cached in
@@ -30,13 +31,16 @@ export async function GET(
 ) {
   const rl = rateLimit(req, { key: "vin-specs", limit: 30, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl);
+  const guard = await guardVinRoute(req);
+  if (guard.blocked) return guard.blocked;
+  const { deadline, canWrite } = guard;
   const { vin: raw } = await params;
   const vin = normalizeVin(raw);
   if (!isValidVin(vin))
     return NextResponse.json({ error: "Invalid VIN" }, { status: 400 });
 
   const sb = admin();
-  const dec = await getVinDecode(sb, vin);
+  const dec = await getVinDecode(sb, vin, { deadline, canWrite });
   if (!dec)
     return NextResponse.json(
       { error: "Could not decode VIN" },
@@ -52,7 +56,9 @@ export async function GET(
 
   // Recalls come from the per-make/model/year cache (cheap even when this VIN's row is fresh).
   const recalls = canQuery
-    ? await getRecallsCached(sb, decoded.make!, decoded.model!, decoded.year!)
+    ? await getRecallsCached(sb, decoded.make!, decoded.model!, decoded.year!, {
+        deadline,
+      })
     : null;
 
   if (dec.cached && recallsFresh && hasExtras) {
@@ -72,10 +78,22 @@ export async function GET(
     ? await Promise.all([
         cached?.safety_overall != null || cached?.extras_at
           ? Promise.resolve(null)
-          : getSafetyRating(decoded.make!, decoded.model!, decoded.year!),
+          : getSafetyRating(
+              decoded.make!,
+              decoded.model!,
+              decoded.year!,
+              undefined,
+              { deadline },
+            ),
         cached?.mpg_combined != null || cached?.extras_at
           ? Promise.resolve(null)
-          : getFuelEconomy(decoded.make!, decoded.model!, decoded.year!),
+          : getFuelEconomy(
+              decoded.make!,
+              decoded.model!,
+              decoded.year!,
+              undefined,
+              { deadline },
+            ),
       ])
     : [null, null];
 
@@ -98,10 +116,13 @@ export async function GET(
   };
   // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
   // handler returns, so every call would otherwise re-hit NHTSA.
-  try {
-    await sb.from("vin_decodes").upsert(extras, { onConflict: "vin" });
-  } catch {
-    /* non-fatal */
+  // Only enrich a row that exists: an un-cached decode (write budget spent) must not be created here.
+  if (dec.persisted) {
+    try {
+      await sb.from("vin_decodes").upsert(extras, { onConflict: "vin" });
+    } catch {
+      /* non-fatal */
+    }
   }
 
   return NextResponse.json({

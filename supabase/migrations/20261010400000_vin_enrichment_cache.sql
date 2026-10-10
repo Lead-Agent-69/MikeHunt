@@ -9,6 +9,14 @@
 -- Sizing (measured from recorded vPIC responses, see docs/vin-enrichment.md): ~0.35-0.4 KB heap per
 -- vin_decodes row, ~0.5 KB with page overhead + both indexes; recalls rows ~0.2 KB + ~175 B per campaign.
 -- 100k VINs ~= 50 MB. raw JSONB (the full 154-key response, ~4 KB) is NOT stored.
+--
+-- Ren review (#301 @ 41cc6aa): nhtsa_recalls_cache is server-only (every reader and writer is the
+-- service-role client in lib/vehicle/vin-enrichment.ts); purge_expired_vin_cache() is SECURITY
+-- INVOKER with an empty search_path; old vin_decodes rows get an expiry backfilled from decoded_at
+-- so the purge reaches them; one transaction with a self-check.
+-- Needs Ren SIGN before any hosted apply.
+
+BEGIN;
 
 ALTER TABLE public.vin_decodes
   ADD COLUMN IF NOT EXISTS series               TEXT,
@@ -51,28 +59,100 @@ CREATE INDEX IF NOT EXISTS nhtsa_recalls_cache_expires_at_idx
   ON public.nhtsa_recalls_cache (expires_at);
 
 ALTER TABLE public.nhtsa_recalls_cache ENABLE ROW LEVEL SECURITY;
--- Public government data; reads are fine for anyone, writes only via the service role (no policy).
+-- Server-only: no policy (RLS denies client roles even if a grant comes back), no client grants.
 DROP POLICY IF EXISTS "nhtsa_recalls_cache_read" ON public.nhtsa_recalls_cache;
-CREATE POLICY "nhtsa_recalls_cache_read" ON public.nhtsa_recalls_cache
-  FOR SELECT USING (true);
-REVOKE INSERT, UPDATE, DELETE ON public.nhtsa_recalls_cache FROM anon, authenticated;
+REVOKE ALL ON public.nhtsa_recalls_cache FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.nhtsa_recalls_cache TO service_role;
 
--- Housekeeping: delete cache rows well past expiry. Safe to call from a cron route or pg_cron
--- (pg_cron is not assumed to be enabled). Keeps a 30-day grace so a NHTSA outage can serve stale.
-CREATE OR REPLACE FUNCTION public.purge_expired_vin_cache()
+-- Rows written before this migration (DecodeVinValues path) have no expires_at; give them one from
+-- decoded_at so purge_expired_vin_cache() can reach them. They are re-decoded on next read anyway
+-- (no extended_at), so this only bounds how long an unread legacy row is kept.
+UPDATE public.vin_decodes
+   SET expires_at = COALESCE(decoded_at, NOW()) + INTERVAL '180 days'
+ WHERE expires_at IS NULL;
+
+-- Housekeeping: delete cache rows 30 days past expiry (the grace lets a NHTSA outage serve stale).
+-- Called daily by /api/cron/retention with the service role. INVOKER: it runs with the caller's
+-- rights, so a client role could not delete anything even if it could execute it.
+DROP FUNCTION IF EXISTS public.purge_expired_vin_cache();
+CREATE FUNCTION public.purge_expired_vin_cache()
 RETURNS TABLE (vin_rows BIGINT, recall_rows BIGINT)
 LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
+SECURITY INVOKER
+SET search_path = ''
 AS $$
 DECLARE v BIGINT; r BIGINT;
 BEGIN
-  DELETE FROM public.vin_decodes WHERE expires_at < NOW() - INTERVAL '30 days';
+  DELETE FROM public.vin_decodes WHERE expires_at < pg_catalog.now() - INTERVAL '30 days';
   GET DIAGNOSTICS v = ROW_COUNT;
-  DELETE FROM public.nhtsa_recalls_cache WHERE expires_at < NOW() - INTERVAL '30 days';
+  DELETE FROM public.nhtsa_recalls_cache WHERE expires_at < pg_catalog.now() - INTERVAL '30 days';
   GET DIAGNOSTICS r = ROW_COUNT;
   RETURN QUERY SELECT v, r;
 END;
 $$;
 REVOKE ALL ON FUNCTION public.purge_expired_vin_cache() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.purge_expired_vin_cache() TO service_role;
+
+-- Self-check: fail the migration if a client role keeps any access or the server loses it.
+DO $$
+DECLARE
+  r text;
+  p text;
+  n integer;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] LOOP
+      IF has_table_privilege(r, 'public.nhtsa_recalls_cache', p) THEN
+        RAISE EXCEPTION 'nhtsa_recalls_cache still % -able by %', p, r;
+      END IF;
+    END LOOP;
+    FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES'] LOOP
+      IF has_any_column_privilege(r, 'public.nhtsa_recalls_cache', p) THEN
+        RAISE EXCEPTION 'nhtsa_recalls_cache has a column % -able by %', p, r;
+      END IF;
+    END LOOP;
+    IF has_function_privilege(r, 'public.purge_expired_vin_cache()', 'EXECUTE') THEN
+      RAISE EXCEPTION 'purge_expired_vin_cache() executable by %', r;
+    END IF;
+  END LOOP;
+
+  FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'] LOOP
+    IF NOT has_table_privilege('service_role', 'public.nhtsa_recalls_cache', p) THEN
+      RAISE EXCEPTION 'service_role cannot % nhtsa_recalls_cache', p;
+    END IF;
+  END LOOP;
+  IF NOT has_table_privilege('service_role', 'public.vin_decodes', 'DELETE') THEN
+    RAISE EXCEPTION 'service_role cannot DELETE vin_decodes (purge would fail)';
+  END IF;
+  IF NOT has_function_privilege('service_role', 'public.purge_expired_vin_cache()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'service_role cannot execute purge_expired_vin_cache()';
+  END IF;
+
+  -- INVOKER + RLS on both tables: the purge only deletes because service_role bypasses RLS.
+  IF NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname = 'service_role') THEN
+    RAISE EXCEPTION 'service_role must have BYPASSRLS for the INVOKER purge to delete anything';
+  END IF;
+
+  IF (SELECT prosecdef FROM pg_proc WHERE oid = 'public.purge_expired_vin_cache()'::regprocedure) THEN
+    RAISE EXCEPTION 'purge_expired_vin_cache() must be SECURITY INVOKER';
+  END IF;
+
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.nhtsa_recalls_cache'::regclass) THEN
+    RAISE EXCEPTION 'nhtsa_recalls_cache RLS is not enabled';
+  END IF;
+  SELECT count(*) INTO n FROM pg_policies
+   WHERE schemaname = 'public' AND tablename = 'nhtsa_recalls_cache';
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'nhtsa_recalls_cache has % policies (expected 0)', n;
+  END IF;
+
+  SELECT count(*) INTO n FROM public.vin_decodes WHERE expires_at IS NULL;
+  IF n <> 0 THEN
+    RAISE EXCEPTION '% vin_decodes rows still have no expires_at', n;
+  END IF;
+END
+$$;
+
+COMMIT;
+
+NOTIFY pgrst, 'reload schema';

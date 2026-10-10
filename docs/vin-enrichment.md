@@ -64,3 +64,21 @@ Measured from the recorded fixtures (`lib/vehicle/__fixtures__/nhtsa`):
 
 A non-zero vPIC `ErrorCode` (e.g. `1` bad check digit) still returns partial data; it is stored
 with `decode_clean = false` and returned as `decodeClean: false` so the UI can say "unconfirmed".
+
+## Access, time budget and limits (Ren review on #301)
+
+- `nhtsa_recalls_cache` is server-only: RLS on with no policy, and every grant is revoked from
+  PUBLIC/anon/authenticated (service_role only). Every reader and writer is the service-role client.
+- `purge_expired_vin_cache()` is `SECURITY INVOKER` with `search_path = ''`. It works because
+  service_role bypasses RLS, and the migration's self-check fails if that ever stops being true.
+- Legacy `vin_decodes` rows get `expires_at = decoded_at + 180 days`, so the purge reaches them.
+- Upstream calls: every NHTSA/EPA/mcp.vin request has a 10s timeout, and each `/api/vin` request has
+  a 15s overall deadline (`lib/vehicle/deadline.ts`). Once the deadline passes, later calls are
+  skipped. A recall lookup cut short reports unknown (`null`), never a partial low count.
+- Limits (`lib/vehicle/vin-route-guard.ts`), on top of per-IP 30/min:
+  - a global 300/min shared by both VIN routes;
+  - 60/min per signed-in user id;
+  - a global budget of 200 new `vin_decodes` rows/hour. When it's used up, the live decode is still
+    returned but not cached, so fabricated VINs can't flood the table.
+
+  All of these are per serverless instance, like `lib/rate-limit`.

@@ -3,6 +3,7 @@
 // NHTSA recalls cached per make/model/year in nhtsa_recalls_cache. Both are free and keyless.
 // See docs/vin-enrichment.md for what free data cannot give (option codes, original MSRP, ...).
 
+import type { Deadline } from "./deadline";
 import {
   decodeVinExtended,
   getRecalls,
@@ -15,6 +16,7 @@ export const RECALLS_TTL_MS = 7 * 24 * 3600_000;
 
 type FetchLike = (
   url: string,
+  init?: { signal?: AbortSignal },
 ) => Promise<{ ok: boolean; json: () => Promise<any> }>;
 // Minimal Supabase surface we use, so tests can pass an in-memory fake.
 type Sb = { from: (table: string) => any };
@@ -22,6 +24,14 @@ type Sb = { from: (table: string) => any };
 export interface EnrichOpts {
   fetchImpl?: FetchLike;
   now?: () => number;
+  /** Overall upstream deadline for the request (each call also has a 10s timeout). */
+  deadline?: Deadline;
+  /**
+   * Asked right before a new vin_decodes row is written. Return false to serve the live decode
+   * without caching it (the route's global write budget is spent), so fabricated VINs can't flood
+   * the table. Omitted = always write.
+   */
+  canWrite?: () => boolean;
 }
 
 /** vin_decodes columns written by the extended decode (other columns are left untouched). */
@@ -111,6 +121,8 @@ export interface VinDecodeResult {
   cached: boolean;
   /** True when NHTSA failed and an expired cache row was served instead. */
   stale: boolean;
+  /** True when a vin_decodes row exists for this VIN (read from cache or just written). */
+  persisted: boolean;
 }
 
 /** Decode a VIN: fresh cache row, else live extended decode (written back), else stale row. */
@@ -133,26 +145,39 @@ export async function getVinDecode(
   }
   if (row && isDecodeFresh(row, now)) {
     const d = rowToDecode(row);
-    if (d) return { decode: d, row, cached: true, stale: false };
+    if (d)
+      return { decode: d, row, cached: true, stale: false, persisted: true };
   }
-  const live = await decodeVinExtended(vin, opts.fetchImpl);
+  const live = await decodeVinExtended(vin, opts.fetchImpl, {
+    deadline: opts.deadline,
+  });
   if (live) {
     const write = decodeToRow(vin, live, now);
-    try {
-      // Upsert only the decode columns; mpg/safety/recall columns on an existing row survive.
-      await sb.from("vin_decodes").upsert(write, { onConflict: "vin" });
-    } catch {
-      /* cache write is best-effort */
+    // Refreshing an existing row is always fine; only NEW rows spend the write budget.
+    let persisted = row != null;
+    if (row != null || !opts.canWrite || opts.canWrite()) {
+      try {
+        // Upsert only the decode columns; mpg/safety/recall columns on an existing row survive.
+        const res = await sb
+          .from("vin_decodes")
+          .upsert(write, { onConflict: "vin" });
+        if (!res?.error) persisted = true;
+      } catch {
+        /* cache write is best-effort */
+      }
     }
     return {
       decode: live,
       row: { ...(row ?? {}), ...write },
       cached: false,
       stale: false,
+      persisted,
     };
   }
   const old = rowToDecode(row);
-  return old ? { decode: old, row, cached: true, stale: true } : null;
+  return old
+    ? { decode: old, row, cached: true, stale: true, persisted: true }
+    : null;
 }
 
 export interface RecallsResult extends RecallLookup {
@@ -200,7 +225,9 @@ export async function getRecallsCached(
   });
   if (row && new Date(row.expires_at).getTime() > now) return fromRow(false);
 
-  const live = await getRecalls(make, model, year, opts.fetchImpl);
+  const live = await getRecalls(make, model, year, opts.fetchImpl, {
+    deadline: opts.deadline,
+  });
   if (live) {
     try {
       await sb.from("nhtsa_recalls_cache").upsert(
