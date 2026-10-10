@@ -280,14 +280,14 @@ export default function LoginPage() {
               By signing in, you agree to our{" "}
               <Link
                 href="/tos"
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                className="text-[var(--t4)] underline underline-offset-2 hover:text-[var(--t1)]"
               >
                 Terms
               </Link>{" "}
               and{" "}
               <Link
                 href="/privacy"
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                className="text-[var(--t4)] underline underline-offset-2 hover:text-[var(--t1)]"
               >
                 Privacy Policy
               </Link>

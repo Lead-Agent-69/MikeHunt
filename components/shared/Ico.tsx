@@ -59,7 +59,14 @@ interface IcoProps {
 }
 
 export function Ico({ name, className = "", size = 20 }: IcoProps) {
-  const shared = { width: size, height: size, className };
+  // Ico is always decorative: the control or text beside it carries the name.
+  const shared = {
+    width: size,
+    height: size,
+    className,
+    "aria-hidden": true,
+    focusable: false,
+  } as const;
 
   switch (name) {
     case "search":

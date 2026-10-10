@@ -1629,7 +1629,7 @@ function SourceCard({
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--grad)] text-white text-xs font-bold text-center"
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-[image:var(--grad)] text-white text-xs font-bold text-center"
                 >
                   Visit Site
                 </a>
@@ -1901,7 +1901,7 @@ export default function SourcesPage() {
             </div>
             <Link
               href="/discover"
-              className="px-4 py-2 rounded-xl bg-[var(--grad)] text-white text-sm font-bold"
+              className="px-4 py-2 rounded-xl bg-[image:var(--grad)] text-white text-sm font-bold"
             >
               Find vehicles
             </Link>
