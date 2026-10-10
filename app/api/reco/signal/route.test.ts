@@ -27,7 +27,7 @@ vi.mock("@/lib/supabase", () => ({
                         body_class: "Sedan",
                         location_state: "tx",
                         source: "cars_com",
-                        condition: "clean",
+                        condition: "clean_title",
                       }
                     : null,
               }),
