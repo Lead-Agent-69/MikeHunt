@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
 import "leaflet.markercluster";
+import OpenFreeMapLayer, { useAppTheme } from "./OpenFreeMapLayer";
 
 // Fix Leaflet's default icon paths in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -183,6 +184,7 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
 
 export default function DealerMap({ points = [] }: DealerMapProps) {
   const [mapKey, setMapKey] = useState("map-initial");
+  const theme = useAppTheme();
 
   useEffect(() => {
     setMapKey(`map-${Date.now()}`);
@@ -206,14 +208,15 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         key={mapKey}
         center={[39.8283, -98.5795]}
         zoom={4}
-        style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
+        style={{
+          width: "100%",
+          height: "100%",
+          background: theme === "dark" ? "#0a0a0a" : "#f2efe9",
+        }}
         zoomControl={false}
       >
-        {/* Dark theme basemap */}
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        />
+        {/* OpenFreeMap vector basemap (free, no API key): liberty in light theme, dark in dark. */}
+        <OpenFreeMapLayer theme={theme} />
 
         <ClusteredMarkers points={validPoints} />
       </MapContainer>
