@@ -221,7 +221,21 @@ export function parseRobots(body: string): RobotsGroup[] {
   return groups;
 }
 
-function ruleMatches(rule: string, target: string) {
+/**
+ * One canonical form for robots paths and URLs before comparing: percent-escapes of unreserved
+ * characters and brackets are decoded, other escapes upper-cased. Without it a page link written
+ * `?highlights%5B%5D=x` slips past `Disallow: /*highlights[]=` (Overfuel's facet rule).
+ */
+export function canonicalRobotsPath(path: string) {
+  return path.replace(/%([0-9a-fA-F]{2})/g, (m, hex: string) => {
+    const c = String.fromCharCode(parseInt(hex, 16));
+    return /[A-Za-z0-9\-._~[\]]/.test(c) ? c : m.toUpperCase();
+  });
+}
+
+function ruleMatches(rawRule: string, rawTarget: string) {
+  const rule = canonicalRobotsPath(rawRule);
+  const target = canonicalRobotsPath(rawTarget);
   const anchored = rule.endsWith("$");
   const body = anchored ? rule.slice(0, -1) : rule;
   const pattern = body

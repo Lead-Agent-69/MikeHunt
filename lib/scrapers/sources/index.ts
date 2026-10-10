@@ -24,6 +24,7 @@ import { enrichPriority } from "@/lib/scrapers/enrich-priority";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import {
   CURATED_SITES,
+  isCuratedSiteEnabled,
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
@@ -1073,8 +1074,9 @@ export async function scrapeCuratedSites(
   };
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
   // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
+  // Registry sites marked `enabled: false` (awaiting a terms decision) are never requested.
   const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
-    matchesRequestedDealer,
+    (site) => isCuratedSiteEnabled(site) && matchesRequestedDealer(site),
   );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
@@ -1626,14 +1628,20 @@ async function scrapeDealerCms(
   const cheerio = await import("cheerio");
   const deals = await crawlDealerCms(site, {
     fetchHtml: (url) => politeFetch(url, { freshForMs: 30 * 60_000 }),
+    // Sitemap-listed detail pages (ProMax) change rarely: a day's cache keeps re-sweeps cheap.
+    fetchDetailHtml: (url) => politeFetch(url, { freshForMs: 24 * 3600_000 }),
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
   });
   // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
   // a re-sweep only costs requests for cars we haven't seen.
   const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
+  // Structured layouts already carry what the detail page would add (JSON-LD / flight data), and
+  // text-block sites have no detail page at all, so only card layouts spend detail requests.
+  const cardLayout =
+    !site.layout || site.layout === "cards" || site.layout === "text-lines";
   const enrichLimit = Math.min(
-    deals.length,
+    cardLayout ? deals.length : 0,
     Number(process.env.CDG_DETAIL_LIMIT || (targeted ? deals.length : 12)),
   );
   let enriched = 0;
