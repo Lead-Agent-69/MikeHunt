@@ -154,6 +154,19 @@ export function RecentlySold({
   );
 }
 
+/** Only http(s) links are rendered (no javascript:, data:, protocol-relative or malformed URLs). */
+export function safeHttpUrl(u: unknown): string | undefined {
+  if (typeof u !== "string" || !u) return undefined;
+  try {
+    const url = new URL(u);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Government impound / fleet / surplus auction results and GSA closing bids. Shown apart from the
 // retail median (never part of it), each with its price meaning, and with the source credits the
 // data licences require (CC BY 4.0 for the GSA dataset) printed under the list.
@@ -191,9 +204,9 @@ export function GovLane({
         {sales.slice(0, 6).map((s, i) => (
           <a
             key={i}
-            href={s.sourceUrl || undefined}
-            target={s.sourceUrl ? "_blank" : undefined}
-            rel={s.sourceUrl ? "noopener noreferrer" : undefined}
+            href={safeHttpUrl(s.sourceUrl)}
+            target={safeHttpUrl(s.sourceUrl) ? "_blank" : undefined}
+            rel={safeHttpUrl(s.sourceUrl) ? "noopener noreferrer" : undefined}
             className="flex items-center justify-between gap-3 py-2 text-sm"
           >
             <span className="truncate text-[var(--t2)]">

@@ -85,6 +85,14 @@ describe("retail sold scope", () => {
 // Ren #302 guard: every code path that reads sold_listings either uses the retail scope
 // (basis 'sold' + sale_channel IS NULL) or is a separate gov lane that selects attribution and
 // returns it with each row.
+// Known misses (static text matching cannot see them; review and the DB lane constraints cover them):
+//   * Default parameters: function q(t = "sold_listings") { return sb.from(t) } binds the table in a
+//     parameter default, which isn't a const/let/var/property binding.
+//   * Casts and indirection: sb.from(("sold_listings" as any)), sb.from(T as any), (sb as any)["from"](T),
+//     or a table name passed in as an argument from another module.
+//   * String building: sb.from("sold_" + "listings"), template interpolation (`sold_${x}`), join(),
+//     or any name computed at run time.
+//   * Readers outside app/, lib/, scripts/, workers/ (e.g. supabase/functions) and raw SQL/RPC reads.
 // Every .from(...) whose argument resolves to sold_listings: the literal in any quote style, or an
 // identifier bound anywhere in the scanned tree to the string "sold_listings" (const TABLE = ...,
 // exported/imported constants, `as const`), so a renamed constant can't hide a reader.
