@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { titleBadgeHtml, titleBadgeModel } from "@/lib/deals/title-badge-model";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -57,6 +58,23 @@ export interface MapPoint {
   owner?: string;
   ownerCount?: number;
   url?: string; // detail link
+  // Title fields from /api/deals/map (#210): rendered as the shared title badge in the popup.
+  condition?: string | null;
+  damageType?: string | null;
+  titleCategory?: string;
+  titleSource?: string | null;
+}
+
+// Only pins that carry title fields get a badge (older payloads omit them entirely).
+function pinTitleBadge(p: MapPoint): string {
+  if (p.condition === undefined && !p.titleCategory) return "";
+  return titleBadgeHtml(
+    titleBadgeModel({
+      condition: p.condition,
+      damageType: p.damageType,
+      titleSource: p.titleSource,
+    }),
+  );
 }
 
 interface DealerMapProps {
@@ -126,6 +144,7 @@ function cardPopup(p: MapPoint): string {
     <div style="padding:8px 10px">
       <div style="font-weight:800;font-size:15px;color:#111">${price}</div>
       <div style="font-weight:600;font-size:12px;color:#555;margin-top:2px">${esc(p.name)}</div>
+      ${pinTitleBadge(p)}
       ${p.label ? `<div style="font-size:12px;color:#555;margin-top:4px">${esc(p.label)}</div>` : ""}
       ${p.approx ? '<div style="font-size:12px;color:#555;margin-top:4px">Approximate state-level location. Verify the seller address.</div>' : ""}
       ${meta ? `<div style="font-size:11px;color:#777;margin-top:2px">${meta}</div>` : ""}
@@ -168,7 +187,7 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
       marker.bindPopup(
         rich
           ? cardPopup(p)
-          : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}</div>`,
+          : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}${pinTitleBadge(p)}</div>`,
         rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
       group.addLayer(marker);
