@@ -17,6 +17,7 @@ import { effectiveHome } from "@/lib/preferences/locations";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import dynamic from "next/dynamic";
+import { AlsoSearchOn } from "@/components/multisite/AlsoSearchOn";
 
 // Dynamically import the Leaflet map, disabling SSR since it uses window
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -61,10 +62,14 @@ export default function ArbitrageDashboardPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
 
   // Real geocoded deal points for the network map (so it isn't an empty "No mapped locations" box).
-  const { data: mapData } = useSWR("/api/deals/map?verdict=actionable", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60_000,
-  });
+  const { data: mapData } = useSWR(
+    "/api/deals/map?verdict=actionable",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 60_000,
+    },
+  );
   const mapPoints: any[] = mapData?.points ?? [];
 
   // Use SWR for data fetching with automatic revalidation
@@ -120,6 +125,8 @@ export default function ArbitrageDashboardPage() {
           </Link>
         </div>
       </div>
+
+      <AlsoSearchOn />
 
       {!homeState && !authError ? (
         <div
