@@ -1,3 +1,4 @@
+import { isRetiredSource } from "./retired";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -149,6 +150,10 @@ export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
     "Liquidity Services User Agreement (covers GovDeals and AllSurplus): no spiders, crawlers, robots or similar means to access the site, and no data mining",
   allsurplus:
     "Liquidity Services User Agreement (covers AllSurplus and GovDeals): no spiders, crawlers, robots or similar means to access the site, and no data mining",
+  facebook_marketplace:
+    "facebook.com/terms: no accessing or collecting data from Meta products by automated means without prior permission",
+  truecar:
+    "truecar.com/robots.txt disallows /api/ and the used/new listings inventory paths, and the site sits behind a PerimeterX bot wall we will not bypass (reviewed 2026-10-09)",
   carparts_com:
     "carparts.com/help-center/terms-and-conditions §2.2: no automated methods like scripts or web crawlers, and no scraping, crawling or spidering",
 };
@@ -160,9 +165,12 @@ export function resolveSweepSources(
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
-  const list = explicit.length
-    ? Array.from(new Set(explicit))
-    : DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]);
+  // Retired sources never run, even when named in SCRAPE_SOURCES (lib/scrapers/retired.ts).
+  const list = (
+    explicit.length
+      ? Array.from(new Set(explicit))
+      : DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id])
+  ).filter((id) => !isRetiredSource(id));
   return orderSourcesByTier(list);
 }
 
@@ -178,6 +186,7 @@ export function isAutomationAllowedSource(
   const id = String(sourceId || "")
     .trim()
     .toLowerCase();
+  if (isRetiredSource(id)) return false;
   if (!TOS_RESTRICTED_SOURCES[id]) return true;
   return String(raw || "")
     .split(",")

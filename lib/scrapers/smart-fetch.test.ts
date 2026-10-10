@@ -1,39 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { buildTierQueue } from "./smart-fetch";
 
-describe("buildTierQueue — the arsenal order", () => {
-  it("climbs the in-house ladder cheap→powerful when nothing is learned", () => {
-    expect(buildTierQueue(undefined, false)).toEqual([
-      "static",
-      "stealth",
-      "headed",
-    ]);
+describe("buildTierQueue: retired bypass tiers", () => {
+  it("only ever uses the honest static tier", () => {
+    expect(buildTierQueue(undefined, false)).toEqual(["static"]);
   });
 
-  it("tries the learned winner first, then the rest of the ladder", () => {
-    expect(buildTierQueue("headed", false)).toEqual([
-      "headed",
-      "static",
-      "stealth",
-    ]);
+  it("a learned winner from an old run cannot re-enable a bypass tier", () => {
+    const q = buildTierQueue("headed", false);
+    expect(q[0]).toBe("headed"); // stale memory is listed, but smartFetch skips any tier outside the static-only ladder
+    expect(q).toContain("static");
+    expect(q).not.toContain("stealth");
   });
 
-  it("appends FlareSolverr as the LAST resort when it's configured", () => {
-    expect(buildTierQueue(undefined, true)).toEqual([
-      "static",
-      "stealth",
-      "headed",
-      "flaresolverr",
-    ]);
-  });
-
-  it("never duplicates FlareSolverr when it's already the learned winner", () => {
-    const q = buildTierQueue("flaresolverr", true);
-    expect(q.filter((t) => t === "flaresolverr")).toHaveLength(1);
-    expect(q[0]).toBe("flaresolverr"); // learned winner goes first
-  });
-
-  it("omits FlareSolverr entirely when unconfigured (no wasted reserve)", () => {
-    expect(buildTierQueue(undefined, false)).not.toContain("flaresolverr");
+  it("never adds FlareSolverr unless explicitly forced (it is retired)", () => {
+    expect(buildTierQueue(undefined)).not.toContain("flaresolverr");
   });
 });

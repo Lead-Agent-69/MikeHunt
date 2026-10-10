@@ -1,14 +1,20 @@
-import { describe, it, expect } from 'vitest'
-import { FlareSolverrClient } from './flaresolverr'
+import { describe, it, expect } from "vitest";
+import { FlareSolverrClient } from "./flaresolverr";
+import { BypassRetiredError } from "../retired";
 
-describe('FlareSolverrClient', () => {
-  it('reports unconfigured when URL is missing', () => {
-    const client = new FlareSolverrClient('')
-    expect(client.isConfigured()).toBe(false)
-  })
+describe("FlareSolverrClient (retired)", () => {
+  it("never reports configured, even with a URL", () => {
+    expect(new FlareSolverrClient("").isConfigured()).toBe(false);
+    expect(new FlareSolverrClient("http://localhost:8191").isConfigured()).toBe(
+      false,
+    );
+  });
 
-  it('reports configured when URL is present', () => {
-    const client = new FlareSolverrClient('http://localhost:8191')
-    expect(client.isConfigured()).toBe(true)
-  })
-})
+  it("refuses to solve challenges", async () => {
+    await expect(
+      new FlareSolverrClient("http://localhost:8191").getHtml(
+        "https://example.com",
+      ),
+    ).rejects.toBeInstanceOf(BypassRetiredError);
+  });
+});

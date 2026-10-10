@@ -14,14 +14,13 @@ import { scrapeEbayMotors } from "./sources/ebay-motors";
 import { scrapeIAA } from "./sources/iaa";
 import { scrapeAcv } from "./sources/acv";
 import { scrapeCarPartsCom } from "./sources/carparts-com";
-import { scrapeFacebookMarketplace } from "./sources/facebook-marketplace";
 import { scrapeAdesa } from "./sources/adesa";
 import { scrapeManheim } from "./sources/manheim";
 // Retail comps sources (coded, no auth) — feed the comps index that powers valuation + Deal IQ.
 import { scrapeCarvana } from "./sources/carvana";
 import { scrapeVroom } from "./sources/vroom";
 import { scrapeTrueCar } from "./sources/truecar";
-import { scrapeCarGurus } from "./sources/cargurus";
+import { RETIRED_SOURCES } from "./retired";
 import { scrapeAutoTrader } from "./sources/autotrader";
 import { scrapeOfferUp } from "./sources/offerup";
 import { scrapePublicSurplus } from "./sources/publicsurplus";
@@ -165,7 +164,10 @@ export function createScraperRegistry(
     frequencyMinutes: 120,
     requiresAuth: false,
     stealthRequired: true,
-    fn: () => scrapeFacebookMarketplace(),
+    // Retired (terms + stealth/proxy dependency). See lib/scrapers/retired.ts.
+    fn: async () => {
+      throw new Error(RETIRED_SOURCES.facebook_marketplace);
+    },
     enabled: false,
     estimatedDealsPerRun: 200,
   });
@@ -257,11 +259,10 @@ export function createScraperRegistry(
     frequencyMinutes: 240,
     requiresAuth: false,
     stealthRequired: true,
-    fn: () => scrapeCarGurus(),
-    // Disabled: DataDome-walled — the inventory XHR 403s and the page serves a DataDome captcha
-    // interstitial (geo.captcha-delivery.com) even to headed real-Chrome Patchright. DataDome is the
-    // one anti-bot that needs a paid captcha solver (ruled out by no-paid-services). AutoTempest carries
-    // CarGurus listings without touching DataDome, so retail comps stay covered. Verified 2026-06-26.
+    // Retired (terms + FlareSolverr/proxy dependency). See lib/scrapers/retired.ts.
+    fn: async () => {
+      throw new Error(RETIRED_SOURCES.cargurus);
+    },
     enabled: false,
     estimatedDealsPerRun: 300,
   });

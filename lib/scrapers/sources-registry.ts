@@ -620,8 +620,9 @@ export const ONLINE_MARKETPLACES: SourceConfig[] = [
     inventorySize: "50K+",
     updateFrequency: "Real-time",
     priority: "P1",
-    status: "active",
-    notes: "Local focus. No shipping.",
+    status: "disabled",
+    notes:
+      "Retired 2026-10-09: Meta terms ban automated collection. Outbound search link only.",
   },
   {
     id: "craigslist",
@@ -683,10 +684,10 @@ export const DEALER_PLATFORMS: SourceConfig[] = [
     description: "Nationwide dealer listings with price analysis.",
     inventorySize: "1M+",
     updateFrequency: "Daily",
-    requiresFlareSolverr: true,
     priority: "P1",
-    status: "active",
-    notes: "JS-rendered. Needs browser path.",
+    status: "disabled",
+    notes:
+      "Retired 2026-10-09: terms ban scraping; old scraper needed FlareSolverr + proxies. Car Selector search link only.",
   },
   {
     id: "autotrader",

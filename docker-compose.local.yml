@@ -17,13 +17,11 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
-      FLARESOLVERR_URL: http://flaresolverr:8191/v1
       LOCAL_CACHE_PATH: /app/cache
       BROWSER_PROFILE_DIR: /app/profiles
       STATUS_PATH: /app/logs/status.json
       SCRAPER_LOG_PATH: /app/logs/scraper.log
       STATUS_PORT: 8787
-      ENABLE_HEADED_SCRAPERS: "1"
       # hybrid = buyer-scoped queue first, broad state sweep while the queue is idle.
       SCRAPER_EXECUTION_MODE: "${SCRAPER_EXECUTION_MODE:-hybrid}"
       SWEEP_INTERVAL_HOURS: "${SWEEP_INTERVAL_HOURS:-4}"
@@ -37,8 +35,6 @@ services:
       - ./logs:/app/logs
     depends_on:
       redis:
-        condition: service_healthy
-      flaresolverr:
         condition: service_healthy
     networks:
       - scraper-local
@@ -55,26 +51,6 @@ services:
       retries: 3
       start_period: 20s
 
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    restart: unless-stopped
-    cpus: 1.5
-    mem_limit: 2g
-    environment:
-      LOG_LEVEL: warning
-      TZ: America/Chicago
-    networks:
-      - scraper-local
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8191/'', timeout=3)"',
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
 
   # Disk janitor for ./cache on Zeus: age-based deletes in named subfolders only; the scraper's
   # state files are never touched. See scripts/zeus-janitor.sh and docs/RETENTION.md.

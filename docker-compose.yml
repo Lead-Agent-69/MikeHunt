@@ -36,16 +36,12 @@ services:
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - REDIS_URL=redis://redis:6379
-      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     depends_on:
       redis:
         condition: service_healthy
-      flaresolverr:
-        condition: service_healthy
 
-  # Browser-capable scrape fleet. Runs smartFetch headed (Patchright + real Chrome under xvfb), beating
-  # Cloudflare/PerimeterX/Akamai for free. Scale with `docker compose up --scale scraper=N` — but note
-  # replicas on ONE host share ONE IP; for anti-bot reputation spread, run replicas on DIFFERENT hosts.
+  # Scrape worker. Terms-safe only: honest User-Agent, robots.txt, no stealth/headed/proxy/FlareSolverr
+  # (retired 2026-10-09, see lib/scrapers/retired.ts). A site that blocks us is skipped, not bypassed.
   scraper:
     build:
       context: .
@@ -58,7 +54,6 @@ services:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - ENABLE_HEADED_SCRAPERS=1
       - SCRAPE_INTERVAL_MS=1800000
       - LOCAL_CACHE_PATH=/app/cache
       # Redis for optional AI parse queue (producer enqueues; invent consumer stays disabled).
@@ -69,41 +64,12 @@ services:
       # - AI_CRAWL_SITES_MAX=8
       # - AI_CRAWL_VDP_CAP=12
       # - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-      # Reserve tier — smartFetch falls to FlareSolverr only after static→stealth→headed all fail.
-      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
-      # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
-      # - SCRAPE_SOURCES=cars_com,autotrader,truecar
     depends_on:
       redis:
-        condition: service_healthy
-      flaresolverr:
         condition: service_healthy
     volumes:
       - ./cache:/app/cache
 
-  # FlareSolverr — the RESERVE anti-bot tier for smartFetch: a separate self-hosted process with its OWN
-  # TLS/JA3 fingerprint + a Cloudflare-challenge solver, reachable at flaresolverr:8191. smartFetch only
-  # deploys it after the in-house static→stealth→headed ladder has failed for a host, so it's the last
-  # resort that can win where our Patchright path can't (e.g. some Cloudflare-gated auction/dealer sites).
-  # Free, self-hosted. NB: it solves CLOUDFLARE — it does NOT defeat DataDome/Kasada (nothing free does).
-  flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:latest
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8191:8191"
-    environment:
-      - LOG_LEVEL=warning
-      - TZ=America/Chicago
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'python3 -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8191/'', timeout=3)"',
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
 
   # Disk janitor for ./cache (Zeus volume). Age-based deletes in named subfolders only; the scraper's
   # state files are never touched. See scripts/zeus-janitor.sh and docs/RETENTION.md.

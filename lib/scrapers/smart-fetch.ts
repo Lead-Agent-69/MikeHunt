@@ -26,6 +26,7 @@ import path from "node:path";
 import { recommendedTier, type AntiBotVendor } from "./platform-detector";
 import { FlareSolverrClient } from "./tools/flaresolverr";
 import { getLocalWriteContext } from "./local-write-context";
+import { politeUserAgent } from "./polite/identity";
 
 export type FetchTier = "static" | "stealth" | "headed" | "flaresolverr";
 
@@ -40,21 +41,20 @@ export interface SmartFetchResult {
 }
 
 // The full ladder, cheap → powerful. Each fetch climbs from where it expects to win.
-const LADDER: FetchTier[] = ["static", "stealth", "headed"];
+// Retired 2026-10-09: the stealth and headed tiers existed to get past bot walls. Only the honest
+// static tier remains (lib/scrapers/retired.ts). A wall now means "blocked", never "escalate".
+const LADDER: FetchTier[] = ["static"];
 
 // Headed Chrome needs a real display. macOS always has one; Linux CI only under xvfb (which exports
 // DISPLAY) or when explicitly opted in. Off → the headed tier is skipped and those hosts return
 // blocked (gracefully) instead of crashing a headless box.
-const HEADED_AVAILABLE =
-  process.platform === "darwin" ||
-  !!process.env.DISPLAY ||
-  process.env.ENABLE_HEADED_SCRAPERS === "1";
+const HEADED_AVAILABLE = false;
 
 // FlareSolverr — the RESERVE arsenal piece. A separate self-hosted anti-bot proxy (different TLS/JA3 +
 // its own challenge solver) that can win where in-house Patchright doesn't. Only deployed when configured
 // AND the whole in-house ladder failed — i.e. when we're "not getting the data," throw everything we have
 // at it before giving up. Off (no FLARESOLVERR_URL) → it's simply absent from the queue.
-const FLARE_AVAILABLE = !!process.env.FLARESOLVERR_URL;
+const FLARE_AVAILABLE = false;
 let flareClient: FlareSolverrClient | null = null;
 async function fetchViaFlareSolverr(url: string): Promise<string> {
   if (!flareClient) flareClient = new FlareSolverrClient();
@@ -126,28 +126,12 @@ function isBlocked(html: string, status: number): boolean {
 async function fetchStatic(
   url: string,
 ): Promise<{ html: string; status: number; headers: Record<string, string> }> {
-  const fp = fingerprintFor(hostOf(url));
-  // A coherent modern-Chrome TOP-LEVEL NAVIGATION header set whose values all match this host's persona
-  // (UA ↔ sec-ch-ua version ↔ platform ↔ Accept-Language). Node's fetch normalizes header ORDER (which we
-  // can't fully control, and Chrome's exact JA4/h2 fingerprint is unreachable from pure Node — those hosts
-  // route to the Patchright real-Chrome tier), but coherent VALUES kill the most common tell: a lone
-  // generic UA with no client hints. Exact document `Accept` + `Priority: u=0, i` + sec-fetch-* per spec.
+  // Honest identity (lib/scrapers/retired.ts): no browser-impersonation headers or client hints.
   const res = await fetch(url, {
     headers: {
-      "sec-ch-ua": fp.chUa,
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": fp.platform,
-      "Upgrade-Insecure-Requests": "1",
-      "User-Agent": fp.ua,
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-      "Sec-Fetch-Site": "none",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-User": "?1",
-      "Sec-Fetch-Dest": "document",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Accept-Language": `${fp.locale},en;q=0.9`,
-      Priority: "u=0, i",
+      "User-Agent": politeUserAgent(),
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
     },
     signal: AbortSignal.timeout(20_000),
   });
@@ -358,7 +342,8 @@ export async function smartFetch(
   while (queue.length) {
     const tier = queue.shift()!;
     if (tried.has(tier)) continue;
-    if (tier === "headed" && !HEADED_AVAILABLE) {
+    // Only the honest static tier may run; a stale learned winner can never re-enable a bypass tier.
+    if (!LADDER.includes(tier) || (tier === "headed" && !HEADED_AVAILABLE)) {
       tried.add(tier);
       continue;
     }

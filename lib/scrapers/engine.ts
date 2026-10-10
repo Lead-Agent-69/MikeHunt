@@ -26,6 +26,9 @@ import {
 } from "./bypass/stealth-engine";
 import { userAgentRotator } from "./bypass/user-agent-pool";
 import { escalatedFetch } from "./tools/escalation";
+import { politeUserAgent } from "./polite/identity";
+
+const RETIRED_STEALTH = true;
 
 let _adaptiveEngine: AdaptiveEngine | null = null;
 
@@ -63,18 +66,8 @@ export interface ScraperConfig {
 function getProxy():
   | { server: string; username: string; password: string }
   | undefined {
-  const proxyManager = getProxyManager();
-
-  if (!proxyManager.hasProxies()) return undefined;
-
-  const proxy = proxyManager.getRandom();
-  if (!proxy) return undefined;
-
-  return {
-    server: `http://${proxy.host}:${proxy.port}`,
-    username: proxy.username || "",
-    password: proxy.password || "",
-  };
+  // Retired: no proxy / IP rotation (lib/scrapers/retired.ts).
+  return undefined;
 }
 
 // ─── User agent pool ─────────────────────────────────────────────────────────
@@ -86,9 +79,11 @@ const USER_AGENTS = [
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 ];
 
+// Honest identity only: no UA rotation or browser impersonation (lib/scrapers/retired.ts).
 function randomUA(overrides?: string[]) {
-  const pool = overrides?.length ? overrides : USER_AGENTS;
-  return pool[Math.floor(Math.random() * pool.length)];
+  void overrides;
+  void USER_AGENTS;
+  return politeUserAgent();
 }
 
 function sleep(ms: number) {
@@ -105,9 +100,6 @@ async function getBrowser(config: ScraperConfig): Promise<Browser> {
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-features=IsolateOrigins,site-per-process",
-      "--disable-web-security",
       "--window-size=1400,900",
     ],
   });
@@ -116,6 +108,10 @@ async function getBrowser(config: ScraperConfig): Promise<Browser> {
 
 // ─── Stealth injection (now using advanced stealth engine) ───────────────────
 async function injectStealth(page: Page, config: ScraperConfig) {
+  // Retired: stealth / fingerprint spoofing is never applied (lib/scrapers/retired.ts).
+  void page;
+  void config;
+  if (RETIRED_STEALTH) return;
   // Use advanced stealth engine if enabled
   if (config.stealth) {
     await applyStealth(page, {

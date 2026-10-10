@@ -26,21 +26,9 @@ export class ProxyManager {
    * Load proxies from environment or provided URLs
    */
   private loadProxies(proxyUrls?: string | string[]) {
-    const urls = proxyUrls || process.env.PROXY_URLS;
-
-    if (!urls) {
-      console.warn("[ProxyManager] No proxy URLs configured");
-      return;
-    }
-
-    const urlList =
-      typeof urls === "string" ? urls.split(",").map((u) => u.trim()) : urls;
-
-    this.proxies = urlList
-      .map((url) => this.parseProxyUrl(url))
-      .filter(Boolean) as ProxyConfig[];
-
-    console.log(`[ProxyManager] Loaded ${this.proxies.length} proxies`);
+    // Retired: no proxy / IP rotation, ever (lib/scrapers/retired.ts). PROXY_URLS is ignored.
+    if (proxyUrls || process.env.PROXY_URLS)
+      console.warn("[ProxyManager] proxies are retired; PROXY_URLS ignored");
   }
 
   /**

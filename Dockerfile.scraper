@@ -28,8 +28,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY . .
 
 ENV NODE_ENV=production
-# Turn on the headed real-Chrome tier; xvfb-run (below) gives it the display it needs.
-ENV ENABLE_HEADED_SCRAPERS=1
+# The headed real-Chrome "bot wall" tier is retired (lib/scrapers/retired.ts). Kept explicit at 0.
+ENV ENABLE_HEADED_SCRAPERS=0
 ENV SCRAPE_INTERVAL_MS=1800000
 # Do NOT bake SCRAPE_SOURCES here. Image default is terms-safe (lib/scrapers/ci-sources.ts:
 # candidates minus TOS_RESTRICTED_SOURCES, i.e. gsa_auctions and

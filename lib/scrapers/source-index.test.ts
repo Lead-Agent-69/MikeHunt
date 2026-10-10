@@ -93,9 +93,10 @@ describe("source index / registry consistency", () => {
   });
 
   it("recognizes catalog dealers covered by the shared targeted importer", () => {
-    expect(hasSharedImporter(findSource("ae-of-miami")!)).toBe(true);
+    // A&E of Miami and ReCar were retired 2026-10-09 (terms ban scraping / reuse): no importer.
+    expect(hasSharedImporter(findSource("ae-of-miami")!)).toBe(false);
     expect(hasSharedImporter(findSource("dg-auto")!)).toBe(true);
-    expect(hasSharedImporter(findSource("recar")!)).toBe(true);
+    expect(hasSharedImporter(findSource("recar")!)).toBe(false);
     expect(hasSharedImporter(findSource("stjames-auto")!)).toBe(true);
     expect(hasSharedImporter(findSource("damage-com")!)).toBe(true);
     expect(hasSharedImporter(findSource("copart")!)).toBe(false);

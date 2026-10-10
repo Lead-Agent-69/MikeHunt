@@ -14,7 +14,8 @@ describe("local Docker scraper runner config", () => {
   it("keeps production infrastructure private and waits for readiness", () => {
     const compose = readFileSync("docker-compose.yml", "utf8");
     expect(compose).toContain('"127.0.0.1:6379:6379"');
-    expect(compose).toContain('"127.0.0.1:8191:8191"');
+    // FlareSolverr is retired (lib/scrapers/retired.ts): no challenge-solver service ships with Zeus.
+    expect(compose).not.toContain("flaresolverr");
     expect(compose).toContain("condition: service_healthy");
     expect(compose).toContain("init: true");
     expect(compose).toContain(

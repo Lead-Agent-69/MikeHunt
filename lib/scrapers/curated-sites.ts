@@ -78,7 +78,6 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN", type: "salvage_yard" },
   { url: "https://www.rebuildables.com", name: "Rebuildables", type: "rebuilder_dealer" },
   { url: "https://www.erepairables.com", name: "eRepairables", type: "rebuilder_dealer" },
-  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer" },
   { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
   { url: "https://www.74auto.com", name: "74Auto", type: "rebuilder_dealer" }, // salvage / repairable cars (verified)
   { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", type: "salvage_yard", inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php" }, // parts yard that ALSO sells rebuildable vehicles — inventory at /vehicles.php
@@ -86,13 +85,10 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.globalautoauctions.com", name: "Global Auto Auctions", type: "auction_proxy" }, // IAAI reseller, damaged/rebuildable (verified)
   // ── Wave 3 — surfaced by blocking the known network in search (genuinely new, curl-verified) ──
   { url: "https://www.rebuild1.com", name: "Rebuild1", type: "rebuilder_dealer" }, // salvage cars/trucks + salvage-dealer database (verified)
-  { url: "https://thepartsfarm.com", name: "The Parts Farm", type: "salvage_yard" }, // parts yard — complete cars for sale (verified)
   { url: "https://revroom.org", name: "ReVroom", type: "auction_proxy" }, // rebuilt / branded-title marketplace (verified)
-  { url: "https://www.salvagetrucksauction.com", name: "Salvage Trucks Auction", type: "auction_proxy" }, // Copart reseller (verified)
   { url: "https://www.ttrepairables.com", name: "T&T Repairables", state: "IN", type: "rebuilder_dealer" }, // Spencer, IN rebuilder (browser-render; 403s curl)
   { url: "https://brickyardautoparts.com", name: "Brickyard Auto Parts", type: "salvage_yard" }, // parts yard — rebuildable inventory (verified)
   { url: "https://www.ridesafely.com", name: "RideSafely", type: "auction_proxy" }, // salvage auto auction (browser-render; 403s curl)
-  { url: "https://www.repairedsalvage.com", name: "Repaired Salvage", type: "rebuilder_dealer" }, // salvage / repaired cars (verified)
   { url: "https://salvagedus.com", name: "SalvagedUS", type: "auction_proxy" }, // rebuilt / salvage marketplace, dealers + private (verified)
   { url: "https://www.bidndrive.com", name: "BidNDrive", type: "auction_proxy" }, // salvage/repairable auction (browser-render; 403s curl)
   { url: "https://www.auto4export.com", name: "Auto4Export", type: "auction_proxy" }, // salvage export auction (browser-render; 403s curl)
@@ -146,13 +142,9 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.mnrepairables.com", name: "MN Motors", state: "MN", type: "rebuilder_dealer" },
   { url: "https://www.starautous.com", name: "Star Auto", state: "MN", type: "rebuilder_dealer" },
   { url: "https://midwestrepairables.com", name: "Midwest Repairables", state: "MN", type: "rebuilder_dealer" },
-  { url: "https://www.royaldriveautos.com", name: "Royal Drive", state: "MN", type: "rebuilder_dealer" },
-  { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", city: "Des Moines", type: "salvage_yard", inventoryUrl: "https://www.samsriverside.com/vehicles.php" }, // verified 2026-10-06
   { url: "https://www.dgautollc.com", name: "D & G Auto", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard" },
-  { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
   { url: "https://www.rebuildautos.com", name: "RebuildAutos", state: "MO", type: "auction_proxy" },
-  { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer" },
   { url: "https://repairableautos.com", name: "Ken's Auto Body & Sales", state: "ND", type: "rebuilder_dealer" },
 
   // ── West / Southwest ──

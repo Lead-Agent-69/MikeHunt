@@ -1532,10 +1532,6 @@ export { scrapeEbayMotors, EBAY_MOTORS_CONFIG } from "./ebay-motors";
 export { scrapeIAA } from "./iaa";
 export { scrapeAcv, ACV_CONFIG } from "./acv";
 export { scrapeCarPartsCom, CARPARTS_COM_CONFIG } from "./carparts-com";
-export {
-  scrapeFacebookMarketplace,
-  FACEBOOK_MARKETPLACE_CONFIG,
-} from "./facebook-marketplace";
 export { scrapeAdesa, ADESA_CONFIG } from "./adesa";
 export { scrapeManheim, MANHEIM_CONFIG } from "./manheim";
 export {

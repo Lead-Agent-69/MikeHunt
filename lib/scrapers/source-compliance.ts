@@ -15,7 +15,8 @@ export type PolicyBlockKind =
   | "tos_bans_bots"
   | "tos_bans_copying"
   | "bot_challenge"
-  | "needs_permission";
+  | "needs_permission"
+  | "upstream_gated";
 
 export interface PolicyBlock {
   kind: PolicyBlockKind;
@@ -106,6 +107,87 @@ export const SITE_POLICY_BLOCKS: Record<string, PolicyBlock> = {
     kind: "tos_bans_bots",
     reason:
       "Terms: no robot, spider, site search/retrieval application or other device to scrape, data mine or collect content (reviewed 2026-10-06).",
+  },
+  // Retired 2026-10-09 (Eli's salvage audit, /workspace/mikehunt-audit/salvage_sources.md).
+  "salvagetrucksauction.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart broker ('Buy salvage trucks from Copart'). Ingesting it means ingesting Copart data, which Copart's terms forbid.",
+  },
+  "royaldriveautos.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Terms (Carsforsale.com template) ban gathering content by any crawler, robot, bot or spider (reviewed 2026-10-09).",
+  },
+  "thepartsfarm.com": {
+    kind: "tos_bans_bots",
+    reason:
+      "Shopify terms ban using a spider, crawler or scraper (reviewed 2026-10-09).",
+  },
+  "recar.com": {
+    kind: "tos_bans_copying",
+    reason:
+      "Terms: content may not be copied or reused except for personal, non-commercial use in shopping for a vehicle (reviewed 2026-10-09).",
+  },
+  "repairedsalvage.com": {
+    kind: "needs_permission",
+    reason: "UK site, outside our US market. Removed from the catalog.",
+  },
+  "samsriverside.com": {
+    kind: "tos_bans_copying",
+    reason:
+      "legal.php: information may not be used, resold or redistributed in any manner for compensation or any other use without prior written consent (reviewed 2026-10-09).",
+  },
+  // Copart / IAA brokers: reselling auction lots means ingesting Copart/IAA data. Never add.
+  "salvagebid.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "abetterbid.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "scaauctions.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "eliteautoauctions.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "salvageagent.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "go2auctionsnow.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "salvagedus.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "bidndrive.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "auto4export.com": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
+  },
+  "cars4.bid": {
+    kind: "upstream_gated",
+    reason:
+      "Copart/IAA lot reseller: ingesting it means ingesting Copart/IAA data (or a bot challenge we will not bypass).",
   },
   // Marketplace hosts that also appear on CURATED_SITES as auction_proxy. Runner ids are already
   // in TOS_RESTRICTED_SOURCES; without these blocks, curated_dealers could still crawl them when

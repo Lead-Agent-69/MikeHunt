@@ -1,3 +1,4 @@
+import { retiredBypass } from "../retired";
 // lib/scrapers/tools/flaresolverr.ts
 // Self-hosted Cloudflare/anti-bot bypass client. Falls back to direct fetch if not configured.
 
@@ -25,8 +26,9 @@ export class FlareSolverrClient {
     this.url = url || "";
   }
 
+  /** Retired: FlareSolverr exists to solve bot challenges, which we never do. Always false. */
   isConfigured(): boolean {
-    return Boolean(this.url);
+    return false;
   }
 
   /** Create (or reuse) a FlareSolverr session so challenges stay solved across pages. */
@@ -109,43 +111,9 @@ export class FlareSolverrClient {
   }
 
   async getHtml(url: string, timeout = 60000): Promise<string> {
-    const maxRetries = 2;
-    let lastError: Error | null = null;
-
-    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      try {
-        const result = await this.fetch(url, { timeout });
-        if (result.status !== "ok" || !result.solution?.response) {
-          throw new Error(
-            `FlareSolverr failed: ${result.message || result.error || "unknown"}`,
-          );
-        }
-
-        const html = result.solution.response;
-        // Detect if FlareSolverr returned a Cloudflare block page instead of the real content
-        if (
-          html.includes("Attention Required! | Cloudflare") ||
-          html.includes("Just a moment...") ||
-          html.includes("cf-browser-verification")
-        ) {
-          throw new Error("FlareSolverr returned a Cloudflare challenge page");
-        }
-
-        return html;
-      } catch (err: any) {
-        lastError = err;
-        if (attempt <= maxRetries) {
-          console.warn(
-            `[FlareSolverr] Attempt ${attempt} failed for ${url}: ${err.message}. Retrying in ${attempt * 2}s...`,
-          );
-          await new Promise((r) => setTimeout(r, attempt * 2000));
-        }
-      }
-    }
-
-    throw new Error(
-      `FlareSolverr failed after ${maxRetries + 1} attempts. Last error: ${lastError?.message}`,
-    );
+    void url;
+    void timeout;
+    return retiredBypass("flaresolverr");
   }
 }
 

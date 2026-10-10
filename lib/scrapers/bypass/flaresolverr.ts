@@ -1,3 +1,4 @@
+import { retiredBypass } from "../retired";
 // lib/scrapers/bypass/flaresolverr.ts
 // FlareSolverr integration for bypassing Cloudflare protection
 
@@ -101,14 +102,9 @@ export class FlareSolverr {
   }
 }
 
-// Singleton instance
-let flareSolverrInstance: FlareSolverr | null = null;
-
 export function getFlareSolverr(): FlareSolverr {
-  if (!flareSolverrInstance) {
-    flareSolverrInstance = new FlareSolverr();
-  }
-  return flareSolverrInstance;
+  // Retired: we do not solve bot challenges (lib/scrapers/retired.ts).
+  return retiredBypass("flaresolverr");
 }
 
 /**
@@ -121,36 +117,8 @@ export async function fetchWithCloudflareBypass(
     useFlareSolverr?: boolean;
   },
 ): Promise<string> {
-  const flare = getFlareSolverr();
-
-  // Check if FlareSolverr is available and requested
-  if (options?.useFlareSolverr !== false) {
-    const available = await flare.isAvailable();
-    if (available) {
-      console.log(`[FlareSolverr] Using FlareSolverr for ${url}`);
-      const result = await flare.get(url, { cookies: options?.cookies });
-      return result.html;
-    } else {
-      console.warn(
-        "[FlareSolverr] Not available, falling back to direct fetch",
-      );
-    }
-  }
-
-  // Fallback to direct fetch
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error: ${response.status}`);
-  }
-
-  return response.text();
+  // Retired: we never bypass Cloudflare or any bot protection (lib/scrapers/retired.ts).
+  void url;
+  void options;
+  return retiredBypass("cloudflare-bypass");
 }
