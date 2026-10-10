@@ -8,6 +8,7 @@ export function detailValuationConfidence(valuation?: {
   sampleCount?: number;
   soldCount?: number;
   soldAnchored?: boolean;
+  soldAt?: string | null;
 }) {
   return evidenceConfidence({
     ...valuation,

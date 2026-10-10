@@ -34,6 +34,16 @@ describe("detail readiness", () => {
         soldCount: 4,
         soldAnchored: true,
       }),
+    ).toBe("Medium");
+    expect(
+      detailValuationConfidence({
+        source: "comparables",
+        confidence: "high",
+        compCount: 9,
+        soldCount: 4,
+        soldAnchored: true,
+        soldAt: new Date(Date.now() - 86400000).toISOString(),
+      }),
     ).toBe("High");
   });
   it("shows each relevant field once with identity first and no auction date for dealer stock", () => {
