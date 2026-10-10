@@ -19,9 +19,8 @@ const plural = (n: number, one: string, many = `${one}s`) =>
  * Missing and adequate coverage stay quiet; unavailable coverage is never treated as empty.
  * Every number is read straight from the API's coverage block.
  *
- * When `warming.scanning` is set (prefs.locationDemandAt within the warming window),
- * thin/none copy becomes "Checking saved listings for {ST}…" — Zeus is not instant,
- * no ETA, no fake scrape CTA (Sara/May 2026-10-07).
+ * A recent location preference save is not evidence of a running collection job.
+ * Keep that acknowledgement separate from inventory counts; never promise an ETA.
  */
 export function coverageNotice(
   coverage: DiscoverCoverage | null | undefined,
@@ -31,15 +30,15 @@ export function coverageNotice(
   if (coverage.status === "unavailable")
     return {
       tone: "unavailable",
-      headline: "Inventory coverage could not be verified.",
+      headline: "We couldn't check inventory coverage.",
       detail:
-        "Available results may be incomplete. This does not mean there are no cars for sale; source freshness and coverage are currently unknown.",
+        "Available results may be incomplete. This does not mean there are no cars for sale; we couldn't confirm how recently the sources were checked.",
     };
   if (coverage.status !== "thin" && coverage.status !== "none") return null;
 
   const days = coverage.windowDays;
   const states = coverage.byState.map((s) => s.state);
-  const where = states.length ? states.join(", ") : "all states";
+  const where = states.length ? states.join(", ") : "nationwide";
   const scanStates =
     warming?.states?.filter((s) => /^[A-Z]{2}$/.test(s)) || states;
   const scanWhere = scanStates.length ? scanStates.join(", ") : where;
@@ -47,24 +46,24 @@ export function coverageNotice(
   if (warming?.scanning) {
     return {
       tone: "scanning",
-      headline: `Checking saved listings for ${scanWhere}…`,
+      headline: `Search area updated: ${scanWhere}.`,
       detail:
         coverage.status === "none" || coverage.freshRows === 0
-          ? "Background coverage updates on Zeus (not instant). This feed only shows listings we have actually seen."
-          : `Coverage is still thin (${plural(coverage.freshRows, "fresh listing")} in the last ${plural(days, "day")}). Background coverage updates on Zeus (not instant).`,
+          ? "No recent listings have been seen here yet. Changing your search area doesn't guarantee an immediate source refresh. Save a search for alerts or widen your area."
+          : `${plural(coverage.freshRows, "recent listing")} seen in the last ${plural(days, "day")}. Changing your search area doesn't guarantee an immediate source refresh. These results are not the whole market.`,
     };
   }
 
   if (coverage.status === "none" || coverage.freshRows === 0) {
     return {
       tone: "none",
-      headline: `No fresh saved listings for ${where} yet.`,
+      headline: `No recent listings for ${where} yet.`,
       detail:
-        "Background coverage updates on Zeus (not instant). Wait, or widen search locations / save a search for alerts. We only show listings we have actually seen.",
+        "This isn't a complete view of cars for sale. Only listings our sources have seen appear here; updates aren't instant. Widen your area or save a search for alerts.",
     };
   }
 
-  const count = `${coverage.capped ? "at least " : ""}${plural(coverage.freshRows, "fresh listing")}`;
+  const count = `${coverage.capped ? "at least " : ""}${plural(coverage.freshRows, "recent listing")}`;
   const perState =
     coverage.byState.length > 1
       ? ` (${coverage.byState.map((s) => `${s.state} ${s.rows.toLocaleString()}`).join(", ")})`
@@ -72,8 +71,7 @@ export function coverageNotice(
   const sources = plural(coverage.sourceCount, "source");
   return {
     tone: "thin",
-    headline: `Coverage is thin in ${where}: ${count} in the last ${plural(days, "day")}${perState}, from ${sources}.`,
-    detail:
-      "Results here are a partial view of saved inventory, not everything for sale. Background coverage updates on Zeus (not instant).",
+    headline: `Limited results for ${where}.`,
+    detail: `${count} seen in the last ${plural(days, "day")}${perState}, from ${sources}. These results are not the whole market; updates aren't instant.`,
   };
 }

@@ -443,7 +443,11 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <CoverageNotice coverage={data?.coverage} onRetry={() => void mutate()} />
+      <CoverageNotice
+        coverage={data?.coverage}
+        isRefreshing={isValidating}
+        onRetry={() => void mutate().catch(() => undefined)}
+      />
 
       <section className="border-y border-[var(--b1)] py-3">
         <form
@@ -670,7 +674,10 @@ export default function DiscoverPage() {
             icon="alert-triangle"
             title="Could not load discovery right now"
             message="Saved inventory is still on Scan — Discover is not running a live market scan. Check your connection and try again."
-            action={{ label: "Try again", onClick: () => void mutate() }}
+            action={{
+              label: "Try again",
+              onClick: () => void mutate().catch(() => undefined),
+            }}
           />
         </div>
       ) : !data || visibleRails.length === 0 ? (
