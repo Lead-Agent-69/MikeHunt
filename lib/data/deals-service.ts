@@ -37,7 +37,8 @@ export type Deal = {
   locationState?: string;
   locationZip?: string;
   active: boolean;
-  firstSeenAt: string | Date;
+  /** Null when the row has no first_seen_at (never a 1970 date). */
+  firstSeenAt: string | Date | null;
   /** Null when the row has no last_seen_at (never a 1970 date). */
   lastSeenAt: string | Date | null;
   sourceUrl: string;
@@ -157,7 +158,7 @@ export class DealsService {
       locationState: row.location_state,
       locationZip: row.location_zip,
       active: row.active ?? true,
-      firstSeenAt: new Date(row.first_seen_at),
+      firstSeenAt: seenDate(row.first_seen_at),
       lastSeenAt: seenDate(row.last_seen_at),
       sourceUrl: row.source_url,
       auctionEndAt: row.auction_end_at

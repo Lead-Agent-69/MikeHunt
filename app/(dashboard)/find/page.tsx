@@ -356,7 +356,7 @@ export default function ArbitrageDashboardPage() {
                       sellEstimate={item.deal.sellEstimate}
                       priceDropAmount={item.deal.priceDropAmount}
                       priceDropDays={item.deal.priceDropDays}
-                      firstSeenAt={item.deal.firstSeenAt}
+                      firstSeenAt={item.deal.firstSeenAt ?? undefined}
                       onClick={() =>
                         (window.location.href = `/deal/${item.deal.id}`)
                       }
@@ -407,7 +407,7 @@ export default function ArbitrageDashboardPage() {
                         sellEstimate={deal.sellEstimate}
                         priceDropAmount={deal.priceDropAmount}
                         priceDropDays={deal.priceDropDays}
-                        firstSeenAt={deal.firstSeenAt}
+                        firstSeenAt={deal.firstSeenAt ?? undefined}
                         onClick={() =>
                           (window.location.href = `/deal/${deal.id}`)
                         }

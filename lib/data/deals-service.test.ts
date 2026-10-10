@@ -172,13 +172,14 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
   });
 });
 
-describe("DealsService.mapDbToDeal last_seen", () => {
+describe("DealsService.mapDbToDeal last_seen / first_seen", () => {
   const map = (row: Record<string, unknown>) =>
     (new DealsService() as any).mapDbToDeal({ id: "x", ...row });
 
   it("is null when last_seen_at is missing or bad, never a 1970 date", () => {
     for (const v of [null, undefined, "", "not a date"]) {
       expect(map({ last_seen_at: v }).lastSeenAt, String(v)).toBeNull();
+      expect(map({ first_seen_at: v }).firstSeenAt, String(v)).toBeNull();
     }
   });
 
