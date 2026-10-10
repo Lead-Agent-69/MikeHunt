@@ -11,7 +11,10 @@ const user = vi.hoisted(() => ({
 }));
 const geocode = vi.hoisted(() => vi.fn());
 const calls = vi.hoisted(() => [] as [string, ...unknown[]][]);
-const dealRows = vi.hoisted(() => ({ rows: [] as any[] }));
+const dealRows = vi.hoisted(() => ({
+  rows: [] as any[],
+  error: null as { message: string } | null,
+}));
 
 vi.mock("@/lib/server-supabase", () => ({
   getServerUser: async () => ({ data: { user: user.current } }),
@@ -55,7 +58,10 @@ vi.mock("@/lib/supabase", () => {
       },
       limit: () => b,
       then: (res: (v: any) => unknown) =>
-        res({ data: dealRows.rows.filter((r) => filters.every((f) => f(r))) }),
+        res({
+          data: dealRows.rows.filter((r) => filters.every((f) => f(r))),
+          error: dealRows.error,
+        }),
     };
     return b;
   };
@@ -99,6 +105,7 @@ const near = (qs: string) =>
 beforeEach(() => {
   user.current = { id: "u1" };
   calls.length = 0;
+  dealRows.error = null;
   geocode.mockReset();
   geocode.mockResolvedValue(TAMPA_33601);
   dealRows.rows = [
@@ -110,6 +117,17 @@ beforeEach(() => {
 });
 
 describe("GET /api/deals/near zip-radius", () => {
+  it("returns a retryable failure instead of pretending a database failure means no inventory", async () => {
+    dealRows.error = { message: "private database diagnostic" };
+    const response = await GET(
+      new NextRequest("https://x.test/api/deals/near?zip=33601"),
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(await response.json()).toEqual({
+      error: "Nearby vehicles could not be loaded. Please try again.",
+    });
+  });
   it("33601 + 50 mi finds the Dade City listings (no hidden verdict=go default)", async () => {
     const body = await near("zip=33601&radius=50");
     expect(body.state).toBe("FL");

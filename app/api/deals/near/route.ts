@@ -167,7 +167,12 @@ export async function GET(req: NextRequest) {
   }
   q = q.limit(500);
 
-  const { data: rows } = await q;
+  const { data: rows, error: queryError } = await q;
+  if (queryError)
+    return NextResponse.json(
+      { error: "Nearby vehicles could not be loaded. Please try again." },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+    );
 
   const withDist: { d: any; miles: number | null }[] = [];
   for (const r of rows || []) {
