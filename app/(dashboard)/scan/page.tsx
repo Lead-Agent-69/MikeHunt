@@ -4138,58 +4138,21 @@ function ScanPageInner() {
           if (state !== "all" && d.location_state !== state) return;
           if (sourceFilter !== "all" && d.source !== sourceFilter) return;
 
-          // Build a row in the SAME (camelCase, Deal-like) shape the rest of the
-          // `vehicles` array holds — i.e. the shape `normalizeRow()` produces on the
-          // server — so that `mapDealToResult` reads it correctly. Pushing the raw
-          // snake_case `payload.new` here would surface as a $0 / score-50 card.
-          const newVehicle = {
-            id: d.id,
-            source: d.source || "unknown",
-            year: d.year ?? undefined,
-            make: d.make || "",
-            model: d.model || "",
-            askPrice: Number(d.ask_price ?? 0),
-            mmrValue: Number(d.mmr_value ?? 0),
-            profitEstimate: Number(d.profit_estimate ?? 0),
-            profitScore:
-              d.profit_score != null ? Number(d.profit_score) : undefined,
-            locationCity: d.location_city || undefined,
-            locationState: d.location_state || undefined,
-            mileage: d.mileage ?? undefined,
-            condition: d.condition || "",
-            damageType: d.damage_type || undefined,
-            dealVerdict: d.deal_verdict || undefined,
-            recommendedMaxBid:
-              d.recommended_max_bid != null
-                ? Number(d.recommended_max_bid)
-                : undefined,
-            sellEstimate:
-              d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
-            true_net_profit:
-              d.true_net_profit != null ? Number(d.true_net_profit) : undefined,
-            repair_estimate:
-              d.repair_estimate != null ? Number(d.repair_estimate) : undefined,
-            auctionEndAt: d.auction_end ? new Date(d.auction_end) : undefined,
-          };
-
-          // Optimistically add to SWR cache (same shape as other `vehicles` entries)
+          // Realtime only carries the deals columns the browser role is GRANTED (listing facts, no
+          // economics: see supabase/migrations/20261010020000_deals_column_grants.sql). So don't
+          // build a card from payload.new (it would show $0 / no verdict); count it, toast it, and
+          // revalidate from /api/scan, which applies the desk gate server-side.
           setNewCount((n) => n + 1);
-          mutate((current: any) => {
-            const vehicles = current?.vehicles || [];
-            if (vehicles.some((x: any) => x.id === d.id)) return current;
-            return {
-              vehicles: [newVehicle, ...vehicles],
-              total: (current?.total || 0) + 1,
-            };
-          }, false);
           addToast(
-            `+1 new deal found · ${newVehicle.year ?? ""} ${newVehicle.make} ${newVehicle.model}`,
+            `+1 new deal found · ${d.year ?? ""} ${d.make || ""} ${d.model || ""}`.trim(),
             "success",
           );
+          mutate();
         },
       )
-      // Re-score / price-drop updates: merge the changed fields into the row already on screen,
-      // so a verdict flip or a price drop shows without a refetch.
+      // Price-drop updates: merge the granted listing facts into the row already on screen.
+      // Economics (score, verdict, max bid, net) are not in the realtime payload any more (column
+      // grants); they refresh with the next /api/scan load.
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "deals" },
@@ -4203,23 +4166,6 @@ function ScanPageInner() {
             updated[idx] = {
               ...updated[idx],
               askPrice: Number(d.ask_price ?? updated[idx].askPrice),
-              profitScore:
-                d.profit_score != null
-                  ? Number(d.profit_score)
-                  : updated[idx].profitScore,
-              dealVerdict: d.deal_verdict ?? updated[idx].dealVerdict,
-              recommendedMaxBid:
-                d.recommended_max_bid != null
-                  ? Number(d.recommended_max_bid)
-                  : updated[idx].recommendedMaxBid,
-              sellEstimate:
-                d.sell_estimate != null
-                  ? Number(d.sell_estimate)
-                  : updated[idx].sellEstimate,
-              true_net_profit:
-                d.true_net_profit != null
-                  ? Number(d.true_net_profit)
-                  : updated[idx].true_net_profit,
             };
             return { ...current, vehicles: updated };
           }, false);
