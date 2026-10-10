@@ -1,36 +1,38 @@
 # Monetization: what exists today (architecture only)
 
-Read from the code on `main` at fd9b212 (2026-10-10). Nothing here changes pricing, creates Stripe objects
-or calls Stripe. It records what is wired, what is enforced, what is only shown, and the gaps to close
-before charging anyone.
+**Product decision (Jonah, 2026-10-10): MikeHunt is free by design.** There is no payment system and
+none is planned. Users pick their experience (tier) for free. Read from the code on `main` at fd9b212;
+nothing here changes pricing, creates Stripe objects or calls Stripe. This is an inventory of what the
+code contains, which parts are intentionally dormant, and the copy/cleanup left to match the decision.
 
 ## TL;DR
 
-- **Nobody can pay today.** Both checkout entry points return `410 Gone` (`/api/billing/checkout`,
-  `POST /api/checkout/beta-access`). `/upgrade` is a free "workspace" chooser, not a paywall.
-- **The receiving side is real.** `/api/billing/webhook` verifies signatures, maps Stripe price ids to
-  plans, is idempotent (`stripe_events`) and downgrades on cancel. It only acts on Checkout sessions
-  that carry `metadata.user_id`, and nothing in the app creates those any more.
-- **Gating is off.** Every paid-feature check is behind `GATING_ENABLED === "true"`. With it unset,
-  everyone has unlimited access.
-- **Even with gating on, the free tier is one-click.** `PUT /api/workspace` writes
+- **No checkout, on purpose.** Both checkout entry points return `410 Gone` (`/api/billing/checkout`,
+  `POST /api/checkout/beta-access`). `/upgrade` is a free experience picker, not a paywall.
+- **Gating is off, on purpose.** Every plan check is behind `GATING_ENABLED === "true"`, which is unset,
+  so everyone gets full access. The daily deal-analysis meter is the one check worth keeping as a
+  fair-use (anti-abuse) limit if gating is ever switched on.
+- **Picking a tier is free and self-serve.** `PUT /api/workspace` writes
   `prefs.workspaceAccess = "community"` for any signed-in user, and `hasFullCustomerAccess()` treats
-  `community` like a paid plan. Turning gating on today would only meter users who never visited
-  `/upgrade`.
+  `community` as full access. That is the intended model, not a loophole.
+- **Dormant Stripe code remains.** `/api/billing/webhook` (signature-verified, idempotent via
+  `stripe_events`, downgrades on cancel) and the `PLANS` catalogue in `lib/stripe.ts` still exist. Nothing
+  in the app creates Checkout sessions, so the webhook never receives a grant. It can stay dormant or be
+  removed; either way no copy should imply a purchase.
 
 ## Plans in code
 
 `lib/stripe.ts` `PLANS` is the catalogue. `lib/auth/plan.ts` `Plan` is the set of values read from
 `user_profiles.plan`.
 
-| Plan id     | Where it comes from                                                                 | Price in code    | Stripe price env var               | Sellable today             |
-| ----------- | ----------------------------------------------------------------------------------- | ---------------- | ---------------------------------- | -------------------------- |
-| `free`      | default                                                                             | $0               | none                               | n/a                        |
-| `community` | `user_preferences.prefs.workspaceAccess` (set by `/upgrade` → `PUT /api/workspace`) | $0               | none                               | n/a, self-serve            |
-| `pro`       | webhook (recurring)                                                                 | 2900 cents/month | `STRIPE_PRO_MONTHLY_PRICE_ID`      | No (checkout 410)          |
-| `pro_plus`  | webhook (recurring)                                                                 | 7900 cents/month | `STRIPE_PRO_PLUS_MONTHLY_PRICE_ID` | No (checkout 410)          |
-| `lifetime`  | webhook (one-time, mode=payment)                                                    | 49900 cents once | `STRIPE_LIFETIME_PRICE_ID`         | No (checkout 410)          |
-| `elite`     | listed in the `Plan` type and counted as paid by `isPaid()`                         | none             | none                               | Never; no price maps to it |
+| Plan id     | Where it comes from                                                                 | Price in code    | Stripe price env var               | Sellable today              |
+| ----------- | ----------------------------------------------------------------------------------- | ---------------- | ---------------------------------- | --------------------------- |
+| `free`      | default                                                                             | $0               | none                               | n/a                         |
+| `community` | `user_preferences.prefs.workspaceAccess` (set by `/upgrade` → `PUT /api/workspace`) | $0               | none                               | n/a, self-serve             |
+| `pro`       | webhook (recurring)                                                                 | 2900 cents/month | `STRIPE_PRO_MONTHLY_PRICE_ID`      | No (checkout 410, intended) |
+| `pro_plus`  | webhook (recurring)                                                                 | 7900 cents/month | `STRIPE_PRO_PLUS_MONTHLY_PRICE_ID` | No (checkout 410, intended) |
+| `lifetime`  | webhook (one-time, mode=payment)                                                    | 49900 cents once | `STRIPE_LIFETIME_PRICE_ID`         | No (checkout 410, intended) |
+| `elite`     | listed in the `Plan` type and counted as paid by `isPaid()`                         | none             | none                               | Never; no price maps to it  |
 
 The amounts in `PLANS` are display numbers only. Stripe's price objects are the source of truth for what
 would be charged; `planForPrice()` only maps a price id to a plan id and never reads `amount`.
@@ -56,8 +58,8 @@ Env vars the billing surface reads (names only; set in Vercel, never commit valu
 
 ## Gating: enforced vs only shown
 
-"Enforced" means the server refuses or withholds something. All of it is inert unless
-`GATING_ENABLED=true`.
+"Enforced" means the server refuses or withholds something. All of it is inert while `GATING_ENABLED`
+is unset, which is the intended state.
 
 | Feature                                                                         | Where                                                                 | Enforced?                                               | Who passes                                          |
 | ------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
@@ -71,36 +73,35 @@ Env vars the billing surface reads (names only; set in Vercel, never commit valu
 | "10 VIN lookups/day", "3 saved searches" (Free plan features)                   | none                                                                  | **No**                                                  | not limited anywhere                                |
 | Workspace "focused" vs "expanded"                                               | `lib/workspace.ts`, `/upgrade`                                        | UI only; changes which tools show in nav, not access    | everyone (dealers are always expanded)              |
 
-Shown but not backed:
+Copy that contradicts the free model (to fix):
 
-- The deal page's locked state (`app/(dashboard)/deal/[id]/page.tsx`) says "Upgrade to Pro for
-  unlimited…" and links to `/upgrade`, which offers a free workspace and no Pro purchase. Only visible
-  when gating is on.
-- `PLANS[].features` lists limits and features that no code enforces (rows above). Nothing renders
-  `PLANS` today, so this is a latent promise, not a live one.
+- The deal page's fair-use state (`app/(dashboard)/deal/[id]/page.tsx`, and the `402` message in
+  `app/api/deals/[id]/route.ts`) says "Upgrade to Pro for unlimited…" and "resets at midnight". It
+  should name a fair-use limit and say the reset is midnight UTC. Only visible when gating is on.
+- `/upgrade` is titled "Free workspace upgrade"; it should read as a free "Choose your experience"
+  picker.
+- `PLANS[].features` (Pro / Pro Plus / Lifetime) describe paid tiers. Nothing renders `PLANS` today.
 - The changelog header says "Every update to MikeHunt Pro."
-- `docs/CLEVER-MONETIZATION-TACTICS.md` is an older strategy doc; it is not a description of the code.
+- `app/api/admin/stats/route.ts` counts "paid" users as `plan in ('pro','elite')`; with no payments
+  that number is always meaningless, and `elite` was never a real plan.
+- `docs/CLEVER-MONETIZATION-TACTICS.md` is an older paid-funnel strategy doc; it is not a description of
+  the code or the current product.
 
-## Gaps before charging
+## Cleanup to match "free by design"
 
-1. **Checkout.** Re-enable a session-creating route that sets `metadata.user_id`, `mode` per plan and the
-   configured price id, with success/cancel URLs. The webhook already expects exactly this.
-2. **Self-serve `community`.** Decide whether `community` stays a full-access free tier. If paid plans
-   should mean something, `hasFullCustomerAccess()` must stop treating `community` as paid, or
-   `workspaceAccess` must move to a server-managed column (`user_preferences` is user-writable under its
-   own-row RLS, so a client could set it directly too).
-3. **One gate helper.** Gating is split between `isPaid` (pipeline notifications) and
-   `hasFullCustomerAccess` (deal meter, calibration). Pick per feature and route every check through one
-   `requirePlan(feature)` so the matrix above lives in one table.
-4. **Unenforced features.** Either gate them (API keys/MCP, bulk/fleet, parts, alert/price-drop push and
-   email, saved-search and VIN limits) or drop them from `PLANS[].features` before any pricing page reads
-   it.
-5. **`elite`.** Remove from `Plan`/`isPaid`, or add a price. `app/api/admin/stats/route.ts` counts paid
-   users as `plan in ('pro','elite')`, which misses `pro_plus` and `lifetime`.
-6. **Manage/cancel.** No Billing Portal or in-app cancel; needed alongside checkout.
-7. **Pricing UI.** No page renders `PLANS`. The deal-page lock copy should point at a real purchase
-   path once one exists, and say nothing about Pro until then.
-8. **Meter timezone.** `deal_views.day` is the UTC date, so "resets at midnight" is midnight UTC
-   (6–7 PM in Missouri).
-9. **Unused env var.** `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is in `.env.example` but read nowhere
-   (Checkout is server-redirect, so it may never be needed).
+These are not gaps in a payment system; they are leftovers from one.
+
+1. **Copy.** Remove "Upgrade to Pro", "buy" and "paid" wording from the app (rows above). Keep the daily
+   deal-analysis meter as a fair-use limit with honest copy and the reset time stated (midnight UTC;
+   `deal_views.day` is the UTC date, which is 6–7 PM in Missouri).
+2. **Admin stats.** Stop counting `elite` (never sold) as paid.
+3. **Gate helpers.** If gating is ever switched on for abuse control, route it through one helper.
+   Today it is split between `isPaid` (pipeline email/SMS, where `community` does not pass, so a
+   community user would lose saved-search email/SMS) and `hasFullCustomerAccess` (deal meter,
+   calibration). Under a free model `isPaid` is the wrong check for notifications.
+4. **Dormant Stripe code.** Decide whether to keep `lib/stripe.ts` `PLANS`, `lib/billing/*`, the webhook
+   and the `STRIPE_*` env vars dormant or remove them. If they stay, nothing user-facing should read
+   `PLANS`.
+5. **`workspaceAccess` lives in user-writable prefs.** Fine while the tier is free and self-serve; note it
+   if any tier ever carries a real restriction.
+6. **Unused env var.** `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is in `.env.example` but read nowhere.
