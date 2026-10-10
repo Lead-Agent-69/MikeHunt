@@ -17,12 +17,12 @@ Same card order and wording as the deal-page advisor card (May, #266/#267).
 
 ## States
 
-| State                | What shows                                                                                                                                                                                      |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Empty (before input) | Input + Check button and one helper line: what to paste, and that the answer is Buy, Wait or Pass. No sample numbers.                                                                           |
-| Loading              | Button "Checking…" (disabled, `aria-busy`); `LoadingState` "Checking this listing…" (one `role=status`) where the card goes.                                                                    |
-| Not enough data yet  | Verdict pill "Not enough data yet", headline, vehicle line, "No price is shown until enough comparable cars are tracked…", Why open by default. No Buy ≤, fair value or profit.                 |
-| Not live             | Verdict pill "Not live" (neutral); the engine's numbers stay visible with its "price may not be buyable" headline.                                                                              |
+| State                | What shows                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Empty (before input) | Input + Check button and one helper line: what to paste, and that the answer is Buy, Wait or Pass. No sample numbers.                                                                                        |
+| Loading              | Button "Checking…" (disabled, `aria-busy`); `LoadingState` "Checking this listing…" (one `role=status`) where the card goes.                                                                                 |
+| Not enough data yet  | Verdict pill "Not enough data yet", headline, vehicle line, "No price is shown until enough comparable cars are tracked…", Why open by default. No Buy ≤, fair value or profit.                              |
+| Not live             | Verdict pill "Not live" (neutral); the engine's numbers stay visible with its "price may not be buyable" headline.                                                                                           |
 | Error                | `InlineError` (PageStates). 5xx, 429, bad body or offline: message + "Try again" (re-runs the last query; takes focus). Other 4xx (bad link, missing price/model): message only; focus returns to the input. |
 
 ## Honesty
@@ -43,3 +43,10 @@ Same card order and wording as the deal-page advisor card (May, #266/#267).
 - Focus moves to the verdict heading (visible ring) on a result; back to the input on a fixable 4xx.
 - AA: text uses `--t1/--t2/--t3`; icon tints ≥3:1 on light and dark surfaces. Primary button `--t1` on `--s0`.
 - Input, button, Why summary and Try again are ≥44px.
+
+## Who sees it
+
+- Reseller and dealer desks: the card at the top of /find, above the flip tools.
+- Personal, DIY and parts desks: /find shows the same card (`CheckAnyListingAnyDesk`, home state from saved
+  preferences) above the "for reseller and dealer desks" notice. The API returns the personal-desk read (fair
+  value, Buy ≤, verdict; no profit or resale). Only the arbitrage routes and other flip tools stay gated.
