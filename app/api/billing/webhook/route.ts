@@ -1,14 +1,210 @@
 export const dynamic = "force-dynamic";
 
+import * as Sentry from "@sentry/nextjs";
+import type Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe, stripeConfigured } from "@/lib/stripe";
+import {
+  highestPlan,
+  planForPrice,
+  type PaidPlanMatch,
+} from "@/lib/billing/plan-for-price";
 import { createServerComponentClient } from "@/lib/supabase";
 
-// POST /api/billing/webhook — Handles Stripe events:
-//   checkout.session.completed  → upgrade user to pro
-//   customer.subscription.deleted → downgrade user to free
-//   customer.subscription.updated → sync plan status
-// No-op (503) when Stripe isn't configured.
+// POST /api/billing/webhook: the ONLY Stripe webhook (POST /api/checkout/beta-access is retired, 410).
+//
+// Rules:
+//  * Signature is verified with STRIPE_WEBHOOK_SECRET before anything else.
+//  * Plans come only from PLANS price ids. Unknown prices are logged and never grant a paid plan.
+//  * checkout.session.completed requires the mode that matches the plan (recurring -> subscription,
+//    one-time -> payment) and payment_status 'paid' ('no_payment_required' only for a subscription
+//    trial). Async payments are granted on checkout.session.async_payment_succeeded.
+//  * Subscription state is re-fetched from Stripe (subscriptions.retrieve), never taken from the
+//    payload, so out-of-order delivery (updated after deleted) can't re-grant a paid plan.
+//  * Idempotency: stripe_events(id) is inserted before processing; a duplicate id is skipped. If
+//    processing fails the row is removed so Stripe's retry is processed.
+//  * Every Supabase error is captured to Sentry with the event id/type and returns 500 so Stripe retries.
+//  * Writes use the service role. Since 20261010040000 client roles cannot write plan/role/stripe_*.
+
+const ACTIVE_SUB_STATUSES = new Set(["active", "trialing"]);
+
+class WebhookFailure extends Error {
+  constructor(
+    message: string,
+    readonly detail?: unknown,
+  ) {
+    super(message);
+    this.name = "WebhookFailure";
+  }
+}
+
+function idOf(ref: string | { id: string } | null | undefined): string | null {
+  if (!ref) return null;
+  return typeof ref === "string" ? ref : ref.id;
+}
+
+type Ctx = { eventId: string; eventType: string };
+
+function reject(ctx: Ctx, reason: string, extra: Record<string, unknown> = {}) {
+  console.warn(
+    `[stripe webhook] rejected ${ctx.eventType} ${ctx.eventId}: ${reason}`,
+    extra,
+  );
+  Sentry.captureMessage(`stripe webhook rejected: ${reason}`, {
+    level: "warning",
+    tags: { stripe_event_id: ctx.eventId, stripe_event_type: ctx.eventType },
+    extra,
+  });
+}
+
+function dbCheck(
+  ctx: Ctx,
+  what: string,
+  error: { message?: string; code?: string } | null,
+) {
+  if (error) {
+    throw new WebhookFailure(
+      `supabase ${what} failed: ${error.code ?? ""} ${error.message ?? ""}`.trim(),
+      error,
+    );
+  }
+}
+
+type Db = ReturnType<typeof createServerComponentClient>;
+
+async function grantFromCheckout(
+  stripe: Stripe,
+  db: Db,
+  ctx: Ctx,
+  session: Stripe.Checkout.Session,
+) {
+  const userId = session.metadata?.user_id || session.client_reference_id;
+  if (!userId)
+    return reject(ctx, "checkout session has no user id", {
+      session: session.id,
+    });
+
+  const items = await stripe.checkout.sessions.listLineItems(session.id, {
+    limit: 10,
+  });
+  const priceIds = items.data
+    .map((li) => idOf(li.price as any))
+    .filter(Boolean) as string[];
+  const matches = priceIds.map((p) => planForPrice(p));
+  if (matches.length === 0 || matches.some((p) => p === null)) {
+    return reject(ctx, "unknown price", { session: session.id, priceIds });
+  }
+  const plan = highestPlan(matches as PaidPlanMatch[])!;
+
+  const expectedMode = plan.recurring ? "subscription" : "payment";
+  if (session.mode !== expectedMode) {
+    return reject(ctx, "mode does not match plan", {
+      session: session.id,
+      mode: session.mode,
+      plan: plan.id,
+    });
+  }
+  const paid =
+    session.payment_status === "paid" ||
+    (plan.recurring && session.payment_status === "no_payment_required");
+  if (!paid) {
+    return reject(ctx, "checkout not paid", {
+      session: session.id,
+      payment_status: session.payment_status,
+    });
+  }
+
+  const customerId = idOf(session.customer as any);
+
+  if (plan.recurring) {
+    const subId = idOf(session.subscription as any);
+    if (!subId)
+      return reject(ctx, "subscription checkout without subscription id", {
+        session: session.id,
+      });
+    // Link the customer to the user, then derive the plan from live subscription state.
+    const { error } = await db
+      .from("user_profiles")
+      .update({ stripe_customer_id: customerId })
+      .eq("id", userId);
+    dbCheck(ctx, "link customer", error);
+    return syncSubscription(stripe, db, ctx, subId, userId);
+  }
+
+  const { error } = await db
+    .from("user_profiles")
+    .update({
+      plan: plan.id,
+      plan_started_at: new Date().toISOString(),
+      plan_ended_at: null,
+      stripe_customer_id: customerId,
+    })
+    .eq("id", userId);
+  dbCheck(ctx, "grant one-time plan", error);
+}
+
+async function syncSubscription(
+  stripe: Stripe,
+  db: Db,
+  ctx: Ctx,
+  subscriptionId: string,
+  userId?: string | null,
+) {
+  // Never trust the event payload: fetch the current state.
+  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  const customerId = idOf(sub.customer as any);
+  const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+  const active = ACTIVE_SUB_STATUSES.has(sub.status);
+
+  if (active) {
+    if (!userId && !customerId) {
+      return reject(ctx, "subscription has no customer", {
+        subscription: sub.id,
+      });
+    }
+    const plan = planForPrice(priceId);
+    if (!plan || !plan.recurring) {
+      return reject(ctx, "unknown subscription price", {
+        subscription: sub.id,
+        priceId,
+      });
+    }
+    let q = db
+      .from("user_profiles")
+      .update({
+        plan: plan.id,
+        stripe_subscription_id: sub.id,
+        plan_ended_at: null,
+      })
+      .neq("plan", "lifetime");
+    q = userId ? q.eq("id", userId) : q.eq("stripe_customer_id", customerId);
+    const { error } = await q;
+    dbCheck(ctx, "sync active subscription", error);
+    // plan_started_at only when it wasn't set (first activation).
+    const s = db
+      .from("user_profiles")
+      .update({ plan_started_at: new Date().toISOString() })
+      .is("plan_started_at", null)
+      .eq("stripe_subscription_id", sub.id);
+    const { error: e2 } = await s;
+    dbCheck(ctx, "stamp plan_started_at", e2);
+    return;
+  }
+
+  // Not active (canceled, unpaid, incomplete_expired, past_due, paused...): downgrade only the user
+  // whose CURRENT subscription is this one, and never a lifetime user.
+  const { error } = await db
+    .from("user_profiles")
+    .update({
+      plan: "free",
+      stripe_subscription_id: null,
+      plan_ended_at: new Date().toISOString(),
+    })
+    .eq("stripe_subscription_id", sub.id)
+    .neq("plan", "lifetime");
+  dbCheck(ctx, "downgrade subscription", error);
+}
+
 export async function POST(req: NextRequest) {
   if (!stripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json(
@@ -23,80 +219,88 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
   const body = await req.text();
-  let event;
+  let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(
       body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET,
     );
-  } catch (e: any) {
+  } catch {
     return NextResponse.json(
       { error: "Webhook signature failed" },
       { status: 400 },
     );
   }
 
-  const supabase = createServerComponentClient();
+  const ctx: Ctx = { eventId: event.id, eventType: event.type };
+  const tags = { stripe_event_id: event.id, stripe_event_type: event.type };
+  const db = createServerComponentClient();
 
-  // ── Checkout completed → upgrade ─────────────────────────────────────────
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as any;
-    const userId = session.metadata?.user_id;
-    if (userId) {
-      try {
-        await supabase
-          .from("user_profiles")
-          .update({
-            plan: "pro",
-            plan_started_at: new Date().toISOString(),
-            stripe_customer_id: session.customer || null,
-            stripe_subscription_id: session.subscription || null,
-          })
-          .eq("id", userId);
-      } catch (e) {
-        console.warn("[stripe webhook] upgrade failed:", e);
-      }
+  // Idempotency claim.
+  let claimed = false;
+  {
+    const { error } = await db
+      .from("stripe_events")
+      .insert({ id: event.id, type: event.type });
+    if (!error) {
+      claimed = true;
+    } else if (error.code === "23505") {
+      return NextResponse.json({ received: true, duplicate: true });
+    } else if (error.code === "42P01" || error.code === "PGRST205") {
+      // stripe_events migration not applied yet: process without the dedupe (handlers are
+      // state-derived, so a replay converges to the same result).
+      console.warn(
+        "[stripe webhook] stripe_events table missing; processing without idempotency",
+      );
+    } else {
+      Sentry.captureException(
+        new WebhookFailure(
+          `stripe_events insert failed: ${error.message}`,
+          error,
+        ),
+        { tags },
+      );
+      return NextResponse.json({ error: "Temporary failure" }, { status: 500 });
     }
   }
 
-  // ── Subscription cancelled → downgrade to free ────────────────────────────
-  if (event.type === "customer.subscription.deleted") {
-    const sub = event.data.object as any;
-    const customerId = sub.customer;
-    if (customerId) {
-      try {
-        await supabase
-          .from("user_profiles")
-          .update({
-            plan: "free",
-            stripe_subscription_id: null,
-            plan_ended_at: new Date().toISOString(),
-          })
-          .eq("stripe_customer_id", customerId);
-      } catch (e) {
-        console.warn("[stripe webhook] downgrade failed:", e);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+      case "checkout.session.async_payment_succeeded":
+        await grantFromCheckout(
+          stripe,
+          db,
+          ctx,
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const sub = event.data.object as Stripe.Subscription;
+        await syncSubscription(stripe, db, ctx, sub.id);
+        break;
       }
+      default:
+        break;
     }
-  }
-
-  // ── Subscription updated (e.g. plan change, pause) ────────────────────────
-  if (event.type === "customer.subscription.updated") {
-    const sub = event.data.object as any;
-    const customerId = sub.customer;
-    const status = sub.status; // active, past_due, canceled, trialing, etc.
-    if (customerId) {
-      try {
-        const newPlan =
-          status === "active" || status === "trialing" ? "pro" : "free";
-        await supabase
-          .from("user_profiles")
-          .update({ plan: newPlan })
-          .eq("stripe_customer_id", customerId);
-      } catch (e) {
-        console.warn("[stripe webhook] subscription update failed:", e);
-      }
+  } catch (e) {
+    if (claimed) {
+      const { error } = await db
+        .from("stripe_events")
+        .delete()
+        .eq("id", event.id);
+      if (error)
+        Sentry.captureException(
+          new WebhookFailure("stripe_events release failed", error),
+          { tags },
+        );
     }
+    Sentry.captureException(e, { tags });
+    console.error(`[stripe webhook] ${event.type} ${event.id} failed:`, e);
+    return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
