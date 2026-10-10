@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { Deal } from "./deals-service";
+import { fetchListingPhoto } from "../images/fetch-listing-photo";
 
 function photoCacheMax(): number {
   const raw = process.env.CACHE_PHOTOS_MAX;
@@ -28,28 +29,15 @@ export async function syncDealPhotos(
   }
 
   try {
-    const res = await fetch(primaryPhoto, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
-        Accept: "image/avif,image/webp,image/*,*/*;q=0.8",
-      },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!res.ok) {
+    // Allowlisted listing CDNs only, pinned + capped (see lib/images/fetch-listing-photo).
+    const img = await fetchListingPhoto(primaryPhoto);
+    if (!img) {
       console.warn(
-        `[PhotoSync] Failed to fetch image for deal ${deal.id}: HTTP ${res.status}`,
+        `[PhotoSync] Could not fetch an allowed image for deal ${deal.id}`,
       );
       return null;
     }
-
-    const contentType = res.headers.get("content-type") || "image/jpeg";
-    if (!contentType.startsWith("image/")) {
-      return null;
-    }
-
-    const buffer = await res.arrayBuffer();
+    const { contentType, body: buffer } = img;
     const extension = contentType.split("/")[1]?.split(";")[0] || "jpg";
     const path = `${deal.id}/primary.${extension}`;
 
