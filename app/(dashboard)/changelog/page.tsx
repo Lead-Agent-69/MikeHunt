@@ -9,14 +9,12 @@ const FALLBACK_CHANGELOG = [
     title: "v2.5.0 - Buyer Command Center & Operations Overhaul",
     published_at: "2026-09-26T00:00:00Z",
     is_major: true,
-    body: "Major release focused on buyer decision flow: capital-aware deal ranking, photo recon estimates, cash-offer drafting, transport and tax planning, and the operations center.",
+    body: "Major release focused on buyer decision flow: capital-aware deal ranking, photo recon estimates, cash-offer drafting, and transport and tax planning.",
     features: [
       "Next Best Buy (/best-buy): Ranks live opportunities by available cash, margin, proof quality, and days-to-turn velocity.",
       "Photo Recon Estimate: Listing-photo checklist for damage cues, recon budgeting, and inspection priorities.",
       "Cash Offer Draft: Margin-aware seller outreach draft and official cash offer letter workflow.",
       "Transport & Tax Estimate: Local landed-cost planning before a live freight quote is confirmed.",
-      "Admin Operations Command Center (/admin): Live deal inventory, scraper telemetry, user analytics, and one-click bulk rescore runner.",
-      "Stripe Webhook Cancellation Handling: Automated tier downgrades on subscription deletion and real-time plan status synchronization.",
       "Legal Compliance Suite: Full Terms of Service (/tos) and CCPA/GDPR Privacy Policy (/privacy).",
     ],
   },
@@ -46,6 +44,20 @@ const FALLBACK_CHANGELOG = [
   },
 ];
 
+// The changelog is public: never surface admin/ops internals, even if a DB row includes them.
+const INTERNAL_FEATURE =
+  /\/admin\b|admin operations|scraper telemetry|stripe webhook|rescore runner/i;
+
+function publicEntry(entry: any) {
+  if (!entry || !Array.isArray(entry.features)) return entry;
+  return {
+    ...entry,
+    features: entry.features.filter(
+      (f: unknown) => !INTERNAL_FEATURE.test(String(f)),
+    ),
+  };
+}
+
 export default function ChangelogPage() {
   const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<any[]>(FALLBACK_CHANGELOG);
@@ -56,7 +68,7 @@ export default function ChangelogPage() {
       .select("*")
       .order("published_at", { ascending: false })
       .then(({ data }) => {
-        if (data && data.length > 0) setEntries(data);
+        if (data && data.length > 0) setEntries(data.map(publicEntry));
       });
   }, []);
 
