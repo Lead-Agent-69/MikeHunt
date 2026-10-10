@@ -21,6 +21,8 @@ export default defineConfig({
     globals: true,
     // Bound heavy route imports so parallel workers do not starve test timeouts.
     maxWorkers: 2,
+    // Repository-wide security scans and cold route imports exceed 5s on shared Windows runners.
+    testTimeout: 30_000,
     include: ["lib/**/*.test.ts", "app/**/*.test.ts"],
   },
   resolve: {
