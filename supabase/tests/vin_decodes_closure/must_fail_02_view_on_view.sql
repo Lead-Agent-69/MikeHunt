@@ -1,0 +1,1 @@
+CREATE VIEW public.v1 AS SELECT vin FROM public.vin_decodes; REVOKE ALL ON public.v1 FROM PUBLIC, anon, authenticated; CREATE VIEW public.v2 AS SELECT vin FROM public.v1; GRANT SELECT ON public.v2 TO authenticated;
