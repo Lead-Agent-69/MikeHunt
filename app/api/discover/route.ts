@@ -60,6 +60,7 @@ import {
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import { freshnessFields, freshnessRank } from "@/lib/deals/freshness";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -161,6 +162,12 @@ function mapDeal(
     lastSeenAt: d.last_seen_at,
     firstSeenAt: d.first_seen_at,
     auctionEndAt: d.auction_end_at,
+    ...freshnessFields({
+      source: d.source,
+      sourceUrl: d.source_url,
+      lastSeenAt: d.last_seen_at,
+      auctionEndAt: d.auction_end_at,
+    }),
     heat,
     hoursLeft: hoursLeft != null ? Math.round(hoursLeft * 10) / 10 : null,
     // discovery tags
@@ -761,10 +768,15 @@ export async function GET(request: NextRequest) {
     // The same listing may belong to several rails. A bounded depth avoids a large initial payload
     // and leaves full, scoped browsing to Scan, which is paginated and filter-driven.
     const N = railDepth;
+    // Live rows rank ahead of frozen (terms-gated, unrefreshed), stale and ended rows in every rail.
+    // A stable second sort keeps each rail's own order within a tier; non-live rows stay visible.
+    const byFreshness = (a: any, b: any) =>
+      freshnessRank(a.freshness?.state) - freshnessRank(b.freshness?.state);
 
     const best = merged
       .filter((d) => d.grade === "great" || d.grade === "good")
       .sort((a, b) => b.discountPct - a.discountPct)
+      .sort(byFreshness)
       .slice(0, N);
 
     const trucksSuvs = merged
@@ -774,6 +786,7 @@ export async function GET(request: NextRequest) {
           byGradeRank[b.grade] - byGradeRank[a.grade] ||
           b.discountPct - a.discountPct,
       )
+      .sort(byFreshness)
       .slice(0, N);
 
     const luxury = merged
@@ -781,6 +794,7 @@ export async function GET(request: NextRequest) {
         (d) => d.luxury || d.segment === "coupe" || d.segment === "convertible",
       )
       .sort((a, b) => byGradeRank[b.grade] - byGradeRank[a.grade])
+      .sort(byFreshness)
       .slice(0, N);
 
     const budget = merged
@@ -790,6 +804,7 @@ export async function GET(request: NextRequest) {
           byGradeRank[b.grade] - byGradeRank[a.grade] ||
           b.discountPct - a.discountPct,
       )
+      .sort(byFreshness)
       .slice(0, N);
 
     const roiPool = merged.filter(
@@ -797,9 +812,13 @@ export async function GET(request: NextRequest) {
     );
     let roi = [...roiPool]
       .sort((a, b) => (b.profitScore || 0) - (a.profitScore || 0))
+      .sort(byFreshness)
       .slice(0, N);
 
-    const ev = merged.filter((d) => d.segment === "ev").slice(0, N);
+    const ev = merged
+      .filter((d) => d.segment === "ev")
+      .sort(byFreshness)
+      .slice(0, N);
 
     // Distressed-seller feed (Priceline Express Deal analog) — motivated sellers below market.
     const distressed = merged
@@ -809,12 +828,14 @@ export async function GET(request: NextRequest) {
           byGradeRank[b.grade] - byGradeRank[a.grade] ||
           b.discountPct - a.discountPct,
       )
+      .sort(byFreshness)
       .slice(0, N);
 
     // Flash / Ending Soon (Booking urgency) — auctions closing within 24h, soonest first.
     const flash = merged
       .filter((d) => d.heat === "hot" || d.heat === "warm")
       .sort((a, b) => (a.hoursLeft ?? 1e9) - (b.hoursLeft ?? 1e9))
+      .sort(byFreshness)
       .slice(0, N);
 
     // "New to MikeHunt": first seen inside JUST_LISTED_WINDOW_HOURS, newest first. We do not know
@@ -833,6 +854,7 @@ export async function GET(request: NextRequest) {
             byGradeRank[b.grade] - byGradeRank[a.grade] ||
             b.discountPct - a.discountPct,
         )
+        .sort(byFreshness)
         .slice(0, N);
     const salvage = laneRail("salvage");
     const repairable = laneRail("repairable");
@@ -906,6 +928,7 @@ export async function GET(request: NextRequest) {
         if (usableHome) {
           roi = [...roiPool]
             .sort((a, b) => compareFlip(a, b, buyerHome))
+            .sort(byFreshness)
             .slice(0, N)
             .map(withDistance);
         }
@@ -943,6 +966,7 @@ export async function GET(request: NextRequest) {
                   byGradeRank[b.grade] - byGradeRank[a.grade] ||
                   compareFlip(a, b, buyerHome),
               )
+              .sort(byFreshness)
               .slice(0, N)
               .map(withDistance);
           } else {
@@ -950,6 +974,7 @@ export async function GET(request: NextRequest) {
             forYou = merged
               .filter((d) => !dropsForNoRepair(d, repair))
               .sort((a, b) => comparePersonal(a, b, scope, makes, buyerHome))
+              .sort(byFreshness)
               .slice(0, N)
               .map(withDistance);
           }

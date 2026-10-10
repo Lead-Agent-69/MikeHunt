@@ -1,13 +1,15 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { hasReportedRepairRisk } from "./repair-risk";
 import { hasRecentSoldEvidence } from "@/lib/valuation/evidence-confidence";
+import { dealFreshness } from "@/lib/deals/freshness";
 
 export type DecisionEvidenceState =
   | "verified"
   | "auction_watch"
   | "repairable"
   | "price_anomaly"
-  | "needs_evidence";
+  | "needs_evidence"
+  | "not_live";
 
 export type DecisionEvidence = {
   state: DecisionEvidenceState;
@@ -42,6 +44,10 @@ type GuardInput = {
   dealVerdict?: string | null;
   dealAnalysis?: any;
   valuation?: any;
+  // Liveness inputs: a frozen / stale / ended row must never be described as a current price.
+  sourceUrl?: string | null;
+  lastSeenAt?: string | Date | null;
+  auctionEndAt?: string | Date | null;
 };
 
 export type PurchaseEvidenceGates = {
@@ -93,6 +99,35 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
       ? "Confirm repair, transport, fees and holding costs."
       : null,
   ].filter(Boolean);
+
+  // Only judge liveness when the caller passed a seen time (older callers omit it).
+  const liveness =
+    input.lastSeenAt !== undefined || input.auctionEndAt !== undefined
+      ? dealFreshness({
+          source: input.source,
+          sourceUrl: input.sourceUrl,
+          lastSeenAt: input.lastSeenAt,
+          auctionEndAt: input.auctionEndAt,
+        })
+      : null;
+  if (liveness && !liveness.live) {
+    const why =
+      liveness.state === "ended"
+        ? "The auction has ended, so this amount is no longer available."
+        : liveness.state === "frozen"
+          ? "MikeHunt no longer refreshes this source (its terms ban automated access), so this is the last recorded amount, not a current price."
+          : "This listing has not been re-checked recently, so this is the last recorded amount, not a current price.";
+    return {
+      state: "not_live",
+      label: liveness.label,
+      summary: why,
+      nextCheck:
+        liveness.state === "ended"
+          ? "Look for a relisting or a similar vehicle that is still live."
+          : "Open the source to confirm the vehicle is still available and what it costs now.",
+      acquisitionReady: false,
+    };
+  }
 
   if (priceAnomaly) {
     return {
