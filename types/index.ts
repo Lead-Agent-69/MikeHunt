@@ -16,6 +16,8 @@ export interface Deal {
   buy_now_price?: number;
   mileage?: number;
   condition?: string;
+  /** Provenance of `condition` (lib/scrapers/normalize-condition TitleSource). */
+  title_source?: "listing" | "source_default";
   damage_type?: string;
   location_city?: string;
   location_state?: string;
