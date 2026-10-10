@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseCheckListingBody } from "./check-listing-input";
-import { readForDesk } from "./check-listing-data";
-import { readListing } from "./check-listing";
+import { readListing, readPersonal } from "./check-listing";
 
 describe("check any listing: one input", () => {
   it("a pasted link is a URL check", () => {
@@ -45,23 +44,26 @@ describe("desk gate", () => {
   const base = { year: 2018, make: "Honda", model: "Civic", state: "IL", title: "clean" };
 
   it("flip desk keeps profit and where to sell", () => {
-    const r = readForDesk(readListing({ ...base, price: 9000 }, comps, { now: NOW }), true);
-    expect(r.profit.net).not.toBeNull();
+    const r = readListing({ ...base, price: 9000 }, comps, { now: NOW });
+    expect(r.desk).toBe("flip");
+    expect(r.profit!.net).not.toBeNull();
     expect(r.resale.value).not.toBeNull();
   });
-  it("personal desk: Buy ≤ is fair value, no profit or resale market", () => {
-    const flip = readListing({ ...base, price: 14000 }, comps, { now: NOW });
-    const r = readForDesk(flip, false);
-    expect(r.profit.net).toBeNull();
+  it("personal desk: Buy ≤ is the retail fair value, no profit or resale market", () => {
+    const r = readPersonal({ ...base, price: 14000 }, comps, { now: NOW });
+    expect(r.desk).toBe("personal");
+    expect(r.profit).toBeNull();
     expect(r.resale.value).toBeNull();
     expect(r.resale.state).toBeNull();
-    expect(r.maxBuy.value).toBe(Math.floor(flip.fairValue.value! / 50) * 50);
+    expect(r.fairValue.value).toBe(15350); // median retail ask, no haircut
+    expect(r.maxBuy.value).toBe(Math.floor(15350 / 50) * 50);
     expect(r.verdict).toBe("buy");
     expect(r.why.some((w) => w.startsWith("After fees"))).toBe(false);
   });
-  it("personal desk: overpriced is Pass with the gap", () => {
-    const r = readForDesk(readListing({ ...base, price: 18000 }, comps, { now: NOW }), false);
+  it("personal desk: over market is Pass with the gap", () => {
+    const r = readPersonal({ ...base, price: 18000 }, comps, { now: NOW });
     expect(r.verdict).toBe("pass");
-    expect(r.headline).toMatch(/Overpriced by about \$/);
+    expect(r.priceRating).toBe("over");
+    expect(r.headline).toMatch(/Over market: about \$/);
   });
 });

@@ -14,11 +14,19 @@ const VERDICT: Record<CheckListingRead["verdict"], { word: string; color: string
   wait: { word: "Wait", color: "var(--amber, #d4a017)" },
   pass: { word: "Pass", color: "var(--red, #e5484d)" },
   not_enough_data: { word: "Not enough data", color: "var(--t4)" },
+  not_live: { word: "Not live", color: "var(--t4)" },
+};
+
+const RATING: Record<string, string> = {
+  good: "Good price",
+  fair: "Fair price",
+  negotiate: "Negotiate",
+  over: "Over market",
 };
 
 const BASIS: Record<string, string> = {
   measured: "from recent sales",
-  estimate: "estimate from live asks",
+  estimate: "from live asking prices",
   insufficient: "not enough data",
 };
 
@@ -92,7 +100,11 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
           </p>
           <p className="mt-1 text-sm text-[var(--t1)]">{read.headline}</p>
 
-          {read.verdict !== "not_enough_data" ? (
+          {read.priceRating ? (
+            <p className="mt-1 text-xs font-semibold text-[var(--t3)]">{RATING[read.priceRating]}</p>
+          ) : null}
+
+          {read.fairValue.value != null ? (
             <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
               <div>
                 <dt className="text-[11px] text-[var(--t4)]">Buy ≤</dt>
@@ -102,7 +114,7 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
                 <dt className="text-[11px] text-[var(--t4)]">Fair value</dt>
                 <dd className="font-bold text-[var(--t1)]">{money(read.fairValue.value)}</dd>
               </div>
-              {read.profit.net != null ? (
+              {read.profit?.net != null ? (
                 <div>
                   <dt className="text-[11px] text-[var(--t4)]">
                     Profit{read.resale.state ? ` · sell in ${read.resale.state}` : ""}
@@ -116,6 +128,14 @@ export function CheckAnyListing({ homeState }: { homeState?: string | null }) {
                 </div>
               )}
             </dl>
+          ) : null}
+          {read.fairValue.label ? (
+            <p className="mt-2 text-[11px] text-[var(--t4)]">
+              {read.fairValue.label}
+              {read.fairValue.range
+                ? ` · middle half ${money(read.fairValue.range.p25)}–${money(read.fairValue.range.p75)}`
+                : ""}
+            </p>
           ) : null}
 
           <details className="mt-3">
