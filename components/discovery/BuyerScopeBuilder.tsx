@@ -31,6 +31,7 @@ import {
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
 import { dealerSourceIdForHost, sourceMeta } from "@/lib/sources/source-meta";
+import { laneAllowedForMode } from "@/lib/buyer/lane-access";
 
 const VEHICLE_TYPES = [
   {
@@ -338,6 +339,19 @@ export function BuyerScopeBuilder({
   const [maxPrice, setMaxPrice] = useState("");
   const [makes, setMakes] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Wholesale auctions are a flip-desk lane; personal / DIY / parts never see it or its recipe.
+  const visibleLanes = LANES.filter((item) =>
+    laneAllowedForMode(item.lane, buyerMode),
+  );
+  const visibleRecipes = GOAL_RECIPES.filter((recipe) =>
+    laneAllowedForMode(
+      LANES.find((item) => item.label === recipe.lane)?.lane,
+      buyerMode,
+    ),
+  );
+  useEffect(() => {
+    if (!laneAllowedForMode(lane.lane, buyerMode)) setLane(LANES[0]);
+  }, [buyerMode, lane.lane]);
   const [previewing, setPreviewing] = useState(false);
   const [running, setRunning] = useState(false);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
@@ -1469,7 +1483,7 @@ export function BuyerScopeBuilder({
           Goal shortcuts
         </div>
         <div className="flex flex-wrap gap-2">
-          {GOAL_RECIPES.map((recipe) => (
+          {visibleRecipes.map((recipe) => (
             <button
               key={recipe.label}
               type="button"
@@ -1601,7 +1615,7 @@ export function BuyerScopeBuilder({
             <Gavel size={14} /> Buying lane
           </div>
           <div className="stagger-children grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {LANES.map((item) => {
+            {visibleLanes.map((item) => {
               const Icon = item.icon;
               return (
                 <button
