@@ -380,16 +380,26 @@ describe("idempotency, errors, signature", () => {
     expect(profileUpdates()).toEqual([]);
   });
 
-  it("stripe_events not migrated yet -> still processes", async () => {
-    state.event = checkoutEvent({ mode: "payment", subscription: null });
-    state.lineItems = [{ price: { id: LIFETIME } }];
-    state.errorFor = (c) =>
-      c.table === "stripe_events"
-        ? { code: "42P01", message: "missing" }
-        : null;
-    const res = await POST(req());
-    expect(res.status).toBe(200);
-    expect(planWrites()[0].payload).toMatchObject({ plan: "lifetime" });
+  it("stripe_events missing (42P01 / PGRST205) -> fails closed: 500 + Sentry, nothing processed", async () => {
+    for (const code of ["42P01", "PGRST205"]) {
+      state.calls = [];
+      sentry.captureException.mockReset();
+      stripeApi.listLineItems.mockClear();
+      state.event = checkoutEvent({ mode: "payment", subscription: null });
+      state.lineItems = [{ price: { id: LIFETIME } }];
+      state.errorFor = (c) =>
+        c.table === "stripe_events" ? { code, message: "missing" } : null;
+      const res = await POST(req());
+      expect(res.status).toBe(500);
+      expect(sentry.captureException).toHaveBeenCalledWith(expect.anything(), {
+        tags: {
+          stripe_event_id: "evt_test_1",
+          stripe_event_type: "checkout.session.completed",
+        },
+      });
+      expect(stripeApi.listLineItems).not.toHaveBeenCalled();
+      expect(profileUpdates()).toEqual([]);
+    }
   });
 
   it("supabase error -> Sentry with event id/type, 500, claim released for Stripe's retry", async () => {

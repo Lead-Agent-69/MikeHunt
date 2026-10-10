@@ -24,7 +24,8 @@ import { createServerComponentClient } from "@/lib/supabase";
 //  * Subscription state is re-fetched from Stripe (subscriptions.retrieve), never taken from the
 //    payload, so out-of-order delivery (updated after deleted) can't re-grant a paid plan.
 //  * Idempotency: stripe_events(id) is inserted before processing; a duplicate id is skipped. If
-//    processing fails the row is removed so Stripe's retry is processed.
+//    processing fails the row is removed so Stripe's retry is processed. Any other claim error
+//    (including a missing table) fails closed with a 500.
 //  * Every Supabase error is captured to Sentry with the event id/type and returns 500 so Stripe retries.
 //  * Writes use the service role. Since 20261010040000 client roles cannot write plan/role/stripe_*.
 
@@ -320,26 +321,19 @@ export async function POST(req: NextRequest) {
   const tags = { stripe_event_id: event.id, stripe_event_type: event.type };
   const db = createServerComponentClient();
 
-  // Idempotency claim.
-  let claimed = false;
+  // Idempotency claim. Fails closed: any error other than a duplicate (including a missing
+  // stripe_events table) is a 500 so Stripe retries rather than processing without the dedupe.
   {
     const { error } = await db
       .from("stripe_events")
       .insert({ id: event.id, type: event.type });
-    if (!error) {
-      claimed = true;
-    } else if (error.code === "23505") {
+    if (error?.code === "23505") {
       return NextResponse.json({ received: true, duplicate: true });
-    } else if (error.code === "42P01" || error.code === "PGRST205") {
-      // stripe_events migration not applied yet: process without the dedupe (handlers are
-      // state-derived, so a replay converges to the same result).
-      console.warn(
-        "[stripe webhook] stripe_events table missing; processing without idempotency",
-      );
-    } else {
+    }
+    if (error) {
       Sentry.captureException(
         new WebhookFailure(
-          `stripe_events insert failed: ${error.message}`,
+          `stripe_events insert failed: ${error.code ?? ""} ${error.message ?? ""}`.trim(),
           error,
         ),
         { tags },
@@ -370,7 +364,7 @@ export async function POST(req: NextRequest) {
         break;
     }
   } catch (e) {
-    if (claimed) {
+    {
       const { error } = await db
         .from("stripe_events")
         .delete()
