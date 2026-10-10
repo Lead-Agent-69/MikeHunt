@@ -1,3 +1,4 @@
+import { imageProxyAccess, imageProxyAllowed } from "@/lib/images/proxy-access";
 import { NextResponse } from "next/server";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicImage } from "@/lib/net/fetch-public-image";
@@ -95,6 +96,11 @@ export function isAllowedImageUrl(value: string) {
   }
 }
 
+/** Allowlisted AND open access class; re-checked on every redirect hop by fetchPublicImage. */
+function proxyableImageUrl(value: string) {
+  return isAllowedImageUrl(value) && imageProxyAllowed(value);
+}
+
 /**
  * GET /api/image/proxy?url=...
  * Proxy external images that block hotlinks (Craigslist, Facebook, etc.)
@@ -119,9 +125,19 @@ export async function GET(req: Request) {
     return new NextResponse("Domain not allowed", { status: 403 });
   }
 
+  // Access class gate: needs_permission / restricted / operator_override sources get no proxied bytes
+  // (e.g. data.rebuildautos.com, restored as URL-only rows). The UI links the source URL instead.
+  const access = imageProxyAccess(url);
+  if (access !== "open") {
+    return new NextResponse(`Not proxied: source access class ${access}`, {
+      status: 403,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   try {
     const parsed = new URL(url);
-    const result = await fetchPublicImage(url, isAllowedImageUrl, {
+    const result = await fetchPublicImage(url, proxyableImageUrl, {
       "User-Agent":
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
