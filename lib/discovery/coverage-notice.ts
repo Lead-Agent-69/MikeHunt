@@ -43,7 +43,11 @@ export function coverageNotice(
     warming?.states?.filter((s) => /^[A-Z]{2}$/.test(s)) || states;
   const scanWhere = scanStates.length ? scanStates.join(", ") : where;
 
-  if (warming?.scanning) {
+  const sameSearchArea =
+    states.length > 0 &&
+    states.length === scanStates.length &&
+    scanStates.every((state) => states.includes(state));
+  if (warming?.scanning && sameSearchArea) {
     return {
       tone: "scanning",
       headline: `Search area updated: ${scanWhere}.`,

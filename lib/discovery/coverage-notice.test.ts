@@ -126,4 +126,14 @@ describe("coverageNotice", () => {
     }
     expect(cases[0]?.headline).toContain("nationwide");
   });
+
+  it("never acknowledges an old preference location as the current search area", () => {
+    const warming = { scanning: true, states: ["MO"] };
+    expect(coverageNotice(build([], ["TX"]), warming)?.headline).toBe(
+      "No recent listings for TX yet.",
+    );
+    expect(coverageNotice(build([], []), warming)?.headline).toBe(
+      "No recent listings for nationwide yet.",
+    );
+  });
 });
