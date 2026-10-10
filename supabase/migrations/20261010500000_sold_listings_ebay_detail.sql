@@ -95,16 +95,18 @@ BEGIN
     RAISE EXCEPTION 'sold_listings detail constraints missing: %', missing;
   END IF;
 
-  IF to_regclass('supabase_migrations.schema_migrations') IS NOT NULL
-     AND EXISTS (
-       SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20261010146000'
-     )
-     AND EXISTS (
-       SELECT 1 FROM information_schema.role_table_grants
-       WHERE table_schema = 'public' AND table_name = 'sold_listings'
-         AND grantee IN ('anon', 'authenticated', 'PUBLIC')
-     ) THEN
-    RAISE EXCEPTION 'sold_listings has client table privileges after 20261010146000';
+  -- Nested so supabase_migrations.schema_migrations is only planned when it exists (fresh DBs).
+  IF to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
+    IF EXISTS (
+         SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20261010146000'
+       )
+       AND EXISTS (
+         SELECT 1 FROM information_schema.role_table_grants
+         WHERE table_schema = 'public' AND table_name = 'sold_listings'
+           AND grantee IN ('anon', 'authenticated', 'PUBLIC')
+       ) THEN
+      RAISE EXCEPTION 'sold_listings has client table privileges after 20261010146000';
+    END IF;
   END IF;
 END
 $$;
