@@ -494,6 +494,7 @@ export function cardToDeal(
     ask_price: card.price,
     mileage: card.mileage,
     condition: card.condition ?? site.defaultCondition,
+    title_source: card.condition ? "listing" : "source_default",
     damage_type: site.defaultDamage,
     seller_type: "dealer",
     location_city: site.city,

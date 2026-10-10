@@ -1595,10 +1595,13 @@ async function enrichCdgDetail(
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
       mileage: mileage || deal.mileage,
-      condition: conditionFromDealerText(
-        titleText,
-        deal.condition || config.defaultCondition,
-      ),
+      // A title the detail page states wins; else keep what the card gave us (stated or default).
+      ...(conditionFromTitle(titleText)
+        ? resolveListingCondition(conditionFromTitle(titleText))
+        : resolveListingCondition(
+            deal.title_source === "listing" ? deal.condition : undefined,
+            deal.condition || config.defaultCondition,
+          )),
       images: images.length ? images : deal.images,
       description: description || deal.description,
     };
