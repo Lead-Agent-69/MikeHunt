@@ -18,6 +18,8 @@ const UA =
 
 const str = (v: unknown): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
+/** Trim text from Copart's `ltd` field is capped (thin rows; it's free text). */
+export const COPART_TRIM_MAX = 60;
 const titleCase = (v: string): string =>
   v.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
@@ -97,7 +99,7 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
       // `orr` is the odometer reading in the public lots JSON (checked 2026-10-10: 74308 on a 2017
       // Sentra). Not-actual / exempt readings ("ord") are dropped, never guessed.
       mileage: copartOdometer(v),
-      trim: str(v.ltd),
+      trim: str(v.ltd)?.slice(0, COPART_TRIM_MAX) || undefined,
       location_zip: copartZip(v.zip),
       condition: damageToCondition(damage),
       damage_type: damage || undefined,

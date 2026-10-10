@@ -98,7 +98,7 @@ describe("parseCopartLots", () => {
   });
 });
 
-import { copartOdometer, copartZip } from "./copart";
+import { COPART_TRIM_MAX, copartOdometer, copartZip } from "./copart";
 
 describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", () => {
   it("reads orr as mileage unless the reading is not actual or exempt", () => {
@@ -136,5 +136,28 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
       },
     });
     expect(row).toMatchObject({ mileage: 74308, trim: "S", location_zip: "33578" });
+  });
+  it("caps a long ltd trim at COPART_TRIM_MAX", () => {
+    const [row] = parseCopartLots({
+      data: {
+        results: {
+          content: [
+            {
+              ln: 25875431,
+              lcy: 2017,
+              mkn: "NISSAN",
+              lm: "SENTRA",
+              ltd: "S ".repeat(200),
+              la: 11125,
+              memberVehicleType: "AUTOMOBILE",
+              dd: "FRONT END",
+              locState: "FL",
+              locCity: "RIVERVIEW",
+            },
+          ],
+        },
+      },
+    });
+    expect(row.trim!.length).toBeLessThanOrEqual(COPART_TRIM_MAX);
   });
 });
