@@ -15,6 +15,11 @@ import {
 } from "@/lib/discovery/for-you-rank";
 import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
 import {
+  parseTitleTypes,
+  titleCategoryCounts,
+  titleCategoryOrFilter,
+} from "@/lib/deals/title-category";
+import {
   applyInventoryLane,
   applyVehicleDetails,
   uniqueDbSources,
@@ -43,20 +48,6 @@ function topCounts(map: Map<string, number>, limit = 40) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([value, count]) => ({ value, count }));
-}
-
-function titleBucket(condition?: string | null) {
-  const c = String(condition || "").toLowerCase();
-  return (
-    (
-      {
-        salvage_title: "salvage",
-        rebuilt_title: "rebuilt",
-        parts_only: "parts",
-        clean_title: "clean",
-      } as Record<string, string>
-    )[c] || null
-  );
 }
 
 function sellerBucket(source?: string | null, sourceUrl?: string | null) {
@@ -91,14 +82,12 @@ export function buildScanFacetSummary(
   const makes = new Map<string, number>();
   const states = new Set<string>();
   const years = new Set<number>();
-  const titleTypes = new Map<string, number>();
   const sellerTypes = new Map<string, number>();
   const sources = new Map<string, number>();
   for (const r of rows || []) {
     if (r.make) makes.set(r.make, (makes.get(r.make) || 0) + 1);
     if (r.location_state) states.add(r.location_state);
     if (r.year) years.add(Number(r.year));
-    inc(titleTypes, titleBucket(r.condition));
     inc(sellerTypes, sellerBucket(r.source, r.source_url));
     const sourceId =
       dealerSourceIdFromUrl(r.source_url) ||
@@ -113,19 +102,8 @@ export function buildScanFacetSummary(
       .map(([make, count]) => ({ make, count })),
     states: Array.from(states).sort(),
     years: Array.from(years).sort((a, b) => b - a),
-    titleTypes: topCounts(titleTypes, 10).map((item) => ({
-      ...item,
-      label:
-        item.value === "clean"
-          ? "Clean title"
-          : item.value === "salvage"
-            ? "Salvage title"
-            : item.value === "rebuilt"
-              ? "Rebuilt title"
-              : item.value === "parts"
-                ? "Parts only"
-                : item.value,
-    })),
+    // All five buckets, fixed order, zeros included (salvage also carries a partsOnly count).
+    titleTypes: titleCategoryCounts(rows || []),
     sellerTypes: topCounts(sellerTypes, 10).map((item) => ({
       ...item,
       label:
@@ -253,19 +231,10 @@ export async function GET(req: NextRequest) {
     }
     const sellers = sellerTypeSourceValues(seller);
     if (sellers.length) query = query.in("source", sellers);
-    const title = params.get("titleType");
-    if (title && title !== "all")
-      query = query.eq(
-        "condition",
-        (
-          {
-            clean: "clean_title",
-            rebuilt: "rebuilt_title",
-            salvage: "salvage_title",
-            parts: "parts_only",
-          } as Record<string, string>
-        )[title] || title,
-      );
+    const titleFilter = titleCategoryOrFilter(
+      parseTitleTypes(params.get("titleType")),
+    );
+    if (titleFilter) query = query.or(titleFilter);
     const availability = params.get("availability");
     if (availability && availability !== "all")
       query = query.eq("availability_status", availability);

@@ -14,6 +14,7 @@ import { hashJitter } from "@/lib/db/stable-id";
 import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
+import { titleCategory } from "@/lib/deals/title-category";
 
 // GET /api/deals/map?verdict=actionable&limit= — active deals as map points. Precise geocoded coords
 // when we have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
         let q = supabase
           .from("deals")
           .select(
-            "id, year, make, model, ask_price, true_net_profit, deal_verdict, lat, lng, location_city, location_state",
+            "id, year, make, model, ask_price, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type",
           )
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
@@ -156,6 +157,10 @@ export async function GET(req: NextRequest) {
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
         type: flipDesk ? typeForVerdict(d.deal_verdict) : "dealer",
         label,
+        // Public columns (20261010020000 grants): safe for every desk.
+        condition: d.condition ?? null,
+        damageType: d.damage_type ?? null,
+        titleCategory: titleCategory(d),
       };
     })
     .filter(Boolean);

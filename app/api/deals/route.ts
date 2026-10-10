@@ -8,6 +8,7 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import { parseTitleTypes } from "@/lib/deals/title-category";
 
 // Desk-scoped payload: flip economics and seller contact only for a saved reseller / dealer desk.
 const DEALS_HEADERS = { "Cache-Control": "private, no-store" };
@@ -63,6 +64,7 @@ function parseFilters(searchParams: URLSearchParams): DealFilters {
     source: searchParams.get("source")?.split(",").filter(Boolean),
     make: searchParams.get("make")?.split(",").filter(Boolean),
     condition: searchParams.get("condition")?.split(",").filter(Boolean),
+    titleTypes: parseTitleTypes(searchParams.get("titleType")),
     location: searchParams.get("location") || undefined,
     minProfit: searchParams.get("minProfit")
       ? parseInt(searchParams.get("minProfit")!, 10)

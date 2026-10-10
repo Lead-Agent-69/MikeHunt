@@ -60,6 +60,11 @@ import {
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import {
+  matchesTitleCategories,
+  parseTitleTypes,
+  titleCategory,
+} from "@/lib/deals/title-category";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -116,6 +121,7 @@ function mapDeal(
     mileage: d.mileage,
     condition: d.condition,
     damageType: d.damage_type,
+    titleCategory: titleCategory(d),
     askPrice: Number(d.ask_price || 0),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
     // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
@@ -251,21 +257,6 @@ function rowMatchesMakes(row: { make?: string | null }, makes: string[]) {
     .toLowerCase();
   if (!make) return false;
   return makes.some((wanted) => wanted.toLowerCase() === make);
-}
-
-function rowTitleSignal(row: any) {
-  return [
-    row.title_type,
-    row.titleType,
-    row.title_status,
-    row.titleStatus,
-    row.condition,
-    row.damage_type,
-    row.title,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
 }
 
 function rowMatchesQuery(row: any, q: string) {
@@ -522,6 +513,9 @@ export async function GET(request: NextRequest) {
     const lane = normalizeQuery(searchParams.get("lane"));
     const sellerType = normalizeQuery(searchParams.get("sellerType"));
     const titleType = normalizeQuery(searchParams.get("titleType"));
+    // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi), on the condition enum
+    // only. Listing-title text is never matched ("Clean Carfax" is not a clean title).
+    const titleTypes = parseTitleTypes(searchParams.get("titleType"));
     const excludeRepairable = searchParams.get("includeRepairable") === "0";
     const dealerSourceIds = normalizeDealerSourceIds(
       searchParams.get("dealerSourceIds") ||
@@ -639,12 +633,7 @@ export async function GET(request: NextRequest) {
           if (minPrice && Number(row.ask_price || 0) < minPrice) return false;
           if (q && !rowMatchesQuery(row, q)) return false;
           if (!matchesSellerType(row, sellerType || "all")) return false;
-          if (
-            titleType &&
-            titleType !== "all" &&
-            !rowTitleSignal(row).includes(titleType)
-          )
-            return false;
+          if (!matchesTitleCategories(row, titleTypes)) return false;
           if (
             dealerSourceIds.length &&
             !dealerSourceIdFromUrl(
@@ -837,6 +826,17 @@ export async function GET(request: NextRequest) {
     const salvage = laneRail("salvage");
     const repairable = laneRail("repairable");
     const auctionLots = laneRail("auction");
+    // Salvage & Rebuildable: by title category, regardless of source or lane (dealLane files
+    // Copart/IAA under "auction" first, so the lane rails above miss most branded supply).
+    // TODO(freshness): drop or label frozen/stale rows once lib/deals/freshness.ts lands (#202).
+    const salvageRebuildable = merged
+      .filter((d) => matchesTitleCategories(d, ["salvage", "rebuildable"]))
+      .sort(
+        (a, b) =>
+          byGradeRank[b.grade] - byGradeRank[a.grade] ||
+          b.discountPct - a.discountPct,
+      )
+      .slice(0, N);
 
     // ── Personalized "For You" rail ──
     // Saved buyerScope (vehicle, title, timeline, repair, mode) plus profile home_state.
@@ -847,6 +847,8 @@ export async function GET(request: NextRequest) {
     let forYou: any[] = [];
     let forYouSubtitle = "Matched to your saved search";
     let personalized = false;
+    // Saved buyerScope.includeRepairable — gates the Salvage & Rebuildable rail for personal/DIY.
+    let scopeIncludesRepairable = false;
     try {
       const {
         data: { user },
@@ -870,6 +872,7 @@ export async function GET(request: NextRequest) {
         const scope = ((
           prefRow?.prefs as { buyerScope?: BuyerScopePrefs } | null
         )?.buyerScope || {}) as BuyerScopePrefs;
+        scopeIncludesRepairable = scope.includeRepairable === true;
         // "Where you live": prefs.homeLocation (Settings/onboarding) first, then the legacy
         // user_profiles columns (never the untouched CA default). Coords → haversine distance.
         const buyerHome = resolveBuyerHome({
@@ -1009,6 +1012,13 @@ export async function GET(request: NextRequest) {
         deals: repairable,
       },
       {
+        key: "salvageRebuildable",
+        title: "Salvage & Rebuildable",
+        subtitle:
+          "Salvage, parts-only and rebuildable titles from every source",
+        deals: salvageRebuildable,
+      },
+      {
         key: "auctionLots",
         title: "🟡 Auction Lots",
         subtitle: "Live auction inventory (Copart/IAA/ADESA & gov)",
@@ -1050,7 +1060,9 @@ export async function GET(request: NextRequest) {
     const flipDesk = desk === "flip";
     const deskRails = flipDesk
       ? rails
-      : filterRailsForDesk(rails, desk).map((r) => ({
+      : filterRailsForDesk(rails, desk, {
+          includeRepairable: scopeIncludesRepairable,
+        }).map((r) => ({
           ...r,
           deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
         }));
@@ -1067,6 +1079,7 @@ export async function GET(request: NextRequest) {
       lane: lane || undefined,
       sellerType: sellerType || undefined,
       titleType: titleType || undefined,
+      titleTypes: titleTypes.length ? titleTypes : undefined,
       minPrice: minPrice || undefined,
       maxPrice: maxPrice || undefined,
       dealerSourceIds,

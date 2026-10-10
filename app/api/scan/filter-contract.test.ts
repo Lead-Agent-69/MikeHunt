@@ -243,4 +243,30 @@ describe("Scan and facets query parity", () => {
       ).toBe(false);
     }
   });
+
+  it("filters titleType (comma-multi) on the condition enum in scan and facets", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      await handler(
+        new NextRequest(
+          "https://example.test/api/scan?titleType=salvage,unknown",
+        ),
+      );
+      expect(calls).toContainEqual([
+        "or",
+        "condition.in.(run_drive,parts_only,salvage_title,flood,fire,hail),condition.is.null",
+      ]);
+      expect(calls.some(([m, c]) => m === "eq" && c === "condition")).toBe(
+        false,
+      );
+    }
+    calls.splice(0);
+    const body = await (
+      await scan(
+        new NextRequest("https://example.test/api/scan?titleType=clean"),
+      )
+    ).json();
+    expect(calls).toContainEqual(["or", "condition.in.(clean_title)"]);
+    expect(body.vehicles[0].titleCategory).toBe("clean");
+  });
 });

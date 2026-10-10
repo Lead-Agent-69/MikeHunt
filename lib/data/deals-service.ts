@@ -3,6 +3,10 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import {
+  titleCategoryOrFilter,
+  type TitleCategory,
+} from "@/lib/deals/title-category";
 
 export type Deal = {
   id: string;
@@ -83,6 +87,8 @@ export type DealFilters = {
   source?: string[];
   make?: string[];
   condition?: string[];
+  /** Title buckets (lib/deals/title-category) applied on the condition enum. */
+  titleTypes?: TitleCategory[];
   location?: string;
   /** Exact `location_state` match (validated 2-letter codes, uppercased). */
   states?: string[];
@@ -225,6 +231,9 @@ export class DealsService {
           : query.in("location_state", filters.states);
     }
 
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
+
     if (filters.location) {
       query = query.or(
         `location_city.ilike.%${filters.location}%,location_state.ilike.%${filters.location}%`,
@@ -320,6 +329,9 @@ export class DealsService {
           ? query.eq("location_state", filters.states[0])
           : query.in("location_state", filters.states);
     }
+
+    const titleFilter = titleCategoryOrFilter(filters.titleTypes || []);
+    if (titleFilter) query = query.or(titleFilter);
 
     if (filters.minProfit) {
       query = query.gte("profit_estimate", filters.minProfit);
