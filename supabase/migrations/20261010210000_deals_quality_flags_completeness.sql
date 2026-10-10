@@ -23,6 +23,10 @@
 
 BEGIN;
 
+-- Ren #306 P3: ADD COLUMN takes ACCESS EXCLUSIVE on deals. Fail fast instead of queueing behind a long
+-- scrape write (and blocking every reader behind us); the apply is re-runnable.
+SET LOCAL lock_timeout = '5s';
+
 CREATE OR REPLACE FUNCTION public.vin_check_digit_ok(p_vin text)
 RETURNS boolean
 LANGUAGE sql
@@ -126,6 +130,7 @@ SET profit_score = NULL,
     deal_verdict = 'pass'
 WHERE quality_flags IS NOT NULL
   AND (profit_score IS NOT NULL OR true_net_profit IS NOT NULL OR is_arbitrage_opportunity
+       OR recommended_max_bid IS NOT NULL OR sell_estimate IS NOT NULL
        OR deal_verdict IS DISTINCT FROM 'pass');
 
 -- Guard: both columns stay server-only.

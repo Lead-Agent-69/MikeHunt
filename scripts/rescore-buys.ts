@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeDeal } from "../lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "../lib/scoring/market-value";
 import { extractTrim } from "../lib/scrapers/tools/deal-normalizer";
+import { shouldSkipRescore } from "../lib/data-quality/rescore-guard";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -27,6 +28,8 @@ async function main() {
   let updated = 0;
   let withForecast = 0;
   const process1 = async (row: any) => {
+    // Sanity-flagged rows are never rescored (Ren #306 P2): profit / verdict / max bid stay cleared.
+    if (shouldSkipRescore(row)) return;
     try {
       if (!row.trim) {
         const t = extractTrim(row.title, row.make, row.model);
@@ -34,7 +37,7 @@ async function main() {
       }
       const a = analyzeDeal(row);
       if (a.prediction) withForecast++;
-      const { error: upErr } = await sb
+      let q = sb
         .from("deals")
         .update({
           trim: row.trim ?? null,
@@ -58,6 +61,9 @@ async function main() {
           },
         })
         .eq("id", row.id);
+      // select("*") carries quality_flags once 20261010210000 is applied: write only while unflagged.
+      if ("quality_flags" in row) q = q.is("quality_flags", null);
+      const { error: upErr } = await q;
       if (!upErr) updated++;
     } catch {
       /* skip */
