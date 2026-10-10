@@ -20,7 +20,7 @@ Rule: every `robotsExempt` source is at least `operator_override`, because the e
 |---|---|---|
 | gsa_auctions | allowed (→ `api` once #271's api.gsa.gov adapter is the path) | GSA terms bind bidders only; public API exists |
 | iaa | unreviewed (review first) | Published sitemap + lot pages; terms not reviewed |
-| independent_dealer | allowed | Individual dealer sites, robots-gated |
+| independent_dealer | allowed **only** for a host in `lib/scrapers/curated-sites.ts`; any other host is `unreviewed` (Ren #312 P1). `carparts.com` is `restricted` under any source (`RESTRICTED_HOSTS`). Photo caching follows (`photoCacheAllowed`). | Individual dealer sites, robots-gated |
 | curated_dealers | mixed on /status: allowed per host, **except** `OPERATOR_RESTORED_HOSTS` → operator_override | `source-compliance.ts` |
 | auto_discover | allowed | robots/sitemap first |
 | truecar, vroom | unreviewed | not in TOS list; terms not reviewed |

@@ -211,9 +211,16 @@ describe("4. photo cache-to-storage only for api/allowed sources", () => {
     expect(
       accessClassFor({
         source: "independent_dealer",
-        source_url: "https://www.glensautosales.com/v/1",
+        source_url: "https://www.glensautosales.com/v/1", // curated-sites.ts host
       }),
     ).toBe("allowed");
+    // Ren #312 P1: not in curated-sites.ts → unreviewed, even as independent_dealer.
+    expect(
+      accessClassFor({
+        source: "independent_dealer",
+        source_url: "https://random-dealer.example/v/1",
+      }),
+    ).toBe("unreviewed");
     expect(
       accessClassFor({
         source: "craigslist_dealer",
