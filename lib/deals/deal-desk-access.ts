@@ -82,11 +82,48 @@ function safeDealAnalysis(
   return Object.keys(safeCosts).length > 0 ? { costs: safeCosts } : undefined;
 }
 
+// Substring terms are unambiguous anywhere in a key. "tel" and "cell" only count as a whole key
+// segment (split on _, -, space, dot and camelCase), so seller_tel / sellerTel / cell_number match
+// while hotel_parking and excellent_condition survive.
+const CONTACT_SUBSTRING = /contact|phone|e[-_ ]?mail|mobile|whatsapp/i;
+const CONTACT_SEGMENT = /^(tel|cell)$/i;
+
+export function isContactKey(key: string): boolean {
+  if (CONTACT_SUBSTRING.test(key)) return true;
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .split(/[_\-\s.]+/)
+    .some((seg) => CONTACT_SEGMENT.test(seg));
+}
+
+/**
+ * Copy of a raw `options` blob without seller contact. Scrapers store seller phone / email under
+ * options.contact (and sometimes options.seller.*), and sellerContact() reads it from there, so a
+ * card or deal that carries raw options must lose those keys on a non-flip desk.
+ */
+const SAFE_OPTIONS_MAX_DEPTH = 5;
+
+function safeOptions(options: unknown, depth = 0): unknown {
+  if (!options || typeof options !== "object") return options;
+  // Past the depth cap, drop the subtree rather than risk passing contact through unchecked.
+  if (depth >= SAFE_OPTIONS_MAX_DEPTH) return undefined;
+  if (Array.isArray(options)) {
+    return options.map((v) => safeOptions(v, depth + 1));
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(options as Record<string, unknown>)) {
+    if (isContactKey(k)) continue;
+    out[k] = safeOptions(v, depth + 1);
+  }
+  return out;
+}
+
 export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   deal: T,
 ): Record<string, any> {
   const out: Record<string, any> = { ...deal };
   for (const key of FLIP_ONLY_FIELDS) delete out[key];
+  if ("options" in out) out.options = safeOptions(deal.options);
 
   const safe = safeDealAnalysis(deal?.dealAnalysis ?? deal?.deal_analysis);
   if (safe) out.dealAnalysis = safe;
@@ -136,6 +173,9 @@ const CARD_FLIP_ONLY_FIELDS = [
   "sellerPhone",
   "sellerEmail",
   "sellerContactUrl",
+  "seller_phone",
+  "seller_email",
+  "seller_contact_url",
 ] as const;
 
 /**
@@ -168,6 +208,7 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
 ): Record<string, any> {
   const out: Record<string, any> = { ...card };
   for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
+  if ("options" in out) out.options = safeOptions(card.options);
   if ("prediction" in out) out.prediction = safePrediction(card.prediction);
   // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
   const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const select = vi.hoisted(() => vi.fn());
 const lte = vi.hoisted(() => vi.fn());
+const ilike = vi.hoisted(() => vi.fn());
 const resolveCallerFlipDesk = vi.hoisted(() => vi.fn());
 
 // A full deals row, the way select("*") used to return it.
@@ -47,7 +48,11 @@ const fullRow = {
 
 function chain() {
   const q: any = {};
-  for (const m of ["eq", "ilike", "gte", "order"]) q[m] = () => q;
+  for (const m of ["eq", "gte", "order"]) q[m] = () => q;
+  q.ilike = (col: string, v: unknown) => {
+    ilike(col, v);
+    return q;
+  };
   q.lte = (col: string, v: unknown) => {
     lte(col, v);
     return q;
@@ -113,6 +118,7 @@ const req = () =>
 beforeEach(() => {
   select.mockReset();
   lte.mockReset();
+  ilike.mockReset();
   resolveCallerFlipDesk.mockReset();
 });
 
@@ -227,5 +233,42 @@ describe("GET /api/find-similar integer bounds", () => {
     expect(bounds.ask_price).toBe(103730);
     expect(Number.isInteger(bounds.ask_price)).toBe(true);
     expect(Number.isInteger(bounds.mileage)).toBe(true);
+  });
+});
+
+describe("GET /api/find-similar input hardening", () => {
+  const r = (qs: string, ip: string) =>
+    new NextRequest(`http://localhost/api/find-similar?${qs}`, {
+      headers: { "x-forwarded-for": ip },
+    });
+
+  it("400s on make or model longer than 64 chars, before touching the DB", async () => {
+    resolveCallerFlipDesk.mockResolvedValue(false);
+    const long = "A".repeat(65);
+    for (const qs of [
+      `make=${long}&model=Camry`,
+      `make=Toyota&model=${long}`,
+    ]) {
+      const res = await GET(r(qs, "10.66.0.1"));
+      expect(res.status).toBe(400);
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+    }
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("escapes LIKE wildcards so % / _ / * in the model match literally", async () => {
+    resolveCallerFlipDesk.mockResolvedValue(false);
+    await GET(
+      r(`make=Toyota&model=${encodeURIComponent("%_a*b\\ x")}`, "10.66.0.2"),
+    );
+    expect(ilike).toHaveBeenCalledWith("model", "%\\%\\_ab\\\\%");
+  });
+
+  it("400s when the model is only wildcards / whitespace", async () => {
+    resolveCallerFlipDesk.mockResolvedValue(false);
+    const res = await GET(
+      r(`make=Toyota&model=${encodeURIComponent("***")}`, "10.66.0.3"),
+    );
+    expect(res.status).toBe(400);
   });
 });
