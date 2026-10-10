@@ -1,4 +1,5 @@
 import { isAdminEmail } from "@/lib/auth/admin";
+import { bearerMatches } from "@/lib/auth/bearer";
 import { getServerUser } from "@/lib/server-supabase";
 
 /**
@@ -7,7 +8,7 @@ import { getServerUser } from "@/lib/server-supabase";
  */
 export async function canManageOperations(request: Request): Promise<boolean> {
   const secret = process.env.INGEST_SECRET;
-  if (secret && request.headers.get("authorization") === `Bearer ${secret}`) {
+  if (secret && bearerMatches(request.headers.get("authorization"), secret)) {
     return true;
   }
 

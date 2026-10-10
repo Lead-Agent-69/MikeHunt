@@ -11,6 +11,7 @@
  * every recorder is a no-op, so tests and one-off scripts are unaffected.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { scrubUrls } from "../../security/scrub-urls";
 
 export type ErrorClass =
   | "http_403"
@@ -214,7 +215,7 @@ export function recordError(
       errorClass,
       httpStatus: info.status ?? null,
       url: safeUrl(info.url),
-      message: info.message ? capBytes(info.message, 500) : null,
+      message: info.message ? capBytes(scrubUrls(info.message), 500) : null,
       at: new Date().toISOString(),
     });
   }
@@ -266,29 +267,41 @@ export function recordPageSkipped() {
 }
 
 /** Keep only small scalar fields of a record so the payload stays under 2 KB and carries no blobs. */
+/**
+ * Payload cap, measured the way Postgres measures it: the CHECK is octet_length(payload::text), and
+ * jsonb renders `{"a": 1, "b": 2}` (a space after every ':' and ','), which is larger than
+ * JSON.stringify. 1,800 leaves headroom under the 2,048-byte CHECK.
+ */
+export const MAX_PAYLOAD_BYTES = 1800;
+
+/** Byte length of `obj` as Postgres prints it from jsonb (flat object of scalars). */
+export function jsonbTextBytes(obj: Record<string, unknown>): number {
+  const parts = Object.entries(obj).map(
+    ([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`,
+  );
+  return Buffer.byteLength(`{${parts.join(", ")}}`, "utf8");
+}
+
+/** Never stored in a dead letter: seller contact details (PII) and bulky fields. */
+const DROP_KEY =
+  /^(description|images|deal_analysis|raw|options)$|phone|email|^(seller|contact|owner|dealer_contact)_?name$|^seller$/i;
+
 export function compactPayload(
   record: unknown,
 ): Record<string, unknown> | null {
   if (!record || typeof record !== "object") return null;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
-    if (v == null) continue;
-    if (
-      k === "description" ||
-      k === "images" ||
-      k === "deal_analysis" ||
-      k === "raw"
-    )
-      continue;
-    if (typeof v === "string") out[k] = v.slice(0, 300);
-    else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
+    if (v == null || DROP_KEY.test(k)) continue;
+    if (typeof v === "string") {
+      // URLs lose their query string (tracking / contact params), like every other logged URL.
+      out[k] = /(^|_)url$/i.test(k) ? safeUrl(v) : v.slice(0, 300);
+    } else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
   }
-  let json = JSON.stringify(out);
-  while (Buffer.byteLength(json, "utf8") > MAX_SNIPPET_BYTES) {
+  while (jsonbTextBytes(out) > MAX_PAYLOAD_BYTES) {
     const keys = Object.keys(out);
     if (!keys.length) return null;
     delete out[keys[keys.length - 1]];
-    json = JSON.stringify(out);
   }
   return out;
 }
@@ -309,7 +322,7 @@ export function deadLetter(
     return;
   }
   t.deadLetters.push({
-    reason: capBytes(reason, 300),
+    reason: capBytes(scrubUrls(reason), 300),
     url: safeUrl(info.url ?? null),
     rawSnippet: info.raw ? capBytes(info.raw) : null,
     payload: compactPayload(info.payload),

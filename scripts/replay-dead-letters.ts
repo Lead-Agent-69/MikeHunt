@@ -14,6 +14,7 @@
  */
 import * as dotenv from "dotenv";
 import path from "node:path";
+import { scrubUrls } from "../lib/security/scrub-urls";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -124,7 +125,7 @@ async function main() {
         .from("scraper_dead_letters")
         .update({
           replayed_at: new Date().toISOString(),
-          replay_result: result.slice(0, 300),
+          replay_result: scrubUrls(result).slice(0, 300),
         })
         .eq("id", r.id);
   }

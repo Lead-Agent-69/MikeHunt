@@ -86,6 +86,36 @@ export async function updateRunRow(
   return error ?? null;
 }
 
+/**
+ * Insert rows as one batch; if the batch is refused (one row trips a CHECK, a bad run_id, ...),
+ * fall back to row-by-row so one bad record never loses the whole run's log (Ren #296 P2-1).
+ * A missing table (migration not applied) stops at the batch. Returns rows written.
+ */
+export async function insertWithFallback(
+  sb: Pick<SupabaseClient, "from">,
+  table: string,
+  rows: Record<string, unknown>[],
+): Promise<number> {
+  if (!rows.length) return 0;
+  try {
+    const { error } = await sb.from(table).insert(rows);
+    if (!error) return rows.length;
+    if (isMissingSchemaError(error) || rows.length === 1) return 0;
+  } catch {
+    return 0;
+  }
+  let written = 0;
+  for (const row of rows) {
+    try {
+      const { error } = await sb.from(table).insert(row);
+      if (!error) written++;
+    } catch {
+      // skip this row only
+    }
+  }
+  return written;
+}
+
 /** Insert the run's error samples and dead letters. Returns counts written. Never throws. */
 export async function writeRunTelemetry(
   sb: SupabaseClient,
@@ -95,38 +125,32 @@ export async function writeRunTelemetry(
   const out = { errors: 0, deadLetters: 0 };
   if (!t) return out;
   const run_id = runId && !runId.startsWith("untracked-") ? runId : null;
-  try {
-    if (t.samples.length) {
-      const { error } = await sb.from("scraper_errors").insert(
-        t.samples.map((e) => ({
-          run_id,
-          source: t.source,
-          error_class: e.errorClass,
-          http_status: e.httpStatus,
-          url: e.url,
-          message: e.message,
-          created_at: e.at,
-        })),
-      );
-      if (!error) out.errors = t.samples.length;
-    }
-    if (t.deadLetters.length) {
-      const { error } = await sb.from("scraper_dead_letters").insert(
-        t.deadLetters.map((d) => ({
-          run_id,
-          source: t.source,
-          url: d.url,
-          reason: d.reason,
-          raw_snippet: d.rawSnippet,
-          payload: d.payload,
-          created_at: d.at,
-        })),
-      );
-      if (!error) out.deadLetters = t.deadLetters.length;
-    }
-  } catch {
-    // observability only
-  }
+  out.errors = await insertWithFallback(
+    sb,
+    "scraper_errors",
+    t.samples.map((e) => ({
+      run_id,
+      source: t.source,
+      error_class: e.errorClass,
+      http_status: e.httpStatus,
+      url: e.url,
+      message: e.message,
+      created_at: e.at,
+    })),
+  );
+  out.deadLetters = await insertWithFallback(
+    sb,
+    "scraper_dead_letters",
+    t.deadLetters.map((d) => ({
+      run_id,
+      source: t.source,
+      url: d.url,
+      reason: d.reason,
+      raw_snippet: d.rawSnippet,
+      payload: d.payload,
+      created_at: d.at,
+    })),
+  );
   return out;
 }
 
