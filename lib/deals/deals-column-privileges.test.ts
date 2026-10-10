@@ -93,15 +93,50 @@ describe("deals column grants migration", () => {
     );
   });
 
-  it("is the newest migration (applies after every deals column add)", () => {
-    const all = readdirSync("supabase/migrations")
-      .filter((f) => f.endsWith(".sql"))
+  it("no later migration re-grants deals SELECT or discover_deals to anon / authenticated", () => {
+    const name = MIGRATION.split("/").pop()!;
+    const later = readdirSync("supabase/migrations")
+      .filter((f) => f.endsWith(".sql") && f > name)
       .sort();
-    expect(all[all.length - 1]).toBe(MIGRATION.split("/").pop());
+    for (const f of later) {
+      const body = readFileSync(`supabase/migrations/${f}`, "utf8");
+      // Table-wide SELECT back to the client roles would undo the column grants.
+      expect(body, f).not.toMatch(
+        /GRANT\s+(SELECT|ALL)[^;]*\bON\s+(TABLE\s+)?public\.deals\b[^;]*\bTO\b[^;]*\b(anon|authenticated|PUBLIC)\b/i,
+      );
+      expect(body, f).not.toMatch(
+        /GRANT\s+EXECUTE[^;]*discover_deals[^;]*\bTO\b[^;]*\b(anon|authenticated|PUBLIC)\b/i,
+      );
+    }
   });
 });
 
 describe("no anon / browser select of non-granted deals columns", () => {
+  it("scan route reads deals with the service-role server client, not the anon key", () => {
+    const src = readFileSync("app/api/scan/route.ts", "utf8");
+    expect(src).not.toContain("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    expect(src).toContain("createServerComponentClient()");
+  });
+
+  it("no server code falls back from the service role to the anon key (fail closed)", () => {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = `${dir}/${e.name}`;
+        if (e.isDirectory()) return e.name === "node_modules" ? [] : walk(p);
+        return /\.(ts|tsx|mjs|js)$/.test(e.name) && !/\.test\./.test(e.name)
+          ? [p]
+          : [];
+      });
+    const offenders = ["app", "lib", "scripts"]
+      .flatMap(walk)
+      .filter((f) =>
+        /SUPABASE_SERVICE_ROLE_KEY\s*\|\|\s*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/.test(
+          readFileSync(f, "utf8"),
+        ),
+      );
+    expect(offenders).toEqual([]);
+  });
+
   it("demandIndex counts via the server client on a granted column", () => {
     const src = readFileSync("lib/hotFunctions/demandIndex.ts", "utf8");
     expect(src).not.toContain("getSupabaseClient");

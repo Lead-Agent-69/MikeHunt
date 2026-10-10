@@ -14,9 +14,7 @@ export interface CityStaleness {
 /** Rank every Craigslist city stalest-first by the age of its most recent deal. */
 export async function rankCitiesByStaleness(): Promise<CityStaleness[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const sites: string[] = CRAIGSLIST_SITES.map((s) => s.site);
   if (!url || !key || sites.length === 0) return [];
 
