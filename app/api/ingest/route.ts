@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
+import { toDealSource, urlListingId } from "@/lib/data-quality/provenance";
 import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 
 interface RawIngestPayload {
@@ -43,29 +44,6 @@ interface DealPayload {
   location_state?: string;
   images: string[];
 }
-
-// Valid deal_source enum values (DB). Anything else is coerced to a safe default.
-const VALID_SOURCES = new Set([
-  "copart",
-  "iaa",
-  "adesa",
-  "manheim",
-  "facebook_marketplace",
-  "craigslist",
-  "ebay_motors",
-  "autotrader",
-  "cars_com",
-  "gov_auction",
-  "repo_network",
-  "independent_dealer",
-  "cargurus",
-  "craigslist_dealer",
-  "carvana",
-  "truecar",
-  "vroom",
-  "offerup",
-  "acv",
-]);
 
 // Map free-text title/condition to the listing_condition enum.
 function coerceCondition(input?: string): string {
@@ -116,9 +94,13 @@ export async function POST(req: Request) {
 
     const rawPrice =
       parseFloat(String(data.price).replace(/[^0-9.]/g, "")) || 0;
-    const source = VALID_SOURCES.has((data.source || "").toLowerCase())
-      ? (data.source as string).toLowerCase()
-      : "independent_dealer";
+    // True source or 'unknown' (access_basis 'unreviewed' in upsertDeals). Never relabelled as
+    // independent_dealer, which would claim a reviewed dealer crawl this row didn't come from.
+    const source = toDealSource(data.source);
+    // The site's id when the extension sent one, else a stable hash of the canonical URL.
+    const listingId = data.external_id
+      ? String(data.external_id).slice(0, 240)
+      : urlListingId(data.url);
 
     // Sold-detection: a "sold" listing is a real transaction price, not active inventory. Capture it
     // into sold_listings (powers the sold-comps feature) instead of the active deals table.
@@ -150,6 +132,9 @@ export async function POST(req: Request) {
             sold_price: rawPrice,
             sold_at: new Date().toISOString(),
             source,
+            source_url: data.url,
+            source_item_id: listingId,
+            title: data.title ?? null,
             location_state: data.location_state ?? null,
           });
       } catch (e) {
@@ -165,7 +150,7 @@ export async function POST(req: Request) {
     // valid-column upsert + dedupe + saved-search match). No invalid columns/enums.
     const deal: DealPayload = {
       source,
-      source_deal_id: data.external_id || data.url || "",
+      source_deal_id: listingId,
       source_url: data.url || "",
       title: data.title || "",
       year: data.year,
@@ -207,10 +192,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("Ingest Error:", error);
-    return NextResponse.json(
-      { error: msg },
-      { status: 500, headers: CORS },
-    );
+    return NextResponse.json({ error: msg }, { status: 500, headers: CORS });
   }
 }
 

@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { upsertDeals } from "@/lib/scrapers/pipeline";
+import { toDealSource, urlListingId } from "@/lib/data-quality/provenance";
 // P0: AI invent queue disabled — do not import queueForAIParsing.
 import * as crypto from "crypto";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
@@ -128,35 +129,14 @@ export async function POST(request: NextRequest) {
     // 4. Scoring is handled inside upsertDeals → analyzeDeal (see step 5 below).
     // No manual DealScoringService call here — keeps all routes consistent.
 
-    // Coerce to a valid deal_source enum (detectSource may return hyphenated/unknown values).
-    const VALID_SOURCES = new Set([
-      "copart",
-      "iaa",
-      "adesa",
-      "manheim",
-      "facebook_marketplace",
-      "craigslist",
-      "ebay_motors",
-      "autotrader",
-      "cars_com",
-      "gov_auction",
-      "repo_network",
-      "independent_dealer",
-      "cargurus",
-      "craigslist_dealer",
-      "carvana",
-      "truecar",
-      "vroom",
-      "offerup",
-      "acv",
-    ]);
-    const safeSource = VALID_SOURCES.has(String(source))
-      ? source
-      : "independent_dealer";
+    // True source ('facebook-marketplace' → facebook_marketplace); a host we don't know is
+    // 'unknown' (access_basis 'unreviewed'), never relabelled as independent_dealer.
+    const safeSource = toDealSource(detectSource(url));
 
     const dealPayload = {
       source: safeSource,
-      source_deal_id: scrapedData.external_id || String(Date.now()),
+      // Stable id: the same URL saved twice updates one row instead of minting a new listing.
+      source_deal_id: scrapedData.external_id || urlListingId(url),
       source_url: url,
       title:
         scrapedData.title ||
@@ -257,7 +237,6 @@ function detectSource(url: string): string {
   if (lowercase.includes("carvana.com")) return "carvana";
   return "web-share";
 }
-
 
 async function createAnalyzingSavedCar(
   supabase: any,

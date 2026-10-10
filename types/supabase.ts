@@ -829,6 +829,8 @@ export type Database = {
           duplicate_confidence: number | null
           duplicate_of_id: string | null
           completeness: number | null
+          access_basis: string | null
+          fetched_at: string | null
           quality_flags: string[] | null
           embedded_at: string | null
           embedding: string | null
@@ -905,6 +907,8 @@ export type Database = {
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
           completeness?: number | null
+          access_basis?: string | null
+          fetched_at?: string | null
           quality_flags?: string[] | null
           embedded_at?: string | null
           embedding?: string | null
@@ -981,6 +985,8 @@ export type Database = {
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
           completeness?: number | null
+          access_basis?: string | null
+          fetched_at?: string | null
           quality_flags?: string[] | null
           embedded_at?: string | null
           embedding?: string | null
@@ -1516,18 +1522,21 @@ export type Database = {
           id: number
           observed_at: string
           price: number
+          source: string | null
         }
         Insert: {
           deal_id: string
           id?: number
           observed_at?: string
           price: number
+          source?: string | null
         }
         Update: {
           deal_id?: string
           id?: number
           observed_at?: string
           price?: number
+          source?: string | null
         }
         Relationships: [
           {
@@ -6516,6 +6525,7 @@ export type Database = {
         | "vroom"
         | "offerup"
         | "acv"
+        | "unknown"
       dealer_type:
         | "auction_reseller"
         | "salvage_rebuild"
