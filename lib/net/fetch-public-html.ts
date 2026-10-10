@@ -5,6 +5,14 @@ import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 const MAX_REDIRECTS = 3;
 /** Default page-size cap; callers can pass a smaller or larger maxBytes. */
 export const MAX_HTML_BYTES = 5 * 1024 * 1024;
+/** Whole-fetch deadline (all hops), on top of axios' per-request timeout. */
+export const PUBLIC_FETCH_DEADLINE_MS = 10_000;
+
+/** Overall deadline, combined with the caller's signal when there is one. */
+export function publicFetchSignal(caller?: AbortSignal): AbortSignal {
+  const deadline = AbortSignal.timeout(PUBLIC_FETCH_DEADLINE_MS);
+  return caller ? AbortSignal.any([caller, deadline]) : deadline;
+}
 
 export function locationHeader(
   headers: Record<string, unknown>,
@@ -33,6 +41,7 @@ export async function fetchPublicHtml(
   // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
   let target = await resolvePinnedTarget(rawUrl);
   let current = target.url;
+  const signal = publicFetchSignal(options.signal);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (allowUrl && !(await allowUrl(current.toString())))
       throw new Error("Page disallowed by source policy");
@@ -46,7 +55,7 @@ export async function fetchPublicHtml(
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         },
         timeout: 6000,
-        signal: options.signal,
+        signal,
         maxContentLength: options.maxBytes ?? MAX_HTML_BYTES,
         maxRedirects: 0,
         responseType: "text",

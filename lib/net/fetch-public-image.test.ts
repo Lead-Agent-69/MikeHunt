@@ -156,3 +156,27 @@ describe("fetchPublicImage on the DNS pin", () => {
     expect(axiosGet).not.toHaveBeenCalled();
   });
 });
+
+describe("fetchPublicImage signal + byte cap", () => {
+  it("passes a combined deadline signal and honors a smaller maxBytes", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce(ok());
+    const caller = new AbortController();
+    await fetchPublicImage(IMG, isAllowedImageUrl, {}, {
+      signal: caller.signal,
+      maxBytes: 1234,
+    });
+    const init = axiosGet.mock.calls[0][1];
+    expect(init.maxContentLength).toBe(1234);
+    expect(init.signal.aborted).toBe(false);
+    caller.abort();
+    expect(init.signal.aborted).toBe(true);
+  });
+
+  it("never raises the cap above MAX_IMAGE_BYTES", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce(ok());
+    await fetchPublicImage(IMG, isAllowedImageUrl, {}, { maxBytes: 1e12 });
+    expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(10 * 1024 * 1024);
+  });
+});
