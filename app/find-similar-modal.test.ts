@@ -18,4 +18,32 @@ describe("Find similar modal", () => {
     expect(modal).toContain("it does not run a");
     expect(modal).not.toContain("Searching active inventory");
   });
+
+  it("is an accessible modal dialog", () => {
+    const modal = read("components/saved/FindSimilarModal.tsx");
+    expect(modal).toContain('role="dialog"');
+    expect(modal).toContain('aria-modal="true"');
+    expect(modal).toContain("aria-labelledby={titleId}");
+    expect(modal).toContain("<h3 id={titleId}");
+    expect(modal).toContain('aria-label="Close find similar vehicles"');
+  });
+
+  it("manages focus: in on open, trapped, Escape closes, returns to trigger", () => {
+    const modal = read("components/saved/FindSimilarModal.tsx");
+    expect(modal).toContain("closeButtonRef.current?.focus()");
+    expect(modal).toContain('event.key === "Escape"');
+    expect(modal).toContain('event.key !== "Tab"');
+    expect(modal).toContain("last.focus()");
+    expect(modal).toContain("first.focus()");
+    expect(modal).toContain("trigger.focus()");
+    expect(modal).toContain('removeEventListener("keydown"');
+  });
+
+  it("icon-only open-listing link has an accessible name", () => {
+    const modal = read("components/saved/FindSimilarModal.tsx");
+    expect(modal).toContain('"Open listing"');
+    expect(modal).toContain(
+      '<ChevronRight className="w-4 h-4" aria-hidden="true" />',
+    );
+  });
 });

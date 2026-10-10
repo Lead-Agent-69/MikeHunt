@@ -1,11 +1,14 @@
 // components/saved/FindSimilarModal.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, Search, ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 interface FindSimilarModalProps {
   flipDesk?: boolean;
@@ -33,6 +36,64 @@ export function FindSimilarModal({
   const [loading, setLoading] = useState(true);
   const [comparables, setComparables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Dialog keyboard behaviour: move focus in on open, trap Tab inside the
+  // panel, close on Escape, and hand focus back to the trigger on close.
+  useEffect(() => {
+    if (!isOpen || typeof document === "undefined") return;
+    const trigger =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const focusTimer = window.setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 0);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (active === last || !panel.contains(active))
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (trigger && document.contains(trigger)) trigger.focus();
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -95,20 +156,23 @@ export function FindSimilarModal({
       <div
         className="fixed inset-0 transition-opacity duration-300 animate-fadeIn"
         style={{ background: "rgba(36,28,43,0.4)" }}
+        aria-hidden="true"
         onClick={onClose}
       />
 
       {/* Content */}
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Find similar vehicles"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="relative z-10 flex max-h-[min(80vh,calc(100dvh-8rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--b2)] bg-white shadow-2xl animate-scaleUp"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--b1)] bg-[var(--s1)]">
           <div>
-            <h3 className="text-lg font-black text-[var(--t1)]">
+            <h3 id={titleId} className="text-lg font-black text-[var(--t1)]">
               Find Similar Vehicles
             </h3>
             <p className="text-xs text-[var(--t3)]">
@@ -116,10 +180,13 @@ export function FindSimilarModal({
             </p>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
+            aria-label="Close find similar vehicles"
             className="p-1.5 rounded-full hover:bg-[var(--s2)] text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -215,9 +282,14 @@ export function FindSimilarModal({
                     <Link
                       href={`/deal/${comp.id}`}
                       onClick={onClose}
+                      aria-label={
+                        `Open ${comp.year ?? ""} ${comp.make ?? ""} ${comp.model ?? ""}`
+                          .replace(/\s+/g, " ")
+                          .trim() || "Open listing"
+                      }
                       className="flex items-center justify-center p-2 rounded-lg bg-[var(--s1)] text-[var(--t2)] hover:bg-[var(--amber)] hover:text-white transition-all shadow-sm"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-4 h-4" aria-hidden="true" />
                     </Link>
                   </div>
                 </div>
@@ -229,6 +301,7 @@ export function FindSimilarModal({
         {/* Footer */}
         <div className="flex justify-end px-6 py-4 border-t border-[var(--b1)] bg-[var(--s1)]">
           <button
+            type="button"
             onClick={onClose}
             className="px-4 py-2 text-xs font-bold text-[var(--t3)] hover:text-[var(--t1)] bg-white border border-[var(--b2)] rounded-lg shadow-sm transition-colors"
           >
