@@ -98,6 +98,32 @@ describe("advisorView honesty gate", () => {
     expect(JSON.stringify(v)).not.toMatch(/11,?400|10,?200|2,?100|14,?900/);
   });
 
+  it("medium confidence keeps the verdict with a caveat; high has none", () => {
+    const v = advisorView(read(), { flipDesk: false });
+    if (v.state !== "ready") throw new Error("expected ready");
+    expect(v.confidenceNote).toBe("Medium confidence");
+    const h = advisorView(read({ confidence: { label: "high", score: 90 } }), { flipDesk: false });
+    if (h.state !== "ready") throw new Error("expected ready");
+    expect(h.confidenceNote).toBeNull();
+  });
+
+  it("flip breakdown lists only returned lines; personal gets none", () => {
+    const v = advisorView(read(), { flipDesk: true });
+    if (v.state !== "ready") throw new Error("expected ready");
+    expect(v.breakdown.map((l) => l.label)).toEqual([
+      "Buy", "Fees", "Transport", "Recon", "Selling cost", "Expected sale in TX", "Profit",
+    ]);
+    const noSelling = advisorView(
+      read({ profit: { net: 2100, basis: "estimate", fees: 300, transport: 0, recon: 400, repair: 0, sellingCost: null } }),
+      { flipDesk: true },
+    );
+    if (noSelling.state !== "ready") throw new Error("expected ready");
+    expect(noSelling.breakdown.map((l) => l.label)).toEqual(["Buy", "Fees", "Recon", "Expected sale in TX", "Profit"]);
+    const p = advisorView(read(), { flipDesk: false });
+    if (p.state !== "ready") throw new Error("expected ready");
+    expect(p.breakdown).toEqual([]);
+  });
+
   it("a missing read is Not enough data", () => {
     expect(advisorView(null, { flipDesk: true }).state).toBe("insufficient");
   });
