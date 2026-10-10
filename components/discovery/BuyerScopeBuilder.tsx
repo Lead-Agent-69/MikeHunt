@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePreferences } from "@/hooks/usePreferences";
 import {
   Search,
   MapPin,
@@ -24,9 +25,9 @@ import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 import {
   BUYER_MODES,
-  normalizeBuyerIntent,
   normalizeBuyerMode,
   readLocalBuyerIntent,
+  resolveBuyerIntentScope,
   type BuyerMode,
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
@@ -330,7 +331,21 @@ export function BuyerScopeBuilder({
   initialScope?: BuyerScopeBuilderInitialScope | null;
 }) {
   const dealerWatch = useDealerWatch();
-  const [buyerMode, setBuyerMode] = useState<BuyerMode>("dealer");
+  const {
+    prefs,
+    save: savePreferences,
+    authed,
+    isLoading: prefsLoading,
+    error: prefsError,
+  } = usePreferences();
+  const saveRef = useRef(savePreferences);
+  const skipInitialSave = useRef(true);
+  const hydratedVehicle = useRef("");
+  saveRef.current = savePreferences;
+  const [preferenceStatus, setPreferenceStatus] = useState("");
+  const [preferenceFailed, setPreferenceFailed] = useState(false);
+  const [saveAttempt, setSaveAttempt] = useState(0);
+  const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
   const [vehicle, setVehicle] = useState(VEHICLE_TYPES[0]);
   const [lane, setLane] = useState(LANES[0]);
   const [state, setState] = useState("Nationwide");
@@ -394,22 +409,13 @@ export function BuyerScopeBuilder({
   };
 
   useEffect(() => {
+    if (prefsLoading || prefsError) return;
+    skipInitialSave.current = true;
     let cancelled = false;
     async function loadScope() {
       const localScope = readLocalBuyerIntent();
-      let saved: any = localScope || {};
-      if (!localScope) {
-        try {
-          const res = await fetch("/api/preferences", { cache: "no-store" });
-          if (res.ok) {
-            const data = await res.json();
-            const remoteScope = normalizeBuyerIntent(data?.prefs?.buyerScope);
-            if (remoteScope) saved = remoteScope;
-          }
-        } catch {
-          /* local fallback is enough */
-        }
-      }
+      const saved =
+        resolveBuyerIntentScope(authed, prefs.buyerScope, localScope) || {};
       if (cancelled) return;
       if (initialScope) {
         const vehicleNeedle = String(
@@ -427,6 +433,7 @@ export function BuyerScopeBuilder({
             item.label.toLowerCase() === laneNeedle,
         );
         if (initialVehicle) setVehicle(initialVehicle);
+        hydratedVehicle.current = initialVehicle?.label || vehicle.label;
         if (initialLane) setLane(initialLane);
         const initialBuyerMode = normalizeBuyerMode(
           initialScope.buyerMode || initialScope.mode,
@@ -461,8 +468,9 @@ export function BuyerScopeBuilder({
       );
       const savedLane = LANES.find((item) => item.label === saved.lane);
       if (savedVehicle) setVehicle(savedVehicle);
+      hydratedVehicle.current = savedVehicle?.label || vehicle.label;
       if (savedLane) setLane(savedLane);
-      const savedBuyerMode = normalizeBuyerMode(saved.buyerMode || saved.mode);
+      const savedBuyerMode = normalizeBuyerMode(saved.buyerMode);
       if (savedBuyerMode) setBuyerMode(savedBuyerMode);
       if (typeof saved.state === "string" && STATES.includes(saved.state))
         setState(saved.state);
@@ -482,7 +490,9 @@ export function BuyerScopeBuilder({
     return () => {
       cancelled = true;
     };
-  }, [initialScope]);
+    // Hydrate the form on entry, not on its own debounced write confirmations.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialScope, prefsLoading, prefsError, authed]);
 
   const dealerSourceIds = useMemo(
     () =>
@@ -493,28 +503,38 @@ export function BuyerScopeBuilder({
   );
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || prefsLoading || prefsError) return;
+    if (skipInitialSave.current) {
+      skipInitialSave.current = false;
+      return;
+    }
     const buyerScope = {
       buyerMode,
       vehicle: vehicle.label,
+      vehicles:
+        vehicle.label !== hydratedVehicle.current
+          ? vehicle.q
+            ? [vehicle.label]
+            : []
+          : undefined,
       lane: lane.label,
       laneValue: lane.lane,
       state,
       titleType,
       sellerType,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : 0,
       preferredMakes: makes,
       makes,
       watchedDealers: dealerWatch.hosts,
       watchedDealerSourceIds: dealerSourceIds,
     };
-    writeLocalBuyerIntent(buyerScope);
+    let active = true;
     const timer = window.setTimeout(() => {
-      fetch("/api/preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        // Only write the watch list once prefs have loaded, or an empty pre-load list would wipe it.
-        body: JSON.stringify(
+      setPreferenceStatus("Saving preferences...");
+      setPreferenceFailed(false);
+      // Only write the watch list once prefs have loaded, or an empty pre-load list would wipe it.
+      saveRef
+        .current(
           dealerWatch.ready
             ? {
                 buyerScope,
@@ -522,12 +542,28 @@ export function BuyerScopeBuilder({
                 watchedDealerSourceIds: dealerSourceIds,
               }
             : { buyerScope },
-        ),
-      }).catch(() => {
-        /* guest users still keep local scope */
-      });
+        )
+        .then((confirmed) => {
+          if (!active) return;
+          writeLocalBuyerIntent(confirmed.buyerScope || buyerScope);
+          setPreferenceStatus(
+            authed
+              ? "Preferences saved to your account"
+              : "Preferences saved on this device",
+          );
+        })
+        .catch(() => {
+          if (!active) return;
+          setPreferenceFailed(true);
+          setPreferenceStatus(
+            "Could not save preferences. Your search draft is kept.",
+          );
+        });
     }, 350);
-    return () => window.clearTimeout(timer);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [
     buyerMode,
     vehicle,
@@ -541,6 +577,10 @@ export function BuyerScopeBuilder({
     dealerWatch.ready,
     dealerSourceIds,
     loaded,
+    prefsLoading,
+    prefsError,
+    authed,
+    saveAttempt,
   ]);
 
   useEffect(() => {
@@ -944,6 +984,23 @@ export function BuyerScopeBuilder({
             {makes.length > 2 ? ` +${makes.length - 2}` : ""}
             {maxPrice ? ` · under $${Number(maxPrice).toLocaleString()}` : ""}
           </p>
+          <p
+            role={preferenceFailed || prefsError ? "alert" : "status"}
+            className="mt-2 text-xs text-[var(--t3)]"
+          >
+            {prefsError
+              ? "Could not load account preferences. Reload to try again."
+              : preferenceStatus}
+          </p>
+          {preferenceFailed && (
+            <button
+              type="button"
+              className="min-h-11 text-sm underline"
+              onClick={() => setSaveAttempt((attempt) => attempt + 1)}
+            >
+              Retry saving
+            </button>
+          )}
           <p className="mt-1 text-xs text-[var(--t5)]">
             {scopeHealthLoading
               ? "Checking availability for this search..."

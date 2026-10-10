@@ -86,6 +86,7 @@ export const DealCard = memo(function DealCard({
   sellBasis,
   valuation,
   soldAnchored,
+  needsComps = false,
   repairEstimate,
   transportEstimate,
   warnings = [],
@@ -960,14 +961,25 @@ export const DealCard = memo(function DealCard({
               <p className="text-[9px] uppercase tracking-widest text-[var(--t4)] font-semibold mb-0.5">
                 Net Profit Est.
               </p>
-              <Mono
-                className="text-2xl font-black leading-none"
-                style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
-              >
-                {isPositive ? "+" : "-"}$
-                {Math.abs(profitEstimate).toLocaleString()}
-              </Mono>
-              {recommendedMaxBid != null && (
+              {needsComps ? (
+                <>
+                  <Mono className="text-2xl font-black leading-none text-[var(--t3)]">
+                    —
+                  </Mono>
+                  <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
+                    Needs comps
+                  </p>
+                </>
+              ) : (
+                <Mono
+                  className="text-2xl font-black leading-none"
+                  style={{ color: isPositive ? "var(--green)" : "var(--red)" }}
+                >
+                  {isPositive ? "+" : "-"}$
+                  {Math.abs(profitEstimate).toLocaleString()}
+                </Mono>
+              )}
+              {!needsComps && recommendedMaxBid != null && (
                 <p className="text-[10px] text-[var(--t4)] font-medium mt-1">
                   Max bid{" "}
                   <Mono className="text-[var(--t2)] font-bold">

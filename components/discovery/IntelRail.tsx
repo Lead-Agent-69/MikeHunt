@@ -30,6 +30,21 @@ export function IntelRail({
     dedupingInterval: 60_000,
   });
   const deals: any[] = data?.deals ?? [];
+  if (data?.needsLocation)
+    return (
+      <section className="space-y-2">
+        <h2 className="text-lg font-bold text-[var(--t1)]">{title}</h2>
+        <p className="text-sm text-[var(--t3)]">
+          A ZIP or device location is needed for your saved radius.
+        </p>
+        <a
+          href="/settings"
+          className="inline-flex min-h-11 items-center text-sm underline text-[var(--t2)]"
+        >
+          Update home location
+        </a>
+      </section>
+    );
   if (error || deals.length === 0) return null;
 
   return (

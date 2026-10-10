@@ -5,6 +5,8 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { redactSavedCarForNonFlipDesk } from "@/lib/saved/saved-car-desk-redact";
 
 export const dynamic = "force-dynamic";
 const SAVED_STATUSES = [
@@ -77,7 +79,11 @@ export async function PUT(
         { status: 404 },
       );
 
-    return NextResponse.json(data);
+    // Same read-time desk gate as GET /api/saved-cars: the updated row echoes the snapshot.
+    const flipDesk = await resolveCallerFlipDesk();
+    return NextResponse.json(
+      flipDesk || !data ? data : redactSavedCarForNonFlipDesk(data),
+    );
   } catch (error: any) {
     console.error("[SAVED-CARS-ID] PUT error:", error);
     console.error("[saved-cars/id]", error.message);

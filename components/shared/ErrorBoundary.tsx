@@ -94,7 +94,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 className="min-h-[44px]"
               >
                 <Ico name="refresh" size={16} />
-                Try Again
+                Try again
               </Btn>
               <Btn
                 variant="primary"

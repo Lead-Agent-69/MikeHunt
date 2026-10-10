@@ -1,5 +1,6 @@
 "use client";
 
+import { zipToState } from "@/lib/geo/zip-state";
 import React, {
   useState,
   useEffect,
@@ -8,6 +9,7 @@ import React, {
   useCallback,
   Suspense,
 } from "react";
+import { titleFilterOptions } from "@/lib/deals/title-filter-options";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -2572,13 +2574,23 @@ function ScanPageInner() {
         if (p.maxPrice) setMaxPrice(normalizeMaxPriceFilter(p.maxPrice));
         if (p.targetProfit) setMinProfit(String(p.targetProfit));
         if (p.minYear) setMinYear(String(p.minYear));
+        if (p.maxYear) setMaxYear(String(p.maxYear));
+        if (p.minPrice) setMinPrice(String(p.minPrice));
+        if (p.maxMileage) setMaxMileage(String(p.maxMileage));
+        // A ZIP narrows to its state until radius search lands here ("near 60601" → IL).
+        const zipState = p.zip && !p.state ? zipToState(p.zip) : null;
+        if (zipState) setState(zipState);
 
         const structured = !!(
           p.make ||
           p.state ||
+          zipState ||
           p.maxPrice ||
+          p.minPrice ||
           p.targetProfit ||
-          p.minYear
+          p.minYear ||
+          p.maxYear ||
+          p.maxMileage
         );
         // Residual free-text: the model if we recognized one, else the raw query
         // (so a plain "sienna" still searches), else empty when only filters were found.
@@ -3472,24 +3484,18 @@ function ScanPageInner() {
           { value: "private", label: "Private sellers" },
         ];
   }, [facets?.sellerTypes]);
-  const titleTypeOptions = useMemo(() => {
-    const live = Array.isArray(facets?.titleTypes)
-      ? facets.titleTypes
-          .filter((item: any) => item?.value)
-          .map((item: any) => ({
-            value: String(item.value),
-            label: `${item.label || item.value} (${Number(item.count || 0)})`,
-          }))
-      : [];
-    return live.length
-      ? [{ value: "all", label: "Title: All live" }, ...live]
-      : [
-          { value: "all", label: "Title: All" },
-          { value: "clean", label: "Clean Title" },
-          { value: "salvage", label: "Salvage Title" },
-          { value: "rebuilt", label: "Rebuilt Title" },
-        ];
-  }, [facets?.titleTypes]);
+  // Five title buckets (Clean / Rebuilt / Salvage / Rebuildable / Unknown) with live facet
+  // counts, sent as titleType. Shared with Discover, Swipe and Map.
+  const titleTypeOptions = useMemo(
+    () =>
+      titleFilterOptions(
+        facets?.titleTypes,
+        Array.isArray(facets?.titleTypes) && facets.titleTypes.length
+          ? "Title: All live"
+          : "Title: All",
+      ),
+    [facets?.titleTypes],
+  );
   // Build SWR key from filters
   const swrKey = useMemo(() => {
     const params = new URLSearchParams({

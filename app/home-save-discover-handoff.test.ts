@@ -3,15 +3,13 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-describe("home save → Discover handoff", () => {
-  it("LocationPrefs navigates to Discover for the saved home state", () => {
+describe("home save and Discover refresh", () => {
+  it("LocationPrefs confirms the save without navigating away from Settings", () => {
     const src = read("components/settings/LocationPrefs.tsx");
-    expect(src).toContain('from "next/navigation"');
-    expect(src).toContain("useRouter");
-    expect(src).toMatch(
-      /router\.push\(`\/discover\?state=\$\{encodeURIComponent\(st\)\}`\)/,
-    );
-    expect(src).toContain("Home saved — checking saved listings for ${st}…");
+    expect(src).not.toContain("router.push");
+    expect(src).toContain("await save(patch)");
+    expect(src).toContain("Home saved to your account for ${st}.");
+    expect(src).toContain("Home saved on this device for ${st}.");
   });
 
   it("Discover checks saved listings and does not keep prior market data", () => {

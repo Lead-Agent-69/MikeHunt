@@ -62,6 +62,11 @@ vi.mock("@/lib/server-supabase", () => ({
   getServerUser: async () => ({ data: { user: { id: "u1" } } }),
 }));
 vi.mock("@/lib/reco/signals", () => ({ recordDealSignal: vi.fn() }));
+// The read-time desk gate looks up saved prefs; keep this test about the saved_cars projection.
+vi.mock("@/lib/deals/deal-desk-access", async (orig) => ({
+  ...(await orig<typeof import("@/lib/deals/deal-desk-access")>()),
+  resolveCallerFlipDesk: async () => true,
+}));
 
 import { GET } from "./route";
 import {
