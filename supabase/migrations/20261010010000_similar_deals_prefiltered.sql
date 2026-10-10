@@ -7,6 +7,13 @@
 --
 -- Additive and backward compatible: similar_deals_by_id (20260622030000_intelligence_v2.sql) is
 -- untouched, and the app falls back to it (with the same gate in memory) until this is applied.
+--
+-- Security: both RPCs return flip economics (true_net_profit, sell_estimate, profit_score). The only
+-- caller is /api/deals/[id]/similar, which runs server-side with the service-role client
+-- (createServerComponentClient) and redacts per desk. Exposing EXECUTE to anon/authenticated would
+-- let anyone hit /rest/v1/rpc/... and skip that redaction, so EXECUTE is service_role only. Guests are
+-- unaffected (they never call the RPC directly). Explicit SECURITY INVOKER + pinned search_path;
+-- `extensions` is listed so pgvector's <=> resolves whether vector lives in public or extensions.
 CREATE OR REPLACE FUNCTION public.similar_deals_by_id_filtered(
   p_deal_id   UUID,
   p_count     INT     DEFAULT 60,
@@ -22,7 +29,11 @@ RETURNS TABLE (
   profit_score SMALLINT, location_state CHAR(2), location_city TEXT, images TEXT[],
   source deal_source, similarity FLOAT
 )
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public, extensions, pg_temp
+AS $$
   SELECT d.id, d.year, d.make, d.model, d.ask_price, d.mileage, d.condition, d.deal_verdict,
          d.true_net_profit, d.sell_estimate, d.profit_score, d.location_state, d.location_city,
          d.images, d.source,
@@ -42,5 +53,19 @@ LANGUAGE sql STABLE AS $$
   LIMIT LEAST(GREATEST(p_count, 1), 200);
 $$;
 
+REVOKE ALL ON FUNCTION public.similar_deals_by_id_filtered(UUID, INT, FLOAT, INTEGER, INTEGER, INTEGER, INTEGER)
+  FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.similar_deals_by_id_filtered(UUID, INT, FLOAT, INTEGER, INTEGER, INTEGER, INTEGER)
-  TO anon, authenticated, service_role;
+  TO service_role;
+
+-- Legacy similar_deals_by_id (20260622030000_intelligence_v2.sql) had no REVOKE, so PUBLIC (hence
+-- anon) could execute it and read the same flip-economics columns. Close it the same way without
+-- editing the applied migration. Guarded so a fresh DB without the function doesn't fail.
+DO $$
+BEGIN
+  IF to_regprocedure('public.similar_deals_by_id(uuid, integer, double precision)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.similar_deals_by_id(UUID, INT, FLOAT) FROM PUBLIC, anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.similar_deals_by_id(UUID, INT, FLOAT) TO service_role;
+  END IF;
+END
+$$;
