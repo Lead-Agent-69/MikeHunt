@@ -33,13 +33,14 @@ The reviewed registry at `lib/scrapers/access-grants.json` is intentionally empt
 - Guarded service-role views and inventory RPC reads recheck current permissions; valuation reads require derived-use rights.
 - Production feed/market caches do not reuse inventory across permission changes. This trades read volume for immediate revocation safety until a database-backed policy epoch is available.
 - Redis-backed HTTP host leases, shared pacing and denial cooldowns use atomic owner tokens and fail closed when coordination is unavailable.
+- Polite rendering fulfills document/script/API/worker/popup requests through the same guarded HTTP layer instead of Chromium networking. Service workers and WebSockets are blocked; only public GETs are supported. Limits are 40 collected resources, 8 MiB cumulative response text and a 60-second render deadline. This is not support for authenticated or POST-based inventory APIs.
 - Per-event receipt files reconcile idempotently before later runs. Admin quarantine endpoints support bounded review and optimistic status changes; rejected facts are never republished as listings.
 - The daily retention cron prunes acknowledged receipts after 30 days and dismissed quarantine facts after 90 days; unresolved holds remain available for review.
 
 ## Remaining Release Blockers
 
 - Finish acceptance against the full production schema for every independently constructed privileged client and derived output. Local fixtures cover guarded views/RPCs but are not a full deployed-schema rehearsal.
-- Coordinate every browser subresource through shared quotas; shared HTTP leases are implemented, but rendering still needs end-to-end quota acceptance.
+- Validate browser quota behavior against each approved production adapter and coordinated Redis workers. Unit tests and `npx tsx scripts/check-browser-request-gate.ts` cover bounded rendering, denial/cancellation, popups and workers with synthetic responses; they do not prove every dealer's JavaScript application is compatible.
 - Add operator review UI, authorized source re-observation from quarantine, legacy JSONL receipt migration, and alert delivery verification. Review endpoints do not claim to repair rejected observations automatically.
 - Fully versioned identity groups across pagination, maps, counts, recommendations, and saved-search alerts; fuzzy candidates remain review-only.
 - Official API/feed adapters and credentials where authorized, including eBay; no new source approval is implied by this release.

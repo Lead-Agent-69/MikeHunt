@@ -53,6 +53,23 @@ duplicate navigation only after an equivalent contextual entry point and redirec
 - Free deal-view access, calibration and saved-search notifications no longer depend on legacy payment gates.
 - Permission synchronization preserves identical approved grants instead of holding all inventory on every run. Changed or removed rights are still revoked before replacement. Run synchronization from a single operator; this helper is not a distributed policy-edit transaction.
 - Read-only queue ledger and redacted configuration preflight; permission flags require actual booleans.
+- Main through `4fd77c9` integrated: saved-search columns, seller/source/image boundaries, guest feed bounds, evidence-based verdicts, VIN enrichment and quality flags retained alongside the permission gates. Integrity retention and VIN-cache expiry both run.
+- Polite browser requests now use the shared guarded HTTP path, including popups and workers, with request/byte/deadline caps. Synthetic real-Chromium validation passes; authenticated/POST inventory is intentionally unsupported, not silently bypassed.
+
+## Release observations (2026-10-10)
+
+PR #336 is still draft and has no recorded Ren approval. Vercel inspection confirmed deployment
+`dpl_3BmnB1f7YLwNzrjafv85nPQHCs6M` Ready in production at 07:09 CT and aliased to
+`mikehunt-69.vercel.app`; this is not deployment evidence for this branch. The older PR bot quota
+failure is historical and does not mean the live deployment is currently down.
+
+Fresh production environment preflight fails the matching VAPID pair, contact subject, Resend API
+credentials and webhook-signing-secret checks. Do not rotate the public push identity without
+reviewing existing subscriptions or invent provider credentials. No production settings were changed.
+
+Guest E2E must run against a production-mode local build: the suite rejects Next.js development
+portals, including its normal dev indicator. A failed attempt against dev is not evidence of an app
+failure or a completed desktop/mobile pass. Signed-in desk and account-isolation acceptance remains pending.
 
 ## Still required, not claimed complete
 
@@ -62,7 +79,7 @@ against an unmigrated database or cut over to an unexplained empty marketplace.
 
 Acceptance must also cover remaining independently constructed clients/RPCs, GO filters/counts/alerts
 after rescoring, and higher per-user targets across every feed (detail and domain support alone do not
-prove global personalization). Browser subresource quotas, verified-empty/full-scan expiry, operator
+prove global personalization). Approved-adapter/worker quota acceptance, verified-empty/full-scan expiry, operator
 quarantine UI/re-observation and legacy receipt recovery remain separate unfinished work.
 
 Run all supported desk journeys: onboarding and free expansion, Discover/Scan filters, previews,
