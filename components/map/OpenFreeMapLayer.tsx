@@ -37,10 +37,16 @@ export function useAppTheme(): MapTheme {
 export default function OpenFreeMapLayer({ theme }: { theme: MapTheme }) {
   const map = useMap();
   const layerRef = useRef<L.MaplibreGL | null>(null);
+  const styleRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // The old raster TileLayer implicitly gave Leaflet a maxZoom; a GL layer does not, and
+    // leaflet.markercluster throws "Map has no maxZoom specified" without one.
+    if (!map.options.maxZoom) map.setMaxZoom(19);
+    if (map.options.minZoom == null) map.setMinZoom(2);
+    styleRef.current = openFreeMapStyleFor(readTheme());
     const layer = maplibreGL({
-      style: openFreeMapStyleFor(readTheme()),
+      style: styleRef.current,
       // Fixed attribution so it stays correct across light/dark style swaps.
       attributionControl: { customAttribution: OPENFREEMAP_ATTRIBUTION },
     });
@@ -53,8 +59,12 @@ export default function OpenFreeMapLayer({ theme }: { theme: MapTheme }) {
   }, [map]);
 
   useEffect(() => {
+    const next = openFreeMapStyleFor(theme);
     const gl = layerRef.current?.getMaplibreMap();
-    if (gl) gl.setStyle(openFreeMapStyleFor(theme));
+    if (gl && styleRef.current !== next) {
+      styleRef.current = next;
+      gl.setStyle(next);
+    }
   }, [theme]);
 
   return null;

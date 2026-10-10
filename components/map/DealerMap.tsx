@@ -8,6 +8,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
 import "leaflet.markercluster";
 import OpenFreeMapLayer, { useAppTheme } from "./OpenFreeMapLayer";
+import { pillTextColor } from "@/lib/map/pillColors";
 
 // Fix Leaflet's default icon paths in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -99,7 +100,7 @@ function pillIcon(p: MapPoint): L.DivIcon {
         : "•";
   return new L.DivIcon({
     className: "deal-pin",
-    html: `<div style="background:${color};color:#fff;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">${esc(text)}</div>`,
+    html: `<div style="background:${color};color:${pillTextColor(color)};font:700 12px/1 system-ui;padding:8px 10px;border-radius:16px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">${esc(text)}</div>`,
     iconSize: [1, 1],
     iconAnchor: [0, 0],
   });
@@ -208,11 +209,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         key={mapKey}
         center={[39.8283, -98.5795]}
         zoom={4}
-        style={{
-          width: "100%",
-          height: "100%",
-          background: theme === "dark" ? "#0a0a0a" : "#f2efe9",
-        }}
+        style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
         zoomControl={false}
       >
         {/* OpenFreeMap vector basemap (free, no API key): liberty in light theme, dark in dark. */}
