@@ -547,10 +547,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     }
   }
 
-  // Mark duplicate deals by VIN
-  const vinRows = returnedRows.filter((r) => r.vin);
-  if (vinRows.length > 0) {
-    await markDuplicatesByVin(vinRows.map((r) => r.vin as string));
+  // Cross-source dedup (exact VIN, then fuzzy) for the rows this batch wrote. Links copies to one
+  // canonical row via duplicate_of_id; never deletes a source's listing.
+  if (returnedRows.length > 0) {
+    await dedupeWrittenDeals(returnedRows);
   }
 
   // Evaluate against user_saved_searches
@@ -566,20 +566,33 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   return returnedRows.length;
 }
 
-async function markDuplicatesByVin(vins: string[]): Promise<void> {
-  const { error } = await getSupabase().rpc("detect_duplicates_by_vin", {
+/**
+ * Run public.dedupe_deals over the rows a batch just wrote (20261010220000). Until that migration is
+ * applied on hosted, fall back to the old VIN-only detect_duplicates_by_vin. Best-effort: a dedup
+ * failure never fails the write.
+ */
+export async function dedupeWrittenDeals(
+  rows: { id?: string | null; vin?: string | null }[],
+): Promise<void> {
+  const ids = rows.map((r) => r.id).filter((id): id is string => !!id);
+  if (!ids.length) return;
+  const sb = getSupabase();
+  const { error } = await sb.rpc("dedupe_deals", { p_ids: ids });
+  if (!error) return;
+  const missing =
+    (error as { code?: string }).code === "PGRST202" ||
+    /could not find the function|does not exist/i.test(error.message || "");
+  if (!missing) {
+    console.warn("[upsertDeals] dedupe_deals warning:", error.message);
+    return;
+  }
+  const vins = rows.map((r) => r.vin).filter((v): v is string => !!v);
+  if (!vins.length) return;
+  const { error: vinError } = await sb.rpc("detect_duplicates_by_vin", {
     vin_filter: vins,
   });
-
-  if (error) {
-    // Fallback to RPC without parameter if function doesn't accept it
-    const { error: fallbackError } = await getSupabase().rpc(
-      "detect_duplicates_by_vin",
-    );
-    if (fallbackError) {
-      console.warn("[upsertDeals] Duplicate detection warning:", fallbackError);
-    }
-  }
+  if (vinError)
+    console.warn("[upsertDeals] Duplicate detection warning:", vinError);
 }
 
 export async function insertPriceHistory(

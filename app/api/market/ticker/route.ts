@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     .from("deals")
     .select("id", { count: "exact", head: true })
     .eq("active", true)
+    .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
     .gte("created_at", since);
   if (flipDesk) newToday = newToday.eq("deal_verdict", "go");
 
@@ -38,7 +39,9 @@ export async function GET(req: NextRequest) {
       .order("data_points", { ascending: false })
       .limit(10),
     flipDesk
-      ? supabase.from("flash_deals").select("id", { count: "exact", head: true })
+      ? supabase
+          .from("flash_deals")
+          .select("id", { count: "exact", head: true })
       : Promise.resolve({ count: 0 }),
   ]);
 

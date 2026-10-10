@@ -28,12 +28,14 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("deal_verdict", "go")
       .eq("active", true)
+      .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
       .gte("created_at", since),
     supabase
       .from("deals")
       .select("id", { count: "exact", head: true })
       .eq("deal_verdict", "go")
-      .eq("active", true),
+      .eq("active", true)
+      .is("duplicate_of_id", null), // canonical rows only (cross-source dedup)
     supabase
       .from("deal_outcomes")
       .select("days_to_sell")

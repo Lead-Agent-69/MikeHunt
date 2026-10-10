@@ -401,7 +401,7 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at",
+        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at, duplicate_of_id",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gte(
@@ -422,6 +422,8 @@ async function loadMarketIndexUnlocked(
     data.push(
       ...pageRows.filter(
         (r: any) =>
+          // A linked copy of another listing (cross-source dedup) is the same car: count it once.
+          !r.duplicate_of_id &&
           qualityFlags({
             ask_price: r.ask_price,
             mileage: r.mileage,

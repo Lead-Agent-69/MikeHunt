@@ -153,6 +153,7 @@ export async function GET() {
       "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
     )
     .eq("active", true)
+    .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0)
     .in("make", makes)
