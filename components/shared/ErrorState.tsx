@@ -21,7 +21,7 @@ export function ErrorState({
   title = "Something went wrong",
   message = "An unexpected error occurred. Please try again.",
   onRetry,
-  retryLabel = "Try Again",
+  retryLabel = "Try again",
   icon = "alert-triangle",
   compact = false,
 }: ErrorStateProps) {

@@ -3,13 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import {
-  BarChart3,
-  ExternalLink,
-  Heart,
-  MapPin,
-  RefreshCw,
-} from "lucide-react";
+import { BarChart3, ExternalLink, Heart, MapPin } from "lucide-react";
 import { proxiedImage } from "@/lib/image-url";
 import { usePreferences } from "@/hooks/usePreferences";
 import { savedScopeStates } from "@/lib/preferences/location-form";
@@ -24,6 +18,7 @@ import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { sourceLabel } from "@/lib/sources/source-meta";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import { ErrorState } from "@/components/shared/PageStates";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -244,21 +239,14 @@ export default function FeedPage() {
       ))}
       <div ref={sentinel} className="h-2" />
       {loadError && !loading && (
-        <div
-          role="status"
-          className="bg-[var(--s1)] px-6 py-10 text-center text-[var(--t1)]"
-        >
-          <p className="font-semibold">Feed temporarily unavailable</p>
-          <p className="mt-2 text-sm text-[var(--t3)]">
-            Your existing listings are still here. Try loading the next page
-            again.
-          </p>
-          <button
-            onClick={() => void loadMore()}
-            className="mt-4 inline-flex min-h-12 items-center gap-2 px-4 font-semibold text-[var(--blue)]"
-          >
-            <RefreshCw size={16} aria-hidden="true" /> Try again
-          </button>
+        <div className="px-4 py-6">
+          <ErrorState
+            compact
+            title="Feed temporarily unavailable"
+            message="Your existing listings are still here. Try loading the next page again."
+            onRetry={() => void loadMore()}
+            retryLabel="Try again"
+          />
         </div>
       )}
       {items.length === 0 && loading && configured !== false && (

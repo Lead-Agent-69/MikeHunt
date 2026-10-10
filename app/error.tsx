@@ -46,7 +46,7 @@ export default function RouteError({
             style={{ background: "var(--grad)" }}
           >
             <Ico name="refresh" size={16} />
-            Try Again
+            Try again
           </button>
           <button
             onClick={() => (window.location.href = "/")}
