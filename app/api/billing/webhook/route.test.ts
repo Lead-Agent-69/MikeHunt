@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   subscription: null as any,
   calls: [] as any[],
   errorFor: (_c: any): any => null,
+  dataFor: (_c: any): any => undefined,
   badSignature: false,
 }));
 const sentry = vi.hoisted(() => ({
@@ -104,8 +105,30 @@ vi.mock("@/lib/supabase", () => ({
           call.filters.push(["is", c, v]);
           return b;
         },
+        or(expr: string) {
+          call.filters.push(["or", expr]);
+          return b;
+        },
+        limit(n: number) {
+          call.filters.push(["limit", n]);
+          return b;
+        },
+        select(cols: string) {
+          if (!call.op) call.op = "select";
+          else call.returning = cols;
+          return b;
+        },
         then(res: any, rej: any) {
-          return Promise.resolve({ error: state.errorFor(call) }).then(
+          const custom = state.dataFor(call);
+          const data =
+            custom !== undefined
+              ? custom
+              : call.op === "select"
+                ? []
+                : call.returning
+                  ? [{ id: "user-1" }]
+                  : null;
+          return Promise.resolve({ error: state.errorFor(call), data }).then(
             res,
             rej,
           );
@@ -147,12 +170,13 @@ function checkoutEvent(
   };
 }
 
-function sub(status: string, price: string) {
+function sub(status: string, price: string | string[], customer = "cus_1") {
+  const prices = Array.isArray(price) ? price : [price];
   return {
     id: "sub_1",
-    customer: "cus_1",
+    customer,
     status,
-    items: { data: [{ price: { id: price } }] },
+    items: { data: prices.map((id) => ({ price: { id } })) },
   };
 }
 
@@ -165,6 +189,7 @@ beforeEach(() => {
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
   state.calls = [];
   state.errorFor = () => null;
+  state.dataFor = () => undefined;
   state.badSignature = false;
   state.lineItems = [];
   sentry.captureException.mockReset();
@@ -204,8 +229,8 @@ describe("checkout.session.completed", () => {
     state.lineItems = [{ price: { id: LIFETIME } }];
     const res = await POST(req());
     expect(res.status).toBe(200);
-    expect(planWrites()[0].payload).toMatchObject({
-      plan: "lifetime",
+    expect(planWrites()[0].payload).toMatchObject({ plan: "lifetime" });
+    expect(profileUpdates()[0].payload).toEqual({
       stripe_customer_id: "cus_1",
     });
     expect(stripeApi.retrieve).not.toHaveBeenCalled();
@@ -269,8 +294,11 @@ describe("checkout.session.completed", () => {
     expect(planWrites()).toEqual([]);
   });
 
-  it("session without a user id -> no grant", async () => {
-    state.event = checkoutEvent({ metadata: {}, client_reference_id: null });
+  it("client_reference_id alone is not trusted (metadata.user_id only) -> no grant", async () => {
+    state.event = checkoutEvent({
+      metadata: {},
+      client_reference_id: "user-1",
+    });
     state.lineItems = [{ price: { id: PRO } }];
     await POST(req());
     expect(planWrites()).toEqual([]);
@@ -407,6 +435,134 @@ describe("idempotency, errors, signature", () => {
     const lines = src.split("\n").filter((l) => /await\s+(db|q|s)\b/.test(l));
     expect(lines.length).toBeGreaterThanOrEqual(6);
     for (const l of lines)
-      expect(l).toMatch(/const \{ error(: \w+)? \} = await (db|q|s)\b/);
+      expect(l).toMatch(
+        /const \{ (data(: \w+)?, )?error(: \w+)? \} = await (db|q|s)\b/,
+      );
+  });
+});
+
+describe("Ren #255 nits", () => {
+  it("customer already linked to another user -> rejected, Sentry, no grant", async () => {
+    state.event = checkoutEvent({ mode: "payment", subscription: null });
+    state.lineItems = [{ price: { id: LIFETIME } }];
+    state.dataFor = (c) =>
+      c.op === "select" &&
+      c.filters.some((f: any[]) => f[1] === "stripe_customer_id")
+        ? [{ id: "someone-else" }]
+        : undefined;
+    const res = await POST(req());
+    expect(res.status).toBe(200);
+    expect(planWrites()).toEqual([]);
+    expect(profileUpdates()).toEqual([]);
+    expect(sentry.captureMessage).toHaveBeenCalledWith(
+      expect.stringContaining("customer already linked to another user"),
+      expect.anything(),
+    );
+  });
+
+  it("user already linked to a different customer (guarded update matches 0 rows) -> no grant", async () => {
+    state.event = checkoutEvent({ mode: "payment", subscription: null });
+    state.lineItems = [{ price: { id: LIFETIME } }];
+    state.dataFor = (c) => (c.op === "update" && c.returning ? [] : undefined);
+    await POST(req());
+    expect(planWrites()).toEqual([]);
+    const link = profileUpdates()[0];
+    expect(link.payload).toEqual({ stripe_customer_id: "cus_1" });
+    expect(link.filters).toContainEqual([
+      "or",
+      "stripe_customer_id.is.null,stripe_customer_id.eq.cus_1",
+    ]);
+    expect(link.filters).toContainEqual(["eq", "id", "user-1"]);
+  });
+
+  it("add-on-first subscription: highest KNOWN recurring item wins, unknown add-on ignored", async () => {
+    state.event = {
+      id: "evt_addon",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_1" } },
+    };
+    state.subscription = sub("active", ["price_addon_unknown", PRO, PRO_PLUS]);
+    await POST(req());
+    expect(planWrites()[0].payload).toMatchObject({ plan: "pro_plus" });
+  });
+
+  it("Stripe API throw -> 500, Sentry, claim released", async () => {
+    state.event = checkoutEvent({});
+    stripeApi.listLineItems
+      .mockReset()
+      .mockRejectedValue(new Error("stripe down"));
+    const res = await POST(req());
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      tags: {
+        stripe_event_id: "evt_test_1",
+        stripe_event_type: "checkout.session.completed",
+      },
+    });
+    expect(state.calls).toContainEqual(
+      expect.objectContaining({
+        table: "stripe_events",
+        op: "delete",
+        filters: [["eq", "id", "evt_test_1"]],
+      }),
+    );
+    expect(planWrites()).toEqual([]);
+  });
+
+  it("checkout.session.async_payment_succeeded grants like a paid completion", async () => {
+    state.event = checkoutEvent(
+      { mode: "payment", subscription: null },
+      "checkout.session.async_payment_succeeded",
+    );
+    state.lineItems = [{ price: { id: LIFETIME } }];
+    await POST(req());
+    expect(planWrites()[0].payload).toMatchObject({ plan: "lifetime" });
+  });
+
+  it("customer.subscription.created re-fetches and grants by customer", async () => {
+    state.event = {
+      id: "evt_created",
+      type: "customer.subscription.created",
+      data: { object: { id: "sub_1", status: "incomplete" } },
+    };
+    state.subscription = sub("active", PRO);
+    await POST(req());
+    expect(stripeApi.retrieve).toHaveBeenCalledWith("sub_1");
+    const [w] = planWrites();
+    expect(w.payload).toMatchObject({
+      plan: "pro",
+      stripe_subscription_id: "sub_1",
+    });
+    expect(w.filters).toContainEqual(["eq", "stripe_customer_id", "cus_1"]);
+  });
+
+  it("plan_started_at is stamped only where it is NULL, never overwritten", async () => {
+    state.event = {
+      id: "evt_stamp",
+      type: "customer.subscription.updated",
+      data: { object: { id: "sub_1" } },
+    };
+    state.subscription = sub("active", PRO);
+    await POST(req());
+    const stamps = profileUpdates().filter(
+      (c) => c.payload && "plan_started_at" in c.payload,
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0].filters).toContainEqual(["is", "plan_started_at", null]);
+    expect(stamps[0].filters).toContainEqual([
+      "eq",
+      "stripe_subscription_id",
+      "sub_1",
+    ]);
+    // the plan write itself never touches plan_started_at
+    expect(planWrites()[0].payload).not.toHaveProperty("plan_started_at");
+  });
+
+  it("checkout subscription whose live customer differs from the session customer -> no grant", async () => {
+    state.event = checkoutEvent({});
+    state.lineItems = [{ price: { id: PRO } }];
+    state.subscription = sub("active", PRO, "cus_other");
+    await POST(req());
+    expect(planWrites()).toEqual([]);
   });
 });

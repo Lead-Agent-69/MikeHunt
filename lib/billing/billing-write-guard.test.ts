@@ -23,7 +23,17 @@ const SESSION_CLIENT = [
   /\bcreateBrowserClient\s*\(/,
   /\bcreateRouteHandlerClient\s*\(/,
   /\bcreateClientComponentClient\s*\(/,
+  /\bgetSupabaseClient\s*\(/,
+  /\bgetSupabase\s*\(/,
+  /\bcreateClient\s*\([^)]*ANON_KEY/,
 ];
+
+/** Drop block and line comments (keeping "://" in URLs) so commented-out code can't trip or hide. */
+export function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+}
 
 // Client modules that only DEFINE the session client (no writes) are scanned like everything else.
 const EXT = /\.(ts|tsx)$/;
@@ -52,7 +62,8 @@ const writeRe = /\.(update|upsert|insert)\s*\(/;
 const profilesRe = /["'`](user_profiles|profiles)["'`]/;
 const rpcRe = /\.rpc\s*\(/;
 
-export function billingWriteOffence(src: string): string | null {
+export function billingWriteOffence(raw: string): string | null {
+  const src = stripComments(raw);
   if (!SESSION_CLIENT.some((r) => r.test(src))) return null;
   if (!keyRe.test(src)) return null;
   // Table writes (payload may be a variable built elsewhere in the module) or RPC calls with a
@@ -90,6 +101,27 @@ describe("billing columns are written only through the service role", () => {
         'import { createServerClient } from "@supabase/ssr";\nconst c = createServerClient(u,k,o);\nc.from("user_profiles").update({ plan_ended_at: now })',
       ),
     ).not.toBeNull();
+    expect(
+      billingWriteOffence(
+        'const sb = getSupabaseClient();\nawait sb.from("user_profiles").update({ plan: "pro" })',
+      ),
+    ).not.toBeNull();
+    expect(
+      billingWriteOffence(
+        'const sb = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);\nsb.from("profiles").upsert({ stripe_subscription_id: s })',
+      ),
+    ).not.toBeNull();
+    // comments are ignored in both directions
+    expect(
+      billingWriteOffence(
+        'import { createServerComponentClient } from "@/lib/supabase";\n// getSupabaseClient() used to do this\nsb.from("user_profiles").update({ plan: "pro" })',
+      ),
+    ).toBeNull();
+    expect(
+      billingWriteOffence(
+        'const sb = getSupabase();\n/* sb.from("user_profiles").update({ plan: "pro" }) */\nsb.from("deals").select("id")',
+      ),
+    ).toBeNull();
     // service role is fine
     expect(
       billingWriteOffence(

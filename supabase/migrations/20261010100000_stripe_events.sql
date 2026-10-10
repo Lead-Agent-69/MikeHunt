@@ -30,6 +30,28 @@ GRANT SELECT, INSERT, DELETE ON public.stripe_events TO service_role;
 
 CREATE INDEX IF NOT EXISTS stripe_events_received_at_idx ON public.stripe_events (received_at);
 
+-- Self-check: fail the migration if a client role can touch the ledger, or the webhook can't write it.
+DO $$
+DECLARE
+  r text;
+  p text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'] LOOP
+      IF has_table_privilege(r, 'public.stripe_events', p) THEN
+        RAISE EXCEPTION 'stripe_events still % -able by %', p, r;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF NOT has_table_privilege('service_role', 'public.stripe_events', 'INSERT') THEN
+    RAISE EXCEPTION 'service_role cannot INSERT into stripe_events';
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.stripe_events'::regclass) THEN
+    RAISE EXCEPTION 'stripe_events RLS is not enabled';
+  END IF;
+END
+$$;
+
 COMMIT;
 
 NOTIFY pgrst, 'reload schema';

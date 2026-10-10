@@ -14,6 +14,8 @@ import { createServerComponentClient } from "@/lib/supabase";
 // POST /api/billing/webhook: the ONLY Stripe webhook (POST /api/checkout/beta-access is retired, 410).
 //
 // Rules:
+//  * Users are identified by metadata.user_id only; a Stripe customer is linked to at most one
+//    user and never re-linked.
 //  * Signature is verified with STRIPE_WEBHOOK_SECRET before anything else.
 //  * Plans come only from PLANS price ids. Unknown prices are logged and never grant a paid plan.
 //  * checkout.session.completed requires the mode that matches the plan (recurring -> subscription,
@@ -72,15 +74,70 @@ function dbCheck(
 
 type Db = ReturnType<typeof createServerComponentClient>;
 
+const CUSTOMER_ID = /^cus_[A-Za-z0-9]+$/;
+
+/**
+ * Link a Stripe customer to a user. Only sets stripe_customer_id when it is NULL or already equal,
+ * and refuses a customer that is already linked to a different user. Returns false (after logging
+ * to Sentry) when the link is refused; callers must not grant anything in that case.
+ */
+async function linkCustomer(
+  db: Db,
+  ctx: Ctx,
+  userId: string,
+  customerId: string,
+): Promise<boolean> {
+  if (!CUSTOMER_ID.test(customerId)) {
+    reject(ctx, "malformed customer id", { customerId });
+    return false;
+  }
+  const { data: others, error: e1 } = await db
+    .from("user_profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .neq("id", userId)
+    .limit(1);
+  dbCheck(ctx, "customer ownership lookup", e1);
+  if (others && others.length > 0) {
+    reject(ctx, "customer already linked to another user", {
+      customerId,
+      userId,
+    });
+    return false;
+  }
+  const { data: linked, error: e2 } = await db
+    .from("user_profiles")
+    .update({ stripe_customer_id: customerId })
+    .eq("id", userId)
+    .or(`stripe_customer_id.is.null,stripe_customer_id.eq.${customerId}`)
+    .select("id");
+  dbCheck(ctx, "link customer", e2);
+  if (!linked || linked.length === 0) {
+    reject(
+      ctx,
+      "user already linked to a different customer (or no such user)",
+      {
+        customerId,
+        userId,
+      },
+    );
+    return false;
+  }
+  return true;
+}
+
 async function grantFromCheckout(
   stripe: Stripe,
   db: Db,
   ctx: Ctx,
   session: Stripe.Checkout.Session,
 ) {
-  const userId = session.metadata?.user_id || session.client_reference_id;
+  // metadata.user_id only. client_reference_id is NOT trusted: no session is created server-side
+  // today (/api/billing/checkout is 410), and Payment Links let the buyer set client_reference_id.
+  // A future server-created session must set metadata.user_id.
+  const userId = session.metadata?.user_id;
   if (!userId)
-    return reject(ctx, "checkout session has no user id", {
+    return reject(ctx, "checkout session has no metadata.user_id", {
       session: session.id,
     });
 
@@ -118,26 +175,26 @@ async function grantFromCheckout(
 
   if (plan.recurring) {
     const subId = idOf(session.subscription as any);
-    if (!subId)
-      return reject(ctx, "subscription checkout without subscription id", {
-        session: session.id,
-      });
-    // Link the customer to the user, then derive the plan from live subscription state.
-    const { error } = await db
-      .from("user_profiles")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", userId);
-    dbCheck(ctx, "link customer", error);
-    return syncSubscription(stripe, db, ctx, subId, userId);
+    if (!subId || !customerId)
+      return reject(
+        ctx,
+        "subscription checkout without subscription/customer id",
+        {
+          session: session.id,
+        },
+      );
+    if (!(await linkCustomer(db, ctx, userId, customerId))) return;
+    // The plan itself comes from the live subscription state.
+    return syncSubscription(stripe, db, ctx, subId, { userId, customerId });
   }
 
+  if (customerId && !(await linkCustomer(db, ctx, userId, customerId))) return;
   const { error } = await db
     .from("user_profiles")
     .update({
       plan: plan.id,
       plan_started_at: new Date().toISOString(),
       plan_ended_at: null,
-      stripe_customer_id: customerId,
     })
     .eq("id", userId);
   dbCheck(ctx, "grant one-time plan", error);
@@ -148,26 +205,51 @@ async function syncSubscription(
   db: Db,
   ctx: Ctx,
   subscriptionId: string,
-  userId?: string | null,
+  from?: { userId: string; customerId: string },
 ) {
   // Never trust the event payload: fetch the current state.
   const sub = await stripe.subscriptions.retrieve(subscriptionId);
   const customerId = idOf(sub.customer as any);
-  const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+  if (from && customerId !== from.customerId) {
+    return reject(
+      ctx,
+      "subscription customer does not match checkout customer",
+      {
+        subscription: sub.id,
+        customerId,
+        checkoutCustomer: from.customerId,
+      },
+    );
+  }
   const active = ACTIVE_SUB_STATUSES.has(sub.status);
 
   if (active) {
-    if (!userId && !customerId) {
+    if (!customerId) {
       return reject(ctx, "subscription has no customer", {
         subscription: sub.id,
       });
     }
-    const plan = planForPrice(priceId);
-    if (!plan || !plan.recurring) {
+    // Every item, like checkout: the plan is the highest KNOWN recurring price. Unknown items
+    // (e.g. an add-on listed first) never grant anything and are logged; no known plan -> reject.
+    const priceIds = (sub.items?.data ?? [])
+      .map((it) => it.price?.id ?? null)
+      .filter(Boolean) as string[];
+    const known = priceIds
+      .map((p) => planForPrice(p))
+      .filter((m): m is PaidPlanMatch => !!m && m.recurring);
+    const plan = highestPlan(known);
+    if (!plan) {
       return reject(ctx, "unknown subscription price", {
         subscription: sub.id,
-        priceId,
+        priceIds,
       });
+    }
+    const unknown = priceIds.filter((p) => !planForPrice(p));
+    if (unknown.length > 0) {
+      console.warn(
+        `[stripe webhook] ${ctx.eventId}: ignoring unknown subscription items`,
+        unknown,
+      );
     }
     let q = db
       .from("user_profiles")
@@ -176,8 +258,9 @@ async function syncSubscription(
         stripe_subscription_id: sub.id,
         plan_ended_at: null,
       })
-      .neq("plan", "lifetime");
-    q = userId ? q.eq("id", userId) : q.eq("stripe_customer_id", customerId);
+      .neq("plan", "lifetime")
+      .eq("stripe_customer_id", customerId);
+    if (from) q = q.eq("id", from.userId);
     const { error } = await q;
     dbCheck(ctx, "sync active subscription", error);
     // plan_started_at only when it wasn't set (first activation).
