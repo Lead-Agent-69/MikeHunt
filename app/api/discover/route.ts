@@ -60,7 +60,8 @@ import {
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
   redactListingForNonFlipDesk,
-  resolveCallerDesk,
+  resolveCallerAccess,
+  redactSellerForGuest,
 } from "@/lib/deals/deal-desk-access";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
 import {
@@ -1074,15 +1075,22 @@ export async function GET(request: NextRequest) {
     // cards, and the wholesale flip rails (Top Flips, Auction Lots, New to MikeHunt, and Salvage
     // except for parts) are dropped here, not just hidden by the page. Cards are copied, never
     // mutated, because `merged` is cached.
-    const desk = await resolveCallerDesk();
+    const { desk, signedIn } = await resolveCallerAccess();
     const flipDesk = desk === "flip";
-    const deskRails = flipDesk
+    const deskRails0 = flipDesk
       ? rails
       : filterRailsForDesk(rails, desk, {
           includeRepairable: scopeIncludesRepairable,
         }).map((r) => ({
           ...r,
           deals: r.deals.map((d: any) => redactListingForNonFlipDesk(d)),
+        }));
+    // Signed out: no seller names either (often a private person on CL / FB).
+    const deskRails = signedIn
+      ? deskRails0
+      : deskRails0.map((r) => ({
+          ...r,
+          deals: r.deals.map((d: any) => redactSellerForGuest(d)),
         }));
 
     return NextResponse.json({

@@ -289,18 +289,35 @@ export function listingsForDesk<T extends Record<string, any>>(
  * no prefs, any other mode, or any lookup error → "personal" (fail closed).
  */
 export async function resolveCallerDesk(): Promise<DiscoverDesk> {
+  return (await resolveCallerAccess()).desk;
+}
+
+/**
+ * The CURRENT request's desk plus whether it is signed in. A failed session lookup counts as
+ * signed out (guest), so seller identity is redacted (fail closed).
+ */
+export async function resolveCallerAccess(): Promise<{
+  desk: DiscoverDesk;
+  signedIn: boolean;
+}> {
+  let userId: string | undefined;
   try {
     const {
       data: { user },
     } = await getServerUser();
-    if (!user?.id) return "personal";
+    userId = user?.id;
+  } catch {
+    return { desk: "personal", signedIn: false };
+  }
+  if (!userId) return { desk: "personal", signedIn: false };
+  try {
     const mode = await readSavedBuyerMode(
       createServerComponentClient(),
-      user.id,
+      userId,
     );
-    return discoverDeskForMode(mode);
+    return { desk: discoverDeskForMode(mode), signedIn: true };
   } catch {
-    return "personal";
+    return { desk: "personal", signedIn: true };
   }
 }
 

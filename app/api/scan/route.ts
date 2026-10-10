@@ -18,7 +18,8 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import {
   redactListingForNonFlipDesk,
-  resolveCallerDesk,
+  resolveCallerAccess,
+  redactSellerForGuest,
 } from "@/lib/deals/deal-desk-access";
 import type { DiscoverDesk } from "@/lib/discovery/desk-rails";
 import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
@@ -828,6 +829,8 @@ async function publicPreviewFallback(args: {
   pageSize: number;
   sellerType?: string;
   desk: DiscoverDesk;
+  /** Signed out: seller identity is stripped too. Defaults to guest (fail closed). */
+  signedIn?: boolean;
 }) {
   const flipDesk = args.desk === "flip";
   const deskAccess = deskAccessFor(args.desk);
@@ -970,7 +973,7 @@ async function publicPreviewFallback(args: {
     maxPrice: args.maxPrice,
     sellerType: args.sellerType,
   };
-  const vehicles = flipDesk
+  const deskVehicles = flipDesk
     ? pageRows
     : pageRows.map((row) => {
         const redacted = redactListingForNonFlipDesk(row);
@@ -979,6 +982,9 @@ async function publicPreviewFallback(args: {
           trustExplanation: buildTrustExplanation(redacted, filters, args.desk),
         };
       });
+  const vehicles = args.signedIn
+    ? deskVehicles
+    : deskVehicles.map((v) => redactSellerForGuest(v));
   return {
     configured: false,
     vehicles,
@@ -1068,7 +1074,7 @@ export async function GET(req: NextRequest) {
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
   // filters all read flip-only columns, so they are flip-desk only (fail closed to personal).
-  const desk = await resolveCallerDesk();
+  const { desk, signedIn } = await resolveCallerAccess();
   const flipDesk = desk === "flip";
   const deskAccess = deskAccessFor(desk);
   const requestedSort = normalizeScanSort(searchParams.get("sort"));
@@ -1099,6 +1105,7 @@ export async function GET(req: NextRequest) {
       page,
       pageSize,
       desk,
+      signedIn,
     });
     return NextResponse.json(preview, { headers: SCAN_CACHE_HEADERS });
   }
@@ -1350,7 +1357,7 @@ export async function GET(req: NextRequest) {
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
   // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields
   // (e.g. "$2,500 estimated spread" / "recommended max buy").
-  const vehicles = flipDesk
+  const deskVehicles = flipDesk
     ? sorted
     : sorted.map((row) => {
         const redacted = redactListingForNonFlipDesk(row);
@@ -1359,6 +1366,10 @@ export async function GET(req: NextRequest) {
           trustExplanation: buildTrustExplanation(redacted, scanFilters, desk),
         };
       });
+  // Signed out: no seller names either (often a private person on CL / FB).
+  const vehicles = signedIn
+    ? deskVehicles
+    : deskVehicles.map((v) => redactSellerForGuest(v));
   return NextResponse.json(
     {
       vehicles,
