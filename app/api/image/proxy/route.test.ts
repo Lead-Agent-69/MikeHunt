@@ -21,6 +21,11 @@ describe("image proxy host safety", () => {
     "http://169.254.169.254/latest/meta-data",
     "https://lqdt1.com.attacker.example/photo.jpg",
     "https://salvagezone.com.attacker.example/photo.jpg",
+    // Craigslist and Facebook photos are never re-served (direct only).
+    "https://images.craigslist.org/00M0M_x_600x450.jpg",
+    "https://scontent.xx.fbcdn.net/v/t1/photo.jpg",
+    "https://scontent-iad3-1.xx.fbcdn.net/v/t1/photo.jpg",
+    "https://lookaside.facebook.com/photo.jpg",
     "file:///C:/Windows/System32/drivers/etc/hosts",
     "not-a-url",
   ])("rejects private, lookalike, or invalid targets: %s", (url) => {

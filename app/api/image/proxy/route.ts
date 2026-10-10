@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicImage } from "@/lib/net/fetch-public-image";
 
+// Never re-served through this proxy (Ren #321 R1 / #322): Craigslist and Facebook photos
+// (craigslist.org, fbcdn.net / scontent, facebook.com). Those are shown as direct links/images only.
 const ALLOWED_IMAGE_DOMAINS = [
-  "craigslist.org",
-  "fbcdn.net",
-  "facebook.com",
   "cargurus.com",
   "cars.com",
   "autotrader.com",
