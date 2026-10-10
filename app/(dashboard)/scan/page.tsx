@@ -87,7 +87,7 @@ import {
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
 import {
   scrollWhenReachable,
-  takeBackNavigationEntry,
+  useBackNavigationEntry,
   useSaveListPosition,
 } from "@/hooks/useListRestore";
 
@@ -3967,6 +3967,7 @@ function ScanPageInner() {
 
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
+  const backNav = useBackNavigationEntry();
   const [extra, setExtra] = useState<any[]>([]);
   const [morePage, setMorePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -3985,12 +3986,16 @@ function ScanPageInner() {
     setPlanMessage(null);
     // Back from a deal: bring back the pages that were already appended for this exact search
     // (page 0 comes from the SWR cache) so the saved scroll position exists again.
-    const back = takeBackNavigationEntry<ScanRestoreState>(
-      swrKey ? `scan:${swrKey}` : null,
-    );
-    const restoring = !!back?.state && back.state.morePage > 0;
-    setExtra(restoring ? back!.state.extra : []);
-    setMorePage(restoring ? back!.state.morePage : 0);
+    const restoreKey = swrKey ? `scan:${swrKey}` : null;
+    const back = backNav.take<ScanRestoreState>(restoreKey);
+    if (back?.state && back.state.morePage > 0) {
+      setExtra(back.state.extra);
+      setMorePage(back.state.morePage);
+    } else if (!backNav.recentlyRestored(restoreKey)) {
+      // (A late-settling source scope re-runs this effect for the same search; keep restored pages.)
+      setExtra([]);
+      setMorePage(0);
+    }
     const cancelRestore = back ? scrollWhenReachable(back.y) : null;
     setLivePreviewRows([]);
     setLivePreviewProof([]);
@@ -4003,7 +4008,7 @@ function ScanPageInner() {
       previews.cancel();
       pages.cancel();
     };
-  }, [swrKey, sourceSearchKey]);
+  }, [swrKey, sourceSearchKey, backNav]);
   useSaveListPosition<ScanRestoreState>(
     swrKey ? `scan:${swrKey}` : null,
     () => ({ extra, morePage }),

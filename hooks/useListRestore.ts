@@ -11,7 +11,7 @@
 // Composes with a virtualized list: the stored state is the page data, not DOM; once the data is
 // back the virtualizer's total height covers scrollY and the same scrollTo lands the same rows.
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const PREFIX = "mh:list-restore:";
 const MAX_AGE_MS = 30 * 60 * 1000;
@@ -107,15 +107,45 @@ export function takeBackNavigationEntry<S>(
 }
 
 /**
+ * Per-mount Back restore. Whether this mount came from Back/Forward is decided ONCE, at mount, so a
+ * key that settles late (saved prefs, source health) still restores; each key restores at most once
+ * per mount. `recentlyRestored(key)` lets a page skip a reset that its own late-settling inputs
+ * trigger right after it re-hydrated.
+ */
+export function useBackNavigationEntry() {
+  const [arrived] = useState(() => isBackForwardNavigation());
+  const taken = useRef(new Map<string, number>());
+  const take = useCallback(
+    <S>(key: string | null): ListRestoreEntry<S> | null => {
+      if (!key || !arrived || taken.current.has(key)) return null;
+      const entry = readListRestore<S>(key);
+      if (entry) taken.current.set(key, Date.now());
+      return entry;
+    },
+    [arrived],
+  );
+  const recentlyRestored = useCallback(
+    (key: string | null, withinMs = 10000) => {
+      const at = key ? taken.current.get(key) : undefined;
+      return at != null && Date.now() - at < withinMs;
+    },
+    [],
+  );
+  // Stable identity: pages list this in effect deps.
+  return useMemo(() => ({ take, recentlyRestored }), [take, recentlyRestored]);
+}
+
+/**
  * Scroll to y once the document can reach it (data re-rendered), then hold it there while late
  * layout (images, fonts, measured rows) settles. Stops on the first wheel / touch / key from the
- * user, once y has held for ~12 frames, or after timeoutMs (then it lands as close as it can).
+ * user, once y has held on a stable page for ~20 frames, or after timeoutMs (then it lands as close as it can).
  * Returns a cancel function.
  */
-export function scrollWhenReachable(y: number, timeoutMs = 4000): () => void {
+export function scrollWhenReachable(y: number, timeoutMs = 6000): () => void {
   let raf = 0;
   let cancelled = false;
   let held = 0;
+  let lastHeight = -1;
   const started = performance.now();
   const stop = () => {
     cancelled = true;
@@ -128,13 +158,16 @@ export function scrollWhenReachable(y: number, timeoutMs = 4000): () => void {
     window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
   const tick = () => {
     if (cancelled) return;
-    const reachable =
-      document.documentElement.scrollHeight - window.innerHeight >= y - 1;
+    const height = document.documentElement.scrollHeight;
+    const reachable = height - window.innerHeight >= y - 1;
+    // Rows/images still settling above the target shift it; only count frames with a stable page.
+    if (height !== lastHeight) held = 0;
+    lastHeight = height;
     if (reachable) {
       if (Math.abs(window.scrollY - y) > 2) {
         go();
         held = 0;
-      } else if (++held >= 12) return;
+      } else if (++held >= 20) return;
     }
     if (performance.now() - started > timeoutMs) {
       if (!reachable) go();

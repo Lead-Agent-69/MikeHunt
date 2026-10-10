@@ -47,7 +47,7 @@ import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { sellerTypeLabel, sourceMeta } from "@/lib/sources/source-meta";
 import {
   scrollWhenReachable,
-  takeBackNavigationEntry,
+  useBackNavigationEntry,
   useSaveListPosition,
 } from "@/hooks/useListRestore";
 
@@ -140,12 +140,13 @@ export default function SavedCarsPage() {
   // Restore once the saves are on screen (filter is part of the key).
   const restoreKey = `saved:${filter}`;
   const restoredFor = useRef<string | null>(null);
+  const backNav = useBackNavigationEntry();
   useEffect(() => {
     if (!saves || restoredFor.current === restoreKey) return;
     restoredFor.current = restoreKey;
-    const back = takeBackNavigationEntry<null>(restoreKey);
+    const back = backNav.take<null>(restoreKey);
     if (back) return scrollWhenReachable(back.y);
-  }, [saves, restoreKey]);
+  }, [saves, restoreKey, backNav]);
   useSaveListPosition<null>(saves ? restoreKey : null, () => null);
 
   const authError =

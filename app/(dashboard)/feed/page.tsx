@@ -21,7 +21,7 @@ import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import { ErrorState } from "@/components/shared/PageStates";
 import {
   scrollWhenReachable,
-  takeBackNavigationEntry,
+  useBackNavigationEntry,
   useSaveListPosition,
 } from "@/hooks/useListRestore";
 
@@ -163,9 +163,10 @@ export default function FeedPage() {
   }, []);
 
   // Back from a deal: re-hydrate the pages already loaded and return to the same card.
+  const backNav = useBackNavigationEntry();
   useEffect(() => {
     if (scope === null || !viewReady) return;
-    const back = takeBackNavigationEntry<FeedRestoreState>(`feed:${query}`);
+    const back = backNav.take<FeedRestoreState>(`feed:${query}`);
     if (back?.state?.items?.length) {
       generation.current++;
       busy.current = false;

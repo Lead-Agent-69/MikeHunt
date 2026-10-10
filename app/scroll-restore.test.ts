@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import React, { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import {
   markPopState,
+  useBackNavigationEntry,
   readListRestore,
   scrollWhenReachable,
   takeBackNavigationEntry,
@@ -49,6 +52,45 @@ describe("list restore storage", () => {
   });
 });
 
+describe("useBackNavigationEntry", () => {
+  type Api = ReturnType<typeof useBackNavigationEntry>;
+  const mount = () => {
+    const seen: Api[] = [];
+    const Probe = () => {
+      seen.push(useBackNavigationEntry());
+      return null;
+    };
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    act(() => root.render(createElement(Probe)));
+    act(() => root.render(createElement(Probe)));
+    return { seen, unmount: () => act(() => root.unmount()) };
+  };
+
+  it("decides Back at mount, so a key that settles later still restores, once", () => {
+    writeListRestore("scan:/api/scan?sort=profit", 43741, {
+      morePage: 3,
+      extra: [],
+    });
+    markPopState(Date.now());
+    const { seen, unmount } = mount();
+    markPopState(0); // the 5s popstate window has passed by the time the key is known
+    const api = seen[seen.length - 1];
+    expect(seen[0]).toBe(api); // stable identity for effect deps
+    expect(api.take("scan:/api/scan?sort=profit")?.y).toBe(43741);
+    expect(api.take("scan:/api/scan?sort=profit")).toBeNull();
+    expect(api.recentlyRestored("scan:/api/scan?sort=profit")).toBe(true);
+    unmount();
+  });
+
+  it("a fresh visit never restores", () => {
+    writeListRestore("feed:states=TX", 2500, { items: [] });
+    const { seen, unmount } = mount();
+    expect(seen[0].take("feed:states=TX")).toBeNull();
+    unmount();
+  });
+});
+
 describe("scrollWhenReachable", () => {
   it("waits until the re-hydrated list is tall enough, then lands on y", () => {
     const frames: FrameRequestCallback[] = [];
@@ -80,12 +122,12 @@ describe("scrollWhenReachable", () => {
     });
     frames.shift()!(0);
     expect(scrollTo).toHaveBeenCalledTimes(2);
-    // Held at y for 12 frames: done, no more frames requested.
+    // Held at y on a stable page for 20 frames: done, no more frames requested.
     Object.defineProperty(window, "scrollY", {
       value: 2500,
       configurable: true,
     });
-    for (let k = 0; k < 12 && frames.length; k++) frames.shift()!(0);
+    for (let k = 0; k < 25 && frames.length; k++) frames.shift()!(0);
     expect(frames.length).toBe(0);
     vi.unstubAllGlobals();
   });
@@ -95,9 +137,7 @@ describe("page wiring", () => {
   const read = (p: string) => readFileSync(p, "utf8");
   it("/feed restores items + offset + done keyed by its query", () => {
     const feed = read("app/(dashboard)/feed/page.tsx");
-    expect(feed).toContain(
-      "takeBackNavigationEntry<FeedRestoreState>(`feed:${query}`)",
-    );
+    expect(feed).toContain("backNav.take<FeedRestoreState>(`feed:${query}`)");
     expect(feed).toContain("offset.current = back.state.offset;");
     expect(feed).toContain(
       "({ items, offset: offset.current, done, boundedPool })",
@@ -106,7 +146,9 @@ describe("page wiring", () => {
   it("/scan restores the appended pages for the same swrKey", () => {
     const scan = read("app/(dashboard)/scan/page.tsx");
     expect(scan).toContain("swrKey ? `scan:${swrKey}` : null");
-    expect(scan).toContain("setExtra(restoring ? back!.state.extra : [])");
+    expect(scan).toContain("[swrKey, sourceSearchKey, backNav]");
+    expect(scan).toContain("setExtra(back.state.extra);");
+    expect(scan).toContain("!backNav.recentlyRestored(restoreKey)");
     expect(scan).toContain("() => ({ extra, morePage })");
   });
   it("/saved restores position once the cached saves render", () => {
