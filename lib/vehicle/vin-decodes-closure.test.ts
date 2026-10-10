@@ -31,6 +31,16 @@ describe("vin_decodes closure check (20261010421000)", () => {
     );
     expect(cases).toContain("must_fail_16_policy_alone.sql");
     expect(cases).toContain("must_fail_17_rls_off_alone.sql");
+    // Plant 18: even a service_role-only policy must fail (zero policies, not "no client policies").
+    expect(cases).toContain("must_fail_18_service_role_policy.sql");
+    expect(
+      readFileSync(
+        "supabase/tests/vin_decodes_closure/must_fail_18_service_role_policy.sql",
+        "utf8",
+      ),
+    ).toMatch(
+      /CREATE POLICY \w+ ON public\.vin_decodes\b[^;]*\bTO service_role\b/i,
+    );
   });
 
   it("checks the table itself: table + column privileges and MAINTAIN (PG17+)", () => {
