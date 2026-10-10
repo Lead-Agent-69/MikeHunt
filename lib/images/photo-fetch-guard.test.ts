@@ -15,24 +15,28 @@ const walk = (dir: string): string[] =>
     return /\.(ts|tsx)$/.test(e.name) && !/\.test\./.test(e.name) ? [p] : [];
   });
 
+/**
+ * True when source code references the global fetch: fetch(, (fetch)(, const f = fetch,
+ * globalThis/window/self.fetch. Member calls on other objects (x.fetch) and names like
+ * fetchListingPhoto are fine. Strings are blanked first (so "https://" isn't read as a
+ * comment), then comments are dropped.
+ */
+function usesGlobalFetch(raw: string): boolean {
+  const src = raw
+    .replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g, '""')
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  return (
+    /(?<![\w.$])fetch(?![\w$])/.test(src) ||
+    /\b(?:globalThis|window|self)\.fetch(?![\w$])/.test(src)
+  );
+}
+
 describe("photo caches never use global fetch()", () => {
   it("lib/images/** and lib/data/photo-storage.ts have no bare fetch(", () => {
     const files = [...walk("lib/images"), "lib/data/photo-storage.ts"];
     const offenders = files.filter((f) => {
-      const src = readFileSync(f, "utf8")
-        // Strings first (so "https://" isn't read as a comment), then comments.
-        .replace(
-          /"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`/g,
-          '""',
-        )
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/[^\n]*/g, "");
-      // Any reference to the global fetch: fetch(, (fetch)(, const f = fetch, globalThis.fetch,
-      // window.fetch. Member calls on other objects (x.fetch) and fetchPublicImage are fine.
-      return (
-        /(?<![\w.$])fetch(?![\w$])/.test(src) ||
-        /\b(?:globalThis|window|self)\.fetch(?![\w$])/.test(src)
-      );
+      return usesGlobalFetch(readFileSync(f, "utf8"));
     });
     expect(offenders).toEqual([]);
   });
@@ -69,7 +73,8 @@ function storage() {
 
 const okImage = {
   ok: true,
-  body: Buffer.from([1, 2, 3]),
+  // Real JPEG magic: fetchListingPhoto stores only what the bytes prove.
+  body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]),
   contentType: "image/jpeg",
   finalUrl: "",
 };
@@ -157,4 +162,31 @@ describe("photo caches when enabled (opt-in only)", () => {
     expect(url).toContain("d1/primary.jpeg");
     expect(uploads).toEqual(["d1/primary.jpeg"]);
   });
+});
+
+// Self-test: the same detector over in-memory samples, so a regex change can't silently weaken it.
+describe("global-fetch detector self-test", () => {
+  it.each([
+    "const r = await fetch(u);",
+    "(fetch)(u);",
+    "const f=fetch;",
+    "const f = fetch\nf(u)",
+    "globalThis.fetch(u);",
+    "window.fetch(u)",
+    "self.fetch(u)",
+    "return fetch (u)",
+  ])("catches %j", (src) => expect(usesGlobalFetch(src)).toBe(true));
+
+  it.each([
+    "await fetchListingPhoto(u);",
+    "await fetchPublicImage(u, allow);",
+    "x.fetch(u);",
+    "client.fetch(u)",
+    'import { fetchListingPhoto } from "./fetch-listing-photo";',
+    'console.warn("could not fetch an image");',
+    "// TODO: never call fetch( here",
+    "/* fetch(u) */ const a = 1;",
+    "const s = `no fetch(${u}) here`;",
+    'const u = "https://x.example/fetch(";',
+  ])("ignores %j", (src) => expect(usesGlobalFetch(src)).toBe(false));
 });
