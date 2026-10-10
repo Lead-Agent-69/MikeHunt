@@ -3,6 +3,7 @@
 // FlareSolverr, no browser. POST to /merch/search/api/v2/search and read inventory.vehicles: clean
 // vin/year/make/model/trim/mileage/price/images. The single best free retail comp source we have.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 
@@ -69,7 +70,7 @@ async function fetchCarvanaPage(
   page: number,
   pageSize: number,
 ): Promise<any | null> {
-  const res = await fetch(CARVANA_API, {
+  const res = await scraperFetch(CARVANA_API, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

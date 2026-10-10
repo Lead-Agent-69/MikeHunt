@@ -22,6 +22,7 @@ export default defineConfig({
     // Bound heavy route imports so parallel workers do not starve test timeouts.
     maxWorkers: 2,
     include: ["lib/**/*.test.ts", "app/**/*.test.ts"],
+    setupFiles: ["./vitest.setup.ts"],
   },
   resolve: {
     alias: {

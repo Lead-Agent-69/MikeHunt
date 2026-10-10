@@ -1,6 +1,7 @@
 // lib/scrapers/sources/index.ts
 // ─── Per-source scraper implementations ──────────────────────────────────────
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import { createRobotsGate, policyBlockFor } from "../source-compliance";
 import type { Deal } from "@/types";
 import {
@@ -1257,7 +1258,7 @@ async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
   for (let page = 1; page <= 5; page += 1) {
     params.set("page", String(page));
     const url = `https://aeofmiami.com/api/vehicle/listed?${params.toString()}`;
-    const res = await fetch(url, {
+    const res = await scraperFetch(url, {
       headers: {
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest",
@@ -1536,7 +1537,7 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
   const sourceUrl = deal.source_url;
   if (!sourceUrl) return deal;
   try {
-    const res = await fetch(sourceUrl, {
+    const res = await scraperFetch(sourceUrl, {
       headers: {
         Accept: "text/html",
         "User-Agent":
@@ -1588,7 +1589,7 @@ async function enrichCdgDetail(deal: Partial<Deal>, config: CdgDealerConfig) {
   const sourceUrl = deal.source_url;
   if (!sourceUrl) return deal;
   try {
-    const res = await fetch(sourceUrl, {
+    const res = await scraperFetch(sourceUrl, {
       headers: {
         Accept: "text/html",
         "User-Agent":
@@ -1645,7 +1646,7 @@ async function scrapeCdgDealer(config: CdgDealerConfig) {
   for (let page = 1; page <= 5; page += 1) {
     const url = new URL(config.inventoryUrl);
     if (page > 1) url.searchParams.set("page", String(page));
-    const res = await fetch(url.toString(), {
+    const res = await scraperFetch(url.toString(), {
       headers: {
         Accept: "text/html",
         "User-Agent":

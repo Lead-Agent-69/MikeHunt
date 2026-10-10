@@ -8,6 +8,7 @@ import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
 } from "./circuit-breaker";
+import { withPoliteSource } from "../polite/source-context";
 
 export interface ExecutorOptions {
   maxRetries?: number;
@@ -176,11 +177,14 @@ export class ScraperExecutor {
         stopped,
         Promise.resolve().then(() => {
           controller.signal.throwIfAborted();
-          return scraper.fn({
-            ...scraper.args,
-            abortSignal: controller.signal,
-            deadlineAt: Date.now() + timeoutMs,
-          });
+          // Scope polite-layer exemptions to this source (Ren #269: source-plus-path).
+          return withPoliteSource(scraper.id, () =>
+            scraper.fn({
+              ...scraper.args,
+              abortSignal: controller.signal,
+              deadlineAt: Date.now() + timeoutMs,
+            }),
+          );
         }),
       ]);
     } finally {
