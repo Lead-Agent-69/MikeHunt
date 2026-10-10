@@ -212,7 +212,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
-              className="min-w-0 break-words text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--blue)]"
+              className="inline-flex min-h-11 min-w-0 items-center break-words text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--blue)]"
             >
               {title}
             </Link>
