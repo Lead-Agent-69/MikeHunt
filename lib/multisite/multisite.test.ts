@@ -224,6 +224,7 @@ describe("buildMultiSiteLinks", () => {
       "carmax",
       "autolist",
       "autotempest",
+      "kbb",
     ]);
   });
 
