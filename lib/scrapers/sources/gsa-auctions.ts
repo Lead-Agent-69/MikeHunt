@@ -7,6 +7,8 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { fetchGsaApiVehicles } from "./gsa-official";
+import { isCarOrTruck } from "../vehicle-class";
 
 const API =
   "https://www.ppms.gov/gw/auction/ppms/api/v1/auctions?sort=auctionEndDateSoon,DESC";
@@ -34,6 +36,7 @@ export function gsaLotToDeal(lot: GsaLot): Partial<Deal> | null {
   if (lotId == null) return null;
 
   const name = (lot.lotName || "").trim();
+  if (!isCarOrTruck(name)) return null; // cars and trucks only (no trailers/equipment/boats)
   const ym = name.match(/\b(19[5-9]\d|20[0-4]\d)\b/); // model year => a real titled vehicle
   if (!ym) return null;
   const year = parseInt(ym[0], 10);
@@ -147,6 +150,37 @@ export async function scrapeGsaAuctions(maxPages = 6): Promise<number> {
   }
 
   const deals = Array.from(byId.values());
+  // Official api.gsa.gov catalog (GSA_API_KEY, else DEMO_KEY; throttled) on top of the ppms browse:
+  // it lists every active lot, so it fills what the paged browse misses and keeps GSA flowing if
+  // ppms breaks. Same auction already found via ppms = skipped. Priced lots only.
+  const ppmsAuctions = new Set(
+    deals
+      .map(
+        (d) => String(d.source_url || "").match(/auction-item\/(\d+)\//)?.[1],
+      )
+      .filter(Boolean),
+  );
+  const api = await mergeGsaApi(ppmsAuctions);
+  deals.push(...api);
   console.log(`[GSA] Found ${deals.length} vehicle auctions`);
   return deals.length > 0 ? upsertDeals(deals) : 0;
+}
+
+async function mergeGsaApi(skipAuctionIds: Set<string | undefined>) {
+  try {
+    const api = await fetchGsaApiVehicles();
+    const extra = api.deals.filter(
+      (d) =>
+        Number(d.ask_price) > 0 &&
+        !skipAuctionIds.has(
+          String((d.source_deal_id || "").replace(/^gsa-api-/, "")),
+        ),
+    );
+    console.log(
+      `[GSA] official API (${api.demo ? "DEMO_KEY" : "key"}${api.throttled ? ", reused" : ""}${api.status ? `, ${api.status}` : ""}${api.skipped ? `, ${api.skipped}` : ""}): +${extra.length} lots`,
+    );
+    return extra;
+  } catch {
+    return [];
+  }
 }
