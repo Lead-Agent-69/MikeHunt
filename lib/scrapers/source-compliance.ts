@@ -135,10 +135,49 @@ function hostOf(url: string) {
   }
 }
 
+/**
+ * Curated sites restored by operator decision (Jonah 2026-10-09: never remove or disable sources;
+ * bring back any market that was turned off). Each was in CURATED_SITES and crawled before #80
+ * (6f9bdf0, 2026-10-05) added its terms block; A&E of Miami had 91 live rows when it was cut off.
+ * Their SITE_POLICY_BLOCKS entries stay as the record of each site's terms, but no longer stop the
+ * crawl. robots.txt, the polite per-host delay and URL-only rows (no photo copies) still apply.
+ *
+ * Not restored, on purpose: bot_challenge hosts (they never returned data, and we do not bypass
+ * challenges); erepairables.com and municibid.com (bot challenge too; Municibid runs through its own
+ * runner); govdeals/allsurplus/publicsurplus.com (their dedicated runners are restored instead, and
+ * this block only stops curated_dealers from crawling them a second time); billionauto.com and
+ * craigandlandrethcars.com (blocked on the day they were researched, never part of the network).
+ * Kill switch: SCRAPE_TERMS_SAFE_ONLY=1.
+ */
+export const OPERATOR_RESTORED_HOSTS: readonly string[] = [
+  "aeofmiami.com",
+  "prosalvage.com",
+  "rebuildautos.com",
+  "rebuild1.com",
+  "rebuildtrucks.com",
+  "globalautoauctions.com",
+  "casmiami.com",
+  "bidgodrive.com",
+];
+
+function restoredHostsActive() {
+  return !/^(1|true|yes|on)$/i.test(
+    String(process.env.SCRAPE_TERMS_SAFE_ONLY || "").trim(),
+  );
+}
+
 /** The policy block for a URL's host (or a parent domain), if any. */
 export function policyBlockFor(url: string): PolicyBlock | undefined {
   const host = hostOf(url);
   if (!host) return undefined;
+  if (
+    restoredHostsActive() &&
+    OPERATOR_RESTORED_HOSTS.some(
+      (restored) => host === restored || host.endsWith(`.${restored}`),
+    )
+  ) {
+    return undefined;
+  }
   for (const [blocked, block] of Object.entries(SITE_POLICY_BLOCKS)) {
     if (host === blocked || host.endsWith(`.${blocked}`)) return block;
   }

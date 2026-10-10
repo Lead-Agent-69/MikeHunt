@@ -1,5 +1,6 @@
 import {
   TOS_RESTRICTED_SOURCES,
+  operatorRestoredSources,
   optedInRestrictedSources,
 } from "./sweep-schedule";
 
@@ -44,7 +45,7 @@ export const CI_DEFAULT_SOURCES: string[] = CI_CANDIDATE_SOURCES.filter(
 export type CiSourceSelection = {
   sources: string[];
   origin: "args" | "env" | "default";
-  /** Restricted ids the operator named explicitly. Always empty for the default set. */
+  /** Restricted ids in this run: named explicitly, or restored by default (OPERATOR_RESTORED_SOURCES). */
   optedInRestricted: string[];
 };
 
@@ -82,9 +83,15 @@ export function resolveCiSources(
       optedInRestricted: optedInRestrictedSources(sources),
     };
   }
+  // Default: terms-safe candidates plus the sources the operator restored (OPERATOR_RESTORED_SOURCES,
+  // off again with SCRAPE_TERMS_SAFE_ONLY=1). Restored ids are reported so every run logs them.
+  const restored = new Set(operatorRestoredSources());
+  const sources = CI_CANDIDATE_SOURCES.filter(
+    (id) => !TOS_RESTRICTED_SOURCES[id] || restored.has(id),
+  );
   return {
-    sources: [...CI_DEFAULT_SOURCES],
+    sources,
     origin: "default",
-    optedInRestricted: [],
+    optedInRestricted: optedInRestrictedSources(sources),
   };
 }

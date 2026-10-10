@@ -22,6 +22,7 @@ import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
+import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -133,7 +134,17 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.warn(`[Pipeline] quality report for ${source}:`, report);
   }
 
-  const rows = report.validDeals
+  // Passenger cars and light/medium trucks only (Jonah 2026-10-09). Gov-surplus feeds mix in
+  // heavy equipment, trailers, boats, buses and class-8 trucks; drop them before they are stored.
+  const scope = partitionVehicleScope(report.validDeals as any[]);
+  if (scope.dropped.length) {
+    console.log(
+      `[Pipeline] vehicle scope ${source}: dropped ${scope.dropped.length}/${report.validDeals.length} non car/truck rows ${JSON.stringify(scope.byReason)}`,
+    );
+  }
+  const inScopeDeals = scope.kept as typeof report.validDeals;
+
+  const rows = inScopeDeals
     .filter(
       (deal) =>
         deal.year &&
