@@ -369,7 +369,9 @@ export default function OnboardingPage() {
                   borderColor:
                     selectedMode === mode ? "var(--accent)" : "var(--b1)",
                   background:
-                    selectedMode === mode ? "var(--accent-surface)" : "var(--s0)",
+                    selectedMode === mode
+                      ? "var(--accent-surface)"
+                      : "var(--s0)",
                 }}
               >
                 <span
@@ -653,11 +655,17 @@ export default function OnboardingPage() {
         </ol>
         <div
           className="mb-7 flex gap-1.5"
-          aria-label={`Setup step ${step + 1} of ${steps.length}`}
+          role="progressbar"
+          aria-label="Setup completion"
+          aria-valuemin={1}
+          aria-valuenow={step + 1}
+          aria-valuemax={steps.length}
+          aria-valuetext={`Step ${step + 1} of ${steps.length}`}
         >
           {steps.map((_, index) => (
             <span
               key={index}
+              aria-current={index === step ? "step" : undefined}
               className="h-1 flex-1 rounded-full"
               style={{
                 background: index <= step ? "var(--accent)" : "var(--b2)",
