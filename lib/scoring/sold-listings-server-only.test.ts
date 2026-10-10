@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 // sold_listings holds vin, source_url and source_item_id. Every reader and writer is server-side
 // (service-role client), so client roles get no access and the table has no policies.
-const NAME = "20261010160000_sold_listings_server_only.sql";
+const NAME = "20261010146000_sold_listings_server_only.sql";
 const DIR = "supabase/migrations";
 const sql = readFileSync(`${DIR}/${NAME}`, "utf8");
 const files = readdirSync(DIR)
