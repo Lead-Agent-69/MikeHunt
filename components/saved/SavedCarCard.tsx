@@ -22,6 +22,10 @@ import {
 import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta } from "@/lib/sources/source-meta";
+import {
+  cleanTitleConflicts,
+  TITLE_UNCONFIRMED_LABEL,
+} from "@/lib/intelligence/title-signal";
 
 export type SavedCarStatus =
   | "active"
@@ -428,7 +432,12 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                   className="border-none text-[10px] font-bold uppercase"
                   style={{ background: "var(--s1)", color: "var(--t3)" }}
                 >
-                  {snapshot.titleType.replace(/_/g, " ")} reported by listing
+                  {cleanTitleConflicts(snapshot.titleType, {
+                    condition: snapshot.condition,
+                    damageType: snapshot.damageType,
+                  })
+                    ? `${TITLE_UNCONFIRMED_LABEL} · repairable signals`
+                    : `${snapshot.titleType.replace(/_/g, " ")} reported by listing`}
                 </Badge>
               )}
               {snapshot.damageType && (

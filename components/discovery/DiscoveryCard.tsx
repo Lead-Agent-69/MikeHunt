@@ -16,6 +16,10 @@ import {
   useLocalSavedVehicles,
 } from "@/hooks/useLocalSavedVehicles";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
+import {
+  cleanTitleConflicts,
+  TITLE_UNCONFIRMED_LABEL,
+} from "@/lib/intelligence/title-signal";
 import { Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
@@ -89,7 +93,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     .filter(Boolean)
     .join(", ");
   const titleStyle = deal.titleClass
-    ? TITLE_STYLES[deal.titleClass]
+    ? cleanTitleConflicts(deal.titleClass, {
+        condition: deal.condition,
+        damageType: deal.damageType,
+      })
+      ? {
+          label: TITLE_UNCONFIRMED_LABEL,
+          bg: "var(--amber-lo)",
+          text: "var(--amber-d)",
+        }
+      : TITLE_STYLES[deal.titleClass]
     : undefined;
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".

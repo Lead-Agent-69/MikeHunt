@@ -1,3 +1,8 @@
+import {
+  claimsCleanTitle,
+  cleanTitleConflicts,
+  TITLE_UNCONFIRMED_LABEL,
+} from "@/lib/intelligence/title-signal";
 export const VERDICT_STYLES: Record<
   string,
   { label: string; text: string; bg: string }
@@ -42,8 +47,12 @@ export function formatCondition(
     parts_only: "Parts only",
     run_drive: "Runs and drives reported",
   };
+  // Never pair "Clean title reported" with repairable/salvage damage evidence.
+  const conflict = cleanTitleConflicts(condition, { damageType });
   const readable = (value: string) =>
-    labels[value.toLowerCase()] || value.replace(/_/g, " ");
+    conflict && claimsCleanTitle(value)
+      ? TITLE_UNCONFIRMED_LABEL
+      : labels[value.toLowerCase()] || value.replace(/_/g, " ");
   return (
     Array.from(
       new Set(

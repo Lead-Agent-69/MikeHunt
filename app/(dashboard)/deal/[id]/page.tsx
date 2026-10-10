@@ -80,6 +80,10 @@ import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButt
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import {
+  cleanTitleConflicts,
+  TITLE_UNCONFIRMED_LABEL,
+} from "@/lib/intelligence/title-signal";
 
 type SourceHealthItem = {
   id: string;
@@ -973,7 +977,19 @@ export default function DealPage({
               className="text-white uppercase tracking-wider text-[10px] border-none"
               style={{ background: "var(--grad)" }}
             >
-              {store.titleType} title reported
+              {store.titleType === "clean" &&
+              (cleanTitleConflicts("clean", {
+                condition: serverDeal?.condition,
+                damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
+                repairableEvidence:
+                  serverDeal?.decisionEvidence?.state === "repairable" ||
+                  /repairable/i.test(serverDeal?.decisionEvidence?.label || ""),
+              }) ||
+                // dealStore defaults to "clean" when the listing never said so
+                (serverDeal &&
+                  !/clean/i.test(String(serverDeal.condition || ""))))
+                ? TITLE_UNCONFIRMED_LABEL
+                : `${store.titleType} title reported`}
             </Badge>
           </div>
           <h1 className="text-xl font-bold leading-tight text-[var(--t1)] sm:text-2xl">
