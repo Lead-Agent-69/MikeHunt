@@ -280,7 +280,6 @@ export class PoliteCrawler {
     };
     if (!domain) return { ...base, skipped: "invalid_url" };
     const origin = new URL(url).origin;
-    const maxBytes = opts.maxBytes ?? politeMaxBytes();
 
     if (this.breaker.isOpen(domain, this.now())) {
       this.metrics.recordBreakerSkip(domain);
@@ -300,6 +299,7 @@ export class PoliteCrawler {
     }
 
     const method = (opts.method || "GET").toUpperCase();
+    const maxBytes = opts.maxBytes ?? politeMaxBytes();
     const cacheable = method === "GET" && opts.body == null;
     const cached = cacheable ? this.cache.get(url) : undefined;
     if (
