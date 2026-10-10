@@ -369,6 +369,14 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://davidcarstn.com", name: "David's Used Cars", state: "TN", city: "Nashville", type: "independent_dealer", platform: "adims", photoHosts: ["www.adimsweb.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // sold cars stay listed; only available ones are kept
   { url: "https://www.summitautoexchange.com", name: "Summit Auto Exchange", state: "WA", city: "Spokane", type: "independent_dealer", platform: "dealerfire", photoHosts: ["cdn-ds.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 32 cars
   { url: "https://www.307motors.com", name: "307 Motors", state: "WY", city: "Casper", type: "independent_dealer", platform: "dealrcloud", photoHosts: ["cdn.dealrimages.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 33 listed; ATVs dropped (cars/trucks only)
+  // ── Regional networks round (Elle's section V audit 2026-10-10, /workspace/mikehunt-audit/regional_networks.md).
+  // NM's first curated source: Overfuel JSON-LD (ItemList Car+Offer, 25/page), robots allows /inventory/
+  // (only /*highlights[]= disallowed, honored by politeFetch), /terms is the Overfuel dealer template.
+  { url: "https://www.landlusedcars.com", name: "L&L Auto Sales", state: "NM", city: "Las Cruces", type: "independent_dealer", platform: "overfuel", photoHosts: ["static.overfuel.com"], termsNote: "terms reviewed 2026-10-10: /terms (Overfuel dealer template) has no bot, scraping or reuse clause" }, // 65 cars; NM's first source
+  // CT Dealer.com used stores: JSON-LD priced, robots allows the inventory path, but only a privacy
+  // page plus Cox's consumer terms. Registered but OFF until Jonah decides; generic JSON-LD path.
+  { url: "https://www.valentistatelinemotors.com", inventoryUrl: "https://www.valentistatelinemotors.com/used-inventory/index.htm", name: "Valenti Stateline Motors", state: "CT", city: "Pawcatuck", type: "independent_dealer", enabled: false, termsNote: "Dealer.com/Cox terms; privacy page only; awaiting Jonah" }, // 458 (may include other Valenti stores' used stock)
+  { url: "https://www.danburypreowned.com", inventoryUrl: "https://www.danburypreowned.com/used-inventory/index.htm", name: "Danbury Pre-Owned Center", state: "CT", city: "Danbury", type: "independent_dealer", enabled: false, termsNote: "Dealer.com/Cox terms; privacy page only; awaiting Jonah" }, // 150; ownership (independent vs franchise-affiliated) not verified
   // schema.org JSON-LD inventory (generic JSON-LD path, no platform template needed)
   { url: "https://www.drivenowmidwest.com", name: "Drive Now", state: "KS", city: "Wichita", type: "independent_dealer" },
 ];

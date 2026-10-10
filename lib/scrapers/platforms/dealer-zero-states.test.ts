@@ -549,6 +549,32 @@ describe("zero-source-state registry (Elle's audit 2026-10-10)", () => {
     }
   });
 
+  it("L&L Auto Sales is NM's first source: enabled, Overfuel JSON-LD, photo hosts allowed", () => {
+    const s = byHost("landlusedcars.com")!;
+    expect(s).toBeDefined();
+    expect(s.state).toBe("NM");
+    expect(isCuratedSiteEnabled(s)).toBe(true);
+    expect(dealerCmsSiteFromCurated(s)?.layout).toBe("jsonld");
+    expect(s.photoHosts).toEqual(["static.overfuel.com"]);
+    expect(
+      CURATED_SITES.filter((x) => x.state === "NM" && isCuratedSiteEnabled(x))
+        .length,
+    ).toBe(1);
+  });
+
+  it("CT Dealer.com stores are registered but off, awaiting Jonah (Cox terms)", () => {
+    for (const h of ["valentistatelinemotors.com", "danburypreowned.com"]) {
+      const s = byHost(h)!;
+      expect(s, h).toBeDefined();
+      expect(s.state, h).toBe("CT");
+      expect(s.enabled, h).toBe(false);
+      expect(isCuratedSiteEnabled(s), h).toBe(false);
+      expect(s.termsNote, h).toBe(
+        "Dealer.com/Cox terms; privacy page only; awaiting Jonah",
+      );
+    }
+  });
+
   it("excluded platforms stay out (Dealer.com/Cox terms, Elle's terms-ban list)", () => {
     for (const h of [
       "darlingsusedvehiclecenter.com",
