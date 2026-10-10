@@ -49,9 +49,9 @@ describe("fetchPublicImage", () => {
       headers: { location: "http://169.254.169.254/latest/meta-data" },
       data: new ArrayBuffer(0),
     });
-    await expect(
-      fetchPublicImage(IMG, isAllowedImageUrl),
-    ).rejects.toBeInstanceOf(UrlNotAllowedError);
+    await expect(fetchPublicImage(IMG, isAllowedImageUrl)).rejects.toBeInstanceOf(
+      UrlNotAllowedError,
+    );
     expect(axiosGet).toHaveBeenCalledTimes(1);
   });
 
@@ -61,18 +61,15 @@ describe("fetchPublicImage", () => {
       headers: { location: "https://attacker.example/x.jpg" },
       data: new ArrayBuffer(0),
     });
-    await expect(
-      fetchPublicImage(IMG, isAllowedImageUrl),
-    ).rejects.toBeInstanceOf(UrlNotAllowedError);
+    await expect(fetchPublicImage(IMG, isAllowedImageUrl)).rejects.toBeInstanceOf(
+      UrlNotAllowedError,
+    );
     expect(axiosGet).toHaveBeenCalledTimes(1);
   });
 
   it("refuses an allowlisted hostname whose DNS points at a private address", async () => {
     await expect(
-      fetchPublicImage(
-        "https://rebind.craigslist.org/a.jpg",
-        isAllowedImageUrl,
-      ),
+      fetchPublicImage("https://rebind.craigslist.org/a.jpg", isAllowedImageUrl),
     ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).not.toHaveBeenCalled();
   });
