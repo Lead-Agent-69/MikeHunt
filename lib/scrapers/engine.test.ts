@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { paginate, type ScraperConfig } from "./engine";
 
 const { fetchPage, close } = vi.hoisted(() => ({
@@ -23,8 +23,15 @@ const config: ScraperConfig = {
   maxPages: 3,
 };
 
+// These cover the legacy adaptive-engine path (polite mode off, the default). Polite mode is covered by lib/scrapers/polite/polite.test.ts.
 describe("crawler cancellation and cleanup", () => {
+  const prevPolite = process.env.SCRAPER_POLITE_MODE;
+  afterEach(() => {
+    if (prevPolite === undefined) delete process.env.SCRAPER_POLITE_MODE;
+    else process.env.SCRAPER_POLITE_MODE = prevPolite;
+  });
   beforeEach(() => {
+    process.env.SCRAPER_POLITE_MODE = "0";
     vi.clearAllMocks();
     close.mockResolvedValue(undefined);
     fetchPage.mockResolvedValue({ html: "inventory", close });

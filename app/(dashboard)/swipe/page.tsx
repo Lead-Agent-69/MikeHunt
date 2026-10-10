@@ -25,6 +25,7 @@ import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
 import { readCondition } from "@/lib/intelligence/condition";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import { ErrorState } from "@/components/shared/PageStates";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
 // left to pass — the same two decisions the buttons below the stack make, for keyboard users.
@@ -398,17 +399,12 @@ export default function SwipePage() {
       {(!ready || isLoading) && !cards.length ? (
         <StackSkeleton />
       ) : error && !data ? (
-        <div
-          className="glass-panel"
-          style={{ padding: 0 }}
-          data-testid="swipe-load-error"
-          role="alert"
-        >
-          <EmptyState
-            icon="alert-triangle"
+        <div data-testid="swipe-load-error">
+          <ErrorState
             title="Couldn't load the swipe queue"
             message="This is not an empty triage deck. Saved inventory is still on Discover and Scan — retry when ready."
-            action={{ label: "Try again", onClick: () => mutate() }}
+            onRetry={() => mutate()}
+            retryLabel="Try again"
           />
           <button
             type="button"

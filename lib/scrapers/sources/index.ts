@@ -14,6 +14,10 @@ import {
   type ScraperConfig,
 } from "../engine";
 import { upsertDeals } from "../pipeline";
+import {
+  normalizeCondition,
+  resolveListingCondition,
+} from "../normalize-condition";
 import { CRAIGSLIST_SITES, US_STATES } from "@/lib/geo";
 import { isValidVin, extractVin, normalizeVin } from "@/lib/vehicle/vin";
 import { enrichPriority } from "@/lib/scrapers/enrich-priority";
@@ -29,10 +33,13 @@ import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import {
+  curatedRingStates,
   curatedSiteKey,
   loadCuratedRotation,
   planCuratedRotation,
   saveCuratedRotation,
+  scopeDemandStates,
+  selectCuratedSitesForDemand,
 } from "../curated-rotation";
 import { createPoliteHtmlFetcher } from "../polite-html";
 
@@ -600,13 +607,13 @@ export async function scrapeIndependentDealer(
               : undefined) ||
             mileageFromTitle(title),
           // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
-          // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
-          condition:
+          // rebuilder → rebuilt), tagged as a source default. Neither → unknown (no run_drive guess).
+          ...resolveListingCondition(
             conditionFromTitle(
               sel.condition ? card.find(sel.condition).text() : title,
-            ) ??
-            profile.conditionDefault ??
-            "run_drive",
+            ),
+            profile.conditionDefault,
+          ),
           damage_type: profile.damageDefault,
           seller_type: profile.sellerDefault as Deal["seller_type"],
           location_city: profile.city,
@@ -660,10 +667,10 @@ export async function scrapeIndependentDealer(
             ask_price: g.ask_price || 0,
             mileage: g.mileage,
             vin: g.vin,
-            condition:
-              conditionFromTitle(g.title || "") ||
-              profile.conditionDefault ||
-              "run_drive",
+            ...resolveListingCondition(
+              conditionFromTitle(g.title || ""),
+              profile.conditionDefault,
+            ),
             damage_type: profile.damageDefault,
             seller_type: profile.sellerDefault as Deal["seller_type"],
             location_city: profile.city,
@@ -720,11 +727,14 @@ export async function scrapeIndependentDealer(
               // Title brand first (damage.com etc. put "Salvage"/"Clear"/"Rebuilt" in the heading the
               // AI returns as title), then the site's type default; the AI's free-text condition is
               // often just a run-status ("Run & Drive") so it's the last hint (pipeline normalizes it).
-              condition:
-                conditionFromTitle(v.title) ||
-                profile.conditionDefault ||
-                (v as any).condition ||
-                "run_drive",
+              ...(conditionFromTitle(v.title) || profile.conditionDefault
+                ? resolveListingCondition(
+                    conditionFromTitle(v.title),
+                    profile.conditionDefault,
+                  )
+                : resolveListingCondition(
+                    normalizeCondition((v as any).condition),
+                  )),
               damage_type: profile.damageDefault,
               seller_type: profile.sellerDefault as Deal["seller_type"],
               location_city: v.location_city || profile.city,
@@ -793,6 +803,63 @@ export async function scrapeIndependentDealer(
     `[IndiDealer] ${profile.name}: ${saved}/${allDeals.length} rows accepted`,
   );
   return saved;
+}
+
+/**
+ * Best inventory INDEX page (not a single-car page) from a site's published sitemap, or "".
+ * Pure ranking lives in pickInventoryIndexUrl so it is unit-tested without the network.
+ */
+export async function inventoryUrlFromSitemap(
+  siteUrl: string,
+): Promise<string> {
+  try {
+    const { discoverListingUrls } = await import("../crawl-discovery");
+    const { politeFetch } = await import("../polite");
+    const urls = await discoverListingUrls(siteUrl, {
+      maxSitemaps: 4,
+      limit: 200,
+      fetchImpl: async (u) => {
+        const res = await politeFetch(u, {
+          accept: "application/xml,text/xml;q=0.9,*/*;q=0.5",
+        });
+        return { ok: res.ok, text: async () => res.body };
+      },
+    });
+    return pickInventoryIndexUrl(urls, siteUrl);
+  } catch {
+    return "";
+  }
+}
+
+const INDEX_PATH_RE =
+  /\/(inventory|vehicles|used-?(cars|vehicles|inventory)?|pre-?owned|for-?sale|listings|stock|showroom|salvage|rebuildables?)(\/|\.php|\.html?|$)/i;
+const DETAIL_HINT_RE =
+  /\b(19[5-9]\d|20[0-4]\d)\b|[A-HJ-NPR-Z0-9]{17}|\/(vdp|detail|details)\//i;
+
+/** Shortest same-site URL whose path looks like an inventory index rather than one car. */
+export function pickInventoryIndexUrl(urls: string[], siteUrl: string): string {
+  let host = "";
+  try {
+    host = new URL(siteUrl).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+  const candidates = urls.filter((u) => {
+    try {
+      const parsed = new URL(u);
+      if (parsed.hostname.replace(/^www\./, "") !== host) return false;
+      return (
+        INDEX_PATH_RE.test(parsed.pathname) &&
+        !DETAIL_HINT_RE.test(parsed.pathname)
+      );
+    } catch {
+      return false;
+    }
+  });
+  candidates.sort(
+    (a, b) => new URL(a).pathname.length - new URL(b).pathname.length,
+  );
+  return candidates[0] || "";
 }
 
 // ── Generic "discover and crawl any dealer site" ─────────────────────────────
@@ -870,6 +937,16 @@ export async function autoDiscoverAndCrawl(
       }
     });
     if (!inventoryUrl) inventoryUrl = textFallback;
+  }
+
+  // No inventory link on the homepage (JS nav, image-only menus): ask the site's own sitemap, which
+  // robots.txt publishes for exactly this purpose. Fetched through politeFetch (robots, pacing, cache).
+  if (!inventoryUrl) {
+    inventoryUrl = await inventoryUrlFromSitemap(dealerWebsite);
+    if (inventoryUrl)
+      console.log(
+        `[AutoDiscover] ${dealerWebsite}: inventory page from sitemap → ${inventoryUrl}`,
+      );
   }
 
   if (!inventoryUrl) {
@@ -991,14 +1068,23 @@ export async function scrapeCuratedSites(
         .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
         .join(", ")}`,
     );
-  // Least-recently-attempted dealers lead; demand / want-hit gaps break ties.
-  const plannedStates = getSweepPlan()?.states || [];
+  // A buyer-demand run (home / saved-search state kick) crawls that state's ring first and only;
+  // a plain sweep keeps the rotation: least-recently-attempted dealers lead, demand breaks ties.
+  const demandStates = requestedDealers.size ? [] : scopeDemandStates(scope);
+  const plannedStates = demandStates.length
+    ? curatedRingStates(demandStates)
+    : getSweepPlan()?.states || [];
   const rotation = await loadCuratedRotation();
-  const sites = planCuratedRotation(
-    candidates.filter((site) => !policyBlockFor(site.url)),
-    rotation,
-    plannedStates,
+  const eligible = candidates.filter((site) => !policyBlockFor(site.url));
+  const sites = (
+    demandStates.length
+      ? selectCuratedSitesForDemand(eligible, rotation, demandStates)
+      : planCuratedRotation(eligible, rotation, plannedStates)
   ).slice(0, maxSites);
+  if (demandStates.length)
+    console.log(
+      `[CuratedSites] demand run for ${demandStates.join(", ")}: ${sites.length} dealers in ring ${plannedStates.join(", ")}`,
+    );
   const robotsAllowed = createRobotsGate();
   const fetchPageHtml = createPoliteHtmlFetcher();
   console.log(
@@ -1199,9 +1285,10 @@ async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
         trim: row.trim || undefined,
         ask_price: price,
         mileage: mileageFromDealerText(row.mileage),
-        condition:
-          aeTitleStatusToCondition(row.title_status || row.condition) ||
-          "run_drive",
+        // AE's API states title_status per car; nothing stated → unknown (no run_drive guess).
+        ...resolveListingCondition(
+          aeTitleStatusToCondition(row.title_status || row.condition),
+        ),
         damage_type: row.condition || row.damage_type || undefined,
         seller_type: "dealer",
         location_city: row.location?.city || undefined,
@@ -1331,10 +1418,6 @@ function cdgDealerForSite(siteUrl: string) {
   return CDG_DEALERS.find((dealer) =>
     url.includes(new URL(dealer.baseUrl).host),
   );
-}
-
-function conditionFromDealerText(text: string, fallback: string) {
-  return conditionFromTitle(text) || fallback;
 }
 
 function parseJsonLdCars($: any) {
@@ -1540,10 +1623,13 @@ async function enrichCdgDetail(deal: Partial<Deal>, config: CdgDealerConfig) {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
       mileage: mileage || deal.mileage,
-      condition: conditionFromDealerText(
-        titleText,
-        deal.condition || config.defaultCondition,
-      ),
+      // A title the detail page states wins; else keep what the card gave us (stated or default).
+      ...(conditionFromTitle(titleText)
+        ? resolveListingCondition(conditionFromTitle(titleText))
+        : resolveListingCondition(
+            deal.title_source === "listing" ? deal.condition : undefined,
+            deal.condition || config.defaultCondition,
+          )),
       images: images.length ? images : deal.images,
       description: description || deal.description,
     };
@@ -1622,8 +1708,10 @@ async function scrapeCdgDealer(config: CdgDealerConfig) {
         vin: urlVin || undefined,
         ask_price: price,
         mileage: extractMileage(mileageText) || mileageFromTitle(title),
-        condition: conditionFromDealerText(
-          conditionText || title,
+        // D&G / St. James default salvage_title, ReCar rebuilt_title: tagged source_default
+        // unless the card states a title.
+        ...resolveListingCondition(
+          conditionFromTitle(conditionText || title),
           config.defaultCondition,
         ),
         damage_type: config.defaultDamage,

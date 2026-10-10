@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   arsenalCuratedSites,
   arsenalEnabledIds,
@@ -7,6 +7,16 @@ import {
 } from "./arsenal";
 import { STATE_DEALER_CANDIDATES } from "./sources-registry";
 import { policyBlockFor } from "./source-compliance";
+
+// These suites pin the terms-safe gate itself. Since 2026-10-09 the default restores the
+// operator's sources (OPERATOR_RESTORED_SOURCES / OPERATOR_RESTORED_HOSTS); the gate still runs
+// whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
+beforeEach(() => {
+  vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("state arsenal", () => {
   it("never marks a terms-restricted runner source live without SCRAPE_SOURCES", () => {

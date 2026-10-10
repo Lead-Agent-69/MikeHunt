@@ -6,6 +6,7 @@
 // pipeline's known-make gate naturally filters non-cars (buses/equipment) that share the category.
 
 import type { Deal } from "@/types";
+import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
 
 const BASE = "https://www.publicsurplus.com/sms/browse/cataucs";
@@ -105,6 +106,7 @@ export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
     seen.add(auc);
 
     const title = decode(m[2]);
+    if (!isCarOrTruck(title)) continue; // cars and trucks only
     const ym = title.match(/(19[5-9]\d|20[0-4]\d)/); // model year => it's a real vehicle
     if (!ym) continue;
     const year = parseInt(ym[0], 10);

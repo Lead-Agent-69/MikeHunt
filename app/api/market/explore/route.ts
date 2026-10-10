@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
           let q = supabase
             .from("deals")
             .select(
-              "id, source, source_url, title, year, make, model, trim, body_class, fuel_type, vin, mileage, condition, damage_type, ask_price, buy_now_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type, is_arbitrage_opportunity, location_state",
+              "id, source, source_url, title, year, make, model, trim, body_class, fuel_type, vin, mileage, condition, damage_type, ask_price, buy_now_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type:options->>sellerType, is_arbitrage_opportunity, location_state",
             )
             .eq("active", true);
 
@@ -186,7 +186,10 @@ export async function GET(req: NextRequest) {
             .trim()
             .slice(0, 60);
           if (model) q = q.ilike("model", `%${model}%`);
-          if (sellerTypes.length) q = q.in("seller_type", sellerTypes);
+          // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
+          // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
+          if (sellerTypes.length)
+            q = q.in("options->>sellerType", sellerTypes);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);

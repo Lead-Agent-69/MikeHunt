@@ -118,10 +118,16 @@ export async function syncPrefsHomeLocationToProfile(input: {
   const home = sanitizeHomeLocation(input.homeLocation);
   const state = home?.state ?? null;
   try {
-    const { error } = await input.supabase
-      .from("user_profiles")
-      .update({ home_state: state })
-      .eq("id", input.userId);
+    const { error } = await input.supabase.from("user_profiles").upsert(
+      {
+        id: input.userId,
+        home_state: state,
+        home_zip: home?.zip ?? null,
+        home_lat: null,
+        home_lng: null,
+      },
+      { onConflict: "id" },
+    );
     if (error) {
       console.warn(
         "[preferences] profile home_state sync failed:",

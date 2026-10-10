@@ -50,4 +50,29 @@ describe("discover desk rails", () => {
     expect(filterRailsForDesk(rails, "flip")).toHaveLength(rails.length);
     expect(hiddenRailKeysForMode("dealer").size).toBe(0);
   });
+
+  it("gates Salvage & Rebuildable: flip + parts always, personal only on includeRepairable", () => {
+    const withRail = [...rails, { key: "salvageRebuildable", deals: [] }];
+    const keys = (desk: any, opts?: any) =>
+      filterRailsForDesk(withRail, desk, opts).map((r) => r.key);
+    expect(keys("flip")).toContain("salvageRebuildable");
+    expect(keys("parts")).toContain("salvageRebuildable");
+    expect(keys("personal")).not.toContain("salvageRebuildable");
+    expect(keys("personal", { includeRepairable: false })).not.toContain(
+      "salvageRebuildable",
+    );
+    expect(keys("personal", { includeRepairable: true })).toContain(
+      "salvageRebuildable",
+    );
+    // includeRepairable never unlocks the wholesale flip rails.
+    expect(keys("personal", { includeRepairable: true })).not.toContain(
+      "salvage",
+    );
+    expect(
+      hiddenRailKeysForMode("diy", { includeRepairable: true }).has(
+        "salvageRebuildable",
+      ),
+    ).toBe(false);
+    expect(hiddenRailKeysForMode("diy").has("salvageRebuildable")).toBe(true);
+  });
 });

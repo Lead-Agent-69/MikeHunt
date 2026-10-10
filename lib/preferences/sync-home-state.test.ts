@@ -83,12 +83,10 @@ describe("syncProfileHomeStateToPrefs", () => {
 
 describe("syncPrefsHomeLocationToProfile", () => {
   it("updates user_profiles.home_state from prefs.homeLocation", async () => {
-    const update = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
+    const upsert = vi.fn().mockResolvedValue({ error: null });
     const sb = {
       from: vi.fn((table: string) => {
-        if (table === "user_profiles") return { update };
+        if (table === "user_profiles") return { upsert };
         throw new Error(table);
       }),
     } as any;
@@ -99,14 +97,22 @@ describe("syncPrefsHomeLocationToProfile", () => {
         homeLocation: { state: "mo", zip: "63101" },
       }),
     ).toBe(true);
-    expect(update).toHaveBeenCalledWith({ home_state: "MO" });
+    expect(upsert).toHaveBeenCalledWith(
+      {
+        id: "u1",
+        home_state: "MO",
+        home_zip: "63101",
+        home_lat: null,
+        home_lng: null,
+      },
+      { onConflict: "id" },
+    );
   });
 
   it("clears home_state when homeLocation is null", async () => {
-    const eq = vi.fn().mockResolvedValue({ error: null });
-    const update = vi.fn().mockReturnValue({ eq });
+    const upsert = vi.fn().mockResolvedValue({ error: null });
     const sb = {
-      from: vi.fn(() => ({ update })),
+      from: vi.fn(() => ({ upsert })),
     } as any;
     expect(
       await syncPrefsHomeLocationToProfile({
@@ -115,6 +121,15 @@ describe("syncPrefsHomeLocationToProfile", () => {
         homeLocation: null,
       }),
     ).toBe(true);
-    expect(update).toHaveBeenCalledWith({ home_state: null });
+    expect(upsert).toHaveBeenCalledWith(
+      {
+        id: "u1",
+        home_state: null,
+        home_zip: null,
+        home_lat: null,
+        home_lng: null,
+      },
+      { onConflict: "id" },
+    );
   });
 });

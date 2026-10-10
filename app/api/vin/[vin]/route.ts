@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRecallCount } from "@/lib/vehicle/nhtsa";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
@@ -70,19 +71,6 @@ async function backfillDecoded(
   } catch {}
 }
 
-async function fetchNhtsaRecalls(vin: string): Promise<number> {
-  try {
-    const r = await fetch(
-      `https://api.nhtsa.gov/recalls/recallsByVIN?vin=${encodeURIComponent(vin)}`,
-    );
-    if (!r.ok) return 0;
-    const j = await r.json();
-    const count = Array.isArray(j?.results) ? j.results.length : j?.Count || 0;
-    return Number(count) || 0;
-  } catch {
-    return 0;
-  }
-}
 
 export async function GET(
   request: NextRequest,
@@ -175,18 +163,31 @@ export async function GET(
       assembly_country:
         decoded.assembly_country || decoded.PlantCountry || undefined,
       assembly_plant: decoded.assembly_plant || undefined,
-      recalls: decoded.recalls ?? undefined,
+      // Ignore third-party decoder recall fields (mcp.vin reports 0); NHTSA below is the source.
+      recalls: undefined as number | undefined,
     };
 
-    // Fetch real recalls if not present
-    if (out.recalls === undefined) {
-      out.recalls = await fetchNhtsaRecalls(vin);
+    // One recall source of truth, shared with /api/vin/[vin]/specs: NHTSA recallsByVehicle for the
+    // decoded make/model/year. (The old recallsByVIN URL isn't a public endpoint, so it always
+    // returned 0 while /specs showed the real count.) null = lookup failed, never a fake 0.
+    if (out.make && out.model && out.year) {
+      out.recalls =
+        (await getRecallCount(
+          String(out.make),
+          String(out.model),
+          Number(out.year),
+        )) ?? undefined;
     }
 
     // Best-effort backfill into existing rows
     await backfillDecoded(vin, out as any);
 
-    return NextResponse.json({ ...out, source: "live" });
+    return NextResponse.json({
+      ...out,
+      recalls: out.recalls ?? null,
+      recallsScope: "model_year",
+      source: "live",
+    });
   } catch (error: any) {
     console.error("VIN Decode Error:", error);
     return internalError("vin:[vin]", error);

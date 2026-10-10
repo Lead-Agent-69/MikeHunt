@@ -86,7 +86,11 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
       vin: veh.vin,
       ask_price: Number(pr.listPrice),
       mileage: Number(veh.mileage) || 0,
+      // Non-CPO "clean" is the marketplace default, not a stated title; CPO is not a title at all.
       condition: veh.certifiedPreOwned ? "certified" : "clean",
+      ...(veh.certifiedPreOwned
+        ? {}
+        : { title_source: "source_default" as const }),
       location_city: loc.city || "",
       location_state: loc.state || loc.stateCode || loc.stateAbbreviation || "",
       images,
