@@ -21,6 +21,7 @@ import { qualityFieldLabel } from "@/lib/data-quality";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { hidesFlipNav, scanHrefForMode } from "@/components/layout/nav-items";
 import { sourceLabel } from "@/lib/sources/source-meta";
+import { InlineError, LoadingState } from "@/components/shared/PageStates";
 
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
@@ -143,28 +144,20 @@ export default function AlertsPage() {
       </div>
 
       {error && (
-        <div
-          role="alert"
-          className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm text-[var(--t2)]"
-        >
-          <span>
-            Server alerts couldn&apos;t load right now. Anything saved on this
-            device still shows below.
-          </span>
-          <button
-            type="button"
-            onClick={() => mutate()}
-            className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-1.5 text-xs font-black text-[var(--t2)]"
-          >
-            Try again
-          </button>
-        </div>
+        <InlineError
+          className="mb-6"
+          message={
+            <>
+              Server alerts couldn&apos;t load right now. Anything saved on this
+              device still shows below.
+            </>
+          }
+          onRetry={() => mutate()}
+        />
       )}
 
       {loading || savedLoading ? (
-        <div className="text-center py-12 text-[var(--t3)]">
-          Loading alerts...
-        </div>
+        <LoadingState label="Loading alerts…" />
       ) : !hasAnyWatchItem ? (
         <div
           className="text-center py-16 glass-panel"

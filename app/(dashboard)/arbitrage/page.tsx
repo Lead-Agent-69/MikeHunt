@@ -5,6 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
+import { ErrorState } from "@/components/shared/PageStates";
 
 // /arbitrage — "buy there, sell here." Tailored to the dealer's home state, every out-of-state deal is
 // scored for import profit (resale − ask − real transport − selling load) from REAL inventory, tiered by
@@ -114,25 +115,13 @@ export default function ArbitragePage() {
       </div>
 
       {error && !data ? (
-        <div
-          role="alert"
-          className="rounded-[var(--r3)] border border-[rgba(239,68,68,.20)] bg-[rgba(239,68,68,.08)] p-4 text-center"
-          data-testid="arbitrage-load-error"
-        >
-          <p className="text-sm font-bold text-[var(--red)]">
-            Could not load arbitrage routes right now.
-          </p>
-          <p className="mt-1 text-xs text-[var(--t3)]">
-            Saved inventory is still available on Discover and Scan — this page
-            is not running a live market scan.
-          </p>
-          <button
-            type="button"
-            onClick={() => mutate()}
-            className="mt-3 min-h-[44px] rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 text-xs font-black text-[var(--t2)]"
-          >
-            Try again
-          </button>
+        <div data-testid="arbitrage-load-error">
+          <ErrorState
+            compact
+            title="Could not load arbitrage routes right now."
+            message="Saved inventory is still available on Discover and Scan — this page is not running a live market scan."
+            onRetry={() => mutate()}
+          />
         </div>
       ) : null}
 

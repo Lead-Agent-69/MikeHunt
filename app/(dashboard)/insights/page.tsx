@@ -6,6 +6,7 @@ import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { MarketPulse } from "@/components/insights/MarketPulse";
 import { SourceROI } from "@/components/insights/SourceROI";
+import { ErrorState, LoadingState } from "@/components/shared/PageStates";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -115,26 +116,17 @@ export default function InsightsPage() {
 
       {/* Load failure */}
       {loadFailed && (
-        <div className="glass-panel p-6 text-center">
-          <Ico
-            name="alert-triangle"
-            size={24}
-            className="mx-auto text-[var(--red)] mb-2"
-          />
-          <p className="text-sm font-bold text-[var(--t1)]">
-            Couldn&apos;t load your intelligence
-          </p>
-          <p className="text-xs text-[var(--t4)] mt-1">
-            Refresh in a moment, or check you&apos;re signed in.
-          </p>
-        </div>
+        <ErrorState
+          compact
+          title="Couldn't load your intelligence"
+          message="Refresh in a moment, or check you're signed in."
+          onRetry={() => mutateOut()}
+        />
       )}
 
       {/* Loading */}
       {outLoading && !outData && !loadFailed && (
-        <div className="glass-panel p-8 text-center text-[var(--t3)] text-sm">
-          Loading your intelligence…
-        </div>
+        <LoadingState label="Loading your intelligence…" variant="block" />
       )}
 
       {/* AI Market Pulse — Deal IQ Layer 4 (explicit generate, cached) */}
