@@ -35,9 +35,11 @@ describe("similar RPC grants", () => {
     expect(code).toMatch(/SET search_path = public, extensions, pg_temp/);
   });
 
-  it("never returns embedding, coordinates, ZIP or pricing breakdown", () => {
+  it("never returns embedding, coordinates, raw location, options, ZIP or pricing breakdown", () => {
     const returns = code.slice(code.indexOf("RETURNS TABLE"), code.indexOf("LANGUAGE sql"));
-    for (const col of ["embedding", "latitude", "longitude", "location_zip", "pricing_breakdown"])
-      expect(returns).not.toContain(col);
+    // Word boundaries so location_state / location_city (allowed) don't false-match `location`.
+    for (const col of ["embedding", "lat", "lng", "location", "options", "location_zip", "pricing_breakdown"])
+      expect(returns).not.toMatch(new RegExp(`\\b${col}\\b`));
+    expect(returns).toMatch(/\blocation_state\b/);
   });
 });

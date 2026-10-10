@@ -13,25 +13,36 @@ const BASE = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
+const attrRows = vi.hoisted(() => ({ value: [] as any[] }));
+const baseRow = vi.hoisted(() => ({ value: true }));
+const rateLimit = vi.hoisted(() =>
+  vi.fn(() => ({ allowed: true, remaining: 29, retryAfter: 0, limit: 30 })),
+);
+vi.mock("@/lib/rate-limit", async (orig) => ({
+  ...(await orig<typeof import("@/lib/rate-limit")>()),
+  rateLimit,
+}));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
     rpc,
-    from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({
-            data:
-              table === "user_preferences" && savedMode.value
-                ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
-                : table === "deals"
-                  ? BASE
-                  : null,
-            error: null,
-          }),
-        }),
-      }),
-    }),
+    from: (table: string) => {
+      // Chainable query stub: filters return the chain; maybeSingle → one row, limit → list.
+      const chain: any = {};
+      for (const m of ["select", "eq", "neq", "gt", "gte", "lte", "order", "ilike", "in"])
+        chain[m] = () => chain;
+      chain.maybeSingle = async () => ({
+        data:
+          table === "user_preferences" && savedMode.value
+            ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
+            : table === "deals" && baseRow.value
+              ? BASE
+              : null,
+        error: null,
+      });
+      chain.limit = async () => ({ data: attrRows.value, error: null });
+      return chain;
+    },
   }),
 }));
 
@@ -74,6 +85,8 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     getServerUser.mockReset();
     rpc.mockReset();
     rpc.mockResolvedValue({ data: [ROW], error: null });
+    attrRows.value = [];
+    baseRow.value = true;
   });
 
   it.each(["dealer", "reseller"])(
@@ -114,5 +127,63 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     );
     const card = (await res.json()).similar[0];
     expect(card).not.toHaveProperty("trueNetProfit");
+  });
+});
+
+describe("GET /api/deals/[id]/similar caching + rate limit", () => {
+  const call = () =>
+    GET(new NextRequest("https://app.test/api/deals/deal-1/similar"), {
+      params: Promise.resolve({ id: "deal-1" }),
+    });
+
+  beforeEach(() => {
+    getServerUser.mockReset();
+    getServerUser.mockResolvedValue({ data: { user: null }, error: null });
+    savedMode.value = null;
+    rpc.mockReset();
+    rateLimit.mockClear();
+    attrRows.value = [];
+    baseRow.value = true;
+  });
+
+  it("rate-limits under the deal-similar key, 30 per 60s", async () => {
+    rpc.mockResolvedValue({ data: [ROW], error: null });
+    await call();
+    expect(rateLimit).toHaveBeenCalledWith(expect.anything(), {
+      key: "deal-similar",
+      limit: 30,
+      windowMs: 60_000,
+    });
+  });
+
+  it("returns the standard 429 (no-store) without touching the database", async () => {
+    rateLimit.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfter: 17, limit: 30 });
+    const res = await call();
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("17");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("semantic path is private, no-store", async () => {
+    rpc.mockResolvedValue({ data: [ROW], error: null });
+    const res = await call();
+    expect((await res.json()).basis).toBe("semantic");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("attribute fallback is private, no-store", async () => {
+    rpc.mockResolvedValue({ data: [], error: null });
+    attrRows.value = [{ ...ROW, similarity: undefined }];
+    const res = await call();
+    expect((await res.json()).basis).toBe("attribute");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("none path is private, no-store", async () => {
+    baseRow.value = false;
+    const res = await call();
+    expect(await res.json()).toEqual({ similar: [], basis: "none" });
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   });
 });

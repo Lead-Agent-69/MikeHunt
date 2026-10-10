@@ -11,6 +11,11 @@ import {
   fetchSemanticSimilar,
 } from "@/lib/deals/similar-deals";
 import { similarSegment } from "@/lib/deals/similar-prefilters";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+// Output depends on the caller's desk (profit redaction) — never cache it in a shared layer.
+const NO_STORE = { "Cache-Control": "private, no-store" };
+const json = (body: unknown) => NextResponse.json(body, { headers: NO_STORE });
 
 // GET /api/deals/[id]/similar — semantically-similar deals via pgvector, hard-prefiltered to the
 // same segment / price band / year window first (similar_deals_by_id_filtered; legacy RPC +
@@ -40,9 +45,16 @@ function mapRow(d: any) {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Fans out to up to 4 pgvector RPCs per call.
+  const rl = rateLimit(req, { key: "deal-similar", limit: 30, windowMs: 60_000 });
+  if (!rl.allowed) {
+    const res = tooManyRequests(rl);
+    res.headers.set("Cache-Control", "private, no-store");
+    return res;
+  }
   const { id } = await params;
   const supabase = createServerComponentClient();
   // Net profit and profit score only go to a saved reseller / dealer desk (fail closed).
@@ -59,13 +71,13 @@ export async function GET(
     .select("make, model, year, ask_price")
     .eq("id", id)
     .maybeSingle();
-  if (!base?.make) return NextResponse.json({ similar: [], basis: "none" });
+  if (!base?.make) return json({ similar: [], basis: "none" });
   const segment = similarSegment(base);
 
   // 1. Semantic path (pgvector), prefiltered.
   const semantic = await fetchSemanticSimilar(supabase, id, base);
   if (semantic) {
-    return NextResponse.json({
+    return json({
       similar: semantic.rows.map(shape),
       basis: "semantic",
       filters: { segment, widened: semantic.step },
@@ -74,7 +86,7 @@ export async function GET(
 
   // 2. Attribute-based fallback — same make under the same segment / price / year tiers.
   const attr = await fetchAttributeSimilar(supabase, id, base);
-  return NextResponse.json({
+  return json({
     similar: attr.rows.map(shape),
     basis: "attribute",
     filters: { segment, widened: attr.step },
