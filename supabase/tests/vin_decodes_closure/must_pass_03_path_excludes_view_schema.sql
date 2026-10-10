@@ -1,0 +1,1 @@
+CREATE SCHEMA api; CREATE VIEW api.sv AS SELECT vin FROM public.vin_decodes; REVOKE ALL ON api.sv FROM PUBLIC, anon, authenticated; CREATE TABLE public.sv (vin text); CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = public AS $q$ SELECT count(*) FROM sv $q$; GRANT EXECUTE ON FUNCTION public.f() TO anon;
