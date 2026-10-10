@@ -41,23 +41,45 @@ describe("multisite full filters", () => {
     });
   });
 
-  it("Cars.com carries trim, fuel, transmission and miles (flagged); body and drivetrain are not sent", () => {
+  it("Cars.com carries trim, body (pickup -> truck), fuel, transmission and miles (flagged); drivetrain is not sent", () => {
     const l = byId().cars_com;
     const u = new URL(l.url);
     expect(u.searchParams.get("keyword")).toBe("Lariat");
     expect(u.searchParams.get("mileage_max")).toBe("90000");
-    // Unconfirmed slugs (Cloudflare blocked the browser check): hidden rather than possibly wrong.
-    expect(u.searchParams.getAll("body_style_slugs[]")).toEqual([]);
+    // Cars.com's own /shopping/truck/ page uses bodystyle "truck"; "pickup_truck" was wrong.
+    expect(u.searchParams.getAll("body_style_slugs[]")).toEqual(["truck"]);
+    expect(l.url).not.toMatch(/pickup_truck/);
+    // Drivetrain slugs are unconfirmed (Cloudflare blocked the browser check): hidden, not guessed.
     expect(u.searchParams.getAll("drivetrain_slugs[]")).toEqual([]);
-    expect(l.url).not.toMatch(
-      /pickup_truck|four_wheel_drive|front_wheel_drive/,
-    );
+    expect(l.url).not.toMatch(/four_wheel_drive|front_wheel_drive|drivetrain/);
     expect(u.searchParams.getAll("fuel_slugs[]")).toEqual(["gasoline"]);
     expect(u.searchParams.getAll("transmission_slugs[]")).toEqual([
       "automatic",
     ]);
-    expect(l.unconfirmed).toEqual(["trim", "fuel", "transmission", "milesMax"]);
-    expect([...l.dropped].sort()).toEqual(["body", "drivetrain", "title"]);
+    expect(l.unconfirmed).toEqual([
+      "trim",
+      "body",
+      "fuel",
+      "transmission",
+      "milesMax",
+    ]);
+    expect([...l.dropped].sort()).toEqual(["drivetrain", "title"]);
+  });
+
+  it.each([
+    ["sedan", "sedan"],
+    ["suv", "suv"],
+    ["coupe", "coupe"],
+    ["pickup", "truck"],
+  ])("Cars.com body %s is sent as body_style_slugs[]=%s", (body, slug) => {
+    const l = buildMultiSiteLinks({ make: "Ford", body }).find(
+      (x) => x.site === "cars_com",
+    )!;
+    expect(new URL(l.url).searchParams.getAll("body_style_slugs[]")).toEqual([
+      slug,
+    ]);
+    expect(l.unconfirmed).toContain("body");
+    expect(l.dropped).not.toContain("body");
   });
 
   it("Autotrader uses Cox codes, all confirmed; trim needs a model code", () => {

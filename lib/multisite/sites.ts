@@ -80,12 +80,29 @@ export const autotempest: MultiSiteSite = {
 };
 
 /*
- * Cars.com body style and drivetrain are NOT sent. Our slugs (`pickup_truck`, `front_wheel_drive`, ...)
- * disagree with a third-party doc (`truck`, `fwd`, ...) and Cloudflare blocked every browser check on
- * 2026-10-10, so we report them as dropped (the buyer sets them on Cars.com) rather than send values
- * that may be wrong. Re-add `body_style_slugs[]` / `drivetrain_slugs[]` once a real browser confirms
- * the slugs. Fuel, transmission, trim keyword and max miles agree across sources and stay, flagged.
+ * Cars.com drivetrain is NOT sent. Our slugs (`front_wheel_drive`, ...) disagree with a third-party doc
+ * (`fwd`, ...) and Cloudflare blocked every browser check on 2026-10-10, so drivetrain is reported as
+ * dropped (the buyer sets it on Cars.com) rather than sent with a value that may be wrong. Re-add
+ * `drivetrain_slugs[]` once a real browser confirms the slugs.
+ *
+ * Body style IS sent, flagged unconfirmed: pickups map to `truck`. Cars.com's own /shopping/truck/ page
+ * embeds bodystyle ["truck"], and a shared Cars.com URL plus the third-party doc agree; the old
+ * `pickup_truck` was wrong. Not yet loaded in a browser (Cloudflare), so it stays unconfirmed.
+ * Fuel, transmission, trim keyword and max miles agree across sources and stay, flagged.
+ * Cars.com also has flex_fuel / hydrogen fuel and cvt / dual_clutch transmission slugs; our filters
+ * don't offer those values yet, so there is nothing to map.
  */
+const CARS_COM_BODY: Record<NonNullable<MultiSiteFilters["body"]>, string> = {
+  sedan: "sedan",
+  suv: "suv",
+  truck: "truck",
+  coupe: "coupe",
+  hatchback: "hatchback",
+  minivan: "minivan",
+  van: "van",
+  wagon: "wagon",
+  convertible: "convertible",
+};
 const CARS_COM_FUEL: Record<NonNullable<MultiSiteFilters["fuel"]>, string> = {
   gas: "gasoline",
   diesel: "diesel",
@@ -117,11 +134,12 @@ export const carsCom: MultiSiteSite = {
           : snapRadius(f.radiusMi, CARS_COM_RADII)
         : undefined,
       keyword: f.trim,
+      "body_style_slugs[]": f.body ? [CARS_COM_BODY[f.body]] : undefined,
       "fuel_slugs[]": f.fuel ? [CARS_COM_FUEL[f.fuel]] : undefined,
       "transmission_slugs[]": f.transmission ? [f.transmission] : undefined,
     })}`;
-    return link(this, url, f, ["title", "body", "drivetrain"], this.verified, {
-      unconfirmed: ["trim", "fuel", "transmission", "milesMax"],
+    return link(this, url, f, ["title", "drivetrain"], this.verified, {
+      unconfirmed: ["trim", "body", "fuel", "transmission", "milesMax"],
     });
   },
 };
