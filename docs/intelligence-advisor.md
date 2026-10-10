@@ -71,3 +71,43 @@ Multi-site deep links (#220) let users check sites we don't ingest. No data is t
 - ≥ 70% of active deals show all three numbers with `measured` or labelled `estimate` basis.
 - Advisor "Buy" picks: median realized margin within ±20% of predicted, tracked via `deal_outcomes`.
 - Time from opening the app to the first Buy card: under 3 seconds on mobile.
+
+## Check any listing (API contract)
+
+`POST /api/check-listing`: one input, one card, for any car, including ones we don't track.
+
+Request (any one of these is enough to start):
+- `{ "q": "<listing URL | VIN | '2018 Civic EX 71k $9,500 60432'>" }`, the single box on /find
+- or fields: `url`, `vin`, `year`, `make`, `model`, `trim`, `mileage`, `price`, `zip`, `title`
+  (clean | salvage | rebuilt | rebuildable). `homeState` is optional and adds the buyer's home as a sell market.
+
+How it reads the car:
+- A URL goes through save-from-url's guarded, IP-pinned fetch (public http(s) only, redirects
+  re-checked), then page selectors plus schema.org JSON-LD.
+- A VIN is decoded with NHTSA vPIC.
+- Prices come only from the page or the user.
+- An unreadable page returns `422 PAGE_UNREADABLE` and asks for the details.
+
+Response `{ read, desk }`, where `read` is `CheckListingRead` (`lib/intelligence/check-listing.ts`):
+
+| Field | Meaning | Basis |
+| --- | --- | --- |
+| `verdict` | `buy` / `wait` / `pass` / `not_enough_data` | |
+| `headline` | one sentence under the verdict | |
+| `fairValue` | what comps say it's worth where it sits | `measured` (sold) / `estimate` (asks × 0.95) / `insufficient` |
+| `maxBuy` | flip desk: highest price that still clears the target profit (≥ $1,000 or 10% of resale). Personal desk: fair value | same |
+| `resale` + `resale.state` | expected resale in the best sell market (state comps ≥ 3, or the buyer's home) | same |
+| `profit` | net after fees, transport, recon, repair and selling cost (engine cost line) | same |
+| `confidence` | engine confidence label + score | |
+| `why` | 2–4 sentences: comps used, cost line, trend (`market_timing_signals`), the listing's own price history, title | |
+| `assumptions` | every unmeasured input, from the engine | |
+
+Engines reused, not re-implemented:
+- `lib/arbitrage` `evaluateOpportunity` handles comps, title categories, fees, transport, recon, repair, selling cost and confidence.
+- `comps-aggregate` never uses a listing as its own comp; the check also drops the pasted URL/VIN.
+- `eligibleAskingPrices` keeps auction bids out of retail comps.
+
+Desk gate:
+- Personal buyers get the verdict against fair value, Buy ≤ and fair value.
+- Profit, resale and where to sell are flip-desk only.
+- Signed-out callers are treated as personal.
