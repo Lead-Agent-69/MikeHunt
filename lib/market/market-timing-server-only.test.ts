@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const NAME = "20261010120000_market_timing_stripe_events_server_only.sql";
-const RECHECK = "20261010130000_market_timing_stripe_events_recheck.sql";
+const RECHECK = "20261010140000_market_timing_stripe_events_recheck.sql";
 const DIR = "supabase/migrations";
 const sql = readFileSync(`${DIR}/${NAME}`, "utf8");
 const recheck = readFileSync(`${DIR}/${RECHECK}`, "utf8");
