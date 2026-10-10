@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseEbaySoldHtml } from "./ebay-sold";
+import {
+  parseEbaySoldHtml,
+  parseSoldLocationState,
+  splitSoldMakeModelTrim,
+} from "./ebay-sold";
 
 const card = (
   title: string,
@@ -89,5 +93,103 @@ describe("parseEbaySoldHtml", () => {
     expect(parseEbaySoldHtml(dup)).toHaveLength(1);
     expect(parseEbaySoldHtml("<html>nope</html>")).toEqual([]);
     expect(parseEbaySoldHtml("")).toEqual([]);
+  });
+
+  it("stores the normalized model and the trim separately", () => {
+    const rows = parseEbaySoldHtml(
+      card("2018 Ford F-150 XLT SuperCrew 4x4", "$24,500.00", "40") +
+        card("2017 Honda Civic EX Sedan", "$14,200.00", "41"),
+    );
+    expect(rows.map((r) => [r.make, r.model, r.trim])).toEqual([
+      ["Ford", "f150", "XLT SuperCrew 4x4"],
+      ["Honda", "civic", "EX Sedan"],
+    ]);
+  });
+
+  it("reads an explicit item location state, otherwise leaves it empty", () => {
+    const located = card("2018 Honda Accord EX-L", "$18,600.00", "50").replace(
+      '<div class="s-card__caption">',
+      '<div class="s-card__attribute-row"><span>Located in Houston, TX</span></div><div class="s-card__caption">',
+    );
+    const usOnly = card("2018 Honda Accord EX-L", "$18,600.00", "51").replace(
+      '<div class="s-card__caption">',
+      '<div class="s-card__attribute-row"><span>Located in United States</span></div><div class="s-card__caption">',
+    );
+    const rows = parseEbaySoldHtml(
+      located + usOnly + card("2018 Honda Accord EX-L", "$18,600.00", "52"),
+    );
+    expect(rows.map((r) => r.location_state)).toEqual([
+      "TX",
+      undefined,
+      undefined,
+    ]);
+  });
+});
+
+describe("splitSoldMakeModelTrim", () => {
+  const split = (s: string) => splitSoldMakeModelTrim(s.split(/\s+/));
+  it.each([
+    ["Ford F-150 XLT", { make: "Ford", model: "f150", trim: "XLT" }],
+    [
+      "Ford F150 Lariat 4x4",
+      { make: "Ford", model: "f150", trim: "Lariat 4x4" },
+    ],
+    ["Ford F 150 XL", { make: "Ford", model: "f150", trim: "XL" }],
+    ["Honda Civic EX", { make: "Honda", model: "civic", trim: "EX" }],
+    ["Honda CR-V EX-L AWD", { make: "Honda", model: "crv", trim: "EX-L AWD" }],
+    [
+      "Jeep Grand Cherokee Laredo",
+      { make: "Jeep", model: "grandcherokee", trim: "Laredo" },
+    ],
+    [
+      "Tesla Model 3 Long Range",
+      { make: "Tesla", model: "model3", trim: "Long Range" },
+    ],
+    [
+      "Chevrolet Silverado 1500 LT",
+      { make: "Chevrolet", model: "silverado1500", trim: "LT" },
+    ],
+    ["Chevy Equinox LT", { make: "Chevrolet", model: "equinox", trim: "LT" }],
+    ["Ram 1500 Big Horn", { make: "Ram", model: "1500", trim: "Big Horn" }],
+    [
+      "Land Rover Range Rover Sport HSE",
+      { make: "Land Rover", model: "rangerover", trim: "Sport HSE" },
+    ],
+    [
+      "Chrysler Town & Country Touring",
+      { make: "Chrysler", model: "towncountry", trim: "Touring" },
+    ],
+    ["Toyota Camry", { make: "Toyota", model: "camry", trim: undefined }],
+    [
+      "Honda Accord EX Clean Title Low Miles",
+      { make: "Honda", model: "accord", trim: "EX" },
+    ],
+    [
+      "Ford Mustang GT Premium Convertible 5.0 V8",
+      { make: "Ford", model: "mustang", trim: "GT Premium Convertible 5.0" },
+    ],
+  ])("%s", (input, expected) => {
+    expect(split(input)).toEqual(expected);
+  });
+  it("returns nothing for an empty title", () => {
+    expect(splitSoldMakeModelTrim([])).toEqual({});
+  });
+});
+
+describe("parseSoldLocationState", () => {
+  it.each([
+    [["Located in Houston, TX"], "TX"],
+    [["Located in Texas, United States"], "TX"],
+    [["Located in Austin, Texas"], "TX"],
+    [["Item location: Denver, CO 80202, United States"], "CO"],
+    [["Dallas, TX 75201"], "TX"],
+    [["Located in United States"], undefined],
+    [["Located in Toronto, Ontario, Canada"], undefined],
+    [["Located in Houston"], undefined],
+    [["98,000 miles", "Pre-Owned"], undefined],
+    [["Located in Springfield, XX"], undefined],
+    [[], undefined],
+  ] as [string[], string | undefined][])("%j -> %s", (pieces, expected) => {
+    expect(parseSoldLocationState(pieces)).toBe(expected);
   });
 });
