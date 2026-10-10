@@ -107,32 +107,37 @@ export function takeBackNavigationEntry<S>(
 }
 
 /**
- * Scroll to y once the document can reach it (data re-rendered), giving up after timeoutMs.
+ * Scroll to y once the document can reach it (data re-rendered), then hold it there while late
+ * layout (images, fonts, measured rows) settles. Stops on the first wheel / touch / key from the
+ * user, once y has held for ~12 frames, or after timeoutMs (then it lands as close as it can).
  * Returns a cancel function.
  */
 export function scrollWhenReachable(y: number, timeoutMs = 4000): () => void {
   let raf = 0;
   let cancelled = false;
+  let held = 0;
   const started = performance.now();
-  const userScrolled = () => {
+  const stop = () => {
     cancelled = true;
   };
-  window.addEventListener("wheel", userScrolled, { passive: true, once: true });
-  window.addEventListener("touchstart", userScrolled, {
-    passive: true,
-    once: true,
-  });
+  const opts = { passive: true, once: true } as const;
+  window.addEventListener("wheel", stop, opts);
+  window.addEventListener("touchstart", stop, opts);
+  window.addEventListener("keydown", stop, opts);
+  const go = () =>
+    window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
   const tick = () => {
     if (cancelled) return;
     const reachable =
       document.documentElement.scrollHeight - window.innerHeight >= y - 1;
-    if (reachable || performance.now() - started > timeoutMs) {
-      window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
-      // Late layout (images, fonts) can shift the page once more; settle one frame later.
-      raf = requestAnimationFrame(() => {
-        if (!cancelled && Math.abs(window.scrollY - y) > 2 && reachable)
-          window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
-      });
+    if (reachable) {
+      if (Math.abs(window.scrollY - y) > 2) {
+        go();
+        held = 0;
+      } else if (++held >= 12) return;
+    }
+    if (performance.now() - started > timeoutMs) {
+      if (!reachable) go();
       return;
     }
     raf = requestAnimationFrame(tick);
@@ -141,8 +146,9 @@ export function scrollWhenReachable(y: number, timeoutMs = 4000): () => void {
   return () => {
     cancelled = true;
     cancelAnimationFrame(raf);
-    window.removeEventListener("wheel", userScrolled);
-    window.removeEventListener("touchstart", userScrolled);
+    window.removeEventListener("wheel", stop);
+    window.removeEventListener("touchstart", stop);
+    window.removeEventListener("keydown", stop);
   };
 }
 

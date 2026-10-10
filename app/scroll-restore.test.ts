@@ -73,6 +73,20 @@ describe("scrollWhenReachable", () => {
     height = 40000; // appended pages are back
     frames.shift()!(0);
     expect(scrollTo).toHaveBeenCalledWith({ top: 2500, behavior: "instant" });
+    // Late images push content: the page drifts to 2200, so the restore puts it back.
+    Object.defineProperty(window, "scrollY", {
+      value: 2200,
+      configurable: true,
+    });
+    frames.shift()!(0);
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    // Held at y for 12 frames: done, no more frames requested.
+    Object.defineProperty(window, "scrollY", {
+      value: 2500,
+      configurable: true,
+    });
+    for (let k = 0; k < 12 && frames.length; k++) frames.shift()!(0);
+    expect(frames.length).toBe(0);
     vi.unstubAllGlobals();
   });
 });
