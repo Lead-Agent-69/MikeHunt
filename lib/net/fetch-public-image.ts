@@ -1,6 +1,6 @@
 import axios from "axios";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
-import { locationHeader } from "@/lib/net/fetch-public-html";
+import { locationHeader, publicFetchSignal } from "@/lib/net/fetch-public-html";
 import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 export const MAX_IMAGE_REDIRECTS = 3;
@@ -42,11 +42,13 @@ export async function fetchPublicImage(
   rawUrl: string,
   isAllowed: (url: string) => boolean,
   headers: Record<string, string> = {},
+  options: { signal?: AbortSignal; maxBytes?: number } = {},
 ): Promise<PublicImageResult> {
   if (!isAllowed(rawUrl)) throw new UrlNotAllowedError("Host not allowed");
   // Resolve once per hop, validate, and pin the socket to that answer.
   let target = await resolvePinnedTarget(rawUrl);
   let current = target.url;
+  const signal = publicFetchSignal(options.signal);
 
   for (let hop = 0; hop <= MAX_IMAGE_REDIRECTS; hop++) {
     let response;
@@ -54,9 +56,10 @@ export async function fetchPublicImage(
       response = await axios.get(current.toString(), {
         headers,
         timeout: 8000,
+        signal,
         maxRedirects: 0,
         responseType: "arraybuffer",
-        maxContentLength: MAX_IMAGE_BYTES,
+        maxContentLength: Math.min(options.maxBytes ?? MAX_IMAGE_BYTES, MAX_IMAGE_BYTES),
         validateStatus: () => true,
         ...pinnedAxiosOptions(target),
       });
