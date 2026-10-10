@@ -4,6 +4,7 @@ import {
   DEALS_PUBLIC_COLUMNS,
   DEALS_SERVER_ONLY_COLUMNS,
 } from "./deals-public-columns";
+import { hasUseClientDirective } from "@/lib/testing/use-client-directive";
 
 const MIGRATION = "supabase/migrations/20261010020000_deals_column_grants.sql";
 const sql = readFileSync(MIGRATION, "utf8");
@@ -132,7 +133,7 @@ describe("no anon / browser select of non-granted deals columns", () => {
   const serverFiles = () =>
     ["app", "lib", "scripts"]
       .flatMap(walk)
-      .filter((f) => !/^\s*["']use client["']/m.test(readFileSync(f, "utf8")));
+      .filter((f) => !hasUseClientDirective(readFileSync(f, "utf8")));
 
   // Files allowed to name the anon key, and why. Anything else that does is a failure.
   const ANON_KEY_ALLOWED: Record<string, string> = {
@@ -239,5 +240,24 @@ describe("no anon / browser select of non-granted deals columns", () => {
     for (const c of used) {
       expect(DEALS_PUBLIC_COLUMNS as readonly string[]).toContain(c);
     }
+  });
+});
+
+describe("hasUseClientDirective (guard's client-file detection)", () => {
+  it("matches only the leading directive", () => {
+    expect(hasUseClientDirective('"use client";\nexport {}')).toBe(true);
+    expect(
+      hasUseClientDirective("// app/x.tsx\n/* hi */\n'use client'\n"),
+    ).toBe(true);
+    expect(hasUseClientDirective('\uFEFF  "use client"')).toBe(true);
+  });
+  it("ignores use client that is not the first statement", () => {
+    expect(hasUseClientDirective('import a from "a";\n"use client";')).toBe(
+      false,
+    );
+    expect(hasUseClientDirective('const s = `\n"use client"\n`;')).toBe(false);
+    expect(hasUseClientDirective('export const x = 1;\n  "use client"')).toBe(
+      false,
+    );
   });
 });

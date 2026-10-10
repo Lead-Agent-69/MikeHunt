@@ -82,7 +82,7 @@ function safeDealAnalysis(
   return Object.keys(safeCosts).length > 0 ? { costs: safeCosts } : undefined;
 }
 
-const CONTACT_KEY = /contact|phone|email/i;
+const CONTACT_KEY = /contact|phone|e-?mail|\btel\b|mobile|cell|whatsapp/i;
 
 /**
  * Copy of a raw `options` blob without seller contact. Scrapers store seller phone / email under

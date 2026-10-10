@@ -85,3 +85,37 @@ describe("safeOptions is recursive with a depth cap", () => {
     expect(out).not.toHaveProperty("seller_contact_url");
   });
 });
+
+describe("safeOptions sensitive-key coverage", () => {
+  it("drops e-mail / tel / mobile / cell / whatsapp keys at any depth", () => {
+    const out = redactListingForNonFlipDesk({
+      id: "d",
+      options: {
+        "e-mail": "a@b.c",
+        tel: "5550101",
+        seller: {
+          mobile: "5550102",
+          Cell_Number: "5550103",
+          whatsApp: "5550104",
+        },
+        list: [{ WhatsApp_Link: "https://wa.me/5550105" }],
+        hotel_parking: "lot B",
+        trim: "EX-L",
+      },
+    } as any) as any;
+    const raw = JSON.stringify(out);
+    for (const leak of [
+      "a@b.c",
+      "5550101",
+      "5550102",
+      "5550103",
+      "5550104",
+      "5550105",
+    ]) {
+      expect(raw).not.toContain(leak);
+    }
+    // \btel\b must not eat unrelated keys like hotel_*.
+    expect(out.options.hotel_parking).toBe("lot B");
+    expect(out.options.trim).toBe("EX-L");
+  });
+});
