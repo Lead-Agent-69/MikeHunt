@@ -86,6 +86,41 @@ import {
 } from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
 
+// Scale: at 5,000 listings a per-card spring with a 0.06s stagger delays the 48th card ~3s and keeps
+// animating every appended page. Animate only the first screen of cards.
+const SCAN_ANIMATED_CARDS = 12;
+const SCAN_CARD_VARIANTS = {
+  hidden: { opacity: 0, y: 20, scale: 0.97 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring" as const, stiffness: 120, damping: 18 },
+  },
+};
+// Off-screen cards skip layout and paint; the intrinsic size keeps the scrollbar stable.
+const SCAN_CARD_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "auto 720px",
+} as const;
+
+/**
+ * No resale basis (no MMR / sell estimate) means the API's profit is a placeholder 0, and a green
+ * "+$0" is fake precision. DealCard then shows "— Needs comps" instead of a signed number.
+ */
+function scanNeedsComps(car: {
+  mmrValue?: number | null;
+  sellEstimate?: number | null;
+  profitEstimate?: number | null;
+}): boolean {
+  if (
+    car.profitEstimate == null ||
+    !Number.isFinite(Number(car.profitEstimate))
+  )
+    return true;
+  return !(Number(car.mmrValue) > 0) && !(Number(car.sellEstimate) > 0);
+}
+
 const ProfitSimulatorDrawer = dynamic(
   () =>
     import("@/components/ui/next-level-features").then(
@@ -5244,22 +5279,14 @@ function ScanPageInner() {
           initial="hidden"
           animate="show"
         >
-          {filteredResults.map((car: ScanResult) => (
+          {filteredResults.map((car: ScanResult, index: number) => (
             <motion.div
               key={car.id}
-              variants={{
-                hidden: { opacity: 0, y: 20, scale: 0.97 },
-                show: {
-                  opacity: 1,
-                  y: 0,
-                  scale: 1,
-                  transition: {
-                    type: "spring" as const,
-                    stiffness: 120,
-                    damping: 18,
-                  },
-                },
-              }}
+              // Only the first screen animates in; appended pages render at rest (see SCAN_CARD_VARIANTS).
+              variants={
+                index < SCAN_ANIMATED_CARDS ? SCAN_CARD_VARIANTS : undefined
+              }
+              style={SCAN_CARD_STYLE}
             >
               <DealCard
                 flipDesk={flipEconomics}
@@ -5274,6 +5301,7 @@ function ScanPageInner() {
                 askPrice={car.askPrice}
                 mmrValue={car.mmrValue}
                 profitEstimate={car.profitEstimate}
+                needsComps={scanNeedsComps(car)}
                 profitScore={car.profitScore}
                 locationCity={car.locationCity}
                 locationState={car.locationState}
@@ -5428,6 +5456,16 @@ function ScanPageInner() {
                 : `Load more — ${(total - results.length).toLocaleString()} more`}
           </button>
         </div>
+      )}
+
+      {!loading && !error && !hasMore && results.length > 0 && total > 0 && (
+        <p
+          data-testid="scan-end-of-list"
+          className="py-8 text-center text-sm text-[var(--t3)]"
+        >
+          That&apos;s all {total.toLocaleString()}{" "}
+          {total === 1 ? "listing" : "listings"} for this search.
+        </p>
       )}
 
       {/* Toasts */}
