@@ -8,6 +8,8 @@ import {
 } from "@/lib/deals/deal-desk-access";
 import {
   FIND_SIMILAR_SELECT,
+  escapeLike,
+  FIND_SIMILAR_MAX_TERM,
   pickFindSimilarColumns,
   withNoStore,
 } from "@/lib/deals/find-similar-columns";
@@ -26,13 +28,32 @@ export async function GET(request: NextRequest) {
     const supabase = createServerComponentClient();
     const { searchParams } = new URL(request.url);
 
-    const make = searchParams.get("make");
-    const model = searchParams.get("model");
+    const make = searchParams.get("make")?.trim() || "";
+    const model = searchParams.get("model")?.trim() || "";
     const year = parseInt(searchParams.get("year") || "0");
     const price = parseFloat(searchParams.get("price") || "0");
     const mileage = parseInt(searchParams.get("mileage") || "0");
 
     if (!make || !model) {
+      return withNoStore(
+        NextResponse.json(
+          { error: "make and model are required" },
+          { status: 400 },
+        ),
+      );
+    }
+
+    if (
+      make.length > FIND_SIMILAR_MAX_TERM ||
+      model.length > FIND_SIMILAR_MAX_TERM
+    ) {
+      return withNoStore(
+        NextResponse.json({ error: "make or model too long" }, { status: 400 }),
+      );
+    }
+    // First word of the model, matched literally (no user-supplied % / _ wildcards).
+    const modelTerm = escapeLike(model.split(/\s+/)[0] || "");
+    if (!modelTerm) {
       return withNoStore(
         NextResponse.json(
           { error: "make and model are required" },
@@ -58,7 +79,7 @@ export async function GET(request: NextRequest) {
       .select(FIND_SIMILAR_SELECT)
       .eq("active", true)
       .eq("make", make)
-      .ilike("model", `%${model.split(" ")[0]}%`) // match first word of model resiliently
+      .ilike("model", `%${modelTerm}%`) // match first word of model resiliently
       .gte("year", yearMin)
       .lte("year", yearMax);
 

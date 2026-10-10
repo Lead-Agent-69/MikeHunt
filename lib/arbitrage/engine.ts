@@ -353,6 +353,43 @@ function scoreConfidence(input: {
   return { score, label, reasons };
 }
 
+/** Buyer fees on `ask` for a source (auction premium + flat + title fee), exactly as
+ *  evaluateOpportunity books them (lib/scoring/max-bid feeModel). */
+export function buyerFeesFor(ask: number, source?: string | null): number {
+  const fm = feeModel(source);
+  return Math.round(ask * fm.feeRate + fm.flatFee + fm.titleFee);
+}
+
+/**
+ * Highest ask (rounded down to `step`) at which the engine's own cost line still clears
+ * `targetNet`, holding a scored spread's resale, transport, recon, repair and selling cost fixed:
+ *   net(ask) = resale − ask − (ask·feeRate + flat + titleFee) − transport − recon − repair − selling
+ * Null when the spread has no comp-backed resale.
+ */
+export function maxAskForNet(
+  spread: Pick<
+    Spread,
+    "expectedResale" | "transport" | "recon" | "repair" | "sellingCost"
+  >,
+  source: string | null | undefined,
+  targetNet: number,
+  step = 50,
+): number | null {
+  if (spread.expectedResale == null) return null;
+  const fm = feeModel(source);
+  const fixed =
+    spread.transport +
+    spread.recon +
+    spread.repair +
+    (spread.sellingCost ?? 0) +
+    fm.flatFee +
+    fm.titleFee;
+  return Math.max(
+    0,
+    Math.floor((spread.expectedResale - fixed - targetNet) / (1 + fm.feeRate) / step) * step,
+  );
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────────────────────────
 
 /** Evaluate one listing. Excluded (stale/frozen or no usable ask) rows come back as ExcludedListing. */
@@ -381,7 +418,7 @@ export function evaluateOpportunity(
   // ── Costs that do not depend on resale ──
   // Buyer fees — lib/scoring/max-bid feeModel (per source).
   const fm = feeModel(listing.source);
-  const fees = Math.round(ask * fm.feeRate + fm.flatFee + fm.titleFee);
+  const fees = buyerFeesFor(ask, listing.source);
   if (fees > 0)
     assumptions.push(
       `Buyer fees from the ${listing.source} fee model: ${Math.round(fm.feeRate * 100)}% + $${fm.flatFee} + $${fm.titleFee} title.`,
