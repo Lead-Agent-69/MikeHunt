@@ -10,6 +10,7 @@
 // Auth = the site's own PUBLIC anonymous keys (shipped to every browser); x-user-id:-1 = anonymous;
 // x-api-correlation-id is just a required request-trace UUID (any value).
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
@@ -202,7 +203,7 @@ function detailTitleType(a: MaestroAsset): string | undefined {
 
 async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
   if (a.assetId == null || a.accountId == null) return null;
-  const res = await fetch(
+  const res = await scraperFetch(
     `${API.replace("/search/list", "")}/assets/${a.assetId}/${a.accountId}/false`,
     {
       method: "POST",
@@ -304,7 +305,7 @@ async function fetchMaestroPage(
     ),
     accountIds: [],
   };
-  const res = await fetch(API, {
+  const res = await scraperFetch(API, {
     method: "POST",
     headers: { ...HEADERS, "x-api-correlation-id": correlationId(page + 1) },
     body: JSON.stringify(body),

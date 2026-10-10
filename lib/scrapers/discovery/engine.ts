@@ -3,6 +3,7 @@
 //   → classify (refine type from the page) → dedup vs known → append to the registry → optionally crawl.
 // Plus link-expansion: rebuilder dealers link to each other, so we mine outbound links from known sites.
 // $0 beyond the AI calls we already make (gpt-4o-mini / gemini-flash). Scripts/CI only (uses fs + axios).
+import { politeModeEnabled, scraperFetch } from "@/lib/scrapers/polite";
 import { politeUserAgent } from "../polite/identity";
 import { generateText } from "ai";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
@@ -89,13 +90,19 @@ export async function validateSite(
   url: string,
 ): Promise<{ status: ValidateStatus; name?: string; html?: string }> {
   try {
-    const axios = (await import("axios")).default;
-    const res = await axios.get(url, {
-      headers: { "User-Agent": UA, Accept: "text/html" },
-      timeout: 12000,
-      maxRedirects: 5,
-      validateStatus: () => true,
-    });
+    let res: { status: number; data: unknown };
+    if (politeModeEnabled()) {
+      const r = await scraperFetch(url, { headers: { Accept: "text/html" } });
+      res = { status: r.status, data: await r.text() };
+    } else {
+      const axios = (await import("axios")).default;
+      res = await axios.get(url, {
+        headers: { "User-Agent": UA, Accept: "text/html" },
+        timeout: 12000,
+        maxRedirects: 5,
+        validateStatus: () => true,
+      });
+    }
     if (res.status >= 200 && res.status < 300 && typeof res.data === "string") {
       const html = res.data;
       const carSite =

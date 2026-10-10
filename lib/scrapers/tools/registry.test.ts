@@ -36,7 +36,7 @@ describe('ScraperRegistry', () => {
     expect(scraper.estimatedDealsPerRun).toBe(25)
   })
 
-  it('tracks failures and auto-disables after threshold', async () => {
+  it('tracks failures and pauses (never disables) after threshold', async () => {
     const scraper = registry.get('test_source')!
     scraper.autoDisableThreshold = 3
 
@@ -45,7 +45,10 @@ describe('ScraperRegistry', () => {
     }
 
     expect(scraper.consecutiveFailures).toBe(3)
-    expect(scraper.enabled).toBe(false)
+    // Jonah's rule: never disable a source. It is paused for a cooldown, then retried.
+    expect(scraper.enabled).toBe(true)
+    expect(scraper.pausedUntil!.getTime()).toBeGreaterThan(Date.now())
+    expect(registry.getDueForRun().map((s) => s.id)).not.toContain('test_source')
   })
 
   it('resets consecutive failures on success', async () => {
@@ -59,7 +62,7 @@ describe('ScraperRegistry', () => {
     expect(scraper.enabled).toBe(true)
   })
 
-  it('lists auto-disabled sources', async () => {
+  it('lists paused sources', async () => {
     const scraper = registry.get('test_source')!
     scraper.autoDisableThreshold = 2
     await registry.updateStats('test_source', false, 500, 0)

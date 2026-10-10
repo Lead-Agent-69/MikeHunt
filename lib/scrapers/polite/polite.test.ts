@@ -120,7 +120,8 @@ describe("DomainLimiter", () => {
       lim.run("a.com", task),
     ]);
     expect(peak).toBe(1);
-    expect(sleeps).toEqual([1_250, 1_250]);
+    // First touch is staggered by 0.5 × 50% of the gap; then gap + jitter.
+    expect(sleeps).toEqual([250, 1_250, 1_250]);
   });
 
   it("honors Crawl-delay above the minimum gap (capped at 60s)", () => {

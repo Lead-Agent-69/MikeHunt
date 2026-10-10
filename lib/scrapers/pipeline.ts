@@ -1,6 +1,7 @@
 // lib/scrapers/pipeline.ts
 // Persistence helpers for scraped deals.
 
+import { deadLetter, recordError } from "./ops/run-telemetry";
 import { createServerComponentClient } from "@/lib/supabase";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
@@ -149,6 +150,22 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (report.issues.length > 0) {
     console.warn(`[Pipeline] quality report for ${source}:`, report);
   }
+  // Dead-letter queue: every record the validator rejected is kept (capped, <= 2 KB) for review and
+  // replay (scripts/replay-dead-letters.ts) instead of vanishing. In-batch duplicates are not errors.
+  const rejected = new Map<number, string[]>();
+  for (const issue of report.issues) {
+    if (issue.field === "duplicate") continue;
+    rejected.set(issue.index, [
+      ...(rejected.get(issue.index) ?? []),
+      `${issue.field}: ${issue.reason}`,
+    ]);
+  }
+  for (const [index, reasons] of Array.from(rejected.entries())) {
+    const deal = normalized[index] as Record<string, unknown> | undefined;
+    const reason = `validation: ${reasons.join("; ")}`;
+    recordError("validation", { url: deal?.source_url as string, message: reason });
+    deadLetter(reason, { url: deal?.source_url as string, payload: deal });
+  }
 
   // Passenger cars and light/medium trucks only (Jonah 2026-10-09). Gov-surplus feeds mix in
   // heavy equipment, trailers, boats, buses and class-8 trucks; drop them before they are stored.
@@ -161,15 +178,27 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   const inScopeDeals = scope.kept as typeof report.validDeals;
 
   const rows = inScopeDeals
-    .filter(
-      (deal) =>
+    .filter((deal) => {
+      const keep =
         deal.year &&
         deal.year > 1900 &&
         deal.make &&
         deal.model &&
         typeof deal.ask_price === "number" &&
-        deal.ask_price > 0,
-    )
+        deal.ask_price > 0;
+      if (!keep) {
+        const missing = [
+          !(deal.year && deal.year > 1900) && "year",
+          !deal.make && "make",
+          !deal.model && "model",
+          !(typeof deal.ask_price === "number" && deal.ask_price > 0) && "price",
+        ].filter(Boolean);
+        const reason = `validation: missing ${missing.join(", ")}`;
+        recordError("validation", { url: deal.source_url, message: reason });
+        deadLetter(reason, { url: deal.source_url, payload: deal });
+      }
+      return keep;
+    })
     .map((deal) => {
       const analysis = analyzeDeal(deal);
       const source_deal_id = localContext
@@ -452,10 +481,13 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           ignoreDuplicates: false,
         })
         .select(SELECT_COLS);
-      if (rowErr)
+      if (rowErr) {
         console.warn(
           `[upsertDeals] skipped ${row.source}/${row.source_deal_id}: ${rowErr.message}`,
         );
+        recordError("db_reject", { url: row.source_url, message: rowErr.message });
+        deadLetter(`db_reject: ${rowErr.message}`, { url: row.source_url, payload: row });
+      }
       else if (data) salvaged.push(...data);
     }
     upsertedRows = salvaged;

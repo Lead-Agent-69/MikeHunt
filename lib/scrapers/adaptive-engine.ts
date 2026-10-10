@@ -4,6 +4,7 @@
 
 import { BrowserContext, Page } from 'playwright'
 import * as cheerio from 'cheerio'
+import { politeFetch, politeGate, politeModeEnabled, politeRobotsPathFor } from './polite'
 import pRetry from 'p-retry'
 import { ScraperConfig } from './engine'
 import { BrowserProfile, ProfileManager } from './tools/profile-manager'
@@ -77,6 +78,20 @@ export class AdaptiveEngine {
   }
 
   async fetch(url: string, config: ScraperConfig, waitForSelector?: string): Promise<FetchResult> {
+    if (!politeRobotsPathFor(url) && politeModeEnabled()) {
+      // Grandfathered source: its own adaptive path, unchanged, inside the polite delay/breaker gate.
+      return politeGate(url, () => this.fetchInner(url, config, waitForSelector))
+    }
+    return this.fetchInner(url, config, waitForSelector)
+  }
+
+  private async fetchInner(url: string, config: ScraperConfig, waitForSelector?: string): Promise<FetchResult> {
+    if (politeRobotsPathFor(url)) {
+      // Polite mode (default): no profiles, proxies or stealth browser. One honest request.
+      const r = await politeFetch(url, { signal: config.abortSignal })
+      if (!r.ok) throw new Error(`polite: ${r.skipped || (r.challenge ? 'challenge' : `HTTP ${r.status}`)} for ${url}`)
+      return { url, html: r.body, $: cheerio.load(r.body), mode: 'static' as EngineMode, close: async () => {} }
+    }
     const host = new URL(url).hostname
     const preferredMode = this.hostModeCache.get(host)
     const tryStaticFirst = this.options.alwaysProbeStatic || preferredMode === 'static' || preferredMode === undefined

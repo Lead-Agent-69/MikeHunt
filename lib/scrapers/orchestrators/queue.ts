@@ -187,14 +187,16 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
     const start = Date.now();
 
     try {
-      const execResult = await this.executor.execute(scraper, {
-        abortSignal: this.abortController?.signal,
-        dryRun: this.options.dryRun,
-        maxRetries: this.retries,
-        timeoutMs: this.jobTimeoutMs,
-        costGuard: this.costGuard,
-        circuitBreaker: this.circuitBreaker,
-      });
+      const execResult = await this.executeWithTelemetry(scraper.id, () =>
+        this.executor.execute(scraper, {
+          abortSignal: this.abortController?.signal,
+          dryRun: this.options.dryRun,
+          maxRetries: this.retries,
+          timeoutMs: this.jobTimeoutMs,
+          costGuard: this.costGuard,
+          circuitBreaker: this.circuitBreaker,
+        }),
+      );
 
       const duration = Date.now() - start;
       job.status = execResult.success ? "completed" : "failed";
@@ -237,7 +239,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       job.error = message;
       job.durationMs = duration;
       job.completedAt = new Date().toISOString();
-      await this.logScrapeError(runId, error);
+      await this.logScrapeError(runId, error, scraper.id);
       await this.registry.updateStats(scraper.id, false, duration, 0);
       const result = {
         source: scraper.id,

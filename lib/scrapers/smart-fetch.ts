@@ -26,7 +26,7 @@ import path from "node:path";
 import { recommendedTier, type AntiBotVendor } from "./platform-detector";
 import { FlareSolverrClient } from "./tools/flaresolverr";
 import { getLocalWriteContext } from "./local-write-context";
-import { politeFetch, politeModeEnabled } from "./polite";
+import { politeFetch, politeGate, politeModeEnabled, politeRobotsPathFor } from "./polite";
 
 export type FetchTier = "static" | "stealth" | "headed" | "flaresolverr";
 
@@ -327,7 +327,7 @@ export async function smartFetch(
 ): Promise<SmartFetchResult> {
   // Polite mode (default): one honest request through politeFetch. No stealth, headed Chrome,
   // FlareSolverr or fingerprint rotation. A wall means "not for us" and the host is paused.
-  if (politeModeEnabled()) {
+  if (politeRobotsPathFor(url)) {
     const res = await politeFetch(url);
     if (!res.ok) return { html: "", tier: "static", blocked: true };
     const valid = !opts.validate || opts.validate(res.body);
@@ -339,6 +339,16 @@ export async function smartFetch(
     };
   }
 
+  // Grandfathered source in polite mode: its own escalation path, unchanged, inside the polite gate.
+  if (politeModeEnabled())
+    return politeGate(url, () => legacySmartFetch(url, opts), (r) => (r.blocked ? 403 : 200));
+  return legacySmartFetch(url, opts);
+}
+
+async function legacySmartFetch(
+  url: string,
+  opts: SmartFetchOptions,
+): Promise<SmartFetchResult> {
   const host = hostOf(url);
 
   // Parked on cooldown after a full block — skip without touching the IP again.

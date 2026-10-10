@@ -18,6 +18,9 @@ Supabase holds thin URL / index rows only. Heavy artifacts live on Zeus (Docker 
 | `deal_views`       | **90 days** (metering reads today only)                                                                                          | `run_retention()`                                                           |
 | `scrape_jobs`      | finished jobs after **14 days** (pending/running never)                                                                          | `run_retention()`                                                           |
 | `scraper_runs`     | **60 days** (health reads 7)                                                                                                     | `run_retention()`                                                           |
+| `scraper_errors` | **14 days**, newest **5,000** (≤ 25 per run) | `run_retention()` |
+| `scraper_dead_letters` | **30 days**, newest **2,000** (≤ 50 per run, ≤ 2 KB each) | `run_retention()` |
+| `scraper_alerts` | **90 days** | `run_retention()` |
 
 `run_retention()` (migration `20261006020000_run_retention.sql`) is called daily by the Vercel cron
 `/api/cron/retention` (07:30 UTC, `Authorization: Bearer $CRON_SECRET`). Missing tables are skipped.

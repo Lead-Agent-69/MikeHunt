@@ -49,6 +49,52 @@ export interface SourceConfig {
   priority: "P0" | "P1" | "P2" | "P3";
   status: "active" | "planned" | "testing" | "disabled";
   notes?: string;
+  /**
+   * Grandfathered under Jonah's standing rule (2026-10-09/10): "never remove or disable a MikeHunt
+   * source, and never stop a scraper that is already working". A robotsExempt source keeps running
+   * exactly as it did before polite mode became the default (#269): its own fetch path, headers and
+   * tools, with only the polite per-domain random delays, backoff and circuit breaker added. The
+   * robots.txt disallow skip applies only to new sources and to sources with 0 rows in the last 7
+   * days. Sources that produced rows in the last 7 days (scraper_runs / deals) are exempted at run
+   * time by lib/scrapers/polite/robots-exempt.ts; this flag is the static list Jonah named.
+   */
+  robotsExempt?: boolean;
+  /** Extra hosts this source fetches from (API or CDN hosts) that share its exemption. */
+  exemptHosts?: string[];
+  /**
+   * Paths on the main host the exemption covers ("/sch/i.html" exact, "/inventory/*" prefix).
+   * Default: the registry URL's path and below, or the whole host when the URL is the site root.
+   */
+  exemptPaths?: string[];
+  /** Runner ids that fetch this source (e.g. curated_dealers crawls ReCar). The registry id always counts. */
+  exemptRunnerIds?: string[];
+  /**
+   * Per-source polite tuning that overrides the worker-wide defaults (POLITE_* env). Domain-level
+   * keys apply to this source's hosts (url + exemptHosts); source-level keys to its runner id(s).
+   * A robots.txt Crawl-delay is always the floor: nothing here can go faster than the site asks.
+   */
+  polite?: SourcePoliteTuning;
+}
+
+export interface SourcePoliteTuning {
+  /** Base gap between request starts to this source's hosts (replaces POLITE_MIN_GAP_MS). */
+  minGapMs?: number;
+  /** Random spread on each gap, 0-3 (replaces POLITE_JITTER_RATIO). */
+  jitterRatio?: number;
+  /** In-flight requests per host, 1-2 (replaces POLITE_DOMAIN_CONCURRENCY). */
+  maxConcurrent?: number;
+  /** Domain pause after repeated 403/429 (replaces POLITE_BREAKER_PAUSE_HOURS). */
+  breakerPauseHours?: number;
+  /** Domain backoff after a bot-challenge page, minutes (replaces POLITE_CHALLENGE_BACKOFF_MIN). */
+  challengeBackoffMin?: number;
+  /** Consecutive failed runs before the source is paused (replaces SCRAPER_BREAKER_THRESHOLD). */
+  breakerThreshold?: number;
+  /** First pause length in minutes; doubles per further failure (SCRAPER_BREAKER_COOLDOWN_MIN). */
+  breakerCooldownMin?: number;
+  /** Incremental runs skip unchanged pages (304 / same content hash) between full rescans. */
+  incremental?: boolean;
+  /** Hours between full rescans when incremental (default SCRAPER_FULL_RESCAN_HOURS, 24). */
+  fullRescanHours?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,6 +278,8 @@ export const INDEPENDENT_DEALERS: SourceConfig[] = [
     priority: "P1",
     status: "active",
     notes: "Rebuilt title focus. High volume.",
+    robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
   },
   {
     id: "ae-of-miami",
@@ -249,6 +297,9 @@ export const INDEPENDENT_DEALERS: SourceConfig[] = [
     priority: "P1",
     status: "active",
     notes: "Export specialists. Multiple locations.",
+    robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
+    exemptHosts: ["aeofmiami.com"],
   },
   {
     id: "damage-com",
@@ -623,6 +674,7 @@ export const ONLINE_MARKETPLACES: SourceConfig[] = [
     priority: "P1",
     status: "active",
     notes: "Local focus. No shipping.",
+    robotsExempt: true,
   },
   {
     id: "craigslist",
@@ -688,6 +740,7 @@ export const DEALER_PLATFORMS: SourceConfig[] = [
     priority: "P1",
     status: "active",
     notes: "JS-rendered. Needs browser path.",
+    robotsExempt: true,
   },
   {
     id: "autotrader",
@@ -1245,6 +1298,73 @@ export const STATE_DEALER_CANDIDATES: SourceConfig[] =
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GRANDFATHERED SCRAPERS Jonah restored (catalog entries so the robotsExempt flag has a home).
+// Their scrapers already exist (runner ebay_sold; curated_dealers for the three sites). No removals.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const GRANDFATHERED_EXTRA_SOURCES: SourceConfig[] = [
+  {
+    id: "ebay-sold",
+    name: "eBay sold listings (sold comps)",
+    url: "https://www.ebay.com/sch/i.html",
+    type: "marketplace",
+    category: "online-marketplace",
+    authRequired: "none",
+    description: "Completed/sold eBay Motors listings used as sold-price comps.",
+    priority: "P1",
+    status: "active",
+    robotsExempt: true,
+    // The sold search plus the homepage cookie warm-up. Not /sch/6001/i.html (ebay_motors).
+    exemptPaths: ["/sch/i.html", "/"],
+    exemptRunnerIds: ["ebay_sold"],
+    notes: "Runner id ebay_sold. Restored by Jonah 2026-10-09.",
+  },
+  {
+    id: "salvage-trucks-auction",
+    name: "Salvage Trucks Auction",
+    url: "https://www.salvagetrucksauction.com",
+    type: "auction",
+    category: "salvage",
+    authRequired: "none",
+    description: "Salvage trucks and cars (curated_dealers crawl).",
+    priority: "P2",
+    status: "active",
+    robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
+    notes: "Restored by Jonah 2026-10-09.",
+  },
+  {
+    id: "royal-drive",
+    name: "Royal Drive",
+    url: "https://www.royaldriveautos.com",
+    type: "dealer",
+    category: "salvage",
+    authRequired: "none",
+    description: "MN rebuilder dealer (curated_dealers crawl).",
+    states: ["MN"],
+    priority: "P2",
+    status: "active",
+    robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
+    notes: "Restored by Jonah 2026-10-09.",
+  },
+  {
+    id: "parts-farm",
+    name: "The Parts Farm",
+    url: "https://thepartsfarm.com",
+    type: "dealer",
+    category: "salvage",
+    authRequired: "none",
+    description: "Parts yard selling complete cars (curated_dealers crawl).",
+    priority: "P2",
+    status: "active",
+    robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
+    notes: "Restored by Jonah 2026-10-09.",
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COMPLETE REGISTRY
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1256,6 +1376,7 @@ export const ALL_SOURCES: SourceConfig[] = [
   ...DEALER_PLATFORMS,
   ...PARTS_SOURCES,
   ...AGGREGATORS,
+  ...GRANDFATHERED_EXTRA_SOURCES,
   ...STATE_DEALER_CANDIDATES,
 ];
 
@@ -1338,3 +1459,8 @@ export const SOURCE_STATS = {
     parts: ALL_SOURCES.filter((s) => s.type === "parts").length,
   },
 };
+
+/** Sources grandfathered by Jonah's never-stop-a-working-scraper rule (see SourceConfig.robotsExempt). */
+export function getRobotsExemptSources(): SourceConfig[] {
+  return ALL_SOURCES.filter((s) => s.robotsExempt);
+}

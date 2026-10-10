@@ -12,13 +12,21 @@
  *  - Every outcome is counted per domain for the /status ban-risk panel (metrics.ts).
  */
 import { DomainBreaker } from "./breaker";
+import { registryDomainOverride } from "./source-limits";
+import { isRobotsExemptUrl } from "./robots-exempt";
 import {
   backoffMs,
   isBanSignal,
   isRetryableStatus,
   parseRetryAfterMs,
 } from "./backoff";
-import { conditionalHeaders, defaultPageCache, type PageCache } from "./cache";
+import { conditionalHeaders, contentHash, defaultPageCache, type PageCache } from "./cache";
+import {
+  recordChallenge,
+  recordError,
+  recordFetchFailure,
+  recordResponse,
+} from "../ops/run-telemetry";
 import { politeUserAgent } from "./identity";
 import { DomainLimiter } from "./limiter";
 import { PoliteMetrics } from "./metrics";
@@ -31,7 +39,21 @@ import {
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
 export interface PoliteFetchOptions {
+  /**
+   * Skip the robots.txt disallow check for a grandfathered source (Jonah's never-stop-a-working-
+   * scraper rule; see robots-exempt.ts). Hosts flagged in the registry or seen producing rows in the
+   * last 7 days are exempt automatically. Delays, backoff, breaker and caching still apply.
+   */
+  robotsExempt?: boolean;
   accept?: string;
+  /** HTTP method (default GET). Only bodiless GETs use the conditional cache. */
+  method?: string;
+  body?: string;
+  /**
+   * Extra request headers (Content-Type, Referer, ...). User-Agent and browser-fingerprint headers
+   * (sec-ch-*, sec-fetch-*) are dropped: we always identify as MikeHunt.
+   */
+  headers?: Record<string, string>;
   /** Serve from cache without any request when the cached copy is younger than this. */
   freshForMs?: number;
   /** Retries for 429/503/5xx/network errors (not for 403). Default 2. */
@@ -55,12 +77,26 @@ export interface PoliteResponse {
   skipped?: PoliteSkipReason;
   /** The site served a bot challenge / denial page. The domain is now paused. */
   challenge?: boolean;
+  /** 200 whose body hash equals the cached copy (the server sent no usable ETag/Last-Modified). */
+  unchanged?: boolean;
+  /** Final network failure after retries (timeout, DNS, reset), for run telemetry. */
+  networkError?: { name: string; code: string; message: string };
   headers?: Record<string, string>;
 }
 
 /** Bot-challenge / denial markers. Seeing one means "stop", not "escalate". */
 export const CHALLENGE_RE =
   /just a moment\.\.\.|attention required|cf-chl|_cf_chl|challenge-platform|px-captcha|captcha-delivery\.com|pardon our interruption|access to this page has been denied|verify you are (a )?human|_incapsula_resource/i;
+
+/** Caller headers minus anything that would disguise who we are. */
+export function honestHeaders(h: Record<string, string> = {}): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(h)) {
+    if (/^(user-agent|sec-ch-|sec-fetch-|cookie$)/i.test(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
 
 export function looksLikeChallenge(body: string): boolean {
   return CHALLENGE_RE.test(String(body || "").slice(0, 15_000));
@@ -127,14 +163,20 @@ export class PoliteCrawler {
     this.cache = deps.cache ?? defaultPageCache();
   }
 
-  private headers(extra: Record<string, string> = {}, accept?: string) {
+  private headers(
+    extra: Record<string, string> = {},
+    accept?: string,
+    caller: Record<string, string> = {},
+  ) {
     return {
-      "User-Agent": politeUserAgent(),
       Accept:
         accept ??
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language": "en-US,en;q=0.8",
+      ...honestHeaders(caller),
       ...extra,
+      // Last, so nothing can replace it.
+      "User-Agent": politeUserAgent(),
     };
   }
 
@@ -143,7 +185,11 @@ export class PoliteCrawler {
    * unreadable one (5xx, network, 403/429) means "disallow everything" (RFC 9309) and is retried
    * after 30 minutes, so one bad moment doesn't lock a site out for the life of the worker.
    */
-  robotsFor(origin: string, domain: string): Promise<RobotsRecord> {
+  robotsFor(
+    origin: string,
+    domain: string,
+    opts: { exempt?: boolean } = {},
+  ): Promise<RobotsRecord> {
     const hit = this.robots.get(origin);
     if (hit && (hit.expiresAt === undefined || hit.expiresAt > this.now()))
       return hit.record;
@@ -158,7 +204,10 @@ export class PoliteCrawler {
           });
           this.metrics.recordStatus(domain, res.status);
           if (isBanSignal(res.status)) {
-            this.breaker.recordBanSignal(domain, res.status, this.now());
+            // A grandfathered source only reads robots.txt for its Crawl-delay; a 403/429 on the
+            // file must not add a breaker strike that would pause a working source.
+            if (!opts.exempt)
+              this.breaker.recordBanSignal(domain, res.status, this.now());
             return null; // a 403/429 on robots.txt means "go away"
           }
           if (res.status >= 500) return null;
@@ -180,7 +229,35 @@ export class PoliteCrawler {
     return pending;
   }
 
+  /**
+   * Fetch one URL politely. Every outcome is also recorded on the current scraper run's telemetry
+   * (lib/scrapers/ops/run-telemetry.ts): HTTP class, timeout/DNS/network, robots, breaker, challenge,
+   * 304 / unchanged. Outside a run that is a no-op.
+   */
   async fetch(
+    url: string,
+    opts: PoliteFetchOptions = {},
+  ): Promise<PoliteResponse> {
+    let res: PoliteResponse;
+    try {
+      res = await this.fetchInner(url, opts);
+    } catch (error) {
+      recordFetchFailure(url, error);
+      throw error;
+    }
+    if (res.skipped === "robots") recordError("robots", { url });
+    else if (res.skipped === "breaker") recordError("breaker", { url });
+    else if (res.challenge) recordChallenge(url, res.status);
+    else if (res.networkError)
+      recordFetchFailure(url, Object.assign(new Error(res.networkError.message), res.networkError));
+    else if (res.notModified) recordResponse(url, 304, { notModified: true });
+    else if (res.fromCache || res.skipped) {
+      // fresh-cache hit (no request sent) or an invalid URL: nothing to record
+    } else recordResponse(url, res.status, { unchanged: res.unchanged });
+    return res;
+  }
+
+  private async fetchInner(
     url: string,
     opts: PoliteFetchOptions = {},
   ): Promise<PoliteResponse> {
@@ -201,13 +278,21 @@ export class PoliteCrawler {
       return { ...base, skipped: "breaker" };
     }
 
-    const robots = await this.robotsFor(origin, domain);
-    if (!robotsRecordAllows(robots, url)) {
-      this.metrics.recordRobotsDenied(domain);
-      return { ...base, skipped: "robots" };
+    if (!(opts.robotsExempt || isRobotsExemptUrl(url))) {
+      const robots = await this.robotsFor(origin, domain);
+      if (!robotsRecordAllows(robots, url)) {
+        this.metrics.recordRobotsDenied(domain);
+        return { ...base, skipped: "robots" };
+      }
+    } else {
+      // Grandfathered (Ren #269): the disallow rules are not applied, but the site's Crawl-delay
+      // still sets the minimum gap between our requests (robotsFor feeds it to the limiter).
+      await this.robotsFor(origin, domain, { exempt: true });
     }
 
-    const cached = this.cache.get(url);
+    const method = (opts.method || "GET").toUpperCase();
+    const cacheable = method === "GET" && opts.body == null;
+    const cached = cacheable ? this.cache.get(url) : undefined;
     if (
       cached &&
       opts.freshForMs &&
@@ -234,7 +319,13 @@ export class PoliteCrawler {
       try {
         res = await this.limiter.run(domain, () =>
           this.fetchImpl(url, {
-            headers: this.headers(conditionalHeaders(cached), opts.accept),
+            method,
+            ...(opts.body != null ? { body: opts.body } : {}),
+            headers: this.headers(
+              conditionalHeaders(cached),
+              opts.accept,
+              opts.headers,
+            ),
             signal: opts.signal
               ? AbortSignal.any([
                   opts.signal,
@@ -247,7 +338,17 @@ export class PoliteCrawler {
       } catch (error) {
         if (opts.signal?.aborted) throw error;
         this.metrics.recordNetworkError(domain);
-        if (attempt > maxRetries) return base;
+        if (attempt > maxRetries) {
+          const e = error as { name?: string; code?: string; message?: string; cause?: any };
+          return {
+            ...base,
+            networkError: {
+              name: String(e?.name || "Error"),
+              code: String(e?.code || e?.cause?.code || ""),
+              message: String(e?.message || error),
+            },
+          };
+        }
         await this.sleep(backoffMs(attempt, { random: this.random }));
         continue;
       }
@@ -277,19 +378,24 @@ export class PoliteCrawler {
         const body = await res.text();
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs(domain));
           return { ...base, status, challenge: true, headers };
         }
         this.breaker.recordSuccess(domain);
-        this.cache.set({
+        // Change detection without validators: same content hash as the cached copy = unchanged.
+        const hash = contentHash(body);
+        const unchanged = !!cached && (cached.hash ? cached.hash === hash : cached.body === body);
+        if (cacheable)
+          this.cache.set({
           url,
           status,
           body,
           etag: headers["etag"],
           lastModified: headers["last-modified"],
+          hash,
           fetchedAt: this.now(),
         });
-        return { ...base, status, body, ok: true, headers };
+        return { ...base, status, body, ok: true, headers, ...(unchanged ? { unchanged } : {}) };
       }
 
       if (isBanSignal(status)) {
@@ -299,7 +405,7 @@ export class PoliteCrawler {
       if (status === 403) {
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs(domain));
           return { ...base, status, challenge: true, headers };
         }
         return { ...base, status, headers };
@@ -342,12 +448,82 @@ export function politeMetricsSnapshot() {
 }
 
 /**
- * Route the legacy engine/smartFetch paths through politeFetch. Opt-in (SCRAPER_POLITE_MODE=1) so the
- * existing scrapers keep running exactly as before; new sources (dealer CMS family, GSA) always use
- * politeFetch directly.
+ * Polite mode is the DEFAULT for every scraper: the engine, smartFetch and every direct source
+ * fetch (scraperFetch) go through politeFetch. Opt out per worker with SCRAPER_POLITE_MODE=0
+ * (also "off" / "false"), which restores the legacy fetch paths unchanged.
  */
+/**
+ * A bot-challenge page is recorded as a "challenged" outcome (metrics.challenges, shown on /status)
+ * and backs the domain off briefly. It is NOT a permanent skip: the default 30 minutes is shorter
+ * than the sweep interval (4h), so the source is retried on its next schedule.
+ */
+export function challengeBackoffMs(domain?: string): number {
+  // Per-source registry override (SourceConfig.polite.challengeBackoffMin) wins over the env default.
+  const override = domain ? registryDomainOverride(domain).challengeBackoffMs : undefined;
+  if (override !== undefined) return override;
+  const min = Number(process.env.POLITE_CHALLENGE_BACKOFF_MIN);
+  return (Number.isFinite(min) && min >= 0 ? Math.min(min, 120) : 30) * 60_000;
+}
+
+/** Polite robots path for this URL: polite mode on and the host is not grandfathered. */
+export function politeRobotsPathFor(url: string): boolean {
+  return politeModeEnabled() && !isRobotsExemptUrl(url);
+}
+
+/**
+ * Run a grandfathered source's own legacy request (FlareSolverr, browser, curl, axios...) exactly as
+ * before, with only the polite layer around it: the per-domain random delay and concurrency slot,
+ * the circuit breaker (a paused domain throws instead of being hit), and ban/challenge accounting
+ * from the returned status. Outside polite mode it just runs `fn`.
+ */
+export async function politeGate<T>(
+  url: string,
+  fn: () => Promise<T>,
+  statusOf?: (result: T) => number | undefined,
+): Promise<T> {
+  if (!politeModeEnabled()) return fn();
+  const domain = domainOf(url);
+  if (!domain) return fn();
+  const c = politeCrawler();
+  if (c.breaker.isOpen(domain)) {
+    c.metrics.recordBreakerSkip(domain);
+    recordError("breaker", { url });
+    throw new Error(`polite: ${domain} paused by circuit breaker (retried next schedule)`);
+  }
+  // Crawl-delay only (Ren #269): read robots.txt so its Crawl-delay is the minimum gap for this
+  // domain. Disallow rules are NOT applied to a grandfathered request, and robots.txt trouble never
+  // stops it (robotsFor never throws; an unreadable file just means no Crawl-delay).
+  try {
+    await c.robotsFor(new URL(url).origin, domain, { exempt: true });
+  } catch {
+    // never block the legacy request on robots.txt
+  }
+  let result: T;
+  try {
+    result = await c.limiter.run(domain, fn);
+  } catch (error) {
+    c.metrics.recordNetworkError(domain);
+    recordFetchFailure(url, error);
+    throw error;
+  }
+  const status = statusOf?.(result);
+  if (status !== undefined) {
+    c.metrics.recordStatus(domain, status);
+    recordResponse(url, status);
+    if (status === 403 || status === 429) c.breaker.recordBanSignal(domain, status);
+    else if (status >= 200 && status < 400) c.breaker.recordSuccess(domain);
+  } else {
+    c.metrics.recordStatus(domain, 200);
+    recordResponse(url, 200);
+  }
+  return result;
+}
+
 export function politeModeEnabled(): boolean {
-  return process.env.SCRAPER_POLITE_MODE === "1";
+  const v = String(process.env.SCRAPER_POLITE_MODE ?? "")
+    .trim()
+    .toLowerCase();
+  return !(v === "0" || v === "off" || v === "false" || v === "no");
 }
 
 /** Tests only. */

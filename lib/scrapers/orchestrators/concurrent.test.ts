@@ -83,7 +83,9 @@ describe('ConcurrentOrchestrator', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('boom')
     expect(registry.get('failing')?.consecutiveFailures).toBe(1)
-    expect(registry.get('failing')?.enabled).toBe(false)
+    // Paused, never disabled (Jonah's rule).
+    expect(registry.get('failing')?.enabled).toBe(true)
+    expect(registry.getAutoDisabled().map((s) => s.id)).toContain('failing')
   })
 
   it('emits progress events', async () => {

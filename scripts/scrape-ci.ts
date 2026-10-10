@@ -277,13 +277,14 @@ async function cacheGoPhotos(limit: number): Promise<void> {
   }
   const { createClient } = await import("@supabase/supabase-js");
   const { cacheVehiclePhotos } = await import("../lib/images/cache");
+  const { photoCacheAllowed } = await import("../lib/scrapers/access-class");
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
   const { data } = await sb
     .from("deals")
-    .select("id, images")
+    .select("id, images, source, source_url")
     .eq("active", true)
     .eq("deal_verdict", "go")
     .or("images_cached.is.null,images_cached.eq.false")
@@ -293,6 +294,8 @@ async function cacheGoPhotos(limit: number): Promise<void> {
     .limit(limit);
   let n = 0;
   for (const d of data || []) {
+    // Ren #269: copy photos only for api/allowed sources (lib/scrapers/access-class.ts).
+    if (!photoCacheAllowed(d)) continue;
     const urls = (Array.isArray(d.images) ? d.images : []).filter((u: string) =>
       /^https?:\/\//.test(u),
     );
@@ -493,6 +496,11 @@ async function main() {
   const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
   await closeSmartFetch().catch(() => {});
 
+  if (results.length === 0) {
+    // Every requested source is cooling down after repeated failures (circuit breaker). Normal.
+    console.log("⏸️  nothing to run this cycle: all requested sources are paused by the breaker");
+    process.exit(0);
+  }
   if (succeeded === 0) {
     console.error("❌ All sources failed — exiting non-zero.");
     process.exit(1);

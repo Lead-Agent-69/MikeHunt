@@ -31,9 +31,17 @@ import {
   politeCrawler,
   politeFetch,
   politeModeEnabled,
+  politeRobotsPathFor,
+  politeGate,
   politeUserAgent,
   type PoliteResponse,
 } from "./polite";
+import {
+  deadLetter,
+  isIncrementalRun,
+  recordError,
+  recordPageSkipped,
+} from "./ops/run-telemetry";
 
 let _adaptiveEngine: AdaptiveEngine | null = null;
 
@@ -149,7 +157,7 @@ async function injectStealth(page: Page, config: ScraperConfig) {
 }
 
 // ─── Polite mode (default) ───────────────────────────────────────────────────
-// SCRAPER_POLITE_MODE=1 (opt-in): every page goes through politeFetch (honest UA, robots + Crawl-delay,
+// Default ON (opt out with SCRAPER_POLITE_MODE=0): every page goes through politeFetch (honest UA, robots + Crawl-delay,
 // per-domain pacing, conditional GETs, Retry-After, ban-risk breaker). No FlareSolverr, no stealth
 // scripts, no proxies, no random UAs. A block or challenge stops that site; it is never escalated.
 
@@ -233,10 +241,11 @@ export async function fetchHtml(
   url: string,
   config: ScraperConfig,
 ): Promise<cheerio.CheerioAPI> {
-  if (politeModeEnabled()) {
+  if (politeRobotsPathFor(url)) {
     return cheerio.load(await politeHtml(url, config.abortSignal));
   }
-  const result = await escalatedFetch(url, {
+  // Legacy path (polite mode off, or a grandfathered source): unchanged, plus polite delays/breaker.
+  const result = await politeGate(url, () => escalatedFetch(url, {
     headers: {
       "Accept-Encoding": "gzip, deflate, br",
       "Cache-Control": "no-cache",
@@ -245,7 +254,7 @@ export async function fetchHtml(
     userAgent: randomUA(config.userAgents),
     label: config.name,
     retries: 3,
-  });
+  }));
 
   if (result.html) {
     if (result.strategy === "flaresolverr") {
@@ -272,7 +281,7 @@ export async function fetchBrowser(
   html: string;
   close: () => Promise<void>;
 }> {
-  if (politeModeEnabled()) {
+  if (politeRobotsPathFor(url)) {
     let html = await politeHtml(url, config.abortSignal);
     // Thin server HTML (JS-built site): render it honestly instead of escalating to stealth.
     if (html.length < 1500 && process.env.POLITE_ALLOW_RENDER !== "0") {
@@ -316,14 +325,18 @@ export async function fetchBrowser(
     }
   });
 
-  await pRetry(
-    async () => {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      if (waitForSelector) {
-        await page.waitForSelector(waitForSelector, { timeout: 10000 });
-      }
-    },
-    { retries: 2, minTimeout: 3000 },
+  // Legacy browser path (polite mode off, or a grandfathered source): unchanged navigation, with the
+  // polite per-domain delay and breaker around it.
+  await politeGate(url, () =>
+    pRetry(
+      async () => {
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
+        if (waitForSelector) {
+          await page.waitForSelector(waitForSelector, { timeout: 10000 });
+        }
+      },
+      { retries: 2, minTimeout: 3000 },
+    ),
   );
 
   const html = await page.content();
@@ -335,6 +348,37 @@ export async function fetchBrowser(
     html,
     close: () => context.close(),
   };
+}
+
+/**
+ * Run a page parser and log what goes wrong on the current run (lib/scrapers/ops/run-telemetry):
+ * a throw is a `parse` error plus a dead letter with a 2 KB snippet of the page.
+ */
+export async function parseWithTelemetry<T>(
+  parsePage: (html: string) => Promise<{ items: T[]; hasMore: boolean }>,
+  html: string,
+  url: string,
+): Promise<{ items: T[]; hasMore: boolean }> {
+  try {
+    return await parsePage(html);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recordError("parse", { url, message });
+    deadLetter(`parse: ${message}`, { url, raw: html });
+    throw error;
+  }
+}
+
+/** Page 1 of a clean 200 that yields nothing is `parse_empty` (markup drift / soft block). */
+export function noteEmptyFirstPage<R extends { items: unknown[] }>(
+  out: R,
+  url: string,
+  pageNum: number,
+  bytes: number,
+): R {
+  if (pageNum === 1 && !out.items.length)
+    recordError("parse_empty", { url, message: `no items parsed from ${bytes} bytes` });
+  return out;
 }
 
 // ─── Paginator — crawls all pages automatically ───────────────────────────────
@@ -361,19 +405,33 @@ export async function* paginate<T>(
         config.abortSignal?.throwIfAborted();
         return parsePage(html);
       }
-      if (politeModeEnabled()) {
-        const html = await politeHtml(url, config.abortSignal);
-        const first = await parsePage(html);
+      if (politeRobotsPathFor(url)) {
+        const res = await politeFetch(url, { signal: config.abortSignal });
+        if (!res.ok) throw new PoliteBlockedError(url, res);
+        // Incremental run: an unchanged listing page (304 or same content hash) has nothing new.
+        // Stop here; the periodic full rescan re-reads everything (and refreshes last_seen_at).
+        if (isIncrementalRun() && (res.notModified || res.unchanged)) {
+          recordPageSkipped();
+          return { items: [] as T[], hasMore: false };
+        }
+        const html = res.body;
+        const first = await parseWithTelemetry(parsePage, html, url);
         if (
           first.items.length ||
           config.renderMode === "static" ||
           process.env.POLITE_ALLOW_RENDER === "0"
         )
-          return first;
+          return noteEmptyFirstPage(first, url, pageNum, html.length);
         // Clean page, no listings in the server HTML: the inventory is built by JS. Render it with
         // an honest headless browser (same robots/pacing) rather than any stealth tier.
         config.abortSignal?.throwIfAborted();
-        return parsePage(await politeRender(url, config));
+        const rendered = await politeRender(url, config);
+        return noteEmptyFirstPage(
+          await parseWithTelemetry(parsePage, rendered, url),
+          url,
+          pageNum,
+          rendered.length,
+        );
       }
       if (config.renderMode === "static") {
         const $ = await fetchHtml(url, config);

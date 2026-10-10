@@ -32,7 +32,6 @@ import { scrapeGsaAuctions } from "./sources/gsa-auctions";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
-import { getSkipSources } from "./health";
 import type { BuyerScope } from "./buyer-scope";
 import { withScrapeRunScope } from "./run-scope-context";
 import {
@@ -511,29 +510,76 @@ function buildOrchestratorOptions(
 export async function runScrapers(options: RunScraperOptions = {}) {
   const registry = createScraperRegistry();
 
-  // Self-healing: drop sources whose last few runs all failed (they retry after a cooldown). Skipped
-  // only when running a batch — an explicit single-source request is always honored.
+  // Jonah's rule: sources that produced rows in the last 7 days keep running as before (robots.txt
+  // skip off, polite delays on). Refresh that set (hourly, keeps the old set on error).
+  if (
+    !options.dryRun &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { refreshRecentProducers } = await import("./polite/robots-exempt");
+    const r = await refreshRecentProducers(
+      createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY),
+    );
+    if (r)
+      console.log(
+        `[runScrapers] robots-exempt (rows in last 7d): ${r.sources} source ids, ${r.hosts} hosts`,
+      );
+  }
+
+  // Circuit breaker (lib/scrapers/ops/source-breaker.ts): a source with 5+ consecutive failed runs
+  // sits out until its cooldown ends (exponential, capped), then is retried automatically. Temporary
+  // only: the registry, scraper_state and the sweep list are untouched. An explicit single-source
+  // request is always honored.
   let sourceIds = options.sourceIds;
-  if (!options.dryRun && (!sourceIds || sourceIds.length > 1)) {
-    const skip = await getSkipSources();
-    if (skip.size) {
-      const enabled = registry.getEnabled().map((s) => s.id);
-      const base = sourceIds && sourceIds.length ? sourceIds : enabled;
-      if (base.length) {
-        const kept = base.filter((id: string) => !skip.has(id));
-        if (kept.length && kept.length < base.length) {
-          sourceIds = kept;
-          console.log(
-            `[runScrapers] self-heal: skipping ${Array.from(skip).join(", ")} (recent failures)`,
-          );
-        }
+  const sb =
+    !options.dryRun &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? (await import("@supabase/supabase-js")).createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY,
+        )
+      : null;
+  const { loadRunStates, pauseStateOf, breakerTransitions, recordBreakerAlerts } =
+    await import("./ops/source-breaker");
+  const { decideScanMode } = await import("./ops/scan-mode");
+  let statesBefore = new Map<string, import("./ops/source-breaker").SourceRunState>();
+  if (sb) {
+    try {
+      statesBefore = await loadRunStates(sb);
+    } catch (e) {
+      console.warn(`[runScrapers] breaker state unavailable (not pausing anything): ${(e as Error).message}`);
+    }
+  }
+  const base = sourceIds && sourceIds.length ? sourceIds : registry.getEnabled().map((s) => s.id);
+  if (!options.dryRun && base.length > 1) {
+    const now = Date.now();
+    const paused = base.filter((id) => pauseStateOf(statesBefore.get(id) ?? { source: id, consecutiveFailures: 0, lastRunAt: null }, now).paused);
+    if (paused.length) {
+      sourceIds = base.filter((id) => !paused.includes(id));
+      console.log(
+        `[runScrapers] breaker: pausing ${paused
+          .map((id) => {
+            const p = pauseStateOf(statesBefore.get(id), now);
+            return `${id} (${p.consecutiveFailures} fails, until ${p.pausedUntil})`;
+          })
+          .join(", ")}`,
+      );
+      if (!sourceIds.length) {
+        console.log("[runScrapers] breaker: every requested source is cooling down; nothing to run");
+        return [];
       }
     }
   }
+  const scanModes: Record<string, "incremental" | "full"> = {};
+  for (const id of sourceIds && sourceIds.length ? sourceIds : base)
+    scanModes[id] = decideScanMode(id, statesBefore.get(id)?.lastFullScanAt);
 
   // Per-source health is recorded by the orchestrator itself (base.ts → scraper_runs), so the
   // caller's own onSourceComplete passes straight through.
-  const baseOptions = buildOrchestratorOptions(options);
+  const baseOptions = { ...buildOrchestratorOptions(options), scanModes };
   const orchestratorType = options.orchestrator || "concurrent";
 
   let orchestrator;
@@ -574,6 +620,17 @@ export async function runScrapers(options: RunScraperOptions = {}) {
   const result = await withScrapeRunScope(options.scope, () =>
     orchestrator.run(sourceIds),
   );
+
+  // Breaker alerts: a source that just hit (or went further past) the threshold, or recovered.
+  if (sb && result.length) {
+    try {
+      const ran = result.map((r) => r.source);
+      const after = await loadRunStates(sb, ran);
+      await recordBreakerAlerts(sb, breakerTransitions(statesBefore, after, ran));
+    } catch (e) {
+      console.warn(`[runScrapers] breaker alerts skipped: ${(e as Error).message}`);
+    }
+  }
   return result;
 }
 

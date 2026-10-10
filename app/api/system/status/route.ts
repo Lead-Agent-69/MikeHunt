@@ -13,7 +13,8 @@ import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
-import { summarizeReliability } from "@/lib/scrapers/reliability";
+import { loadSourceSla } from "@/lib/scrapers/ops/sla";
+import { summarizeReliability, type RunRow } from "@/lib/scrapers/reliability";
 import {
   applyAuthProviderReadiness,
   readAuthProviderReadiness,
@@ -485,18 +486,28 @@ async function computeFullStatus(): Promise<Record<string, any>> {
 
   // Scraper success rate (7d, productive runs only) + crawler ban-risk from the latest worker job.
   // Operator-only: both live in the full payload, never in toPublicStatus.
+  // Source health SLA (one row per source) + scraper version: service-role reads only.
   const scraperReliability = await cached(
-    "status:scraper-reliability:v1",
+    "status:scraper-reliability:v2",
     300_000,
     async () => {
       const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-      const [{ data: runs }, { data: job }] = await Promise.all([
+      const runsQuery = (cols: string) =>
         sb
           .from("scraper_runs")
-          .select("source, status, deals_found, started_at, completed_at")
+          .select(cols)
           .gt("started_at", since)
           .order("started_at", { ascending: false })
-          .limit(2000),
+          .limit(2000);
+      const loadRuns = async () => {
+        const withOutcome = await runsQuery(
+          "source, status, deals_found, started_at, completed_at, outcome",
+        );
+        if (!withOutcome.error) return withOutcome;
+        return runsQuery("source, status, deals_found, started_at, completed_at");
+      };
+      const [{ data: runs }, { data: job }, sla] = await Promise.all([
+        loadRuns(),
         sb
           .from("scrape_jobs")
           .select("completed_at, result")
@@ -505,10 +516,13 @@ async function computeFullStatus(): Promise<Record<string, any>> {
           .order("completed_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        loadSourceSla(sb).catch(() => null),
       ]);
       return {
         window: "7d",
-        ...summarizeReliability(runs || []),
+        ...summarizeReliability(((runs as unknown) as RunRow[]) || []),
+        sla,
+        version: sla?.version ?? null,
         politeness: job?.result?.politeness
           ? { reportedAt: job.completed_at, ...job.result.politeness }
           : null,

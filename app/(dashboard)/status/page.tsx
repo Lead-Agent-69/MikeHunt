@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import useSWR from "swr";
+import SourceSlaPanel from "@/components/status/SourceSlaPanel";
 import { Mono } from "@/components/shared/Mono";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 
@@ -1579,7 +1580,7 @@ export default function StatusPage() {
                         </span>
                         {dead && (
                           <span className="text-[10px] font-bold text-[var(--red)] uppercase">
-                            paused (self-heal)
+                            last 3 failed
                           </span>
                         )}
                       </div>
@@ -1604,8 +1605,11 @@ export default function StatusPage() {
               <div className="flex flex-wrap gap-4 text-xs text-[var(--t2)] mb-3">
                 <span>
                   <strong>{reliability.successRatePct ?? "–"}%</strong> of runs
-                  found cars
+                  healthy (found cars or confirmed unchanged)
                 </span>
+                {(reliability.unchanged ?? 0) > 0 && (
+                  <span>{reliability.unchanged} unchanged (nothing new)</span>
+                )}
                 <span>{reliability.empty} came back empty</span>
                 <span>{reliability.failed} failed</span>
                 <span>{reliability.abandoned} never finished</span>
@@ -1637,6 +1641,16 @@ export default function StatusPage() {
                     {politeness.rate429Pct}%). {politeness.cacheHitPct}% were
                     unchanged pages (304).
                   </p>
+                  {(politeness.challenged ?? 0) > 0 && (
+                    <p className="text-[var(--t4)]">
+                      Challenged: {politeness.challenged} bot-challenge page
+                      {politeness.challenged === 1 ? "" : "s"} (
+                      {(politeness.challengedDomains || [])
+                        .map((d: any) => `${d.domain} ×${d.challenges}`)
+                        .join(", ")}
+                      ). Backed off, retried next schedule.
+                    </p>
+                  )}
                   {(politeness.pausedDomains || []).length > 0 && (
                     <p className="text-[var(--t4)]">
                       Paused:{" "}
@@ -1660,6 +1674,11 @@ export default function StatusPage() {
                 </p>
               )}
             </div>
+          )}
+
+          {/* Source health SLA + scraper version (operator payload only) */}
+          {reliability?.sla && (
+            <SourceSlaPanel sla={reliability.sla} version={reliability.version} />
           )}
 
           {/* Recent runs */}
