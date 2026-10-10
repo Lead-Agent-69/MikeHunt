@@ -25,12 +25,17 @@ The reviewed registry at `lib/scrapers/access-grants.json` is intentionally empt
 - Explicit run outcomes, redacted errors, worker/deployment metadata, and bounded local receipt spooling when database logging fails.
 - Five-failure health checks and local circuit cooldowns. Permission and cancellation skips do not count as scraper failures.
 - Restrictive public RLS and default server table-read filtering for held and expired inventory.
+- Guarded service-role views and inventory RPC reads recheck current permissions; valuation reads require derived-use rights.
+- Production feed/market caches do not reuse inventory across permission changes. This trades read volume for immediate revocation safety until a database-backed policy epoch is available.
+- Redis-backed HTTP host leases, shared pacing and denial cooldowns use atomic owner tokens and fail closed when coordination is unavailable.
+- Per-event receipt files reconcile idempotently before later runs. Admin quarantine endpoints support bounded review and optimistic status changes; rejected facts are never republished as listings.
+- The daily retention cron prunes acknowledged receipts after 30 days and dismissed quarantine facts after 90 days; unresolved holds remain available for review.
 
 ## Remaining Release Blockers
 
-- Audit every service-role RPC, independently constructed client, derived output, and cached response for permission expiry and revocation. The default table-read wrapper does not cover those paths.
-- Distributed host quota/lease ownership and atomic half-open probes across workers; current pacing and probe ownership are process-local.
-- Receipt-spool reconciliation, quarantine review/replay, retention schedules, and operator alert delivery verification.
+- Finish acceptance against the full production schema for every independently constructed privileged client and derived output. Local fixtures cover guarded views/RPCs but are not a full deployed-schema rehearsal.
+- Coordinate every browser subresource through shared quotas; shared HTTP leases are implemented, but rendering still needs end-to-end quota acceptance.
+- Add operator review UI, authorized source re-observation from quarantine, legacy JSONL receipt migration, and alert delivery verification. Review endpoints do not claim to repair rejected observations automatically.
 - Fully versioned identity groups across pagination, maps, counts, recommendations, and saved-search alerts; fuzzy candidates remain review-only.
 - Official API/feed adapters and credentials where authorized, including eBay; no new source approval is implied by this release.
 - Run-level provenance throughout every adapter, schema-drift baselines, verified-empty/full-scan semantics, and coverage-aware expiry.
@@ -41,4 +46,6 @@ The reviewed registry at `lib/scrapers/access-grants.json` is intentionally empt
 
 A denial, CAPTCHA, authentication error, or explicit access restriction is a stop signal. Pause the route and review permission; do not rotate identities, proxies, accounts, or alternate endpoints to evade it. Independently authorized APIs, feeds, uploads, and link-outs may be assessed separately.
 
-During rollback, keep holds and restrictive RLS in place. Reverting application code or restoring previous grants must not republish legacy inventory automatically. Inspect `.cache/receipts` (or `LOCAL_CACHE_PATH/receipts`) for pending diagnostic receipts; those files are not yet replayed automatically.
+During rollback, keep holds and restrictive RLS in place. Reverting application code or restoring previous grants must not republish legacy inventory automatically. Inspect `.cache/receipts` (or `LOCAL_CACHE_PATH/receipts`) for pending diagnostic receipts.
+
+New `pending-<uuid>.json` receipts reconcile automatically; legacy `pending-<pid>.jsonl` files require operator review. Production approval inventory is still empty. The verified pre-release database snapshot contained 5,759 deals, of which 4,728 were active. The foundation migration would hold these records; no production migration has been applied in this lane.

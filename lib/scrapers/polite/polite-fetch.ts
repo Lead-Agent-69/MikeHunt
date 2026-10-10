@@ -158,7 +158,8 @@ export class PoliteCrawler {
           ? null
           : assertPublicHttpUrl;
     const raw: FetchLike = deps.fetchImpl ?? fetchApprovedPublicResponse;
-    this.fetchImpl = this.urlGuard ? guardedFetch(raw, this.urlGuard) : raw;
+    this.fetchImpl =
+      deps.fetchImpl && this.urlGuard ? guardedFetch(raw, this.urlGuard) : raw;
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = deps.now ?? Date.now;
     this.random = deps.random ?? Math.random;
@@ -415,9 +416,7 @@ export function politeMetricsSnapshot() {
 }
 
 /**
- * Route the legacy engine/smartFetch paths through politeFetch. Opt-in (SCRAPER_POLITE_MODE=1) so the
- * existing scrapers keep running exactly as before; new sources (dealer CMS family, GSA) always use
- * politeFetch directly.
+ * Production legacy entry points always use the approved polite transport.
  */
 export function politeModeEnabled(): boolean {
   // Production callers may not disable compliance by choosing a legacy fetch ladder.

@@ -5,15 +5,28 @@ import { assertPublicHttpUrl } from "@/lib/net/public-url";
 import { fetchApprovedPublicResponse } from "./public-fetch";
 
 vi.mock("axios", () => ({ default: { get: vi.fn() } }));
+vi.mock("./shared-host-gate", () => ({
+  withSharedHost: vi.fn(async (_host, _gap, task) => task()),
+  pauseSharedHost: vi.fn(),
+}));
 vi.mock("../access-policy", () => ({ assertSourceAccess: vi.fn() }));
 vi.mock("@/lib/net/public-url", () => ({ assertPublicHttpUrl: vi.fn() }));
 vi.mock("@/lib/net/fetch-public-html", () => ({
   publicHttpAgent: {},
   publicHttpsAgent: {},
 }));
+vi.mock("@/lib/net/pinned-dns", () => ({
+  resolvePinnedTarget: vi.fn(async (url) => ({ url })),
+  pinnedAxiosOptions: vi.fn(() => ({})),
+}));
 
 describe("approved public HTTP transport", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(assertSourceAccess).mockReset();
+    vi.mocked(assertPublicHttpUrl).mockReset();
+    vi.mocked(axios.get).mockReset();
+  });
 
   it("does not open a connection without permission", async () => {
     vi.mocked(assertSourceAccess).mockImplementation(() => {

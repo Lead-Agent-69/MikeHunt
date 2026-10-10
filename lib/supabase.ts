@@ -86,7 +86,9 @@ export function createServerComponentClient(
   const ws = isNode ? eval("require")("ws") : undefined;
   const client = createClient(
     resolvedUrl(),
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || PLACEHOLDER_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+      process.env.SUPABASE_SECRET_KEY?.trim() ||
+      PLACEHOLDER_KEY,
     {
       auth: {
         autoRefreshToken: false,

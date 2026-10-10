@@ -32,7 +32,11 @@ describe("GET /api/cron/retention", () => {
     rpc.mockResolvedValue({ data: { page_views: 3 }, error: null });
     const res = await GET(req("Bearer s3cret"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, deleted: { page_views: 3 } });
+    expect(await res.json()).toEqual({
+      ok: true,
+      deleted: { page_views: 3 },
+      integrity: { page_views: 3 },
+    });
     expect(rpc).toHaveBeenCalledWith("run_retention");
   });
 });

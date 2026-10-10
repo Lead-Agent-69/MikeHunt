@@ -13,6 +13,9 @@ export async function cached<T>(
   // for the full TTL and starve every subsequent request — retry it next call instead). Default: cache all.
   shouldCache?: (value: T) => boolean,
 ): Promise<T> {
+  // Revocation/expiry must take effect on the next request, not after a feed-cache TTL.
+  // Restore production caching only with a database-backed policy epoch in the key.
+  if (process.env.NODE_ENV === "production") return fn();
   const now = Date.now();
   const hit = store.get(key);
   if (hit && hit.expires > now) return hit.value as T;

@@ -26,5 +26,17 @@ export async function GET(req: NextRequest) {
     );
   }
   console.log("[cron/retention] deleted", JSON.stringify(data));
-  return NextResponse.json({ ok: true, deleted: data });
+  const integrity = await createServerComponentClient().rpc(
+    "run_integrity_retention",
+  );
+  if (integrity.error)
+    return NextResponse.json(
+      { ok: false, error: "integrity retention failed" },
+      { status: 500 },
+    );
+  return NextResponse.json({
+    ok: true,
+    deleted: data,
+    integrity: integrity.data,
+  });
 }

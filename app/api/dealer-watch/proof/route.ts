@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { eligibleInventoryClient } from "@/lib/deals/eligible-client";
 import { CURATED_SITES, SITE_TYPE_META } from "@/lib/scrapers/curated-sites";
 import { gradeDataQuality } from "@/lib/data-quality";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -128,9 +129,13 @@ export async function GET(request: NextRequest) {
 
   const configured = isSupabaseConfigured();
   const supabase = configured
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-        process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    ? eligibleInventoryClient(
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+          process.env.SUPABASE_SERVICE_ROLE_KEY ||
+            process.env.SUPABASE_SECRET_KEY ||
+            "",
+        ),
       )
     : null;
 

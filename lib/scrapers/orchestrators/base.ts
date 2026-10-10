@@ -6,7 +6,7 @@ import { ScrapeResult, ScraperRun } from "@/types";
 import { CostGuard, CostGuardOptions } from "../tools/cost-guard";
 import { ACCESS_POLICY_REVISION } from "../access-policy";
 import { runOutcome, redactDiagnostic } from "../run-outcome";
-import { spoolReceipt } from "../receipt-spool";
+import { spoolReceipt, reconcileReceipts } from "../receipt-spool";
 import { hostname } from "node:os";
 import {
   CircuitBreakerRegistry,
@@ -101,6 +101,7 @@ export abstract class BaseScraperOrchestrator {
   protected async logScrapeStart(source: string): Promise<string> {
     if (this.options.dryRun || this.options.skipSupabaseRunTracking)
       return `untracked-${source}-${Date.now()}`;
+    await reconcileReceipts(this.supabase);
 
     const { data, error } = await this.supabase
       .from("scraper_runs")
