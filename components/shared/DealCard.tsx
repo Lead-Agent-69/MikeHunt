@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
+import { AdvisorSummary } from "@/components/intelligence/AdvisorSummary";
 import { VERDICT_STYLES, formatCondition } from "./deal-card/utils";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
@@ -1004,6 +1005,14 @@ export const DealCard = memo(function DealCard({
             </span>
           )}
         </div>
+      </div>
+
+      {/* MikeHunt advisor read: tap-to-check (rate-limited API), never a guessed number */}
+      <div className="px-4 py-1 border-t" style={{ borderColor: "var(--b1)" }}>
+        <AdvisorSummary
+          flipDesk={flipDesk}
+          deal={{ year, make, model, trim, mileage, askPrice, vin, condition }}
+        />
       </div>
 
       {/* Footer CTA */}

@@ -54,3 +54,16 @@ describe("AdvisorCard", () => {
     );
   });
 });
+
+describe("DealCard advisor summary", () => {
+  it("is tap-to-check and gates profit on isFlipBuyerMode as well as the card's desk", () => {
+    const src = readFileSync(
+      "components/intelligence/AdvisorSummary.tsx",
+      "utf8",
+    );
+    expect(src).toContain("useAdvisorRead(asked ? body : null)");
+    expect(src).toMatch(/flipDesk &&\s*isFlipBuyerMode\(/);
+    const card = readFileSync("components/shared/DealCard.tsx", "utf8");
+    expect(card).toContain("<AdvisorSummary");
+  });
+});
