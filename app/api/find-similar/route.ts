@@ -6,6 +6,11 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import {
+  FIND_SIMILAR_SELECT,
+  pickFindSimilarColumns,
+  withNoStore,
+} from "@/lib/deals/find-similar-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +18,10 @@ export async function GET(request: NextRequest) {
   try {
     const rl = rateLimit(request, {
       key: "find-similar",
-      limit: 90,
+      limit: 30,
       windowMs: 60_000,
     });
-    if (!rl.allowed) return tooManyRequests(rl);
+    if (!rl.allowed) return withNoStore(tooManyRequests(rl));
 
     const supabase = createServerComponentClient();
     const { searchParams } = new URL(request.url);
@@ -28,9 +33,11 @@ export async function GET(request: NextRequest) {
     const mileage = parseInt(searchParams.get("mileage") || "0");
 
     if (!make || !model) {
-      return NextResponse.json(
-        { error: "make and model are required" },
-        { status: 400 },
+      return withNoStore(
+        NextResponse.json(
+          { error: "make and model are required" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -41,12 +48,14 @@ export async function GET(request: NextRequest) {
     // 4. Sort by profit score descending
     const yearMin = year > 0 ? year - 2 : 1990;
     const yearMax = year > 0 ? year + 2 : 2030;
-    const priceMax = price > 0 ? price * 1.15 : 1000000;
-    const mileageMax = mileage > 0 ? mileage + 30000 : 300000;
+    // ask_price / mileage are integer columns: a fractional bound (90200 * 1.15 =
+    // 103730.00000000001) makes Postgres reject the filter with a 500.
+    const priceMax = price > 0 ? Math.round(price * 1.15) : 1000000;
+    const mileageMax = mileage > 0 ? Math.round(mileage + 30000) : 300000;
 
     let query = supabase
       .from("deals")
-      .select("*")
+      .select(FIND_SIMILAR_SELECT)
       .eq("active", true)
       .eq("make", make)
       .ilike("model", `%${model.split(" ")[0]}%`) // match first word of model resiliently
@@ -67,12 +76,17 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     const flipDesk = await resolveCallerFlipDesk();
-    return NextResponse.json(listingsForDesk(data || [], flipDesk));
+    const rows = ((data || []) as unknown as Record<string, unknown>[]).map(
+      pickFindSimilarColumns,
+    );
+    return withNoStore(NextResponse.json(listingsForDesk(rows, flipDesk)));
   } catch (error: any) {
     console.error("[FIND-SIMILAR-API] GET error:", error);
-    return NextResponse.json(
-      { error: "Failed to find similar vehicles" },
-      { status: 500 },
+    return withNoStore(
+      NextResponse.json(
+        { error: "Failed to find similar vehicles" },
+        { status: 500 },
+      ),
     );
   }
 }
