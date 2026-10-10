@@ -65,7 +65,7 @@ Focus: Inventory current capabilities, compare to industry best, identify missin
 - `enrichAndStore` (shared.ts): Title parsing, MarketCheck attempt (keyless), then `DealScoringService`.
 - **VIN decode**:
   - `lib/vin-decoder.ts`: Pure NHTSA vPIC (free, solid baseline).
-  - `lib/api/vin.ts`: mcp.vin aggregator + NHTSA fallback + recalls + fuel economy + photos (when available).
+  - `lib/vehicle/vin-enrichment.ts` + `/api/vin`: NHTSA decode (mcp.vin fallback) + recalls + fuel economy. (`lib/api/vin.ts` was removed, unused.)
 - **Pricing/MMR**: Thin. MarketCheck call exists but no key. No Edmunds TMV. No wholesale valuations.
 - **Parts**: Calculator UI exists; teardown save API exists; no live parts inventory scrapers running.
 - **Deals table** is the sink; scoring + profit/ROI computed on ingest.
@@ -266,7 +266,7 @@ Just need to **turn sources on** and feed them quality proxies.
 3. **Enable + fix** top 3 currently disabled or broken: Copart (full), IAA (solid), at least one retail (Cars.com or Autotrader).
 4. **Parts source** — one real implementation (car-part.com search).
 5. **Pricing fallback** — if no MarketCheck key, average recent listings from our own DB or a free aggregator call.
-6. **VIN photos** — ensure `lib/api/vin.ts` or enrichment pulls photos when available and stores on deal.
+6. **VIN photos** — ensure VIN enrichment pulls photos when available and stores on deal.
 7. **Status endpoint** — ensure `/api/scrape/status` or equivalent reads the same keys orchestrator/worker write, for live UI.
 
 ---

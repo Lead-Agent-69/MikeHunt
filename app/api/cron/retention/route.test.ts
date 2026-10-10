@@ -27,12 +27,47 @@ describe("GET /api/cron/retention", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("runs one retention RPC and reports counts", async () => {
+  it("runs retention then the VIN cache purge and reports both", async () => {
     process.env.CRON_SECRET = "s3cret";
-    rpc.mockResolvedValue({ data: { page_views: 3 }, error: null });
+    rpc
+      .mockResolvedValueOnce({ data: { page_views: 3 }, error: null })
+      .mockResolvedValueOnce({
+        data: [{ vin_rows: 2, recall_rows: 1 }],
+        error: null,
+      });
     const res = await GET(req("Bearer s3cret"));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, deleted: { page_views: 3 } });
-    expect(rpc).toHaveBeenCalledWith("run_retention");
+    expect(await res.json()).toEqual({
+      ok: true,
+      deleted: { page_views: 3 },
+      vinCache: { vin_rows: 2, recall_rows: 1 },
+    });
+    expect(rpc).toHaveBeenNthCalledWith(1, "run_retention");
+    expect(rpc).toHaveBeenNthCalledWith(2, "purge_expired_vin_cache");
+  });
+
+  it("still answers 200 when the VIN cache purge is missing or fails", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    rpc
+      .mockResolvedValueOnce({ data: { page_views: 1 }, error: null })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "function purge_expired_vin_cache() does not exist" },
+      });
+    const res = await GET(req("Bearer s3cret"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      deleted: { page_views: 1 },
+      vinCache: null,
+    });
+  });
+
+  it("does not purge the VIN cache when run_retention fails", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "boom" } });
+    const res = await GET(req("Bearer s3cret"));
+    expect(res.status).toBe(500);
+    expect(rpc).toHaveBeenCalledTimes(1);
   });
 });
