@@ -203,10 +203,11 @@ type IndexComps = NonNullable<ReturnType<typeof lookupMarketValue>>;
 const CONF_RANK = { none: 0, low: 1, medium: 2, high: 3 } as const;
 
 /**
- * Circularity guard for the ask index: a retail-channel listing's own ask is one of the comps
- * behind the median it is graded against. Count it out — if fewer than COMP_MIN_SAMPLES OTHER
- * listings remain, there is no independent market value (retail → null). Confidence can only go
- * down. Exact leave-one-out needs the raw bucket (market-value.ts); this bounds the effect.
+ * Approximate circularity guard for the ask index, used only when the listing has no id and no
+ * source + source_deal_id (so market-value cannot remove its row exactly). A retail-channel
+ * listing's own ask is probably one of the comps behind the median it is graded against. Count it
+ * out — if fewer than COMP_MIN_SAMPLES OTHER listings remain, there is no independent market value
+ * (retail → null). Confidence can only go down.
  */
 export function selfInclusionGuard(
   comps: IndexComps | null,
@@ -360,15 +361,26 @@ export function analyzeDeal(
       )
     : null;
   const feedComps = feedAgg ? compsFromFeed(feedAgg) : null;
+  // Exact leave-one-out when the listing is identifiable (deal id, or source + source_deal_id):
+  // market-value removes its own row from the bucket. Only an unidentifiable listing falls back
+  // to the approximate selfInclusionGuard.
   const indexRaw = feedComps
     ? null
-    : lookupMarketValue(deal.make, deal.model, deal.year, deal.trim);
-  const comps = feedComps ?? selfInclusionGuard(indexRaw, deal);
+    : lookupMarketValue(deal.make, deal.model, deal.year, deal.trim, {
+        id: (deal as { id?: string }).id,
+        source: deal.source,
+        sourceDealId: (deal as { source_deal_id?: string }).source_deal_id,
+      });
+  const comps =
+    feedComps ??
+    (indexRaw?.selfChecked ? indexRaw : selfInclusionGuard(indexRaw, deal));
   const compExcludedSelf = feedComps
     ? (feedAgg?.excludedSelf ?? 0)
-    : indexRaw && comps && indexRaw.nRetail !== comps.nRetail
-      ? indexRaw.nRetail - comps.nRetail
-      : 0;
+    : indexRaw?.selfChecked
+      ? (indexRaw.excludedSelf ?? 0)
+      : indexRaw && comps && indexRaw.nRetail !== comps.nRetail
+        ? indexRaw.nRetail - comps.nRetail
+        : 0;
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
 
   // Free offline baseline (segment depreciation + trim tier). Doubles as a SANITY GATE so a single
