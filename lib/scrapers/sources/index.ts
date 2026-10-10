@@ -24,6 +24,7 @@ import { enrichPriority } from "@/lib/scrapers/enrich-priority";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import {
   CURATED_SITES,
+  isCuratedSiteEnabled,
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
@@ -1073,8 +1074,9 @@ export async function scrapeCuratedSites(
   };
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
   // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
+  // Registry sites marked `enabled: false` (awaiting a terms decision) are never requested.
   const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
-    matchesRequestedDealer,
+    (site) => isCuratedSiteEnabled(site) && matchesRequestedDealer(site),
   );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
