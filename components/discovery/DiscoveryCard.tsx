@@ -17,6 +17,7 @@ import {
 } from "@/hooks/useLocalSavedVehicles";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Clock3, Flame, Zap } from "lucide-react";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 const TITLE_STYLES: Record<
   string,
@@ -64,16 +65,6 @@ function Placeholder() {
       </svg>
     </div>
   );
-}
-
-function relativeFreshness(value?: string | null) {
-  if (!value) return "Freshness unknown";
-  const ms = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(ms)) return "Freshness unknown";
-  const hours = Math.max(0, Math.round(ms / 3_600_000));
-  if (hours < 1) return "Seen just now";
-  if (hours < 24) return `Seen ${hours}h ago`;
-  return `Seen ${Math.round(hours / 24)}d ago`;
 }
 
 /**
@@ -385,7 +376,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
-            {relativeFreshness(deal.lastSeenAt)} /{" "}
+            {listingFreshnessLabel(deal)} /{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
           <p className="text-xs leading-relaxed text-[var(--t3)]">
@@ -410,7 +401,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       deal.compCount ? ` · ${deal.compCount} listing asks` : ""
                     }`
                   : "Resale basis not on file."}
-              {` · ${relativeFreshness(deal.lastSeenAt)}`}
+              {` · ${listingFreshnessLabel(deal)}`}
               {deal.valueAsOf
                 ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
                 : ""}
