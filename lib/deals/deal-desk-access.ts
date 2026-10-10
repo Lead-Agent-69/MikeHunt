@@ -111,6 +111,8 @@ const CARD_FLIP_ONLY_FIELDS = [
   "netProfit",
   "profit",
   "profit_estimate",
+  "deal_verdict",
+  "dealVerdict",
   "profitEstimate",
   "profit_score",
   "profitScore",

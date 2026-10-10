@@ -157,10 +157,13 @@ describe("transport re-rank", () => {
       transportEstimate: 2000,
       locationState: "CA",
     };
-    const miles = milesBetweenStates("CA", "CA");
-    expect(miles).toBe(45);
+    // Same state: no invented miles, the carrier minimum is booked.
     const adjusted = transportAdjustedProfit(deal, "CA");
-    expect(adjusted).toBe(5000 + 2000 - transportCostForMiles(miles!));
+    expect(adjusted).toBe(5000 + 2000 - transportCostForMiles(0));
+    // Cross-state: haversine between centroids × road factor.
+    const cross = transportAdjustedProfit(deal, "TX");
+    const miles = milesBetweenStates("CA", "TX")!;
+    expect(cross).toBe(5000 + 2000 - transportCostForMiles(miles));
     expect(deal.trueNetProfit).toBe(5000);
     expect(transportAdjustedProfit(deal, "")).toBe(5000);
     expect(transportAdjustedProfit({ ...deal, locationState: "" }, "TX")).toBe(

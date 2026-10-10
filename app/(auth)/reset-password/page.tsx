@@ -6,7 +6,7 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { Field } from "@/components/shared/Field";
+import { PasswordField } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { friendlyAuthError } from "@/lib/auth/friendly-error";
 
@@ -25,7 +25,8 @@ export default function ResetPasswordPage() {
       try {
         if (
           !isSupabaseConfigured() ||
-          new URLSearchParams(window.location.search).has("error")
+          new URLSearchParams(window.location.search).has("error") ||
+          new URLSearchParams(window.location.hash.slice(1)).has("error")
         ) {
           throw new Error(
             "This reset link is invalid or expired. Request a new link below.",
@@ -113,22 +114,24 @@ export default function ResetPasswordPage() {
           </div>
         ) : ready ? (
           <form onSubmit={save} className="flex flex-col gap-4">
-            <Field
+            <PasswordField
               label="New password"
-              type="password"
+              name="password"
               autoComplete="new-password"
               minLength={12}
               required
+              disabled={saving}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
             <p className="text-sm text-[var(--t3)]">At least 12 characters</p>
-            <Field
+            <PasswordField
               label="Confirm new password"
-              type="password"
+              name="confirmation"
               autoComplete="new-password"
               minLength={12}
               required
+              disabled={saving}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
             />

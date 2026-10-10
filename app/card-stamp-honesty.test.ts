@@ -13,10 +13,11 @@ describe("buyer card stamps", () => {
     expect(deal).not.toContain("profitScore = 50");
     expect(deal).not.toContain("Profit Score:");
     expect(deal).not.toContain("IQ {iq.score}");
-    expect(deal).toContain("Ask-based estimate");
+    expect(deal).toContain("copy.basisLabel");
     // Missing-basis copy lives in the desk-aware copy helper (flip vs buyer wording).
     const copy = readFileSync("lib/deals/deal-card-copy.ts", "utf8");
-    expect(deal).toContain("copy.basisMissing");
+    expect(deal).toContain("copy.basisMissingShort");
+    expect(copy).toContain("Ask-based estimate");
     expect(copy).toContain("Resale basis not on file.");
     expect(copy).toContain("Market value not on file.");
     expect(discovery).not.toContain("Worth a look");

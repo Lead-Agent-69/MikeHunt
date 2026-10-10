@@ -19,7 +19,7 @@ export async function GET(
   const { data, error } = await supabase
     .from("scrape_jobs")
     .select(
-      "id,status,source_ids,scope,listings_found,listings_saved,error_message,result,created_at,started_at,completed_at",
+      "id,status,source_ids,scope,listings_found,listings_saved,error_message,result,created_at,started_at,heartbeat_at,completed_at",
     )
     .eq("id", id)
     .eq("requested_by", user.id)

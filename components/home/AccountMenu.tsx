@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -14,6 +13,7 @@ import {
   LogIn,
   LogOut,
   Lock,
+  ShieldCheck,
   MapPin,
   ScanSearch,
   Search,
@@ -81,7 +81,26 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const panelId = useId();
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !dealerId) return;
+    const controller = new AbortController();
+    setAdminUserId(null);
+    fetch("/api/auth/whoami", { signal: controller.signal, cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((viewer) => {
+        if (
+          !controller.signal.aborted &&
+          viewer?.isAdmin === true &&
+          viewer.id === dealerId
+        )
+          setAdminUserId(dealerId);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [open, dealerId]);
   useEffect(() => {
     if (!open) return;
     ref.current?.querySelector<HTMLAnchorElement>("a")?.focus();
@@ -119,6 +138,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
+    setLogoutError(null);
     try {
       if (isSupabaseConfigured()) {
         const { error } = await createClientComponentClient().auth.signOut();
@@ -131,7 +151,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
       router.replace("/login");
       router.refresh();
     } catch {
-      toast.error("Could not log out. Please try again.");
+      setLogoutError("Could not log out. Check your connection and try again.");
     } finally {
       setLoggingOut(false);
     }
@@ -219,6 +239,18 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
               {menu.primary.map((entry) => (
                 <MenuLink key={entry.href} entry={entry} />
               ))}
+              {dealerId && adminUserId === dealerId && (
+                <>
+                  <div className="my-1 border-t border-[var(--b1)]" />
+                  <MenuLink
+                    entry={{ name: "Admin dashboard", href: "/admin" }}
+                    icon={ShieldCheck}
+                  />
+                  <MenuLink
+                    entry={{ name: "Source operations", href: "/sources" }}
+                  />
+                </>
+              )}
             </>
           )}
           <MenuLink
@@ -236,6 +268,11 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 {loggingOut ? "Logging out..." : "Log out"}
               </button>
+              {logoutError && (
+                <p role="alert" className="px-3 py-2 text-xs text-[var(--red)]">
+                  {logoutError}
+                </p>
+              )}
             </>
           )}
         </nav>

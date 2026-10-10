@@ -154,7 +154,8 @@ export abstract class BaseScraperOrchestrator {
             ? errorMessage || "Scraper failed without an error message"
             : null,
       })
-      .eq("id", runId);
+      .eq("id", runId)
+      .eq("status", "running");
 
     if (error) {
       this.log(
@@ -178,7 +179,8 @@ export abstract class BaseScraperOrchestrator {
         error_message: message,
         completed_at: new Date().toISOString(),
       })
-      .eq("id", runId);
+      .eq("id", runId)
+      .eq("status", "running");
 
     if (updateError) {
       this.log(

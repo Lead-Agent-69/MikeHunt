@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Ico } from "@/components/shared/Ico";
@@ -11,7 +11,10 @@ import { cn } from "@/lib/utils";
 import { useDealerId } from "@/hooks/useDealerId";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MultiCarTrailerOptimizer } from "@/components/transport/MultiCarTrailerOptimizer";
+import { usePreferences } from "@/hooks/usePreferences";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 import { ExternalLink } from "lucide-react";
 
 interface QuoteResult {
@@ -64,23 +67,41 @@ const fetcher = (url: string) =>
   });
 
 function MovePageInner() {
-  const { intent } = useBuyerIntent();
-  const flipDesk =
-    intent?.buyerMode === "dealer" || intent?.buyerMode === "reseller";
   const { dealerId, loading: dealerLoading } = useDealerId();
   const searchParams = useSearchParams();
 
   // Prefill origin from deal context (e.g. /move?from=TX&dealId=...)
   const fromParam = (searchParams.get("from") || "").toUpperCase();
   const dealId = searchParams.get("dealId");
-  const initialFrom = US_STATES.includes(fromParam) ? fromParam : "TX";
+  const urlFrom = US_STATES.includes(fromParam) ? fromParam : "";
 
-  const [fromState, setFromState] = useState(initialFrom);
-  const [toState, setToState] = useState("CA");
+  // No invented TX → CA default: origin comes from the deal (?from=) or the saved home
+  // state; destination is the home state when moving a deal, otherwise the user picks it.
+  const [fromState, setFromState] = useState(urlFrom);
+  const [toState, setToState] = useState("");
+  const [routeTouched, setRouteTouched] = useState(false);
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const { intent } = useBuyerIntent();
+  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
+  const homeState = prefsLoading
+    ? ""
+    : discoverHomeState(prefs.homeLocation, prefs.carsState);
+
+  useEffect(() => {
+    if (routeTouched || prefsLoading || !homeState) return;
+    if (urlFrom) {
+      setToState((prev) => prev || homeState);
+    } else {
+      setFromState((prev) => prev || homeState);
+    }
+  }, [routeTouched, prefsLoading, homeState, urlFrom]);
+
+  const hasStates = Boolean(fromState && toState);
+  const isSameState = hasStates && fromState === toState;
 
   // Use SWR for data fetching
   const { data, error, isLoading } = useSWR(
-    dealerId && !dealerLoading
+    dealerId && !dealerLoading && hasStates && !isSameState
       ? `/api/transport/quote?from=${fromState}&to=${toState}&dealerId=${dealerId}`
       : null,
     fetcher,
@@ -90,7 +111,7 @@ function MovePageInner() {
     },
   );
 
-  const loading = isLoading || dealerLoading;
+  const loading = isLoading || dealerLoading || prefsLoading;
   const authError =
     !dealerLoading && !dealerId
       ? "Please sign in to view transport quotes."
@@ -107,7 +128,12 @@ function MovePageInner() {
   }, [data]);
 
   const titleRules = getTitleRules(fromState, toState);
-  const isSameState = fromState === toState;
+  // Never price a route we couldn't measure: 0 / missing miles means no estimate.
+  const hasRoute = Boolean(result && !isSameState && Number(result.miles) > 0);
+  const stateOptions = [
+    { value: "", label: "Choose…" },
+    ...US_STATES.map((s) => ({ value: s, label: s })),
+  ];
 
   return (
     <div
@@ -143,8 +169,8 @@ function MovePageInner() {
               </>
             ) : (
               <>
-                State-to-state transport estimates. Carrier quotes require exact
-                pickup and delivery addresses.
+                Transport cost estimates between states. Carrier quotes require
+                exact pickup and delivery addresses.
               </>
             )}
           </p>
@@ -160,13 +186,17 @@ function MovePageInner() {
           <div className="flex-1">
             <SelectField
               label="From State"
-              options={US_STATES.map((s) => ({ value: s, label: s }))}
+              options={stateOptions}
               value={fromState}
-              onChange={(e) => setFromState(e.target.value)}
+              onChange={(e) => {
+                setRouteTouched(true);
+                setFromState(e.target.value);
+              }}
             />
           </div>
           <button
             onClick={() => {
+              setRouteTouched(true);
               setFromState(toState);
               setToState(fromState);
             }}
@@ -194,15 +224,18 @@ function MovePageInner() {
           <div className="flex-1">
             <SelectField
               label="To State"
-              options={US_STATES.map((s) => ({ value: s, label: s }))}
+              options={stateOptions}
               value={toState}
-              onChange={(e) => setToState(e.target.value)}
+              onChange={(e) => {
+                setRouteTouched(true);
+                setToState(e.target.value);
+              }}
             />
           </div>
         </div>
 
         {/* Distance badge */}
-        {result && !isSameState && (
+        {hasRoute && result && (
           <div
             className="mt-4 flex items-center gap-2 text-sm text-[var(--t3)]"
             style={{ animation: "fadeUp 150ms ease-out both" }}
@@ -238,6 +271,11 @@ function MovePageInner() {
             addresses. The amounts below are minimum planning placeholders.
           </p>
         )}
+        {!isSameState && !hasRoute && !loading && !(authError || error) && (
+          <p className="mt-3 text-sm text-[var(--t4)]">
+            Enter a route to see transport estimates.
+          </p>
+        )}
       </div>
 
       {/* Loading */}
@@ -269,19 +307,17 @@ function MovePageInner() {
       )}
 
       {/* Carrier Tiers */}
-      {result && !loading && !error && (
+      {hasRoute && result && !loading && !error && (
         <div style={{ animation: "fadeUp 180ms ease-out both" }}>
           <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
             Transport Options
           </h2>
           <div className="space-y-3">
             {CARRIER_TIERS.map((tier, i) => {
-              const tierQuote = isSameState
-                ? 150
-                : Math.max(
-                    150,
-                    Math.round(result.miles * tier.multiplier) + 50,
-                  );
+              const tierQuote = Math.max(
+                150,
+                Math.round(result.miles * tier.multiplier) + 50,
+              );
               return (
                 <div
                   key={tier.id}
@@ -363,8 +399,8 @@ function MovePageInner() {
         </div>
       )}
 
-      {/* Multi-Car Trailer Bundle Optimizer */}
-      {flipDesk && result && !loading && !error && (
+      {/* Multi-Car Trailer Bundle Optimizer (flip desks only) */}
+      {flipDesk && hasRoute && result && !loading && !error && (
         <MultiCarTrailerOptimizer
           miles={result.miles}
           fromState={fromState}
@@ -373,7 +409,7 @@ function MovePageInner() {
       )}
 
       {/* Title Rules */}
-      {result && !loading && !error && (
+      {hasStates && !isSameState && !loading && (
         <div style={{ animation: "fadeUp 220ms ease-out both" }}>
           <h2 className="text-[11px] font-black text-[var(--t4)] uppercase tracking-widest mb-3 px-1">
             Registration checks: {fromState} → {toState}
@@ -474,30 +510,32 @@ function MovePageInner() {
         </div>
       )}
 
-      {/* Pro tip */}
-      <div
-        className="glass-panel p-4 flex items-start gap-3"
-        style={{ animation: "fadeUp 250ms ease-out both" }}
-      >
-        <svg
-          className="w-4 h-4 text-[var(--amber)] mt-0.5 flex-shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {/* Pro tip (flip desks only: references Deal Analyzer profit) */}
+      {flipDesk && (
+        <div
+          className="glass-panel p-4 flex items-start gap-3"
+          style={{ animation: "fadeUp 250ms ease-out both" }}
         >
-          <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-          <path d="M9 18h6" />
-          <path d="M10 22h4" />
-        </svg>
-        <p className="text-xs text-[var(--t3)] leading-relaxed">
-          Transport amounts are planning estimates, not bookings. Confirm an
-          exact-address carrier quote and use it in your vehicle's all-in cost
-          plan.
-        </p>
-      </div>
+          <svg
+            className="w-4 h-4 text-[var(--amber)] mt-0.5 flex-shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
+            <path d="M9 18h6" />
+            <path d="M10 22h4" />
+          </svg>
+          <p className="text-xs text-[var(--t3)] leading-relaxed">
+            Transport amounts are planning estimates, not bookings. Confirm an
+            exact-address carrier quote and use it in your vehicle's all-in cost
+            plan.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

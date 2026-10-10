@@ -90,7 +90,7 @@ export default function AuctionsPage() {
       });
 
       if (res.ok) {
-        toast.success("Run list uploaded — matched against live inventory.");
+        toast.success("Run list uploaded — matched against saved inventory.");
         setAuctionName("");
         setAuctionDate("");
         setVinText("");

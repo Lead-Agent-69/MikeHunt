@@ -137,6 +137,8 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     let active = true;
+    setLoadError(false);
+    setPrefsHydrated(false);
     const editing =
       new URLSearchParams(window.location.search).get("edit") === "1";
     Promise.all([fetch("/api/profile"), fetch("/api/preferences")])

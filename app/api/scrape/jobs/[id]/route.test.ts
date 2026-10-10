@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   from: vi.fn(),
+  select: vi.fn(),
   eq: vi.fn(),
   maybeSingle: vi.fn(),
 }));
@@ -17,11 +18,12 @@ vi.mock("@/lib/supabase/server", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   const query = {
-    select: () => query,
+    select: mocks.select,
     eq: mocks.eq,
     maybeSingle: mocks.maybeSingle,
   };
   mocks.from.mockReturnValue(query);
+  mocks.select.mockReturnValue(query);
   mocks.eq.mockReturnValue(query);
   mocks.getUser.mockResolvedValue({ data: { user: { id: "buyer-1" } } });
 });
@@ -55,6 +57,9 @@ describe("customer collection status", () => {
     );
     expect(response.status).toBe(200);
     expect(mocks.eq).toHaveBeenCalledWith("requested_by", "buyer-1");
+    expect(mocks.select).toHaveBeenCalledWith(
+      expect.stringContaining("heartbeat_at"),
+    );
     const body = await response.json();
     expect(JSON.stringify(body)).not.toMatch(
       /secret-key|service_role|metadata/,

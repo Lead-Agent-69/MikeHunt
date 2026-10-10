@@ -12,6 +12,10 @@ import {
 import { cached } from "@/lib/cache";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { discoverHomeState } from "@/lib/discovery/home-state";
+import {
+  arbitrageExclusion,
+  type ArbitrageExclusionReason,
+} from "@/lib/deals/arbitrage-eligibility";
 
 // Geographic arbitrage from REAL data — no hardcoded regional price tables. For THIS dealer (home state
 // read from their profile), every out-of-state deal is scored: would importing it pay off after the real
@@ -20,10 +24,30 @@ import { discoverHomeState } from "@/lib/discovery/home-state";
 //   • REGIONAL — nearby states, short/cheap haul (the close, fast-turn money)
 //   • NATIONAL — whole country, the biggest spreads worth a long haul
 // Honest: a deal with no resale estimate, or one the engine already PASSed, is skipped — never guessed.
+// A deal whose resale is not anchored to verified sold comps, or whose ask is a placeholder opening
+// bid, is listed under needsComps with potentialProfit: null and never feeds best flip / pools / routes.
 
 const SELL_COST_PCT = 0.09; // selling + recon-to-retail load, as a fraction of resale
 const MIN_PROFIT = 1500; // worth a haul at all
 const REGIONAL_MILES = 600; // "close" — neighbor states (state-centroid distance), a same/next-day haul
+
+/** Listable but un-scorable: resale lacks verified comps or the ask is a placeholder bid. */
+type NeedsCompsOpp = {
+  deal: any;
+  arbitrage: {
+    targetRegion: { state: string };
+    sourceState: string;
+    excludedReason: ArbitrageExclusionReason;
+    arbitrage: {
+      sourcePrice: number;
+      targetPrice: number;
+      transportCost: number;
+      potentialProfit: null;
+      profitMargin: null;
+      distance: number;
+    };
+  };
+};
 
 type Opp = {
   deal: any;
@@ -53,11 +77,14 @@ export function emptyArbitragePayload(homeState: string, tailored = false) {
       regionalProfit: 0,
       nationalProfit: 0,
       bestProfit: 0,
+      needsComps: 0,
+      excluded: { unverified_comps: 0, placeholder_bid: 0, outlier_margin: 0 },
     },
     topRoutes: [],
     localDeals: [],
     regionalArbitrage: [],
     nationalArbitrage: [],
+    needsComps: [],
   };
 }
 
@@ -149,6 +176,12 @@ export async function GET(request: NextRequest) {
         const localDeals: any[] = [];
         const regional: Opp[] = [];
         const national: Opp[] = [];
+        const needsComps: NeedsCompsOpp[] = [];
+        const excluded: Record<ArbitrageExclusionReason, number> = {
+          unverified_comps: 0,
+          placeholder_bid: 0,
+          outlier_margin: 0,
+        };
         const routeAgg = new Map<
           string,
           { miles: number; cost: number; count: number; profit: number }
@@ -163,7 +196,7 @@ export async function GET(request: NextRequest) {
           }
           const ask = Number(deal.askPrice) || 0;
           const resale = Number(deal.sellEstimate) || 0;
-          if (ask <= 0 || resale <= 0 || deal.dealVerdict === "pass") continue;
+          if (resale <= 0 || deal.dealVerdict === "pass") continue;
 
           const miles = milesBetweenStates(src, homeState);
           if (miles == null) continue;
@@ -174,7 +207,30 @@ export async function GET(request: NextRequest) {
           );
           if (potentialProfit < MIN_PROFIT) continue;
 
-          const profitMargin = Math.round((potentialProfit / ask) * 100);
+          const profitMargin =
+            ask > 0 ? Math.round((potentialProfit / ask) * 100) : null;
+          const reason = arbitrageExclusion(deal, profitMargin);
+          if (reason || profitMargin == null) {
+            const why: ArbitrageExclusionReason = reason || "placeholder_bid";
+            excluded[why] += 1;
+            needsComps.push({
+              deal,
+              arbitrage: {
+                targetRegion: { state: homeState },
+                sourceState: src,
+                excludedReason: why,
+                arbitrage: {
+                  sourcePrice: ask,
+                  targetPrice: resale,
+                  transportCost: transport,
+                  potentialProfit: null,
+                  profitMargin: null,
+                  distance: miles,
+                },
+              },
+            });
+            continue;
+          }
           const opp: Opp = {
             deal,
             arbitrage: {
@@ -236,16 +292,22 @@ export async function GET(request: NextRequest) {
             national: national.length,
             regionalProfit: sumProfit(regional),
             nationalProfit: sumProfit(national),
+            // Max over the scored tiers (rank floats preferred makes, so [0] is not always the max).
             bestProfit: Math.max(
               0,
-              regional[0]?.arbitrage.arbitrage.potentialProfit || 0,
-              national[0]?.arbitrage.arbitrage.potentialProfit || 0,
+              ...regional.map((o) => o.arbitrage.arbitrage.potentialProfit),
+              ...national.map((o) => o.arbitrage.arbitrage.potentialProfit),
             ),
+            // Honest count for "N listings need comps": out-of-state rows that would have
+            // shown a spread but have no verified sold comps / a placeholder bid / an outlier margin.
+            needsComps: needsComps.length,
+            excluded,
           },
           topRoutes,
           localDeals: localDeals.slice(0, 50),
           regionalArbitrage: regional.slice(0, 25),
           nationalArbitrage: national.slice(0, 25),
+          needsComps: needsComps.slice(0, 25),
         };
       },
     );

@@ -616,9 +616,10 @@ html {
 /* ── Inputs ── */
 .field {
   width: 100%;
-  background: #fffdf8;
+  background: var(--s0);
   border: 1px solid var(--b1);
   color: var(--t1);
+  caret-color: var(--t1);
   padding: 12px 13px;
   border-radius: var(--r3);
   transition:
@@ -627,6 +628,22 @@ html {
     background-color var(--fast) var(--ease-out);
   outline: none;
   font-size: 15px;
+}
+
+.field::placeholder {
+  color: var(--t4);
+  opacity: 1;
+}
+
+/* Keep browser-autofilled credentials legible in both themes. */
+.field:autofill {
+  color: var(--t1);
+  background: var(--s0);
+}
+.field:-webkit-autofill {
+  -webkit-text-fill-color: var(--t1);
+  -webkit-box-shadow: 0 0 0 1000px var(--s0) inset;
+  caret-color: var(--t1);
 }
 
 .field:focus {

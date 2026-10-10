@@ -91,6 +91,20 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).not.toContain("Pass for now");
   });
 
+  it("never applies a reseller PASS verdict to a personal buyer", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: false,
+        dealVerdict: "pass",
+      }),
+    );
+    expect(html).not.toContain("Pass for now");
+    expect(html).not.toContain("Engine verdict");
+    expect(html).toContain("Needs check");
+    expect(html).not.toContain("Possible buy");
+  });
+
   it("does not show placeholder flip economics on unanalyzed live-preview rows", () => {
     const html = renderToStaticMarkup(
       createElement(DealCard, {

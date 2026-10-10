@@ -9,6 +9,10 @@ import {
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hasAuctionDetailFilters } from "@/lib/search/extended-inventory-filters";
+import {
+  hasVehicleCategoryQuery,
+  rowMatchesBuyerQuery,
+} from "@/lib/discovery/for-you-rank";
 import { resolveCallerDesk } from "@/lib/deals/deal-desk-access";
 import {
   applyInventoryLane,
@@ -155,6 +159,11 @@ export async function GET(req: NextRequest) {
   if (rangeError)
     return NextResponse.json({ error: rangeError }, { status: 400 });
   const make = params.get("make");
+  const buyerQuery = (params.get("q") || "")
+    .replace(/[^a-zA-Z0-9 -]/g, " ")
+    .trim()
+    .slice(0, 60);
+  const categoryQuery = hasVehicleCategoryQuery(buyerQuery);
   const cascade = !!make && make !== "all";
   if (!isSupabaseConfigured())
     return NextResponse.json({
@@ -180,8 +189,8 @@ export async function GET(req: NextRequest) {
       .from("deals")
       .select(
         cascade
-          ? "id,model"
-          : "id,make,location_state,year,condition,source,source_url",
+          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
+          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
       )
       .eq("active", true);
     query = applyLiveAuctionWindow(query);
@@ -209,13 +218,19 @@ export async function GET(req: NextRequest) {
       else query = query.eq("deal_verdict", verdict);
     }
     const state = params.get("state");
-    if (state && !["all", "nationwide"].includes(state.toLowerCase()))
+    const selectedStates = (params.get("states") || "")
+      .split(",")
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => /^[A-Z]{2}$/.test(value));
+    if (selectedStates.length)
+      query = query.in("location_state", selectedStates);
+    else if (state && !["all", "nationwide"].includes(state.toLowerCase()))
       query = query.eq("location_state", state.toUpperCase());
     const q = (params.get("q") || "")
       .replace(/[^a-zA-Z0-9 -]/g, " ")
       .trim()
       .slice(0, 60);
-    if (q)
+    if (q && !categoryQuery)
       query = query.or(
         `title.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,vin.ilike.%${q}%`,
       );
@@ -278,11 +293,14 @@ export async function GET(req: NextRequest) {
     return query.order("id", { ascending: true });
   };
   try {
-    const rows = await fetchAllRows<any>(
+    const candidates = await fetchAllRows<any>(
       (from, to) => build().range(from, to),
       { max: 30000 },
     );
-    const bounded = rows.length === 30000;
+    const bounded = candidates.length === 30000;
+    const rows = categoryQuery
+      ? candidates.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
+      : candidates;
     if (!cascade)
       return NextResponse.json({ ...buildScanFacetSummary(rows), bounded });
     const models = new Map<string, number>();

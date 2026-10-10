@@ -4,6 +4,9 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 vi.mock("@/hooks/useDealerId", () => ({
   useDealerId: () => ({ dealerId: "owner", loading: false }),
 }));
+vi.mock("@/hooks/useBuyerIntent", () => ({
+  useBuyerIntent: () => ({ intent: { buyerMode: "dealer" } }),
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import Page from "./(dashboard)/recon/page";
 let host: HTMLDivElement;

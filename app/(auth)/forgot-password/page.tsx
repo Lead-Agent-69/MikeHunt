@@ -10,7 +10,7 @@ import { Field } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { Ico } from "@/components/shared/Ico";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
-import { friendlyAuthError } from "@/lib/auth/friendly-error";
+import { authErrorMessage } from "@/lib/auth/auth-error-message";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -35,24 +35,26 @@ export default function ForgotPasswordPage() {
     }
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
         {
           redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
         },
       );
-      if (error) throw error;
-      setMessage(
-        "If an account exists for this email, a password reset link has been sent.",
-      );
-    } catch (error) {
-      setError(
-        friendlyAuthError(
-          error instanceof Error
-            ? error
-            : (error as { message?: string })?.message,
-        ),
-      );
+      if (resetError) {
+        setError(
+          authErrorMessage(
+            resetError.message,
+            "We couldn't send a reset link. Please try again.",
+          ),
+        );
+      } else {
+        setMessage(
+          "If an account exists for this email, a reset link has been requested. Check your inbox and spam folder. Open the latest link in this browser.",
+        );
+      }
+    } catch {
+      setError("We couldn't connect. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -108,6 +110,7 @@ export default function ForgotPasswordPage() {
           <Field
             label="Email address"
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

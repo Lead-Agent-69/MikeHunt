@@ -74,7 +74,7 @@ export function ForYouRail({
             id="for-you-title"
             className="text-lg font-bold leading-tight text-[var(--t1)]"
           >
-            For You
+            From your activity
           </h2>
           <p className="mt-0.5 text-xs text-[var(--t4)]">
             Based on listings you opened, saved or spent time on.
@@ -111,7 +111,7 @@ export function ForYouRail({
         id="for-you-title"
         className="text-lg font-bold leading-tight text-[var(--t1)]"
       >
-        For You
+        From your activity
       </h2>
       <p className="text-xs text-[var(--t4)]">{honesty}</p>
     </section>

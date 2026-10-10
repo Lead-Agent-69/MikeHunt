@@ -214,12 +214,14 @@ async function checkMissingVins(report: AuditReport) {
     .is("vin", null)
     .throwOnError();
 
-  const percentage = ((count || 0) / report.activeDeals) * 100;
+  const percentage = report.activeDeals
+    ? ((count || 0) / report.activeDeals) * 100
+    : 0;
 
-  if (percentage > 50) {
+  if ((count || 0) > 0) {
     report.issues.push({
       category: "Missing VINs",
-      severity: "info",
+      severity: "warning",
       count: count || 0,
       percentage,
       examples: [],
@@ -266,9 +268,11 @@ async function checkMissingImages(report: AuditReport) {
     .or("images.is.null,images.eq.{}")
     .throwOnError();
 
-  const percentage = ((count || 0) / report.activeDeals) * 100;
+  const percentage = report.activeDeals
+    ? ((count || 0) / report.activeDeals) * 100
+    : 0;
 
-  if (percentage > 30) {
+  if ((count || 0) > 0) {
     report.issues.push({
       category: "Missing Images",
       severity: "info",
@@ -347,7 +351,9 @@ function printReport(report: AuditReport) {
   console.log(`Active Deals: ${report.activeDeals}\n`);
 
   if (report.issues.length === 0) {
-    console.log("✅ No data quality issues found!\n");
+    console.log(
+      "No issues detected by these checks. This is not verification of title, damage, valuation accuracy, or purchase readiness.\n",
+    );
     return;
   }
 

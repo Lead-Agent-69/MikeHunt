@@ -14,6 +14,7 @@ import {
 import { useDiscoverySave } from "./DiscoverySaveProvider";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 const TITLE_STYLES: Record<
   string,
@@ -61,16 +62,6 @@ function Placeholder() {
       </svg>
     </div>
   );
-}
-
-function relativeFreshness(value?: string | null) {
-  if (!value) return "Freshness unknown";
-  const ms = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(ms)) return "Freshness unknown";
-  const hours = Math.max(0, Math.round(ms / 3_600_000));
-  if (hours < 1) return "Seen just now";
-  if (hours < 24) return `Seen ${hours}h ago`;
-  return `Seen ${Math.round(hours / 24)}d ago`;
 }
 
 /**
@@ -147,17 +138,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           ) : (
             <Placeholder />
           )}
-          <div
-            data-testid="discovery-card-photo-price"
-            className="absolute bottom-3 left-3 max-w-[calc(100%-24px)] rounded-md bg-black/80 px-3 py-2 text-white"
-          >
-            <p className="text-[10px] font-semibold">{terms.priceLabel}</p>
-            <p className="font-mono text-xl font-extrabold">
-              {deal.askPrice > 0
-                ? `$${deal.askPrice.toLocaleString()}`
-                : "Not reported"}
-            </p>
-          </div>
 
           <span
             className="absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
@@ -369,19 +349,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           {deal.matchReasons && deal.matchReasons.length > 0 && (
-            <div
-              className="rounded-[var(--r2)] px-2.5 py-2 text-[10px]"
-              style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-black uppercase tracking-wide text-[var(--t4)]">
-                  Why shown
-                </span>
-                <span className="font-bold text-[var(--t3)]">
-                  {deal.matchReasons.length} match
-                  {deal.matchReasons.length === 1 ? "" : "es"}
-                </span>
-              </div>
+            <details className="text-[11px] text-[var(--t3)]">
+              <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+                Why shown
+              </summary>
               <div className="mt-1 flex flex-wrap gap-1">
                 {deal.matchReasons.slice(0, 4).map((reason) => (
                   <span
@@ -392,46 +363,48 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   </span>
                 ))}
               </div>
-            </div>
+            </details>
           )}
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
-            {relativeFreshness(deal.lastSeenAt)} /{" "}
+            {listingFreshnessLabel(deal)} /{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
           <p className="text-xs leading-relaxed text-[var(--t3)]">
             {evidence.nextCheck}
           </p>
 
-          <p className="text-[11px] leading-relaxed text-[var(--t3)]">
-            {deal.askPrice > 0
-              ? `${terms.priceLabel} $${deal.askPrice.toLocaleString()}`
-              : "Price not reported"}
-            {" · "}
-            {deal.soldAnchored && deal.sellEstimate && (deal.compCount || 0) > 0
-              ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
-              : deal.sellEstimate && !deal.soldAnchored
-                ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}${
-                    deal.compCount ? ` · ${deal.compCount} listing asks` : ""
-                  }`
-                : "Resale basis not on file."}
-            {` · ${relativeFreshness(deal.lastSeenAt)}`}
-            {deal.valueAsOf
-              ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
-              : ""}
-            {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
-            {deal.sellerType === "dealer"
-              ? " · Dealer"
-              : deal.sellerType === "private"
-                ? " · Private"
-                : ""}
-          </p>
-
-          {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}
           <details className="border-t border-[var(--b1)] pt-2">
-            <summary className="cursor-pointer py-2 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
               Cost estimates and source details
             </summary>
+            <p className="text-[11px] leading-relaxed text-[var(--t3)]">
+              {deal.askPrice > 0
+                ? `${terms.priceLabel} $${deal.askPrice.toLocaleString()}`
+                : "Price not reported"}
+              {" · "}
+              {deal.soldAnchored &&
+              deal.sellEstimate &&
+              (deal.compCount || 0) > 0
+                ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
+                : deal.sellEstimate && !deal.soldAnchored
+                  ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}${
+                      deal.compCount ? ` · ${deal.compCount} listing asks` : ""
+                    }`
+                  : "Resale basis not on file."}
+              {` · ${listingFreshnessLabel(deal)}`}
+              {deal.valueAsOf
+                ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
+                : ""}
+              {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
+              {deal.sellerType === "dealer"
+                ? " · Dealer"
+                : deal.sellerType === "private"
+                  ? " · Private"
+                  : ""}
+            </p>
+
+            {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}
             <p className="text-[11px] leading-relaxed text-[var(--t4)]">
               Listing and model estimates, not inspection findings or guaranteed
               sale prices.

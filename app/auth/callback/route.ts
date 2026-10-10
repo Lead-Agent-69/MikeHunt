@@ -95,8 +95,8 @@ export async function GET(request: NextRequest) {
         }
         if (user) return response;
       }
-    } catch (error) {
-      console.warn("Auth callback could not complete:", error);
+    } catch {
+      console.error("Authentication callback could not complete");
     }
   }
 

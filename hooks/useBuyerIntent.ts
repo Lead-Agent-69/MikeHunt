@@ -385,6 +385,7 @@ export function applyBuyingForIntent(
 export function discoverQueryForBuyingFor(
   intent: BuyerIntent | null,
   state?: string,
+  selectedStates?: string | null,
 ) {
   const stateRaw = String(state || intent?.state || "")
     .trim()
@@ -392,6 +393,11 @@ export function discoverQueryForBuyingFor(
   const nationwide = !stateRaw || stateRaw === "NATIONWIDE";
   const params = buildBuyerIntentQuery(intent, nationwide ? "" : stateRaw);
   params.delete("states");
+  if (selectedStates) {
+    params.delete("state");
+    params.set("states", selectedStates);
+    return params;
+  }
   if (nationwide) params.set("state", "NATIONWIDE");
   return params;
 }

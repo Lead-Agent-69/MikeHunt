@@ -3,126 +3,116 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { canManageOperations } from "@/lib/auth/admin-operations";
+import { fetchAllRows } from "@/lib/db/paginate";
 
-// GET /api/admin/stats — Platform health metrics for the admin dashboard.
-// Requires admin role or INGEST_SECRET auth header.
+const MAX_METRIC_ROWS = 50_000;
+
+// Aggregate operational data is never read before request authorization.
 export async function GET(req: NextRequest) {
   if (!(await canManageOperations(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // This is a service client for aggregate operations data, not a browser session client.
-  // Authorization above always comes from the request's owner session or automation secret.
-  const supabase = createServerComponentClient();
-
   try {
-    const [
-      totalDealsRes,
-      activeDealsRes,
-      bySourceRes,
-      usersRes,
-      outcomeRes,
-      topDealsRes,
-      scoredRes,
-    ] = await Promise.allSettled([
-      supabase.from("deals").select("id", { count: "exact", head: true }),
-      supabase
-        .from("deals")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true),
-      supabase
-        .from("deals")
-        .select("source")
-        .eq("active", true)
-        .then(({ data }) => {
-          // Group by source manually
-          const map: Record<string, { count: number; last_scraped: string }> =
-            {};
-          for (const row of data ?? []) {
-            if (!map[row.source])
-              map[row.source] = { count: 0, last_scraped: "" };
-            map[row.source].count++;
-          }
-          return Object.entries(map)
-            .map(([source, v]) => ({ source, ...v }))
-            .sort((a, b) => b.count - a.count);
-        }),
-      supabase
-        .from("user_profiles")
-        .select("id, plan, created_at", { count: "exact" }),
-      supabase
-        .from("dealer_deals")
-        .select("id", { count: "exact", head: true }),
-      supabase
-        .from("deals")
-        .select("id, year, make, model, true_net_profit, deal_verdict")
-        .eq("active", true)
-        .eq("deal_verdict", "go")
-        .order("true_net_profit", { ascending: false })
-        .limit(10),
-      supabase
-        .from("deals")
-        .select("profit_score, deal_verdict")
-        .eq("active", true)
-        .not("profit_score", "is", null)
-        .limit(1000),
-    ]);
-
-    const totalDeals =
-      totalDealsRes.status === "fulfilled"
-        ? (totalDealsRes.value.count ?? 0)
-        : 0;
-    const activeDeals =
-      activeDealsRes.status === "fulfilled"
-        ? (activeDealsRes.value.count ?? 0)
-        : 0;
-    const dealsBySource =
-      bySourceRes.status === "fulfilled" ? bySourceRes.value : [];
-    const usersData =
-      usersRes.status === "fulfilled" ? (usersRes.value.data ?? []) : [];
-    const totalUsers = usersData.length;
-    const proUsers = usersData.filter((u: any) =>
-      ["pro", "elite"].includes(u.plan),
-    ).length;
+    const supabase = createServerComponentClient();
     const sevenDaysAgo = new Date(
       Date.now() - 7 * 24 * 3600 * 1000,
     ).toISOString();
-    const recentSignups = usersData.filter(
-      (u: any) => u.created_at > sevenDaysAgo,
-    ).length;
-    const outcomeCount =
-      outcomeRes.status === "fulfilled" ? (outcomeRes.value.count ?? 0) : 0;
-    const topDeals =
-      topDealsRes.status === "fulfilled" ? (topDealsRes.value.data ?? []) : [];
-    const scoredData =
-      scoredRes.status === "fulfilled" ? (scoredRes.value.data ?? []) : [];
-    const avgProfitScore =
-      scoredData.length > 0
-        ? Math.round(
-            scoredData.reduce(
-              (sum: number, d: any) => sum + Number(d.profit_score ?? 0),
-              0,
-            ) / scoredData.length,
-          )
-        : 0;
-    const goDealsCount = scoredData.filter(
-      (d: any) => d.deal_verdict === "go",
-    ).length;
+    const [total, active, users, pro, recent, outcomes, top, rows] =
+      await Promise.all([
+        supabase.from("deals").select("id", { count: "exact", head: true }),
+        supabase
+          .from("deals")
+          .select("id", { count: "exact", head: true })
+          .eq("active", true),
+        supabase
+          .from("user_profiles")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("user_profiles")
+          .select("id", { count: "exact", head: true })
+          .in("plan", ["pro", "elite"]),
+        supabase
+          .from("user_profiles")
+          .select("id", { count: "exact", head: true })
+          .gt("created_at", sevenDaysAgo),
+        supabase
+          .from("dealer_deals")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("deals")
+          .select("id, year, make, model, true_net_profit, deal_verdict")
+          .eq("active", true)
+          .eq("deal_verdict", "go")
+          .order("true_net_profit", { ascending: false })
+          .limit(10),
+        fetchAllRows<{
+          source: string;
+          profit_score: number | null;
+          deal_verdict: string | null;
+        }>(
+          (from, to) =>
+            supabase
+              .from("deals")
+              .select("source, profit_score, deal_verdict")
+              .eq("active", true)
+              .order("id")
+              .range(from, to),
+          { max: MAX_METRIC_ROWS + 1 },
+        ),
+      ]);
+
+    // PostgREST query failures resolve with error; they are not rejected promises.
+    for (const result of [total, active, users, pro, recent, outcomes, top]) {
+      if (result.error) throw result.error;
+    }
+    for (const result of [total, active, users, pro, recent, outcomes]) {
+      if (result.count == null) throw new Error("Missing aggregate count");
+    }
+    if (rows.length > MAX_METRIC_ROWS)
+      throw new Error("Metric scan limit reached");
+
+    const sources = new Map<string, number>();
+    let scoreTotal = 0;
+    let scoredCount = 0;
+    let goDealsCount = 0;
+    for (const row of rows) {
+      const source = row.source || "unknown";
+      sources.set(source, (sources.get(source) ?? 0) + 1);
+      if (
+        row.profit_score != null &&
+        Number.isFinite(Number(row.profit_score))
+      ) {
+        scoreTotal += Number(row.profit_score);
+        scoredCount++;
+      }
+      if (row.deal_verdict === "go") goDealsCount++;
+    }
 
     return NextResponse.json({
-      totalDeals,
-      activeDeals,
-      dealsBySource,
-      totalUsers,
-      proUsers,
-      recentSignups,
-      outcomeCount,
-      topDeals,
-      avgProfitScore,
+      totalDeals: total.count,
+      activeDeals: active.count,
+      dealsBySource: Array.from(sources, ([source, count]) => ({
+        source,
+        count,
+        last_scraped: "",
+      })).sort((a, b) => b.count - a.count),
+      totalUsers: users.count,
+      proUsers: pro.count,
+      recentSignups: recent.count,
+      outcomeCount: outcomes.count,
+      topDeals: top.data ?? [],
+      avgProfitScore: scoredCount ? Math.round(scoreTotal / scoredCount) : 0,
       goDealsCount,
     });
-  } catch (e: any) {
-    console.error("[admin/stats] error:", e);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  } catch (error) {
+    console.error("[admin/stats] metrics unavailable:", error);
+    return NextResponse.json(
+      {
+        error:
+          "Dashboard metrics are temporarily unavailable. Please try again.",
+      },
+      { status: 503 },
+    );
   }
 }

@@ -12,6 +12,8 @@ const FLIP_ONLY = [
   "profit",
   "profit_estimate",
   "profitEstimate",
+  "deal_verdict",
+  "dealVerdict",
   "profit_score",
   "profitScore",
   "score",

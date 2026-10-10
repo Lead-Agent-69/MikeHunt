@@ -14,4 +14,10 @@ describe("read-only data audit", () => {
     expect(script).not.toContain("count: missing.length");
     expect(script).not.toContain("count: invalid.length");
   });
+  it("reports evidence gaps even below the former display thresholds", () => {
+    expect(script).not.toContain("percentage > 50");
+    expect(script).not.toContain("percentage > 30");
+    expect(script).toContain("This is not verification of title");
+    expect(script).not.toContain("No data quality issues found!");
+  });
 });

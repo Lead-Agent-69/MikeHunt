@@ -5,6 +5,7 @@ const calls = vi.hoisted(() => [] as Array<[string, ...unknown[]]>);
 function query() {
   const q: any = {};
   let range = [0, 47];
+  let ids: string[] | null = null;
   for (const method of [
     "select",
     "eq",
@@ -22,6 +23,7 @@ function query() {
   ]) {
     q[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
+      if (method === "in" && args[0] === "id") ids = args[1] as string[];
       return q;
     };
   }
@@ -37,7 +39,7 @@ function query() {
       data: Array.from(
         { length: Math.max(0, Math.min(range[1] + 1, 1100) - range[0]) },
         (_, index) => ({
-          id: `car-${range[0] + index}`,
+          id: ids?.[index] || `car-${range[0] + index}`,
           make: "Ford",
           model: "F-150",
           year: 2020,
@@ -70,9 +72,13 @@ vi.mock("@/lib/deals/deal-desk-access", async (importOriginal) => ({
 
 import { GET as scan } from "./route";
 import { GET as facets } from "./facets/route";
+import { invalidate } from "@/lib/cache";
 
 describe("Scan and facets query parity", () => {
-  beforeEach(() => calls.splice(0));
+  beforeEach(() => {
+    calls.splice(0);
+    invalidate("scan-category:");
+  });
   it("shares unreported-value range rules between results and facet counts", async () => {
     for (const handler of [scan, facets]) {
       calls.splice(0);
@@ -130,6 +136,35 @@ describe("Scan and facets query parity", () => {
         calls.some((call) => call[0] === "not" && call[1] === "source"),
       ).toBe(false);
     }
+  });
+  it("uses the same category classifier in results and facets before display pagination", async () => {
+    const response = await scan(
+      new NextRequest(
+        "https://example.test/api/scan?q=truck&states=MO,FL&page=18&pageSize=48",
+      ),
+    );
+    const body = await response.json();
+    expect(body.total).toBe(1100);
+    expect(body.vehicles).toHaveLength(48);
+    expect(body.vehicles[0].id).toBe("car-864");
+    expect(calls).toContainEqual(["in", "location_state", ["MO", "FL"]]);
+    expect(calls).toContainEqual(["range", 1000, 1999]);
+    expect(
+      calls.some(
+        ([method, filter]) =>
+          method === "or" && String(filter).includes("%truck%"),
+      ),
+    ).toBe(false);
+    calls.splice(0);
+    const facetsResponse = await facets(
+      new NextRequest(
+        "https://example.test/api/scan/facets?q=truck&states=MO,FL",
+      ),
+    );
+    expect((await facetsResponse.json()).makes).toEqual([
+      { make: "Ford", count: 1100 },
+    ]);
+    expect(calls).toContainEqual(["in", "location_state", ["MO", "FL"]]);
   });
 
   it("can retrieve trust-ranked inventory beyond the former 500-row ceiling", async () => {

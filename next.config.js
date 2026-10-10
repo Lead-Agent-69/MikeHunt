@@ -28,6 +28,7 @@ function supabaseConnectSources() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: ["127.0.0.1"],
   reactStrictMode: false,
   output: "standalone",
   // Pin the workspace root to THIS directory. A stray package-lock.json under the user home
@@ -53,6 +54,10 @@ const nextConfig = {
     // require external, so explicitly trace the package into every server function that may
     // construct a Supabase client (including /api/system/status on Vercel).
     "/*": ["./node_modules/ws/**/*"],
+    // patchright-core reads browsers.json at module-init time. It is in serverExternalPackages
+    // so Next/Turbopack never traces it automatically. Scope this to the one route that imports
+    // patchright-engine to avoid bloating every other Lambda with browser-related JSON.
+    "/api/deal-check": ["./node_modules/patchright-core/**/*"],
   },
   // Scraping runs on GitHub Actions, not Vercel serverless. Keep heavy browser/scraper
   // packages external so the Next build never tries to bundle Chromium into functions.

@@ -110,9 +110,10 @@ describe("Account navigation", () => {
     );
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.refresh).not.toHaveBeenCalled();
-    expect(mocks.errorToast).toHaveBeenCalledWith(
-      "Could not log out. Please try again.",
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not log out",
     );
+    expect(host.textContent).not.toContain("private auth error");
     expect(host.querySelector("nav")).not.toBeNull();
   });
 

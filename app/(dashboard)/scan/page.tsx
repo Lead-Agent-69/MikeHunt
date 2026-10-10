@@ -20,6 +20,12 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
+import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
+import { createLatestRequest } from "@/lib/latest-request";
+import {
+  previewFilterMessage,
+  unsupportedPreviewFilters,
+} from "@/lib/search/preview-filter-support";
 
 import {
   ArrowUpRight,
@@ -77,6 +83,7 @@ import {
   readInventoryDetails,
   SCAN_EXTRA_KEYS,
 } from "@/lib/search/extended-inventory-filters";
+import { scanStatusCopy } from "@/lib/ui/load-state-copy";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -473,12 +480,14 @@ function StatusStrip({
   total,
   results,
   lastScan,
+  hasData,
 }: {
   loading: boolean;
   error: string | null;
   total: number;
   results: ScanResult[];
   lastScan: Date | null;
+  hasData: boolean;
 }) {
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -493,28 +502,30 @@ function StatusStrip({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
 
-  const lastScanText = lastScan
-    ? lastScan.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "never";
+  // No false "0 · never" before the first response (lib/ui/load-state-copy).
+  const copy = scanStatusCopy({
+    hasData,
+    error,
+    total,
+    lastLoadedAt: lastScan,
+  });
+  const busy = loading || (!hasData && !error);
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 rounded-[var(--r3)] font-mono text-[11px] overflow-x-auto"
-      style={{ background: "var(--s1)", border: "1px solid var(--b1)" }}
-    >
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1 text-xs">
       {/* Status dot */}
       <span className="flex items-center gap-1.5 shrink-0">
         <span
           className={cn(
             "w-2 h-2 rounded-full inline-block",
-            loading ? "animate-pulse" : "",
+            busy ? "animate-pulse" : "",
           )}
           style={{ background: error ? "var(--red)" : "var(--green)" }}
         />
         <span className="text-[var(--t4)] font-semibold">
           {error
             ? "Couldn't update vehicles"
-            : loading
+            : busy
               ? "Updating saved inventory…"
               : "Saved inventory loaded"}
         </span>
@@ -523,13 +534,18 @@ function StatusStrip({
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
 
       <span className="text-[var(--t2)] shrink-0">
-        <span style={{ color: "var(--amber)" }}>{total}</span> active deals
+        {copy.count !== null && (
+          <>
+            <span style={{ color: "var(--amber)" }}>{copy.count}</span>{" "}
+          </>
+        )}
+        {copy.countLabel}
       </span>
 
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
 
       <span className="text-[var(--t4)] shrink-0">
-        Last loaded: <span className="text-[var(--t2)]">{lastScanText}</span>
+        Last loaded: <span className="text-[var(--t2)]">{copy.lastLoaded}</span>
       </span>
 
       {topSources.length > 0 && (
@@ -1357,6 +1373,9 @@ function SmartDataPlanCard({
   const plannedSearchHref = `/scan?${new URLSearchParams({
     lane: String(plan.scope.lane || "all"),
     ...(plan.filters.state ? { state: plan.filters.state } : {}),
+    ...(plan.scope.states?.length
+      ? { states: plan.scope.states.join(",") }
+      : {}),
     ...(plan.filters.q ? { q: plan.filters.q } : {}),
     ...(plan.scope.sellerType
       ? { sellerType: String(plan.scope.sellerType) }
@@ -1415,7 +1434,8 @@ function SmartDataPlanCard({
     },
     {
       label: "Market",
-      value: plan.filters.state || "Nationwide",
+      value:
+        plan.filters.states?.join(", ") || plan.filters.state || "Nationwide",
       detail: plan.scope.maxPrice
         ? `Up to $${Number(plan.scope.maxPrice).toLocaleString()}`
         : "No budget cap",
@@ -1596,8 +1616,10 @@ function SmartDataPlanCard({
             {plan.scope.lane}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
-            {plan.filters.state || "Nationwide"} ·{" "}
-            {plan.filters.q || "all vehicles"}
+            {plan.filters.states?.join(", ") ||
+              plan.filters.state ||
+              "Nationwide"}{" "}
+            · {plan.filters.q || "all vehicles"}
             {plan.scope.sellerType ? ` · ${plan.scope.sellerType} sellers` : ""}
           </p>
         </div>
@@ -1796,6 +1818,9 @@ function SmartDataPlanCard({
               href={`/scan?${new URLSearchParams({
                 lane: String(plan.scope.lane || "all"),
                 ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                ...(plan.scope.states?.length
+                  ? { states: plan.scope.states.join(",") }
+                  : {}),
                 ...(plan.filters.q ? { q: plan.filters.q } : {}),
                 ...(plan.scope.sellerType
                   ? { sellerType: String(plan.scope.sellerType) }
@@ -1973,6 +1998,9 @@ function SmartDataPlanCard({
                   lane: String(plan.scope.lane || "all"),
                   source: item.id,
                   ...(plan.filters.state ? { state: plan.filters.state } : {}),
+                  ...(plan.scope.states?.length
+                    ? { states: plan.scope.states.join(",") }
+                    : {}),
                   ...(plan.filters.q ? { q: plan.filters.q } : {}),
                   ...(plan.scope.sellerType
                     ? { sellerType: String(plan.scope.sellerType) }
@@ -2290,6 +2318,9 @@ function SmartDataPlanCard({
                           ? { state: plan.filters.state }
                           : {}),
                         ...(plan.filters.q ? { q: plan.filters.q } : {}),
+                        ...(plan.scope.states?.length
+                          ? { states: plan.scope.states.join(",") }
+                          : {}),
                         sort: "profit",
                       }).toString()}`}
                       className="rounded-[var(--r1)] border border-[var(--gbd)] bg-[var(--s0)] px-2 py-1 text-[10px] font-black text-[var(--green)]"
@@ -2561,7 +2592,12 @@ function ScanPageInner() {
   const [titleType, setTitleType] = useState("all");
   const [lane, setLane] = useState("all"); // acquisition lane segment (auction/salvage/…)
   const [minProfit, setMinProfit] = useState("any");
-  const [state, setState] = useState("all");
+  const [state, setStateValue] = useState("all");
+  const [selectedStates, setSelectedStates] = useState("");
+  const setState = (value: string) => {
+    setSelectedStates("");
+    setStateValue(value);
+  };
   const [make, setMake] = useState("all");
   const [makesFilter, setMakesFilter] = useState<string[]>([]);
   const [model, setModel] = useState("all");
@@ -2594,6 +2630,9 @@ function ScanPageInner() {
   const [runImporting, setRunImporting] = useState(false);
   const sourceRunId = useRef(0);
   const sourceRunController = useRef<AbortController | null>(null);
+  const planRequests = useRef(createLatestRequest());
+  const previewRequests = useRef(createLatestRequest());
+  const pageRequests = useRef(createLatestRequest());
   const [livePreviewing, setLivePreviewing] = useState(false);
   const [livePreviewRows, setLivePreviewRows] = useState<any[]>([]);
   const [livePreviewProof, setLivePreviewProof] = useState<PreviewProofItem[]>(
@@ -2637,6 +2676,7 @@ function ScanPageInner() {
     const title = urlParams.get("titleType");
     const laneParam = urlParams.get("lane");
     const stateParam = urlParams.get("state");
+    const statesParam = urlParams.get("states");
     const makeParam = urlParams.get("make");
     const makesParam = urlParams.get("makes");
     const modelParam = urlParams.get("model");
@@ -2652,6 +2692,7 @@ function ScanPageInner() {
       title,
       laneParam,
       stateParam,
+      statesParam,
       makeParam,
       makesParam,
       modelParam,
@@ -2690,6 +2731,7 @@ function ScanPageInner() {
     setTitleType(title || "all");
     setLane(laneParam || "all");
     setState(stateParam?.toUpperCase() || "all");
+    setSelectedStates(statesParam || "");
     setMake(makeParam || "all");
     setMakesFilter([]);
     setModel(modelParam || "all");
@@ -3054,7 +3096,7 @@ function ScanPageInner() {
           ? "watch candidates"
           : null,
       laneLabel[lane] || lane,
-      state !== "all" ? state : "nationwide",
+      selectedStates || (state !== "all" ? state : "nationwide"),
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
       make === "all" && makesFilter.length
@@ -3086,6 +3128,7 @@ function ScanPageInner() {
     verdict,
     lane,
     state,
+    selectedStates,
     titleType,
     make,
     makesFilter,
@@ -3107,6 +3150,7 @@ function ScanPageInner() {
             : undefined,
         lane,
         state: state !== "all" ? state : undefined,
+        states: selectedStates || undefined,
         make: make !== "all" ? make : undefined,
         makes: make === "all" && makesFilter.length ? makesFilter : undefined,
         model: model !== "all" ? model : undefined,
@@ -3130,6 +3174,7 @@ function ScanPageInner() {
       search,
       lane,
       state,
+      selectedStates,
       make,
       makesFilter,
       model,
@@ -3145,6 +3190,7 @@ function ScanPageInner() {
   );
 
   const previewSourcePlan = useCallback(async () => {
+    const request = planRequests.current.start();
     setPlanPreviewing(true);
     setPlanMessage(null);
     setImportPlanProof(null);
@@ -3157,20 +3203,22 @@ function ScanPageInner() {
           sourceIds:
             sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds,
         }),
+        signal: request.signal,
       });
       const data = await res.json();
+      if (!request.isCurrent()) return;
       if (!res.ok)
-        throw new Error(data?.error || "Could not preview source plan.");
+        throw new Error(
+          "We couldn't prepare this source search. Please try again.",
+        );
       setImportPlanProof(data as ScrapePlanResult);
       const runnable = Number(data?.summary?.runnable || 0);
       const heldBack = Number(data?.summary?.heldBack || 0);
-      const estimated = Number(data?.summary?.estimatedDealsPerRun || 0);
-      const firstBlocker = data?.summary?.firstBlocker;
       setPlanMessage(
-        data?.message ||
-          `Plan ready: ${runnable} ready, ${heldBack} skipped, about ${estimated.toLocaleString()} expected rows per full search.${firstBlocker ? ` First setup step: ${firstBlocker}` : ""}`,
+        `Search plan: ${runnable} sources available; ${heldBack} unavailable for this search. Vehicle counts are known only after sources are checked.`,
       );
     } catch (error) {
+      if (!request.isCurrent()) return;
       setPlanMessage(
         userFacingErrorMessage(
           error,
@@ -3178,21 +3226,20 @@ function ScanPageInner() {
         ),
       );
     } finally {
-      setPlanPreviewing(false);
+      if (request.isCurrent()) setPlanPreviewing(false);
+      request.finish();
     }
   }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter]);
 
   const fetchLivePreview = useCallback(async () => {
+    const request = previewRequests.current.start();
     setLivePreviewing(true);
     setPlanMessage(null);
-    const requestKey = JSON.stringify({
-      scope: smartPlan.scope,
-      sourceFilter,
-    });
-    activePreviewRequestRef.current = requestKey;
     try {
       const params = new URLSearchParams();
       if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
+      if (smartPlan.scope.states?.length)
+        params.set("states", smartPlan.scope.states.join(","));
       if (smartPlan.scope.lane)
         params.set("lane", String(smartPlan.scope.lane));
       if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
@@ -3206,6 +3253,9 @@ function ScanPageInner() {
         params.set("maxPrice", String(smartPlan.scope.maxPrice));
       if (smartPlan.scope.minYear)
         params.set("minYear", String(smartPlan.scope.minYear));
+      if (maxYear !== "any") params.set("maxYear", maxYear);
+      if (minMileage !== "any")
+        params.set("minMileage", minMileage.replace("k", "000"));
       if (smartPlan.scope.maxMileage)
         params.set("maxMileage", String(smartPlan.scope.maxMileage));
       if (minPrice !== "any")
@@ -3217,18 +3267,42 @@ function ScanPageInner() {
         params.set("dealers", dealerHostsFilter.join(","));
       if (dealerSourceIdsFilter.length)
         params.set("dealerSourceIds", dealerSourceIdsFilter.join(","));
+      for (const [key, value] of Object.entries({
+        damage,
+        body,
+        trim,
+        fuelType,
+        transmission,
+        keys,
+        availability,
+        drivetrain,
+        verdict,
+        category,
+        minProfit,
+      })) {
+        if (value !== "all" && value !== "any") params.set(key, value);
+      }
+      if (madeInUsa) params.set("madeInUsa", "1");
+      if (buyNow) params.set("buyNow", "1");
+      if (unsupportedPreviewFilters(params).length) {
+        setPlanMessage(previewFilterMessage);
+        return;
+      }
       const res = await fetch(`/api/scan/live-preview?${params.toString()}`, {
         cache: "no-store",
+        signal: request.signal,
       });
       const data = await res.json();
+      if (!request.isCurrent()) return;
       if (!res.ok)
-        throw new Error(data?.error || "Could not fetch live preview.");
-      if (activePreviewRequestRef.current !== requestKey) return;
+        throw new Error(
+          "We couldn't preview matching vehicles. Please try again.",
+        );
       setLivePreviewRows(data.vehicles || []);
       setLivePreviewProof(data.proof || []);
       setPlanMessage(data.message || "Live public preview loaded.");
     } catch (error) {
-      if (activePreviewRequestRef.current !== requestKey) return;
+      if (!request.isCurrent()) return;
       setPlanMessage(
         userFacingErrorMessage(
           error,
@@ -3236,13 +3310,29 @@ function ScanPageInner() {
         ),
       );
     } finally {
-      setLivePreviewing(false);
+      if (request.isCurrent()) setLivePreviewing(false);
+      request.finish();
     }
   }, [
     smartPlan.scope,
     sourceFilter,
     sellerTypeFilter,
     minPrice,
+    maxYear,
+    minMileage,
+    damage,
+    body,
+    trim,
+    fuelType,
+    transmission,
+    keys,
+    availability,
+    drivetrain,
+    verdict,
+    category,
+    minProfit,
+    madeInUsa,
+    buyNow,
     dealerHostsFilter,
     dealerSourceIdsFilter,
   ]);
@@ -3253,6 +3343,7 @@ function ScanPageInner() {
       Object.entries(extraFilters).filter(([, value]) => Boolean(value)),
     );
     if (state !== "all") params.set("state", state);
+    if (selectedStates) params.set("states", selectedStates);
     if (lane !== "all") params.set("lane", lane);
     if (maxPrice !== "any")
       params.set("maxPrice", normalizeMaxPriceFilter(maxPrice));
@@ -3297,6 +3388,7 @@ function ScanPageInner() {
   }, [
     state,
     extraFilters,
+    selectedStates,
     lane,
     maxPrice,
     minPrice,
@@ -3402,6 +3494,7 @@ function ScanPageInner() {
     if (titleType !== "all") params.set("titleType", titleType);
     if (lane !== "all") params.set("lane", lane);
     if (state !== "all") params.set("state", state);
+    if (selectedStates) params.set("states", selectedStates);
     if (make !== "all") params.set("make", make);
     if (make === "all" && makesFilter.length)
       params.set("makes", makesFilter.join(","));
@@ -3447,6 +3540,7 @@ function ScanPageInner() {
     titleType,
     lane,
     state,
+    selectedStates,
     make,
     makesFilter,
     model,
@@ -3525,6 +3619,8 @@ function ScanPageInner() {
     const params = new URLSearchParams();
     if (smartPlan.scope.lane) params.set("lane", String(smartPlan.scope.lane));
     if (smartPlan.scope.state) params.set("state", smartPlan.scope.state);
+    if (smartPlan.scope.states?.length)
+      params.set("states", smartPlan.scope.states.join(","));
     if (smartPlan.scope.q) params.set("q", smartPlan.scope.q);
     if (smartPlan.scope.makes?.length)
       params.set("makes", smartPlan.scope.makes.join(","));
@@ -3546,6 +3642,7 @@ function ScanPageInner() {
   }, [
     smartPlan.scope.lane,
     smartPlan.scope.state,
+    smartPlan.scope.states,
     smartPlan.scope.q,
     smartPlan.scope.makes,
     smartPlan.scope.make,
@@ -3608,7 +3705,23 @@ function ScanPageInner() {
     [smartPlan, selectedSourceIds],
   );
 
-  useEffect(() => () => sourceRunController.current?.abort(), []);
+  const sourceSearchKey = JSON.stringify({
+    scope: smartPlan.scope,
+    sourceIds: selectedSourceIds,
+  });
+  useEffect(() => {
+    const runId = sourceRunId;
+    const runController = sourceRunController;
+    runId.current++;
+    runController.current?.abort();
+    setRunImporting(false);
+    setPlanMessage(null);
+    setImportRunProof([]);
+    return () => {
+      runId.current++;
+      runController.current?.abort();
+    };
+  }, [sourceSearchKey]);
 
   const runMatchingSources = useCallback(async () => {
     const runId = ++sourceRunId.current;
@@ -3721,13 +3834,11 @@ function ScanPageInner() {
         }
         if (res.status === 503) {
           throw new Error(
-            data?.message ||
-              data?.error ||
-              "This source refresh is not available right now.",
+            "This source refresh is not available right now. Existing matches remain available; try again later.",
           );
         }
         throw new Error(
-          data?.message || data?.error || "Could not run matching sources.",
+          "We couldn't start this source search. Your existing matches remain available; try again later.",
         );
       }
       let completedData = data;
@@ -3737,48 +3848,29 @@ function ScanPageInner() {
             ? "Your source search is already in progress. We'll show new matches when it finishes."
             : "Your source search is underway. We'll show new matches when it finishes.",
         );
-        const deadline = Date.now() + 10 * 60 * 1000;
-        while (Date.now() < deadline) {
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-          if (runId !== sourceRunId.current || controller.signal.aborted)
-            return;
-          const statusRes = await fetch(`/api/scrape/jobs/${data.job.id}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          });
-          const statusData = await statusRes.json();
-          if (!statusRes.ok)
-            throw new Error(
-              statusData?.error ||
-                "Could not read the scoped source search status.",
-            );
-          const job = statusData.job;
-          if (job.status === "failed")
-            throw new Error(
-              job.error_message || "The scoped source search failed.",
-            );
-          if (job.status === "completed") {
-            completedData = job.result || {
-              total: selectedSourceIds.length,
-              successful: selectedSourceIds.length,
-              failed: 0,
-              totalDeals: job.listings_saved || job.listings_found || 0,
-              results: [],
-            };
-            break;
-          }
+        const job = await pollScopedScrapeJob(
+          data.job.id,
+          controller.signal,
+          (message) => {
+            if (runId === sourceRunId.current) setPlanMessage(message);
+          },
+        );
+        if (runId !== sourceRunId.current || controller.signal.aborted) return;
+        if (!job) {
           setPlanMessage(
-            job.status === "running"
-              ? "Searching only the matching sources. New rows will appear here when complete..."
-              : "Your source search is waiting to begin...",
-          );
-        }
-        if (completedData === data) {
-          setPlanMessage(
-            "The source search is still running in the background. This page will refresh when you return.",
+            "We stopped waiting for this search, but it may still be running. Existing matches remain available; refresh results to check for new vehicles.",
           );
           return;
         }
+        if (!job.result) {
+          setPlanMessage(
+            "The search ended, but its source results could not be verified. Refreshing available matches without claiming new inventory.",
+          );
+          mutate();
+          mutateScrapeHealth();
+          return;
+        }
+        completedData = job.result;
       }
       if (runId !== sourceRunId.current) return;
       const runResults = Array.isArray(completedData.results)
@@ -3794,7 +3886,7 @@ function ScanPageInner() {
         })),
       );
       setPlanMessage(
-        `Source search finished: ${completedData.successful || 0}/${completedData.total || 0} sources succeeded, ${completedData.totalDeals || 0} rows found.`,
+        `Source search finished: ${completedData.successful || 0} of ${completedData.total || 0} sources checked successfully; ${completedData.totalDeals || 0} listings found.`,
       );
       mutate();
       mutateScrapeHealth();
@@ -3802,9 +3894,11 @@ function ScanPageInner() {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (runId !== sourceRunId.current) return;
       setPlanMessage(
-        error instanceof Error
-          ? error.message
-          : "Could not run matching sources.",
+        error instanceof TypeError || error instanceof SyntaxError
+          ? "We couldn't connect to check this search. It may still be running; existing matches remain available."
+          : error instanceof Error
+            ? error.message
+            : "Could not run matching sources.",
       );
     } finally {
       if (runId === sourceRunId.current) setRunImporting(false);
@@ -3816,7 +3910,19 @@ function ScanPageInner() {
   const [extra, setExtra] = useState<any[]>([]);
   const [morePage, setMorePage] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   useEffect(() => {
+    const plans = planRequests.current;
+    const previews = previewRequests.current;
+    const pages = pageRequests.current;
+    plans.cancel();
+    previews.cancel();
+    pages.cancel();
+    setPlanPreviewing(false);
+    setLivePreviewing(false);
+    setLoadingMore(false);
+    setLoadMoreError(null);
+    setPlanMessage(null);
     setExtra([]);
     setMorePage(0);
     setLivePreviewRows([]);
@@ -3824,7 +3930,12 @@ function ScanPageInner() {
     setImportRunProof([]);
     setImportPlanProof(null);
     autoPreviewKeyRef.current = null;
-  }, [swrKey]);
+    return () => {
+      plans.cancel();
+      previews.cancel();
+      pages.cancel();
+    };
+  }, [swrKey, sourceSearchKey]);
 
   // Derive state from SWR + the appended pages.
   const results = useMemo(
@@ -3839,7 +3950,9 @@ function ScanPageInner() {
   // intent from ?mode= or a guest cookie can disagree; then the rows carry no economics, so show
   // the price-first result view instead of "$0 net" / "no positive spread" on every row.
   const flipEconomics = flipDesk && swrData?.deskAccess !== "personal";
-  const loading = swrLoading;
+  // Treat "no response yet" as loading too: on the SSR pass and the first client tick SWR reports
+  // isLoading=false with no data, which painted the empty state and "0 · never" for seconds.
+  const loading = swrLoading || (swrData === undefined && !swrError);
   const scanConfigured =
     swrData?.configured === false ? false : isSupabaseConfigured();
   const swrPreviewRows =
@@ -3894,19 +4007,35 @@ function ScanPageInner() {
   const hasMore = !loading && !!swrKey && results.length < total;
   const loadMore = useCallback(async () => {
     if (!swrKey || loadingMore || !hasMore) return;
+    const request = pageRequests.current.start();
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const next = morePage + 1;
-      const res = await fetch(`${swrKey}&page=${next}`).then((r) => r.json());
-      const v = res?.vehicles || [];
+      const response = await fetch(`${swrKey}&page=${next}`, {
+        signal: request.signal,
+      });
+      const res = await response.json();
+      if (!request.isCurrent()) return;
+      if (!response.ok || !Array.isArray(res?.vehicles))
+        throw new Error("Could not load more vehicles");
+      const v = res.vehicles;
       if (v.length) {
         setExtra((prev) => [...prev, ...v]);
         setMorePage(next);
+      } else {
+        setLoadMoreError(
+          "No more vehicles were returned. The available inventory may have changed; refresh your search to check.",
+        );
       }
     } catch {
-      /* transient — the sentinel will retry on next scroll */
+      if (request.isCurrent())
+        setLoadMoreError(
+          "We couldn't load more vehicles. Your current results are still available. Try again.",
+        );
     } finally {
-      setLoadingMore(false);
+      if (request.isCurrent()) setLoadingMore(false);
+      request.finish();
     }
   }, [swrKey, loadingMore, hasMore, morePage]);
 
@@ -3914,7 +4043,7 @@ function ScanPageInner() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el || loadMoreError) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) loadMore();
@@ -3923,7 +4052,7 @@ function ScanPageInner() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [loadMore]);
+  }, [loadMore, loadMoreError]);
   const error = swrError?.message || swrData?.error || null;
   const [lastScan, setLastScan] = useState<Date | null>(null);
 
@@ -4246,7 +4375,7 @@ function ScanPageInner() {
       style={{ animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)" }}
     >
       {/* ── Search bar ── */}
-      <div className="glass-panel flex flex-col items-center gap-3 p-4 sm:flex-row md:sticky md:top-4 md:z-20">
+      <div className="flex flex-wrap items-center gap-2 md:sticky md:top-4 md:z-20">
         {newCount > 0 && (
           <button
             onClick={clearNew}
@@ -4378,7 +4507,11 @@ function ScanPageInner() {
             mutate();
           }}
           disabled={loading}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 font-bold text-white rounded-xl py-3.5 px-7 transition-all disabled:opacity-50 border-none"
+          aria-label={
+            loading ? "Updating saved inventory" : "Search saved inventory"
+          }
+          title="Search saved inventory"
+          className="flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-all disabled:opacity-50 border-none sm:px-5"
           style={{ background: "var(--grad)" }}
         >
           {loading ? (
@@ -4387,12 +4520,14 @@ function ScanPageInner() {
                 className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                 style={{ animation: "spin 700ms linear infinite" }}
               />
-              Updating saved inventory…
+              <span className="hidden sm:inline">
+                Updating saved inventory…
+              </span>
             </>
           ) : (
             <>
               <Ico name="scan" size={16} />
-              Search saved inventory
+              <span className="hidden sm:inline">Search saved inventory</span>
             </>
           )}
         </button>
@@ -4430,9 +4565,10 @@ function ScanPageInner() {
         total={total}
         results={results}
         lastScan={lastScan}
+        hasData={swrData !== undefined}
       />
 
-      <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] px-4 py-2.5 text-xs font-semibold text-[var(--t3)]">
+      <div className="text-xs leading-relaxed text-[var(--t3)]">
         {searchSummary}
       </div>
 
@@ -4450,27 +4586,36 @@ function ScanPageInner() {
       )}
 
       {isAdmin ? (
-        <SmartDataPlanCard
-          configured={scanConfigured}
-          total={total}
-          plan={effectiveSmartPlan}
-          onPreview={previewSourcePlan}
-          onRun={runMatchingSources}
-          onLivePreview={fetchLivePreview}
-          previewing={planPreviewing}
-          running={runImporting}
-          livePreviewing={livePreviewing}
-          showingPreview={
-            !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
-          }
-          proof={displayProof}
-          importRun={importRunProof}
-          importPlan={importPlanProof}
-          readinessItems={systemStatus?.readiness?.items || []}
-          sourceHealth={scrapeHealth?.sources || []}
-          scopeStatus={scrapeHealth?.scopeStatus || null}
-          message={displayMessage}
-        />
+        <details className="border-b border-[var(--b1)] pb-3">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            Source operations
+          </summary>
+          <SmartDataPlanCard
+            configured={scanConfigured}
+            total={total}
+            plan={effectiveSmartPlan}
+            onPreview={previewSourcePlan}
+            onRun={runMatchingSources}
+            onLivePreview={fetchLivePreview}
+            previewing={planPreviewing}
+            running={runImporting}
+            livePreviewing={livePreviewing}
+            showingPreview={
+              !scanConfigured && (livePreviewRows.length > 0 || swrPreviewRows)
+            }
+            proof={displayProof}
+            importRun={importRunProof}
+            importPlan={importPlanProof}
+            readinessItems={systemStatus?.readiness?.items || []}
+            sourceHealth={scrapeHealth?.sources || []}
+            scopeStatus={scrapeHealth?.scopeStatus || null}
+            message={displayMessage}
+          />
+          <ScopeQualityPanel
+            results={filteredResults}
+            sourceHealthById={tableSourceHealthById}
+          />
+        </details>
       ) : (
         <button
           type="button"
@@ -4483,12 +4628,6 @@ function ScanPageInner() {
         </button>
       )}
 
-      {isAdmin && (
-        <ScopeQualityPanel
-          results={filteredResults}
-          sourceHealthById={tableSourceHealthById}
-        />
-      )}
       {!isAdmin && displayMessage && (
         <p role="status" className="text-sm text-[var(--t3)]">
           {runImporting
@@ -4510,7 +4649,11 @@ function ScanPageInner() {
         configured={scrapeHealth?.configured}
         onRetry={() => void mutateScrapeHealth()}
       />
-      <div className="glass-panel px-4 py-3 space-y-3">
+      <details className="glass-panel px-4 py-3 space-y-3">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+          Filters &amp; view
+          {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
+        </summary>
         {appliedFilters.length > 0 && (
           <div
             className="flex flex-wrap items-center gap-2"
@@ -4977,7 +5120,7 @@ function ScanPageInner() {
             )}
           </div>
         )}
-      </div>
+      </details>
 
       {/* ── Acquisition lane segments — browse the way a flipper sorts inventory ── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -5013,13 +5156,18 @@ function ScanPageInner() {
         })}
       </div>
 
-      {!loading && !error && filteredResults.length > 0 && (
-        <ScanReviewStrip
-          results={filteredResults as ScanResult[]}
-          sourceHealthById={tableSourceHealthById}
-          href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
-          flipDesk={flipEconomics}
-        />
+      {isAdmin && !loading && !error && filteredResults.length > 0 && (
+        <details className="border-b border-[var(--b1)] pb-3">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            Inventory diagnostics
+          </summary>
+          <ScanReviewStrip
+            results={filteredResults as ScanResult[]}
+            sourceHealthById={tableSourceHealthById}
+            href={scanPageHrefFromApiKey(swrKey, `/scan?sort=${sort}`)}
+            flipDesk={flipEconomics}
+          />
+        </details>
       )}
 
       <MarketSearchHandoff query={swrKey.split("?")[1] || ""} />
@@ -5227,7 +5375,18 @@ function ScanPageInner() {
 
       {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}
       {!loading && !error && hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-8">
+        <div
+          ref={sentinelRef}
+          className="flex flex-col items-center gap-3 py-8"
+        >
+          {loadMoreError && (
+            <p
+              role="status"
+              className="max-w-lg text-center text-sm text-[var(--t2)]"
+            >
+              {loadMoreError}
+            </p>
+          )}
           <button
             onClick={loadMore}
             disabled={loadingMore}
@@ -5235,7 +5394,9 @@ function ScanPageInner() {
           >
             {loadingMore
               ? "Loading…"
-              : `Load more — ${(total - results.length).toLocaleString()} more`}
+              : loadMoreError
+                ? "Try loading more again"
+                : `Load more — ${(total - results.length).toLocaleString()} more`}
           </button>
         </div>
       )}

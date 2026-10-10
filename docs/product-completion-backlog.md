@@ -22,6 +22,11 @@
 Next acceptance sequence: hosted Auth/email and role/session checks; Saved/account cross-device persistence and concurrent preferences; acquisition/planning/parts records; source and filter yield; intelligence provenance/freshness; real alert delivery; full responsive/accessibility and operational release checks. Do not merge solely on local tests.
 
 Updated October 4, 2026. Based on the conversation and code inspected, not a claim of production completion.
+Updated October 8, 2026. Based on inspected code and recorded live checks, not a claim of production completion.
+
+## October 8 Live QA Follow-Up
+
+The existing administrator session now restores and the dashboard loads. The earlier disconnected-browser/account-blocked notes below are historical. Fresh Google login/recovery still has a confirmed redirect-configuration blocker; ordinary-role testing remains open. See [the current live QA and repair register](qa-2026-10-08.md) for verified pages, fixes, and untested acceptance gates.
 
 ## Release Waves: October 7, 2026
 
@@ -32,6 +37,38 @@ Updated October 4, 2026. Based on the conversation and code inspected, not a cla
 Wave 1 final combined-tree verification: 1,364 tests across 278 files, typecheck, lint (255 existing warnings), and production build passed with the parser override. Compatible MCP SDK and proxy-addr updates are present in the lockfile; tinypool is no longer installed. Live smoke results describe the previously deployed release, not proof that these new dependency changes are deployed.
 
 Wave 2 queue fixes implemented: active request reuse now requires the same scope, dry-run setting, and exact selected source set; found and saved counts are separate; no-results/all-failed execution is failed rather than successful completion; genuinely successful zero-match searches remain valid. Running jobs emit owner-filtered heartbeats, terminal writes require the current owner and running status, and customer status excludes raw runner errors and metadata. Historical scraper-run recovery and source-backed VIN/state enrichment remain open. A read-only live database check verified JSONB scope/source matching against an existing job; this is not proof of a successful end-to-end scrape or signed-in browser session.
+
+### October 7 Reliability Follow-Up
+
+- Fixed Linux jsdom builtin-module externalization in the test configuration. All 1,376 existing tests passed in the network-isolated Node 24 worker image with `NODE_ENV=test`; DOM/theme tests remained enabled, not skipped.
+- Added an operator-only abandoned source-run recovery tool: `npx tsx scripts/recover-source-runs.ts` previews records; apply requires explicit UUIDs, `--apply`, and `--workers-stopped`. Operators must independently stop and verify all owning workers first. Recovery compares the observed ID/source/start/status, preserves counts/listings/history, and records an unknown interrupted outcome, not success. Source terminal writes now guard running status so late completion cannot overwrite recovery.
+- Production read-only preview found five source-run candidates older than six hours. No recovery writes were applied because historical rows do not identify their owning workers. Automatic lease-based recovery remains open.
+- Production audit: 3,796 active listings, 3,301 missing VINs (87.0%), 25 missing state (0.7%). Audit reporting now exposes every detected missing VIN/image rather than hiding gaps below arbitrary percentage thresholds; a clear audit is not proof of valuation accuracy.
+- Browser inventory reconnected, but the disconnected localhost tab was rejected by browser policy. A working production login tab was requested; actual user/admin login is still unverified.
+
+### Search Monitoring Wave
+
+- Removed fabricated source-success counts when a completed job has no verified summary. Completion without proof refreshes available inventory and explicitly reports the missing summary.
+- Status polling now retries transient read failures without submitting another collection request, bounds request/wait time, handles sign-in and missing-job failures with friendly guidance, and reports stale heartbeats without claiming failure or cancelling a worker.
+- Filter/source changes and navigation cancel monitoring and invalidate older responses. A monitoring timeout no longer promises an automatic refresh on return or asserts that the worker is still alive.
+- Added behavioral tests for completion, missing results, failure, access errors, mismatched responses, retry, deadline, cancellation, and stale heartbeat. Full release checks are recorded separately after execution.
+- Production browser login was attempted with the previously supplied account and rejected as incorrect credentials. Password reset/sign-in was handed back to the account owner. Normal-user/admin interaction QA remains open; no account privileges were changed.
+
+### Scoped Preview And Pagination Wave
+
+- Source-plan previews, live previews, and inventory pagination now use cancellable, latest-request ownership. Filter changes and navigation cancel obsolete requests; late success/error/finally callbacks cannot overwrite a newer search or clear its loading state.
+- Explicit preview-source selection no longer silently falls back to other sources. Preview responses report only actually attempted sources and use customer-facing language rather than database/setup jargon.
+- Make, model, selected makes, maximum year, and minimum mileage now constrain preview results. A requested mileage limit excludes unknown mileage. Advanced filters unsupported by public previews are disclosed rather than ignored; existing inventory search retains those filters.
+- Pagination checks HTTP/response shape, keeps current vehicles on failure, displays retry guidance, and stops automatic repeat loops after failures or an unexpectedly empty page.
+- Normal/admin signed-in QA, source-backed evidence enrichment, and the remaining acceptance gates below are not made complete by these changes.
+
+### October 8 Admin Metrics And Access Audit
+
+- Read-only production configuration checks confirmed a server-only admin account is configured and the public/server Supabase project URLs and anonymous keys match. No credentials or account permissions were changed.
+- The available production browser remains on sign-in after the previously supplied credentials were rejected. The configured admin identity differs from that account. Signed-in admin/user QA remains open pending an authorized account-owner sign-in; service credentials are not a substitute for user-session testing.
+- Fixed admin statistics that silently stopped at the PostgREST row cap: source and score summaries now page through active records with stable ordering and an explicit scan bound. User, paid-plan, and recent-signup counts use exact server counts rather than downloaded profile lengths.
+- Resolved database errors and missing counts now return an unavailable response, not misleading zeros. Scans exceeding the bound also fail explicitly rather than publishing partial totals. Queries remain separate reads, not a transaction-consistent snapshot; these are operational counts, not validated buying recommendations.
+- Nine focused route/pagination tests passed, including authorization before privileged client construction, counts beyond 1,000 rows, database failures, missing counts, and the scan bound. Full release verification is recorded after execution.
 
 ## Adoptable Patterns
 

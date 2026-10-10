@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
@@ -41,6 +42,10 @@ import type {
   DiscoverResponse,
   DiscoveryRail,
 } from "@/components/discovery/types";
+import {
+  discoverMatchLabel,
+  marketListingsContext,
+} from "@/lib/discovery/count-labels";
 
 const LANE_VALUE_TO_LABEL: Record<string, string> = {
   all: "All deals",
@@ -256,7 +261,6 @@ export default function DiscoverPage() {
   const [makeDraft, setMakeDraft] = useState("");
   const [budgetDraft, setBudgetDraft] = useState("");
   const [laneDraft, setLaneDraft] = useState("all");
-  const [stateDraft, setStateDraft] = useState("");
 
   useEffect(() => {
     const syncScope = () =>
@@ -298,6 +302,8 @@ export default function DiscoverPage() {
   if (selectedStates) {
     scopeParams.delete("state");
     scopeParams.set("states", selectedStates);
+  } else if (chosenState?.toUpperCase() === "NATIONWIDE") {
+    scopeParams.set("state", "NATIONWIDE");
   } else if (!state) {
     scopeParams.delete("state");
   }
@@ -317,8 +323,6 @@ export default function DiscoverPage() {
     setMakeDraft(makes[0] || "");
     setBudgetDraft(buyerScope?.maxPrice ? String(buyerScope.maxPrice) : "");
     setLaneDraft(buyerScope?.laneValue || "all");
-    const scoped = state;
-    setStateDraft(/^[A-Z]{2}$/.test(scoped) ? scoped : "");
   }, [buyerScope, state]);
 
   // Hold the discover fetch until prefs settle so we don't paint Nationwide (or an
@@ -336,11 +340,8 @@ export default function DiscoverPage() {
       },
     );
 
-  const statLine = data?.previewMode
-    ? `${data.uniqueVehicles.toLocaleString()} vehicles in preview`
-    : data
-      ? `${data.uniqueVehicles.toLocaleString()} matching vehicles`
-      : null;
+  // Vehicles = VIN-merged; listings = what Scan/Today count (lib/discovery/count-labels).
+  const statLine = data ? discoverMatchLabel(data) : null;
   const hasLiveListings = Boolean(data && data.totalListings > 0);
   const placeName = (() => {
     if (selectedStates)
@@ -357,10 +358,9 @@ export default function DiscoverPage() {
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
   const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or repairable titles are excluded. " : ""}Review your filters or try another market.`;
-  const marketContext =
-    data?.marketListings && data.marketListings > data.totalListings
-      ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
-      : null;
+  const marketContext = data
+    ? marketListingsContext({ ...data, placeName })
+    : null;
   // Personal, DIY, and parts are not flip desks — hide wholesale flip rails.
   // Reseller/dealer keep roi / salvage / auctionLots / fresh.
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
@@ -406,12 +406,13 @@ export default function DiscoverPage() {
           aria-label="Buying for"
           onSubmit={(event) => {
             event.preventDefault();
+            if (!discoverReady) return;
             const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
             const next = applyBuyingForIntent(buyerScope, {
               make: makeDraft,
               maxPrice: Number.isFinite(budget) ? budget : 0,
               laneValue: laneDraft,
-              state: stateDraft || "NATIONWIDE",
+              state: state || "NATIONWIDE",
             });
             if (next) {
               writeLocalBuyerIntent(next);
@@ -419,7 +420,8 @@ export default function DiscoverPage() {
             }
             const params = discoverQueryForBuyingFor(
               next,
-              stateDraft || "NATIONWIDE",
+              state || "NATIONWIDE",
+              selectedStates,
             );
             const qs = params.toString();
             router.replace(qs ? `${pathname}?${qs}` : pathname, {
@@ -439,7 +441,10 @@ export default function DiscoverPage() {
                 "Refine makes and budgets without leaving your matching results."}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <fieldset
+            disabled={!discoverReady}
+            className="grid min-w-0 gap-2 sm:grid-cols-3"
+          >
             <label className="block text-xs font-semibold text-[var(--t3)]">
               Make
               <input
@@ -478,33 +483,23 @@ export default function DiscoverPage() {
                 ))}
               </select>
             </label>
-            <label className="block text-xs font-semibold text-[var(--t3)]">
-              State
-              <select
-                value={stateDraft}
-                onChange={(event) => setStateDraft(event.target.value)}
-                aria-label="State"
-                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-              >
-                <option value="">Nationwide</option>
-                {Object.entries(STATE_NAMES)
-                  .map(([code, info]) => ({ code, name: info[0] }))
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map(({ code, name }) => (
-                    <option key={code} value={code}>
-                      {name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
-          <div>
+          </fieldset>
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="submit"
+              disabled={!discoverReady}
               className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
             >
-              View all matches & filters
+              Apply filters
             </button>
+            {discoverReady && (
+              <Link
+                href={`/scan${scopeQuery}`}
+                className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+              >
+                Browse inventory
+              </Link>
+            )}
           </div>
         </form>
       </section>

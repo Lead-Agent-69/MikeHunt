@@ -117,7 +117,7 @@ describe("account menu", () => {
     expect(hrefs).not.toContain("/finance");
   });
 
-  it("never offers admin, and labels stay buyer-neutral", () => {
+  it("buyer modes never grant admin and operator links require verified identity", () => {
     for (const mode of ["personal", "diy", "parts", "reseller", "dealer"]) {
       for (const entry of all(mode)) {
         expect(entry.href).not.toMatch(/^\/admin/);
@@ -126,7 +126,9 @@ describe("account menu", () => {
       }
     }
     const source = readFileSync("components/home/AccountMenu.tsx", "utf8");
-    expect(source).not.toMatch(/\/admin/);
+    expect(source).toContain("adminUserId === dealerId");
+    expect(source).toContain("viewer?.isAdmin === true");
+    expect(source).toContain("viewer.id === dealerId");
   });
 
   it("signed-out visitors get Sign in and Help, not Log out", () => {

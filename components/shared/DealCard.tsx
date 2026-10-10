@@ -13,6 +13,7 @@ import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { evidenceConfidence } from "@/lib/valuation/evidence-confidence";
 import { isSourceLandingPage } from "@/lib/sources/listing-link";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -119,7 +120,8 @@ export const DealCard = memo(function DealCard({
     Number.isFinite(profitEstimate);
   const isPositive = profitEstimate >= 0;
   const location = [locationCity, locationState].filter(Boolean).join(", ");
-  const verdict = dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
+  const verdict =
+    showFlipEconomics && dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
   const isLivePreview = id.startsWith("live-");
   const primaryHref = isLivePreview && sourceUrl ? sourceUrl : `/deal/${id}`;
   const primaryTarget = isLivePreview && sourceUrl ? "_blank" : undefined;
@@ -127,7 +129,8 @@ export const DealCard = memo(function DealCard({
   const lastSeenText = lastSeenAt
     ? new Date(lastSeenAt).toLocaleDateString()
     : null;
-  const freshnessText = relativeFreshness(lastSeenAt || firstSeenAt);
+  // Age from first_seen, re-check from last_seen — never call an old re-scraped listing new.
+  const freshnessText = listingFreshnessLabel({ firstSeenAt, lastSeenAt });
   const auctionEndText = auctionEndAt
     ? new Date(auctionEndAt).toLocaleDateString()
     : null;
@@ -349,9 +352,9 @@ export const DealCard = memo(function DealCard({
   const weakAssumption = mathGaps[0] || "source freshness";
   const visibleWarnings = warnings.filter(Boolean).slice(0, 2);
   const decisionLabel =
-    dealVerdict === "pass"
+    showFlipEconomics && dealVerdict === "pass"
       ? "Pass for now"
-      : dealVerdict === "hold"
+      : showFlipEconomics && dealVerdict === "hold"
         ? "Watch closely"
         : !showFlipEconomics
           ? // Non-flip: judge the ask against the market estimate, not a resale spread.
@@ -383,8 +386,8 @@ export const DealCard = memo(function DealCard({
       ? `low confidence until ${weakAssumption} is known`
       : `${mathConfidence.toLowerCase()} valuation confidence`,
     trustSignals.length >= 4
-      ? "source proof is usable"
-      : "source proof is thin",
+      ? "listing fields are present; verify with the seller"
+      : "listing details are incomplete",
   ];
   const explainedWhyShown = trustExplanation?.reasons?.length
     ? trustExplanation.reasons
@@ -508,26 +511,8 @@ export const DealCard = memo(function DealCard({
           </div>
         </div>
         <p className="text-xs leading-relaxed text-[var(--t3)]">
-          {askPrice > 0
-            ? `${copy.priceLabel(source)} $${askPrice.toLocaleString()}`
-            : "Price not reported"}
-          {" · "}
-          {soldAnchored && resaleBasis && valuationCompCount > 0
-            ? `${copy.compBackedPrefix} $${resaleBasis.toLocaleString()} · ${valuationCompCount} comps`
-            : resaleBasis && !soldAnchored
-              ? `Ask-based estimate $${resaleBasis.toLocaleString()}${
-                  valuationCompCount > 0
-                    ? ` · ${valuationCompCount} listing asks`
-                    : ""
-                }`
-              : copy.basisMissing}
-          {` · ${freshnessText}`}
-          {source ? ` · ${source}` : ""}
-          {sellerType === "dealer"
-            ? " · Dealer"
-            : sellerType === "private"
-              ? " · Private"
-              : ""}
+          {freshnessText}
+          {!soldAnchored ? " · Sold comparisons not verified" : ""}
         </p>
 
         {/* Trim + body type + recall badge — NHTSA-decoded, when known */}
@@ -661,90 +646,98 @@ export const DealCard = memo(function DealCard({
           )}
         </div>
 
-        <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
-              Buyer math
-            </span>
-            <span
-              className={cn(
-                "text-[10px] font-black uppercase",
-                mathConfidence === "High"
-                  ? "text-[var(--green)]"
-                  : mathConfidence === "Medium"
-                    ? "text-[var(--amber-d)]"
-                    : "text-[var(--red)]",
-              )}
-            >
-              {mathConfidence} confidence
-            </span>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-            <span className="text-[var(--t4)]">{copy.basisRowLabel}</span>
-            <Mono className="text-right font-bold text-[var(--t2)]">
-              {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
-            </Mono>
-            <span className="text-[var(--t4)]">Known costs</span>
-            <Mono className="text-right font-bold text-[var(--t2)]">
-              {knownCostTotal ? `$${knownCostTotal.toLocaleString()}` : "Thin"}
-            </Mono>
-          </div>
-          {costStack.length > 0 && (
-            <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
-              {costStack
-                .map((item) => `${item.label}: $${item.value.toLocaleString()}`)
-                .join(" · ")}
-            </p>
-          )}
-          {mathGaps.length > 0 && (
-            <p className="mt-1 text-[11px] leading-relaxed text-[var(--t5)]">
-              Needs {mathGaps.slice(0, 3).join(", ")}
-              {mathGaps.length > 3 ? `, +${mathGaps.length - 3}` : ""}.
-            </p>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
-              Proof
-            </p>
-            <p className="mt-0.5 text-xs font-black text-[var(--t2)]">
-              {fieldProof.filter((item) => item.present).length}/
-              {fieldProof.length}
-            </p>
-          </div>
-          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
-              Source
-            </p>
-            <p
-              className={cn(
-                "mt-0.5 truncate text-xs font-black",
-                sourceHealthTone,
-              )}
-            >
-              {sourceHealthLabel}
-            </p>
-          </div>
-          <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
-            <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
-              Confidence
-            </p>
-            <p className={cn("mt-0.5 text-xs font-black", confidenceTone)}>
-              {confidenceScore}/100
-            </p>
-          </div>
-        </div>
-
-        <details className="group/details rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[10px] font-black uppercase tracking-wider text-[var(--t4)] [&::-webkit-details-marker]:hidden">
-            <span>Review proof</span>
-            <span className="text-[var(--t5)] transition-transform group-open/details:rotate-180">
-              ▼
-            </span>
+        {visibleWarnings.length > 0 && (
+          <p className="text-xs leading-relaxed text-[var(--amber-d)]">
+            {visibleWarnings.join(" ")}
+          </p>
+        )}
+        <details className="group/details border-t border-[var(--b1)] py-2">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-[var(--t3)] [&::-webkit-details-marker]:hidden">
+            <span>Costs & evidence</span>
+            <span aria-hidden="true">+</span>
           </summary>
           <div className="mt-3 space-y-3">
+            <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Cost estimates
+                </span>
+                <span
+                  className={cn(
+                    "text-[10px] font-black uppercase",
+                    mathConfidence === "High"
+                      ? "text-[var(--green)]"
+                      : mathConfidence === "Medium"
+                        ? "text-[var(--amber-d)]"
+                        : "text-[var(--red)]",
+                  )}
+                >
+                  {mathConfidence} confidence
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                <span className="text-[var(--t4)]">{copy.basisRowLabel}</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {resaleBasis ? `$${resaleBasis.toLocaleString()}` : "Unknown"}
+                </Mono>
+                <span className="text-[var(--t4)]">Known costs</span>
+                <Mono className="text-right font-bold text-[var(--t2)]">
+                  {knownCostTotal
+                    ? `$${knownCostTotal.toLocaleString()}`
+                    : "Thin"}
+                </Mono>
+              </div>
+              {costStack.length > 0 && (
+                <p className="mt-2 text-[11px] leading-relaxed text-[var(--t4)]">
+                  {costStack
+                    .map(
+                      (item) =>
+                        `${item.label}: $${item.value.toLocaleString()}`,
+                    )
+                    .join(" · ")}
+                </p>
+              )}
+              {mathGaps.length > 0 && (
+                <p className="mt-1 text-[11px] leading-relaxed text-[var(--t5)]">
+                  Needs {mathGaps.slice(0, 3).join(", ")}
+                  {mathGaps.length > 3 ? `, +${mathGaps.length - 3}` : ""}.
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Proof
+                </p>
+                <p className="mt-0.5 text-xs font-black text-[var(--t2)]">
+                  {fieldProof.filter((item) => item.present).length}/
+                  {fieldProof.length}
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Source
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 truncate text-xs font-black",
+                    sourceHealthTone,
+                  )}
+                >
+                  {sourceHealthLabel}
+                </p>
+              </div>
+              <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-2">
+                <p className="text-[9px] font-black uppercase tracking-wider text-[var(--t5)]">
+                  Confidence
+                </p>
+                <p className={cn("mt-0.5 text-xs font-black", confidenceTone)}>
+                  {confidenceScore}/100
+                </p>
+              </div>
+            </div>
+
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">

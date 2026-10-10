@@ -9,8 +9,18 @@ import {
   redactListingForNonFlipDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import { fetchSemanticSimilar } from "@/lib/deals/similar-deals";
+import { similarSegment } from "@/lib/deals/similar-prefilters";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-// Semantic suggestions and an attribute pool share the same live-inventory fit checks.
+// Output depends on the caller's desk (profit redaction) — never cache it in a shared layer.
+const NO_STORE = { "Cache-Control": "private, no-store" };
+const json = (body: unknown) => NextResponse.json(body, { headers: NO_STORE });
+
+// GET /api/deals/[id]/similar — semantically-similar deals via pgvector, hard-prefiltered to the
+// same segment / price band / year window first (similar_deals_by_id_filtered; legacy RPC +
+// in-memory gate until that migration is applied). Falls back to attribute-based matches under the
+// same filters when embeddings aren't populated yet.
 function mapRow(d: any) {
   return {
     id: d.id,
@@ -35,9 +45,20 @@ function mapRow(d: any) {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Fans out to up to 4 pgvector RPCs per call.
+  const rl = rateLimit(req, {
+    key: "deal-similar",
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) {
+    const res = tooManyRequests(rl);
+    res.headers.set("Cache-Control", "private, no-store");
+    return res;
+  }
   const { id } = await params;
   const supabase = createServerComponentClient();
   // Net profit and profit score only go to a saved reseller / dealer desk (fail closed).
@@ -57,24 +78,21 @@ export async function GET(
   if (baseError)
     return NextResponse.json(
       { error: "Alternatives couldn't be loaded." },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
-  if (!base?.make || !base?.model)
-    return NextResponse.json({ similar: [], basis: "none" });
+  if (!base?.make || !base?.model) return json({ similar: [], basis: "none" });
+  const segment = similarSegment(base);
   let semanticRows: any[] = [];
   // Re-read semantic suggestions: the RPC alone does not prove current availability.
   try {
-    const { data, error } = await supabase.rpc("similar_deals_by_id", {
-      p_deal_id: id,
-      p_count: 48,
-    });
-    if (!error && data && data.length > 0) {
+    const semantic = await fetchSemanticSimilar(supabase, id, base);
+    if (semantic?.rows.length) {
       const hydrated = await supabase
         .from("deals")
         .select(columns)
         .in(
           "id",
-          data.map((row: any) => row.id),
+          semantic.rows.map((row: any) => row.id),
         )
         .eq("active", true);
       if (!hydrated.error) semanticRows = hydrated.data || [];
@@ -107,9 +125,9 @@ export async function GET(
   if (error && !semanticRows.length)
     return NextResponse.json(
       { error: "Alternatives couldn't be loaded." },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
-  return NextResponse.json({
+  return json({
     similar: rankAlternatives(base, [...semanticRows, ...(rows || [])]).map(
       ({ row, matchReasons, priceDifference }) => ({
         ...shape(row),
@@ -117,6 +135,7 @@ export async function GET(
         priceDifference,
       }),
     ),
-    basis: "attribute",
+    basis: semanticRows.length ? "semantic" : "attribute",
+    filters: { segment, widened: null },
   });
 }

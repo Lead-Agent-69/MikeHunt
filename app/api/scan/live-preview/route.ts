@@ -13,6 +13,10 @@ import {
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
 import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
+import {
+  previewFilterMessage,
+  unsupportedPreviewFilters,
+} from "@/lib/search/preview-filter-support";
 
 export const dynamic = "force-dynamic";
 
@@ -93,16 +97,29 @@ function matchesNumericScope(
     minPrice: number;
     maxPrice: number;
     minYear: number;
+    maxYear: number;
+    minMileage: number;
     maxMileage: number;
   },
 ) {
   const price = Number(row.ask_price || row.askPrice || 0);
   const year = Number(row.year || 0);
-  const mileage = Number(row.mileage || 0);
+  const mileage =
+    row.mileage != null && row.mileage !== "" ? Number(row.mileage) : null;
   if (scope.minPrice && (!price || price < scope.minPrice)) return false;
   if (scope.maxPrice && (!price || price > scope.maxPrice)) return false;
   if (scope.minYear && (!year || year < scope.minYear)) return false;
-  if (scope.maxMileage && mileage && mileage > scope.maxMileage) return false;
+  if (scope.maxYear && (!year || year > scope.maxYear)) return false;
+  if (
+    scope.minMileage &&
+    (mileage == null || !Number.isFinite(mileage) || mileage < scope.minMileage)
+  )
+    return false;
+  if (
+    scope.maxMileage &&
+    (mileage == null || !Number.isFinite(mileage) || mileage > scope.maxMileage)
+  )
+    return false;
   return true;
 }
 
@@ -245,6 +262,16 @@ export async function GET(req: NextRequest) {
     NextResponse.json({ ...body, deskAccess }, { headers: NO_STORE });
   try {
     const { searchParams } = new URL(req.url);
+    const unsupported = unsupportedPreviewFilters(searchParams);
+    if (unsupported.length)
+      return json({
+        ok: false,
+        isLivePreview: true,
+        vehicles: [],
+        total: 0,
+        unsupportedFilters: unsupported,
+        message: previewFilterMessage,
+      });
     const lane = searchParams.get("lane") || "damaged";
     const q = cleanText(searchParams.get("q"));
     const state = (searchParams.get("state") || "").toUpperCase();
@@ -252,7 +279,15 @@ export async function GET(req: NextRequest) {
     const maxPrice = cleanNumber(searchParams.get("maxPrice"));
     const minPrice = cleanNumber(searchParams.get("minPrice"));
     const minYear = cleanNumber(searchParams.get("minYear"));
+    const maxYear = cleanNumber(searchParams.get("maxYear"));
+    const minMileage = cleanNumber(searchParams.get("minMileage"));
     const maxMileage = cleanNumber(searchParams.get("maxMileage"));
+    const make = cleanText(searchParams.get("make"));
+    const makes = (searchParams.get("makes") || "")
+      .split(",")
+      .map((value) => cleanText(value))
+      .filter(Boolean);
+    const model = cleanText(searchParams.get("model"));
     const requestedSource = cleanSource(searchParams.get("source"));
     const sellerType = cleanText(searchParams.get("sellerType"));
     const plan = planScrapeForBuyerScope({
@@ -283,7 +318,7 @@ export async function GET(req: NextRequest) {
         exact &&
         sourceMatchesPlan(exact, plan.sourceIds) &&
         sourceMatchesSellerType(exact, sellerType)
-          ? [exact, ...candidates.filter((source) => source.id !== exact.id)]
+          ? [exact]
           : [];
     }
 
@@ -295,10 +330,10 @@ export async function GET(req: NextRequest) {
         vehicles: [],
         total: 0,
         message: requestedSource
-          ? "This source does not have a public no-auth preview path yet. Connect Supabase and run an authorized import for this source."
+          ? "This source isn't available for preview in this search. Choose another source or adjust your filters."
           : sellerType && sellerType !== "all"
-            ? "No public no-auth preview source matches this seller type yet. Use live Scan rows or run an authorized import."
-            : "No public no-auth preview source is available for this scope yet.",
+            ? "No available preview source matches this seller type. Browse existing vehicles or try another source."
+            : "No available preview source matches this search. Browse existing vehicles or adjust your filters.",
       });
     }
 
@@ -327,10 +362,18 @@ export async function GET(req: NextRequest) {
             return false;
           if (!matchesQuery(row, q)) return false;
           if (!matchesTitleType(row, titleType)) return false;
+          if (make && make !== "all" && cleanText(row.make) !== make)
+            return false;
+          if (makes.length && !makes.includes(cleanText(row.make)))
+            return false;
+          if (model && model !== "all" && cleanText(row.model) !== model)
+            return false;
           return matchesNumericScope(row, {
             minPrice,
             maxPrice,
             minYear,
+            maxYear,
+            minMileage,
             maxMileage,
           });
         });
@@ -357,12 +400,12 @@ export async function GET(req: NextRequest) {
             ok: true,
             isLivePreview: true,
             previewSource: candidate.id,
-            attemptedSources: candidates.map((source) => source.id),
+            attemptedSources: proof.map((source) => source.id),
             proof,
             plan,
             vehicles,
             total: vehicles.length,
-            message: `Showing a real public ${candidate.label} preview. These rows are not saved until Supabase is configured.`,
+            message: `Preview vehicles from ${candidate.label}. Confirm current details on the source listing before deciding.`,
           });
         }
       } catch (error) {
@@ -388,7 +431,7 @@ export async function GET(req: NextRequest) {
       vehicles: [],
       total: 0,
       message:
-        "Public preview sources responded with no matching rows or were temporarily unreachable. Broaden the scope or connect Supabase and run imports.",
+        "No matching preview vehicles were returned, or a selected source couldn't be reached. Existing vehicles remain available; adjust your filters or try again later.",
       detail: proof.map((item) => `${item.label}: ${item.detail}`).join("; "),
     });
   } catch (error) {

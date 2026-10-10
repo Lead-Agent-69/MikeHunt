@@ -151,7 +151,11 @@ describe("analyzeDeal reality gate", () => {
     try {
       const atHome = analyzeDeal(deal, { homeState: "CA" });
       const noHome = analyzeDeal(deal);
-      expect(atHome.miles).toBe(45);
+      // Same state, no coords: distance is unmeasured (not a hardcoded 45), carrier minimum booked.
+      expect(atHome.miles).toBeNull();
+      expect(atHome.distanceBasis).toBe("same_state");
+      expect(atHome.transportCost).toBe(150);
+      expect(noHome.distanceBasis).toBe("unknown");
       expect(noHome.miles).toBeNull();
       expect(noHome.transportCost).toBe(600);
     } finally {
