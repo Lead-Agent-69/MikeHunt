@@ -18,6 +18,7 @@ import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import dynamic from "next/dynamic";
 import { AlsoSearchOn } from "@/components/multisite/AlsoSearchOn";
+import { CheckAnyListing } from "@/components/intelligence/CheckAnyListing";
 
 // Dynamically import the Leaflet map, disabling SSR since it uses window
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -138,6 +139,8 @@ export default function ArbitrageDashboardPage() {
           </Link>
         </div>
       </div>
+
+      <CheckAnyListing homeState={homeState || null} />
 
       <AlsoSearchOn />
 
