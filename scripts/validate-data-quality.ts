@@ -4,10 +4,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("Missing Supabase credentials in environment variables");
@@ -55,7 +52,9 @@ async function validateDataQuality() {
     );
     if (count > 0 && unrealisticPrices) {
       unrealisticPrices.forEach((deal) => {
-        console.log(`      - ${deal.year} ${deal.make} ${deal.model}: $${deal.ask_price}`);
+        console.log(
+          `      - ${deal.year} ${deal.make} ${deal.model}: $${deal.ask_price}`,
+        );
       });
     }
   }
@@ -136,7 +135,9 @@ async function validateDataQuality() {
     geocodedCount = geocoded?.length || 0;
 
     console.log(`   ✅ ${totalDeals} total active deals`);
-    console.log(`   ✅ ${geocodedCount} geocoded (${((geocodedCount / totalDeals) * 100).toFixed(1)}%)`);
+    console.log(
+      `   ✅ ${geocodedCount} geocoded (${((geocodedCount / totalDeals) * 100).toFixed(1)}%)`,
+    );
     console.log(`   ✅ ${stateCounts.size} states represented`);
 
     // Top 5 states
@@ -192,7 +193,9 @@ async function validateDataQuality() {
     Array.from(verdictCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .forEach(([verdict, count]) => {
-        const percentage = ((count / (verdictData?.length || 1)) * 100).toFixed(1);
+        const percentage = ((count / (verdictData?.length || 1)) * 100).toFixed(
+          1,
+        );
         console.log(`      - ${verdict}: ${count} (${percentage}%)`);
       });
   }

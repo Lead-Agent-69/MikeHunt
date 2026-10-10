@@ -41,6 +41,10 @@ Suggested owners: Jonah (configuration/product), Ren/Amy (security/backend), May
 - Verify hosted Supabase Auth minimum password length 12, public Site URL, callback allowlist,
   Google provider redirects and SMTP delivery. An earlier live audit observed protected-alias
   redirects; an existing restored admin session does not prove fresh login.
+- P0: verify and apply the reviewed hosted column-grants migration
+  20261010020000_deals_column_grants.sql with authorized database access. Main includes the
+  server-side caller changes, but the public direct-table/RPC exposure is not proven closed
+  until hosted grants are checked. Record negative anonymous/authenticated reads and valid app reads.
 - Complete signup, confirmation, Google login, emailed recovery/password update, session
   restoration after browser restart, logout/failure recovery for personal, DIY, parts, reseller,
   dealer and a separately authorized admin. Use test accounts, never promote buyers to admin.

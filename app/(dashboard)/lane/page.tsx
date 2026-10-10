@@ -11,6 +11,15 @@ import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { toast } from "sonner";
 import Link from "next/link";
 
+async function fetchLaneDeals(vins: string[] | null): Promise<any[] | null> {
+  const qs =
+    vins && vins.length ? `?vins=${encodeURIComponent(vins.join(","))}` : "";
+  const res = await fetch(`/api/deals/lane${qs}`, { cache: "no-store" });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return Array.isArray(body?.deals) ? body.deals : null;
+}
+
 export default function LaneModePage() {
   const supabase = createClientComponentClient();
   // Without Supabase env the client points at a placeholder host that never resolves, so every
@@ -92,10 +101,9 @@ export default function LaneModePage() {
 
         if (runList) {
           setRunListName(runList.auction_name);
-          const { data: listDeals } = await supabase
-            .from("deals")
-            .select("*")
-            .in("vin", runList.vins);
+          // Through the API (desk-gated, explicit columns): the browser's anon/auth role can no
+          // longer select("*") on deals (column grants).
+          const listDeals = await fetchLaneDeals(runList.vins);
 
           if (listDeals) {
             setDeals(listDeals);
@@ -109,11 +117,7 @@ export default function LaneModePage() {
         }
       } else {
         // Load all active deals that might be from run lists
-        const { data: allDeals } = await supabase
-          .from("deals")
-          .select("*")
-          .order("updated_at", { ascending: false })
-          .limit(100);
+        const allDeals = await fetchLaneDeals(null);
 
         if (allDeals) {
           setDeals(allDeals);

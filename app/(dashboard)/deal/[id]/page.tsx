@@ -963,17 +963,6 @@ export default function DealPage({
               size="lg"
               showChannel
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFindSimilarOpen(true)}
-              className="ml-auto border-[var(--b2)] text-[var(--t2)] font-bold text-xs min-h-11 rounded-lg flex items-center gap-1.5"
-              data-testid="find-similar-cta"
-            >
-              <Search className="w-3.5 h-3.5" />
-              Find similar
-            </Button>
           </div>
           <VehicleSummary
             deal={{
@@ -983,17 +972,31 @@ export default function DealPage({
               damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
             }}
           />
-          {dealData?.deal?.sourceUrl && (
-            <a
-              href={dealData.deal.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {dealData?.deal?.sourceUrl && (
+              <a
+                href={dealData.deal.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
+              >
+                {sourceLinkLabel(dealData.deal.sourceUrl)}
+                <span aria-hidden>↗</span>
+              </a>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFindSimilarOpen(true)}
+              className="min-h-11 rounded-lg inline-flex items-center gap-1.5"
+              data-testid="find-similar-cta"
+              aria-label="Find similar vehicles in saved inventory"
             >
-              {sourceLinkLabel(dealData.deal.sourceUrl)}
-              <span aria-hidden>↗</span>
-            </a>
-          )}
+              <Search className="w-3.5 h-3.5" />
+              Find similar
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1222,6 +1225,16 @@ export default function DealPage({
         })()}
 
       <section aria-label="Current alternatives">
+        <button
+          type="button"
+          onClick={() => setFindSimilarOpen(true)}
+          className="min-h-11 inline-flex items-center gap-1.5 text-sm font-bold hover:underline"
+          data-testid="find-similar-cta-rail"
+          aria-label="Find similar vehicles in saved inventory"
+        >
+          <Search className="w-3.5 h-3.5" />
+          Find similar
+        </button>
         <SimilarDeals dealId={id} />
       </section>
 
@@ -1807,6 +1820,20 @@ export default function DealPage({
         }}
       >
         <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFindSimilarOpen(true)}
+              className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm min-h-11 rounded-lg inline-flex items-center gap-1.5"
+              data-testid="find-similar-cta-bar"
+              aria-label="Find similar vehicles in saved inventory"
+            >
+              <Search className="w-3.5 h-3.5" />
+              Find similar
+            </Button>
+          </motion.div>
+
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
               variant="outline"

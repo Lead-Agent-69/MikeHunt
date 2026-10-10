@@ -28,6 +28,8 @@ describe("deal page personal desk", () => {
     );
     // Changing a desk uses the saved buying profile, not a disappearing page toggle.
     expect(page).toContain('data-testid="find-similar-cta"');
+    expect(page).toContain('data-testid="find-similar-cta-bar"');
+    expect(page).toContain('data-testid="find-similar-cta-rail"');
     expect(page).not.toContain('(["dealer", "private", "parts"] as const)');
     expect(feed).toContain("/api/discover?dealerSourceIds=");
     expect(feed).toContain("<DiscoveryCard");
