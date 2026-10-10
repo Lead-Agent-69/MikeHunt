@@ -1,0 +1,67 @@
+{
+  "Count": 4,
+  "Message": "Results returned successfully",
+  "results": [
+    {
+      "Manufacturer": "Ford Motor Company",
+      "NHTSACampaignNumber": "16V246000",
+      "parkIt": false,
+      "parkOutSide": false,
+      "overTheAirUpdate": false,
+      "ReportReceivedDate": "26/04/2016",
+      "Component": "TIRES:SIDEWALL",
+      "Summary": "Ford Motor Company (Ford) is recalling certain model year 2016 Ford F-250, F-350, F-450, and F-550 trucks manufactured April 5, 2016, to April 11, 2016.  The tires installed during assembly of the affected vehicles may have sustained damage to the inner sidewall, possibly resulting in a loss of air or a tire rupture.",
+      "Consequence": "A rapid loss of air or a tire rupture while the vehicle is being driven may cause a loss of vehicle control, increasing the risk of a crash.",
+      "Remedy": "Ford will notify owners, and dealers will inspect the tires for damage and replace them as necessary, free of charge.  The recall began on May 23, 2016.  Owners may contact Ford customer service at 1-866-436-7332.  Ford's number for this recall is 16S17.",
+      "Notes": "Owners may also contact the National Highway Traffic Safety Administration Vehicle Safety Hotline at 1-888-327-4236 (TTY 1-800-424-9153), or go to www.safercar.gov.",
+      "ModelYear": "2016",
+      "Make": "FORD",
+      "Model": "F-250 SD"
+    },
+    {
+      "Manufacturer": "Icon Vehicle Dynamics, LLC",
+      "NHTSACampaignNumber": "20E090000",
+      "ReportReceivedDate": "10/12/2020",
+      "Component": "STEERING",
+      "Summary": "Icon Vehicle Dynamics, LLC (Icon) is recalling all 05-UP FSD 2.5 Centerline Stabilizer Kits with part number 65050.  The kits were sold as an accessory for certain 2005-2021 Ford F-250 4X4 and F-350 4X4 pickup trucks.  The foam ring inside the stabilizer \"through shaft\" may block the piston ports, possibly causing the steering to lock up.",
+      "Consequence": "If the steering locks, it can increase the risk of a crash.",
+      "Remedy": "Icon will notify owners, and dealers will install a new shock assembly with a revised foam ring and steel support disc, free of charge.  The recall began December 21, 2020.  Owners may contact Icon customer service at 1-951-689-4266.",
+      "Notes": "Owners may also contact the National Highway Traffic Safety Administration Vehicle Safety Hotline at 1-888-327-4236 (TTY 1-800-424-9153), or go to www.safercar.gov.",
+      "ModelYear": "2016",
+      "Make": "FORD",
+      "Model": "F-250 SD"
+    },
+    {
+      "Manufacturer": "Ford Motor Company",
+      "NHTSACampaignNumber": "22V337000",
+      "parkIt": false,
+      "parkOutSide": false,
+      "overTheAirUpdate": false,
+      "ReportReceivedDate": "13/05/2022",
+      "Component": "AIR BAGS:FRONTAL:DRIVER CLOCKSPRING/SPIRAL CASSETTE",
+      "Summary": "Ford Motor Company (Ford) is recalling certain 2016 Super Duty F-250, F-350, F-450, and F-550 vehicles.  Dust may accumulate in the steering wheel clock spring, causing a disconnection in the electrical connection resulting in the driver's air bag not deploying as intended.",
+      "Consequence": "A disconnected driver's air bag can result in it not deploying, as intended, during a crash, increasing the risk of injury.",
+      "Remedy": "Dealers will replace the steering wheel clock spring, free of charge.  Remedy parts are expected to become available in the 3rd Quarter of 2023.  An interim notification letter informing owners of the safety risk was mailed on July 6, 2022.  Owner notification letters were mailed July 10, 2023.  Owners may contact Ford customer service at 1-866-436-7332.  Ford's number for this recall is 22S35.",
+      "Notes": "Owners may also contact the National Highway Traffic Safety Administration Vehicle Safety Hotline at 1-888-327-4236 (TTY 1-800-424-9153), or go to www.nhtsa.gov.",
+      "ModelYear": "2016",
+      "Make": "FORD",
+      "Model": "F-250 SD"
+    },
+    {
+      "Manufacturer": "Ford Motor Company",
+      "NHTSACampaignNumber": "25V572000",
+      "parkIt": false,
+      "parkOutSide": false,
+      "overTheAirUpdate": false,
+      "ReportReceivedDate": "04/09/2025",
+      "Component": "BACK OVER PREVENTION: SENSING SYSTEM: CAMERA",
+      "Summary": "Ford Motor Company (Ford) is recalling certain 2015-2019 Lincoln MKC, Mustang, F-350 SD, F-250 SD, F-450 SD, 2015-2017 Lincoln Navigator, Expedition, 2015-2018 Edge, Transit Connect, 2016-2019 F-550 SD, Transit, 2017-2019 Econoline, and 2019 Ranger vehicles. The rearview camera may display a distorted, inverted, or blank image when the vehicle is in reverse.",
+      "Consequence": "A rearview camera that displays an inverted, distorted, or blank image can reduce the driver\u2019s view behind the vehicle, increasing the risk of a crash.",
+      "Remedy": "Dealers will inspect and replace the rearview camera as necessary, free of charge. Owner notification letters were mailed January 13, 2026.  Ford owners will receive letters in phases, beginning January 2026 and June 2026. Owners may contact Ford customer service at 1-866-436-7332. Ford's number for this recall is 25S89. This recall expands previous NHTSA recall number 25V270. Vehicle Identification Numbers (VINs) involved in this recall will be searchable on NHTSA.gov beginning September 8, 2025.",
+      "Notes": null,
+      "ModelYear": "2016",
+      "Make": "FORD",
+      "Model": "F-250 SD"
+    }
+  ]
+}

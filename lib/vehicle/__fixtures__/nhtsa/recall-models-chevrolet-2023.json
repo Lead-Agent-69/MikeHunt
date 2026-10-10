@@ -1,0 +1,115 @@
+{
+  "count": 53,
+  "message": "Results returned successfully",
+  "results": [
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TRAILBLAZER" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TRAILBLAZER" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "BOLT EV" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "BOLT EUV" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "CORVETTE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "CORVETTE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TRAVERSE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TRAVERSE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 5500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 4500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "BLAZER" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "BLAZER" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TAHOE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "TAHOE" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SUBURBAN" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SUBURBAN" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "MALIBU" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "CAMARO WITH RECARO" },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO LT1 WITH RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO LT1 WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO SS WITH RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO SS WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO ZL1 WITH RECARO"
+    },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "CAMARO WITH RECARO" },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO LT1 WITH RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO LT1 WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO SS WITH RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO SS WITHOUT RECARO"
+    },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "CAMARO ZL1 WITH RECARO"
+    },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "EQUINOX" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "EQUINOX" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "EXPRESS CARGO 2500" },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "EXPRESS PASSENGER 2500"
+    },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "COLORADO" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "COLORADO" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 2500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SILVERADO 3500" },
+    {
+      "modelYear": "2023",
+      "make": "CHEVROLET",
+      "model": "EXPRESS CUTAWAY VAN"
+    },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "SUBURBAN 1500" },
+    { "modelYear": "2023", "make": "CHEVROLET", "model": "EXPRESS" }
+  ]
+}

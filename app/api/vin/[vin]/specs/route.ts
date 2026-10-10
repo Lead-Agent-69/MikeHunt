@@ -4,16 +4,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
-import {
-  decodeVin,
-  getRecallCount,
-  getSafetyRating,
-} from "@/lib/vehicle/nhtsa";
+import { getSafetyRating } from "@/lib/vehicle/nhtsa";
 import { getFuelEconomy } from "@/lib/vehicle/epa";
+import {
+  getRecallsCached,
+  getVinDecode,
+  RECALLS_TTL_MS,
+} from "@/lib/vehicle/vin-enrichment";
 
-// GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs (NHTSA vPIC) + open recall count
-// (NHTSA Recalls), cached in vin_decodes. Decode is immutable per VIN; recalls refresh weekly.
-const RECALLS_TTL_MS = 7 * 24 * 3600_000;
+// GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs. Full NHTSA vPIC decode
+// (DecodeVinValuesExtended: trim, series, body, engine, drive, transmission, GVWR, plant) cached in
+// vin_decodes for 180 days; NHTSA recalls for the make/model/year family cached 7 days in
+// nhtsa_recalls_cache. Shares lib/vehicle/vin-enrichment with GET /api/vin/[vin].
 
 function admin() {
   return createClient(
@@ -34,34 +36,40 @@ export async function GET(
     return NextResponse.json({ error: "Invalid VIN" }, { status: 400 });
 
   const sb = admin();
-  const { data: cached } = await sb
-    .from("vin_decodes")
-    .select("*")
-    .eq("vin", vin)
-    .maybeSingle();
+  const dec = await getVinDecode(sb, vin);
+  if (!dec)
+    return NextResponse.json(
+      { error: "Could not decode VIN" },
+      { status: 404 },
+    );
+  const { decode: decoded, row: cached } = dec;
 
   const recallsFresh =
     cached?.recalls_at &&
     Date.now() - new Date(cached.recalls_at).getTime() < RECALLS_TTL_MS;
   const hasExtras = cached?.extras_at != null;
+  const canQuery = !!(decoded.make && decoded.model && decoded.year);
 
-  if (cached && recallsFresh && hasExtras) {
-    return NextResponse.json({ vin, ...toResponse(cached), cached: true });
+  // Recalls come from the per-make/model/year cache (cheap even when this VIN's row is fresh).
+  const recalls = canQuery
+    ? await getRecallsCached(sb, decoded.make!, decoded.model!, decoded.year!)
+    : null;
+
+  if (dec.cached && recallsFresh && hasExtras) {
+    return NextResponse.json({
+      vin,
+      ...toResponse(cached),
+      recalls: recalls?.count ?? cached.recalls_count ?? null,
+      recallCampaigns: recalls?.campaigns ?? [],
+      recallsScope: "model_year",
+      decodeStale: dec.stale,
+      cached: true,
+    });
   }
 
-  // Decode (use cache if present, else NHTSA).
-  const decoded = cached?.make ? toDecode(cached) : await decodeVin(vin);
-  if (!decoded)
-    return NextResponse.json(
-      { error: "Could not decode VIN" },
-      { status: 404 },
-    );
-
-  const canQuery = !!(decoded.make && decoded.model && decoded.year);
-  // Fetch recalls + crash-test stars + EPA MPG in parallel (all free, no key).
-  const [recalls, safety, fuel] = canQuery
+  // Crash-test stars + EPA MPG in parallel (all free, no key), once per VIN.
+  const [safety, fuel] = canQuery
     ? await Promise.all([
-        getRecallCount(decoded.make!, decoded.model!, decoded.year!),
         cached?.safety_overall != null || cached?.extras_at
           ? Promise.resolve(null)
           : getSafetyRating(decoded.make!, decoded.model!, decoded.year!),
@@ -69,24 +77,16 @@ export async function GET(
           ? Promise.resolve(null)
           : getFuelEconomy(decoded.make!, decoded.model!, decoded.year!),
       ])
-    : [null, null, null];
+    : [null, null];
 
-  const row: any = {
+  // Decode columns were already written by getVinDecode; this upsert adds recalls + extras only.
+  const extras: any = {
     vin,
-    year: decoded.year,
-    make: decoded.make,
-    model: decoded.model,
-    trim: decoded.trim,
-    body_class: decoded.bodyClass,
-    drive_type: decoded.driveType,
-    fuel_type: decoded.fuelType,
-    cylinders: decoded.cylinders,
-    displacement_l: decoded.displacementL,
-    plant_country: decoded.plantCountry,
-    made_in_usa: decoded.madeInUsa,
-    recalls_count: recalls,
+    recalls_count: recalls?.count ?? cached?.recalls_count ?? null,
     recalls_at:
-      recalls != null ? new Date().toISOString() : (cached?.recalls_at ?? null),
+      recalls && !recalls.stale
+        ? new Date().toISOString()
+        : (cached?.recalls_at ?? null),
     mpg_city: fuel?.city ?? cached?.mpg_city ?? null,
     mpg_highway: fuel?.highway ?? cached?.mpg_highway ?? null,
     mpg_combined: fuel?.combined ?? cached?.mpg_combined ?? null,
@@ -99,28 +99,20 @@ export async function GET(
   // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
   // handler returns, so every call would otherwise re-hit NHTSA.
   try {
-    await sb.from("vin_decodes").upsert(row, { onConflict: "vin" });
+    await sb.from("vin_decodes").upsert(extras, { onConflict: "vin" });
   } catch {
     /* non-fatal */
   }
 
-  return NextResponse.json({ vin, ...toResponse(row), cached: false });
-}
-
-function toDecode(c: any) {
-  return {
-    year: c.year,
-    make: c.make,
-    model: c.model,
-    trim: c.trim,
-    bodyClass: c.body_class,
-    driveType: c.drive_type,
-    fuelType: c.fuel_type,
-    cylinders: c.cylinders,
-    displacementL: c.displacement_l,
-    plantCountry: c.plant_country,
-    madeInUsa: c.made_in_usa,
-  };
+  return NextResponse.json({
+    vin,
+    ...toResponse({ ...(cached ?? {}), ...extras }),
+    recalls: recalls?.count ?? null,
+    recallCampaigns: recalls?.campaigns ?? [],
+    recallsScope: "model_year",
+    decodeStale: dec.stale,
+    cached: false,
+  });
 }
 
 function toResponse(c: any) {
@@ -136,6 +128,25 @@ function toResponse(c: any) {
     displacementL: c.displacement_l,
     plantCountry: c.plant_country,
     madeInUsa: c.made_in_usa,
+    // Extended decode (null on rows not yet re-decoded).
+    series: c.series ?? null,
+    doors: c.doors ?? null,
+    engine: c.engine ?? null,
+    engineHp: c.engine_hp != null ? Number(c.engine_hp) : null,
+    transmission: c.transmission_style ?? null,
+    transmissionSpeeds: c.transmission_speeds ?? null,
+    gvwr: c.gvwr ?? null,
+    gvwrMaxLb: c.gvwr_max_lb ?? null,
+    plant:
+      c.plant_city || c.plant_state || c.plant_company
+        ? {
+            company: c.plant_company ?? null,
+            city: c.plant_city ?? null,
+            state: c.plant_state ?? null,
+            country: c.plant_country ?? null,
+          }
+        : null,
+    decodeClean: c.decode_clean ?? null,
     recalls: c.recalls_count,
     mpg:
       c.mpg_combined || c.mpg_city || c.mpg_highway
