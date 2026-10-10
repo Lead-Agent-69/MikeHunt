@@ -1,0 +1,1 @@
+CREATE VIEW public.v1 AS SELECT vin FROM public.vin_decodes; CREATE VIEW public.v2 AS SELECT vin FROM public.v1; REVOKE ALL ON public.v1, public.v2 FROM PUBLIC, anon, authenticated; CREATE FUNCTION public.f() RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $q$ BEGIN RETURN (SELECT count(*) FROM v2); END $q$;

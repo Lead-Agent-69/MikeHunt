@@ -1,0 +1,1 @@
+CREATE VIEW public.v1 AS SELECT vin FROM public.vin_decodes; REVOKE ALL ON public.v1 FROM PUBLIC, anon, authenticated; CREATE FUNCTION public.f() RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = '' BEGIN ATOMIC SELECT count(*) FROM public.v1; END; GRANT EXECUTE ON FUNCTION public.f() TO anon;

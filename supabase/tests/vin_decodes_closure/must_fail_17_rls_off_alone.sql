@@ -1,0 +1,1 @@
+ALTER TABLE public.vin_decodes DISABLE ROW LEVEL SECURITY;
