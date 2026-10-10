@@ -5,22 +5,7 @@
  *  3. static exemptions are source-plus-path: ebay-sold does not exempt ebay_motors.
  *  4. photos are copied to Storage only for api/allowed sources.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-// Tests run offline on made-up hosts: the per-hop public-address check keeps its literal-IP /
-// localhost rules but skips the DNS lookup.
-vi.mock("../../net/public-url", async (importOriginal) => {
-  const m = await importOriginal<typeof import("../../net/public-url")>();
-  return {
-    ...m,
-    assertPublicHttpUrl: async (raw: string) => {
-      const u = new URL(raw);
-      if (m.classifyHostname(u.hostname) === "blocked")
-        throw new m.UrlNotAllowedError();
-      return u;
-    },
-  };
-});
+import { afterEach, describe, expect, it } from "vitest";
 import { DomainLimiter } from "./limiter";
 import { MemoryPageCache } from "./cache";
 import { PoliteCrawler, politeGate, resetPoliteCrawler } from "./polite-fetch";

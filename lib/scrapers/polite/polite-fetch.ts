@@ -11,7 +11,6 @@
  *    A challenge is a "no" from the site. We never try to get past it.
  *  - Every outcome is counted per domain for the /status ban-risk panel (metrics.ts).
  */
-import { UrlNotAllowedError, assertPublicHttpUrl } from "../../net/public-url";
 import { DomainBreaker } from "./breaker";
 import { isRobotsExemptUrl } from "./robots-exempt";
 import {
@@ -66,9 +65,6 @@ export function politeMaxBytes(): number {
   return Number.isFinite(n) && n > 0 ? n : 5 * 1024 * 1024;
 }
 
-/** Redirect hops followed per request; each hop's host is re-checked first. */
-export const POLITE_MAX_REDIRECTS = 5;
-
 export class ResponseTooLargeError extends Error {
   constructor(readonly limit: number) {
     super(`response larger than ${limit} bytes`);
@@ -106,12 +102,7 @@ export async function readCapped(res: Response, limit: number): Promise<string> 
   return new TextDecoder().decode(buf);
 }
 
-export type PoliteSkipReason =
-  | "robots"
-  | "breaker"
-  | "invalid_url"
-  /** The URL (or a redirect hop) points at a private / non-public address. */
-  | "blocked_host";
+export type PoliteSkipReason = "robots" | "breaker" | "invalid_url";
 
 export interface PoliteResponse {
   url: string;
@@ -178,11 +169,6 @@ export interface PoliteCrawlerDeps {
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   random?: () => number;
-  /**
-   * Throws when a URL (the first request or any redirect hop) is not a public http(s) address. Default:
-   * lib/net/public-url assertPublicHttpUrl (one DNS lookup, every answer must be public).
-   */
-  checkHost?: (url: string) => Promise<unknown>;
 }
 
 export class PoliteCrawler {
@@ -194,7 +180,6 @@ export class PoliteCrawler {
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
   private readonly random: () => number;
-  private readonly checkHost: (url: string) => Promise<unknown>;
   private robots = new Map<string, RobotsEntry>();
 
   constructor(deps: PoliteCrawlerDeps = {}) {
@@ -202,7 +187,6 @@ export class PoliteCrawler {
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = deps.now ?? Date.now;
     this.random = deps.random ?? Math.random;
-    this.checkHost = deps.checkHost ?? assertPublicHttpUrl;
     this.limiter =
       deps.limiter ??
       new DomainLimiter({
@@ -233,31 +217,6 @@ export class PoliteCrawler {
   }
 
   /**
-   * One request with redirects followed by hand: every hop (the first URL included) must pass
-   * checkHost (public address) before it is requested, at most POLITE_MAX_REDIRECTS hops.
-   */
-  private async fetchChecked(url: string, init: RequestInit): Promise<Response> {
-    let current = url;
-    for (let hop = 0; ; hop++) {
-      await this.checkHost(current);
-      const res = await this.fetchImpl(current, { ...init, redirect: "manual" });
-      const location =
-        res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
-      if (!location) return res;
-      await res.body?.cancel().catch(() => {});
-      if (hop >= POLITE_MAX_REDIRECTS) throw new Error(`too many redirects from ${url}`);
-      const next = new URL(location, current);
-      if (next.protocol !== "https:" && next.protocol !== "http:")
-        throw new UrlNotAllowedError();
-      current = next.toString();
-      // A 303 (or a 301/302 after a non-GET) becomes a bodiless GET, like fetch's follow mode.
-      const method = (init.method || "GET").toUpperCase();
-      if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== "GET"))
-        init = { ...init, method: "GET", body: undefined };
-    }
-  }
-
-  /**
    * robots.txt for an origin, paced like any other request. A readable file is reused for 24h. An
    * unreadable one (5xx, network, 403/429) means "disallow everything" (RFC 9309) and is retried
    * after 30 minutes, so one bad moment doesn't lock a site out for the life of the worker.
@@ -274,9 +233,10 @@ export class PoliteCrawler {
     const pending = this.limiter
       .run(domain, async () => {
         try {
-          const res = await this.fetchChecked(`${origin}/robots.txt`, {
+          const res = await this.fetchImpl(`${origin}/robots.txt`, {
             headers: this.headers({}, "text/plain,*/*;q=0.5"),
             signal: AbortSignal.timeout(15_000),
+            redirect: "follow",
           });
           this.metrics.recordStatus(domain, res.status);
           if (isBanSignal(res.status)) {
@@ -320,11 +280,6 @@ export class PoliteCrawler {
     };
     if (!domain) return { ...base, skipped: "invalid_url" };
     const origin = new URL(url).origin;
-    try {
-      await this.checkHost(url);
-    } catch {
-      return { ...base, skipped: "blocked_host" };
-    }
     const maxBytes = opts.maxBytes ?? politeMaxBytes();
 
     if (this.breaker.isOpen(domain, this.now())) {
@@ -372,7 +327,7 @@ export class PoliteCrawler {
       let res: Response;
       try {
         res = await this.limiter.run(domain, () =>
-          this.fetchChecked(url, {
+          this.fetchImpl(url, {
             method,
             ...(opts.body != null ? { body: opts.body } : {}),
             headers: this.headers(
@@ -386,12 +341,11 @@ export class PoliteCrawler {
                   AbortSignal.timeout(opts.timeoutMs ?? 20_000),
                 ])
               : AbortSignal.timeout(opts.timeoutMs ?? 20_000),
+            redirect: "follow",
           }),
         );
       } catch (error) {
         if (opts.signal?.aborted) throw error;
-        // A redirect hop onto a private / non-public address: refuse, don't retry.
-        if (error instanceof UrlNotAllowedError) return { ...base, skipped: "blocked_host" };
         this.metrics.recordNetworkError(domain);
         if (attempt > maxRetries) return base;
         await this.sleep(backoffMs(attempt, { random: this.random }));
