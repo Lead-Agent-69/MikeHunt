@@ -287,7 +287,7 @@ describe("check any listing: personal desk (retail fair value)", () => {
     expect(r.priceRating).toBe("fair");
     expect(r.verdict).toBe("buy");
     expect(r.fairValue.label).toBe(
-      "Typical asking price · 5 live listings (asking prices, not sales)",
+      "Typical asking price · 5 recent asking prices (not sales)",
     );
     expect(r.fairValue.range).toEqual({ p25: 15200, p75: 15800 });
     const slightlyOver = readPersonal({ ...civic, price: 16000 }, il, {

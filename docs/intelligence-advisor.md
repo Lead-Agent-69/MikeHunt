@@ -145,7 +145,7 @@ Retail fair value (`lib/intelligence/retail-fair-value.ts`), personal desk only:
    acv are excluded. Label: "Typical selling price · N recent sales[ in ST]". Verdict: ≤ fair Buy,
    ≤ fair × 1.05 Wait (negotiate), above Pass.
 2. Else live retail asks, median with no 0.95 haircut (`aggregateComps` `askToSold: 1`). Label: "Typical asking
-   price · N live listings (asking prices, not sales)". Verdict: ≤ p25 good (Buy), ≤ median fair (Buy),
+   price · N recent asking prices (not sales)". Verdict: ≤ p25 good (Buy), ≤ median fair (Buy),
    ≤ median × 1.05 negotiate (Wait), above over market (Pass).
 - Same title lane only, and ±25k miles when the mileage is known.
 - Confidence: 12 / 6 / 3 comps → high / medium / low; asks cap at medium; median comp older than 90 days

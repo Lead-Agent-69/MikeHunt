@@ -395,7 +395,7 @@ export function readListing(
       },
       confidence: { label: "none", score: 0 },
       why: [
-        `We found ${p.askN} live asks and ${p.soldN} sales for this car${state ? ` around ${state}` : ""}; we need at least ${COMP_MIN_SAMPLES} to price it.`,
+        `We found ${p.askN} recent asking prices and ${p.soldN} sales for this car${state ? ` around ${state}` : ""}; we need at least ${COMP_MIN_SAMPLES} to price it.`,
         "Check again after the next sweep, or widen to nearby years.",
       ],
       assumptions: "assumptions" in here ? here.assumptions : [],
@@ -441,7 +441,7 @@ export function readListing(
 
   const why: string[] = [];
   const kindWord =
-    sell.spread.compKind === "sold" ? "recent sales" : "live asks";
+    sell.spread.compKind === "sold" ? "recent sales" : "recent asking prices";
   why.push(
     `Valued on ${sell.spread.compsCount} ${kindWord}${sell.comps.geoScope === "state" && sellState ? ` in ${sellState}` : " nationwide"}${sell.spread.compKind === "ask" ? " (asks less 5% to estimate a sale)" : ""}.`,
   );
@@ -469,7 +469,7 @@ export function readListing(
         fallback?.comps.geoScope === "state" ? fallback.comps.sellState : null,
       comps: fallback?.spread.compsCount ?? 0,
       label: fallback
-        ? `Dealer resale · ${fallback.spread.compsCount} ${fallback.spread.compKind === "sold" ? "recent sales" : "live asks less 5%"}`
+        ? `Dealer resale · ${fallback.spread.compsCount} ${fallback.spread.compKind === "sold" ? "recent sales" : "recent asking prices less 5%"}`
         : null,
       kind: fallback ? (fallback.spread.compKind as "sold" | "ask") : "none",
       range: null,
@@ -556,7 +556,7 @@ export function readPersonal(
       );
   } else {
     why.push(
-      `We found ${p.askN} live asks and ${p.soldN} sales for this car${p.state ? ` around ${p.state}` : ""}; after matching title and miles we need at least ${COMP_MIN_SAMPLES} to price it.`,
+      `We found ${p.askN} recent asking prices and ${p.soldN} sales for this car${p.state ? ` around ${p.state}` : ""}; after matching title and miles we need at least ${COMP_MIN_SAMPLES} to price it.`,
     );
   }
   const hist = historyLine(p.history, input.price);

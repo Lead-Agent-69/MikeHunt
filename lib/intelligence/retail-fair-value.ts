@@ -8,7 +8,7 @@
 //      Auction / wholesale channels (copart, iaa, manheim, adesa, acv) are not retail sales.
 //      → "Typical selling price · N recent sales[ in ST]"
 //   2. Else live retail asks, median with NO ask→sold haircut (aggregateComps askToSold: 1).
-//      → "Typical asking price · N live listings (asking prices, not sales)"
+//      → "Typical asking price · N recent asking prices (not sales)"
 //   Both: same title lane only (lib/arbitrage/title compCategoriesFor), and ±25k miles when the
 //   car's mileage is known (comps without a mileage are left out then). Fewer than 3 → no value.
 //
@@ -215,7 +215,7 @@ export function retailFairValue(
   const label =
     basis === "sold"
       ? `Typical selling price · ${agg.n} recent sales${where}`
-      : `Typical asking price · ${agg.n} live listings (asking prices, not sales)`;
+      : `Typical asking price · ${agg.n} recent asking prices (not sales)`;
 
   return {
     value: agg.value,

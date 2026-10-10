@@ -53,8 +53,8 @@ describe("flip tool routes", () => {
     for (const route of Object.keys(FLIP_TOOL_ROUTES)) {
       const layout = `app/(dashboard)${route}/layout.tsx`;
       expect(existsSync(layout), layout).toBe(true);
-      expect(readFileSync(layout, "utf8")).toContain(
-        `<FlipDeskGate route="${route}">`,
+      expect(readFileSync(layout, "utf8")).toMatch(
+        new RegExp(`<FlipDeskGate route="${route}"[\\s>]`),
       );
     }
   });
