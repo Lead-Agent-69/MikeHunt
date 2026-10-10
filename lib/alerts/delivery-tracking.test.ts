@@ -140,7 +140,7 @@ describe("wiring", () => {
   const read = (p: string) => readFileSync(p, "utf8");
 
   it("migration is service-role only", () => {
-    const sql = read("supabase/migrations/20261010120000_alert_deliveries.sql");
+    const sql = read("supabase/migrations/20261010147000_alert_deliveries.sql");
     expect(sql).toContain("ENABLE ROW LEVEL SECURITY");
     expect(sql).toContain(
       "REVOKE ALL ON public.alert_deliveries FROM anon, authenticated",
