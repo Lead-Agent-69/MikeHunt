@@ -1,4 +1,4 @@
-﻿import webpush from "web-push";
+import webpush from "web-push";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VAPID_PUBLIC_KEY } from "./vapid";
 import {
@@ -44,6 +44,23 @@ async function ensureConfigured(sb: SupabaseClient): Promise<boolean> {
     configured = false;
   }
   return configured;
+}
+
+/**
+ * True when this server can actually send Web Push (a VAPID private key resolves from env or app_secrets).
+ * Used by /api/push/status so the UI never offers alerts the server can't deliver.
+ */
+export async function isPushConfigured(sb: SupabaseClient): Promise<boolean> {
+  return ensureConfigured(sb);
+}
+
+/** Where a tapped notification may open: an in-app path only ("/deal/123"), never another origin. */
+export function safePushPath(url: string | undefined | null): string {
+  if (typeof url !== "string") return "/alerts";
+  const u = url.trim();
+  if (!u.startsWith("/") || u.startsWith("//") || u.startsWith("/\\"))
+    return "/alerts";
+  return u;
 }
 
 export interface PushPayload {
@@ -94,7 +111,7 @@ export async function sendPushToUser(
       const body = JSON.stringify(
         deliveryId
           ? { ...payload, url: `/api/t/c/${deliveryId}`, deliveryId }
-          : payload,
+          : { ...payload, url: safePushPath(payload.url) },
       );
       try {
         await webpush.sendNotification(
