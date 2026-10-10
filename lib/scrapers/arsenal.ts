@@ -14,7 +14,11 @@
 // on Vercel. `scripts/arsenal-probe.ts` checks candidates' robots.txt + sitemaps from Zeus.
 
 import { CI_CANDIDATE_SOURCES } from "./ci-sources";
-import { CURATED_SITES, type CuratedSite } from "./curated-sites";
+import {
+  CURATED_SITES,
+  isCuratedSiteEnabled,
+  type CuratedSite,
+} from "./curated-sites";
 import { policyBlockFor } from "./source-compliance";
 import { STATE_DEALER_CANDIDATES } from "./sources-registry";
 import {
@@ -124,6 +128,7 @@ export function buildStateArsenal(
   for (const site of CURATED_SITES) {
     if (site.state !== st) continue;
     const block = policyBlockFor(site.url);
+    const off = !isCuratedSiteEnabled(site);
     out.push({
       id: `curated:${hostId(site.url)}`,
       name: site.name,
@@ -131,8 +136,8 @@ export function buildStateArsenal(
       state: st,
       city: site.city,
       origin: "curated",
-      status: block ? "blocked" : "live",
-      reason: block?.reason,
+      status: block ? "blocked" : off ? "candidate" : "live",
+      reason: block?.reason ?? (off ? site.termsNote : undefined),
     });
   }
 

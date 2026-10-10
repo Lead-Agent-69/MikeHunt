@@ -16,6 +16,7 @@
 
 import {
   CURATED_SITES,
+  isCuratedSiteEnabled,
   type CuratedSite,
   type CuratedSiteType,
 } from "./curated-sites";
@@ -83,7 +84,7 @@ export async function queueCuratedDealerInventory(
   if (maxSites <= 0) return result;
 
   const crawlable = sites
-    .filter((s) => CRAWLABLE_TYPES.has(s.type))
+    .filter((s) => CRAWLABLE_TYPES.has(s.type) && isCuratedSiteEnabled(s))
     .slice(0, maxSites);
 
   if (crawlable.length === 0) return result;

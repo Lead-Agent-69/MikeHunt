@@ -42,7 +42,11 @@ describe("per-state curated demand ring", () => {
   it("a newly added dealer joins its state's ring by its state tag alone", () => {
     const added = { url: "https://brand-new-yard.example", state: "TN" };
     const picked = selectCuratedSitesForDemand([...CURATED_SITES, added], empty, ["TN"]);
-    expect(picked[0]).toBe(added);
+    // In-state dealers come first; the new one is among them without any other wiring.
+    const firstOutOfState = picked.findIndex((s) => s.state !== "TN");
+    const at = picked.indexOf(added);
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(firstOutOfState === -1 || at < firstOutOfState).toBe(true);
   });
 
   it("every demanded state reaches at least one curated dealer through its ring or the rotation", () => {

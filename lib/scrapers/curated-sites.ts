@@ -22,6 +22,22 @@ export interface CuratedSite {
    * Tagging a site with its platform is all it takes for the shared parser to crawl it.
    */
   platform?: "4cdg" | "vehiclesnetwork";
+  /**
+   * Terms-of-use review result, kept with the source. "no terms page found <date>" means the footer
+   * and the standard terms paths were checked and none exists: no stated restriction, but no explicit
+   * permission either (Elle's zero-state audit, docs in the PR that added them).
+   */
+  termsNote?: string;
+  /**
+   * false = registered but not crawled (no request is ever made). Used for sources waiting on a
+   * terms decision, so turning one on is a one-line flip. Omitted = enabled.
+   */
+  enabled?: boolean;
+}
+
+/** Whether the crawler may touch this registry site. Only an explicit `enabled: false` turns it off. */
+export function isCuratedSiteEnabled(site: Pick<CuratedSite, "enabled">): boolean {
+  return site.enabled !== false;
 }
 
 // type → defaults injected onto every car scraped from a site of that type. These land on
@@ -309,6 +325,14 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.jakesautomall.com", name: "Jake's Auto Mall", state: "MN", city: "Ham Lake", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.missoulacarandtruck.com", name: "Turner's Missoula Car and Truck", state: "MT", city: "Missoula", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.wildwestomaha.com", name: "Wild West Auto Sales", state: "NE", city: "Omaha", type: "independent_dealer", platform: "vehiclesnetwork" },
+  // Sweep 2 (2026-10-10): VehiclesNETWORK sites verified with one polite fetch each (robots allows
+  // /autos, terms silent on automated access) and parsed live by the shared parser with priced cars.
+  { url: "https://www.greensautotn.com", name: "Green's Automotive", state: "TN", city: "Shelbyville", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.usedcarslewistonid.com", name: "Valley Car Sales", state: "ID", city: "Lewiston", type: "independent_dealer", platform: "vehiclesnetwork", enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" },
+  { url: "https://www.usedcarsdedhamma.com", name: "A.S.P.I. Motor Cars", state: "MA", city: "Dedham", type: "independent_dealer", platform: "vehiclesnetwork", enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" },
+  { url: "https://www.usedcarsmahopacny.com", name: "GoGetCar.com (Hudson Auto Traders)", state: "NY", city: "Mahopac", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.4seasonsauto.com", name: "4 Seasons Auto Sales", state: "UT", city: "St. George", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.d1autocredit.com", name: "D1 Auto Credit", state: "CO", city: "Lakewood", type: "independent_dealer", platform: "vehiclesnetwork" },
   // schema.org JSON-LD inventory (generic JSON-LD path, no platform template needed)
   { url: "https://www.drivenowmidwest.com", name: "Drive Now", state: "KS", city: "Wichita", type: "independent_dealer" },
 ];

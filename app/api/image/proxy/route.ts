@@ -73,6 +73,18 @@ const ALLOWED_IMAGE_HOSTS = new Set([
   "www.usedcarsanchorageak.com",
   "www.usedcarsokc.com",
   "www.wildwestomaha.com",
+  "greensautotn.com",
+  "www.greensautotn.com",
+  "usedcarslewistonid.com",
+  "www.usedcarslewistonid.com",
+  "usedcarsdedhamma.com",
+  "www.usedcarsdedhamma.com",
+  "usedcarsmahopacny.com",
+  "www.usedcarsmahopacny.com",
+  "4seasonsauto.com",
+  "www.4seasonsauto.com",
+  "d1autocredit.com",
+  "www.d1autocredit.com",
 ]);
 
 /** ~1 day at the CDN / edge; browsers may refresh a bit sooner. */
