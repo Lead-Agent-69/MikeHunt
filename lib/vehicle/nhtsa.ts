@@ -3,9 +3,11 @@
 // VIN; recalls change over time. Callers cache results in the vin_decodes table.
 
 import { isValidVin } from "./vin";
+import { callSignal, readJsonCapped, type UpstreamOpts } from "./deadline";
 
 type FetchLike = (
   url: string,
+  init?: { signal?: AbortSignal },
 ) => Promise<{ ok: boolean; json: () => Promise<any> }>;
 
 export interface VinDecode {
@@ -58,9 +60,10 @@ export async function decodeVin(
   try {
     const res = await fetchImpl(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/${encodeURIComponent(vin)}?format=json`,
+      { signal: callSignal() },
     );
     if (!res.ok) return null;
-    const body = await res.json();
+    const body = await readJsonCapped(res);
     const r = body?.Results?.[0];
     if (!r) return null;
     const decoded = parseDecode(r);
@@ -97,7 +100,7 @@ export async function decodeVinBatch(
         },
       );
       if (!res.ok) continue;
-      const body = await res.json();
+      const body = await readJsonCapped(res);
       const requested = new Set(chunk);
       for (const r of Array.isArray(body?.Results) ? body.Results : []) {
         const d = parseDecode(r);
@@ -142,20 +145,26 @@ export async function getSafetyRating(
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<SafetyRating | null> {
   if (!make || !model || !year) return null;
+  const { deadline } = opts;
   try {
+    if (deadline?.expired()) return null;
     const res1 = await fetchImpl(
       `https://api.nhtsa.gov/SafetyRatings/modelyear/${year}/make/${encodeURIComponent(make)}/model/${encodeURIComponent(model)}`,
+      { signal: callSignal(deadline) },
     );
     if (!res1.ok) return null;
-    const id = (await res1.json())?.Results?.[0]?.VehicleId;
+    const id = (await readJsonCapped(res1))?.Results?.[0]?.VehicleId;
     if (!id) return null;
+    if (deadline?.expired()) return null;
     const res2 = await fetchImpl(
       `https://api.nhtsa.gov/SafetyRatings/VehicleId/${id}`,
+      { signal: callSignal(deadline) },
     );
     if (!res2.ok) return null;
-    const r = (await res2.json())?.Results?.[0];
+    const r = (await readJsonCapped(res2))?.Results?.[0];
     if (!r) return null;
     const s = parseSafety(r);
     return s.overall || s.frontal || s.side || s.rollover ? s : null;
@@ -164,22 +173,251 @@ export async function getSafetyRating(
   }
 }
 
-/** Open recall count for a make/model/year via NHTSA Recalls. Returns null on failure. */
+// ---------------------------------------------------------------------------------------------
+// Extended decode (DecodeVinValuesExtended): the same flat shape as DecodeVinValues plus the
+// NCSA body/make/model fields. Adds series, engine, transmission, GVWR and full plant location.
+
+export interface VinDecodeExtended extends VinDecode {
+  series: string | null;
+  doors: number | null;
+  vehicleType: string | null;
+  manufacturer: string | null;
+  engineConfiguration: string | null;
+  engineHp: number | null;
+  engineModel: string | null;
+  /** Human engine label built only from decoded parts, e.g. "6.7L V8 Diesel 440hp". */
+  engine: string | null;
+  transmissionStyle: string | null;
+  transmissionSpeeds: number | null;
+  /** NHTSA GVWR class text, e.g. "Class 2H: 9,001 - 10,000 lb (4,082 - 4,536 kg)". */
+  gvwr: string | null;
+  /** Upper bound of the GVWR class in lb (null when vPIC gives no class or "or less" ranges only). */
+  gvwrMaxLb: number | null;
+  plantCompany: string | null;
+  plantCity: string | null;
+  plantState: string | null;
+  /** vPIC ErrorCode; "0" is a clean decode. Non-zero codes (e.g. "1" bad check digit) still return
+   *  partial data, so callers should show it as unconfirmed rather than drop it. */
+  decodeErrorCode: string | null;
+  decodeErrorText: string | null;
+  decodeClean: boolean;
+}
+
+function gvwrUpperLb(gvwr: string | null): number | null {
+  if (!gvwr) return null;
+  // "Class 2H: 9,001 - 10,000 lb (...)" -> 10000; "Class 1: 6,000 lb or less (...)" -> 6000
+  const m = gvwr.match(/:\s*(?:[\d,]+\s*-\s*)?([\d,]+)\s*lb/i);
+  if (!m) return null;
+  const n = parseInt(m[1].replace(/,/g, ""), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Parse a DecodeVinValuesExtended Results[0] object. Superset of parseDecode. */
+export function parseDecodeExtended(r: any): VinDecodeExtended {
+  const base = parseDecode(r);
+  const cyl = base.cylinders;
+  const disp = base.displacementL;
+  const config = strOrNull(r?.EngineConfiguration);
+  const hp = numOrNull(r?.EngineHP);
+  const configShort = config
+    ? config.replace(/^V-Shaped$/i, "V").replace(/^In-Line$/i, "I")
+    : null;
+  const engineParts = [
+    disp != null ? `${disp.toFixed(1)}L` : null,
+    cyl != null
+      ? configShort === "V" || configShort === "I"
+        ? `${configShort}${cyl}`
+        : `${cyl} cyl`
+      : null,
+    base.fuelType && !/^gasoline$/i.test(base.fuelType) ? base.fuelType : null,
+    hp != null ? `${Math.round(hp)}hp` : null,
+  ].filter(Boolean);
+  const errorCode = strOrNull(r?.ErrorCode);
+  const gvwr = strOrNull(r?.GVWR);
+  return {
+    ...base,
+    trim: strOrNull(r?.Trim),
+    series: strOrNull(r?.Series),
+    doors: numOrNull(r?.Doors),
+    vehicleType: strOrNull(r?.VehicleType),
+    manufacturer: strOrNull(r?.Manufacturer),
+    engineConfiguration: config,
+    engineHp: hp,
+    engineModel: strOrNull(r?.EngineModel),
+    engine: engineParts.length ? engineParts.join(" ") : null,
+    transmissionStyle: strOrNull(r?.TransmissionStyle),
+    transmissionSpeeds: numOrNull(r?.TransmissionSpeeds),
+    gvwr,
+    gvwrMaxLb: gvwrUpperLb(gvwr),
+    plantCompany: strOrNull(r?.PlantCompanyName),
+    plantCity: strOrNull(r?.PlantCity),
+    plantState: strOrNull(r?.PlantState),
+    decodeErrorCode: errorCode,
+    decodeErrorText: strOrNull(r?.ErrorText),
+    decodeClean: errorCode === "0",
+  };
+}
+
+/** Full decode via vPIC DecodeVinValuesExtended. Null for invalid VINs, failures, or no make/model. */
+export async function decodeVinExtended(
+  vin: string,
+  fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
+): Promise<VinDecodeExtended | null> {
+  if (!isValidVin(vin)) return null;
+  if (opts.deadline?.expired()) return null;
+  try {
+    const res = await fetchImpl(
+      `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${encodeURIComponent(vin)}?format=json`,
+      { signal: callSignal(opts.deadline) },
+    );
+    if (!res.ok) return null;
+    const r = (await readJsonCapped(res))?.Results?.[0];
+    if (!r) return null;
+    const d = parseDecodeExtended(r);
+    return d.make && d.model ? d : null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Recalls. NHTSA has no public VIN-level recall API: api.nhtsa.gov/recalls/recallsByVin (and
+// recallsByVIN) return 403 "Missing Authentication Token" (no such route); VIN-specific open-recall
+// status is only on nhtsa.gov/recalls and manufacturer sites. Public endpoints are by
+// make/model/year and by campaign number.
+//
+// vPIC model names don't always match the recalls catalog: vPIC says "F-250" while recalls file
+// 2016 Super Duty campaigns under "F-250 SD"; querying "F-250" returns Count 0 (a false zero). So we
+// resolve names through the recalls catalog (products/vehicle/models) first and union every
+// catalog model that is the decoded model or starts with it.
+
+export interface RecallCampaign {
+  campaign: string;
+  component: string | null;
+  reportReceived: string | null;
+  parkIt: boolean;
+  parkOutside: boolean;
+  overTheAir: boolean;
+  model: string | null;
+}
+
+export interface RecallLookup {
+  count: number;
+  campaigns: RecallCampaign[];
+  /** Catalog model names that were queried (for transparency in the UI). */
+  modelsQueried: string[];
+  /** "model_year": these are recalls filed for the make/model/year family, not confirmed for this VIN. */
+  scope: "model_year";
+}
+
+const norm = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
+
+/** Pick recalls-catalog model names that belong to a vPIC model ("F-250" -> "F-250 SD", "F-250
+ *  SUPERCAB", ...). Matches the exact name or the name followed by a space; never "F-2500". */
+export function recallModelCandidates(
+  catalog: Array<{ model?: string }> | null | undefined,
+  model: string,
+): string[] {
+  const want = norm(model);
+  const out = new Set<string>();
+  for (const row of catalog ?? []) {
+    const m = row?.model ? norm(String(row.model)) : "";
+    if (m === want || m.startsWith(want + " ")) out.add(m);
+  }
+  return Array.from(out);
+}
+
+export function parseRecallResults(
+  body: any,
+  model: string | null = null,
+): RecallCampaign[] {
+  const rows = Array.isArray(body?.results) ? body.results : [];
+  return rows
+    .filter((r: any) => strOrNull(r?.NHTSACampaignNumber))
+    .map((r: any) => ({
+      campaign: String(r.NHTSACampaignNumber).trim(),
+      component: strOrNull(r?.Component),
+      reportReceived: strOrNull(r?.ReportReceivedDate),
+      parkIt: r?.parkIt === true,
+      parkOutside: r?.parkOutSide === true,
+      overTheAir: r?.overTheAirUpdate === true,
+      model: strOrNull(r?.Model) ?? model,
+    }));
+}
+
+/** Recalls for a make/model/year family, resolved through the recalls catalog. Null on failure. */
+export async function getRecalls(
+  make: string,
+  model: string,
+  year: number,
+  fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
+): Promise<RecallLookup | null> {
+  if (!make || !model || !year) return null;
+  const { deadline } = opts;
+  if (deadline?.expired()) return null;
+  const byModel = (m: string) =>
+    `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
+  // All-or-nothing (Ren #301): the count is cached for 7 days, so a partial union must never pass as
+  // a real number. If the catalog call fails, times out or returns a malformed body, or ANY per-model
+  // lookup fails, the answer is null ("unknown") and callers don't cache it.
+  try {
+    if (deadline?.expired()) return null;
+    const cat = await fetchImpl(
+      `https://api.nhtsa.gov/products/vehicle/models?modelYear=${year}&make=${encodeURIComponent(make)}&issueType=r`,
+      { signal: callSignal(deadline) },
+    );
+    if (!cat.ok) return null;
+    const catBody = await readJsonCapped(cat);
+    if (!Array.isArray(catBody?.results)) return null;
+    const models = recallModelCandidates(catBody.results, model).slice(0, 12);
+    if (!models.includes(norm(model))) models.unshift(norm(model));
+
+    const seen = new Map<string, RecallCampaign>();
+    let countOnly: number | null = null;
+    for (const m of models) {
+      if (deadline?.expired()) return null;
+      const res = await fetchImpl(byModel(m), { signal: callSignal(deadline) });
+      if (!res.ok) return null;
+      const body = await readJsonCapped(res);
+      if (Array.isArray(body?.results)) {
+        for (const c of parseRecallResults(body, m))
+          if (!seen.has(c.campaign)) seen.set(c.campaign, c);
+      } else if (typeof body?.Count === "number" && models.length === 1) {
+        // Trimmed payload with only a Count: usable only when it is the single model queried.
+        countOnly = body.Count;
+      } else {
+        return null;
+      }
+    }
+    if (countOnly != null)
+      return {
+        count: countOnly,
+        campaigns: [],
+        modelsQueried: models,
+        scope: "model_year",
+      };
+    const campaigns = Array.from(seen.values());
+    return {
+      count: campaigns.length,
+      campaigns,
+      modelsQueried: models,
+      scope: "model_year",
+    };
+  } catch {
+    return null; // abort/timeout, oversize body or bad JSON anywhere: unknown
+  }
+}
+
+/** Recall count for a make/model/year family (see getRecalls). Returns null on failure. */
 export async function getRecallCount(
   make: string,
   model: string,
   year: number,
   fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike,
+  opts: UpstreamOpts = {},
 ): Promise<number | null> {
-  if (!make || !model || !year) return null;
-  try {
-    const res = await fetchImpl(
-      `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&modelYear=${year}`,
-    );
-    if (!res.ok) return null;
-    const body = await res.json();
-    return typeof body?.Count === "number" ? body.Count : null;
-  } catch {
-    return null;
-  }
+  const r = await getRecalls(make, model, year, fetchImpl, opts);
+  return r ? r.count : null;
 }
