@@ -37,8 +37,10 @@ export type Deal = {
   locationState?: string;
   locationZip?: string;
   active: boolean;
-  firstSeenAt: string | Date;
-  lastSeenAt: string | Date;
+  /** Null when the row has no first_seen_at (never a 1970 date). */
+  firstSeenAt: string | Date | null;
+  /** Null when the row has no last_seen_at (never a 1970 date). */
+  lastSeenAt: string | Date | null;
   sourceUrl: string;
   auctionEndAt?: Date;
   bidCount?: number;
@@ -113,6 +115,13 @@ export type DealFilters = {
   offset?: number;
 };
 
+/** A real timestamp as a Date, or null. `new Date(null)` is 1970 and must never reach a card. */
+function seenDate(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  const d = value instanceof Date ? value : new Date(value as string);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
 export class DealsService {
   private supabase = createServerComponentClient();
 
@@ -149,8 +158,8 @@ export class DealsService {
       locationState: row.location_state,
       locationZip: row.location_zip,
       active: row.active ?? true,
-      firstSeenAt: new Date(row.first_seen_at),
-      lastSeenAt: new Date(row.last_seen_at),
+      firstSeenAt: seenDate(row.first_seen_at),
+      lastSeenAt: seenDate(row.last_seen_at),
       sourceUrl: row.source_url,
       auctionEndAt: row.auction_end_at
         ? new Date(row.auction_end_at)

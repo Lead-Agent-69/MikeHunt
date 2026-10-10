@@ -125,3 +125,34 @@ describe("safeImageContentType", () => {
     expect(safeImageContentType("text/html")).toBeNull();
   });
 });
+
+describe("fetchPublicImage on the DNS pin", () => {
+  it("resolves once per hop, pins the agent, and disables proxies", async () => {
+    const dns = (await import("dns/promises")) as any;
+    dns.lookup.mockClear();
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce(ok());
+    const res = await fetchPublicImage(IMG, isAllowedImageUrl);
+    expect(res.ok).toBe(true);
+    const init = axiosGet.mock.calls[0][1];
+    expect(init.proxy).toBe(false);
+    expect(init.httpsAgent).toBe(init.httpAgent);
+    const answer = await new Promise<any>((resolve, reject) =>
+      init.httpsAgent.options.lookup(
+        "images.craigslist.org",
+        {},
+        (err: any, addr: any) => (err ? reject(err) : resolve(addr)),
+      ),
+    );
+    expect(answer).toBe("93.184.216.34");
+    expect(dns.lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a host whose single DNS answer is metadata, before any request", async () => {
+    axiosGet.mockReset();
+    await expect(
+      fetchPublicImage("https://rebind.craigslist.org/x.jpg", isAllowedImageUrl),
+    ).rejects.toBeInstanceOf(UrlNotAllowedError);
+    expect(axiosGet).not.toHaveBeenCalled();
+  });
+});

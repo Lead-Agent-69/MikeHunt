@@ -20,6 +20,7 @@ vi.mock("dns/promises", () => ({
 import { UrlNotAllowedError } from "./public-url";
 import {
   pinnedAgent,
+  pinnedAxiosOptions,
   pinnedLookup,
   pinnedRequest,
   resolvePinnedTarget,
@@ -138,5 +139,68 @@ describe("pinnedRequest connects to the pinned IP with the real Host header", ()
       method: "HEAD",
     });
     expect(dnsLookup).not.toHaveBeenCalled();
+  });
+});
+
+describe("pinnedRequest deadline and body handling", () => {
+  let server: Server;
+  let port = 0;
+  let closed = 0;
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      req.socket.on("close", () => closed++);
+      if (req.url === "/hang") return; // never answers
+      if (req.url === "/stream") {
+        res.writeHead(200, { "content-type": "application/octet-stream" });
+        const chunk = Buffer.alloc(64 * 1024, 1);
+        const pump = () => {
+          while (res.write(chunk)) {
+            /* fill the pipe */
+          }
+          res.once("drain", pump);
+        };
+        pump();
+        return;
+      }
+      res.end("ok");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    port = (server.address() as AddressInfo).port;
+  });
+  afterAll(
+    () =>
+      new Promise<void>((r) => {
+        server.closeAllConnections?.();
+        server.close(() => r());
+      }),
+  );
+  const at = (path: string) => ({
+    url: new URL(`http://pinned-only.invalid:${port}${path}`),
+    host: "pinned-only.invalid",
+    addresses: [{ address: "127.0.0.1", family: 4 as const }],
+  });
+
+  it("rejects at the overall deadline when the server never answers", async () => {
+    const t0 = Date.now();
+    await expect(
+      pinnedRequest(at("/hang"), { timeoutMs: 300 }),
+    ).rejects.toThrow(/deadline|timeout/);
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it("GET against an endless body resolves on headers and drops the socket", async () => {
+    const before = closed;
+    const res = await pinnedRequest(at("/stream"), { timeoutMs: 2000 });
+    expect(res.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(closed).toBeGreaterThan(before);
+  });
+
+  it("pinnedAxiosOptions disables proxies and uses the pinned agent for both schemes", async () => {
+    const t = await resolvePinnedTarget("https://93.184.216.34/");
+    const o = pinnedAxiosOptions(t);
+    expect(o.proxy).toBe(false);
+    expect(o.httpsAgent).toBe(o.httpAgent);
+    expect((o.httpsAgent as any).options.keepAlive).toBe(false);
   });
 });
