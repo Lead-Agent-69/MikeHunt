@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, Search, ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +58,13 @@ export function FindSimilarModal({
       })
       .then((data) => {
         if (controller.signal.aborted) return;
-        setComparables(data);
+        // Route returns an array; tolerate a `{ deals: [] }` shape too.
+        const rows = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.deals)
+            ? data.deals
+            : [];
+        setComparables(rows);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -70,7 +77,7 @@ export function FindSimilarModal({
     return () => controller.abort();
   }, [isOpen, snapshot]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("en-US", {
@@ -79,8 +86,11 @@ export function FindSimilarModal({
       maximumFractionDigits: 0,
     }).format(val);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  // Portal to <body>: the deal page wraps content in transformed motion
+  // containers, which re-anchor `position: fixed` and pushed the sheet
+  // off-screen below the fold on desktop.
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 pb-24 md:pb-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 transition-opacity duration-300 animate-fadeIn"
@@ -89,7 +99,12 @@ export function FindSimilarModal({
       />
 
       {/* Content */}
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[var(--b2)] overflow-hidden z-10 animate-scaleUp">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Find similar vehicles"
+        className="relative z-10 flex max-h-[min(80vh,calc(100dvh-8rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--b2)] bg-white shadow-2xl animate-scaleUp"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--b1)] bg-[var(--s1)]">
           <div>
@@ -109,12 +124,12 @@ export function FindSimilarModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 space-y-4">
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 space-y-3">
               <Loader2 className="w-8 h-8 text-[var(--amber)] animate-spin" />
               <p className="text-sm font-medium text-[var(--t3)]">
-                Searching active inventory...
+                Checking saved listings…
               </p>
             </div>
           )}
@@ -132,11 +147,12 @@ export function FindSimilarModal({
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-bold text-[var(--t2)]">
-                  No similar deals found
+                  No similar saved listings yet
                 </p>
                 <p className="text-xs text-[var(--t4)] max-w-sm mx-auto">
-                  We couldn't find any other active listings matching this exact
-                  description in our database right now.
+                  No other saved listings match this year range, make and model
+                  right now. This checks saved inventory only; it does not run a
+                  live market scan.
                 </p>
               </div>
             </div>
@@ -220,6 +236,7 @@ export function FindSimilarModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
