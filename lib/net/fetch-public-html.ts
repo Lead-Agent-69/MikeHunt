@@ -1,6 +1,11 @@
 import axios from "axios";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
-import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
+import {
+  type PinnedTarget,
+  parsePinnableUrl,
+  pinnedAxiosOptions,
+  resolvePinnedTarget,
+} from "@/lib/net/pinned-dns";
 
 const MAX_REDIRECTS = 3;
 /** Page-size cap. Callers can pass a smaller maxBytes, never a larger one. */
@@ -21,11 +26,19 @@ export function publicFetchSignal(caller?: AbortSignal): AbortSignal {
   return caller ? AbortSignal.any([caller, deadline]) : deadline;
 }
 
-/** Thrown when the overall deadline (or the caller's signal) fires while DNS is still resolving. */
-class FetchAborted extends Error {}
+/** Thrown when the overall deadline (or the caller's signal) fires while we are still waiting. */
+export class FetchAborted extends Error {}
 
-/** Settle with `p`, or reject with FetchAborted as soon as `signal` aborts (DNS can't take a signal). */
-function untilAborted<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
+/**
+ * Settle with `p`, or reject with FetchAborted as soon as `signal` aborts. `p` ALWAYS gets a handler
+ * first, so a lookup/check that rejects after we stopped waiting (or on an already-aborted signal) can
+ * never surface as an unhandled rejection.
+ */
+export function untilAborted<T>(
+  p: Promise<T>,
+  signal: AbortSignal,
+): Promise<T> {
+  p.catch(() => {});
   if (signal.aborted) return Promise.reject(new FetchAborted());
   return new Promise<T>((resolve, reject) => {
     const onAbort = () => reject(new FetchAborted());
@@ -41,6 +54,25 @@ function untilAborted<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
       },
     );
   });
+}
+
+/**
+ * Resolve and pin `raw` inside the overall deadline.
+ *  - The synchronous URL policy runs FIRST, so a blocked URL throws UrlNotAllowedError even when the
+ *    signal is already aborted (e.g. deal-check's req.signal after a client disconnect).
+ *  - An already-aborted signal then starts no DNS lookup at all.
+ *  - Otherwise the lookup is raced against the signal; rejects with FetchAborted when it fires.
+ * dns.lookup can't be cancelled: an abandoned lookup keeps occupying a libuv threadpool thread
+ * (UV_THREADPOOL_SIZE, default 4, shared with fs/crypto/zlib) until the OS resolver answers or
+ * times out. We only stop waiting for it; many hung lookups at once can still starve that pool.
+ */
+export async function pinnedTargetWithin(
+  raw: string,
+  signal: AbortSignal,
+): Promise<PinnedTarget> {
+  parsePinnableUrl(raw);
+  if (signal.aborted) throw new FetchAborted();
+  return untilAborted(resolvePinnedTarget(raw), signal);
 }
 
 export function locationHeader(
@@ -64,7 +96,11 @@ export function locationHeader(
  *  - ONE overall deadline of PUBLIC_FETCH_DEADLINE_MS (10s) for the whole call, armed before the
  *    first DNS lookup and shared by every DNS lookup and redirect hop (not reset per hop), combined
  *    with the caller's signal. axios' 6s `timeout` is only a per-request idle timer on top of that.
- *    A DNS lookup can't be cancelled, but the call stops waiting for it when the deadline fires.
+ *    The source-policy check (`allowUrl`, e.g. robots.txt) is raced against the same deadline.
+ *    A DNS lookup can't be cancelled, but the call stops waiting for it when the deadline fires
+ *    (the abandoned lookup still holds a libuv threadpool thread; see pinnedTargetWithin).
+ *  - Deadline or caller abort => null. A blocked URL still throws UrlNotAllowedError, even with an
+ *    already-aborted signal.
  *  - proxy: false, and the socket is pinned to the validated addresses (pinned-dns).
  * A slow scraper page that needs more than 10s, or a page over 5MB, therefore returns null.
  */
@@ -79,17 +115,25 @@ export async function fetchPublicHtml(
   const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
   // The overall deadline is armed BEFORE the first DNS lookup, so slow DNS counts against it too.
   const signal = publicFetchSignal(options.signal);
-  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
-  let target: Awaited<ReturnType<typeof resolvePinnedTarget>>;
   try {
-    target = await untilAborted(resolvePinnedTarget(rawUrl), signal);
+    return await fetchPublicHtmlWithin(rawUrl, allowUrl, options, signal);
   } catch (error) {
     if (error instanceof FetchAborted) return null;
     throw error;
   }
+}
+
+async function fetchPublicHtmlWithin(
+  rawUrl: string,
+  allowUrl: ((url: string) => Promise<boolean>) | undefined,
+  options: { maxBytes?: number },
+  signal: AbortSignal,
+): Promise<{ html: string; finalUrl: string } | null> {
+  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
+  let target = await pinnedTargetWithin(rawUrl, signal);
   let current = target.url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (allowUrl && !(await allowUrl(current.toString())))
+    if (allowUrl && !(await untilAborted(allowUrl(current.toString()), signal)))
       throw new Error("Page disallowed by source policy");
     let response;
     try {
@@ -117,15 +161,10 @@ export async function fetchPublicHtml(
     if (status >= 300 && status < 400) {
       const loc = locationHeader(response.headers || {});
       if (!loc) return null;
-      try {
-        target = await untilAborted(
-          resolvePinnedTarget(new URL(loc, current).toString()),
-          signal,
-        );
-      } catch (error) {
-        if (error instanceof FetchAborted) return null;
-        throw error;
-      }
+      target = await pinnedTargetWithin(
+        new URL(loc, current).toString(),
+        signal,
+      );
       current = target.url;
       continue;
     }

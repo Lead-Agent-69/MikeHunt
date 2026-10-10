@@ -29,8 +29,11 @@ const bareHost = (h: string) =>
     .toLowerCase()
     .replace(/\.$/, "");
 
-/** Validate the URL, resolve its host exactly once, validate every address, return the pin. */
-export async function resolvePinnedTarget(raw: string): Promise<PinnedTarget> {
+/**
+ * The synchronous part of the URL policy (no DNS): http(s) only, no credentials, no blocked literal
+ * host. Throws UrlNotAllowedError. resolvePinnedTarget runs this first.
+ */
+export function parsePinnableUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -42,6 +45,12 @@ export async function resolvePinnedTarget(raw: string): Promise<PinnedTarget> {
   if (url.username || url.password) throw new UrlNotAllowedError();
   if (classifyHostname(url.hostname) === "blocked")
     throw new UrlNotAllowedError();
+  return url;
+}
+
+/** Validate the URL, resolve its host exactly once, validate every address, return the pin. */
+export async function resolvePinnedTarget(raw: string): Promise<PinnedTarget> {
+  const url = parsePinnableUrl(raw);
   // Literal public IP → itself, no DNS. Name → one DNS query; any blocked answer refuses all.
   const addresses = (await resolvePublicAddresses(url.hostname)).map(
     (address) => ({
