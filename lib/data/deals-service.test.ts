@@ -189,3 +189,14 @@ describe("DealsService.mapDbToDeal last_seen / first_seen", () => {
     expect(d.toISOString()).toBe("2026-10-10T05:00:00.000Z");
   });
 });
+
+describe("DealsService list projection", () => {
+  it("never selects the embedding vector or *", async () => {
+    const { DEALS_LIST_SELECT } = await import("./deals-service");
+    const cols = DEALS_LIST_SELECT.split(",");
+    expect(cols).not.toContain("*");
+    expect(cols).not.toContain("embedding");
+    expect(cols).toContain("ask_price");
+    expect(new Set(cols).size).toBe(cols.length);
+  });
+});
