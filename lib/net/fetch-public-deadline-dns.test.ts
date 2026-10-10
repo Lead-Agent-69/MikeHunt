@@ -281,3 +281,31 @@ describe("R2: aborted signals never leave an unhandled rejection", () => {
     expect(unhandled).toEqual([]);
   });
 });
+
+describe("Ren #311 nit: untilAborted's p.catch is load-bearing", () => {
+  // The overall deadline fires AFTER DNS resolved but BEFORE the robots check settles (here: exactly as
+  // allowUrl starts its fetch), so untilAborted sees an already-aborted signal and returns early. The
+  // robots promise then rejects later; only the eager p.catch(() => {}) in untilAborted keeps that from
+  // surfacing as an unhandledRejection. Deleting that line fails this test.
+  it("deadline fires after DNS, before robots; robots rejects later -> no unhandled rejection", async () => {
+    const deadline = new AbortController();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation(() => deadline.signal);
+    // Plain function, NOT vi.fn: vitest's spy attaches .then() to returned promises (settledResults),
+    // which would itself handle the rejection and hide a missing p.catch.
+    let robotsCalls = 0;
+    const allowUrl = () => {
+      robotsCalls++;
+      deadline.abort();
+      return new Promise<boolean>((_, reject) =>
+        setTimeout(() => reject(new Error("robots fetch failed")), 100),
+      );
+    };
+    await expect(
+      fetchPublicHtml(at("pcatch.test", "/page"), allowUrl),
+    ).resolves.toBeNull();
+    expect(dns.calls).toEqual(["pcatch.test"]);
+    expect(robotsCalls).toBe(1);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(unhandled).toEqual([]);
+  });
+});
