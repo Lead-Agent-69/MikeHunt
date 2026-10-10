@@ -3,6 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { safeSellerName } from "@/lib/deals/seller-name";
 import {
   titleCategory,
   titleCategoryOrFilter,
@@ -173,7 +174,9 @@ export class DealsService {
         typeof row.run_drive === "boolean" ? row.run_drive : undefined,
       hasKeys:
         typeof row.keys_present === "boolean" ? row.keys_present : undefined,
-      seller: row.seller || options.seller,
+      // Name only, never a phone / email / link or a raw seller object (Ren P2 on #328). Guests and
+      // non-flip desks then lose even the name in redactDealForNonFlipDesk / listingsForDesk.
+      seller: safeSellerName(row.seller) ?? safeSellerName(options.seller),
       sellerType: row.seller_type || options.sellerType,
       contact:
         contact.phone || contact.email || contact.url

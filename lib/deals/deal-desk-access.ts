@@ -103,6 +103,34 @@ export function isContactKey(key: string): boolean {
  */
 const SAFE_OPTIONS_MAX_DEPTH = 5;
 
+// Seller identity a non-flip desk (including a signed-out guest) never gets: the seller's display
+// name and the scraper's raw seller blob under options (name, address, profile link, sometimes a
+// phone). Same rule as sellerForDesk(card, false) in lib/deals/seller-name.ts (#328); kept inline
+// here because seller-name.ts imports isContactKey from this module.
+const SELLER_IDENTITY_FIELDS = ["seller", "sellerName", "seller_name"] as const;
+const RAW_SELLER_KEYS = new Set([
+  "seller",
+  "sellerName",
+  "seller_name",
+  "sellerInfo",
+  "seller_info",
+  "sellerProfile",
+]);
+
+/** Drop top-level seller identity and options' raw seller blob from a redacted copy (in place). */
+function stripSellerIdentity(out: Record<string, any>): void {
+  for (const key of SELLER_IDENTITY_FIELDS) delete out[key];
+  if (
+    out.options &&
+    typeof out.options === "object" &&
+    !Array.isArray(out.options)
+  ) {
+    const opts: Record<string, unknown> = { ...out.options };
+    for (const key of Array.from(RAW_SELLER_KEYS)) delete opts[key];
+    out.options = opts;
+  }
+}
+
 function safeOptions(options: unknown, depth = 0): unknown {
   if (!options || typeof options !== "object") return options;
   // Past the depth cap, drop the subtree rather than risk passing contact through unchecked.
@@ -124,6 +152,7 @@ export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   const out: Record<string, any> = { ...deal };
   for (const key of FLIP_ONLY_FIELDS) delete out[key];
   if ("options" in out) out.options = safeOptions(deal.options);
+  stripSellerIdentity(out);
 
   const safe = safeDealAnalysis(deal?.dealAnalysis ?? deal?.deal_analysis);
   if (safe) out.dealAnalysis = safe;
@@ -209,6 +238,7 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
   const out: Record<string, any> = { ...card };
   for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
   if ("options" in out) out.options = safeOptions(card.options);
+  stripSellerIdentity(out);
   if ("prediction" in out) out.prediction = safePrediction(card.prediction);
   // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
   const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);
