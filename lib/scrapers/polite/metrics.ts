@@ -105,9 +105,17 @@ export function summarizePoliteness(
       t.tooMany += r.tooMany;
       t.notModified += r.notModified;
       t.robotsDenied += r.robotsDenied;
+      t.challenged += r.challenges ?? 0;
       return t;
     },
-    { requests: 0, forbidden: 0, tooMany: 0, notModified: 0, robotsDenied: 0 },
+    {
+      requests: 0,
+      forbidden: 0,
+      tooMany: 0,
+      notModified: 0,
+      robotsDenied: 0,
+      challenged: 0,
+    },
   );
   const domains = rows
     .map((r) => ({
@@ -129,6 +137,11 @@ export function summarizePoliteness(
       ? Math.round((totals.notModified / totals.requests) * 1000) / 10
       : 0,
     robotsDenied: totals.robotsDenied,
+    /** Bot-challenge pages seen: a "challenged" outcome with a short backoff, retried next schedule. */
+    challenged: totals.challenged,
+    challengedDomains: rows
+      .filter((r) => (r.challenges ?? 0) > 0)
+      .map((r) => ({ domain: r.domain, challenges: r.challenges })),
     pausedDomains: paused,
     // Top 25 riskiest domains is plenty for /status and keeps the job result small.
     domains: domains.slice(0, 25),

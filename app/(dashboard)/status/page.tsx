@@ -6,6 +6,10 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 
+// Same wording as OPERATOR_OVERRIDE_NOTE in lib/scrapers/access-class.ts (server-only module).
+const OPERATOR_OVERRIDE_TEXT =
+  "operator_override is not permission: the operator chose to run this source despite a terms ban, robots.txt disallow or policy block, and it carries legal risk.";
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const ago = (iso?: string | null) => {
   if (!iso) return "never";
@@ -1252,6 +1256,22 @@ export default function StatusPage() {
                         <p className="mt-0.5 text-xs text-[var(--t5)]">
                           {source.id} · {source.type} · P{source.priority}
                         </p>
+                        {source.accessClass ? (
+                          <span
+                            className="mt-1 inline-block rounded-full border border-[var(--b2)] px-2 py-0.5 text-[10px] font-black uppercase text-[var(--t3)]"
+                            title={
+                              source.accessClass === "operator_override" ||
+                              source.accessOverrideActive
+                                ? OPERATOR_OVERRIDE_TEXT
+                                : undefined
+                            }
+                          >
+                            {source.accessClass}
+                            {source.accessOverrideActive
+                              ? " · running under operator override"
+                              : ""}
+                          </span>
+                        ) : null}
                       </div>
                       <div>
                         <span
@@ -1286,6 +1306,10 @@ export default function StatusPage() {
                 })}
               </div>
             </div>
+            <p className="mt-2 text-xs text-[var(--t5)]">
+              Access class: api, allowed, restricted, operator_override or
+              unreviewed (mixed = per-host). {OPERATOR_OVERRIDE_TEXT}
+            </p>
           </div>
 
           {/* Freshness */}
@@ -1637,6 +1661,16 @@ export default function StatusPage() {
                     {politeness.rate429Pct}%). {politeness.cacheHitPct}% were
                     unchanged pages (304).
                   </p>
+                  {(politeness.challenged ?? 0) > 0 && (
+                    <p className="text-[var(--t4)]">
+                      Challenged: {politeness.challenged} bot-challenge page
+                      {politeness.challenged === 1 ? "" : "s"} (
+                      {(politeness.challengedDomains || [])
+                        .map((d: any) => `${d.domain} ×${d.challenges}`)
+                        .join(", ")}
+                      ). Backed off, retried next schedule.
+                    </p>
+                  )}
                   {(politeness.pausedDomains || []).length > 0 && (
                     <p className="text-[var(--t4)]">
                       Paused:{" "}

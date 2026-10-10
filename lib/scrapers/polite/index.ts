@@ -7,3 +7,4 @@ export * from "./cache";
 export * from "./metrics";
 export * from "./schedule";
 export * from "./polite-fetch";
+export * from "./scraper-fetch";

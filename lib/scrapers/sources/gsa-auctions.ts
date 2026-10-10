@@ -5,6 +5,7 @@
 // Antigravity in docs/findings/gsa-auctions-api.md, then confirmed live from our IP: 72 vehicle lots).
 // Vehicles = categoryCodeList ["300"]. No login, no paid proxy.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 
@@ -121,7 +122,7 @@ export async function scrapeGsaAuctions(maxPages = 6): Promise<number> {
   for (let page = 1; page <= maxPages; page++) {
     let json: any;
     try {
-      const res = await fetch(`${API}&page=${page}&size=${SIZE}`, {
+      const res = await scraperFetch(`${API}&page=${page}&size=${SIZE}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
