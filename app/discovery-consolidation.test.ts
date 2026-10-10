@@ -151,7 +151,7 @@ describe("discovery has one front door and contextual collections", () => {
         }),
       ),
     );
-    expect(host.textContent).toContain("could not be verified");
+    expect(host.textContent).toContain("We couldn't check inventory coverage");
     expect(host.querySelector('a[href="/settings"]')).toBeNull();
     expect(host.textContent).not.toContain("private diagnostic");
     act(() => host.querySelector("button")!.click());

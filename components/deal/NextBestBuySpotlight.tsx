@@ -5,6 +5,7 @@ import Link from "next/link";
 import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import type { DecisionEvidence } from "@/lib/intelligence/decision-guard";
 import { sourceLabel } from "@/lib/sources/source-meta";
+import { RotateCcw } from "lucide-react";
 
 interface BestBuyDeal {
   id: string;
@@ -63,12 +64,13 @@ export function NextBestBuySpotlight({
   compact?: boolean;
 }) {
   const [capital, setCapital] = useState<number>(0);
-  const [strategy, setStrategy] = useState<
-    "max_roi" | "fastest_flip" | "max_profit"
-  >("max_roi");
-  const [state, setState] = useState<string>(initialState);
-  const [deal, setDeal] = useState<BestBuyDeal | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const strategy = "max_roi";
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    url: string;
+    deal: BestBuyDeal | null;
+    failed: boolean;
+  } | null>(null);
   const { intent } = useBuyerIntent();
   const intentQueryString = useMemo(
     () => buildBuyerIntentQuery(intent).toString(),
@@ -79,34 +81,47 @@ export function NextBestBuySpotlight({
     [intentQueryString],
   );
 
-  useEffect(() => {
-    if (!initialState && scopedState) setState(scopedState);
-  }, [initialState, scopedState]);
+  const state = initialState || scopedState;
+  const requestUrl = useMemo(() => {
+    const params = new URLSearchParams(intentQueryString);
+    if (capital > 0) params.set("capital", capital.toString());
+    if (state) params.set("state", state);
+    params.set("strategy", strategy);
+    return `/api/deals/best-buy?${params.toString()}`;
+  }, [capital, state, strategy, intentQueryString]);
+  const currentResult = result?.url === requestUrl ? result : null;
+  const loading = !currentResult;
+  const deal = currentResult?.deal ?? null;
+  const failed = currentResult?.failed ?? false;
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setResult(null);
     async function loadBestBuy() {
-      setLoading(true);
       try {
-        const params = new URLSearchParams(intentQueryString);
-        if (capital > 0) params.set("capital", capital.toString());
-        if (state) params.set("state", state);
-        if (strategy) params.set("strategy", strategy);
         // The server applies the same evidence gate for every intent. Do not take the first
         // profit-sorted Scan row and relabel it as a best buy.
-        const res = await fetch(`/api/deals/best-buy?${params.toString()}`);
-        if (res.ok) {
-          const json = await res.json();
-          setDeal(json.bestBuy || null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch best buy deal:", err);
-      } finally {
-        setLoading(false);
+        const res = await fetch(requestUrl, { signal: controller.signal });
+        if (!res.ok) throw new Error("Recommendation unavailable");
+        const json = await res.json();
+        if (active)
+          setResult({
+            url: requestUrl,
+            deal: json.bestBuy || null,
+            failed: false,
+          });
+      } catch {
+        if (active) setResult({ url: requestUrl, deal: null, failed: true });
       }
     }
 
-    loadBestBuy();
-  }, [capital, state, strategy, intentQueryString]);
+    void loadBestBuy();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [requestUrl, attempt]);
 
   const capitalOptions = [
     { label: "Any Budget", value: 0 },
@@ -116,7 +131,7 @@ export function NextBestBuySpotlight({
     { label: "< $35,000", value: 35000 },
   ];
 
-  if (!loading && !deal) {
+  if (!loading && !deal && !failed) {
     return null;
   }
 
@@ -125,12 +140,29 @@ export function NextBestBuySpotlight({
     .join(", ");
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-[var(--b2)] bg-[var(--s0)] p-6 sm:p-8">
+    <div
+      className="relative overflow-hidden rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-4 sm:p-6"
+      aria-busy={loading}
+    >
       <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--t4)]">
         One listing to check first
       </p>
-      {loading || !deal ? (
-        <p className="mt-4 text-sm text-[var(--t3)]">
+      {failed ? (
+        <div className="mt-3 text-sm text-[var(--t2)]">
+          <p role="status">
+            We couldn't check a listing for this search. Your other results are
+            still available.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAttempt((value) => value + 1)}
+            className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--blue)]"
+          >
+            <RotateCcw size={16} aria-hidden="true" /> Try again
+          </button>
+        </div>
+      ) : loading || !deal ? (
+        <p role="status" className="mt-4 text-sm text-[var(--t3)]">
           Loading a listing in your scope…
         </p>
       ) : (

@@ -43,7 +43,10 @@ describe("mobile location regression protections", () => {
   });
   it("offers scoped empty-state navigation and connection recovery", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
-    expect(page).toContain('label: "Try again", onClick: () => void mutate()');
+    expect(page).toContain('label: "Try again"');
+    expect(page).toContain(
+      "onClick: () => void mutate().catch(() => undefined)",
+    );
     expect(page).toContain("router.replace");
     expect(page).toContain('aria-label="Buying for"');
     expect(page).toContain("href={`/scan${scopeQuery}`}");

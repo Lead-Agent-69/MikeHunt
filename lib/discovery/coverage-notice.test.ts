@@ -43,16 +43,17 @@ describe("coverageNotice", () => {
     expect(notice?.detail).not.toContain("private diagnostic");
   });
 
-  it("none: honest cold banner — Zeus not instant, no ETA", () => {
+  it("none: no recent inventory is not no cars for sale", () => {
     const none = build([], ["TX", "OK"]);
     const notice = coverageNotice(none);
     expect(notice).toEqual(
       expect.objectContaining({
         tone: "none",
-        headline: "No fresh saved listings for TX, OK yet.",
+        headline: "No recent listings for TX, OK yet.",
       }),
     );
-    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).toContain("isn't a complete view");
+    expect(notice?.detail).toContain("updates aren't instant");
     expect(notice?.detail).not.toMatch(/minute|hour|ETA|%/i);
   });
 
@@ -62,10 +63,10 @@ describe("coverageNotice", () => {
       ["TX", "OK"],
     );
     expect(thin.status).toBe("thin");
-    expect(coverageNotice(thin)?.headline).toBe(
-      "Coverage is thin in TX, OK: 12 fresh listings in the last 7 days (TX 9, OK 3), from 1 source.",
+    expect(coverageNotice(thin)?.headline).toBe("Limited results for TX, OK.");
+    expect(coverageNotice(thin)?.detail).toContain(
+      "12 recent listings seen in the last 7 days (TX 9, OK 3), from 1 source.",
     );
-    expect(coverageNotice(thin)?.detail).toMatch(/Zeus \(not instant\)/);
   });
 
   it("says 'at least' when the API counts were capped", () => {
@@ -77,28 +78,32 @@ describe("coverageNotice", () => {
       now,
     });
     expect(capped.capped).toBe(true);
-    expect(coverageNotice(capped)?.headline).toContain(
-      "at least 10 fresh listings",
+    expect(coverageNotice(capped)?.detail).toContain(
+      "at least 10 recent listings",
     );
   });
 
-  it("scanning: Checking saved listings — no ETA", () => {
+  it("recent location save never claims a collection job is running", () => {
     const none = build([], ["IA"]);
     const notice = coverageNotice(none, { scanning: true, states: ["IA"] });
     expect(notice).toEqual(
       expect.objectContaining({
         tone: "scanning",
-        headline: "Checking saved listings for IA…",
+        headline: "Search area updated: IA.",
       }),
     );
-    expect(notice?.detail).toMatch(/Zeus \(not instant\)/);
+    expect(notice?.detail).toContain(
+      "doesn't guarantee an immediate source refresh",
+    );
+    expect(notice?.headline).not.toMatch(/checking|scanning|collecting/i);
     expect(notice?.detail).not.toMatch(/hour|ETA|%/i);
   });
 
   it("Discover renders the notice from data.coverage with next steps", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     expect(page).toContain("coverage={data?.coverage}");
-    expect(page).toContain("onRetry={() => void mutate()}");
+    expect(page).toContain("isRefreshing={isValidating}");
+    expect(page).toContain("mutate().catch(() => undefined)");
     const comp = readFileSync(
       "components/discovery/CoverageNotice.tsx",
       "utf8",
@@ -107,5 +112,28 @@ describe("coverageNotice", () => {
     expect(comp).toContain('href="/searches"');
     expect(comp).toContain("location-demand-warming");
     expect(comp).toContain("data-tone");
+  });
+
+  it("uses customer language in every available state", () => {
+    const cases = [
+      coverageNotice(build([], [])),
+      coverageNotice(build(rows(2, "MO", "craigslist"), ["MO"])),
+      coverageNotice(build([], ["MO"]), { scanning: true, states: ["MO"] }),
+      coverageNotice(unavailableCoverage("runner SQL timeout")),
+    ];
+    for (const notice of cases) {
+      expect(JSON.stringify(notice)).not.toMatch(/Zeus|SQL|RPC|runner|scrap/i);
+    }
+    expect(cases[0]?.headline).toContain("nationwide");
+  });
+
+  it("never acknowledges an old preference location as the current search area", () => {
+    const warming = { scanning: true, states: ["MO"] };
+    expect(coverageNotice(build([], ["TX"]), warming)?.headline).toBe(
+      "No recent listings for TX yet.",
+    );
+    expect(coverageNotice(build([], []), warming)?.headline).toBe(
+      "No recent listings for nationwide yet.",
+    );
   });
 });
