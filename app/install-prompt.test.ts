@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  INSTALL_PROMPT_DELAY_MS,
+  isDismissalActive,
+  isEngagedEnough,
   isIOSDevice,
   isInstallPromptHiddenPath,
 } from "@/components/InstallPrompt";
@@ -46,27 +47,53 @@ describe("install prompt", () => {
     ).toBe(false);
   });
 
-  it("stays off sign-in and onboarding screens", () => {
+  it("stays off sign-in, onboarding and screens with a verdict or primary action", () => {
     for (const p of [
       "/login",
       "/register",
       "/reset-password",
       "/auth/callback",
       "/onboarding",
-      "/onboarding/step-2",
+      "/deal/abc",
+      "/deal-check",
+      "/swipe",
     ]) {
       expect(isInstallPromptHiddenPath(p)).toBe(true);
     }
-    for (const p of ["/discover", "/deal/abc", "/scan", "/", "/loginfo"]) {
+    for (const p of [
+      "/discover",
+      "/scan",
+      "/saved",
+      "/",
+      "/dealer-network",
+      "/loginfo",
+    ]) {
       expect(isInstallPromptHiddenPath(p)).toBe(false);
     }
   });
 
-  it("is dismissible, remembered, and waits before showing", () => {
-    expect(source).toContain('aria-label="Dismiss install suggestion"');
-    expect(source).toContain("writeFlag(INSTALL_DISMISSED_KEY)");
+  it("never on the first visit: 2nd session or after a save/alert action", () => {
+    expect(isEngagedEnough(1, false)).toBe(false);
+    expect(isEngagedEnough(2, false)).toBe(true);
+    expect(isEngagedEnough(1, true)).toBe(true);
+    expect(source).toContain("export function markInstallEngagement()");
+  });
+
+  it("remembers a dismissal for 30 days (legacy flag still counts)", () => {
+    const now = Date.UTC(2026, 9, 10);
+    const day = 24 * 60 * 60 * 1000;
+    expect(isDismissalActive(null, now)).toBe(false);
+    expect(isDismissalActive("1", now)).toBe(true);
+    expect(isDismissalActive(String(now - 29 * day), now)).toBe(true);
+    expect(isDismissalActive(String(now - 31 * day), now)).toBe(false);
+  });
+
+  it("is a non-modal region, dismissable by a labelled 44px button and Escape", () => {
+    expect(source).toContain('role="region"');
+    expect(source).toContain('aria-label="Dismiss"');
+    expect(source).toContain('e.key === "Escape"');
     expect(source).toContain('"appinstalled"');
-    expect(INSTALL_PROMPT_DELAY_MS).toBeGreaterThanOrEqual(5000);
+    expect(source).not.toMatch(/\.focus\(/);
   });
 
   it("never blocks the page: only the card takes pointer events, tap targets are 44px", () => {
