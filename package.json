@@ -52,6 +52,7 @@
     "@sentry/nextjs": "^10.59.0",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.0",
+    "@tanstack/react-virtual": "^3.14.14",
     "@upstash/qstash": "^2.11.1",
     "@vercel/speed-insights": "^2.0.0",
     "@zxing/browser": "^0.2.0",
