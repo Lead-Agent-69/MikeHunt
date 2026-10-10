@@ -38,6 +38,7 @@ import {
   AUCTION_DB_SOURCES,
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
+import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
@@ -466,8 +467,9 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     locationState,
     locationZip: r.location_zip || undefined,
     active: r.active ?? true,
-    firstSeenAt: r.first_seen_at ? new Date(r.first_seen_at) : new Date(),
-    lastSeenAt: r.last_seen_at ? new Date(r.last_seen_at) : new Date(),
+    // Never invent now(): a missing timestamp must read "Freshness unknown", not "just now".
+    firstSeenAt: seenTimestampOrNull(r.first_seen_at ?? r.firstSeenAt),
+    lastSeenAt: seenTimestampOrNull(r.last_seen_at ?? r.lastSeenAt),
     sourceUrl: r.source_url || r.sourceUrl || "",
     seller,
     sellerType: sellerProof.sellerType || undefined,
@@ -768,8 +770,8 @@ function publicRowToVehicle(
     sellerContactUrl: contact.url,
     auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
     bidCount: rowBidCount(row),
-    firstSeenAt: row.scraped_at || new Date().toISOString(),
-    lastSeenAt: row.scraped_at || new Date().toISOString(),
+    firstSeenAt: seenTimestampOrNull(row.scraped_at),
+    lastSeenAt: seenTimestampOrNull(row.scraped_at),
     dataQuality: {
       score: quality.score,
       label: quality.label,

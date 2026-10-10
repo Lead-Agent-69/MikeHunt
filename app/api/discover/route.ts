@@ -56,6 +56,7 @@ import {
   redactListingForNonFlipDesk,
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
+import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
 
 // /api/discover — the meta-search/aggregator endpoint (CarGurus/Kayak style).
 // Pulls active deals, MERGES duplicates of the same car across sources by VIN (cheapest wins,
@@ -459,8 +460,8 @@ async function publicPreviewDeals(
           location_city: row.location_city,
           location_state: row.location_state,
           images: row.images || [],
-          first_seen_at: row.scraped_at || new Date().toISOString(),
-          last_seen_at: row.scraped_at || new Date().toISOString(),
+          first_seen_at: seenTimestampOrNull(row.scraped_at),
+          last_seen_at: seenTimestampOrNull(row.scraped_at),
           auction_end_at: row.auction_end || row.auction_end_at,
           profit_score: analysis.score,
           true_net_profit: analysis.profit,
