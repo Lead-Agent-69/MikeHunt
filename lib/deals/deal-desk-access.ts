@@ -171,11 +171,10 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
   if ("prediction" in out) out.prediction = safePrediction(card.prediction);
   // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
   const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);
+  // Always drop the raw snake_case blob: it carries profit / max bid even when safe costs exist.
+  delete out.deal_analysis;
   if (safe) out.dealAnalysis = safe;
-  else {
-    delete out.dealAnalysis;
-    delete out.deal_analysis;
-  }
+  else delete out.dealAnalysis;
   if (Array.isArray(card?.alsoOn)) {
     out.alsoOn = card.alsoOn.map((o: Record<string, any>) =>
       o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,

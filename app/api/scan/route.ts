@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
-import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  createServerComponentClient,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
@@ -56,13 +59,11 @@ const SCAN_CACHE_HEADERS = {
 // LAZY client — created at REQUEST time, never at module load. `next build` evaluates route modules
 // without the runtime env, and createClient("","") throws on an empty URL → that top-level call was
 // failing the whole build ("Failed to collect page data for /api/scan") and freezing every deploy.
-let _supabase: ReturnType<typeof createClient> | null = null;
+let _supabase: SupabaseClient | null = null;
 function db() {
-  if (!_supabase)
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    );
+  // Service-role server client: SCAN_SELECT reads economics columns the anon role is not granted
+  // (20261010020000_deals_column_grants.sql). The desk gate below decides what the caller sees.
+  if (!_supabase) _supabase = createServerComponentClient();
   return _supabase;
 }
 

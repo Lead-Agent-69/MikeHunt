@@ -999,31 +999,32 @@ export default function DealPage({
               .filter(Boolean)
               .join(" • ") || "Deal details"}
           </p>
-          {dealData?.deal?.sourceUrl && (
-            <a
-              href={dealData.deal.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {dealData?.deal?.sourceUrl && (
+              <a
+                href={dealData.deal.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+              >
+                View original listing
+                <span aria-hidden>↗</span>
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => setFindSimilarOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--amber)] hover:underline"
+              data-testid="find-similar-cta"
+              aria-label="Find similar vehicles in saved inventory"
             >
-              View original listing
-              <span aria-hidden>↗</span>
-            </a>
-          )}
+              <Search className="w-3.5 h-3.5" />
+              Find similar
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setFindSimilarOpen(true)}
-            className="border-[var(--b2)] text-[var(--t2)] font-bold text-xs h-9 rounded-xl flex items-center gap-1.5"
-            data-testid="find-similar-cta"
-          >
-            <Search className="w-3.5 h-3.5" />
-            Find similar
-          </Button>
           {/* Dealer desk toggle. Personal buyers stay on the saved mode. */}
           {store.userType === "dealer" && (
             <div
@@ -1788,6 +1789,8 @@ export default function DealPage({
                       type="button"
                       onClick={() => setFindSimilarOpen(true)}
                       className="text-xs font-bold text-[var(--amber)] hover:underline inline-flex items-center gap-1"
+                      data-testid="find-similar-cta-rail"
+                      aria-label="Find similar vehicles in saved inventory"
                     >
                       <Search className="w-3 h-3" />
                       Find similar
@@ -1859,6 +1862,20 @@ export default function DealPage({
         }}
       >
         <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFindSimilarOpen(true)}
+              className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm h-10 md:h-11 rounded-xl inline-flex items-center gap-1.5"
+              data-testid="find-similar-cta-bar"
+              aria-label="Find similar vehicles in saved inventory"
+            >
+              <Search className="w-3.5 h-3.5" />
+              Find similar
+            </Button>
+          </motion.div>
+
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
               variant="outline"

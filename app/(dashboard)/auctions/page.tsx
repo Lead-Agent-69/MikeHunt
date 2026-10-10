@@ -2,14 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { Ico } from "@/components/shared/Ico";
-import { createClientComponentClient } from "@/lib/supabase";
 import Link from "next/link";
 import { toast } from "sonner";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import { RefreshCw } from "lucide-react";
 
 export default function AuctionsPage() {
-  const supabase = createClientComponentClient();
   const [runLists, setRunLists] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -115,12 +113,14 @@ export default function AuctionsPage() {
     toast.info(`Caching ${runList.vins.length} vehicles for offline use...`);
     try {
       // Query the deals matching these VINs
-      const { data: deals, error } = await supabase
-        .from("deals")
-        .select("*")
-        .in("vin", runList.vins);
-
-      if (error) throw error;
+      // Through the API (desk-gated, explicit columns): the browser's anon/auth role can no
+      // longer select("*") on deals (column grants).
+      const res = await fetch(
+        `/api/deals/lane?vins=${encodeURIComponent((runList.vins || []).join(","))}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) throw new Error(`lane ${res.status}`);
+      const deals = ((await res.json())?.deals ?? []) as any[];
 
       // Save to localStorage under a specific key
       const cacheKey = `offline-runlist-${runList.id}`;
