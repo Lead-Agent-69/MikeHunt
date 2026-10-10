@@ -7,6 +7,7 @@ import Link from "next/link";
 import { createClientComponentClient } from "@/lib/supabase";
 import { Ico } from "@/components/shared/Ico";
 import { DealCard } from "@/components/shared/DealCard";
+import { AlertFeedback } from "@/components/alerts/AlertFeedback";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import {
   scanHrefForSavedSearch,
@@ -306,6 +307,13 @@ function ServerAlertGrid({
                 mileage={deal.mileage}
                 condition={deal.condition}
                 damageType={deal.damage_type}
+              />
+              <AlertFeedback
+                alertId={alert.id}
+                initial={
+                  typeof alert.feedback === "number" ? alert.feedback : null
+                }
+                hasSearch={Boolean(alert.search_id)}
               />
             </div>
           );

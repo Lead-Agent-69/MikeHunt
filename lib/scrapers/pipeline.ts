@@ -20,7 +20,10 @@ import {
 } from "@/lib/alerts/delivery-tracking";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
-import { withinMiles } from "@/lib/geo/distance";
+import {
+  matchesSavedSearch,
+  normalizeDeliveryMode,
+} from "@/lib/alerts/saved-search-match";
 import { cleanCity } from "@/lib/data/clean-location";
 import { getLocalWriteContext } from "./local-write-context";
 import { stableListingId } from "./local-cache";
@@ -640,6 +643,8 @@ async function matchUserSearches(deals: any[]): Promise<void> {
       notify_email: boolean;
       notify_sms: boolean;
       min_count: number;
+      /** Digest searches skip instant email/SMS; the daily digest picks them up from the inbox. */
+      digest: boolean;
       deal: any;
     };
 
@@ -647,51 +652,12 @@ async function matchUserSearches(deals: any[]): Promise<void> {
 
     for (const deal of deals) {
       for (const search of searches) {
-        let matched = true;
-
-        if (
-          search.make &&
-          search.make.toLowerCase() !== deal.make?.toLowerCase()
-        )
-          matched = false;
-        if (
-          search.model &&
-          search.model.toLowerCase() !== deal.model?.toLowerCase()
-        )
-          matched = false;
-        if (search.min_year && deal.year < search.min_year) matched = false;
-        if (search.max_year && deal.year > search.max_year) matched = false;
-        if (search.max_price && deal.ask_price > search.max_price)
-          matched = false;
-
-        // Profit gate (Saved Search Alerts): require the engine's net profit to clear the target.
-        if (
-          search.target_profit &&
-          Number(deal.true_net_profit ?? 0) < Number(search.target_profit)
-        ) {
-          matched = false;
-        }
-
-        // Verdict gate: only notify on engine-verdict GO deals when the search opts in.
-        if (search.require_go && deal.deal_verdict !== "go") matched = false;
-
-        // Radius gate: if the search sets a max distance and we know the dealer's home + the deal's
-        // coords, require the deal to fall within range. If either side lacks coordinates we DON'T
-        // gate on distance (avoid silently hiding deals we just couldn't place).
-        if (search.max_distance_miles && search.max_distance_miles > 0) {
-          const home = homeByUser.get(search.user_id);
-          if (home && deal.lat != null && deal.lng != null) {
-            if (
-              !withinMiles(
-                home,
-                { lat: deal.lat, lng: deal.lng },
-                Number(search.max_distance_miles),
-              )
-            ) {
-              matched = false;
-            }
-          }
-        }
+        // Rules, including the per-search precision setting, live in lib/alerts/saved-search-match.
+        const matched = matchesSavedSearch(
+          deal,
+          search,
+          homeByUser.get(search.user_id),
+        );
 
         if (matched) {
           matches.push({
@@ -703,6 +669,7 @@ async function matchUserSearches(deals: any[]): Promise<void> {
             notify_email: search.notify_email !== false,
             notify_sms: search.notify_sms === true,
             min_count: Math.max(1, Number(search.min_count) || 1),
+            digest: normalizeDeliveryMode(search.delivery_mode) === "digest",
             deal,
           });
         }
@@ -774,7 +741,7 @@ async function matchUserSearches(deals: any[]): Promise<void> {
         (freshPerSearch.get(m.search_id) || 0) + 1,
       );
     const notifiable = newMatches.filter(
-      (m) => (freshPerSearch.get(m.search_id) || 0) >= m.min_count,
+      (m) => !m.digest && (freshPerSearch.get(m.search_id) || 0) >= m.min_count,
     );
 
     // Send email/SMS only for newly-created inbox rows whose search opted in and cleared its threshold.
