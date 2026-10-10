@@ -48,8 +48,10 @@ export async function GET(request: NextRequest) {
     // 4. Sort by profit score descending
     const yearMin = year > 0 ? year - 2 : 1990;
     const yearMax = year > 0 ? year + 2 : 2030;
-    const priceMax = price > 0 ? price * 1.15 : 1000000;
-    const mileageMax = mileage > 0 ? mileage + 30000 : 300000;
+    // ask_price / mileage are integer columns: a fractional bound (90200 * 1.15 =
+    // 103730.00000000001) makes Postgres reject the filter with a 500.
+    const priceMax = price > 0 ? Math.round(price * 1.15) : 1000000;
+    const mileageMax = mileage > 0 ? Math.round(mileage + 30000) : 300000;
 
     let query = supabase
       .from("deals")

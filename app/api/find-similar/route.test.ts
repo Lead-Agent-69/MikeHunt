@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const select = vi.hoisted(() => vi.fn());
+const lte = vi.hoisted(() => vi.fn());
 const resolveCallerFlipDesk = vi.hoisted(() => vi.fn());
 
 // A full deals row, the way select("*") used to return it.
@@ -46,7 +47,11 @@ const fullRow = {
 
 function chain() {
   const q: any = {};
-  for (const m of ["eq", "ilike", "gte", "lte", "order"]) q[m] = () => q;
+  for (const m of ["eq", "ilike", "gte", "order"]) q[m] = () => q;
+  q.lte = (col: string, v: unknown) => {
+    lte(col, v);
+    return q;
+  };
   q.limit = async () => ({ data: [fullRow], error: null });
   return q;
 }
@@ -107,6 +112,7 @@ const req = () =>
 
 beforeEach(() => {
   select.mockReset();
+  lte.mockReset();
   resolveCallerFlipDesk.mockReset();
 });
 
@@ -204,5 +210,22 @@ describe("GET /api/find-similar no-store on every path", () => {
     for (let i = 0; i < 31; i++) last = await GET(r());
     expect(last!.status).toBe(429);
     expect(last!.headers.get("cache-control")).toBe("private, no-store");
+  });
+});
+
+describe("GET /api/find-similar integer bounds", () => {
+  it("rounds the ask_price bound (integer column) so Postgres never gets 103730.00000000001", async () => {
+    resolveCallerFlipDesk.mockResolvedValue(false);
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/find-similar?make=Ford&model=F-150&year=2020&price=90200&mileage=40000.5",
+        { headers: { "x-forwarded-for": "10.88.0.1" } },
+      ),
+    );
+    expect(res.status).toBe(200);
+    const bounds = Object.fromEntries(lte.mock.calls);
+    expect(bounds.ask_price).toBe(103730);
+    expect(Number.isInteger(bounds.ask_price)).toBe(true);
+    expect(Number.isInteger(bounds.mileage)).toBe(true);
   });
 });
