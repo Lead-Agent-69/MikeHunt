@@ -23,6 +23,7 @@ export const CI_CANDIDATE_SOURCES = [
   "offerup",
   "carvana",
   "autotempest",
+  "visor",
   "ebay_sold",
   "ebay_motors",
   "cars_com",

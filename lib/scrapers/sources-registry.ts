@@ -845,6 +845,22 @@ export const AGGREGATORS: SourceConfig[] = [
     notes: "Aggregates multiple sources.",
   },
   {
+    id: "visor",
+    name: "Visor.vin",
+    url: "https://visor.vin",
+    type: "aggregator",
+    category: "aggregator",
+    authRequired: "none",
+    description:
+      "Listing search engine. Captured from its public listing sitemap + schema.org JSON-LD (operator override).",
+    inventorySize: "6k fresh/day",
+    updateFrequency: "Daily",
+    priority: "P2",
+    status: "active",
+    notes:
+      "Terms bar unauthorized linking and competitive use: operator_override (Jonah 2026-10-10), not permission. No deep links (lib/multisite).",
+  },
+  {
     id: "lqdt-maestro",
     name: "LQDT Maestro",
     url: "https://www.lqdtmaestro.com",

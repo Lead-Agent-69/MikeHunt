@@ -153,7 +153,12 @@ export const SOURCE_ACCESS: Record<string, SourceAccess> = {
     ),
     mixed: true,
   },
-  autotempest: R(tos("autotempest")),
+  autotempest: O(
+    "Terms ban bots without written authorization; captured by operator decision (Jonah 2026-10-10). Search API refuses unsigned requests: recorded as challenged, never bypassed",
+  ),
+  visor: O(
+    "Terms bar unauthorized linking and competitive use; public listing sitemap + JSON-LD read via politeFetch by operator decision (Jonah 2026-10-10)",
+  ),
   publicsurplus: R(tos("publicsurplus")),
   govdeals: R(tos("govdeals")),
   allsurplus: R(tos("allsurplus")),
@@ -256,8 +261,15 @@ export function sourceAccessFor(
 export function accessClassFor(row: {
   source?: string | null;
   source_url?: string | null;
+  /** deals.options: an aggregator-discovered row carries options.discoveredVia. */
+  options?: { discoveredVia?: unknown } | null;
 }): AccessClass {
   const source = String(row.source || "").toLowerCase();
+  // A row found through an operator-override aggregator (Visor, AutoTempest) stays operator_override
+  // even when it is stored under the dealer's own URL and the independent_dealer source.
+  const via = String(row.options?.discoveredVia || "").toLowerCase();
+  if (via && SOURCE_ACCESS[via]?.access === "operator_override")
+    return "operator_override";
   const host = hostOf(row.source_url);
   const own = SOURCE_ACCESS[source];
   if (own?.access === "operator_override") return "operator_override";
@@ -280,6 +292,7 @@ export function accessClassFor(row: {
 export function photoCacheAllowed(row: {
   source?: string | null;
   source_url?: string | null;
+  options?: { discoveredVia?: unknown } | null;
 }): boolean {
   const c = accessClassFor(row);
   return c === "api" || c === "allowed";

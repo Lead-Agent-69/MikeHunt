@@ -55,6 +55,51 @@ export interface PoliteFetchOptions {
   maxRetryWaitMs?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Response body cap in bytes (default POLITE_MAX_BYTES, 5 MB). Bigger bodies are dropped. */
+  maxBytes?: number;
+}
+
+/** Default response size cap (env POLITE_MAX_BYTES, 5 MB). */
+export function politeMaxBytes(): number {
+  const n = Number(process.env.POLITE_MAX_BYTES);
+  return Number.isFinite(n) && n > 0 ? n : 5 * 1024 * 1024;
+}
+
+export class ResponseTooLargeError extends Error {
+  constructor(readonly limit: number) {
+    super(`response larger than ${limit} bytes`);
+    this.name = "ResponseTooLargeError";
+  }
+}
+
+/** Read a body as text, aborting once it passes `limit` bytes (Content-Length checked first). */
+export async function readCapped(res: Response, limit: number): Promise<string> {
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit) {
+    await res.body?.cancel().catch(() => {});
+    throw new ResponseTooLargeError(limit);
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => {});
+      throw new ResponseTooLargeError(limit);
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.byteLength;
+  }
+  return new TextDecoder().decode(buf);
 }
 
 export type PoliteSkipReason = "robots" | "breaker" | "invalid_url";
@@ -70,6 +115,8 @@ export interface PoliteResponse {
   skipped?: PoliteSkipReason;
   /** The site served a bot challenge / denial page. The domain is now paused. */
   challenge?: boolean;
+  /** The body was bigger than the size cap and was dropped. */
+  tooLarge?: boolean;
   headers?: Record<string, string>;
 }
 
@@ -201,7 +248,7 @@ export class PoliteCrawler {
           }
           if (res.status >= 500) return null;
           if (res.status >= 400) return ""; // no robots.txt → everything allowed
-          return await res.text();
+          return await readCapped(res, 512 * 1024);
         } catch {
           this.metrics.recordNetworkError(domain);
           return null;
@@ -252,6 +299,7 @@ export class PoliteCrawler {
     }
 
     const method = (opts.method || "GET").toUpperCase();
+    const maxBytes = opts.maxBytes ?? politeMaxBytes();
     const cacheable = method === "GET" && opts.body == null;
     const cached = cacheable ? this.cache.get(url) : undefined;
     if (
@@ -326,7 +374,14 @@ export class PoliteCrawler {
       }
 
       if (status >= 200 && status < 300) {
-        const body = await res.text();
+        let body: string;
+        try {
+          body = await readCapped(res, maxBytes);
+        } catch (error) {
+          if (error instanceof ResponseTooLargeError)
+            return { ...base, status, tooLarge: true, headers };
+          throw error;
+        }
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
           this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs());
@@ -348,7 +403,7 @@ export class PoliteCrawler {
       if (isBanSignal(status)) {
         this.breaker.recordBanSignal(domain, status, this.now());
       }
-      const body = await res.text().catch(() => "");
+      const body = await readCapped(res, Math.min(maxBytes, 256 * 1024)).catch(() => "");
       if (status === 403) {
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);

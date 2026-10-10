@@ -30,11 +30,15 @@ describe("operator-restored sources (default)", () => {
         ",",
       );
     const gated = preNinety.filter((id) => TOS_RESTRICTED_SOURCES[id]);
-    expect([...OPERATOR_RESTORED_SOURCES].sort()).toEqual(gated.sort());
+    // Plus visor, added by Jonah 2026-10-10 (operator_override in access-class.ts).
+    const addedLater = ["visor"];
+    expect([...OPERATOR_RESTORED_SOURCES].sort()).toEqual(
+      [...gated, ...addedLater].sort(),
+    );
     // Every restricted id is restored except cargurus, which was never in that list: its runner is
     // disabled because CarGurus serves a DataDome captcha we do not bypass. The terms record stays.
     expect(Object.keys(TOS_RESTRICTED_SOURCES).sort()).toEqual(
-      [...gated, "cargurus"].sort(),
+      [...gated, ...addedLater, "cargurus"].sort(),
     );
   });
 

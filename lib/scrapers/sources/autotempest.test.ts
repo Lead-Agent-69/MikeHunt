@@ -86,3 +86,40 @@ describe("parseAutotempest", () => {
     expect(parseAutotempest(null)).toEqual([]);
   });
 });
+
+import { autotempestRefusal } from "./autotempest";
+
+describe("autotempestRefusal (what the API returns in practice, 2026-10-10)", () => {
+  it("treats the unsigned-request refusal as a barrier, not as 0 results", () => {
+    expect(
+      autotempestRefusal({
+        status: -1,
+        errors: ["You are not authorized to access this resource."],
+      }),
+    ).toMatch(/refused: You are not authorized/);
+    expect(autotempestRefusal(null)).toBe("non-JSON answer");
+  });
+  it("lets a normal (even empty) results payload through", () => {
+    expect(autotempestRefusal({ status: 1, results: [] })).toBeNull();
+    expect(autotempestRefusal({ status: 0, results: [{}] })).toBeNull();
+  });
+  it("stores the origin URL as the link and AutoTempest only as provenance", () => {
+    const [row] = parseAutotempest({
+      status: 0,
+      results: [
+        {
+          id: "cs-1",
+          vin: "1FTRF18L5XNB57112",
+          year: "2019",
+          make: "Ford",
+          model: "F-150",
+          price: "$22,000",
+          url: "https://www.cars.com/vehicledetail/1/",
+          sourceName: "Cars.com",
+        },
+      ],
+    });
+    expect(row.source_url).toBe("https://www.cars.com/vehicledetail/1/");
+    expect((row as any).options).toMatchObject({ discoveredVia: "autotempest", originSite: "Cars.com" });
+  });
+});

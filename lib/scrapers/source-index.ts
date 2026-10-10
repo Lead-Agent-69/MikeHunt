@@ -48,6 +48,7 @@ export const IMPLEMENTED_SCRAPER_IDS: readonly string[] = [
   "ebay_sold",
   "curated_dealers",
   "autotempest",
+  "visor",
   "publicsurplus",
   "govdeals",
   "allsurplus",

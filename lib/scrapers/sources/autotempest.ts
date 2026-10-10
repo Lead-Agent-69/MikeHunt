@@ -12,6 +12,8 @@
 import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { getLocalWriteContext } from "../local-write-context";
+import { dropKnownListings } from "./aggregator-dedup";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 
@@ -110,13 +112,27 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
       ask_price: price,
       mileage: num(r.mileage),
       condition: titleToCondition(s(r.vehicleTitle)),
-      images: s(r.img) ? [String(r.img).replace(/^\/\//, "https://")] : [],
+      // https photo URLs only (Ren #321 nit)
+      images: s(r.img)
+        ? [String(r.img).replace(/^\/\//, "https://")].filter((u) => /^https:\/\//i.test(u))
+        : [],
       seller_type: /private/i.test(String(r.sellerType || ""))
         ? "private"
         : "dealer",
       seller: origin,
       location_city: city || undefined,
       location_state: state && state.length === 2 ? state : undefined,
+      // Persisted by the pipeline into deals.options: canonical link is the origin listing URL; the
+      // aggregator is provenance only.
+      ...({
+        options: {
+          discoveredVia: "autotempest",
+          originSite: origin,
+          sellerType: /private/i.test(String(r.sellerType || ""))
+            ? "private"
+            : "dealer",
+        },
+      } as Record<string, unknown>),
       metadata: {
         aggregator: "autotempest",
         origin_site: origin,
@@ -159,12 +175,42 @@ async function fetchPage(
     },
   });
   if (!res.ok) {
-    console.warn(`[Autotempest] ${q.make} ${q.model || ""} HTTP ${res.status}`);
+    const skipped = res.headers.get("x-polite-skipped");
+    console.warn(
+      `[Autotempest] ${q.make} ${q.model || ""} HTTP ${res.status}${skipped ? ` (${skipped})` : ""}`,
+    );
+    if (skipped === "challenge" || skipped === "breaker" || res.status === 403 || res.status === 429)
+      throw new AutotempestBarrier(skipped ? `polite ${skipped}` : `HTTP ${res.status}`, res.status);
     return { items: [], cursor: null };
   }
-  const json = await res.json();
+  const json = await res.json().catch(() => null);
+  const refusal = autotempestRefusal(json);
+  if (refusal) throw new AutotempestBarrier(refusal, res.status);
   const next = Array.isArray(json?.searchAfter) ? json.searchAfter : null;
   return { items: parseAutotempest(json), cursor: next };
+}
+
+/** AutoTempest refused or challenged the request. Stop the source for the run and record it. */
+export class AutotempestBarrier extends Error {
+  constructor(
+    readonly reason: string,
+    readonly status: number,
+  ) {
+    super(reason);
+  }
+}
+
+/**
+ * The search API answers an anonymous, unsigned request with `{"status":-1,"errors":["You are not
+ * authorized to access this resource."]}` (seen 2026-10-10 with our honest User-Agent). Its own web
+ * app signs each request with a token computed in its JS bundle; we do not compute or replay that
+ * token (that would be getting past an access control), so this is recorded as challenged.
+ */
+export function autotempestRefusal(json: any): string | null {
+  if (!json || typeof json !== "object") return "non-JSON answer";
+  if (Number(json.status) < 0 || (Array.isArray(json.errors) && json.errors.length))
+    return `refused: ${String((json.errors || [])[0] || `status ${json.status}`).slice(0, 120)}`;
+  return null;
 }
 
 // Page through one query via searchAfter until it runs dry, the cursor stops advancing, or we hit
@@ -221,16 +267,28 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
     stateZips[Math.floor(Math.random() * stateZips.length)] || "75201";
 
   const byId = new Map<string, Partial<Deal>>();
+  let barrier: AutotempestBarrier | null = null;
+  const onError = (label: string, e: unknown) => {
+    if (e instanceof AutotempestBarrier) {
+      barrier = e;
+      getLocalWriteContext()?.onAccessBarrier?.({
+        host: "www.autotempest.com",
+        status: e.status,
+        reason: e.reason,
+      });
+      console.warn(`[Autotempest] challenged (${e.reason}); stopping this source for the run`);
+      return;
+    }
+    console.warn(`[Autotempest] ${label} failed:`, (e as Error).message);
+  };
 
   // Pass 1 — NATIONAL: deep-paginated make/model queries for comp volume (mostly Cars.com/eBay).
   for (const q of QUERIES) {
+    if (barrier) break;
     try {
       await harvestQuery(q, nationalZip, byId, maxPagesPerQuery, 13000);
     } catch (e) {
-      console.warn(
-        `[Autotempest] national ${q.make} ${q.model || ""} failed:`,
-        (e as Error).message,
-      );
+      onError(`national ${q.make} ${q.model || ""}`, e);
     }
   }
 
@@ -238,21 +296,27 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
   // rotation (every planned metro); otherwise a random window of state seeds.
   for (const zip of autotempestRegionalZips()) {
     for (const make of REGIONAL_MAKES) {
+      if (barrier) break;
       try {
         await harvestQuery({ make }, zip, byId, 1, REGIONAL_RADIUS);
       } catch (e) {
-        console.warn(
-          `[Autotempest] regional ${make}@${zip} failed:`,
-          (e as Error).message,
-        );
+        onError(`regional ${make}@${zip}`, e);
       }
     }
   }
 
-  const deals = Array.from(byId.values());
+  const found = Array.from(byId.values());
+  if (!found.length && barrier) {
+    // Recorded as a failed run, never "success, 0 rows". Deep links keep working (lib/multisite).
+    throw new Error(
+      `challenged: autotempest.com ${(barrier as AutotempestBarrier).reason}; 0 rows (no bypass attempted)`,
+    );
+  }
+  // AutoTempest re-lists other sites: drop rows whose VIN or origin URL we already hold.
+  const { fresh: deals, dropped } = await dropKnownListings(found);
   const withState = deals.filter((d) => d.location_state).length;
   console.log(
-    `[Autotempest] Found ${deals.length} listings (${withState} with state)`,
+    `[Autotempest] Found ${found.length} listings, ${dropped} already held (VIN/URL), storing ${deals.length} (${withState} with state)`,
   );
   if (deals.length > 0) await upsertDeals(deals);
   return deals.length;

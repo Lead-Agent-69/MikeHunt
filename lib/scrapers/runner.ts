@@ -30,6 +30,7 @@ import { scrapeAllSurplus } from "./sources/allsurplus";
 import { scrapeMunicibid } from "./sources/municibid";
 import { scrapeGsaAuctions } from "./sources/gsa-auctions";
 import { scrapeAutotempest } from "./sources/autotempest";
+import { scrapeVisor } from "./sources/visor";
 import { scrapeEbaySold } from "./sources/ebay-sold";
 import { ScraperRegistry } from "./tools/registry";
 import { getSkipSources } from "./health";
@@ -366,6 +367,22 @@ export function createScraperRegistry(
     fn: () => scrapeAutotempest(),
     enabled: true,
     estimatedDealsPerRun: 400,
+  });
+
+  // Visor.vin — public listing sitemap + schema.org Vehicle JSON-LD on its public listing pages,
+  // read through politeFetch only. Operator override (Jonah 2026-10-10), not permission; see
+  // lib/scrapers/access-class.ts. Stored under the dealer's own listing URL, deduped by VIN/URL.
+  registry.register({
+    id: "visor",
+    name: "Visor.vin (listing sitemap)",
+    type: "marketplace",
+    priority: "medium",
+    frequencyMinutes: 720,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: () => scrapeVisor(),
+    enabled: true,
+    estimatedDealsPerRun: 100,
   });
 
   // PublicSurplus — gov/municipal surplus auctions (open, no login). Police/fleet cars + trucks

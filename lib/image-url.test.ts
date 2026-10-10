@@ -10,16 +10,16 @@ describe("image-url free-tier routing", () => {
     expect(galleryImageSrc(url, 2)).toBe(url);
   });
 
-  it("proxies Craigslist and Facebook hotlink hosts", () => {
+  it("never proxies Craigslist or Facebook photos: direct only", () => {
     const cl = "https://images.craigslist.org/00x00/photo.jpg";
     const fb = "https://scontent.xx.fbcdn.net/v/t1/photo.jpg";
-    expect(needsImageProxy(cl)).toBe(true);
-    expect(proxiedImage(cl)).toBe(
-      `/api/image/proxy?url=${encodeURIComponent(cl)}`,
-    );
-    expect(proxiedImage(fb)).toContain("/api/image/proxy?url=");
-    // Hotlink hosts still proxy every gallery frame (direct would fail).
-    expect(galleryImageSrc(cl, 3)).toContain("/api/image/proxy?url=");
+    const fb2 = "https://scontent-iad3-1.xx.fbcdn.net/v/t1/photo.jpg";
+    for (const u of [cl, fb, fb2]) {
+      expect(needsImageProxy(u)).toBe(false);
+      expect(proxiedImage(u)).toBe(u);
+      expect(galleryImageSrc(u, 0)).toBe(u);
+      expect(galleryImageSrc(u, 3)).toBe(u);
+    }
   });
 
   it("passes through local, data, already-proxied, and our Storage URLs", () => {
