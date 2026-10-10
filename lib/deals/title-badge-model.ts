@@ -65,6 +65,29 @@ function damageFrom(
   return null;
 }
 
+const HTML_TONES: Readonly<Record<TitleBadgeTone, [string, string]>> = {
+  green: ["#dcfce7", "#15803d"],
+  amber: ["#fef3c7", "#b45309"],
+  red: ["#fee2e2", "#b91c1c"],
+  muted: ["#f1f1f1", "#555555"],
+};
+
+const escHtml = (v: unknown) =>
+  String(v ?? "").replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!,
+  );
+
+/** The same badge as an HTML string, for Leaflet popups (map pins). */
+export function titleBadgeHtml(model: TitleBadgeModel): string {
+  const chip = (text: string, [bg, fg]: [string, string], dashed = false) =>
+    `<span style="display:inline-block;margin:4px 4px 0 0;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;background:${bg};color:${fg}${dashed ? ";border:1px dashed #bbb" : ""}">${escHtml(text)}</span>`;
+  const sub: [string, string] = ["#ffedd5", "#c2410c"];
+  return `<div title="${escHtml(model.hint)}">${chip(model.label, HTML_TONES[model.tone], model.weak)}${
+    model.partsOnly ? chip(PARTS_ONLY_LABEL, sub) : ""
+  }${model.damage ? chip(TITLE_DAMAGE_LABELS[model.damage], sub) : ""}</div>`;
+}
+
 export function normalizeTitleSource(value: unknown): TitleSource | null {
   return value === "listing" || value === "source_default" ? value : null;
 }
