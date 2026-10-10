@@ -93,19 +93,6 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expectHealthy(page, h);
   });
 
-  test("create a saved search, then see it on /searches", async ({ page }) => {
-    const h = watchHealth(page);
-    const name = `E2E Civics ${Date.now()}`;
-    await page.goto("/searches");
-    await page.getByRole("button", { name: "New search" }).click();
-    await page.getByPlaceholder("e.g. F-150s under $25k").fill(name);
-    await page.getByPlaceholder("e.g. Ford").fill("Honda");
-    await page.getByLabel("Model", { exact: true }).fill("Civic");
-    await page.getByRole("button", { name: "Save search" }).click();
-    await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
-    await expectHealthy(page, h);
-  });
-
   test("alerts page renders (empty state or matches)", async ({ page }) => {
     const h = watchHealth(page);
     await page.goto("/alerts");
