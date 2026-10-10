@@ -30,6 +30,7 @@ vi.mock("@/lib/supabase", () => ({
         "is",
         "in",
         "not",
+        "neq",
         "order",
         "limit",
       ])
@@ -44,7 +45,9 @@ vi.mock("@/lib/supabase", () => ({
             ? resolve(state.gov)
             : state.missingChannel &&
                 calls.some(
-                  (c) => c.method === "is" && c.args[0] === "sale_channel",
+                  (c) =>
+                    c.method === "or" &&
+                    String(c.args[0]).startsWith("sale_channel."),
                 )
               ? resolve({
                   data: null,
@@ -183,15 +186,15 @@ describe("source-reported sold evidence", () => {
       state.calls[1].some((c) => c.method === "eq" && c.args[0] === "basis"),
     ).toBe(false);
   });
-  it("retail comps exclude gov / fleet / surplus rows (sale_channel IS NULL)", async () => {
+  it("retail comps exclude gov / fleet / surplus rows (sale_channel NULL or ebay)", async () => {
     await GET(request());
     expect(state.calls[0]).toContainEqual({
       method: "eq",
       args: ["basis", "sold"],
     });
     expect(state.calls[0]).toContainEqual({
-      method: "is",
-      args: ["sale_channel", null],
+      method: "or",
+      args: ["sale_channel.is.null,sale_channel.eq.ebay"],
     });
   });
   it("still answers before the sale_channel migration is applied", async () => {
@@ -200,7 +203,8 @@ describe("source-reported sold evidence", () => {
     expect(response.status).toBe(200);
     expect(
       state.calls[1].some(
-        (c) => c.method === "is" && c.args[0] === "sale_channel",
+        (c) =>
+          c.method === "or" && String(c.args[0]).startsWith("sale_channel."),
       ),
     ).toBe(false);
     expect(state.calls[1]).toContainEqual({
@@ -255,6 +259,10 @@ describe("source-reported sold evidence", () => {
     expect(lane).toContainEqual({
       method: "not",
       args: ["sale_channel", "is", null],
+    });
+    expect(lane).toContainEqual({
+      method: "neq",
+      args: ["sale_channel", "ebay"],
     });
     expect(lane.find((x) => x.method === "select")!.args[0]).toContain(
       "attribution",

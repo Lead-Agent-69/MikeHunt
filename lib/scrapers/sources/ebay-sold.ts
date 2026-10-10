@@ -610,6 +610,9 @@ export function soldDelayMs(random = Math.random): number {
   return Math.round(base + base * 0.5 * random());
 }
 
+/** Source credit stored with each eBay sold row (sold_listings.attribution). */
+export const EBAY_SOLD_ATTRIBUTION = "eBay completed listing (ebay.com)";
+
 /** Map a parsed row to a sold_listings insert row (basis 'sold', sale_channel 'ebay'). */
 export function soldInsertRow(r: SoldRow) {
   return {
@@ -630,15 +633,18 @@ export function soldInsertRow(r: SoldRow) {
     location_state: r.location_state ?? null,
     basis: "sold",
     sale_channel: "ebay",
+    // #316's sold_listings_gov_attribution requires a credit on every row with a sale_channel.
+    attribution: EBAY_SOLD_ATTRIBUTION,
     location_city: r.location_city ?? null,
     condition: r.condition ?? null,
     title_status: r.title_status ?? null,
   };
 }
 
-/** Columns added by 20261010500000 (and sale_channel by 20261010410000). */
+/** Columns added by 20261010500000 (and sale_channel / attribution by 20261010410000). */
 export const SOLD_DETAIL_COLUMNS = [
   "sale_channel",
+  "attribution",
   "location_city",
   "condition",
   "title_status",

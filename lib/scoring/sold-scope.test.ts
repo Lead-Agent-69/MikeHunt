@@ -13,17 +13,18 @@ function fakeQuery() {
   const q: any = {
     eq: (...a: unknown[]) => (calls.push(["eq", ...a]), q),
     is: (...a: unknown[]) => (calls.push(["is", ...a]), q),
+    or: (...a: unknown[]) => (calls.push(["or", ...a]), q),
   };
   return { q, calls };
 }
 
 describe("retail sold scope", () => {
-  it("retail = basis 'sold' AND sale_channel IS NULL", () => {
+  it("retail = basis 'sold' AND (sale_channel IS NULL OR 'ebay')", () => {
     const { q, calls } = fakeQuery();
     applyRetailSoldScope(q, { basis: true, retailOnly: true });
     expect(calls).toEqual([
       ["eq", "basis", "sold"],
-      ["is", "sale_channel", null],
+      ["or", "sale_channel.is.null,sale_channel.eq.ebay"],
     ]);
   });
 
@@ -79,6 +80,10 @@ describe("retail sold scope", () => {
       isRetailSoldRow({ basis: "last_bid", sale_channel: "gov_fleet_auction" }),
     ).toBe(false);
     expect(isRetailSoldRow({ basis: "removed" })).toBe(false);
+    expect(isRetailSoldRow({ basis: "sold", sale_channel: "ebay" })).toBe(true);
+    expect(isRetailSoldRow({ basis: "removed", sale_channel: "ebay" })).toBe(
+      false,
+    );
   });
 });
 

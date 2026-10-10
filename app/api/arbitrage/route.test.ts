@@ -54,6 +54,8 @@ function tables(t: Tables) {
     for (const m of ["select", "eq", "in", "is", "gte", "lte", "gt", "order"])
       q[m] = () => q;
     q.or = (arg: string) => {
+      // the retail sale_channel scope (lib/scoring/sold-scope) is its own `or`, not the model match
+      if (arg.startsWith("sale_channel.")) return q;
       orArgs.push(arg);
       return q;
     };

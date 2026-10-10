@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
       .eq("country_code", "US")
       .in("basis", ["sold", "last_bid"])
       .not("sale_channel", "is", null)
+      .neq("sale_channel", "ebay") // eBay sales are retail comps, not a gov lane
       .gt("sold_price", 0)
       .gte("sold_at", soldWindowCutoffIso())
       .lte("sold_at", new Date().toISOString())

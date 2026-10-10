@@ -55,6 +55,7 @@ describe("eBay sold capture detail", () => {
     expect(soldInsertRow(r)).toMatchObject({
       basis: "sold",
       sale_channel: "ebay",
+      attribution: "eBay completed listing (ebay.com)",
       source: "ebay_motors",
       source_item_id: "315000000001",
       location_city: "Houston",

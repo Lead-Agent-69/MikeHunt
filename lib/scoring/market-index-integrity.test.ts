@@ -29,7 +29,7 @@ function client(read: (table: string, from: number) => any) {
   return {
     from(table: string) {
       const q: any = {};
-      for (const method of ["select", "eq", "is", "gt", "lt", "gte", "order"])
+      for (const method of ["select", "eq", "is", "or", "gt", "lt", "gte", "order"])
         q[method] = () => q;
       q.range = async (from: number) => read(table, from);
       return q;

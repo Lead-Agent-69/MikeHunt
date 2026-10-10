@@ -13,7 +13,22 @@
 -- Ordering: lands after #264 (130000), #282 (146000) and #302 (410000). sold_listings stays
 -- server-only (146000); new columns inherit the table's privileges, and nothing here grants any.
 
+-- eBay sold detail for sold_listings. Applies AFTER 20261010410000 (#316: basis last_bid, sale_channel,
+-- attribution, gov lanes) and re-adds its sale_channel CHECK with 'ebay' included. eBay rows are retail
+-- sales: readers count basis='sold' AND (sale_channel IS NULL OR sale_channel='ebay') as retail comps
+-- (lib/scoring/sold-scope). Every eBay row carries an attribution, so #316's gov_attribution CHECK holds.
 BEGIN;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sold_listings' AND column_name = 'attribution'
+  ) THEN
+    RAISE EXCEPTION 'apply 20261010410000 (sold_listings attribution / sale_channel) before 20261010500000';
+  END IF;
+END
+$$;
 
 ALTER TABLE public.sold_listings
   ADD COLUMN IF NOT EXISTS sale_channel TEXT,
@@ -47,7 +62,7 @@ COMMENT ON COLUMN public.sold_listings.condition IS
 COMMENT ON COLUMN public.sold_listings.title_status IS
   'Title brand stated in the listing (clean / salvage / rebuilt / flood / lemon). NULL = not stated.';
 COMMENT ON COLUMN public.sold_listings.sale_channel IS
-  'Where the sale happened: ebay, or a government impound / fleet / surplus auction. NULL for legacy rows.';
+  'Where the sale happened. NULL (legacy) and ebay are retail sales and count as retail comps; gov_impound_auction / gov_fleet_auction / gov_surplus_auction are a separate attributed lane.';
 
 -- Self-check: the columns and constraints exist, and once #282 (146000) is applied the table is still
 -- unreadable and unwritable for anon / authenticated.

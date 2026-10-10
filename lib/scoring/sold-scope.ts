@@ -1,11 +1,13 @@
 // lib/scoring/sold-scope.ts
 // Which sold_listings rows a reader may use.
 //
-//   retail comps (medians, averages, arbitrage, valuations): basis = 'sold' AND sale_channel IS NULL.
+//   retail comps (medians, averages, arbitrage, valuations): basis = 'sold' AND (sale_channel IS NULL
+//     OR sale_channel = 'ebay'). eBay completed sales are retail prices (migration 20261010500000).
 //     Gov impound / fleet / surplus sales (Norfolk, Seattle, GovDeals/AllSurplus sold lots) carry a
 //     sale_channel and never count as retail prices. GSA rows are basis = 'last_bid' and never count
 //     as sales at all.
-//   gov lane (shown separately, always with its attribution): basis = 'sold' AND sale_channel set.
+//   gov lane (shown separately, always with its attribution): basis = 'sold' AND sale_channel set
+//     and not a retail channel.
 //   closing bids (GSA, shown separately with the CC BY credit): basis = 'last_bid'.
 //
 // Rollout: readers can ship before migrations 20261010130000 (basis) / 20261010410000 (sale_channel)
@@ -19,10 +21,19 @@ type PgError =
   | null
   | undefined;
 
+/** sale_channel values that are retail sales and count as retail comps (NULL = legacy retail rows). */
+export const RETAIL_SALE_CHANNELS = ["ebay"] as const;
+
+/** PostgREST `or` filter for the retail channels: sale_channel IS NULL OR one of RETAIL_SALE_CHANNELS. */
+export const RETAIL_CHANNEL_OR = [
+  "sale_channel.is.null",
+  ...RETAIL_SALE_CHANNELS.map((c) => `sale_channel.eq.${c}`),
+].join(",");
+
 export interface SoldScope {
   /** Filter basis = 'sold' (false only when the basis column doesn't exist yet). */
   basis: boolean;
-  /** Filter sale_channel IS NULL (false only when the column doesn't exist yet). */
+  /** Filter to retail channels (false only when the sale_channel column doesn't exist yet). */
   retailOnly: boolean;
 }
 
@@ -38,18 +49,19 @@ export function isMissingSaleChannelColumn(error: PgError): boolean {
 }
 
 /** Apply the retail-comp filters to a PostgREST query builder. */
-export function applyRetailSoldScope<Q extends { eq: any; is: any }>(
+// A separate `or` param is ANDed with any other `or` on the query (e.g. the model match).
+export function applyRetailSoldScope<Q extends { eq: any; or: any }>(
   q: Q,
   scope: SoldScope,
 ): Q {
   let out: any = q;
   if (scope.basis) out = out.eq("basis", SOLD_BASIS);
-  if (scope.retailOnly) out = out.is("sale_channel", null);
+  if (scope.retailOnly) out = out.or(RETAIL_CHANNEL_OR);
   return out as Q;
 }
 
 /**
- * Run a retail sold-comp read: basis = 'sold' AND sale_channel IS NULL, dropping a filter only when
+ * Run a retail sold-comp read: basis = 'sold' AND a retail sale_channel, dropping a filter only when
  * its column is missing (migration not applied yet). Any other error is returned untouched.
  */
 export async function withRetailSold<R extends { error: PgError }>(
@@ -70,10 +82,14 @@ export async function withRetailSold<R extends { error: PgError }>(
   return res;
 }
 
-/** In-memory guard for rows already loaded: retail only when sold and no sale_channel. */
+/** In-memory guard for rows already loaded: retail only when sold and a retail (or no) sale_channel. */
 export function isRetailSoldRow(row: {
   basis?: string | null;
   sale_channel?: string | null;
 }): boolean {
-  return (row.basis == null || row.basis === SOLD_BASIS) && !row.sale_channel;
+  return (
+    (row.basis == null || row.basis === SOLD_BASIS) &&
+    (!row.sale_channel ||
+      (RETAIL_SALE_CHANNELS as readonly string[]).includes(row.sale_channel))
+  );
 }

@@ -51,6 +51,9 @@ describe("lowFence (Tukey q1−1.5·IQR — adaptive per-market outlier floor)",
           is() {
             return query;
           },
+          or() {
+            return query;
+          },
           order() {
             return query;
           },
