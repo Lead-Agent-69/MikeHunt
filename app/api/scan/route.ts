@@ -49,6 +49,7 @@ import {
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import { freshnessFields, sortLiveFirst } from "@/lib/deals/freshness";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
@@ -495,6 +496,13 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
       label: quality.label,
       missing: quality.missing,
     },
+    // live / stale / frozen (terms-gated, unrefreshed) / ended — cards label non-live rows.
+    ...freshnessFields({
+      source: r.source,
+      sourceUrl: r.source_url || r.sourceUrl,
+      lastSeenAt: r.last_seen_at ?? r.lastSeenAt,
+      auctionEndAt,
+    }),
   };
   // Placeholder only: GET rebuilds trustExplanation with the caller's desk and filters.
   return {
@@ -780,6 +788,12 @@ function publicRowToVehicle(
     bidCount: rowBidCount(row),
     firstSeenAt: seenTimestampOrNull(row.scraped_at),
     lastSeenAt: seenTimestampOrNull(row.scraped_at),
+    ...freshnessFields({
+      source: row.source,
+      sourceUrl: row.source_url,
+      lastSeenAt: row.scraped_at,
+      auctionEndAt: row.auction_end || row.auction_end_at || row.auctionEndAt,
+    }),
     dataQuality: {
       score: quality.score,
       label: quality.label,
@@ -1322,7 +1336,8 @@ export async function GET(req: NextRequest) {
     trustRanked || state
       ? sortScanRows(dRows, sort, state, { includeProfit: flipDesk })
       : dRows;
-  const sorted = ranked;
+  // Live rows first within the page; frozen / stale / ended stay visible but labeled, after them.
+  const sorted = sortLiveFirst(ranked, (row: any) => row.freshness?.state);
 
   // Profit, max bid, and seller contact only go to a saved reseller / dealer desk.
   // Rebuild trustExplanation AFTER redaction so reason strings cannot quote stripped fields

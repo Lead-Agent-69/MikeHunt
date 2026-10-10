@@ -1,3 +1,5 @@
+import type { DealFreshness } from "@/lib/deals/freshness";
+
 import type { DealGrade } from "./DealGradeBadge";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 
@@ -69,6 +71,10 @@ export interface DiscoveryDeal {
   firstSeenAt?: string;
   /** Freshness proof: when the source/importer last confirmed this listing still existed. */
   lastSeenAt?: string;
+  /** live / stale / frozen / ended — set by the API (lib/deals/freshness). */
+  freshness?: DealFreshness;
+  stale?: boolean;
+  lastUpdatedAt?: string | null;
   /** Optional context line shown on the card (e.g. "32 mi from you", win-pattern reason). */
   winReason?: string;
   /** Why this result appears for the active buyer scope. */

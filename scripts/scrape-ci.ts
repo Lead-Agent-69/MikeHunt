@@ -117,6 +117,16 @@ async function pruneStaleDeals(): Promise<void> {
     .eq("active", true)
     .lt("last_seen_at", days(30));
 
+  // 1b) Demote ended auctions (reversible), matching the upsert rule (isWithinAuctionWindow): a
+  // lot whose auction_end_at has passed is not purchasable inventory. If a source relists it with a
+  // new end time, the upsert flips it back to active.
+  const { count: ended } = await sb
+    .from("deals")
+    .update({ active: false }, { count: "exact" })
+    .eq("active", true)
+    .not("auction_end_at", "is", null)
+    .lt("auction_end_at", new Date().toISOString());
+
   // 2) Collect deals a dealer has touched — these are NEVER deleted.
   const protectedIds = new Set<string>();
   for (const t of [
@@ -153,7 +163,7 @@ async function pruneStaleDeals(): Promise<void> {
     if (!error) deleted += chunk.length;
   }
   console.log(
-    `🧹 retention: demoted ${demoted ?? 0} stale, pruned ${deleted} dead listings, protected ${protectedIds.size} saved`,
+    `🧹 retention: demoted ${demoted ?? 0} stale + ${ended ?? 0} ended auctions, pruned ${deleted} dead listings, protected ${protectedIds.size} saved`,
   );
 }
 

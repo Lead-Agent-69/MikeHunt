@@ -58,6 +58,21 @@ describe("first-screen listing facts", () => {
     expect(html).toContain("0 mi");
     expect(html).not.toContain("Asking price");
   });
+  it("labels a frozen copart amount as the last recorded price, not a current bid", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          source: "copart",
+          askPrice: 4500,
+          sourceUrl: "https://www.copart.com/lot/1",
+          lastSeenAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+        },
+      }),
+    );
+    expect(html).toContain("Last recorded price");
+    expect(html).toContain("not live");
+    expect(html).not.toContain("Current bid");
+  });
   it("keeps incomplete purchase evidence visible before the photo", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {

@@ -87,7 +87,8 @@ export async function GET(req: NextRequest) {
       id, year, make, model, trim, vin, mileage, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, recommended_max_bid,
       location_city, location_state, images, source, source_url, options,
-      condition, damage_type, buy_now_price, auction_end_at, deal_analysis
+      condition, damage_type, buy_now_price, auction_end_at, deal_analysis,
+      last_seen_at
     `;
 
   const buildQuery = (positiveOnly: boolean) => {
@@ -224,7 +225,15 @@ export async function GET(req: NextRequest) {
       buyNowPrice: deal.buy_now_price,
       dealVerdict: deal.deal_verdict,
       dealAnalysis: deal.deal_analysis,
+      sourceUrl: deal.source_url,
+      lastSeenAt: deal.last_seen_at ?? null,
+      auctionEndAt: deal.auction_end_at ?? null,
     });
+  // A "best buy" must be purchasable now: drop frozen / stale / ended rows whenever a live one exists.
+  const liveRows = rows.filter(
+    (deal: any) => evidenceFor(deal).state !== "not_live",
+  );
+  if (liveRows.length > 0) rows = liveRows;
   const verifiedRows = rows.filter(
     (deal: any) => evidenceFor(deal).acquisitionReady,
   );

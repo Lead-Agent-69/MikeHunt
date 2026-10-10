@@ -1,6 +1,7 @@
 "use client";
 
 import { zipToState } from "@/lib/geo/zip-state";
+import { sortLiveFirst, type DealFreshness } from "@/lib/deals/freshness";
 import React, {
   useState,
   useEffect,
@@ -141,6 +142,7 @@ interface ScanResult {
   bidCount?: number;
   firstSeenAt?: string | Date;
   lastSeenAt?: string | Date;
+  freshness?: DealFreshness;
   imageUrl?: string;
   vin?: string;
   sourceUrl?: string;
@@ -380,6 +382,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     bidCount: (deal as any).bidCount,
     firstSeenAt: deal.firstSeenAt,
     lastSeenAt: deal.lastSeenAt,
+    freshness: (deal as any).freshness,
     imageUrl: images[0],
     vin: deal.vin,
     sourceUrl: deal.sourceUrl,
@@ -4291,6 +4294,11 @@ function ScanPageInner() {
     } else {
       // default: profit (descending)
       sorted.sort((a, b) => (b.profitEstimate ?? 0) - (a.profitEstimate ?? 0));
+    }
+    // Live inventory first (stable), so frozen / stale / ended rows stay visible but labeled below
+    // it. An explicit price sort is left as the user asked.
+    if (sort !== "price") {
+      return sortLiveFirst(sorted, (row: ScanResult) => row.freshness?.state);
     }
     return sorted;
   }, [results, search, sort, category]);

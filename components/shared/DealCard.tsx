@@ -18,6 +18,7 @@ import {
 import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { sellerTypeLabel } from "@/lib/sources/source-meta";
+import { dealFreshness } from "@/lib/deals/freshness";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -134,7 +135,16 @@ export const DealCard = memo(function DealCard({
     ? new Date(lastSeenAt).toLocaleDateString()
     : null;
   // Age from first_seen, re-check from last_seen — never call an old re-scraped listing new.
-  const freshnessText = listingFreshnessLabel({ firstSeenAt, lastSeenAt });
+  // Frozen (terms-gated, unrefreshed), stale and ended rows say so instead of a freshness line.
+  const freshness = dealFreshness({
+    source,
+    sourceUrl,
+    lastSeenAt,
+    auctionEndAt,
+  });
+  const freshnessText = freshness.live
+    ? listingFreshnessLabel({ firstSeenAt, lastSeenAt })
+    : freshness.label;
   const auctionEndText = auctionEndAt
     ? new Date(auctionEndAt).toLocaleDateString()
     : null;
@@ -496,7 +506,7 @@ export const DealCard = memo(function DealCard({
         >
           <div>
             <p className="text-[10px] uppercase text-[var(--t4)] font-semibold mb-1">
-              {copy.priceLabel(source)}
+              {freshness.live ? copy.priceLabel(source) : "Last recorded price"}
             </p>
             <Mono className="text-xl font-extrabold text-[var(--t1)]">
               {askPrice > 0 ? `$${askPrice.toLocaleString()}` : "Not reported"}
@@ -517,7 +527,11 @@ export const DealCard = memo(function DealCard({
             )}
           </div>
         </div>
-        <p className="text-xs leading-relaxed text-[var(--t3)]">
+        <p
+          className="text-xs leading-relaxed text-[var(--t3)]"
+          data-testid="dealcard-freshness"
+          style={freshness.live ? undefined : { color: "var(--amber)" }}
+        >
           {freshnessText}
           {!recentSoldEvidence ? " · Sold comparisons not verified" : ""}
         </p>

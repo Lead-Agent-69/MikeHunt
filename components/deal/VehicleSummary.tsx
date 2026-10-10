@@ -1,4 +1,5 @@
 import { buyTerm } from "@/lib/deal-terms";
+import { dealFreshness, type DealFreshness } from "@/lib/deals/freshness";
 
 type ListingFacts = {
   year?: number;
@@ -17,6 +18,8 @@ type ListingFacts = {
   hasKeys?: boolean | null;
   lastSeenAt?: string;
   auctionEndAt?: string;
+  sourceUrl?: string;
+  freshness?: DealFreshness;
   decisionEvidence?: { acquisitionReady?: boolean; label?: string };
 };
 
@@ -44,6 +47,19 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
   const title =
     [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
     "Vehicle listing";
+  // Frozen (terms-gated, unrefreshed), stale and ended rows show the last recorded price, never a
+  // current bid or asking price.
+  // Only judged when the row carries a seen time or end time (same rule as the decision guard).
+  const freshness: Pick<DealFreshness, "live" | "label"> =
+    deal.freshness ??
+    (deal.lastSeenAt === undefined && deal.auctionEndAt === undefined
+      ? { live: true, label: "" }
+      : dealFreshness({
+          source: deal.source,
+          sourceUrl: deal.sourceUrl,
+          lastSeenAt: deal.lastSeenAt,
+          auctionEndAt: deal.auctionEndAt,
+        }));
   const facts = [
     [
       "Location",
@@ -79,11 +95,21 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
-            {buyTerm(deal.source).priceLabel}
+            {freshness.live
+              ? buyTerm(deal.source).priceLabel
+              : "Last recorded price"}
           </p>
           <p className="text-xl font-bold text-[var(--t1)]">
             {reportedMoney(deal.askPrice)}
           </p>
+          {!freshness.live && (
+            <p
+              data-testid="vehicle-summary-not-live"
+              className="text-xs font-semibold text-[var(--amber-d)]"
+            >
+              {freshness.label}
+            </p>
+          )}
         </div>
       </div>
       {deal.decisionEvidence?.acquisitionReady === false && (
