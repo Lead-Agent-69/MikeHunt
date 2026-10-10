@@ -274,7 +274,7 @@ export default function SearchesPage() {
         <button
           onClick={() => setIsCreating(!isCreating)}
           disabled={Boolean(busy)}
-          className="flex min-h-11 items-center gap-2 px-4 py-2 rounded-[var(--r3)] font-bold text-[var(--on-accent)] transition-all shrink-0"
+          className="flex min-h-11 items-center gap-2 px-4 py-2 rounded-lg font-bold text-[var(--on-accent)] transition-all shrink-0"
           style={{ background: "var(--amber)" }}
         >
           <Ico name={isCreating ? "x" : "plus"} size={16} />

@@ -99,9 +99,9 @@ export default function UpgradePage() {
       {saved && (
         <p
           role="status"
-          className="flex items-center gap-2 text-sm text-[var(--green)]"
+          className="flex items-center gap-2 text-sm text-[var(--t2)]"
         >
-          <Check className="h-4 w-4" aria-hidden="true" />
+          <Check className="h-4 w-4 text-[var(--green)]" aria-hidden="true" />
           Free access and workspace choice confirmed.
         </p>
       )}
