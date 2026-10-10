@@ -25,6 +25,10 @@ import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
 import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
+import {
+  isSourceLandingPage,
+  sourceLinkLabel,
+} from "@/lib/sources/listing-link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -201,7 +205,7 @@ function PersonalListingLead({ deal }: { deal: any }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
           >
-            Original listing
+            {sourceLinkLabel(deal.sourceUrl)}
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
           <p className="mt-1 text-xs text-[var(--t5)]">
@@ -377,7 +381,7 @@ function DecisionCommandPanel({
                 rel="noopener noreferrer"
                 className="interactive-surface premium-focus inline-flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-xs font-black text-[var(--t2)]"
               >
-                Original listing
+                {sourceLinkLabel(deal.sourceUrl)}
                 <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             )}
@@ -992,7 +996,7 @@ export default function DealPage({
               rel="noopener noreferrer"
               className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
             >
-              View original listing
+              {sourceLinkLabel(dealData.deal.sourceUrl)}
               <span aria-hidden>↗</span>
             </a>
           )}
@@ -1225,7 +1229,9 @@ export default function DealPage({
               <p className="mt-2 text-[11px] leading-relaxed text-[var(--t5)]">
                 {sourceHealth?.nextAction ||
                   (serverDeal.sourceUrl
-                    ? "Direct source link is available for verification."
+                    ? isSourceLandingPage(serverDeal.sourceUrl)
+                      ? "Only the seller website is saved. Confirm the exact vehicle with the seller."
+                      : "Listing link is available for verification."
                     : "No direct source link was saved for this listing.")}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -1250,7 +1256,7 @@ export default function DealPage({
                     rel="noopener noreferrer"
                     className="rounded-[var(--r1)] bg-[var(--t1)] px-2.5 py-1.5 text-[11px] font-black text-[var(--s0)]"
                   >
-                    Original listing
+                    {sourceLinkLabel(serverDeal.sourceUrl)}
                   </a>
                 )}
               </div>

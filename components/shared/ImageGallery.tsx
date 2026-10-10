@@ -17,6 +17,7 @@ import {
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
 import { galleryImageSrc } from "@/lib/image-url";
+import { sourceLinkLabel } from "@/lib/sources/listing-link";
 
 // Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
 // rather than flying in from a side the user didn't ask for.
@@ -328,7 +329,7 @@ export function ImageGallery({
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-1.5 py-2.5 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)] text-sm font-bold text-[var(--t2)] hover:border-[var(--b3)] hover:text-[var(--t1)] transition-colors"
           >
-            <Ico name="external" size={15} /> View original listing ↗
+            <Ico name="external" size={15} /> {sourceLinkLabel(sourceUrl)}
           </a>
         )}
       </div>

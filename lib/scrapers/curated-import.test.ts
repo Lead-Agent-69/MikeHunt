@@ -126,4 +126,64 @@ describe("curated import receipts", () => {
     expect(mocks.save.mock.calls[0][0]).toEqual([]);
     expect(mocks.ai).not.toHaveBeenCalled();
   });
+  it("follows SalvageZone's real path pagination and excludes held/sold stock", async () => {
+    const card = (id: number, price: string, status = "inStock") =>
+      `<div class="featured-item"><a href="/inventory/salvage/repairable/2024/CHEVROLET/${id}"><img src="/images/${id}.jpg"><h2>2024 CHEVROLET EXPRESS 2500</h2></a><span class="${status}">${price}</span><div class="car-info"><li><i class="icon-road2"></i>37977</li><li><i class="fa-file"></i>Rebuilt Title</li></div></div>`;
+    const first =
+      card(123, "$19,900") +
+      card(124, "On Hold", "onHold") +
+      card(125, "Sold", "Sold") +
+      '<div class="pagination"><div class="next"><a href="/repairable/salvage/rebuildables/2">Next Page</a></div></div>';
+    const second = card(126, "$18,900");
+    const fetcher = vi.fn(async (url: string) =>
+      url.endsWith("/2") ? second : first,
+    );
+    mocks.save.mockResolvedValue(2);
+    expect(
+      await autoDiscoverAndCrawl(
+        "https://www.salvagezone.com",
+        { inventoryUrl: "/inventory", name: "SalvageZone", state: "NY" },
+        undefined,
+        fetcher,
+      ),
+    ).toBe(2);
+    expect(fetcher.mock.calls.map((call) => call[0])).toContain(
+      "https://www.salvagezone.com/repairable/salvage/rebuildables/2",
+    );
+    const saved = mocks.save.mock.calls[0][0];
+    expect(saved.map((row: any) => row.source_deal_id)).toEqual(["123", "126"]);
+    expect(saved[0]).toMatchObject({
+      mileage: 37977,
+      condition: "rebuilt_title",
+      ask_price: 19900,
+    });
+    expect(mocks.ai).not.toHaveBeenCalled();
+  });
+  it("rejects homepage links from both selectors and AI rescue", async () => {
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      async () => html.replace("/cars/123", "/"),
+    );
+    expect(mocks.save.mock.calls[0][0]).toEqual([]);
+    vi.clearAllMocks();
+    mocks.ai.mockResolvedValue([
+      {
+        year: 2024,
+        make: "Ford",
+        model: "Escape",
+        price: 12000,
+        url: "https://dealer.example",
+      },
+    ]);
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      async () => `<main>${" ".repeat(1700)}</main>`,
+    );
+    expect(mocks.ai).toHaveBeenCalledOnce();
+    expect(mocks.save.mock.calls[0][0]).toEqual([]);
+  });
 });

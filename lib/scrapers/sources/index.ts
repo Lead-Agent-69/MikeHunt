@@ -400,6 +400,7 @@ export const INDI_CONFIG: ScraperConfig = {
 
 // Dealer site profiles — patterns we know how to parse
 interface DealerProfile {
+  websiteHost?: string;
   dealerId: string;
   name: string;
   city: string;
@@ -434,6 +435,24 @@ interface DealerProfile {
 }
 
 export const DEALER_PROFILES: DealerProfile[] = [
+  {
+    dealerId: "salvagezone",
+    websiteHost: "salvagezone.com",
+    name: "SalvageZone",
+    city: "",
+    state: "NY",
+    inventoryUrl: "/inventory",
+    renderMode: "static",
+    selectors: {
+      dealCard: ".featured-item",
+      title: "h2",
+      price: ".inStock",
+      mileage: ".car-info li:has(.icon-road2)",
+      condition: ".car-info li:has(.fa-file)",
+      image: "img",
+      link: 'a[href*="/inventory/salvage/repairable/"]',
+    },
+  },
   // ── DealerSocket / VinSolutions powered dealers (very common)
   {
     dealerId: "generic-dealersocket",
@@ -507,10 +526,19 @@ export async function scrapeIndependentDealer(
   };
   const sel = profile.selectors;
   const seenListings = new Set<string>();
+  const visitedPages = new Set<string>();
+  let currentPageUrl = normalizeUrl(profile.inventoryUrl, baseUrl);
+  let nextPageUrl: string | undefined;
+  const { dealerListingUrl } = await import("../dealer-listing-url");
 
   const gen = paginate<Partial<Deal>>(
     config,
     (page) => {
+      if (page > 1 && nextPageUrl) {
+        currentPageUrl = nextPageUrl;
+        visitedPages.add(currentPageUrl);
+        return currentPageUrl;
+      }
       const url = new URL(profile.inventoryUrl, baseUrl);
       if (profile.pagination) {
         const offset =
@@ -519,7 +547,9 @@ export async function scrapeIndependentDealer(
             : page;
         url.searchParams.set(profile.pagination.param, String(offset));
       }
-      return url.toString();
+      currentPageUrl = url.toString();
+      visitedPages.add(currentPageUrl);
+      return currentPageUrl;
     },
     async (rawHtml) => {
       const cheerio = await import("cheerio");
@@ -546,6 +576,8 @@ export async function scrapeIndependentDealer(
 
         const price = extractPrice(priceText);
         if (!price || price < 100) return; // skip contact-for-price
+        const sourceUrl = dealerListingUrl(href, baseUrl, profile.inventoryUrl);
+        if (!sourceUrl) return;
 
         // Require a stable id from the listing URL so upsert dedupe works.
         const dealId = href?.split("/").filter(Boolean).pop();
@@ -554,18 +586,25 @@ export async function scrapeIndependentDealer(
         items.push({
           source: "independent_dealer",
           source_deal_id: dealId,
-          source_url: href ? normalizeUrl(href, baseUrl) : baseUrl,
+          source_url: sourceUrl,
           title,
           year: extractYear(title),
           make: title.split(" ").filter((w) => w.match(/[A-Z][a-z]+/))[0] || "",
           model: title.split(" ").slice(2, 4).join(" ") || "",
           ask_price: price,
           vin: extractVin(`${card.text()} ${href || ""}`) ?? undefined,
-          mileage: extractMileage(mileText) || mileageFromTitle(title),
+          mileage:
+            extractMileage(mileText) ||
+            (/^[\d,]+$/.test(mileText)
+              ? Number(mileText.replace(/,/g, ""))
+              : undefined) ||
+            mileageFromTitle(title),
           // Prefer what the listing text says; else the site's type default (salvage yard → salvage,
           // rebuilder → rebuilt). Drives the correct lane/color downstream via dealLane().
           condition:
-            conditionFromTitle(title) ??
+            conditionFromTitle(
+              sel.condition ? card.find(sel.condition).text() : title,
+            ) ??
             profile.conditionDefault ??
             "run_drive",
           damage_type: profile.damageDefault,
@@ -593,16 +632,12 @@ export async function scrapeIndependentDealer(
         for (const g of structured) {
           if ((!g.make && !g.title) || !g.ask_price || g.ask_price < 100)
             continue;
-          const sourceUrl = g.source_url
-            ? normalizeUrl(g.source_url, baseUrl)
-            : undefined;
-          // Inventory/account URLs are not a stable identity for a separate vehicle.
-          if (
-            !sourceUrl ||
-            sourceUrl === baseUrl ||
-            sourceUrl === normalizeUrl(profile.inventoryUrl, baseUrl)
-          )
-            continue;
+          const sourceUrl = dealerListingUrl(
+            g.source_url,
+            baseUrl,
+            profile.inventoryUrl,
+          );
+          if (!sourceUrl) continue;
           if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin)))
             continue;
           listingUrls.add(sourceUrl);
@@ -648,6 +683,7 @@ export async function scrapeIndependentDealer(
       // only fires on a double miss, only when a provider key + AI_SCRAPE_EXTRACT are configured.
       if (
         items.length === 0 &&
+        $(sel.dealCard).length === 0 &&
         !hasStructuredInventory &&
         typeof rawHtml === "string" &&
         rawHtml.length > 1500
@@ -659,17 +695,16 @@ export async function scrapeIndependentDealer(
           for (const v of extracted) {
             if (!v.price || v.price < 100) continue;
             if (!v.make && !v.title) continue;
+            const sourceUrl = dealerListingUrl(
+              v.url,
+              baseUrl,
+              profile.inventoryUrl,
+            );
+            if (!sourceUrl) continue;
             items.push({
               source: "independent_dealer",
-              // A unique id per car. Many bespoke salvage sites give the AI no per-listing URL (the
-              // url is the homepage), so a url-derived id collides across every car — fall back to a
-              // content key (year/make/model/price/mileage), NOT the title-brand word ("Salvage").
-              source_deal_id:
-                (v.url && v.url !== baseUrl
-                  ? v.url.split("/").filter(Boolean).pop()
-                  : "") ||
-                `${profile.dealerId}-${[v.year, v.make, v.model, v.price, v.mileage].filter(Boolean).join("-")}`,
-              source_url: v.url ? normalizeUrl(v.url, baseUrl) : baseUrl,
+              source_deal_id: sourceUrl.split("/").filter(Boolean).pop(),
+              source_url: sourceUrl,
               // Real vehicle identity first; v.title is often just the title-brand badge ("Salvage"),
               // which we already fold into condition via conditionFromTitle below.
               title:
@@ -705,17 +740,45 @@ export async function scrapeIndependentDealer(
       }
 
       // Detect "no more results" — check for next page link or empty results
+      const nextHref = $(
+        'a[rel="next"], .pagination .next:not(.disabled) a[href], .pagination a.next:not(.disabled), a[aria-label="Next"]',
+      )
+        .filter(
+          (_, el) => !$(el).closest('.disabled, [aria-disabled="true"]').length,
+        )
+        .first()
+        .attr("href");
+      nextPageUrl = undefined;
+      if (
+        nextHref &&
+        !/^(?:#|javascript:|mailto:|tel:|data:)/i.test(nextHref)
+      ) {
+        try {
+          const next = new URL(nextHref, currentPageUrl);
+          next.hash = "";
+          if (
+            next.origin === new URL(baseUrl).origin &&
+            !visitedPages.has(next.toString())
+          )
+            nextPageUrl = next.toString();
+        } catch {
+          /* Malformed pagination cannot extend a crawl. */
+        }
+      }
       const hasNext =
-        $(
-          'a[rel="next"], .pagination .next:not(.disabled), [aria-label="Next"]',
-        ).length > 0;
+        nextPageUrl ||
+        (!nextHref &&
+          profile.pagination &&
+          $(
+            'a[rel="next"], .pagination .next:not(.disabled), [aria-label="Next"]',
+          ).length > 0);
       const fresh = items.filter((item) => {
         const key = String(item.source_deal_id || item.source_url);
         if (seenListings.has(key)) return false;
         seenListings.add(key);
         return true;
       });
-      return { items: fresh, hasMore: hasNext && fresh.length > 0 };
+      return { items: fresh, hasMore: Boolean(hasNext) && fresh.length > 0 };
     },
   );
 
@@ -815,8 +878,11 @@ export async function autoDiscoverAndCrawl(
   }
 
   // Try to match a known profile pattern
-  const matchedProfile = DEALER_PROFILES.find((p) =>
-    p.selectors.dealCard.split(",").some((sel) => $(sel.trim()).length > 0),
+  const dealerHost = new URL(dealerWebsite).hostname.replace(/^www\./, "");
+  const matchedProfile = DEALER_PROFILES.find(
+    (p) =>
+      (!p.websiteHost || p.websiteHost === dealerHost) &&
+      p.selectors.dealCard.split(",").some((sel) => $(sel.trim()).length > 0),
   );
 
   const base: DealerProfile = matchedProfile || {
@@ -845,6 +911,7 @@ export async function autoDiscoverAndCrawl(
   // profile even when we reuse a known platform template, so curated salvage cars get the right lane.
   const profile: DealerProfile = {
     ...base,
+    inventoryUrl,
     name: hint?.name || base.name,
     city: hint?.city || base.city,
     state: hint?.state || base.state,

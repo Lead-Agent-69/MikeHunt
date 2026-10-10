@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Ico } from "@/components/shared/Ico";
+import { sourceLinkLabel } from "@/lib/sources/listing-link";
 
 // Reach the seller without leaving the app. Phone → Call + Text (tel:/sms:), email → Email (mailto:),
 // and the original listing is always one tap away. Each action renders only when we actually have that
@@ -34,8 +35,8 @@ export function ContactSeller({
       </div>
       {!phone && !email && (
         <p className="mb-2 text-[11px] text-[var(--t4)]">
-          No saved phone or email for this listing — reach the seller through
-          the original listing.
+          No saved phone or email. Contact the seller through the source
+          website.
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -69,7 +70,7 @@ export function ContactSeller({
           <ContactBtn
             href={listing}
             icon="external"
-            label="View original"
+            label={sourceLinkLabel(listing)}
             external
             accent="var(--t2)"
           />
