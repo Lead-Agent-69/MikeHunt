@@ -87,5 +87,5 @@ export function applyGoProfitPolicy<T extends Record<string, any>>(
         });
     }
   }
-  return out;
+  return demoted ? out : row;
 }
