@@ -171,7 +171,8 @@ describe("For You rail data", () => {
     expect(page).toContain('data-testid="find-similar-cta"');
     expect(page).toContain('data-testid="find-similar-cta-bar"');
     expect(page).toContain('data-testid="find-similar-cta-rail"');
-    expect(page).toContain("Find similar vehicles in saved inventory");
+    expect(page).toContain("Find similar vehicles in collected inventory");
+    expect(page).not.toContain("Find similar vehicles in saved inventory");
     expect(page).toContain('flipDesk={store.userType === "dealer"}');
   });
 
