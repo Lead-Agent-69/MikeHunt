@@ -121,19 +121,11 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     if (params.get(key)) q = q[method](column, Number(params.get(key)));
   const sellers = sellerTypeSourceValues(params.get("sellerType") || "");
   if (sellers.length) q = q.in("source", sellers);
-  const title = params.get("titleType");
-  if (title && title !== "all")
-    q = q.eq(
-      "condition",
-      (
-        {
-          clean: "clean_title",
-          salvage: "salvage_title",
-          rebuilt: "rebuilt_title",
-          parts: "parts_only",
-        } as Record<string, string>
-      )[title] || title,
-    );
+  // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
+  const titleFilter = titleCategoryOrFilter(
+    parseTitleTypes(params.get("titleType")),
+  );
+  if (titleFilter) q = q.or(titleFilter);
   if (params.get("availability") && params.get("availability") !== "all")
     q = q.eq("availability_status", params.get("availability"));
   if (params.get("madeInUsa") === "1")
@@ -148,3 +140,7 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   return q;
 }
 import { applyLiveAuctionWindow } from "./live-auction-window";
+import {
+  parseTitleTypes,
+  titleCategoryOrFilter,
+} from "@/lib/deals/title-category";
