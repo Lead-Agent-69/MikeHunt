@@ -46,7 +46,13 @@ const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 // Field name families seen across vehicle schemas. First hit wins.
 const F = {
-  year: ["year", "modelYear", "vehicleYear", "yearOfManufacture"],
+  year: [
+    "year",
+    "modelYear",
+    "vehicleYear",
+    "yearOfManufacture",
+    "vehicleModelDate",
+  ],
   make: [
     "make",
     "makeName",
@@ -67,7 +73,15 @@ const F = {
     "displayPrice",
   ],
   mileage: ["mileage", "odometer", "miles", "mileageFromOdometer"],
-  vin: ["vin", "vehicleIdentificationNumber"],
+  // serialNumber / productID / mpn carry the VIN on DealerFire offers and ProMax cards; VIN_RE
+  // keeps anything that isn't a 17-char VIN out.
+  vin: [
+    "vin",
+    "vehicleIdentificationNumber",
+    "serialNumber",
+    "productID",
+    "mpn",
+  ],
   url: ["url", "vdpUrl", "detailUrl", "link", "href"],
   image: ["image", "imageUrl", "primaryImage", "photoUrl", "thumbnail"],
   title: ["title", "name", "heading", "displayName"],
@@ -94,6 +108,10 @@ export interface RawVehicle {
   url?: string;
   image?: string;
   title?: string;
+  /** Dealer stock / listing id (schema.org sku). ProMax list cards carry no url, only this. */
+  sku?: string;
+  /** schema.org availability says SoldOut / OutOfStock / Discontinued. */
+  sold?: boolean;
 }
 
 /** Pull year/make/model from a "2016 Ford Explorer Police Interceptor" style title. */
@@ -134,7 +152,16 @@ export function readVehicle(obj: Record<string, any>): RawVehicle | null {
     url: str(pick(obj, F.url)) || str(obj.offers?.url) || undefined,
     image: imageOf(pick(obj, F.image)),
     title: str(pick(obj, F.title)) || undefined,
+    sku:
+      str(obj.sku) ||
+      (typeof obj.sku === "number" ? String(obj.sku) : "") ||
+      undefined,
+    sold: SOLD_AVAILABILITY.test(
+      str(obj.availability) || str(offerOf(obj.offers)?.availability),
+    ),
   };
+  if (!v.sold) delete v.sold;
+  if (!v.sku) delete v.sku;
 
   // Backfill year/make/model from the title when the object only carries a display name (ItemList rows).
   if ((!v.year || !v.make) && v.title) {
@@ -148,6 +175,13 @@ export function readVehicle(obj: Record<string, any>): RawVehicle | null {
   if (!v.year || v.year < 1950 || v.year > 2030) return null;
   if (!v.make) return null;
   return v;
+}
+
+const SOLD_AVAILABILITY = /SoldOut|OutOfStock|Discontinued/i;
+
+function offerOf(v: unknown): any {
+  if (Array.isArray(v)) return v[0];
+  return v && typeof v === "object" ? v : undefined;
 }
 
 // schema.org nests the name inside {name:"Ford"} for brand/model; deref it.
@@ -225,7 +259,14 @@ export function extractFromNextData(html: string): RawVehicle[] {
   return dedupe(out);
 }
 
-/** Extract vehicles from schema.org JSON-LD blocks (Vehicle/Car/Product/ItemList). */
+/**
+ * Extract vehicles from schema.org JSON-LD blocks (Vehicle/Car/Product/ItemList). Dealer platforms
+ * nest listings differently; all of these are read:
+ *  - top-level Car/Vehicle/Product nodes, one per block or an array (ProMax, Municibid)
+ *  - ItemList → itemListElement[].item (Overfuel)
+ *  - @graph → SearchResultsPage.mainEntity ItemList (space.auto on WordPress/Yoast)
+ *  - SearchResultsPage.offers[] → Offer {name, url, price, itemOffered} (DealerFire / DealerSocket)
+ */
 export function extractFromJsonLd(html: string): RawVehicle[] {
   const out: RawVehicle[] = [];
   const re =
@@ -234,22 +275,58 @@ export function extractFromJsonLd(html: string): RawVehicle[] {
   while ((m = re.exec(html))) {
     const json = safeJsonParse(m[1].trim());
     if (!json) continue;
-    const nodes = Array.isArray(json) ? json : json["@graph"] || [json];
-    for (const node of nodes) {
-      if (!node || typeof node !== "object") continue;
-      // ItemList of listings (e.g. Municibid) → each element by name/url.
-      if (Array.isArray(node.itemListElement)) {
-        for (const el of node.itemListElement) {
-          const obj = el?.item || el;
-          const v = readVehicle({ ...obj, title: obj?.name, url: obj?.url });
-          if (v) out.push(v);
-        }
-      }
-      const v = readVehicle(node);
+    const roots = Array.isArray(json) ? json : json["@graph"] || [json];
+    for (const root of roots) readJsonLdNode(root, out, 0);
+  }
+  return dedupe(out);
+}
+
+function readJsonLdNode(node: any, out: RawVehicle[], depth: number): void {
+  if (!node || typeof node !== "object" || depth > 4) return;
+  if (Array.isArray(node)) {
+    for (const n of node) readJsonLdNode(n, out, depth + 1);
+    return;
+  }
+  // ItemList of listings → each element by name/url (url may sit on the ListItem or the item).
+  if (Array.isArray(node.itemListElement)) {
+    for (const el of node.itemListElement) {
+      const obj = el?.item && typeof el.item === "object" ? el.item : el;
+      const v = readVehicle({
+        ...obj,
+        title: obj?.name,
+        url: obj?.url || el?.url,
+      });
       if (v) out.push(v);
     }
   }
-  return dedupe(out);
+  if (node.mainEntity && typeof node.mainEntity === "object")
+    readJsonLdNode(node.mainEntity, out, depth + 1);
+  // DealerFire: SearchResultsPage { offers: [Offer { name, url, price, serialNumber, itemOffered }] }
+  if (
+    Array.isArray(node.offers) &&
+    node.offers.some((o: any) => o?.itemOffered)
+  ) {
+    for (const offer of node.offers) {
+      if (!offer || typeof offer !== "object") continue;
+      const item =
+        offer.itemOffered && typeof offer.itemOffered === "object"
+          ? offer.itemOffered
+          : {};
+      const v = readVehicle({
+        ...item,
+        title: offer.name || item.name,
+        url: offer.url || item.url,
+        price: offer.price ?? priceOf(item.offers),
+        serialNumber: offer.serialNumber || item.serialNumber,
+        availability: offer.availability,
+        image: offer.image || item.image,
+      });
+      if (v) out.push(v);
+    }
+    return;
+  }
+  const v = readVehicle(node);
+  if (v) out.push(v);
 }
 
 function dedupe(list: RawVehicle[]): RawVehicle[] {

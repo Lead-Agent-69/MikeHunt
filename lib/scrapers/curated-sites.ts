@@ -1,3 +1,5 @@
+import type { DealerPlatform } from "./platforms/dealer-cms";
+
 // The curated independent salvage / rebuilder / dealer network — a plain data module (no scraper deps) so
 // API routes and the dealer-directory UI can import it cheaply. The scraper index re-exports these.
 
@@ -21,13 +23,20 @@ export interface CuratedSite {
    * Website platform the shared dealer-CMS parser reads (lib/scrapers/platforms/dealer-cms.ts).
    * Tagging a site with its platform is all it takes for the shared parser to crawl it.
    */
-  platform?: "4cdg" | "vehiclesnetwork";
+  platform?: DealerPlatform;
+  /** Multi-rooftop sites: the one lot we read (Renn Kirby: "frederick", its independent lot). */
+  lot?: string;
   /**
    * Terms-of-use review result, kept with the source. "no terms page found <date>" means the footer
    * and the standard terms paths were checked and none exists: no stated restriction, but no explicit
    * permission either (Elle's zero-state audit, docs in the PR that added them).
    */
   termsNote?: string;
+  /**
+   * Photo hosts the site's listings use besides its own host (platform CDNs). Each must be an exact
+   * entry in the image proxy allowlist; lib/scrapers/curated-image-hosts.test.ts checks it.
+   */
+  photoHosts?: string[];
   /**
    * false = registered but not crawled (no request is ever made). Used for sources waiting on a
    * terms decision, so turning one on is a one-line flip. Omitted = enabled.
@@ -36,7 +45,9 @@ export interface CuratedSite {
 }
 
 /** Whether the crawler may touch this registry site. Only an explicit `enabled: false` turns it off. */
-export function isCuratedSiteEnabled(site: Pick<CuratedSite, "enabled">): boolean {
+export function isCuratedSiteEnabled(
+  site: Pick<CuratedSite, "enabled">,
+): boolean {
   return site.enabled !== false;
 }
 
@@ -333,6 +344,39 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.usedcarsmahopacny.com", name: "GoGetCar.com (Hudson Auto Traders)", state: "NY", city: "Mahopac", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.4seasonsauto.com", name: "4 Seasons Auto Sales", state: "UT", city: "St. George", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.d1autocredit.com", name: "D1 Auto Credit", state: "CO", city: "Lakewood", type: "independent_dealer", platform: "vehiclesnetwork" },
+  // ── Zero-source states (Elle's audit 2026-10-10, /workspace/mikehunt-audit/zero_states.md): every
+  //    site here passed the price check (priced cars/trucks in the page) and robots.txt allows the
+  //    inventory path. Only the 5 with a reviewed, unrestrictive terms page are enabled (Elle,
+  //    2026-10-10). Read by the shared dealer-CMS parser; every page, pagination link, sitemap and
+  //    detail URL goes through politeFetch (robots checked first, random per-domain delay).
+  //    Left out on purpose: Dealer.com sites (Cox terms ban scraping), Goxee, AutoFunds, AutoManager,
+  //    Dealer Car Search, Carsforsale, ADD/gotgoodcars (terms ban bots or commercial reuse).
+  // Terms page reviewed, no clause against automated access or commercial reuse:
+  { url: "https://www.carmartde.com", name: "CARMART", state: "DE", city: "New Castle", type: "independent_dealer", platform: "overfuel", photoHosts: ["static.overfuel.com"], termsNote: "terms reviewed 2026-10-10: /terms has no bot, scraping or reuse clause" }, // also a Smyrna lot; 114 cars
+  { url: "https://www.alohaautodepot.com", name: "Aloha Auto Depot", state: "HI", city: "Honolulu", type: "independent_dealer", platform: "overfuel", photoHosts: ["static.overfuel.com"], termsNote: "terms reviewed 2026-10-10: /terms (Overfuel dealer template) has no restriction" }, // 201 cars
+  { url: "https://www.choiceautohawaii.com", name: "Choice Automotive", state: "HI", city: "Honolulu", type: "independent_dealer", platform: "spaceauto", termsNote: "terms reviewed 2026-10-10: /terms-of-service visitor agreement, vehicle-accuracy disclaimers only" }, // ~200 cars
+  { url: "https://www.843auto.com", name: "Automaxx of the Carolinas", state: "SC", city: "Summerville", type: "independent_dealer", platform: "overfuel", photoHosts: ["static.overfuel.com"], termsNote: "terms reviewed 2026-10-10: /terms (Overfuel dealer template) has no restriction" }, // 630 cars
+  { url: "https://www.rennkirbyfrederick.com", name: "Renn Kirby Frederick Auto", state: "MD", city: "Frederick", type: "independent_dealer", platform: "legible", lot: "frederick", termsNote: "terms reviewed 2026-10-10: /terms (service & SMS program) has no bot or reuse clause" }, // independent Frederick lot only (30); the site also lists the group's Charles Town WV, Kia and Chevrolet franchise lots, which we skip
+  // No terms page found (footer + /terms, /terms-of-use, /terms-of-service, /terms-and-conditions,
+  // /terms-conditions, /legal, /policy.php checked; robots allows, prices in the page). Registered but
+  // OFF until Jonah decides whether "no stated restriction" is enough: flip `enabled: false` to turn on.
+  { url: "https://www.usedtrucksidahofalls.com", name: "Timberline Auto", state: "ID", city: "Idaho Falls", type: "independent_dealer", platform: "dealerfire", photoHosts: ["cdn-ds.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 225 cars; robots Crawl-delay 10 (honored)
+  { url: "https://www.soniasautosales.com", name: "Sonia's Auto Sales", state: "MA", city: "Worcester", type: "independent_dealer", platform: "dealerfire", photoHosts: ["cdn-ds.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 167 cars
+  { url: "https://helloautogs.com", name: "Hello Auto GS", state: "MA", city: "Worcester", type: "independent_dealer", platform: "wordpress-autos", enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 18 cars
+  { url: "https://www.craftautosales.com", name: "Craft Auto Sales", state: "MS", city: "Hattiesburg", type: "independent_dealer", platform: "dealerfire", photoHosts: ["cdn-ds.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 85 cars
+  { url: "https://www.mbautosalesms.com", name: "M&B Auto Sales", state: "MS", city: "Jackson", type: "independent_dealer", platform: "wix", enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // ~22 priced, text blocks, no photos read
+  { url: "https://www.bandlcars.com", name: "B&L Auto Sales", state: "SC", city: "West Columbia", type: "independent_dealer", platform: "promax", photoHosts: ["imageserver.promaxinventory.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 99 cars via sitemap detail pages
+  { url: "https://davidcarstn.com", name: "David's Used Cars", state: "TN", city: "Nashville", type: "independent_dealer", platform: "adims", photoHosts: ["www.adimsweb.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // sold cars stay listed; only available ones are kept
+  { url: "https://www.summitautoexchange.com", name: "Summit Auto Exchange", state: "WA", city: "Spokane", type: "independent_dealer", platform: "dealerfire", photoHosts: ["cdn-ds.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 32 cars
+  { url: "https://www.307motors.com", name: "307 Motors", state: "WY", city: "Casper", type: "independent_dealer", platform: "dealrcloud", photoHosts: ["cdn.dealrimages.com"], enabled: false, termsNote: "awaiting Jonah terms decision (no terms page found 2026-10-10)" }, // 33 listed; ATVs dropped (cars/trucks only)
+  // ── Regional networks round (Elle's section V audit 2026-10-10, /workspace/mikehunt-audit/regional_networks.md).
+  // NM's first curated source: Overfuel JSON-LD (ItemList Car+Offer, 25/page), robots allows /inventory/
+  // (only /*highlights[]= disallowed, honored by politeFetch), /terms is the Overfuel dealer template.
+  { url: "https://www.landlusedcars.com", name: "L&L Auto Sales", state: "NM", city: "Las Cruces", type: "independent_dealer", platform: "overfuel", photoHosts: ["static.overfuel.com"], termsNote: "terms reviewed 2026-10-10: /terms (Overfuel dealer template) has no bot, scraping or reuse clause" }, // 65 cars; NM's first source
+  // CT Dealer.com used stores: JSON-LD priced, robots allows the inventory path, but only a privacy
+  // page plus Cox's consumer terms. Registered but OFF until Jonah decides; generic JSON-LD path.
+  { url: "https://www.valentistatelinemotors.com", inventoryUrl: "https://www.valentistatelinemotors.com/used-inventory/index.htm", name: "Valenti Stateline Motors", state: "CT", city: "Pawcatuck", type: "independent_dealer", enabled: false, termsNote: "Dealer.com/Cox terms; privacy page only; awaiting Jonah" }, // 458 (may include other Valenti stores' used stock)
+  { url: "https://www.danburypreowned.com", inventoryUrl: "https://www.danburypreowned.com/used-inventory/index.htm", name: "Danbury Pre-Owned Center", state: "CT", city: "Danbury", type: "independent_dealer", enabled: false, termsNote: "Dealer.com/Cox terms; privacy page only; awaiting Jonah" }, // 150; ownership (independent vs franchise-affiliated) not verified
   // schema.org JSON-LD inventory (generic JSON-LD path, no platform template needed)
   { url: "https://www.drivenowmidwest.com", name: "Drive Now", state: "KS", city: "Wichita", type: "independent_dealer" },
 ];

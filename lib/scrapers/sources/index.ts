@@ -1628,14 +1628,20 @@ async function scrapeDealerCms(
   const cheerio = await import("cheerio");
   const deals = await crawlDealerCms(site, {
     fetchHtml: (url) => politeFetch(url, { freshForMs: 30 * 60_000 }),
+    // Sitemap-listed detail pages (ProMax) change rarely: a day's cache keeps re-sweeps cheap.
+    fetchDetailHtml: (url) => politeFetch(url, { freshForMs: 24 * 3600_000 }),
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
   });
   // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
   // a re-sweep only costs requests for cars we haven't seen.
   const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
+  // Structured layouts already carry what the detail page would add (JSON-LD / flight data), and
+  // text-block sites have no detail page at all, so only card layouts spend detail requests.
+  const cardLayout =
+    !site.layout || site.layout === "cards" || site.layout === "text-lines";
   const enrichLimit = Math.min(
-    deals.length,
+    cardLayout ? deals.length : 0,
     Number(process.env.CDG_DETAIL_LIMIT || (targeted ? deals.length : 12)),
   );
   let enriched = 0;
