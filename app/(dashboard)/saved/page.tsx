@@ -45,6 +45,7 @@ import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { sellerTypeLabel, sourceMeta } from "@/lib/sources/source-meta";
+import { urlHostMatches } from "@/lib/net/host-match";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -72,16 +73,17 @@ function titleFromUrl(url: string) {
 }
 
 function sourceFromUrl(url: string) {
-  const lower = url.toLowerCase();
-  if (lower.includes("copart")) return "copart";
-  if (lower.includes("iaai")) return "iaa";
-  if (lower.includes("govdeals")) return "govdeals";
-  if (lower.includes("publicsurplus")) return "publicsurplus";
-  if (lower.includes("craigslist")) return "craigslist";
-  if (lower.includes("facebook")) return "facebook_marketplace";
-  if (lower.includes("ebay")) return "ebay_motors";
-  if (lower.includes("autotrader")) return "autotrader";
-  if (lower.includes("cars.com")) return "cars_com";
+  // Hostname match only (exact or dot-suffix), never a substring of the whole URL.
+  const on = (...domains: string[]) => urlHostMatches(url, domains);
+  if (on("copart.com")) return "copart";
+  if (on("iaai.com")) return "iaa";
+  if (on("govdeals.com")) return "govdeals";
+  if (on("publicsurplus.com")) return "publicsurplus";
+  if (on("craigslist.org")) return "craigslist";
+  if (on("facebook.com")) return "facebook_marketplace";
+  if (on("ebay.com", "ebay.to")) return "ebay_motors";
+  if (on("autotrader.com")) return "autotrader";
+  if (on("cars.com")) return "cars_com";
   return "web-share";
 }
 

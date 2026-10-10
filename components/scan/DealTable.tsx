@@ -4,7 +4,10 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
 import { dealLane, LANE_COLORS } from "@/lib/discovery/categorize";
-import { dealerSourceIdFromUrl } from "@/lib/sources/source-meta";
+import {
+  dealerSourceIdFromUrl,
+  sourceFromUrl,
+} from "@/lib/sources/source-meta";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
@@ -146,11 +149,9 @@ function sourceHealthForRow(
   const url = String(row.sourceUrl || "").toLowerCase();
   if (sourceHealthById.has(source)) return sourceHealthById.get(source);
   if (source === "gov_auction") {
-    if (url.includes("govdeals.com")) return sourceHealthById.get("govdeals");
-    if (url.includes("publicsurplus"))
-      return sourceHealthById.get("publicsurplus");
-    if (url.includes("municibid")) return sourceHealthById.get("municibid");
-    if (url.includes("gsa")) return sourceHealthById.get("gsa_auctions");
+    const govSource = sourceFromUrl(url);
+    if (govSource && sourceHealthById.has(govSource))
+      return sourceHealthById.get(govSource);
   }
   if (source === "independent_dealer") {
     const dealerSourceId = dealerSourceIdFromUrl(

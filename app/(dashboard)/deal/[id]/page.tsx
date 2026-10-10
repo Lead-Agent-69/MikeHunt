@@ -26,6 +26,10 @@ import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
 import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
+  dealerSourceIdFromUrl,
+  sourceFromUrl,
+} from "@/lib/sources/source-meta";
+import {
   isSourceLandingPage,
   sourceLinkLabel,
 } from "@/lib/sources/listing-link";
@@ -123,35 +127,13 @@ function sourceHealthIdForDeal(deal: any, sources: SourceHealthItem[]) {
   const ids = new Set(sources.map((item) => item.id));
   if (ids.has(source)) return source;
   if (source === "gov_auction") {
-    if (url.includes("govdeals.com") && ids.has("govdeals")) return "govdeals";
-    if (url.includes("publicsurplus") && ids.has("publicsurplus"))
-      return "publicsurplus";
-    if (url.includes("municibid") && ids.has("municibid")) return "municibid";
-    if (url.includes("gsa") && ids.has("gsa_auctions")) return "gsa_auctions";
+    const govSource = sourceFromUrl(url);
+    if (govSource && ids.has(govSource)) return govSource;
   }
   if (source === "independent_dealer") {
-    if (url.includes("aeofmiami.com") && ids.has("ae-of-miami"))
-      return "ae-of-miami";
-    if (
-      (url.includes("stjamesauto.com") ||
-        url.includes("stjamesautoparts.com")) &&
-      ids.has("stjames-auto")
-    )
-      return "stjames-auto";
-    if (url.includes("dgautollc.com") && ids.has("dg-auto")) return "dg-auto";
-    if (url.includes("recar.com") && ids.has("recar")) return "recar";
-    if (url.includes("damage.com") && ids.has("damage-com"))
-      return "damage-com";
-    if (url.includes("casmiami.com") && ids.has("cas-miami"))
-      return "cas-miami";
-    if (url.includes("salvagezone.com") && ids.has("salvagezone"))
-      return "salvagezone";
-    if (url.includes("rebuiltauto.com") && ids.has("rebuilt-auto"))
-      return "rebuilt-auto";
-    if (url.includes("alpineautogallery.com") && ids.has("alpine-auto"))
-      return "alpine-auto";
-    if (url.includes("replicaauto.com") && ids.has("replica-auto"))
-      return "replica-auto";
+    // Hostname match (exact or dot-suffix) against the curated dealer domains.
+    const dealerSourceId = dealerSourceIdFromUrl(url);
+    if (dealerSourceId && ids.has(dealerSourceId)) return dealerSourceId;
     if (ids.has("curated_dealers")) return "curated_dealers";
   }
   return "";
