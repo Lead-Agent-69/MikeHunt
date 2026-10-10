@@ -404,6 +404,11 @@ export default function DealCheckPage() {
             original; this is not an inspection or a buy recommendation.
           </p>
           {/* Market comparison */}
+          {!mc && result?.marketValue?.reason && (
+            <p className="text-sm text-[var(--t3)]">
+              {result.marketValue.reason}
+            </p>
+          )}
           {mc && (
             <div className="glass-panel p-5">
               <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-2">
@@ -422,8 +427,9 @@ export default function DealCheckPage() {
                     {money(mc.vsMarket)}
                   </Mono>
                   <p className="text-xs text-[var(--t4)]">
-                    Difference from {money(mc.marketAvg)} average across{" "}
-                    {mc.sampleSize} active asking prices.
+                    Difference from {money(mc.marketAvg)}.{" "}
+                    {mc.basisLabel ||
+                      `Based on ${mc.sampleSize} active asking prices.`}
                   </p>
                 </div>
               </div>
