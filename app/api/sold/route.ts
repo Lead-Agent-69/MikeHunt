@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     let gq = supabase
       .from("sold_listings")
       .select(
-        "year, make, model, sold_price, sold_at, title, source, source_url, basis, sale_channel, attribution",
+        "year, make, model, sold_price, sold_at, source, source_url, basis, sale_channel, attribution",
       )
       .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
       .or(modelOr)

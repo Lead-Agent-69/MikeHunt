@@ -21,6 +21,7 @@ import {
   type SoldListingInsert,
   readTextCapped,
   govTitle,
+  cleanGovName,
 } from "@/lib/sources/open-gov/sold-comps";
 
 const API = "https://maestro.lqdt1.com/search/list";
@@ -352,8 +353,9 @@ export function maestroAssetToSoldComp(
   const title =
     (a.assetShortDescription || "").trim() ||
     [a.modelYear, a.makebrand, a.model].filter(Boolean).join(" ");
-  const make = (a.makebrand || "").trim() || null;
-  const model = (a.model || "").trim() || null;
+  // Seller-typed: cleaned (VIN/contact scrubbed, plain characters) and capped at 40 chars at write time.
+  const make = cleanGovName(a.makebrand);
+  const model = cleanGovName(a.model);
   if (!isCarOrTruck(`${title} ${make || ""} ${model || ""}`)) return null;
   if (!isLightVehicleComp(make, model, title)) return null;
   const marketplace = opts.idPrefix === "as" ? "allsurplus" : "govdeals";

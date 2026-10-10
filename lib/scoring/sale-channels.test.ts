@@ -9,35 +9,102 @@ import {
 
 // One sale_channel list shared by every migration that (re)defines sold_listings_sale_channel_check
 // and every TypeScript writer (Ren #324 hazard: #316's 410000 vs #320's 500000 'ebay').
+//
+// Handled: the CHECK body is read with balanced parentheses, so `... IN (...) OR sale_channel IS NULL`
+// in any order works; quoted constraint names ("sold_listings_sale_channel_check"); NOT VALID (a
+// finding unless the same file VALIDATEs it); a DROP with no re-add in the same file (a finding).
+// Known misses (static text only; 412000's DB self-check backs these up on hosted):
+//   * dynamic SQL (EXECUTE / format() inside DO blocks) and psql \i includes;
+//   * RENAME CONSTRAINT, ALTER TABLE ... RENAME, or a CHECK declared inline in CREATE TABLE;
+//   * a CHECK written without quoted literals (e.g. sale_channel = ANY (some_function()));
+//   * a value list built from a domain or enum type instead of a CHECK.
 const DIR = "supabase/migrations";
 const strip = (s: string) => s.replace(/--[^\n]*/g, "");
+const NAME = String.raw`(?:"sold_listings_sale_channel_check"|sold_listings_sale_channel_check)`;
+
+export type SaleChannelEvent = {
+  name: string;
+  kind: "add" | "drop-only";
+  values: string[];
+  notValid: boolean;
+};
+
+/** Text inside the parenthesis that opens at s[open] (balanced, ignoring parens in '...' literals). */
+function balanced(s: string, open: number): string | null {
+  let depth = 0;
+  let inStr = false;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (c === "'" && s[i + 1] === "'") i++;
+      else if (c === "'") inStr = false;
+      continue;
+    }
+    if (c === "'") inStr = true;
+    else if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) return s.slice(open + 1, i);
+  }
+  return null;
+}
 
 export function saleChannelDefinitions(
   files: Array<{ name: string; body: string }>,
-) {
-  const out: Array<{ name: string; values: string[] }> = [];
+): SaleChannelEvent[] {
+  const out: SaleChannelEvent[] = [];
   for (const { name, body } of files) {
-    const re =
-      /ADD\s+CONSTRAINT\s+sold_listings_sale_channel_check\s+CHECK\s*\(([\s\S]*?)\)\s*\)\s*[,;]/gi;
-    for (const m of Array.from(strip(body).matchAll(re)))
+    const src = strip(body);
+    const re = new RegExp(
+      String.raw`\b(DROP|ADD)\s+CONSTRAINT\s+(?:IF\s+EXISTS\s+)?${NAME}`,
+      "gi",
+    );
+    let pendingDrop = false;
+    for (const m of Array.from(src.matchAll(re))) {
+      if (m[1].toUpperCase() === "DROP") {
+        pendingDrop = true;
+        continue;
+      }
+      pendingDrop = false;
+      const after = src.slice((m.index ?? 0) + m[0].length);
+      const ck = after.match(/^\s*CHECK\s*\(/i);
+      if (!ck) continue;
+      const open = (m.index ?? 0) + m[0].length + ck[0].length - 1;
+      const inner = balanced(src, open) ?? "";
+      const tail = src.slice(open + inner.length + 2);
+      const notValid =
+        /^\s*NOT\s+VALID\b/i.test(tail) &&
+        !new RegExp(String.raw`VALIDATE\s+CONSTRAINT\s+${NAME}`, "i").test(src);
       out.push({
         name,
-        values: Array.from(m[1].matchAll(/'([a-z_]+)'/g))
-          .map((x) => x[1])
-          .sort(),
+        kind: "add",
+        values: Array.from(
+          new Set(Array.from(inner.matchAll(/'([^']+)'/g)).map((x) => x[1])),
+        ).sort(),
+        notValid,
       });
+    }
+    if (pendingDrop)
+      out.push({ name, kind: "drop-only", values: [], notValid: false });
   }
   return out;
 }
 
 export function auditSaleChannels(
-  defs: Array<{ name: string; values: string[] }>,
+  events: SaleChannelEvent[],
   constant: readonly string[],
   narrowOk: Record<string, string>,
 ): string[] {
   const bad: string[] = [];
+  for (const e of events) {
+    if (e.kind === "drop-only")
+      bad.push(
+        `${e.name} drops sold_listings_sale_channel_check without re-adding it`,
+      );
+    if (e.notValid)
+      bad.push(`${e.name} adds sold_listings_sale_channel_check NOT VALID`);
+  }
+  const defs = events.filter((e) => e.kind === "add");
   if (!defs.length)
-    return ["no migration defines sold_listings_sale_channel_check"];
+    return [...bad, "no migration defines sold_listings_sale_channel_check"];
   const final = defs[defs.length - 1];
   const want = [...constant].sort();
   if (JSON.stringify(final.values) !== JSON.stringify(want))
@@ -62,20 +129,23 @@ export function auditSaleChannels(
   return bad;
 }
 
+const mig = (name: string, body: string) => ({ name, body });
+const GOV_SQL = GOV_SALE_CHANNELS.map((c) => `'${c}'`).join(", ");
+
 describe("sold_listings.sale_channel has one list", () => {
   const files = readdirSync(DIR)
     .filter((f) => f.endsWith(".sql"))
     .sort()
     .map((name) => ({ name, body: readFileSync(`${DIR}/${name}`, "utf8") }));
-  const defs = saleChannelDefinitions(files);
+  const events = saleChannelDefinitions(files);
 
   it("the repo's migrations agree with SOLD_SALE_CHANNELS and never narrow", () => {
-    expect(defs.map((d) => d.name)).toContain(
+    expect(events.map((d) => d.name)).toContain(
       "20261010410000_sold_listings_open_gov_comps.sql",
     );
     expect(
       auditSaleChannels(
-        defs,
+        events,
         SOLD_SALE_CHANNELS,
         NARROW_SALE_CHANNEL_MIGRATIONS,
       ),
@@ -83,47 +153,94 @@ describe("sold_listings.sale_channel has one list", () => {
     for (const g of GOV_SALE_CHANNELS) expect(SOLD_SALE_CHANNELS).toContain(g);
     expect(SOLD_SALE_CHANNELS).toContain("ebay");
     // 500000 (#320) is the latest definer and lists exactly the constant.
-    expect(defs[defs.length - 1].name).toBe(
+    const adds = events.filter((e) => e.kind === "add");
+    expect(adds[adds.length - 1].name).toBe(
       "20261010500000_sold_listings_ebay_detail.sql",
     );
   });
 
-  it("planted: a later migration adding a channel without updating the constant fails", () => {
+  it("planted: a later migration adding a channel (zz_test) without updating the constant fails", () => {
     const planted = [
-      ...defs,
-      {
-        name: "20261010900000_x.sql",
-        values: [...SOLD_SALE_CHANNELS, "new_lane"].sort(),
-      },
+      ...events,
+      ...saleChannelDefinitions([
+        mig(
+          "20991231000000_zz.sql",
+          `ALTER TABLE public.sold_listings DROP CONSTRAINT IF EXISTS sold_listings_sale_channel_check, ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IS NULL OR sale_channel IN (${[...SOLD_SALE_CHANNELS].map((c) => `'${c}'`).join(", ")}, 'zz_test'));`,
+        ),
+      ]),
     ];
+    const narrow = {
+      ...NARROW_SALE_CHANNEL_MIGRATIONS,
+      ...Object.fromEntries(events.map((e) => [e.name, "test"])),
+    };
     expect(
-      auditSaleChannels(
-        planted,
-        SOLD_SALE_CHANNELS,
-        NARROW_SALE_CHANNEL_MIGRATIONS,
-      ).join("\n"),
-    ).toMatch(/latest definition 20261010900000_x\.sql/);
-    // ... and passes once the constant carries it (410000 and 500000 are on the narrow list with their re-run rule).
+      auditSaleChannels(planted, SOLD_SALE_CHANNELS, narrow).join("\n"),
+    ).toMatch(/latest definition 20991231000000_zz\.sql/);
     expect(
-      auditSaleChannels(planted, [...SOLD_SALE_CHANNELS, "new_lane"], {
-        ...NARROW_SALE_CHANNEL_MIGRATIONS,
-        "20261010500000_sold_listings_ebay_detail.sql":
-          "planted: re-run the new definer after it",
-      }),
+      auditSaleChannels(planted, [...SOLD_SALE_CHANNELS, "zz_test"], narrow),
     ).toEqual([]);
   });
 
+  it("planted: OR sale_channel IS NULL written last, quoted name, odd spacing", () => {
+    const [e] = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ALTER TABLE x ADD CONSTRAINT "sold_listings_sale_channel_check"\n  CHECK ( sale_channel IN (${GOV_SQL}) OR sale_channel IS NULL ) ;`,
+      ),
+    ]);
+    expect(e).toMatchObject({ kind: "add", notValid: false });
+    expect(e.values).toEqual([...GOV_SALE_CHANNELS].sort());
+  });
+
+  it("planted: NOT VALID is a finding unless the same file validates it", () => {
+    const nv = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ALTER TABLE x ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN (${GOV_SQL})) NOT VALID;`,
+      ),
+    ]);
+    expect(auditSaleChannels(nv, GOV_SALE_CHANNELS, {}).join("\n")).toMatch(
+      /NOT VALID/,
+    );
+    const ok = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ALTER TABLE x ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN (${GOV_SQL})) NOT VALID;\nALTER TABLE x VALIDATE CONSTRAINT sold_listings_sale_channel_check;`,
+      ),
+    ]);
+    expect(auditSaleChannels(ok, GOV_SALE_CHANNELS, {})).toEqual([]);
+  });
+
+  it("planted: a drop with no re-add is a finding", () => {
+    const ev = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ALTER TABLE x ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN (${GOV_SQL}));`,
+      ),
+      mig(
+        "b.sql",
+        `ALTER TABLE x DROP CONSTRAINT IF EXISTS "sold_listings_sale_channel_check";`,
+      ),
+    ]);
+    expect(auditSaleChannels(ev, GOV_SALE_CHANNELS, {}).join("\n")).toMatch(
+      /b\.sql drops sold_listings_sale_channel_check without re-adding it/,
+    );
+  });
+
   it("planted: a later migration that drops a channel fails", () => {
-    const planted = [
-      ...defs,
-      {
-        name: "20261010600000_y.sql",
-        values: ["gov_fleet_auction", "gov_impound_auction"],
-      },
-    ];
+    const ev = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN (${GOV_SQL}));`,
+      ),
+      mig(
+        "b.sql",
+        `ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN ('gov_fleet_auction', 'gov_impound_auction'));`,
+      ),
+    ]);
     expect(
       auditSaleChannels(
-        planted,
+        ev,
         ["gov_fleet_auction", "gov_impound_auction"],
         {},
       ).join("\n"),
@@ -131,13 +248,19 @@ describe("sold_listings.sale_channel has one list", () => {
   });
 
   it("planted: a narrower earlier definition needs a documented re-run rule", () => {
-    const planted = [
-      { name: "a.sql", values: ["gov_fleet_auction"] },
-      { name: "b.sql", values: ["ebay", "gov_fleet_auction"] },
-    ];
+    const ev = saleChannelDefinitions([
+      mig(
+        "a.sql",
+        `ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN ('gov_fleet_auction'));`,
+      ),
+      mig(
+        "b.sql",
+        `ADD CONSTRAINT sold_listings_sale_channel_check CHECK (sale_channel IN ('zz_test', 'gov_fleet_auction'));`,
+      ),
+    ]);
     expect(
-      auditSaleChannels(planted, ["ebay", "gov_fleet_auction"], {}).join("\n"),
-    ).toMatch(/a\.sql lacks \[ebay\]/);
+      auditSaleChannels(ev, ["zz_test", "gov_fleet_auction"], {}).join("\n"),
+    ).toMatch(/a\.sql lacks \[zz_test\]/);
   });
 
   it("every sale_channel literal a writer sets is in SOLD_SALE_CHANNELS", () => {

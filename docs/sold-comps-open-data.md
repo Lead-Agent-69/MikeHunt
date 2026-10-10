@@ -81,11 +81,13 @@ All three scripts dry-run by default and print counts by month. Add `--write` to
 GovDeals/AllSurplus (maestro) fetches: search 30s timeout / 8 MB cap per page, detail 15s / 1 MB.
 
 Ren #324 nits (follow-up, migration `20261010412000`):
-- `sold_listings_attribution_nonblank`: `attribution IS NULL OR attribution ~ '\S'` (btrim only strips
-  spaces). Its self-check compares attribution_len, attribution_nonblank, gov_attribution and
-  last_bid_attribution by normalized definition, exactly.
-- Gov-lane titles are built from year/make/model and scrubbed of VIN- and phone-shaped tokens
-  (`govTitle`, `scrubGovText`); `/api/sold` rebuilds them for stored rows instead of echoing `title`.
+- `sold_listings_attribution_nonblank`: `attribution IS NULL OR attribution ~ '[[:alnum:]]'` (btrim
+  only strips spaces; `\S` let NBSP, ZWSP and BOM through). Its self-check compares attribution_len,
+  attribution_nonblank, gov_attribution and last_bid_attribution to pg_get_constraintdef word for word.
+- Gov-lane titles are built from year/make/model and scrubbed (`govTitle`, `scrubGovText`: VIN runs
+  even when glued to other characters, plus the shared `scrubContact` for URLs, emails and phones).
+  GovDeals/AllSurplus make/model are cleaned and capped at 40 chars at write time (`cleanGovName`).
+  `/api/sold`'s gov query doesn't select `title` at all.
 - `GovLane` renders a link only for a parsed http(s) URL (`safeHttpUrl`).
 - sale_channel list: one source of truth in `lib/scoring/sale-channels.ts`, enforced by
   `sale-channels.test.ts` (latest migration's list == the constant; no later migration narrows an
