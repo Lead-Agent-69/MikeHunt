@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  dealCheckCompCategories,
+  dealCheckCompTitle,
   dealCheckMarketValue,
   isSameVehicleOrListing,
   marketBasisLabel,
@@ -133,5 +135,109 @@ describe("dealCheckMarketValue", () => {
     expect(
       isSameVehicleOrListing({ source_url: null }, { url: "not a url" }),
     ).toBe(false);
+  });
+});
+
+describe("dealCheckMarketValue title lanes", () => {
+  const sold = (
+    id: string,
+    price: number,
+    title: string,
+  ): DealCheckCompRow => ({
+    id,
+    sold_price: price,
+    sold_at: seen(20),
+    title,
+  });
+  const cleanSold = [
+    sold("c1", 20000, "2019 Honda Accord EX, clean title"),
+    sold("c2", 21000, "2019 Honda Accord EX clean title"),
+    sold("c3", 22000, "2019 Honda Accord EX, clean title"),
+  ];
+  const salvageSold = [
+    sold("x1", 9000, "2019 Honda Accord salvage title"),
+    sold("x2", 9500, "2019 Honda Accord flood"),
+    sold("x3", 10000, "2019 Honda Accord hail damage"),
+  ];
+
+  it("maps each title to the comp categories it may be valued on", () => {
+    expect(dealCheckCompCategories("salvage")).toEqual(["salvage"]);
+    expect(dealCheckCompCategories("rebuilt")).toEqual(["rebuilt"]);
+    expect(dealCheckCompCategories("rebuildable")).toEqual([
+      "rebuildable",
+      "salvage",
+    ]);
+    expect(dealCheckCompCategories("clean")).toEqual(["clean", "unknown"]);
+    expect(dealCheckCompCategories(null)).toEqual(["clean", "unknown"]);
+  });
+
+  it("classifies sold rows by headline and asks by condition", () => {
+    expect(
+      dealCheckCompTitle({ title: "2019 Accord, clean title" }, "sold"),
+    ).toBe("clean");
+    expect(dealCheckCompTitle({ title: "2019 Accord EX" }, "sold")).toBe(
+      "unknown",
+    );
+    expect(dealCheckCompTitle({ title: "2019 Accord flood" }, "sold")).toBe(
+      "salvage",
+    );
+    expect(
+      dealCheckCompTitle(
+        { condition: "salvage_title", title: "2019 Accord" },
+        "ask",
+      ),
+    ).toBe("salvage");
+    expect(dealCheckCompTitle({ condition: "run_drive" }, "ask")).toBe(
+      "unknown",
+    );
+  });
+
+  it("never values a clean vehicle on salvage sales", () => {
+    const m = dealCheckMarketValue({
+      target: { titleCategory: "clean" },
+      soldRows: [...cleanSold, ...salvageSold],
+      now: NOW,
+    });
+    expect(m.aggregate).toMatchObject({ kind: "sold", value: 21000, n: 3 });
+    expect(m.excludedTitle).toBe(3);
+  });
+
+  it("never values a salvage vehicle on clean sales or clean asks", () => {
+    const m = dealCheckMarketValue({
+      target: { titleCategory: "salvage" },
+      soldRows: [...cleanSold, ...salvageSold],
+      askRows: [ask("a", 20000), ask("b", 21000), ask("c", 22000)],
+      now: NOW,
+    });
+    expect(m.aggregate).toMatchObject({ kind: "sold", value: 9500, n: 3 });
+    expect(m.excludedTitle).toBe(6);
+    const thin = dealCheckMarketValue({
+      target: { titleCategory: "salvage" },
+      soldRows: [...cleanSold, salvageSold[0]],
+      askRows: [ask("a", 20000), ask("b", 21000), ask("c", 22000)],
+      now: NOW,
+    });
+    expect(thin.aggregate.value).toBeNull();
+    expect(thin.askRows).toEqual([]);
+  });
+
+  it("uses sold rows before asks inside the lane, same-state first", () => {
+    const m = dealCheckMarketValue({
+      target: { titleCategory: "clean", state: "MO" },
+      soldRows: [
+        ...cleanSold,
+        { ...cleanSold[0], id: "m1", location_state: "MO", sold_price: 25000 },
+        { ...cleanSold[0], id: "m2", location_state: "MO", sold_price: 26000 },
+        { ...cleanSold[0], id: "m3", location_state: "MO", sold_price: 27000 },
+      ],
+      askRows: [ask("a", 30000), ask("b", 31000), ask("c", 32000)],
+      now: NOW,
+    });
+    expect(m.aggregate).toMatchObject({
+      kind: "sold",
+      scope: "state",
+      state: "MO",
+      value: 26000,
+    });
   });
 });
