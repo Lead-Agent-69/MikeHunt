@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const state = vi.hoisted(() => ({ flip: false, calls: [] as unknown[][] }));
+const state = vi.hoisted(() => ({
+  flip: false,
+  empty: false,
+  calls: [] as unknown[][],
+}));
 function query() {
   const q: any = {};
   let from = 0,
@@ -33,29 +37,31 @@ function query() {
   q.then = (resolve: (value: unknown) => unknown) =>
     resolve({
       error: null,
-      data: [
-        {
-          id: "one",
-          year: 2020,
-          make: "Ford",
-          model: "F-150",
-          lat: 30,
-          lng: -97,
-          ask_price: 12000,
-          true_net_profit: 4000,
-          deal_verdict: "go",
-        },
-        {
-          id: "two",
-          year: 2021,
-          make: "Ford",
-          model: "F-150",
-          location_state: "TX",
-          ask_price: null,
-          true_net_profit: null,
-          deal_verdict: "pass",
-        },
-      ].slice(from, to + 1),
+      data: state.empty
+        ? []
+        : [
+            {
+              id: "one",
+              year: 2020,
+              make: "Ford",
+              model: "F-150",
+              lat: 38.6270251,
+              lng: -90.1994042,
+              ask_price: 12000,
+              true_net_profit: 4000,
+              deal_verdict: "go",
+            },
+            {
+              id: "two",
+              year: 2021,
+              make: "Ford",
+              model: "F-150",
+              location_state: "TX",
+              ask_price: null,
+              true_net_profit: null,
+              deal_verdict: "pass",
+            },
+          ].slice(from, to + 1),
     });
   return q;
 }
@@ -77,6 +83,7 @@ const request = (search: string) =>
 describe("Map scope and role safety", () => {
   beforeEach(() => {
     state.flip = false;
+    state.empty = false;
     state.calls = [];
   });
   it("does not let personal buyers probe economics through verdict filters or colors", async () => {
@@ -122,7 +129,30 @@ describe("Map scope and role safety", () => {
     expect(state.calls).not.toContainEqual(["gt", "ask_price", 0]);
   });
   it("rejects inverted ranges before reading inventory", async () => {
-    expect((await request("minPrice=20000&maxPrice=10000")).status).toBe(400);
+    const response = await request("minPrice=20000&maxPrice=10000");
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(state.calls).toEqual([]);
+  });
+  it("rounds exact geocodes and centroid fallbacks to 2 decimals and sets no-store", async () => {
+    const res = await request("");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    const body = await res.json();
+    expect(body.points).toHaveLength(2);
+    for (const p of body.points) {
+      expect((String(p.lat).split(".")[1] || "").length).toBeLessThanOrEqual(2);
+      expect((String(p.lng).split(".")[1] || "").length).toBeLessThanOrEqual(2);
+    }
+    expect(body.points[0]).toMatchObject({ lat: 38.63, lng: -90.2 });
+    expect(JSON.stringify(body)).not.toContain("38.6270251");
+    // Guests: no profit in the label.
+    expect(body.points[0].label).not.toMatch(/profit/i);
+  });
+
+  it("empty result is no-store too", async () => {
+    state.empty = true;
+    const res = await request("");
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect((await res.json()).points).toEqual([]);
   });
 });

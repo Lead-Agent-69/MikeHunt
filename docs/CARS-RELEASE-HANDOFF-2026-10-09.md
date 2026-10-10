@@ -18,13 +18,16 @@ housing handoff. A merged release is not signed-in production acceptance or Copa
 - Shared inventory filters, restored search scope, price semantics, error recovery, truthful
   estimates and owner-confirmed writes are implemented; real-role production acceptance remains open.
 - Latest pre-integration gate: 1,718 tests / 343 files, typecheck, lint and production build passed.
-  The combined master/PR tree must pass again before merge; use Git/PR checks for final release SHA.
+  The combined main/PR tree must pass again before merge; use the PR release record for final SHA,
+  gate results, Vercel deployment and explicitly deployed worker image.
 - Production recovery: 32 active SalvageZone listings imported, real prices/mileage/title and
   vehicle links preserved. Six public inventory pages checked; held/sold cards excluded.
 - Production Alan Jay recovery: 66 homepage URLs replaced with exact evidence-matched vehicle pages.
   163 homepage-only records remain in the last verified snapshot. Never guess their detail URLs.
 - SalvageZone photo routing uses the existing restricted raster image proxy. Local desktop/mobile
   checks verified actual photos and first-viewport price. Production rendering needs release smoke.
+- Unified main protections are retained: recent clean completed-sale evidence, bounded document
+  reading, VIN-history limitations, similar-listing response allowlists and coarse public map points.
 - Worker: mikehunt-scraper-1, image mikehunt-scraper-inventory:f437604, last verified running/healthy.
   Existing Docker overrides keep CACHE_PHOTOS_MAX=0 and SCRAPE_SOURCES empty, selecting terms-safe
   defaults (GSA + curated dealers). Do not enable restricted marketplaces to inflate coverage.
@@ -158,8 +161,8 @@ audit and responsive/accessibility acceptance. A healthy container snapshot is i
 2. Push exact reviewed head, mark PR ready, merge normally without bypassing protections.
 3. Verify Vercel production deployment against merged commit, then smoke Discover/Scan,
    role-aware nav, retired routes, recovery, SalvageZone results and photo proxy.
-4. Preserve worker env/volumes/source restrictions. Its verified inventory image is already deployed;
-   deploy later worker changes explicitly, never infer them from a Vercel release.
+4. Preserve worker env/volumes/source restrictions. Build and deploy the release worker explicitly,
+   record its image and health/status smoke, never infer its deployment from a Vercel release.
 5. Record final SHA/deployment evidence in the PR/release record. Roll back web via its known
    previous deployment if smoke fails; worker previous images remain available. Do not undo
    verified inventory writes or reset shared workspaces as a rollback shortcut.
