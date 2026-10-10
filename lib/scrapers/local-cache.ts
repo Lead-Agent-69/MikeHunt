@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canonicalListingUrl } from "@/lib/data-quality/provenance";
+import { columnsExist } from "@/lib/data-quality/optional-columns";
+import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 
 export interface CachedListing {
   hash: string;
@@ -77,6 +80,9 @@ const VOLATILE_FIELDS = new Set([
   "updated_at",
   "last_seen_at",
   "first_seen_at",
+  // Stamped per batch by upsertDeals (20261010230000): hashing it made every unchanged row look
+  // changed and rewrote it on every Zeus run (Ren #312 P2).
+  "fetched_at",
 ]);
 
 function stable(value: unknown): unknown {
@@ -109,33 +115,36 @@ function matchesStoredRow(
   return listingHash(comparable) === listingHash(incoming);
 }
 
+/**
+ * Stable source_deal_id for a row the site gave no id for. Ren #312 P3: distinct listings must never
+ * share an id (they would overwrite each other's row):
+ *   1. canonical listing URL (no tracking params / fragment / www / trailing slash), per source;
+ *   2. no usable URL: a check-digit-valid VIN, per source (a placeholder like "N/A" or "0" is not a VIN);
+ *   3. otherwise every stable field we have: year/make/model/trim/title, location (state, city, zip),
+ *      mileage, the raw VIN text and the first photo. Never the price, so a price drop stays one row.
+ */
 export function stableListingId(deal: Record<string, unknown>): string {
   const existing = deal.source_deal_id || deal.id;
   if (existing) return String(existing).slice(0, 240);
 
   const source = String(deal.source || "unknown");
-  const vin = String(deal.vin || "")
-    .trim()
-    .toUpperCase();
-  if (vin)
-    return `local:${createHash("sha256").update(`${source}|vin:${vin}`).digest("hex")}`;
+  const hash = (identity: string) =>
+    `local:${createHash("sha256").update(identity).digest("hex")}`;
 
-  const url = String(deal.source_url || "").trim();
-  if (url) {
+  const rawUrl = String(deal.source_url || "").trim();
+  if (rawUrl) {
     try {
-      const parsed = new URL(url);
-      parsed.hash = "";
-      for (const key of Array.from(parsed.searchParams.keys())) {
-        if (/^(utm_|ref$|referrer$|fbclid$|gclid$)/i.test(key))
-          parsed.searchParams.delete(key);
-      }
-      const identity = `${source}|${parsed.origin}${parsed.pathname.replace(/\/$/, "")}|${parsed.searchParams.toString()}`;
-      return `local:${createHash("sha256").update(identity).digest("hex")}`;
+      new URL(rawUrl);
+      return hash(`${source}|url:${canonicalListingUrl(rawUrl)}`);
     } catch {
-      // Fall through to a deterministic title identity for malformed URLs.
+      // Malformed URL: fall through.
     }
   }
 
+  const rawVin = normalizeVin(String(deal.vin || ""));
+  if (isValidVin(rawVin)) return hash(`${source}|vin:${rawVin}`);
+
+  const firstImage = Array.isArray(deal.images) ? deal.images[0] : "";
   const identity = [
     source,
     deal.year,
@@ -144,14 +153,19 @@ export function stableListingId(deal: Record<string, unknown>): string {
     deal.trim,
     deal.title,
     deal.location_state,
+    deal.location_city,
+    deal.location_zip,
+    deal.mileage,
+    rawVin,
+    firstImage,
   ]
     .map((part) =>
-      String(part || "")
+      String(part ?? "")
         .trim()
         .toLowerCase(),
     )
     .join("|");
-  return `local:${createHash("sha256").update(identity).digest("hex")}`;
+  return hash(`title:${identity}`);
 }
 
 const utcDay = () => new Date().toISOString().slice(0, 10);
@@ -629,6 +643,9 @@ export class LocalScraperCache {
       this.maxDailyTouches - (this.state.quota.touches || 0),
     );
     let touched = 0;
+    // A touch is a fetch that found the row unchanged: fetched_at moves with last_seen_at (Ren #312
+    // P2). Probed so the bump keeps working before 20261010230000 is applied on hosted.
+    const stampFetched = await columnsExist(supabase as any, "deals", ["fetched_at"]);
     const bySource = new Map<string, string[]>();
     for (const row of rows) {
       const list = bySource.get(String(row.source)) || [];
@@ -643,7 +660,11 @@ export class LocalScraperCache {
         const seenAt = new Date().toISOString();
         const { error } = await supabase
           .from("deals")
-          .update({ last_seen_at: seenAt })
+          .update(
+            stampFetched
+              ? { last_seen_at: seenAt, fetched_at: seenAt }
+              : { last_seen_at: seenAt },
+          )
           .eq("source", source)
           .in("source_deal_id", chunk);
         if (error) {

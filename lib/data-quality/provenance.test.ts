@@ -78,3 +78,12 @@ describe("wiring (Ren lineage review)", () => {
     expect(save).toContain("urlListingId(url)");
   });
 });
+
+describe("workers/ai-worker.ts provenance (Ren #312 P2)", () => {
+  it("stamps fetched_at and access_basis, and strips them until hosted has the columns", () => {
+    const src = readFileSync("workers/ai-worker.ts", "utf8");
+    expect(src).toContain("fetched_at: fetchedAt");
+    expect(src).toContain("access_basis: accessBasisFor({ source, source_url: sourceUrl })");
+    expect(src).toContain('columnsExist(supabase as any, "deals", PROVENANCE_COLUMNS)');
+  });
+});

@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import * as cheerio from "cheerio";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
+import { canonicalListingUrl } from "@/lib/data-quality/provenance";
 
 /**
  * Read a listing page. A failed or blocked fetch returns null — URL tokens
@@ -15,9 +16,12 @@ export async function scrapeOrParseListing(
   if (!fetched) return null;
 
   const data: Record<string, any> = {
+    // Ren #312 P2: hash the CANONICAL URL (no utm_*/fbclid/gclid/ref params, no fragment, no www or
+    // trailing slash), so the same listing shared with tracking params maps to the same row. A URL
+    // that is already canonical keeps the id it had before.
     external_id: crypto
       .createHash("md5")
-      .update(url)
+      .update(canonicalListingUrl(url))
       .digest("hex")
       .substring(0, 8)
       .toUpperCase(),

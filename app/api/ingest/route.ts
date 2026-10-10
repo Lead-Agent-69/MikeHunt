@@ -119,11 +119,15 @@ export async function POST(req: Request) {
       data.sold === true ||
       /\bsold\b|\/sold\/|sale-pending|no longer available/.test(soldText);
     if (isSold && rawPrice > 0) {
+      // Ren #312 P3: a repeat capture of the same sale (same source + source_item_id) is a no-op
+      // upsert (ignoreDuplicates on sold_listings_source_item_id_uidx), not a swallowed 23505.
+      // Any other database error is logged and reported as recorded: false.
+      let recorded = false;
       try {
         const { createServerComponentClient } = await import("@/lib/supabase");
-        await createServerComponentClient()
+        const { error: soldError } = await createServerComponentClient()
           .from("sold_listings")
-          .insert({
+          .upsert({
             vin,
             year: data.year ?? null,
             make: data.make ?? null,
@@ -136,12 +140,14 @@ export async function POST(req: Request) {
             source_item_id: listingId,
             title: data.title ?? null,
             location_state: data.location_state ?? null,
-          });
+          }, { onConflict: "source,source_item_id", ignoreDuplicates: true });
+        if (soldError) console.warn("[ingest] sold capture failed:", soldError.message);
+        else recorded = true;
       } catch (e) {
         console.warn("[ingest] sold capture failed:", e);
       }
       return NextResponse.json(
-        { success: true, sold: true },
+        { success: true, sold: true, recorded },
         { headers: CORS },
       );
     }
