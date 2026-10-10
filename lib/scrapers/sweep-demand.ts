@@ -162,6 +162,38 @@ export function wantHitRatio(input: {
   };
 }
 
+/**
+ * Per-state want-hit: for each demanded anchor state, its active primary-source rows and whether it
+ * clears minRows. Same rule as wantHitRatio, so `hit` rows sum to its `covered`. Sorted gaps first,
+ * then by row count, so the thinnest demanded states lead.
+ */
+export function wantHitByState(input: {
+  anchors: readonly string[];
+  primaryCounts: Record<string, number>;
+  minRows?: number;
+}): { state: string; primaryRows: number; hit: boolean; shortBy: number }[] {
+  const minRows = Math.max(1, Math.floor(input.minRows ?? 5));
+  const anchors = Array.from(
+    new Set(input.anchors.map((s) => s.toUpperCase())),
+  ).filter((s) => KNOWN_STATES.has(s));
+  return anchors
+    .map((state) => {
+      const primaryRows = input.primaryCounts[state] || 0;
+      return {
+        state,
+        primaryRows,
+        hit: primaryRows >= minRows,
+        shortBy: Math.max(0, minRows - primaryRows),
+      };
+    })
+    .sort(
+      (a, b) =>
+        Number(a.hit) - Number(b.hit) ||
+        a.primaryRows - b.primaryRows ||
+        a.state.localeCompare(b.state),
+    );
+}
+
 /** Want-hit target (Jonah 2026-10-06): ~90% of demanded anchor states well covered by primary sources. */
 export const WANT_HIT_TARGET = 0.9;
 
