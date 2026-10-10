@@ -22,6 +22,17 @@ describe("vin_decodes closure check (20261010421000)", () => {
     );
   });
 
+  it("N1: RLS stays on with zero policies on vin_decodes (planted: policy alone, RLS off alone)", () => {
+    expect(body).toMatch(
+      /IF NOT \(SELECT relrowsecurity FROM pg_class WHERE oid = 'public\.vin_decodes'::regclass\) THEN/,
+    );
+    expect(body).toMatch(
+      /IF EXISTS \(SELECT 1 FROM pg_policy WHERE polrelid = 'public\.vin_decodes'::regclass\) THEN/,
+    );
+    expect(cases).toContain("must_fail_16_policy_alone.sql");
+    expect(cases).toContain("must_fail_17_rls_off_alone.sql");
+  });
+
   it("checks the table itself: table + column privileges and MAINTAIN (PG17+)", () => {
     expect(body).toContain("has_table_privilege(r, 'public.vin_decodes', p)");
     expect(body).toContain(

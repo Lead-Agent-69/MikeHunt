@@ -3,7 +3,8 @@
 -- Port of #299/#310's sold_listings closure re-check (20261010148000 + 20261010149000 v2) to
 -- vin_decodes, which #315 (20261010420000) made server-only. Fails if a client role (anon,
 -- authenticated) can reach vin_decodes rows by any route the catalog shows:
---   * the table itself: any table privilege, any column privilege, or MAINTAIN (PG17+);
+--   * the table itself: row level security off, ANY policy (it must have none), any table privilege,
+--     any column privilege, or MAINTAIN (PG17+);
 --   * views and materialized views that read vin_decodes directly OR through other views (recursive
 --     pg_depend -> pg_rewrite walk, relkind 'v'/'m' only, so a RULE on a client table that mentions
 --     vin_decodes does not pull that table in): SELECT, column SELECT, or MAINTAIN;
@@ -30,6 +31,15 @@ DECLARE
   obj oid;
   pg17 boolean := current_setting('server_version_num')::int >= 170000;
 BEGIN
+  -- N1 (Ren): RLS stays ON with ZERO policies, so even a role that somehow gets a grant reads nothing.
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.vin_decodes'::regclass) THEN
+    RAISE EXCEPTION 'vin_decodes has row level security disabled';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = 'public.vin_decodes'::regclass) THEN
+    RAISE EXCEPTION 'vin_decodes has % policy(ies); it must have none (server-only)',
+      (SELECT count(*) FROM pg_policy WHERE polrelid = 'public.vin_decodes'::regclass);
+  END IF;
+
   -- The table itself: no table or column privilege for a client role, MAINTAIN included (PG17+).
   FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
     FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] LOOP

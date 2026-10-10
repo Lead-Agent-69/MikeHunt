@@ -28,7 +28,7 @@ for t in supabase/tests/vin_decodes_closure/*.sql; do
   out=$( { echo "BEGIN;"; cat "$t"; cat "$CHECK"; echo "ROLLBACK;"; } | "${P[@]}" -d "$DB" 2>&1 )
   rc=$?
   case "$name" in
-    must_fail_*) if [ $rc -ne 0 ] && echo "$out" | grep -q "ERROR:.*\(-able\|executable\)"; then echo "ok   $name: $(echo "$out" | grep -o 'ERROR:.*' | head -1)"; else echo "FAIL $name: check passed or failed for the wrong reason: $out"; fail=1; fi ;;
+    must_fail_*) if [ $rc -ne 0 ] && echo "$out" | grep -q "ERROR:.*\(-able\|executable\|row level security disabled\|policy(ies)\)"; then echo "ok   $name: $(echo "$out" | grep -o 'ERROR:.*' | head -1)"; else echo "FAIL $name: check passed or failed for the wrong reason: $out"; fail=1; fi ;;
     must_pass_*) if [ $rc -eq 0 ]; then echo "ok   $name"; else echo "FAIL $name: $out"; fail=1; fi ;;
   esac
 done
