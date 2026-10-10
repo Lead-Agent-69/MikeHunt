@@ -1898,6 +1898,7 @@ export default function DealPage({
         isOpen={findSimilarOpen}
         onClose={() => setFindSimilarOpen(false)}
         snapshot={{
+          id,
           vin: serverDeal?.vin || store.vin || "",
           year: Number(serverDeal?.year ?? store.year) || 0,
           make: String(serverDeal?.make ?? store.make ?? ""),
