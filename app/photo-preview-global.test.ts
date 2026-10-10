@@ -25,7 +25,7 @@ describe("global photo previews", () => {
       "live-data-carousel",
     ]) {
       const source = readFileSync(`components/ui/${file}.tsx`, "utf8");
-      expect(source).toContain("<PhotoPreview images={images}");
+      expect(source).toMatch(/<PhotoPreview\s+images=\{images\}/);
       expect(source).not.toContain("images[selectedIndex].src");
     }
   });

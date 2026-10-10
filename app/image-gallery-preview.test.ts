@@ -7,7 +7,13 @@ vi.mock("framer-motion", () => ({
   motion: {
     dialog: React.forwardRef<HTMLDialogElement, Record<string, unknown>>(
       function MotionDialog(
-        { initial, animate, exit, transition, ...props },
+        {
+          initial: _initial,
+          animate: _animate,
+          exit: _exit,
+          transition: _transition,
+          ...props
+        },
         ref,
       ) {
         return React.createElement("dialog", { ...props, ref });
