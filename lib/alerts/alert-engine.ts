@@ -103,12 +103,17 @@ export async function checkAlerts() {
             )
               parts.push(`+${money(deal.true_net_profit)} profit`);
             if (deal.location_state) parts.push(deal.location_state);
-            const n = await sendPushToUser(supabase, alert.user_id, {
-              title,
-              body: parts.join(" · "),
-              url: `/deal/${deal.id}`,
-              tag: String(deal.id),
-            });
+            const n = await sendPushToUser(
+              supabase,
+              alert.user_id,
+              {
+                title,
+                body: parts.join(" · "),
+                url: `/deal/${deal.id}`,
+                tag: String(deal.id),
+              },
+              { kind: "alert_match", dealId: deal.id },
+            );
             if (n > 0)
               await supabase
                 .from("alert_matches")

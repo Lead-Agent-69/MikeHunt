@@ -170,7 +170,13 @@ self.addEventListener('push', (event) => {
     ]
   }
 
-  event.waitUntil(self.registration.showNotification(payload.title, options))
+  // Delivery receipt: the push reached this device. Opaque id only (no user data in the URL).
+  const receipt =
+    typeof payload.deliveryId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.deliveryId)
+      ? fetch('/api/t/d/' + payload.deliveryId, { method: 'POST', keepalive: true }).catch(() => {})
+      : Promise.resolve()
+
+  event.waitUntil(Promise.all([self.registration.showNotification(payload.title, options), receipt]))
 })
 
 // Notification click → focus an existing tab (navigating it to the target) or open a new one.
