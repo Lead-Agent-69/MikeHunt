@@ -53,7 +53,7 @@ export default function MapPage() {
 
   return (
     <div
-      className="max-w-6xl mx-auto px-4 py-6 space-y-4"
+      className="max-w-6xl mx-auto md:px-4 py-6 space-y-4"
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <div className="flex items-center justify-between gap-3 flex-wrap">

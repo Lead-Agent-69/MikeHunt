@@ -423,26 +423,31 @@ html {
 }
 
 /* ── Utility Classes ── */
+/* Entrance animations that move or scale use fill-mode `backwards`, not
+   `both`: their last keyframe equals the element's resting style, and a
+   retained end transform (computed as an identity matrix) makes the wrapper
+   the containing block for `position: fixed` children — e.g. the deal page's
+   bottom action bar scrolled away inside .animate-fadeUp at 390px. */
 .animate-sheet {
-  animation: springSheet 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: springSheet 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 .animate-springPop {
-  animation: springPop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: springPop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
 }
 .animate-fadeUp {
-  animation: fadeUp 0.4s var(--ease-out) both;
+  animation: fadeUp 0.4s var(--ease-out) backwards;
 }
 .animate-slideUp {
-  animation: slideUp 0.3s var(--ease-out) both;
+  animation: slideUp 0.3s var(--ease-out) backwards;
 }
 .animate-fadeIn {
   animation: fadeIn 0.3s ease both;
 }
 .animate-scaleUp {
-  animation: scaleUp 0.3s var(--ease-out) both;
+  animation: scaleUp 0.3s var(--ease-out) backwards;
 }
 .animate-successPop {
-  animation: successPop 0.4s var(--ease-out) both;
+  animation: successPop 0.4s var(--ease-out) backwards;
 }
 
 /* ── Glass Panel ── */
@@ -542,11 +547,11 @@ html {
 }
 
 .motion-enter {
-  animation: fadeUp 0.34s var(--ease-out) both;
+  animation: fadeUp 0.34s var(--ease-out) backwards;
 }
 
 .stagger-children > * {
-  animation: fadeUp 0.34s var(--ease-out) both;
+  animation: fadeUp 0.34s var(--ease-out) backwards;
 }
 
 .stagger-children > *:nth-child(2) {

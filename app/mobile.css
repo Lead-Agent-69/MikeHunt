@@ -2355,7 +2355,9 @@ img[loading="lazy"] {
   top: 0;
   left: 0;
   right: 0;
-  padding: 6px 16px;
+  /* Informational only: never swallow taps meant for the top nav under it. */
+  pointer-events: none;
+  padding: calc(6px + env(safe-area-inset-top)) 16px 6px;
   text-align: center;
   font-size: 12px;
   font-weight: 600;
