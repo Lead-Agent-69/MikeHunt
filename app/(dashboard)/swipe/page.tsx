@@ -24,7 +24,15 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
 import { readCondition } from "@/lib/intelligence/condition";
+import { TitleBadge } from "@/components/shared/TitleBadge";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import {
+  titleFilterOptions,
+  titleTypeFromQuery,
+  withTitleType,
+} from "@/lib/deals/title-filter-options";
+
+const SWIPE_TITLE_OPTIONS = titleFilterOptions(null, "Any title");
 import { ErrorState } from "@/components/shared/PageStates";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
@@ -46,6 +54,8 @@ type SwipeDeal = {
   model?: string;
   mileage?: number;
   condition?: string;
+  damageType?: string;
+  titleSource?: string | null;
   askPrice?: number;
   profitScore?: number;
   profitEstimate?: number;
@@ -143,6 +153,12 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
             {title}
           </h3>
         </div>
+        <TitleBadge
+          className="w-fit"
+          condition={deal.condition}
+          damageType={deal.damageType}
+          titleSource={deal.titleSource}
+        />
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
           {deal.mileage ? (
@@ -230,8 +246,10 @@ export default function SwipePage() {
     savedScopeStates(prefs)?.[0] ||
     ""
   ).toUpperCase();
+  // null = follow the saved scope's titleType; otherwise the swipe-only title choice.
+  const [titleFilter, setTitleFilter] = useState<string | null>(null);
   const query = useMemo(() => {
-    const params = new URLSearchParams(sharedQuery);
+    const params = new URLSearchParams(withTitleType(sharedQuery, titleFilter));
     if (
       homeState &&
       params.get("scope") !== "explicit" &&
@@ -240,7 +258,7 @@ export default function SwipePage() {
     )
       params.set("state", homeState);
     return params.toString();
-  }, [sharedQuery, homeState]);
+  }, [sharedQuery, homeState, titleFilter]);
   const swipeReady = ready && !prefsLoading;
   const scopeLabel =
     inventoryScopeStates(new URLSearchParams(query))?.join(", ") ||
@@ -365,6 +383,21 @@ export default function SwipePage() {
         </h1>
       </motion.div>
       <InventoryViewLinks query={query} current="/swipe" />
+      <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
+        Title
+        <select
+          aria-label="Title filter"
+          value={titleTypeFromQuery(query)}
+          onChange={(event) => setTitleFilter(event.target.value)}
+          className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
+        >
+          {SWIPE_TITLE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
       {failedSaves.length > 0 && (
         <div
           role="status"

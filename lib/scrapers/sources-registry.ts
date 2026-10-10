@@ -6,6 +6,8 @@
  * rate limits, and scraper configuration.
  */
 
+import { SOURCES_MASTER_ADDITIONS } from "./sources-registry-additions";
+
 export type SourceType =
   | "auction"
   | "dealer"
@@ -49,6 +51,15 @@ export interface SourceConfig {
   priority: "P0" | "P1" | "P2" | "P3";
   status: "active" | "planned" | "testing" | "disabled";
   notes?: string;
+  /**
+   * How MikeHunt reaches it: crawled pages, an official API, a government open-data feed / public
+   * notice file, or an outbound search link only (never fetched).
+   */
+  access?: "scrape" | "api" | "open-data" | "link-only";
+  /** Feed format for open-data / notice sources (socrata, pdf, xlsx, html). */
+  format?: "socrata" | "pdf" | "xlsx" | "html" | "json";
+  /** License as published ("Public Domain", "ODC-PDDL", "portal ToU", "unclear: public notice"). */
+  license?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -588,6 +599,173 @@ export const GOVERNMENT_SOURCES: SourceConfig[] = [
     status: "active",
     notes: "No registration required.",
   },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPEN GOVERNMENT DATA: surplus / impound / auction vehicle lists
+// Researched 2026-10-10 (Elle, /workspace/mikehunt-audit/open_gov_vehicle_data.md). Public feeds and
+// official notice files only; nothing gated (GovDeals, PublicSurplus, Copart, AssetWorks) is fetched.
+// Registered as "planned" until each has a parser; ingest facts only (VIN, year, make, model, price,
+// date, location) and link back to the official page. Never rehost the PDFs.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const openGov = (
+  s: Omit<SourceConfig, "type" | "category" | "authRequired" | "access" | "status"> &
+    Partial<Pick<SourceConfig, "status">>,
+): SourceConfig => ({
+  type: "government",
+  category: "government-surplus",
+  authRequired: "none",
+  access: "open-data",
+  status: "planned",
+  ...s,
+});
+
+export const OPEN_GOV_FEEDS: SourceConfig[] = [
+  openGov({
+    id: "gov-baltimore-impound",
+    name: "Baltimore City DOT impound auction list",
+    url: "https://www.baltimorecity.gov/transportation/our-work/towing/auction-listings",
+    states: ["MD"],
+    format: "pdf",
+    license: "unclear: public notice",
+    description: "Bi-weekly impound auction list (text PDF): lot, stock #, year, make, body, VIN.",
+    inventorySize: "~800 per list",
+    updateFrequency: "Every 2 weeks",
+    priority: "P1",
+    notes: "Bidding venue is GovDeals/Copart (gated): ingest the city list, link to the city page only.",
+  }),
+  openGov({
+    id: "gov-montgomery-md-police-auction",
+    name: "Montgomery County MD Police vehicle auction",
+    url: "https://www.montgomerycountymd.gov/montgomery-county-police-department/how-do-i/vehicle-auction",
+    states: ["MD"],
+    format: "pdf",
+    license: "unclear: public notice",
+    description: "Monthly in-person police recovery auction list: year, make, body, VIN, some mileage.",
+    inventorySize: "~300 per list",
+    updateFrequency: "Monthly (4th Saturday)",
+    priority: "P1",
+  }),
+  openGov({
+    id: "gov-honolulu-abandoned-auction",
+    name: "Honolulu abandoned & unclaimed vehicle auction",
+    url: "https://www.honolulu.gov/csd/public-auction-of-abandoned-and-unclaimed-vehicles/",
+    states: ["HI"],
+    format: "pdf",
+    license: "unclear: public notice",
+    description: "Monthly list (text PDF): make, VIN, body, total owed; bidding on the city's own VSS site.",
+    inventorySize: "~270 per list",
+    updateFrequency: "Monthly",
+    priority: "P1",
+    notes: "robots.txt allows * (blocks some AI crawlers by name).",
+  }),
+  openGov({
+    id: "gov-delaware-fleet-bulletin",
+    name: "Delaware OMB Fleet Services surplus vehicle bulletin",
+    url: "https://gss.omb.delaware.gov/surplus/documents/vehicle-bulletin.pdf",
+    states: ["DE"],
+    format: "pdf",
+    license: "unclear: public notice",
+    description: "Rolling surplus fleet bulletin: year, model, mileage, VIN (make from VIN decode).",
+    inventorySize: "~80",
+    updateFrequency: "Rolling",
+    priority: "P2",
+    notes: "Pipeline list: sold later on usgovbid.com (not checked). No price in the bulletin.",
+  }),
+  openGov({
+    id: "gov-memphis-auto-auctions",
+    name: "Memphis TN impound + surplus fleet lists",
+    url: "https://memphistn.gov/city-auto-auctions/",
+    states: ["TN"],
+    format: "xlsx",
+    license: "unclear: public notice",
+    description: "Weekly impound list (scanned PDF, needs OCR) and quarterly surplus fleet XLSX with VINs.",
+    updateFrequency: "Weekly (impound) / quarterly (surplus)",
+    priority: "P2",
+    notes: "robots.txt allows everything with Crawl-delay 10.",
+  }),
+  openGov({
+    id: "gov-seattle-fleet-surplus",
+    name: "Seattle FAS current fleet surplus / auction list",
+    url: "https://cos-data.seattle.gov/resource/6gnm-7jex.json",
+    states: ["WA"],
+    format: "socrata",
+    license: "Public Domain",
+    description: "Socrata feed: year, make, model, VIN, fuel, auction house. ~64 cars/trucks.",
+    updateFrequency: "Monthly",
+    priority: "P1",
+    notes: "Pipeline: live status at the commercial auctioneer unknown.",
+  }),
+  openGov({
+    id: "gov-wv-direct-vehicle-sales",
+    name: "West Virginia Surplus direct vehicle sales list",
+    url: "https://administration.wv.gov/surplus/Inventory/state-property/Pages/Vehicle-Sales-List.aspx",
+    states: ["WV"],
+    format: "html",
+    license: "unclear: public notice",
+    description: "Weekly HTML table: year, make/model, VIN, mileage, fixed price (buy now).",
+    inventorySize: "~28",
+    updateFrequency: "Weekly (Wednesdays)",
+    priority: "P1",
+  }),
+  openGov({
+    id: "gov-boston-impound-auction",
+    name: "Boston Police / BTD impound auction",
+    url: "https://www.boston.gov/departments/transportation/abandoned-and-impounded-vehicles",
+    states: ["MA"],
+    format: "pdf",
+    license: "unclear: public notice",
+    description: "Impound auction lot list (text PDF): make, color, year. No VIN or model.",
+    inventorySize: "~60 per auction",
+    updateFrequency: "Every 1-3 months",
+    priority: "P2",
+  }),
+  openGov({
+    id: "gov-norfolk-towing",
+    name: "Norfolk VA towing / impound lot",
+    url: "https://data.norfolk.gov/resource/4dwc-v3t8.json",
+    states: ["VA"],
+    format: "socrata",
+    license: "portal ToU",
+    description: "Daily Socrata feed: VIN, year, make, model, auction date and sold-for price.",
+    inventorySize: "~850 on lot",
+    updateFrequency: "Daily",
+    priority: "P1",
+    notes: "Also a source of sold-price comps.",
+  }),
+  openGov({
+    id: "gov-seattle-fleet-sold",
+    name: "Seattle FAS sold fleet equipment",
+    url: "https://cos-data.seattle.gov/resource/y6ef-jf2w.json",
+    states: ["WA"],
+    format: "socrata",
+    license: "Public Domain",
+    description: "Historical sold fleet vehicles with VIN, sale price and date (comps only).",
+    priority: "P3",
+  }),
+  openGov({
+    id: "gov-nyc-dcas-auction",
+    name: "NYC DCAS vehicle auction list",
+    url: "https://data.cityofnewyork.us/resource/ynic-uz5i.json",
+    states: ["NY"],
+    format: "socrata",
+    license: "portal ToU",
+    description: "Weekly feed: auction close date, year, make, model, VIN (rows appear at close).",
+    updateFrequency: "Weekly",
+    priority: "P3",
+  }),
+  openGov({
+    id: "gov-chicago-towed",
+    name: "Chicago towed vehicles",
+    url: "https://data.cityofchicago.org/resource/ygr5-vcbg.json",
+    states: ["IL"],
+    format: "socrata",
+    license: "portal ToU",
+    description: "Daily 90-day tow locator (no VIN). Impound-auction lead only.",
+    updateFrequency: "Daily",
+    priority: "P3",
+  }),
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1245,17 +1423,92 @@ export const STATE_DEALER_CANDIDATES: SourceConfig[] =
   }));
 
 // ═══════════════════════════════════════════════════════════════════════════
+// OUTBOUND SEARCH LINKS (lib/multisite). Link-only: MikeHunt never fetches these pages; the buyer's
+// own browser opens the site's public search with their filters. Carvana and Visor are excluded
+// (their terms forbid linking). Sites already registered above keep their existing entry.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const linkOnly = (
+  s: Pick<SourceConfig, "id" | "name" | "url" | "description" | "category"> &
+    Partial<SourceConfig>,
+): SourceConfig => ({
+  type: "aggregator",
+  authRequired: "none",
+  access: "link-only",
+  priority: "P2",
+  status: "active",
+  ...s,
+});
+
+export const MULTISITE_LINK_SOURCES: SourceConfig[] = [
+  linkOnly({
+    id: "carmax-link",
+    name: "CarMax (search link)",
+    url: "https://www.carmax.com/cars",
+    category: "retail",
+    description: "Outbound search link with make/model/year/price.",
+  }),
+  linkOnly({
+    id: "autolist-link",
+    name: "Autolist (search link)",
+    url: "https://www.autolist.com/listings",
+    category: "aggregator",
+    description: "Outbound search link with make/model/year/price/ZIP.",
+  }),
+  linkOnly({
+    id: "kbb-link",
+    name: "Kelley Blue Book (search link)",
+    url: "https://www.kbb.com/cars-for-sale/used",
+    category: "aggregator",
+    description: "Outbound search link (Cox stack). KBB terms allow hyperlinks under its Linking Policy.",
+    status: "testing",
+    notes: "Hidden until the URL format is confirmed in a real browser.",
+  }),
+  linkOnly({
+    id: "edmunds-link",
+    name: "Edmunds (search link)",
+    url: "https://www.edmunds.com/inventory/srp.html",
+    category: "aggregator",
+    description: "Outbound used-inventory search link.",
+    status: "testing",
+    notes: "Hidden until the URL format is confirmed in a real browser.",
+  }),
+  linkOnly({
+    id: "iaai-link",
+    name: "IAA (search link)",
+    url: "https://www.iaai.com/Search",
+    category: "salvage",
+    description: "Outbound keyword search link to public lot search. Never scraped.",
+    status: "testing",
+    notes: "Hidden until the URL format is confirmed in a real browser.",
+  }),
+  linkOnly({
+    id: "copart-link",
+    name: "Copart (search link)",
+    url: "https://www.copart.com/lotSearchResults/",
+    category: "salvage",
+    description: "Outbound keyword search link to public lot search.",
+    status: "testing",
+    notes: "Hidden until the URL format is confirmed in a real browser.",
+  }),
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COMPLETE REGISTRY
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const ALL_SOURCES: SourceConfig[] = [
+  // Sources-master additions (docs/sources-master.md); catalog-only.
+  ...SOURCES_MASTER_ADDITIONS,
   ...SALVAGE_AUCTIONS,
   ...INDEPENDENT_DEALERS,
   ...GOVERNMENT_SOURCES,
+  ...OPEN_GOV_FEEDS,
   ...ONLINE_MARKETPLACES,
   ...DEALER_PLATFORMS,
   ...PARTS_SOURCES,
   ...AGGREGATORS,
+  ...MULTISITE_LINK_SOURCES,
   ...STATE_DEALER_CANDIDATES,
 ];
 

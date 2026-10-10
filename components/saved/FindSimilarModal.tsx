@@ -6,6 +6,10 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, Search, ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  similarListingDetails,
+  similarListingTitle,
+} from "@/lib/deals/similar-listing-display";
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -15,6 +19,7 @@ interface FindSimilarModalProps {
   isOpen: boolean;
   onClose: () => void;
   snapshot: {
+    id?: string;
     vin: string;
     year: number;
     make: string;
@@ -129,7 +134,11 @@ export function FindSimilarModal({
           : Array.isArray(data?.deals)
             ? data.deals
             : [];
-        setComparables(rows);
+        setComparables(
+          rows.filter(
+            (row: { id?: string }) => !snapshot.id || row.id !== snapshot.id,
+          ),
+        );
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
@@ -142,6 +151,7 @@ export function FindSimilarModal({
     return () => controller.abort();
   }, [
     isOpen,
+    snapshot.id,
     snapshot.make,
     snapshot.model,
     snapshot.year,
@@ -273,11 +283,10 @@ export function FindSimilarModal({
                     {/* Vehicle Text details */}
                     <div className="min-w-0 break-words">
                       <h4 className="text-sm font-bold text-[var(--t1)]">
-                        {comp.year} {comp.make} {comp.model} {comp.trim}
+                        {similarListingTitle(comp)}
                       </h4>
                       <p className="text-xs text-[var(--t3)]">
-                        {comp.mileage?.toLocaleString()} mi &bull;{" "}
-                        {comp.location_city}, {comp.location_state}
+                        {similarListingDetails(comp)}
                       </p>
                       <div className="flex items-center space-x-2 mt-1">
                         <span className="text-xs font-black text-[var(--t2)]">

@@ -50,6 +50,7 @@ function query() {
               ask_price: 12000,
               true_net_profit: 4000,
               deal_verdict: "go",
+              last_seen_at: "2026-10-10T05:00:00+00:00",
             },
             {
               id: "two",
@@ -157,6 +158,19 @@ describe("Map scope and role safety", () => {
     expect(JSON.stringify(body)).not.toContain("38.6270251");
     // Guests: no profit in the label.
     expect(body.points[0].label).not.toMatch(/profit/i);
+  });
+
+  it("ships last_seen as ISO (or null, never 1970) for freshness labels", async () => {
+    const res = await request("");
+    const body = await res.json();
+    const select = state.calls.find(([m]) => m === "select")?.[1] as string;
+    expect(select).toMatch(/\blast_seen_at\b/);
+    expect(body.points[0].lastSeenAt).toBe("2026-10-10T05:00:00.000Z");
+    expect(body.points[1].lastSeenAt).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("1970");
+    // Redaction unchanged: 2-decimal coords, private no-store.
+    expect(body.points[0]).toMatchObject({ lat: 38.63, lng: -90.2 });
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
   });
 
   it("empty result is no-store too", async () => {

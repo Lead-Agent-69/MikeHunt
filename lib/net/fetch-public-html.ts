@@ -1,54 +1,10 @@
-import http from "http";
-import https from "https";
 import axios from "axios";
-import {
-  UrlNotAllowedError,
-  assertPublicHttpUrl,
-  resolvePublicAddresses,
-} from "@/lib/net/public-url";
+import { UrlNotAllowedError } from "@/lib/net/public-url";
+import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 const MAX_REDIRECTS = 3;
-
-function publicLookup(
-  hostname: string,
-  options: { all?: boolean },
-  callback: (
-    err: Error | null,
-    address?: string | { address: string; family: number }[],
-    family?: number,
-  ) => void,
-) {
-  resolvePublicAddresses(hostname)
-    .then((addresses) => {
-      const mapped = addresses.map((address) => ({
-        address,
-        family: address.includes(":") ? 6 : 4,
-      }));
-      if (options?.all) {
-        callback(null, mapped);
-        return;
-      }
-      callback(null, mapped[0].address, mapped[0].family);
-    })
-    .catch((error: Error) => {
-      callback(error);
-    });
-}
-
-/**
- * Agents whose DNS lookup re-checks every resolved address, so the socket can
- * only connect to a public IP even if DNS changes after assertPublicHttpUrl.
- */
-export const publicHttpAgent = new http.Agent({
-  keepAlive: false,
-  lookup: publicLookup as never,
-});
-export const publicHttpsAgent = new https.Agent({
-  keepAlive: false,
-  lookup: publicLookup as never,
-});
-const httpAgent = publicHttpAgent;
-const httpsAgent = publicHttpsAgent;
+/** Default page-size cap; callers can pass a smaller or larger maxBytes. */
+export const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
 export function locationHeader(
   headers: Record<string, unknown>,
@@ -74,7 +30,9 @@ export async function fetchPublicHtml(
   const allowUrl =
     typeof policyOrOptions === "function" ? policyOrOptions : undefined;
   const options = typeof policyOrOptions === "object" ? policyOrOptions : {};
-  let current = await assertPublicHttpUrl(rawUrl);
+  // Resolve once per hop, validate, and pin the socket to that answer (no second DNS lookup).
+  let target = await resolvePinnedTarget(rawUrl);
+  let current = target.url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     if (allowUrl && !(await allowUrl(current.toString())))
       throw new Error("Page disallowed by source policy");
@@ -89,12 +47,11 @@ export async function fetchPublicHtml(
         },
         timeout: 6000,
         signal: options.signal,
-        maxContentLength: options.maxBytes ?? Infinity,
+        maxContentLength: options.maxBytes ?? MAX_HTML_BYTES,
         maxRedirects: 0,
         responseType: "text",
         validateStatus: () => true,
-        httpAgent,
-        httpsAgent,
+        ...pinnedAxiosOptions(target),
       });
     } catch (error) {
       if (error instanceof UrlNotAllowedError) throw error;
@@ -105,7 +62,8 @@ export async function fetchPublicHtml(
     if (status >= 300 && status < 400) {
       const loc = locationHeader(response.headers || {});
       if (!loc) return null;
-      current = await assertPublicHttpUrl(new URL(loc, current).toString());
+      target = await resolvePinnedTarget(new URL(loc, current).toString());
+      current = target.url;
       continue;
     }
     if (status < 200 || status >= 300) return null;

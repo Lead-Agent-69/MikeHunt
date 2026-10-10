@@ -22,6 +22,8 @@ import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { buyTerm } from "@/lib/deal-terms";
+import { TitleBadge } from "@/components/shared/TitleBadge";
+import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
 
 export type SavedCarStatus =
   | "active"
@@ -68,6 +70,7 @@ interface SavedCarCardProps {
       sellerContactUrl?: string;
       sourceUrl?: string;
       titleType?: string;
+      titleSource?: string | null;
       condition?: string;
       damageType?: string;
       lastSeenAt?: string;
@@ -417,13 +420,16 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               <p className="mt-0.5 text-[var(--t3)]">{trustState.detail}</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {snapshot.titleType && (
-                <Badge
-                  className="border-none text-[10px] font-bold uppercase"
-                  style={{ background: "var(--s1)", color: "var(--t3)" }}
-                >
-                  {snapshot.titleType.replace(/_/g, " ")} reported by listing
-                </Badge>
+              {(snapshot.condition || snapshot.titleType) && (
+                <TitleBadge
+                  condition={
+                    snapshot.condition ||
+                    conditionFromTitleType(snapshot.titleType)
+                  }
+                  damageType={snapshot.damageType}
+                  titleSource={snapshot.titleSource}
+                  showDamage={false}
+                />
               )}
               {snapshot.damageType && (
                 <Badge
@@ -625,7 +631,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         flipDesk={flipDesk}
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        snapshot={snapshot as any}
+        snapshot={{ ...snapshot, id: save.deal_id }}
       />
     </>
   );
