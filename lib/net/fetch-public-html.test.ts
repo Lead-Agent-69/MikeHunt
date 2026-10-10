@@ -142,3 +142,28 @@ describe("fetchPublicHtml overall deadline signal", () => {
     expect(publicFetchSignal().aborted).toBe(false);
   });
 });
+
+describe("byte caps can't be disabled by a bad maxBytes", () => {
+  it.each([NaN, -1, 0, Infinity, -Infinity, undefined])(
+    "maxBytes=%s falls back to the 5MB cap",
+    async (m) => {
+      axiosGet.mockReset();
+      axiosGet.mockResolvedValueOnce({ status: 200, data: "<p>Car</p>" });
+      await fetchPublicHtml("https://listings.example/a", {
+        maxBytes: m as number,
+      });
+      expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(5 * 1024 * 1024);
+    },
+  );
+
+  it("a smaller maxBytes is honored, a larger one is clamped", async () => {
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValue({ status: 200, data: "<p>Car</p>" });
+    await fetchPublicHtml("https://listings.example/a", {
+      maxBytes: 2_000_000,
+    });
+    await fetchPublicHtml("https://listings.example/b", { maxBytes: 1e12 });
+    expect(axiosGet.mock.calls[0][1].maxContentLength).toBe(2_000_000);
+    expect(axiosGet.mock.calls[1][1].maxContentLength).toBe(5 * 1024 * 1024);
+  });
+});

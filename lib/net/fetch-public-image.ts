@@ -1,6 +1,10 @@
 import axios from "axios";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
-import { locationHeader, publicFetchSignal } from "@/lib/net/fetch-public-html";
+import {
+  clampBytes,
+  locationHeader,
+  publicFetchSignal,
+} from "@/lib/net/fetch-public-html";
 import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 export const MAX_IMAGE_REDIRECTS = 3;
@@ -59,7 +63,7 @@ export async function fetchPublicImage(
         signal,
         maxRedirects: 0,
         responseType: "arraybuffer",
-        maxContentLength: Math.min(options.maxBytes ?? MAX_IMAGE_BYTES, MAX_IMAGE_BYTES),
+        maxContentLength: clampBytes(options.maxBytes, MAX_IMAGE_BYTES),
         validateStatus: () => true,
         ...pinnedAxiosOptions(target),
       });

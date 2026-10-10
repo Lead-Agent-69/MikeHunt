@@ -3,10 +3,17 @@ import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { pinnedAxiosOptions, resolvePinnedTarget } from "@/lib/net/pinned-dns";
 
 const MAX_REDIRECTS = 3;
-/** Default page-size cap; callers can pass a smaller or larger maxBytes. */
+/** Page-size cap. Callers can pass a smaller maxBytes, never a larger one. */
 export const MAX_HTML_BYTES = 5 * 1024 * 1024;
 /** Whole-fetch deadline (all hops), on top of axios' per-request timeout. */
 export const PUBLIC_FETCH_DEADLINE_MS = 10_000;
+
+/** A caller's byte limit, clamped to `cap`. NaN, 0, negative or missing all mean `cap`. */
+export function clampBytes(m: number | undefined, cap: number): number {
+  return typeof m === "number" && Number.isFinite(m) && m > 0
+    ? Math.min(m, cap)
+    : cap;
+}
 
 /** Overall deadline, combined with the caller's signal when there is one. */
 export function publicFetchSignal(caller?: AbortSignal): AbortSignal {
@@ -56,7 +63,7 @@ export async function fetchPublicHtml(
         },
         timeout: 6000,
         signal,
-        maxContentLength: options.maxBytes ?? MAX_HTML_BYTES,
+        maxContentLength: clampBytes(options.maxBytes, MAX_HTML_BYTES),
         maxRedirects: 0,
         responseType: "text",
         validateStatus: () => true,
