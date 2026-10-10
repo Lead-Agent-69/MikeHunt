@@ -8,18 +8,22 @@ import {
 } from "./listing-integrity";
 import { QualityController } from "./tools/quality-control";
 describe("listing integrity", () => {
-  it("rejects nonfinite numeric values and impossible years", () => {
+  it("rejects nonfinite values and retains impossible years with a scoring-exclusion flag", () => {
     for (const ask_price of [NaN, Infinity, -Infinity])
       expect(
         new QualityController().validateBatch("test", [
           { source: "test", title: "Honda Accord", ask_price },
         ]).valid,
       ).toBe(0);
-    expect(
-      new QualityController().validateBatch("test", [
-        { source: "test", title: "Honda Accord", ask_price: 1000, year: 2050 },
-      ]).valid,
-    ).toBe(0);
+    const flagged = new QualityController().validateBatch("test", [
+      { source: "test", title: "Honda Accord", ask_price: 1000, year: 2050 },
+    ]);
+    expect(flagged.valid).toBe(1);
+    expect(flagged.issues).toContainEqual({
+      index: 0,
+      field: "year_after_next_model_year",
+      reason: "flagged, kept out of scoring",
+    });
   });
   it("normalizes VINs, retains offers, and separates conflicting identity", () => {
     const row = {
