@@ -82,11 +82,38 @@ function safeDealAnalysis(
   return Object.keys(safeCosts).length > 0 ? { costs: safeCosts } : undefined;
 }
 
+const CONTACT_KEY = /contact|phone|email/i;
+
+/**
+ * Copy of a raw `options` blob without seller contact. Scrapers store seller phone / email under
+ * options.contact (and sometimes options.seller.*), and sellerContact() reads it from there, so a
+ * card or deal that carries raw options must lose those keys on a non-flip desk.
+ */
+function safeOptions(options: unknown): unknown {
+  if (!options || typeof options !== "object" || Array.isArray(options))
+    return options;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(options as Record<string, unknown>)) {
+    if (CONTACT_KEY.test(k)) continue;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const inner: Record<string, unknown> = {};
+      for (const [ik, iv] of Object.entries(v as Record<string, unknown>)) {
+        if (!CONTACT_KEY.test(ik)) inner[ik] = iv;
+      }
+      out[k] = inner;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export function redactDealForNonFlipDesk<T extends Record<string, any>>(
   deal: T,
 ): Record<string, any> {
   const out: Record<string, any> = { ...deal };
   for (const key of FLIP_ONLY_FIELDS) delete out[key];
+  if ("options" in out) out.options = safeOptions(deal.options);
 
   const safe = safeDealAnalysis(deal?.dealAnalysis ?? deal?.deal_analysis);
   if (safe) out.dealAnalysis = safe;
@@ -168,6 +195,7 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
 ): Record<string, any> {
   const out: Record<string, any> = { ...card };
   for (const key of CARD_FLIP_ONLY_FIELDS) delete out[key];
+  if ("options" in out) out.options = safeOptions(card.options);
   if ("prediction" in out) out.prediction = safePrediction(card.prediction);
   // Nested analysis can still carry profit / max-bid; whitelist like deal redaction.
   const safe = safeDealAnalysis(card?.dealAnalysis ?? card?.deal_analysis);

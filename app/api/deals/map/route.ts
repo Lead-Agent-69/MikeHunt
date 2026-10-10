@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return withNoStore(tooManyRequests(rl));
 
   const sp = new URL(req.url).searchParams;
-  const verdictFilter = parseMapVerdicts(sp.get("verdict"));
+  const requestedVerdicts = parseMapVerdicts(sp.get("verdict"));
   const limit = Math.min(
     2000,
     Math.max(1, parseInt(sp.get("limit") || "1000", 10) || 1000),
@@ -45,6 +45,19 @@ export async function GET(req: NextRequest) {
       NextResponse.json({ points: [], count: 0, configured: false }),
     );
   }
+
+  // The verdict filter (default "actionable" = go/hold) and the verdict-colored markers reveal
+  // which listings are flip GO deals, so only a saved reseller / dealer desk gets them. Guests and
+  // non-flip desks get all located inventory with neutral markers (fail closed).
+  let flipDesk = false;
+  try {
+    flipDesk = await resolveCallerFlipDesk();
+  } catch {
+    flipDesk = false;
+  }
+  const verdictFilter = flipDesk
+    ? requestedVerdicts
+    : { mode: "all" as const, values: [] as string[] };
 
   const supabase = createServerComponentClient();
   // Page past the PostgREST 1000-row cap so the map reflects ALL located inventory up to `limit`
@@ -89,13 +102,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  let flipDesk = false;
-  try {
-    flipDesk = await resolveCallerFlipDesk();
-  } catch {
-    flipDesk = false;
-  }
-
   const points = (data || [])
     .map((d: any) => {
       let lat: number | null = null;
@@ -131,7 +137,7 @@ export async function GET(req: NextRequest) {
         approx,
         url: `/deal/${encodeURIComponent(d.id)}`,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
-        type: typeForVerdict(d.deal_verdict),
+        type: flipDesk ? typeForVerdict(d.deal_verdict) : "dealer",
         label,
       };
     })
