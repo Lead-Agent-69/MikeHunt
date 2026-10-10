@@ -85,7 +85,7 @@ function safeDealAnalysis(
 // Substring terms are unambiguous anywhere in a key. "tel" and "cell" only count as a whole key
 // segment (split on _, -, space, dot and camelCase), so seller_tel / sellerTel / cell_number match
 // while hotel_parking and excellent_condition survive.
-const CONTACT_SUBSTRING = /contact|phone|e-?mail|mobile|whatsapp/i;
+const CONTACT_SUBSTRING = /contact|phone|e[-_ ]?mail|mobile|whatsapp/i;
 const CONTACT_SEGMENT = /^(tel|cell)$/i;
 
 export function isContactKey(key: string): boolean {

@@ -135,6 +135,10 @@ describe("isContactKey segment matching for tel / cell", () => {
       "seller_cell",
       "sellerCell",
       "Cell-Phone",
+      "e_mail",
+      "seller_e-mail",
+      "E Mail",
+      "eMail",
     ]) {
       expect(isContactKey(k), k).toBe(true);
     }
