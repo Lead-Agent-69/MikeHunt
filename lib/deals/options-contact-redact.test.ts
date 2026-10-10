@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isContactKey,
   listingsForDesk,
   redactDealForNonFlipDesk,
   redactListingForNonFlipDesk,
@@ -117,5 +118,54 @@ describe("safeOptions sensitive-key coverage", () => {
     // \btel\b must not eat unrelated keys like hotel_*.
     expect(out.options.hotel_parking).toBe("lot B");
     expect(out.options.trim).toBe("EX-L");
+  });
+});
+
+describe("isContactKey segment matching for tel / cell", () => {
+  it("matches tel and cell as key segments", () => {
+    for (const k of [
+      "tel",
+      "seller_tel",
+      "seller-tel",
+      "sellerTel",
+      "tel_2",
+      "TEL",
+      "cell",
+      "cell_number",
+      "seller_cell",
+      "sellerCell",
+      "Cell-Phone",
+    ]) {
+      expect(isContactKey(k), k).toBe(true);
+    }
+  });
+
+  it("keeps keys that merely contain tel / cell", () => {
+    for (const k of [
+      "hotel_parking",
+      "excellent_condition",
+      "excellentCondition",
+      "telemetry",
+      "cellar_storage",
+      "intel",
+      "cancellation_policy",
+    ]) {
+      expect(isContactKey(k), k).toBe(false);
+    }
+  });
+
+  it("redaction drops seller_tel but keeps excellent_* at depth", () => {
+    const out = redactListingForNonFlipDesk({
+      id: "d",
+      options: {
+        seller: { seller_tel: "5550110", excellent_paint: true },
+        list: [{ sellerCell: "5550111", hotel_lot: "B" }],
+      },
+    } as any) as any;
+    const raw = JSON.stringify(out);
+    expect(raw).not.toContain("5550110");
+    expect(raw).not.toContain("5550111");
+    expect(out.options.seller.excellent_paint).toBe(true);
+    expect(out.options.list[0].hotel_lot).toBe("B");
   });
 });

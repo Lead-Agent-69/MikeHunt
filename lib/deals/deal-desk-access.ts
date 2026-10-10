@@ -82,7 +82,19 @@ function safeDealAnalysis(
   return Object.keys(safeCosts).length > 0 ? { costs: safeCosts } : undefined;
 }
 
-const CONTACT_KEY = /contact|phone|e-?mail|\btel\b|mobile|cell|whatsapp/i;
+// Substring terms are unambiguous anywhere in a key. "tel" and "cell" only count as a whole key
+// segment (split on _, -, space, dot and camelCase), so seller_tel / sellerTel / cell_number match
+// while hotel_parking and excellent_condition survive.
+const CONTACT_SUBSTRING = /contact|phone|e-?mail|mobile|whatsapp/i;
+const CONTACT_SEGMENT = /^(tel|cell)$/i;
+
+export function isContactKey(key: string): boolean {
+  if (CONTACT_SUBSTRING.test(key)) return true;
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .split(/[_\-\s.]+/)
+    .some((seg) => CONTACT_SEGMENT.test(seg));
+}
 
 /**
  * Copy of a raw `options` blob without seller contact. Scrapers store seller phone / email under
@@ -100,7 +112,7 @@ function safeOptions(options: unknown, depth = 0): unknown {
   }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(options as Record<string, unknown>)) {
-    if (CONTACT_KEY.test(k)) continue;
+    if (isContactKey(k)) continue;
     out[k] = safeOptions(v, depth + 1);
   }
   return out;

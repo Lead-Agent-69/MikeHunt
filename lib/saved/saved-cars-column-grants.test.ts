@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const MIGRATION =
-  "supabase/migrations/20261010030000_saved_cars_column_grants.sql";
+  "supabase/migrations/20261010070000_saved_cars_column_grants.sql";
 const sql = readFileSync(MIGRATION, "utf8");
 
 describe("saved_cars column grants", () => {
