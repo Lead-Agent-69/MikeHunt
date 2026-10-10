@@ -282,8 +282,23 @@ export function jsonbTextBytes(obj: Record<string, unknown>): number {
   return Buffer.byteLength(`{${parts.join(", ")}}`, "utf8");
 }
 
-/** Bulky fields never stored in a dead letter. */
-const BULKY_KEY = /^(description|images|deal_analysis|raw|options|html)$/i;
+/**
+ * Deal fields a dead-letter payload may carry (Ren #314 c): an allow-list, so a new scraper field
+ * (seller_handle, posted_by, profile_url, telegram, ...) is dropped until someone decides it is safe.
+ * Enough to see why the row was rejected and to replay it; no seller identity, contact, free text
+ * beyond the title, or images.
+ */
+export const PAYLOAD_FIELDS: ReadonlySet<string> = new Set([
+  "source", "source_deal_id", "source_url", "dealer_id", "dealer_name",
+  "title", "year", "make", "model", "model_name", "trim", "body_type", "body_style", "vin",
+  "ask_price", "price", "buy_now_price", "current_bid", "mmr_value",
+  "mileage", "odometer_status", "condition", "title_status", "title_source", "damage_type",
+  "primary_damage", "secondary_damage", "drivetrain", "transmission", "fuel_type", "engine",
+  "exterior_color", "interior_color", "color", "one_owner", "owner_count",
+  "location_city", "location_state", "location_zip",
+  "seller_type", "listing_type", "sale_type", "lot_number", "auction_end", "bid_count",
+  "status", "active", "image_count", "posted_at", "listed_at", "scraped_at", "last_seen_at",
+]);
 
 const CONTACT_TOKENS = new Set([
   "contact", "contacts", "phone", "phones", "telephone", "tel", "mobile", "cell", "cellphone",
@@ -326,16 +341,47 @@ export function isContactKey(key: string): boolean {
   );
 }
 
+/**
+ * After a cut, drop the trailing partial token ("bob.smith@g", "(555) 123-4") so a fragment the
+ * scrubber can no longer recognise is never stored. Also drops trailing whole tokens of phone
+ * characters that still hold 3+ digits ("(555)").
+ */
+export function dropPartialTail(cut: string): string {
+  const partial = cut.match(/\S*$/)?.[0] ?? "";
+  // A cut inside one long word-only string ("yyyy…") keeps it; anything with digits, @, dots,
+  // slashes or colons, or any partial token after other text, goes.
+  let t = partial.length === cut.length && !/[\d@./:+]/.test(partial) ? cut : cut.slice(0, cut.length - partial.length);
+  // Then whole trailing tokens made only of phone characters, e.g. "(555)" left before the cut.
+  const tail = t.match(/(?:^|\s)[\d()+.\-\u2013\u2014/][\d\s()+.\-\u2013\u2014/]*$/)?.[0] ?? "";
+  if ((tail.match(/\d/g) || []).length >= 3) t = t.slice(0, t.length - tail.length);
+  return t.replace(/\s+$/, "");
+}
+
+/** Cut to `max` chars, dropping the partial token at the cut. */
+export function cutAtToken(s: string, max: number): string {
+  return s.length <= max ? s : dropPartialTail(s.slice(0, max));
+}
+
+/** Byte cap that never leaves a partial token behind. */
+export function capBytesAtToken(s: string, maxBytes: number): string {
+  return Buffer.byteLength(s, "utf8") <= maxBytes ? s : dropPartialTail(capBytes(s, maxBytes));
+}
+
+/** Scrub, then cut: pre-cut (bounds the scrub's input) and final cut both drop the partial tail. */
+export function scrubThenCut(s: string, preMax: number, max: number): string {
+  return cutAtToken(scrubContact(cutAtToken(s, preMax)), max);
+}
+
 export function compactPayload(
   record: unknown,
 ): Record<string, unknown> | null {
   if (!record || typeof record !== "object") return null;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(record as Record<string, unknown>)) {
-    if (v == null || BULKY_KEY.test(k) || isContactKey(k)) continue;
+    if (v == null || !PAYLOAD_FIELDS.has(k) || isContactKey(k)) continue;
     if (typeof v === "string") {
       // URLs lose their query string (tracking / contact params), like every other logged URL.
-      out[k] = /(^|_)url$/i.test(k) ? safeUrl(v) : scrubContact(v.slice(0, 600)).slice(0, 300);
+      out[k] = /(^|_)url$/i.test(k) ? safeUrl(v) : scrubThenCut(v, 600, 300);
     } else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
   }
   while (jsonbTextBytes(out) > MAX_PAYLOAD_BYTES) {
@@ -365,7 +411,9 @@ export function deadLetter(
     reason: capBytes(scrubContact(reason), 300),
     url: safeUrl(info.url ?? null),
     // Page HTML carries seller phones/emails and tracking URLs: scrub before it is stored.
-    rawSnippet: info.raw ? capBytes(scrubContact(info.raw.slice(0, 16_384))) : null,
+    rawSnippet: info.raw
+      ? capBytesAtToken(scrubContact(cutAtToken(info.raw, 16_384)), MAX_SNIPPET_BYTES)
+      : null,
     payload: compactPayload(info.payload),
     at: new Date().toISOString(),
   });

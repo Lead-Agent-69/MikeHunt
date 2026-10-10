@@ -86,11 +86,6 @@ export async function updateRunRow(
   return error ?? null;
 }
 
-/**
- * Insert rows as one batch; if the batch is refused (one row trips a CHECK, a bad run_id, ...),
- * fall back to row-by-row so one bad record never loses the whole run's log (Ren #296 P2-1).
- * A missing table (migration not applied) stops at the batch. Returns rows written.
- */
 const NUL = /\u0000/g;
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
@@ -111,6 +106,11 @@ export function sanitizeForPostgres<T>(value: T): T {
   return value;
 }
 
+/**
+ * Insert rows as one batch; if the batch is refused (one row trips a CHECK, a bad run_id, ...),
+ * fall back to row-by-row so one bad record never loses the whole run's log (Ren #296 P2-1).
+ * A missing table (migration not applied) stops at the batch. Returns rows written.
+ */
 export async function insertWithFallback(
   sb: Pick<SupabaseClient, "from">,
   table: string,
