@@ -28,6 +28,24 @@ function countLabel(category: TitleCategory, facet?: TitleFacet): string {
 }
 
 /**
+ * Apply a page-level title choice to an inventory query string. `null` keeps whatever the saved
+ * scope sent; "all" drops titleType; a bucket sets titleType=<bucket>.
+ */
+export function withTitleType(query: string, title: string | null): string {
+  if (title === null) return query;
+  const params = new URLSearchParams(query);
+  if (title === "all" || !isTitleCategory(title)) params.delete("titleType");
+  else params.set("titleType", title);
+  return params.toString();
+}
+
+/** The select value for a query: its single titleType bucket, else "all". */
+export function titleTypeFromQuery(query: string): "all" | TitleCategory {
+  const raw = new URLSearchParams(query).get("titleType") || "";
+  return isTitleCategory(raw) ? raw : "all";
+}
+
+/**
  * All five buckets, always (Unknown included), in TITLE_CATEGORIES order. Facet rows that aren't
  * one of the buckets are ignored; a bucket missing from the facets shows without a count.
  */

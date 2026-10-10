@@ -92,9 +92,9 @@ describe("For You rail data", () => {
   it("Discover mounts the rail with the current desk", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     expect(page).toContain("flipDesk={flipDesk}");
-    expect(page).toContain(
-      "eligibleDeals={visibleRails.flatMap((rail) => rail.deals)}",
-    );
+    expect(page).toContain("eligibleDeals={eligibleDeals}");
+    expect(page).toContain("hasRankingChoices &&");
+    expect(page).toContain("distinctDiscoveryRails(");
     expect(page).toContain("!isValidating && !error");
   });
 
@@ -171,7 +171,8 @@ describe("For You rail data", () => {
     expect(page).toContain('data-testid="find-similar-cta"');
     expect(page).toContain('data-testid="find-similar-cta-bar"');
     expect(page).toContain('data-testid="find-similar-cta-rail"');
-    expect(page).toContain("Find similar vehicles in saved inventory");
+    expect(page).toContain("Find similar vehicles in collected inventory");
+    expect(page).not.toContain("Find similar vehicles in saved inventory");
     expect(page).toContain('flipDesk={store.userType === "dealer"}');
   });
 

@@ -81,12 +81,16 @@ describe("sold_listings basis filter", () => {
     const writers = new Set([
       "app/api/ingest/route.ts",
       "lib/scrapers/sources/ebay-sold.ts",
+      "lib/sources/open-gov/sold-comps.ts",
     ]);
     const readers = files.filter((f) => !writers.has(f));
     expect(readers.length).toBeGreaterThan(0);
     for (const file of readers) {
       const src = readFileSync(file, "utf8");
-      expect(src, file).toMatch(/\.eq\("basis", SOLD_BASIS\)/);
+      // Retail readers go through lib/scoring/sold-scope (basis + sale_channel); see sold-scope.test.ts.
+      expect(src, file).toMatch(
+        /\.eq\("basis", SOLD_BASIS\)|applyRetailSoldScope\(|\.in\("basis", \["sold", "last_bid"\]\)/,
+      );
     }
     // The writers only insert/upsert there.
     for (const file of Array.from(writers)) {

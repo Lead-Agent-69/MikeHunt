@@ -81,7 +81,7 @@ describe("saved_cars column grants", () => {
   });
 });
 
-describe("no browser / non-service-role reader of saved_cars", () => {
+describe("no browser / non-service-role reader of saved_cars or vin_price_history", () => {
   const walk = (dir: string): string[] =>
     existsSync(dir)
       ? readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -92,12 +92,13 @@ describe("no browser / non-service-role reader of saved_cars", () => {
             : [];
         })
       : [];
+  // vin_price_history's RLS policy reads saved_cars.snapshot, so a client read of it now 42501s too.
   const touchesSavedCars = (src: string) =>
-    /from\(\s*["'`]saved_cars["'`]\s*\)/.test(src);
+    /from\(\s*["'`](saved_cars|vin_price_history)["'`]\s*\)/.test(src);
   const usesServiceRole = (src: string) =>
     /createServerComponentClient\s*\(|SUPABASE_SERVICE_ROLE_KEY/.test(src);
 
-  it("hooks/ and components/ never touch saved_cars (with or without a directive)", () => {
+  it("hooks/ and components/ never touch saved_cars / vin_price_history (with or without a directive)", () => {
     const offenders = ["hooks", "components"]
       .flatMap(walk)
       .filter((f) => touchesSavedCars(readFileSync(f, "utf8")));
@@ -110,7 +111,7 @@ describe("no browser / non-service-role reader of saved_cars", () => {
       "buildInterestProfile(sb) is only called from app/api/feed with createServerComponentClient(), and reads granted columns only",
   };
 
-  it("client app/ and lib/ modules never touch saved_cars", () => {
+  it("client app/ and lib/ modules never touch saved_cars / vin_price_history", () => {
     const offenders = ["app", "lib"].flatMap(walk).filter((f) => {
       const src = readFileSync(f, "utf8");
       if (!touchesSavedCars(src) || f in INJECTED_CLIENT_OK) return false;

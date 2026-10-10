@@ -3,7 +3,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
-import { assertPublicHttpUrl } from "../lib/net/public-url";
+import { pinnedRequest, resolvePinnedTarget } from "../lib/net/pinned-dns";
 
 dotenv.config({ path: ".env.local" });
 
@@ -56,10 +56,25 @@ export async function checkSavedCars() {
 
       // If deal is missing from DB or inactive, perform URL check
       if (!deal || !deal.active) {
-        const isLive = save.source_url
+        // No URL to probe and the deal is gone from our inventory: treat as dead (as before).
+        const liveness: Liveness = save.source_url
           ? await checkUrlAlive(save.source_url)
-          : false;
+          : "dead";
 
+        if (liveness === "unknown") {
+          // Couldn't tell (guard refused, timeout, bot wall, 5xx, redirect loop): don't flip the
+          // user's status on a guess. Only bump last_checked so the queue rotates.
+          await supabase
+            .from("saved_cars")
+            .update({ last_checked: new Date().toISOString() })
+            .eq("id", save.id);
+          console.log(
+            `[SAVED-CHECKER] Saved car ${save.id} (${save.source_name}) liveness unknown; status unchanged`,
+          );
+          continue;
+        }
+
+        const isLive = liveness === "alive";
         await supabase
           .from("saved_cars")
           .update({
@@ -122,32 +137,37 @@ export async function checkSavedCars() {
 
 const ALIVE_MAX_REDIRECTS = 3;
 
+export type Liveness = "alive" | "dead" | "unknown";
+
 /**
- * HEAD a saved listing's source_url to see if it's still up. source_url is user-supplied
- * (save-from-url), so every hop goes through the public-URL guard and redirects are followed
- * manually: a public URL can't bounce the worker onto metadata / localhost / RFC1918, and a
- * non-public target is refused before any request is sent (no blind SSRF probe).
+ * HEAD a saved listing's source_url. source_url is user-supplied (save-from-url), so every hop is
+ * resolved once, validated and pinned (lib/net/pinned-dns): no DNS-rebinding window, no redirect
+ * onto metadata / localhost / RFC1918, and a non-public target gets no request at all.
+ *
+ * alive: 2xx. dead: 404 / 410 (the listing is gone). unknown: anything we can't be sure about,
+ * including a guard refusal, so the caller leaves the user's status alone.
  */
-export async function checkUrlAlive(url: string): Promise<boolean> {
+export async function checkUrlAlive(url: string): Promise<Liveness> {
   try {
-    let current = await assertPublicHttpUrl(url);
+    let target = await resolvePinnedTarget(url);
     for (let hop = 0; hop <= ALIVE_MAX_REDIRECTS; hop++) {
-      const res = await fetch(current.toString(), {
+      const res = await pinnedRequest(target, {
         method: "HEAD",
-        redirect: "manual",
-        signal: AbortSignal.timeout(5000),
+        timeoutMs: 5000,
       });
       if (res.status >= 300 && res.status < 400) {
-        const loc = res.headers.get("location");
-        if (!loc) return false;
-        current = await assertPublicHttpUrl(new URL(loc, current).toString());
+        const loc = res.headers.location;
+        if (!loc) return "unknown";
+        target = await resolvePinnedTarget(new URL(loc, target.url).toString());
         continue;
       }
-      return res.ok;
+      if (res.status >= 200 && res.status < 300) return "alive";
+      if (res.status === 404 || res.status === 410) return "dead";
+      return "unknown";
     }
-    return false;
+    return "unknown";
   } catch {
-    // UrlNotAllowedError, timeout, network error: not provably alive.
-    return false;
+    // UrlNotAllowedError, timeout, network error.
+    return "unknown";
   }
 }
