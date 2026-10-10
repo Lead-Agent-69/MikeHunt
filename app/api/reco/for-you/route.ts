@@ -19,6 +19,8 @@ import {
   effectiveSearchLocations,
 } from "@/lib/preferences/locations";
 import { isFlipDeskMode, listingsForDesk } from "@/lib/deals/deal-desk-access";
+import { buyerHomeFromPrefs } from "@/lib/geo/buyer-home";
+import { buyerDistanceFields } from "@/lib/discovery/for-you-rank";
 
 // GET /api/reco/for-you?limit=24 — signed-in "For You" ranked from the user's own view signals.
 //
@@ -133,6 +135,8 @@ export async function GET(req: NextRequest) {
     any
   > | null;
   const homeState = effectiveHome(prefs)?.state || null;
+  // Saved home (state + agreeing ZIP) for the card's distance basis. No home → "unknown".
+  const buyerHome = buyerHomeFromPrefs(prefs);
   const searchStates = effectiveSearchLocations(prefs).map((l) => l.state);
   const states = Array.from(
     new Set([homeState, ...searchStates].filter(Boolean) as string[]),
@@ -219,6 +223,7 @@ export async function GET(req: NextRequest) {
 
   const cards = ranked.map((r) => ({
     ...mapCard(r.item.row),
+    ...buyerDistanceFields(r.item.row, buyerHome),
     forYouReason: r.reason,
     slot: r.slot,
   }));
