@@ -103,7 +103,7 @@ export function MultiCarTrailerOptimizer({
 
       <div className="relative z-10 pt-5 space-y-5">
         <p className="text-xs text-[var(--t3)] leading-relaxed">
-          Hauling a single vehicle across state lines eats 20–30% of your flip profit. Bundle 3 to 9 vehicles on a wedge or 9-car hauler along the{" "}
+          Hauling vehicles one at a time costs more per unit. Bundle 3 to 9 vehicles on a wedge or 9-car hauler along the{" "}
           <strong className="text-[var(--t1)]">{fromState} ➔ {toState}</strong> corridor ({miles.toLocaleString()} miles) to maximize your net margin per unit.
         </p>
 
