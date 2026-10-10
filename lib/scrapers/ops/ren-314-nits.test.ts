@@ -152,6 +152,10 @@ describe("(f) source-path schemes survive the URL scrubber", () => {
     "at node:///internal/process/task_queues:95:5",
   ])("%s", (line) => expect(scrubUrls(line)).toBe(line));
 
+  it("webpack's ?hash keeps its trailing :line:col (Ren #327)", () => {
+    expect(scrubUrls("at webpack:///./lib/x.ts?abcd:10:2")).toBe("at webpack:///./lib/x.ts:10:2");
+  });
+
   it("still scrubs real URLs on the same line", () => {
     expect(
       scrubUrls("fetch https://x.example/a?t=1 at file:///app/chunks/1.js:2:3 via app://host.example/x"),

@@ -20,7 +20,7 @@ describe("(f) source-path schemes: empty authority only, query/fragment stripped
     ["at (file:///app/chunks/1.js?t=SECRET)", "at (file:///app/chunks/1.js)"],
     ["at webpack-internal:///(rsc)/./lib/x.ts?t=SECRET#frag", "at webpack-internal:///(rsc)/./lib/x.ts"],
     ["at app:///_next/static/a.js#t=SECRET", "at app:///_next/static/a.js"],
-    ["at webpack:///./lib/x.ts?abcd:10:2", "at webpack:///./lib/x.ts"],
+    ["at webpack:///./lib/x.ts?abcd:10:2", "at webpack:///./lib/x.ts:10:2"],
   ])("keeps %s as %s", (input, want) => expect(scrubUrls(input)).toBe(want));
 
   it.each([
@@ -42,6 +42,38 @@ describe("(f) source-path schemes: empty authority only, query/fragment stripped
     expect(scrubContact(line)).not.toMatch(/SECRET|attacker/);
     expect(scrubContact(line)).toContain("file:///app/1.js");
   });
+});
+
+describe("(#327) only a trailing :line(:col) comes back from a stripped query", () => {
+  it.each([
+    ["webpack:///./lib/x.ts?abcd:10:2", "webpack:///./lib/x.ts:10:2"],
+    ["webpack:///x.ts?t=SECRET:10", "webpack:///x.ts:10"],
+    ["webpack:///x.ts?e=bob%40g.com:1:2", "webpack:///x.ts:1:2"],
+    ["at (file:///app/1.js?t=SECRET:4:17)", "at (file:///app/1.js:4:17)"],
+    ["webpack-internal:///./a.ts#t=SECRET:9999999:1", "webpack-internal:///./a.ts:9999999:1"],
+  ])("%s -> %s", (input, want) => {
+    const out = scrubUrls(input);
+    expect(out).toBe(want);
+    expect(out).not.toMatch(/SECRET|bob|%40|abcd|t=|e=/);
+  });
+
+  it.each([
+    ["webpack:///x.ts?:5551234567", "webpack:///x.ts"], // 10 digits: a phone, not a line
+    ["webpack:///x.ts?:12345678:1", "webpack:///x.ts"], // 8-digit line
+    ["webpack:///x.ts?x:12345678:9", "webpack:///x.ts"], // :9 glued to other digits
+    ["webpack:///x.ts#f:1:2:3", "webpack:///x.ts"], // three parts is not line:col
+    ["webpack:///x.ts?t=SECRET:10x", "webpack:///x.ts"], // not at the very end
+  ])("%s restores nothing", (input, want) => {
+    const out = scrubUrls(input);
+    expect(out).toBe(want);
+    expect(out).not.toMatch(/555|SECRET|12345678/);
+  });
+
+  it.each([
+    "x webpack://attacker.com/x.ts?t=SECRET:10:2 y",
+    "x file://evil.com/c?e=bob%40gmail.com:1:2 y",
+    "x rsc://attacker.com/a?t=1:10 y",
+  ])("hosted form %s is still [url]", (input) => expect(scrubUrls(input)).toBe("x [url] y"));
 });
 
 describe("partial-tail drop is capped at ~64 chars", () => {

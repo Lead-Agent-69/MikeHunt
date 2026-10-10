@@ -18,9 +18,13 @@ const TRAILING = /[')\].,;:!?]+$/;
  * lib/x.ts, app:///_next/...). They name our own code, not a listing or a user, and Sentry needs them
  * to symbolicate, so they are kept (Ren #314 f) — but only with an EMPTY authority (three slashes):
  * file://evil.com/c?e=… or rsc://attacker.com/… is a real remote URL and is scrubbed like any other
- * (Ren #323). A kept path loses everything from the first ? or #.
+ * (Ren #323). A kept path loses everything from the first ? or #, except a :line or :line:col
+ * suffix at the very end of the token (1-7 digits each, not glued to other digits), which is put
+ * back so Sentry can still symbolicate (Ren #327).
  */
 const SOURCE_PATH = /^(?:file|webpack|webpack-internal|turbopack|node|rsc|app):\/\/\//i;
+
+const LINE_COL_SUFFIX = /(?<![\d:]):\d{1,7}(?::\d{1,7})?$/;
 
 /** Replace every URL in free text with "[url]" (trailing quote/paren/punctuation kept). */
 export function scrubUrls(text: string): string {
@@ -29,7 +33,11 @@ export function scrubUrls(text: string): string {
     const body = m.slice(0, m.length - tail.length);
     if (SOURCE_PATH.test(body)) {
       const q = body.search(/[?#]/);
-      return q < 0 ? m : body.slice(0, q) + tail;
+      if (q < 0) return m;
+      // Restore only a trailing :line or :line:col (Ren #327); nothing else from the query survives.
+      const query = body.slice(q);
+      const lineCol = query.match(LINE_COL_SUFFIX)?.[0] ?? "";
+      return body.slice(0, q) + lineCol + tail;
     }
     return `[url]${tail}`;
   });
