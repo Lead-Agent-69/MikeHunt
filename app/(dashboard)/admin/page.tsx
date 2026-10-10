@@ -233,6 +233,12 @@ export default function AdminDashboard() {
             Live inventory quality, source reliability, and bounded maintenance
             controls. Buyer-facing data remains separate from this workspace.
           </p>
+          <a
+            href="/admin/alert-delivery"
+            className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--blue)] hover:underline"
+          >
+            Alert delivery <ArrowRight size={15} />
+          </a>
         </div>
         <button
           type="button"
