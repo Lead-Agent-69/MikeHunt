@@ -67,6 +67,13 @@ Fresh production environment preflight fails the matching VAPID pair, contact su
 credentials and webhook-signing-secret checks. Do not rotate the public push identity without
 reviewing existing subscriptions or invent provider credentials. No production settings were changed.
 
+The read-only hosted security advisor also reports one error (`spatial_ref_sys` without RLS), three
+public-extension warnings (`pg_trgm`, PostGIS, vector), six execution warnings for three
+`st_estimatedextent` SECURITY DEFINER overloads (anon and authenticated), and disabled leaked-password
+protection. Review extension ownership/dependencies, application callers and plan availability before
+preparing fixes; these findings are not evidence of a clean security release. Env preflight does not
+inspect the locked `app_secrets` fallback, so failed VAPID env checks do not prove push is absent there.
+
 Guest E2E must run against a production-mode local build: the suite rejects Next.js development
 portals, including its normal dev indicator. A failed attempt against dev is not evidence of an app
 failure or a completed desktop/mobile pass. Signed-in desk and account-isolation acceptance remains pending.
