@@ -8,6 +8,7 @@
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 import { fetchGsaApiVehicles } from "./gsa-official";
+import { isCarOrTruck } from "../vehicle-class";
 
 const API =
   "https://www.ppms.gov/gw/auction/ppms/api/v1/auctions?sort=auctionEndDateSoon,DESC";
@@ -35,6 +36,7 @@ export function gsaLotToDeal(lot: GsaLot): Partial<Deal> | null {
   if (lotId == null) return null;
 
   const name = (lot.lotName || "").trim();
+  if (!isCarOrTruck(name)) return null; // cars and trucks only (no trailers/equipment/boats)
   const ym = name.match(/\b(19[5-9]\d|20[0-4]\d)\b/); // model year => a real titled vehicle
   if (!ym) return null;
   const year = parseInt(ym[0], 10);
