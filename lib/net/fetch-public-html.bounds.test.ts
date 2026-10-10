@@ -70,7 +70,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const t of timers) clearInterval(t);
+  timers.forEach((t) => clearInterval(t));
   server.closeAllConnections?.();
   await new Promise((r) => server.close(r));
   vi.restoreAllMocks();
