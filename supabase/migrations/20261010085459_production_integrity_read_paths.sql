@@ -32,6 +32,13 @@ BEGIN
     IF f.proname IN ('get_market_pulse', 'get_profit_by_trim', 'match_deals', 'similar_deals_by_id', 'similar_deals_by_id_filtered') THEN
       guarded := replace(guarded, 'public.eligible_deals', 'public.eligible_valuation_deals');
     END IF;
+    -- The deployed vector RPC qualifies columns with the original, implicit table name.
+    -- Preserve that name only for an unaliased relation; existing aliases stay untouched.
+    IF f.proname = 'match_deals' THEN
+      guarded := regexp_replace(guarded,
+        '(FROM[[:space:]]+public\.eligible_valuation_deals)([[:space:]]+)(WHERE|ORDER|GROUP|HAVING|LIMIT|OFFSET|FETCH|UNION|EXCEPT|INTERSECT|$)',
+        '\1 AS deals\2\3', 'gi');
+    END IF;
     IF guarded <> definition THEN EXECUTE guarded; END IF;
   END LOOP;
 END $migration$;

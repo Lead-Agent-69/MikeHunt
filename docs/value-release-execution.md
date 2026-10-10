@@ -78,6 +78,30 @@ Guest E2E must run against a production-mode local build: the suite rejects Next
 portals, including its normal dev indicator. A failed attempt against dev is not evidence of an app
 failure or a completed desktop/mobile pass. Signed-in desk and account-isolation acceptance remains pending.
 
+## Hosted-schema rehearsal (2026-10-10)
+
+A read-only PostgreSQL 17 export of hosted public/auth/extensions schema restored successfully into
+an isolated, network-disabled PostgreSQL 17 container. The native CLI dump failed in its sed pipeline;
+the direct schema-only pg_dump succeeded. Private exports and local logs remain ignored under `.vercel`.
+This is not a complete data backup, a production-sized data rehearsal, or hosted migration application.
+
+The rehearsal exposed and fixed two migration failures: the vector RPC's implicit `deals` qualifier
+needed an alias after switching to the eligible valuation view; the sold-data server-only migration
+needed to remove the foundation's restrictive policy before asserting zero client policies. Client
+privileges remain revoked and RLS remains enabled. All nine pending migrations then applied to the
+restored schema; separate identity/provenance/revocation/expiry fixtures, including a qualified RPC,
+passed. The hosted schema includes four migration versions absent locally (20261010110000 through
+20261010140000); reconcile their exact files/history before any automated hosted push.
+
+At pushed head `8bb46d5`, local verification and GitHub CI passed; guest production-build QA passed
+18 desktop/mobile tests. Server logs nevertheless reported missing eligible inventory/valuation views
+on the existing local application database. Page-shell success does not prove usable inventory on an
+unmigrated database. No legacy fallback or permission bypass was added.
+
+The separate read-only push fallback check found no private key and zero subscriptions. Vercel lists
+GSA_API_KEY and server credentials as configured; actual GSA yield and notification delivery are still
+unverified. PR #336 has no formal review or Ren sign in its comments. It remains draft, not live.
+
 ## Still required, not claimed complete
 
 The reviewed approval registry is empty. Production migration application, full-schema/production-sized

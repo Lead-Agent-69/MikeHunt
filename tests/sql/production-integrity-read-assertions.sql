@@ -11,5 +11,6 @@ DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM public.eligible_deals) THEN RAISE EXCEPTION 'expired service-role inventory leaked'; END IF;
   IF EXISTS (SELECT 1 FROM public.eligible_price_history) THEN RAISE EXCEPTION 'expired derivative history leaked'; END IF;
   IF public.landing_proof() <> 0 THEN RAISE EXCEPTION 'RPC returned expired inventory'; END IF;
+  IF public.match_deals() <> 0 THEN RAISE EXCEPTION 'qualified RPC returned expired inventory'; END IF;
 END $$;
 SELECT 'production integrity read assertions passed' AS result;

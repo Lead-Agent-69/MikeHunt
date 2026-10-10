@@ -19,3 +19,6 @@ CREATE POLICY base_sold_read ON public.sold_listings FOR SELECT TO anon, authent
 GRANT SELECT ON public.deals, public.sold_listings TO anon, authenticated;
 INSERT INTO public.deals (source_url, active) VALUES ('https://legacy.example/car', true);
 CREATE FUNCTION public.landing_proof() RETURNS bigint LANGUAGE sql SECURITY DEFINER AS $$ SELECT count(*) FROM public.deals $$;
+CREATE FUNCTION public.match_deals() RETURNS bigint LANGUAGE sql STABLE AS $$
+  SELECT count(deals.id) FROM public.deals WHERE deals.id > 0
+$$;
