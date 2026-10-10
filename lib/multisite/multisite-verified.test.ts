@@ -50,10 +50,24 @@ describe("Autotrader (browser-verified)", () => {
     ["fuel", "hybrid", "fuelTypeGroup", "HYB"],
     ["transmission", "manual", "transmissionCodes", "MAN"],
     ["milesMax", 50000, "maxMileage", "50000"],
+    ["trim", "Sport", "trimCodeList", "CIVIC|Sport"],
   ])("%s=%s is sent as %s=%s", (key, value, param, expected) => {
     expect(linkFor("autotrader", { [key]: value }).params.get(param)).toBe(
       expected,
     );
+  });
+
+  it("verified filters are reported as carried, not unconfirmed", () => {
+    const l = linkFor("autotrader", {
+      trim: "Sport",
+      body: "coupe",
+      drivetrain: "fwd",
+      fuel: "hybrid",
+      transmission: "manual",
+      milesMax: 50000,
+    });
+    expect(l.unconfirmed).toBeUndefined();
+    expect(l.dropped).toEqual([]);
   });
 });
 
@@ -86,6 +100,18 @@ describe("Craigslist (browser-verified)", () => {
     expect(linkFor("craigslist", { [key]: value }).params.get(param)).toBe(
       expected,
     );
+  });
+
+  it("all browser-verified filters are reported as carried", () => {
+    const l = linkFor("craigslist", {
+      body: "coupe",
+      drivetrain: "fwd",
+      fuel: "hybrid",
+      transmission: "manual",
+      trim: "Sport",
+    });
+    expect(l.unconfirmed).toBeUndefined();
+    expect(l.dropped).toEqual([]);
   });
 });
 
@@ -138,9 +164,20 @@ describe("Kelley Blue Book (base + body verified; other filters blocked by bot w
       linkFor("kbb", { body: "coupe" }).params.get("vehicleStyleCodes"),
     ).toBe("COUPE");
   });
+
+  it("is shown by default (verified) and carries only base + body", () => {
+    const l = buildMultiSiteLinks({
+      ...base,
+      body: "coupe",
+      fuel: "hybrid",
+    }).find((x) => x.site === "kbb");
+    expect(l?.verified).toBe(true);
+    expect(new URL(l!.url).searchParams.get("fuelTypeGroup")).toBeNull();
+    expect(l!.dropped).toEqual(["fuel"]);
+  });
 });
 
-describe("Copart and IAA (keyword search verified)", () => {
+describe("Copart and IAA (keyword search verified; hidden pending a terms check)", () => {
   it("Copart sends make model trim as the free-text query", () => {
     const l = linkFor("copart", { trim: "Sport" });
     expect(l.url.startsWith("https://www.copart.com/lotSearchResults/?")).toBe(
@@ -154,5 +191,13 @@ describe("Copart and IAA (keyword search verified)", () => {
     const l = linkFor("iaai", { trim: "Sport" });
     expect(l.url.startsWith("https://www.iaai.com/Search?")).toBe(true);
     expect(l.params.get("Keyword")).toBe("Honda Civic Sport");
+  });
+});
+
+describe("Edmunds (bot wall in a real browser)", () => {
+  it("stays hidden by default", () => {
+    expect(buildMultiSiteLinks(base).some((l) => l.site === "edmunds")).toBe(
+      false,
+    );
   });
 });
