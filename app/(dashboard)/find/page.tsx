@@ -347,6 +347,10 @@ export default function ArbitrageDashboardPage() {
                       mileage={item.deal.mileage}
                       condition={item.deal.condition}
                       damageType={item.deal.damageType}
+                      titleSource={
+                        (item.deal as { titleSource?: string | null })
+                          .titleSource
+                      }
                       dealVerdict={item.deal.dealVerdict}
                       recommendedMaxBid={item.deal.recommendedMaxBid}
                       needsComps={needsComps(
@@ -401,6 +405,9 @@ export default function ArbitrageDashboardPage() {
                         mileage={deal.mileage}
                         condition={deal.condition}
                         damageType={deal.damageType}
+                        titleSource={
+                          (deal as { titleSource?: string | null }).titleSource
+                        }
                         dealVerdict={deal.dealVerdict}
                         recommendedMaxBid={deal.recommendedMaxBid}
                         needsComps={needsComps(deal, deal.profitEstimate)}

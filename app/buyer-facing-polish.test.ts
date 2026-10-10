@@ -48,9 +48,11 @@ describe("buyer-facing polish", () => {
 
   it("labels title claims as reported rather than a condition guarantee", () => {
     const card = read("components/discovery/DiscoveryCard.tsx");
+    // Title wording now lives in the shared TitleBadge model (hover/aria hint).
+    const badge = read("lib/deals/title-badge-model.ts");
 
-    expect(card).toContain("Clean title reported");
-    expect(card).toContain("Listing-reported title status");
+    expect(card).toContain("<TitleBadge");
+    expect(badge).toContain("Listing-reported title status");
     expect(card).not.toContain("No major issues found");
   });
 

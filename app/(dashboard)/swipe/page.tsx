@@ -24,6 +24,7 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
 import { readCondition } from "@/lib/intelligence/condition";
+import { TitleBadge } from "@/components/shared/TitleBadge";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import { ErrorState } from "@/components/shared/PageStates";
 
@@ -46,6 +47,8 @@ type SwipeDeal = {
   model?: string;
   mileage?: number;
   condition?: string;
+  damageType?: string;
+  titleSource?: string | null;
   askPrice?: number;
   profitScore?: number;
   profitEstimate?: number;
@@ -143,6 +146,12 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
             {title}
           </h3>
         </div>
+        <TitleBadge
+          className="w-fit"
+          condition={deal.condition}
+          damageType={deal.damageType}
+          titleSource={deal.titleSource}
+        />
 
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
           {deal.mileage ? (
