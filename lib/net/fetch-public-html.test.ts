@@ -80,3 +80,24 @@ describe("fetchPublicHtml", () => {
     expect(allowed).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("fetchPublicHtml pins DNS (save-from-url path)", () => {
+  it("hands axios a pinned agent: one DNS query, lookup answers only the validated IP", async () => {
+    const dns = (await import("dns/promises")) as any;
+    dns.lookup.mockClear();
+    axiosGet.mockReset();
+    axiosGet.mockResolvedValueOnce({ status: 200, data: "<p>Car</p>" });
+    await fetchPublicHtml("https://listings.example/ford/escape");
+    const init = axiosGet.mock.calls[0][1];
+    expect(init.httpsAgent).toBe(init.httpAgent);
+    const lookup = init.httpsAgent.options.lookup;
+    const answer = await new Promise<any>((resolve, reject) =>
+      lookup("listings.example", {}, (err: any, addr: any) =>
+        err ? reject(err) : resolve(addr),
+      ),
+    );
+    expect(answer).toBe("93.184.216.34");
+    expect(init.httpsAgent.options.keepAlive).toBe(false);
+    expect(dns.lookup).toHaveBeenCalledTimes(1);
+  });
+});

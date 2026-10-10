@@ -53,15 +53,16 @@ describe("guardPublicRoute", () => {
     expect(r.fallback).not.toHaveBeenCalled();
   });
 
-  it.each(["https://listings.example/car", "data:text/plain,hi", "about:blank"])(
-    "falls through for %s",
-    async (url) => {
-      const r = route(url);
-      await guardPublicRoute(r);
-      expect(r.fallback).toHaveBeenCalled();
-      expect(r.abort).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    "https://listings.example/car",
+    "data:text/plain,hi",
+    "about:blank",
+  ])("falls through for %s", async (url) => {
+    const r = route(url);
+    await guardPublicRoute(r);
+    expect(r.fallback).toHaveBeenCalled();
+    expect(r.abort).not.toHaveBeenCalled();
+  });
 });
 
 describe("assertNavigationChainPublic", () => {
@@ -90,7 +91,10 @@ describe("assertNavigationChainPublic", () => {
   });
 
   it("rejects more than 3 redirects", async () => {
-    const urls = Array.from({ length: 5 }, (_, i) => `https://listings.example/${i}`);
+    const urls = Array.from(
+      { length: 5 },
+      (_, i) => `https://listings.example/${i}`,
+    );
     await expect(
       assertNavigationChainPublic(chain(...urls), urls[4]),
     ).rejects.toBeInstanceOf(UrlNotAllowedError);
