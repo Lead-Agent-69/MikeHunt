@@ -13,10 +13,12 @@ import {
 } from "@/lib/scoring/market-value";
 import {
   applyRetailSoldScope,
+  GOV_SALE_CHANNELS,
   withRetailSold,
   isMissingSaleChannelColumn,
 } from "@/lib/scoring/sold-scope";
 import { isMissingBasisColumn } from "@/lib/scoring/sold-basis";
+import { govTitle, govVenueLabel } from "@/lib/sources/open-gov/sold-comps";
 
 // GET /api/sold?make=Ford&model=F-150&year=2018 — completed-sale prices.
 // A clean median is published only at n >= 3 clean titles. Salvage titles are
@@ -107,15 +109,14 @@ export async function GET(req: NextRequest) {
     let gq = supabase
       .from("sold_listings")
       .select(
-        "year, make, model, sold_price, sold_at, title, source, source_url, basis, sale_channel, attribution",
+        "year, make, model, sold_price, sold_at, source, source_url, basis, sale_channel, attribution",
       )
       .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
       .or(modelOr)
       .eq("currency_code", "USD")
       .eq("country_code", "US")
       .in("basis", ["sold", "last_bid"])
-      .not("sale_channel", "is", null)
-      .neq("sale_channel", "ebay") // eBay sales are retail comps, not a gov lane
+      .in("sale_channel", [...GOV_SALE_CHANNELS]) // allow-list: eBay and unknown channels never land here
       .gt("sold_price", 0)
       .gte("sold_at", soldWindowCutoffIso())
       .lte("sold_at", new Date().toISOString())
@@ -181,7 +182,11 @@ export async function GET(req: NextRequest) {
       note: "Government impound, fleet and surplus auction results. Not retail prices; never part of the median above.",
       sales: govLane.slice(0, 6).map((d: any) => ({
         year: d.year,
-        title: typeof d.title === "string" ? d.title : null,
+        // Rebuilt from year/make/model and scrubbed: stored titles are never echoed for gov rows.
+        title: govTitle(
+          [d.year, d.make, d.model],
+          govVenueLabel(d.source, d.basis),
+        ),
         price: Math.round(Number(d.sold_price)),
         priceKind: d.basis === "last_bid" ? "last_observed_bid" : "sale_price",
         priceLabel:

@@ -12,6 +12,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { titleCaseMake, canonicalModel } from "@/lib/vehicle/canonical";
+import type { GovSaleChannel } from "@/lib/scoring/sale-channels";
+import { scrubContact } from "@/lib/security/scrub-urls";
 import {
   extractMake,
   extractModel,
@@ -25,10 +27,7 @@ import {
 } from "./parse";
 
 export type SoldBasisValue = "sold" | "last_bid";
-export type SaleChannel =
-  | "gov_impound_auction"
-  | "gov_fleet_auction"
-  | "gov_surplus_auction";
+export type SaleChannel = GovSaleChannel;
 
 export interface SoldListingInsert {
   vin: string | null;
@@ -115,12 +114,68 @@ function display(v: OpenGovVehicle) {
   return { make, model };
 }
 
-function shortTitle(
+// Gov titles are built from year/make/model only (never the lot's free text), and even those fields
+// are scrubbed, because a seller-typed make/model can carry a VIN or contact details (Ren #331 R1).
+// VINs: any run of 17+ VIN characters (no I/O/Q) holding at least 4 digits, with NO word-boundary
+// requirement, so a VIN glued to other characters ("SN1GNSKAKC0FR000001", "VIN#1GNS...x") goes too.
+// Phones, emails and URLs: the shared scrubContact from lib/security/scrub-urls (#314/#323).
+const VIN_RUN = /[A-HJ-NPR-Z0-9]{17,}/gi;
+const CONTACT_PLACEHOLDER = /\[(?:url|email|phone)\]/g;
+
+/** Remove VIN-like runs, URLs, emails and phone numbers from display text. */
+export function scrubGovText(s: string): string {
+  const noVin = String(s ?? "").replace(VIN_RUN, (m) =>
+    (m.match(/\d/g)?.length ?? 0) >= 4 ? " " : m,
+  );
+  return scrubContact(noVin)
+    .replace(CONTACT_PLACEHOLDER, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Max stored length for a seller-typed make or model on a gov-lane row. */
+export const GOV_NAME_MAX = 40;
+
+/** Clean a seller-typed make/model at write time: scrubbed, plain characters only, <= 40 chars. */
+export function cleanGovName(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = scrubGovText(v)
+    .replace(/[^A-Za-z0-9\u00C0-\u024F .&'/+-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, GOV_NAME_MAX)
+    .trim();
+  return s || null;
+}
+
+/** Display title for a gov/fleet/surplus row: scrubbed "year make model (suffix)". */
+export function govTitle(
   parts: Array<string | number | null | undefined>,
   suffix: string,
 ) {
-  const head = parts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const head = scrubGovText(parts.filter(Boolean).join(" "));
   return `${head || "Vehicle"} (${suffix})`.slice(0, 180);
+}
+const shortTitle = govTitle;
+
+/** Venue suffix for a gov-lane row's display title, from its source (never from stored free text). */
+export function govVenueLabel(source: unknown, basis?: unknown): string {
+  switch (source) {
+    case NORFOLK_SOURCE:
+      return "Norfolk VA city impound auction";
+    case SEATTLE_SOURCE:
+      return "Seattle city fleet sale";
+    case GSA_SOURCE:
+      return "GSA Auctions, last observed bid at close";
+    case "govdeals":
+      return "GovDeals sold lot, winning bid before buyer's premium";
+    case "allsurplus":
+      return "AllSurplus sold lot, winning bid before buyer's premium";
+    default:
+      return basis === "last_bid"
+        ? "government auction, last observed bid"
+        : "government auction";
+  }
 }
 
 /**
@@ -312,7 +367,10 @@ export function gsaClosingBidRows(
       mileage: null,
       sold_price: Math.round(bid),
       sold_at: `${ended}T00:00:00.000Z`,
-      title: shortTitle([rawTitle], "GSA Auctions, last observed bid at close"),
+      title: shortTitle(
+        [year, titleCaseMake(make), model ? canonicalModel(model) : null],
+        "GSA Auctions, last observed bid at close",
+      ),
       source: GSA_SOURCE,
       source_item_id: id,
       source_url: url,

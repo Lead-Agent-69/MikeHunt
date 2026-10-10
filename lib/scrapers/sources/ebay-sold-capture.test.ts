@@ -124,13 +124,19 @@ describe("ebaySoldBarrier: challenges are recorded, not bypassed", () => {
     expect(
       ebaySoldBarrier(200, "<title>Pardon Our Interruption...</title>"),
     ).toBe("bot challenge page");
-    expect(ebaySoldBarrier(200, card({ title: "2018 Honda Accord", id: "1" }))).toBeNull();
+    expect(
+      ebaySoldBarrier(200, card({ title: "2018 Honda Accord", id: "1" })),
+    ).toBeNull();
   });
 });
 
 describe("writeSoldRows", () => {
   const rows = parseEbaySoldHtml(
-    card({ title: "2018 Honda Accord EX-L", id: "77", located: "Located in Houston, TX" }),
+    card({
+      title: "2018 Honda Accord EX-L",
+      id: "77",
+      located: "Located in Houston, TX",
+    }),
   );
 
   function fakeSb(responses: Array<{ data?: unknown[]; error?: unknown }>) {
@@ -149,7 +155,10 @@ describe("writeSoldRows", () => {
   it("writes basis + sale_channel + detail columns", async () => {
     const { sb, payloads } = fakeSb([{ data: [{ source_item_id: "77" }] }]);
     await expect(writeSoldRows(sb, rows)).resolves.toBe(1);
-    expect(payloads[0][0]).toMatchObject({ basis: "sold", sale_channel: "ebay" });
+    expect(payloads[0][0]).toMatchObject({
+      basis: "sold",
+      sale_channel: "ebay",
+    });
   });
 
   it("retries without the detail columns before the migration is applied", async () => {
@@ -166,11 +175,16 @@ describe("writeSoldRows", () => {
     await expect(writeSoldRows(sb, rows)).resolves.toBe(1);
     expect(payloads[1][0]).not.toHaveProperty("sale_channel");
     expect(payloads[1][0]).not.toHaveProperty("location_city");
-    expect(payloads[1][0]).toMatchObject({ basis: "sold", location_state: "TX" });
+    expect(payloads[1][0]).toMatchObject({
+      basis: "sold",
+      location_state: "TX",
+    });
   });
 
   it("throws any other write error so the run is not recorded as a 0-row success", async () => {
-    const { sb } = fakeSb([{ error: { code: "42501", message: "permission denied" } }]);
+    const { sb } = fakeSb([
+      { error: { code: "42501", message: "permission denied" } },
+    ]);
     await expect(writeSoldRows(sb, rows)).rejects.toThrow(/write failed/);
   });
 
@@ -183,11 +197,11 @@ describe("writeSoldRows", () => {
 
 describe("pacing and cache scope", () => {
   afterEach(() => vi.unstubAllEnvs());
-  it("waits 5-7.5s between sold searches by default, never under 1.5s", () => {
+  it("waits 5-7.5s between sold searches by default, never under 4s", () => {
     expect(soldDelayMs(() => 0)).toBe(5000);
     expect(soldDelayMs(() => 1)).toBe(7500);
     vi.stubEnv("EBAY_SOLD_DELAY_MS", "10");
-    expect(soldDelayMs(() => 0)).toBe(1500);
+    expect(soldDelayMs(() => 0)).toBe(4000);
   });
   it("keeps the sold-id cache per Supabase project", () => {
     expect(soldCacheScope("https://qupzqpezslsbobhugswp.supabase.co")).toBe(

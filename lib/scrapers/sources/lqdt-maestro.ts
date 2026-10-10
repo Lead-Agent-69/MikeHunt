@@ -19,6 +19,9 @@ import {
   isLightVehicleComp,
   writeSoldListings,
   type SoldListingInsert,
+  readTextCapped,
+  govTitle,
+  cleanGovName,
 } from "@/lib/sources/open-gov/sold-comps";
 
 const API = "https://maestro.lqdt1.com/search/list";
@@ -207,12 +210,32 @@ function detailTitleType(a: MaestroAsset): string | undefined {
   return attrValue(a, /title/i);
 }
 
-async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
+/** Timeouts and body caps for the maestro API (Ren #316): a stuck or huge response can't stall the run. */
+export const MAESTRO_SEARCH_TIMEOUT_MS = 30_000;
+export const MAESTRO_DETAIL_TIMEOUT_MS = 15_000;
+/** 120 fullResponse rows run a few hundred KB; 8 MB is far past any real page. */
+export const MAESTRO_SEARCH_MAX_BYTES = 8 * 1024 * 1024;
+export const MAESTRO_DETAIL_MAX_BYTES = 1024 * 1024;
+
+async function readMaestroJson<T>(
+  res: Response,
+  max: number,
+  label: string,
+): Promise<T> {
+  return JSON.parse(await readTextCapped(res, max, label)) as T;
+}
+
+export async function fetchMaestroDetail(
+  a: MaestroAsset,
+  businessId: string,
+  fetchImpl: typeof fetch = fetch,
+) {
   if (a.assetId == null || a.accountId == null) return null;
-  const res = await fetch(
+  const res = await fetchImpl(
     `${API.replace("/search/list", "")}/assets/${a.assetId}/${a.accountId}/false`,
     {
       method: "POST",
+      signal: AbortSignal.timeout(MAESTRO_DETAIL_TIMEOUT_MS),
       headers: {
         ...HEADERS,
         "x-api-correlation-id": correlationId(Number(a.assetId) + 1000),
@@ -221,7 +244,11 @@ async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
     },
   );
   if (!res.ok) return null;
-  return (await res.json()) as MaestroAsset;
+  return readMaestroJson<MaestroAsset>(
+    res,
+    MAESTRO_DETAIL_MAX_BYTES,
+    "maestro detail",
+  );
 }
 
 /** Map one maestro asset to a Deal. Returns null for non-vehicles / sold / (optionally) non-US rows. */
@@ -326,8 +353,9 @@ export function maestroAssetToSoldComp(
   const title =
     (a.assetShortDescription || "").trim() ||
     [a.modelYear, a.makebrand, a.model].filter(Boolean).join(" ");
-  const make = (a.makebrand || "").trim() || null;
-  const model = (a.model || "").trim() || null;
+  // Seller-typed: cleaned (VIN/contact scrubbed, plain characters) and capped at 40 chars at write time.
+  const make = cleanGovName(a.makebrand);
+  const model = cleanGovName(a.model);
   if (!isCarOrTruck(`${title} ${make || ""} ${model || ""}`)) return null;
   if (!isLightVehicleComp(make, model, title)) return null;
   const marketplace = opts.idPrefix === "as" ? "allsurplus" : "govdeals";
@@ -343,11 +371,11 @@ export function maestroAssetToSoldComp(
     mileage: detailMileage(a) ?? null,
     sold_price: price,
     sold_at: endedAt.toISOString(),
-    title:
-      `${title} (${venue} sold lot, winning bid before buyer's premium)`.slice(
-        0,
-        180,
-      ),
+    // Built from year/make/model and scrubbed, never the lot's free-text description (VINs, phones).
+    title: govTitle(
+      [year, make, model],
+      `${venue} sold lot, winning bid before buyer's premium`,
+    ),
     source: marketplace,
     source_item_id: `${opts.idPrefix}-${assetId}-${accountId}`,
     source_url: `https://www.${marketplace}.com/asset/${assetId}/${accountId}`,
@@ -389,11 +417,12 @@ async function saveMaestroSoldComps(
   }
 }
 
-async function fetchMaestroPage(
+export async function fetchMaestroPage(
   businessId: string,
   categoryCodes: string[],
   page: number,
   displayRows: number,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<MaestroAsset[]> {
   const body = {
     businessId,
@@ -411,13 +440,18 @@ async function fetchMaestroPage(
     ),
     accountIds: [],
   };
-  const res = await fetch(API, {
+  const res = await fetchImpl(API, {
     method: "POST",
     headers: { ...HEADERS, "x-api-correlation-id": correlationId(page + 1) },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(MAESTRO_SEARCH_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = (await res.json()) as { assetSearchResults?: MaestroAsset[] };
+  const json = await readMaestroJson<{ assetSearchResults?: MaestroAsset[] }>(
+    res,
+    MAESTRO_SEARCH_MAX_BYTES,
+    "maestro search",
+  );
   return json.assetSearchResults || [];
 }
 
