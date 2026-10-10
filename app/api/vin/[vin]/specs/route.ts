@@ -58,6 +58,7 @@ export async function GET(
   const recalls = canQuery
     ? await getRecallsCached(sb, decoded.make!, decoded.model!, decoded.year!, {
         deadline,
+        canWrite,
       })
     : null;
 

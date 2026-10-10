@@ -48,3 +48,57 @@ export function callSignal(
 export interface UpstreamOpts {
   deadline?: Deadline;
 }
+
+/** Max upstream response body we will buffer (NHTSA, EPA, mcp.vin). Real bodies are a few KB. */
+export const UPSTREAM_MAX_BYTES = 1024 * 1024;
+
+type BodyLike = {
+  json?: () => Promise<any>;
+  text?: () => Promise<string>;
+  body?: unknown;
+  headers?: { get?: (name: string) => string | null } | null;
+};
+
+/**
+ * Parse an upstream JSON body, refusing anything past maxBytes: Content-Length first, then a counted
+ * stream read (cancelled at the cap). Throws on oversize, so callers' existing failure paths apply.
+ * Objects without a stream or text() (test doubles) fall back to json().
+ */
+export async function readJsonCapped(
+  res: BodyLike,
+  maxBytes: number = UPSTREAM_MAX_BYTES,
+): Promise<any> {
+  const declared = Number(res.headers?.get?.("content-length") || 0);
+  if (declared > maxBytes)
+    throw new Error(`upstream body ${declared} > ${maxBytes}`);
+  const body = res.body as ReadableStream<Uint8Array> | null | undefined;
+  if (body && typeof (body as any).getReader === "function") {
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`upstream body > ${maxBytes}`);
+      }
+      chunks.push(value);
+    }
+    const buf = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) {
+      buf.set(c, off);
+      off += c.byteLength;
+    }
+    return JSON.parse(new TextDecoder().decode(buf));
+  }
+  if (typeof res.text === "function") {
+    const t = await res.text();
+    if (t.length > maxBytes) throw new Error(`upstream body > ${maxBytes}`);
+    return JSON.parse(t);
+  }
+  if (typeof res.json === "function") return res.json();
+  throw new Error("upstream response has no body");
+}

@@ -75,10 +75,15 @@ with `decode_clean = false` and returned as `decodeClean: false` so the UI can s
 - Upstream calls: every NHTSA/EPA/mcp.vin request has a 10s timeout, and each `/api/vin` request has
   a 15s overall deadline (`lib/vehicle/deadline.ts`). Once the deadline passes, later calls are
   skipped. A recall lookup cut short reports unknown (`null`), never a partial low count.
-- Limits (`lib/vehicle/vin-route-guard.ts`), on top of per-IP 30/min:
-  - a global 300/min shared by both VIN routes;
-  - 60/min per signed-in user id;
-  - a global budget of 200 new `vin_decodes` rows/hour. When it's used up, the live decode is still
-    returned but not cached, so fabricated VINs can't flood the table.
-
-  All of these are per serverless instance, like `lib/rate-limit`.
+- Limits (`lib/vehicle/vin-route-guard.ts`), on top of per-IP 30/min. **All per serverless instance**
+  (in-memory, like `lib/rate-limit`), not global quotas: N warm instances allow N times these numbers.
+  - 300/min per instance, shared by both VIN routes;
+  - 60/min per signed-in user id, per instance;
+  - 200 new cache rows/hour per instance, counting `vin_decodes` and `nhtsa_recalls_cache` inserts
+    together. Over budget, the live answer is still returned but not cached; refreshing an existing
+    row is free.
+- Recalls are all-or-nothing: if the recalls catalog call or ANY per-model lookup fails, times out or
+  returns a bad/oversize body, the result is `null` (unknown) and nothing is cached.
+- Every upstream body (NHTSA, EPA, mcp.vin) is capped at 1 MB (`readJsonCapped`).
+- mcp.vin is untrusted: only a validated year (1981 to current year + 2), make/model/trim (charset + length)
+  and cleaned engine/country survive (`lib/vehicle/mcp-vin.ts`).

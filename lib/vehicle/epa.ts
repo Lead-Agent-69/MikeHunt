@@ -1,7 +1,7 @@
 // Free EPA fuel-economy data (fueleconomy.gov) — no key. Two-step: year/make/model → trim options →
 // MPG for the first matching trim. Pure parser + best-effort fetch. Approximate at the trim level.
 
-import { callSignal, type UpstreamOpts } from "./deadline";
+import { callSignal, readJsonCapped, type UpstreamOpts } from "./deadline";
 
 type FetchLike = (
   url: string,
@@ -46,7 +46,7 @@ export async function getFuelEconomy(
       { ...JSON_HEADERS, signal: callSignal(deadline) },
     );
     if (!res1.ok) return null;
-    const b1 = await res1.json();
+    const b1 = await readJsonCapped(res1);
     const items = Array.isArray(b1?.menuItem)
       ? b1.menuItem
       : b1?.menuItem
@@ -60,7 +60,7 @@ export async function getFuelEconomy(
       { ...JSON_HEADERS, signal: callSignal(deadline) },
     );
     if (!res2.ok) return null;
-    const fe = parseFuelEconomy(await res2.json());
+    const fe = parseFuelEconomy(await readJsonCapped(res2));
     return fe.city || fe.highway || fe.combined ? fe : null;
   } catch {
     return null;

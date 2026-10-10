@@ -24,7 +24,7 @@ describe("guardVinRoute", () => {
     expect(blocked).toBe(5);
   });
 
-  it("caps new vin_decodes rows globally (shared across IPs)", async () => {
+  it("caps new cache rows per instance (shared across IPs)", async () => {
     const g1 = await guardVinRoute(req("10.9.0.1"), {
       getUserId: async () => null,
     });

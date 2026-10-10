@@ -3,8 +3,9 @@ import { getRecallsCached, getVinDecode } from "@/lib/vehicle/vin-enrichment";
 import { internalError } from "@/lib/api/http-error";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createClient } from "@supabase/supabase-js";
+import { sanitizeMcpVin } from "@/lib/vehicle/mcp-vin";
 import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
-import { callSignal } from "@/lib/vehicle/deadline";
+import { callSignal, readJsonCapped } from "@/lib/vehicle/deadline";
 
 function getSupabase() {
   return createClient(
@@ -111,8 +112,10 @@ export async function GET(
           },
         });
         if (response.ok) {
-          decoded = await response.json();
-          source = "mcp.vin";
+          // Third-party and untrusted: capped at 1 MB, then only a validated year/make/model/trim
+          // survive (these become cache keys and recall lookups). Everything else is dropped.
+          decoded = sanitizeMcpVin(await readJsonCapped(response));
+          if (decoded) source = "mcp.vin";
         }
       } catch {}
     }
@@ -160,7 +163,7 @@ export async function GET(
         String(out.make),
         String(out.model),
         Number(out.year),
-        { deadline },
+        { deadline, canWrite },
       );
       out.recalls = r?.count ?? undefined;
       recallCampaigns = r?.campaigns ?? [];

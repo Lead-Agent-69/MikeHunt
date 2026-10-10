@@ -3,7 +3,7 @@
 // VIN; recalls change over time. Callers cache results in the vin_decodes table.
 
 import { isValidVin } from "./vin";
-import { callSignal, type UpstreamOpts } from "./deadline";
+import { callSignal, readJsonCapped, type UpstreamOpts } from "./deadline";
 
 type FetchLike = (
   url: string,
@@ -63,7 +63,7 @@ export async function decodeVin(
       { signal: callSignal() },
     );
     if (!res.ok) return null;
-    const body = await res.json();
+    const body = await readJsonCapped(res);
     const r = body?.Results?.[0];
     if (!r) return null;
     const decoded = parseDecode(r);
@@ -100,7 +100,7 @@ export async function decodeVinBatch(
         },
       );
       if (!res.ok) continue;
-      const body = await res.json();
+      const body = await readJsonCapped(res);
       const requested = new Set(chunk);
       for (const r of Array.isArray(body?.Results) ? body.Results : []) {
         const d = parseDecode(r);
@@ -156,7 +156,7 @@ export async function getSafetyRating(
       { signal: callSignal(deadline) },
     );
     if (!res1.ok) return null;
-    const id = (await res1.json())?.Results?.[0]?.VehicleId;
+    const id = (await readJsonCapped(res1))?.Results?.[0]?.VehicleId;
     if (!id) return null;
     if (deadline?.expired()) return null;
     const res2 = await fetchImpl(
@@ -164,7 +164,7 @@ export async function getSafetyRating(
       { signal: callSignal(deadline) },
     );
     if (!res2.ok) return null;
-    const r = (await res2.json())?.Results?.[0];
+    const r = (await readJsonCapped(res2))?.Results?.[0];
     if (!r) return null;
     const s = parseSafety(r);
     return s.overall || s.frontal || s.side || s.rollover ? s : null;
@@ -272,7 +272,7 @@ export async function decodeVinExtended(
       { signal: callSignal(opts.deadline) },
     );
     if (!res.ok) return null;
-    const r = (await res.json())?.Results?.[0];
+    const r = (await readJsonCapped(res))?.Results?.[0];
     if (!r) return null;
     const d = parseDecodeExtended(r);
     return d.make && d.model ? d : null;
@@ -359,46 +359,45 @@ export async function getRecalls(
   if (deadline?.expired()) return null;
   const byModel = (m: string) =>
     `https://api.nhtsa.gov/recalls/recallsByVehicle?make=${encodeURIComponent(make)}&model=${encodeURIComponent(m)}&modelYear=${year}`;
+  // All-or-nothing (Ren #301): the count is cached for 7 days, so a partial union must never pass as
+  // a real number. If the catalog call fails, times out or returns a malformed body, or ANY per-model
+  // lookup fails, the answer is null ("unknown") and callers don't cache it.
   try {
-    let models: string[] = [];
-    try {
-      const cat = await fetchImpl(
-        `https://api.nhtsa.gov/products/vehicle/models?modelYear=${year}&make=${encodeURIComponent(make)}&issueType=r`,
-        { signal: callSignal(deadline) },
-      );
-      if (cat.ok) {
-        const body = await cat.json();
-        if (Array.isArray(body?.results))
-          models = recallModelCandidates(body.results, model).slice(0, 12);
-      }
-    } catch {
-      /* catalog is an optimisation; fall back to the decoded name */
-    }
+    if (deadline?.expired()) return null;
+    const cat = await fetchImpl(
+      `https://api.nhtsa.gov/products/vehicle/models?modelYear=${year}&make=${encodeURIComponent(make)}&issueType=r`,
+      { signal: callSignal(deadline) },
+    );
+    if (!cat.ok) return null;
+    const catBody = await readJsonCapped(cat);
+    if (!Array.isArray(catBody?.results)) return null;
+    const models = recallModelCandidates(catBody.results, model).slice(0, 12);
     if (!models.includes(norm(model))) models.unshift(norm(model));
 
     const seen = new Map<string, RecallCampaign>();
-    let anyOk = false;
+    let countOnly: number | null = null;
     for (const m of models) {
-      // Out of time: a partial union could under-count, so report unknown rather than a low number.
       if (deadline?.expired()) return null;
       const res = await fetchImpl(byModel(m), { signal: callSignal(deadline) });
-      if (!res.ok) continue;
-      const body = await res.json();
-      if (typeof body?.Count !== "number" && !Array.isArray(body?.results))
-        continue;
-      anyOk = true;
-      for (const c of parseRecallResults(body, m))
-        if (!seen.has(c.campaign)) seen.set(c.campaign, c);
-      // Bodies without a results array still carry Count (older mocks / trimmed payloads).
-      if (!Array.isArray(body?.results) && typeof body?.Count === "number")
-        return {
-          count: body.Count,
-          campaigns: [],
-          modelsQueried: models,
-          scope: "model_year",
-        };
+      if (!res.ok) return null;
+      const body = await readJsonCapped(res);
+      if (Array.isArray(body?.results)) {
+        for (const c of parseRecallResults(body, m))
+          if (!seen.has(c.campaign)) seen.set(c.campaign, c);
+      } else if (typeof body?.Count === "number" && models.length === 1) {
+        // Trimmed payload with only a Count: usable only when it is the single model queried.
+        countOnly = body.Count;
+      } else {
+        return null;
+      }
     }
-    if (!anyOk) return null;
+    if (countOnly != null)
+      return {
+        count: countOnly,
+        campaigns: [],
+        modelsQueried: models,
+        scope: "model_year",
+      };
     const campaigns = Array.from(seen.values());
     return {
       count: campaigns.length,
@@ -407,7 +406,7 @@ export async function getRecalls(
       scope: "model_year",
     };
   } catch {
-    return null;
+    return null; // abort/timeout, oversize body or bad JSON anywhere: unknown
   }
 }
 

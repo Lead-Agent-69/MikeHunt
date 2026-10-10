@@ -74,24 +74,45 @@ UPDATE public.vin_decodes
 -- Housekeeping: delete cache rows 30 days past expiry (the grace lets a NHTSA outage serve stale).
 -- Called daily by /api/cron/retention with the service role. INVOKER: it runs with the caller's
 -- rights, so a client role could not delete anything even if it could execute it.
+-- Batched (Ren): at most p_batch rows per DELETE and p_max_batches DELETEs per table per call, so the
+-- first run after the expiry backfill (every legacy row older than ~210 days) can't become one huge
+-- delete; the rest is picked up by later daily runs.
 DROP FUNCTION IF EXISTS public.purge_expired_vin_cache();
-CREATE FUNCTION public.purge_expired_vin_cache()
+DROP FUNCTION IF EXISTS public.purge_expired_vin_cache(integer, integer);
+CREATE FUNCTION public.purge_expired_vin_cache(p_batch integer DEFAULT 5000, p_max_batches integer DEFAULT 20)
 RETURNS TABLE (vin_rows BIGINT, recall_rows BIGINT)
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = ''
 AS $$
-DECLARE v BIGINT; r BIGINT;
+DECLARE
+  v BIGINT := 0;
+  r BIGINT := 0;
+  n BIGINT;
+  i integer;
+  cutoff timestamptz := pg_catalog.now() - INTERVAL '30 days';
+  lim integer := GREATEST(1, LEAST(COALESCE(p_batch, 5000), 50000));
+  maxb integer := GREATEST(1, LEAST(COALESCE(p_max_batches, 20), 200));
 BEGIN
-  DELETE FROM public.vin_decodes WHERE expires_at < pg_catalog.now() - INTERVAL '30 days';
-  GET DIAGNOSTICS v = ROW_COUNT;
-  DELETE FROM public.nhtsa_recalls_cache WHERE expires_at < pg_catalog.now() - INTERVAL '30 days';
-  GET DIAGNOSTICS r = ROW_COUNT;
+  FOR i IN 1..maxb LOOP
+    DELETE FROM public.vin_decodes
+     WHERE ctid IN (SELECT ctid FROM public.vin_decodes WHERE expires_at < cutoff LIMIT lim);
+    GET DIAGNOSTICS n = ROW_COUNT;
+    v := v + n;
+    EXIT WHEN n < lim;
+  END LOOP;
+  FOR i IN 1..maxb LOOP
+    DELETE FROM public.nhtsa_recalls_cache
+     WHERE ctid IN (SELECT ctid FROM public.nhtsa_recalls_cache WHERE expires_at < cutoff LIMIT lim);
+    GET DIAGNOSTICS n = ROW_COUNT;
+    r := r + n;
+    EXIT WHEN n < lim;
+  END LOOP;
   RETURN QUERY SELECT v, r;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.purge_expired_vin_cache() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.purge_expired_vin_cache() TO service_role;
+REVOKE ALL ON FUNCTION public.purge_expired_vin_cache(integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purge_expired_vin_cache(integer, integer) TO service_role;
 
 -- Self-check: fail the migration if a client role keeps any access or the server loses it.
 DO $$
@@ -106,12 +127,17 @@ BEGIN
         RAISE EXCEPTION 'nhtsa_recalls_cache still % -able by %', p, r;
       END IF;
     END LOOP;
+    -- MAINTAIN (PG17+: VACUUM/ANALYZE/REINDEX/CLUSTER/REFRESH/LOCK) must not be held by a client role.
+    IF current_setting('server_version_num')::int >= 170000
+       AND has_table_privilege(r, 'public.nhtsa_recalls_cache', 'MAINTAIN') THEN
+      RAISE EXCEPTION 'nhtsa_recalls_cache still MAINTAIN-able by %', r;
+    END IF;
     FOREACH p IN ARRAY ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES'] LOOP
       IF has_any_column_privilege(r, 'public.nhtsa_recalls_cache', p) THEN
         RAISE EXCEPTION 'nhtsa_recalls_cache has a column % -able by %', p, r;
       END IF;
     END LOOP;
-    IF has_function_privilege(r, 'public.purge_expired_vin_cache()', 'EXECUTE') THEN
+    IF has_function_privilege(r, 'public.purge_expired_vin_cache(integer, integer)', 'EXECUTE') THEN
       RAISE EXCEPTION 'purge_expired_vin_cache() executable by %', r;
     END IF;
   END LOOP;
@@ -124,7 +150,7 @@ BEGIN
   IF NOT has_table_privilege('service_role', 'public.vin_decodes', 'DELETE') THEN
     RAISE EXCEPTION 'service_role cannot DELETE vin_decodes (purge would fail)';
   END IF;
-  IF NOT has_function_privilege('service_role', 'public.purge_expired_vin_cache()', 'EXECUTE') THEN
+  IF NOT has_function_privilege('service_role', 'public.purge_expired_vin_cache(integer, integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'service_role cannot execute purge_expired_vin_cache()';
   END IF;
 
@@ -133,7 +159,7 @@ BEGIN
     RAISE EXCEPTION 'service_role must have BYPASSRLS for the INVOKER purge to delete anything';
   END IF;
 
-  IF (SELECT prosecdef FROM pg_proc WHERE oid = 'public.purge_expired_vin_cache()'::regprocedure) THEN
+  IF (SELECT prosecdef FROM pg_proc WHERE oid = 'public.purge_expired_vin_cache(integer, integer)'::regprocedure) THEN
     RAISE EXCEPTION 'purge_expired_vin_cache() must be SECURITY INVOKER';
   END IF;
 

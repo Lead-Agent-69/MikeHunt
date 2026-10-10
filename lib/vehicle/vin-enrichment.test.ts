@@ -363,3 +363,172 @@ describe("getRecallsCached (nhtsa_recalls_cache, 7-day TTL)", () => {
     ).toBeNull();
   });
 });
+
+// Ren #301 blocker: a failed catalog or ANY failed per-model lookup is "unknown", never a cached 0.
+describe("getRecalls is all-or-nothing (no partial counts cached)", () => {
+  const isCatalog = (u: string) => u.includes("products/vehicle/models");
+  const isSdLookup = (u: string) =>
+    u.includes("recallsByVehicle") && /model=F-250%20SD/.test(u);
+  const abortErr = () =>
+    Object.assign(new Error("The operation was aborted"), {
+      name: "TimeoutError",
+    });
+
+  async function cachedWith(f: any) {
+    const sb = fakeSb();
+    const r = await getRecallsCached(sb, "Ford", "F-250", 2016, {
+      fetchImpl: f,
+      now: () => NOW,
+    });
+    return {
+      r,
+      writes: sb.upserts.filter((u) => u.table === "nhtsa_recalls_cache"),
+    };
+  }
+
+  it("baseline: the fixtures give 4 and cache them", async () => {
+    const { r, writes } = await cachedWith(fixtureFetch);
+    expect(r?.count).toBe(4);
+    expect(writes).toHaveLength(1);
+  });
+
+  it("catalog times out -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) => {
+      if (isCatalog(u)) throw abortErr();
+      return (fixtureFetch as any)(u, init);
+    });
+    expect(await getRecalls("FORD", "F-250", 2016, f as any)).toBeNull();
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("catalog returns 503 -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) =>
+      isCatalog(u)
+        ? { ok: false, json: async () => ({}) }
+        : (fixtureFetch as any)(u, init),
+    );
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("catalog body malformed -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) =>
+      isCatalog(u)
+        ? { ok: true, json: async () => ({ oops: 1 }) }
+        : (fixtureFetch as any)(u, init),
+    );
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("one per-model lookup returns 503 -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) =>
+      isSdLookup(u)
+        ? { ok: false, json: async () => ({}) }
+        : (fixtureFetch as any)(u, init),
+    );
+    expect(await getRecalls("FORD", "F-250", 2016, f as any)).toBeNull();
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("one per-model lookup times out -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) => {
+      if (isSdLookup(u)) throw abortErr();
+      return (fixtureFetch as any)(u, init);
+    });
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("one per-model body is oversize (>1 MB) -> null, no cache write", async () => {
+    const f = vi.fn(async (u: string, init?: any) =>
+      isSdLookup(u)
+        ? new Response("x", {
+            headers: { "content-length": String(2 * 1024 * 1024) },
+          })
+        : (fixtureFetch as any)(u, init),
+    );
+    const { r, writes } = await cachedWith(f);
+    expect(r).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("a stale row is still served (not overwritten) when a lookup fails", async () => {
+    const f = vi.fn(async (u: string, init?: any) =>
+      isSdLookup(u)
+        ? { ok: false, json: async () => ({}) }
+        : (fixtureFetch as any)(u, init),
+    );
+    const sb = fakeSb({
+      nhtsa_recalls_cache: [
+        {
+          make: "FORD",
+          model: "F-250",
+          model_year: 2016,
+          recalls_count: 4,
+          campaigns: [],
+          models_queried: ["F-250 SD"],
+          expires_at: new Date(NOW - 1).toISOString(),
+        },
+      ],
+    });
+    const r = await getRecallsCached(sb, "Ford", "F-250", 2016, {
+      fetchImpl: f as any,
+      now: () => NOW,
+    });
+    expect(r).toMatchObject({ count: 4, stale: true });
+    expect(
+      sb.upserts.filter((u) => u.table === "nhtsa_recalls_cache"),
+    ).toHaveLength(0);
+  });
+});
+
+describe("recall cache inserts spend the new-row budget", () => {
+  it("over budget: live answer served, no new row", async () => {
+    const sb = fakeSb();
+    const canWrite = vi.fn(() => false);
+    const r = await getRecallsCached(sb, "Ford", "F-250", 2016, {
+      fetchImpl: fixtureFetch as any,
+      now: () => NOW,
+      canWrite,
+    });
+    expect(r).toMatchObject({ count: 4, cached: false });
+    expect(canWrite).toHaveBeenCalledTimes(1);
+    expect(
+      sb.upserts.filter((u) => u.table === "nhtsa_recalls_cache"),
+    ).toHaveLength(0);
+  });
+
+  it("refreshing an existing (expired) row doesn't spend budget", async () => {
+    const sb = fakeSb({
+      nhtsa_recalls_cache: [
+        {
+          make: "FORD",
+          model: "F-250",
+          model_year: 2016,
+          recalls_count: 1,
+          campaigns: [],
+          models_queried: [],
+          expires_at: new Date(NOW - 1).toISOString(),
+        },
+      ],
+    });
+    const canWrite = vi.fn(() => false);
+    await getRecallsCached(sb, "Ford", "F-250", 2016, {
+      fetchImpl: fixtureFetch as any,
+      now: () => NOW,
+      canWrite,
+    });
+    expect(canWrite).not.toHaveBeenCalled();
+    expect(
+      sb.upserts.filter((u) => u.table === "nhtsa_recalls_cache"),
+    ).toHaveLength(1);
+  });
+});

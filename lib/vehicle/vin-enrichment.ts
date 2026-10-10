@@ -28,7 +28,7 @@ export interface EnrichOpts {
   deadline?: Deadline;
   /**
    * Asked right before a new vin_decodes row is written. Return false to serve the live decode
-   * without caching it (the route's global write budget is spent), so fabricated VINs can't flood
+   * without caching it (this instance's new-row budget is spent), so fabricated VINs can't flood
    * the table. Omitted = always write.
    */
   canWrite?: () => boolean;
@@ -228,7 +228,10 @@ export async function getRecallsCached(
   const live = await getRecalls(make, model, year, opts.fetchImpl, {
     deadline: opts.deadline,
   });
-  if (live) {
+  // Only a complete answer reaches here (getRecalls returns null on any failure), so a partial count
+  // is never cached. A NEW cache row spends the same per-instance budget as new vin_decodes rows;
+  // refreshing an existing row is free. Over budget, the live answer is served but not cached.
+  if (live && (row != null || !opts.canWrite || opts.canWrite())) {
     try {
       await sb.from("nhtsa_recalls_cache").upsert(
         {
@@ -246,5 +249,6 @@ export async function getRecallsCached(
     }
     return { ...live, cached: false, stale: false };
   }
+  if (live) return { ...live, cached: false, stale: false };
   return row ? fromRow(true) : null;
 }

@@ -62,3 +62,34 @@ describe("upstream deadline", () => {
     ).toBeNull();
   });
 });
+
+describe("readJsonCapped (1 MB upstream cap)", () => {
+  it("refuses an oversize body by Content-Length", async () => {
+    const { readJsonCapped, UPSTREAM_MAX_BYTES } = await import("./deadline");
+    expect(UPSTREAM_MAX_BYTES).toBe(1024 * 1024);
+    await expect(
+      readJsonCapped(
+        new Response("{}", {
+          headers: { "content-length": String(UPSTREAM_MAX_BYTES + 1) },
+        }),
+      ),
+    ).rejects.toThrow();
+  });
+  it("cancels a streamed body once it passes the cap", async () => {
+    const { readJsonCapped } = await import("./deadline");
+    let pulls = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulls++;
+        if (pulls > 100) c.close();
+        else c.enqueue(new Uint8Array(1024));
+      },
+    });
+    await expect(readJsonCapped(new Response(stream), 4096)).rejects.toThrow();
+    expect(pulls).toBeLessThan(10);
+  });
+  it("parses a normal body", async () => {
+    const { readJsonCapped } = await import("./deadline");
+    expect(await readJsonCapped(new Response('{"a":1}'))).toEqual({ a: 1 });
+  });
+});
