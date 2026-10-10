@@ -10,6 +10,7 @@ import { upsertDeals } from "@/lib/scrapers/pipeline";
 import * as crypto from "crypto";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { scrapeOrParseListing } from "@/lib/save-from-url/scrape-listing";
+import { detectSource } from "@/lib/save-from-url/detect-source";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 /** Each save can trigger an outbound fetch + pipeline upsert; cap per signed-in user. */
@@ -242,21 +243,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function detectSource(url: string): string {
-  const lowercase = url.toLowerCase();
-  if (lowercase.includes("craigslist.org")) return "craigslist";
-  if (lowercase.includes("facebook.com")) return "facebook-marketplace";
-  if (lowercase.includes("copart.com")) return "copart";
-  if (lowercase.includes("iaai.com")) return "iaa";
-  if (lowercase.includes("ebay.com") || lowercase.includes("ebay.to"))
-    return "ebay-motors";
-  if (lowercase.includes("autotrader.com")) return "autotrader";
-  if (lowercase.includes("cars.com")) return "cars-com";
-  if (lowercase.includes("cargurus.com")) return "cargurus";
-  if (lowercase.includes("carmax.com")) return "carmax";
-  if (lowercase.includes("carvana.com")) return "carvana";
-  return "web-share";
-}
 
 
 async function createAnalyzingSavedCar(

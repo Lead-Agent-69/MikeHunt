@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import * as cheerio from "cheerio";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
+import { extractFromJsonLd } from "@/lib/scrapers/generic-extractor";
 
 /**
  * Read a listing page. A failed or blocked fetch returns null — URL tokens
@@ -162,6 +163,25 @@ export async function scrapeOrParseListing(
       "";
     const parsed = parseFloat(priceText.replace(/[^0-9.]/g, ""));
     if (parsed) data.ask_price = parsed;
+  }
+
+  // schema.org Vehicle/Car/Product JSON-LD on the page (most dealer and aggregator listing pages
+  // publish it). Page data beats URL guesses; a price still only ever comes from the page.
+  try {
+    const ld = extractFromJsonLd(fetched.html).find((v) => v.make && v.model);
+    if (ld) {
+      if (ld.year) data.year = ld.year;
+      data.make = ld.make;
+      data.model = ld.model;
+      if (ld.trim && !data.trim) data.trim = ld.trim;
+      if (!data.ask_price && ld.price && ld.price > 0) data.ask_price = ld.price;
+      if (!data.mileage && ld.mileage) data.mileage = ld.mileage;
+      if (!data.vin && ld.vin) data.vin = String(ld.vin).toUpperCase();
+      if (!data.title && ld.title) data.title = ld.title;
+      if (ld.image && data.images.length === 0) data.images.push(ld.image);
+    }
+  } catch {
+    // Malformed JSON-LD: keep what the page selectors found.
   }
 
   if (data.images.length === 0) {

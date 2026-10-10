@@ -92,6 +92,8 @@ import {
   sourceReadinessFallback,
 } from "@/lib/deals/detail-readiness";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { AdvisorCard } from "@/components/intelligence/AdvisorCard";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 type SourceHealthItem = {
   id: string;
@@ -520,6 +522,12 @@ export default function DealPage({
     store.setUserType(userTypeFromSavedBuyerMode(saved));
     buyerModeSynced.current = true;
   }, [prefs.buyerScope, prefsLoading, store]);
+  // Advisor card desk: profit and sell market only for flip modes (saved mode, same source as above).
+  const advisorFlipDesk =
+    !prefsLoading &&
+    isFlipBuyerMode(
+      readLocalBuyerIntent()?.buyerMode || prefs.buyerScope?.buyerMode,
+    );
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { targetProfit: savedTargetProfit } = useDealerDefaults();
   // The dealer's learned calibration (null until they've logged enough outcomes).
@@ -972,6 +980,13 @@ export default function DealPage({
               damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
             }}
           />
+          {serverDeal && !prefsLoading && (
+            <AdvisorCard
+              className="mt-3"
+              deal={serverDeal}
+              flipDesk={advisorFlipDesk}
+            />
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {dealData?.deal?.sourceUrl && (
               <a
