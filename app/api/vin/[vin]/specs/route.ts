@@ -12,6 +12,7 @@ import {
   RECALLS_TTL_MS,
 } from "@/lib/vehicle/vin-enrichment";
 import { guardVinRoute } from "@/lib/vehicle/vin-route-guard";
+import { extrasFresh } from "@/lib/vehicle/extras-ttl";
 
 // GET /api/vin/[vin]/specs — authoritative, FREE vehicle specs. Full NHTSA vPIC decode
 // (DecodeVinValuesExtended: trim, series, body, engine, drive, transmission, GVWR, plant) cached in
@@ -51,7 +52,7 @@ export async function GET(
   const recallsFresh =
     cached?.recalls_at &&
     Date.now() - new Date(cached.recalls_at).getTime() < RECALLS_TTL_MS;
-  const hasExtras = cached?.extras_at != null;
+  const hasExtras = extrasFresh(cached);
   const canQuery = !!(decoded.make && decoded.model && decoded.year);
 
   // Recalls come from the per-make/model/year cache (cheap even when this VIN's row is fresh).
@@ -77,7 +78,7 @@ export async function GET(
   // Crash-test stars + EPA MPG in parallel (all free, no key), once per VIN.
   const [safety, fuel] = canQuery
     ? await Promise.all([
-        cached?.safety_overall != null || cached?.extras_at
+        cached?.safety_overall != null || hasExtras
           ? Promise.resolve(null)
           : getSafetyRating(
               decoded.make!,
@@ -86,7 +87,7 @@ export async function GET(
               undefined,
               { deadline },
             ),
-        cached?.mpg_combined != null || cached?.extras_at
+        cached?.mpg_combined != null || hasExtras
           ? Promise.resolve(null)
           : getFuelEconomy(
               decoded.make!,
@@ -113,7 +114,9 @@ export async function GET(
     safety_frontal: safety?.frontal ?? cached?.safety_frontal ?? null,
     safety_side: safety?.side ?? cached?.safety_side ?? null,
     safety_rollover: safety?.rollover ?? cached?.safety_rollover ?? null,
-    extras_at: new Date().toISOString(),
+    // When the extras were last attempted. extrasFresh() keeps a complete set 180 days and retries an
+    // incomplete one (a failed or empty safety/EPA lookup) after 6h.
+    extras_at: hasExtras ? cached.extras_at : new Date().toISOString(),
   };
   // Await the cache write so it actually persists — a fire-and-forget promise gets dropped when the
   // handler returns, so every call would otherwise re-hit NHTSA.

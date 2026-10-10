@@ -6,7 +6,7 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
-import { scanVINFromCamera } from "@/lib/api/vin";
+import { scanVINFromCamera } from "@/lib/vehicle/vin-scan";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { toast } from "sonner";
 import Link from "next/link";

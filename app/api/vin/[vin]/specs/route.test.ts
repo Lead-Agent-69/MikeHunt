@@ -107,4 +107,66 @@ describe("GET /api/vin/[vin]/specs (full decode + recalls)", () => {
     expect((await get("NOTAVIN")).status).toBe(400);
     fetchSpy.mockImplementation(fixtureFetch);
   });
+
+  it("a failed safety/EPA lookup is retried after 6h, not pinned for 180 days", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const t0 = new Date("2026-10-10T00:00:00Z").getTime();
+      vi.setSystemTime(t0);
+      await get(F250); // fixtures have no safety/EPA recordings -> both empty
+      const isExtra = (u: string) =>
+        u.includes("SafetyRatings") || u.includes("fueleconomy.gov");
+      const extraCalls = () =>
+        fetchSpy.mock.calls.filter(([u]) => isExtra(String(u))).length;
+      expect(extraCalls()).toBeGreaterThan(0);
+
+      fetchSpy.mockClear();
+      vi.setSystemTime(t0 + 5 * 3_600_000); // inside the 6h retry window
+      await get(F250);
+      expect(extraCalls()).toBe(0);
+
+      fetchSpy.mockClear();
+      vi.setSystemTime(t0 + 6 * 3_600_000 + 1); // past it: retried
+      await get(F250);
+      expect(extraCalls()).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("extrasFresh: 180 days when complete, 6h when either value is missing", async () => {
+    const { extrasFresh, EXTRAS_TTL_MS, EXTRAS_RETRY_MS } =
+      await import("@/lib/vehicle/extras-ttl");
+    const now = Date.parse("2026-10-10T00:00:00Z");
+    const at = (ms: number) => new Date(now - ms).toISOString();
+    const full = { safety_overall: 5, mpg_combined: 20 };
+    expect(
+      extrasFresh({ ...full, extras_at: at(EXTRAS_TTL_MS - 1) }, now),
+    ).toBe(true);
+    expect(
+      extrasFresh({ ...full, extras_at: at(EXTRAS_TTL_MS + 1) }, now),
+    ).toBe(false);
+    expect(
+      extrasFresh(
+        {
+          safety_overall: 5,
+          mpg_combined: null,
+          extras_at: at(EXTRAS_RETRY_MS - 1),
+        },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      extrasFresh(
+        {
+          safety_overall: null,
+          mpg_combined: 20,
+          extras_at: at(EXTRAS_RETRY_MS + 1),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(extrasFresh({ ...full, extras_at: null }, now)).toBe(false);
+    expect(extrasFresh(null, now)).toBe(false);
+  });
 });

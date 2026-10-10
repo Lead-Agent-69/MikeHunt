@@ -9,6 +9,8 @@
 // The point: a flipper instantly sees the red flags, and the authoritative report layers in when a
 // key is set — never a hard dependency on one source.
 
+import { readJsonCapped, UPSTREAM_CALL_TIMEOUT_MS } from "./deadline";
+
 export interface VinHistory {
   source: "nmvtis" | "vin-graph" | "listing-text" | "none";
   authoritative: boolean; // true only for NMVTIS — UI should label estimates as "claimed"
@@ -254,9 +256,10 @@ export async function fetchNmvtis(vin: string): Promise<VinHistory | null> {
   try {
     const res = await fetch(
       `https://api.vinaudit.com/v2/query?key=${key}&id=${encodeURIComponent(id)}&vin=${vin}&format=json`,
+      { signal: AbortSignal.timeout(UPSTREAM_CALL_TIMEOUT_MS) },
     );
     if (!res.ok) return null;
-    const j: any = await res.json();
+    const j: any = await readJsonCapped(res); // 1 MB cap, cancelled mid-stream
     if (j?.success === false) return null;
 
     const brandRecs: any[] = j?.brandrecords || j?.brands || [];

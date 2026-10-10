@@ -123,7 +123,7 @@ The scorer already has empty slots for foreclosure/sheriff/bankruptcy signals th
 
 ### P4 — cars-side + heavier
 
-14. **NHTSA complaint trends** (cars) — we decode VINs (`lib/api/vin.ts`) but don't pull complaint/recall
+14. **NHTSA complaint trends** (cars) — we decode VINs (`lib/vehicle/vin-enrichment.ts`) but don't pull complaint/recall
     trends. Free official API → discount valuation on high-complaint models. Risk: low.
 15. **Photo/condition AI** (both) — Gemini Vision (already wired for cars) to grade condition / detect
     vacant-boarded from images. NOT free (tokens/latency); output is an estimate → must be labeled. Defer.

@@ -61,8 +61,10 @@ type BodyLike = {
 
 /**
  * Parse an upstream JSON body, refusing anything past maxBytes: Content-Length first, then a counted
- * stream read (cancelled at the cap). Throws on oversize, so callers' existing failure paths apply.
- * Objects without a stream or text() (test doubles) fall back to json().
+ * stream read that is cancelled as soon as it passes the cap (nothing past the cap is buffered).
+ * Throws on oversize, so callers' existing failure paths apply. A real Response without a body
+ * stream is an error (no uncapped text()/json() read). Only plain test doubles (not a Response)
+ * fall back to their json().
  */
 export async function readJsonCapped(
   res: BodyLike,
@@ -94,11 +96,8 @@ export async function readJsonCapped(
     }
     return JSON.parse(new TextDecoder().decode(buf));
   }
-  if (typeof res.text === "function") {
-    const t = await res.text();
-    if (t.length > maxBytes) throw new Error(`upstream body > ${maxBytes}`);
-    return JSON.parse(t);
-  }
-  if (typeof res.json === "function") return res.json();
+  if (typeof Response !== "undefined" && res instanceof Response)
+    throw new Error("upstream response has no body");
+  if (typeof res.json === "function") return res.json(); // test doubles only
   throw new Error("upstream response has no body");
 }

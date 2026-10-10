@@ -87,3 +87,10 @@ with `decode_clean = false` and returned as `decodeClean: false` so the UI can s
 - Every upstream body (NHTSA, EPA, mcp.vin) is capped at 1 MB (`readJsonCapped`).
 - mcp.vin is untrusted: only a validated year (1981 to current year + 2), make/model/trim (charset + length)
   and cleaned engine/country survive (`lib/vehicle/mcp-vin.ts`).
+- Safety stars + EPA MPG (`/specs` extras, `lib/vehicle/extras-ttl.ts`): kept 180 days once both are
+  found; if either lookup failed or came back empty, retried after 6h (not pinned for 180 days).
+- `readJsonCapped` reads only through the body stream and cancels it at the cap; a Response without a
+  stream is refused (no uncapped `text()`/`json()` fallback). VinAudit (`vin-history.ts`, 10s + 1 MB)
+  and `observed-price-history.ts` (2 MB) use it too.
+- `lib/api/vin.ts` was removed (its client fetchers were unused); the lane page's camera scan moved
+  to `lib/vehicle/vin-scan.ts`.

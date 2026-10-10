@@ -93,3 +93,28 @@ describe("readJsonCapped (1 MB upstream cap)", () => {
     expect(await readJsonCapped(new Response('{"a":1}'))).toEqual({ a: 1 });
   });
 });
+
+describe("readJsonCapped never does an uncapped full read", () => {
+  it("a Response without a body stream is refused (no text()/json() fallback)", async () => {
+    const { readJsonCapped } = await import("./deadline");
+    await expect(readJsonCapped(new Response(null))).rejects.toThrow(/no body/);
+  });
+  it("text() is never called, even on a non-Response object", async () => {
+    const { readJsonCapped } = await import("./deadline");
+    const text = vi.fn(async () => "x".repeat(10));
+    await expect(readJsonCapped({ text } as any, 4)).rejects.toThrow(/no body/);
+    expect(text).not.toHaveBeenCalled();
+  });
+  it("stops reading at the cap: chunks past it are never pulled", async () => {
+    const { readJsonCapped } = await import("./deadline");
+    let pulled = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled++;
+        c.enqueue(new Uint8Array(1000));
+      },
+    });
+    await expect(readJsonCapped(new Response(stream), 2500)).rejects.toThrow();
+    expect(pulled).toBeLessThanOrEqual(5);
+  });
+});

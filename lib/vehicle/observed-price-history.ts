@@ -1,3 +1,8 @@
+import { readJsonCapped } from "./deadline";
+
+/** Price-history bodies are a few KB; refuse anything past 2 MB (cancelled mid-stream). */
+export const OBSERVED_PRICES_MAX_BYTES = 2 * 1024 * 1024;
+
 export type ObservedPrice = { price: number; observedAt: string };
 
 export function normalizeObservedPrices(value: unknown): ObservedPrice[] {
@@ -30,7 +35,10 @@ export async function fetchObservedPrices(
 ): Promise<ObservedPrice[]> {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Price history unavailable");
-  const data: unknown = await response.json();
+  const data: unknown = await readJsonCapped(
+    response,
+    OBSERVED_PRICES_MAX_BYTES,
+  );
   if (
     !Array.isArray(data) &&
     !(
