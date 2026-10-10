@@ -15,6 +15,8 @@ import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 import { gradeDataQuality } from "@/lib/data-quality";
 import { LocalScraperCache } from "@/lib/scrapers/local-cache";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
+import { applyGoVerdictFilter } from "@/lib/search/go-verdict-filter";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { safeSellerName, sellerForDesk } from "@/lib/deals/seller-name";
 import {
@@ -391,6 +393,7 @@ export function buildTrustExplanation(
 }
 
 function normalizeRow(r: any, table: "deals" | "vehicles") {
+  r = applyGoProfitPolicy(r);
   // Map both deals and vehicles rows into a Deal-like shape used by scan UI mapper
   const id = r.id;
   const source = r.source || "unknown";
@@ -1180,7 +1183,7 @@ export async function GET(req: NextRequest) {
         .not("true_net_profit", "is", null)
         .lt("true_net_profit", 0);
     } else {
-      query = query.eq("deal_verdict", verdict);
+      query = applyGoVerdictFilter(query, verdict);
     }
   }
   if (minYear > 0) query = query.gte("year", minYear);

@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 import { smartFetch } from "../smart-fetch";
 import { enrichAndStore } from "./shared";
 
@@ -56,6 +57,7 @@ export async function scrapeIAA(
   _searchTerm = "",
   limit = 100,
 ): Promise<number> {
+  assertSourceAccess("iaa");
   // 1) Enumerate live lot URLs from the sitemap (index → sub-sitemaps).
   const lotUrls: string[] = [];
   try {

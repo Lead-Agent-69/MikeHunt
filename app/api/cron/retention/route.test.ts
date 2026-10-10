@@ -31,6 +31,7 @@ describe("GET /api/cron/retention", () => {
     process.env.CRON_SECRET = "s3cret";
     rpc
       .mockResolvedValueOnce({ data: { page_views: 3 }, error: null })
+      .mockResolvedValueOnce({ data: { quarantine: 2 }, error: null })
       .mockResolvedValueOnce({
         data: [{ vin_rows: 2, recall_rows: 1 }],
         error: null,
@@ -40,16 +41,19 @@ describe("GET /api/cron/retention", () => {
     expect(await res.json()).toEqual({
       ok: true,
       deleted: { page_views: 3 },
+      integrity: { quarantine: 2 },
       vinCache: { vin_rows: 2, recall_rows: 1 },
     });
     expect(rpc).toHaveBeenNthCalledWith(1, "run_retention");
-    expect(rpc).toHaveBeenNthCalledWith(2, "purge_expired_vin_cache");
+    expect(rpc).toHaveBeenNthCalledWith(2, "run_integrity_retention");
+    expect(rpc).toHaveBeenNthCalledWith(3, "purge_expired_vin_cache");
   });
 
   it("still answers 200 when the VIN cache purge is missing or fails", async () => {
     process.env.CRON_SECRET = "s3cret";
     rpc
       .mockResolvedValueOnce({ data: { page_views: 1 }, error: null })
+      .mockResolvedValueOnce({ data: { quarantine: 0 }, error: null })
       .mockResolvedValueOnce({
         data: null,
         error: { message: "function purge_expired_vin_cache() does not exist" },
@@ -59,6 +63,7 @@ describe("GET /api/cron/retention", () => {
     expect(await res.json()).toEqual({
       ok: true,
       deleted: { page_views: 1 },
+      integrity: { quarantine: 0 },
       vinCache: null,
     });
   });

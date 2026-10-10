@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createBrowserClient } from "@supabase/ssr";
+import { eligibleInventoryClient } from "@/lib/deals/eligible-client";
 
 // Build-time safety: `next build` evaluates route modules (page-data collection) AND prerenders pages
 // (static generation) WITHOUT the runtime env present. A missing-env THROW here — or a createClient("") —
@@ -78,12 +79,16 @@ export function createClientComponentClient(): SupabaseClient {
   });
 }
 
-export function createServerComponentClient(): SupabaseClient {
+export function createServerComponentClient(
+  options: { includeHeld?: boolean } = {},
+): SupabaseClient {
   const isNode = typeof process !== "undefined" && process.versions?.node;
   const ws = isNode ? eval("require")("ws") : undefined;
-  return createClient(
+  const client = createClient(
     resolvedUrl(),
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || PLACEHOLDER_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+      process.env.SUPABASE_SECRET_KEY?.trim() ||
+      PLACEHOLDER_KEY,
     {
       auth: {
         autoRefreshToken: false,
@@ -92,6 +97,7 @@ export function createServerComponentClient(): SupabaseClient {
       ...(ws ? { realtime: { transport: ws } } : {}),
     },
   );
+  return options.includeHeld ? client : eligibleInventoryClient(client);
 }
 
 // Legacy named export — call this instead of using `supabase` directly.

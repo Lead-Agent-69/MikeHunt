@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/adesa.ts
 // ─── ADESA auction scraper (requires dealer account / API token) ────────────────
 
@@ -30,6 +31,7 @@ export const ADESA_CONFIG: ScraperConfig = {
 };
 
 export async function scrapeAdesa(maxPages = ADESA_CONFIG.maxPages) {
+  assertSourceAccess("adesa");
   console.log("[ADESA] Starting scrape...");
 
   // ADESA requires a dealer account. Attempt public lot search; if blocked, return 0.

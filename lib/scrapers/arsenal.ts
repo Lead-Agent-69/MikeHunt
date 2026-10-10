@@ -112,11 +112,13 @@ export function buildStateArsenal(
       name: NATIONAL_RUNNER_NAMES[id] || id,
       state: null,
       origin: "runner",
-      status: !restricted
-        ? "live"
-        : optedIn
-          ? "operator_enabled"
-          : "restricted",
+      status: !isAutomationAllowedSource(id, env.scrapeSources)
+        ? "restricted"
+        : !restricted
+          ? "live"
+          : optedIn
+            ? "operator_enabled"
+            : "restricted",
       reason: restricted ? TOS_RESTRICTED_SOURCES[id] : undefined,
     });
   }

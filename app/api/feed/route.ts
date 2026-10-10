@@ -12,6 +12,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
@@ -36,6 +37,7 @@ export const FEED_MAX_OFFSET = 600;
 export const FEED_GUEST_RATE = { limit: 30, windowMs: 60_000 };
 
 function mapItem(d: any) {
+  d = applyGoProfitPolicy(d);
   return {
     id: d.id,
     source: d.source,

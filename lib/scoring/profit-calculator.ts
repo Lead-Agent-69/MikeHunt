@@ -1,6 +1,8 @@
 // lib/scoring/profit-calculator.ts
 // ─── Comprehensive profit calculator with full scoring algorithm ──────────────
 
+import { enforceGoProfitFloor, goProfitFloor } from "./go-policy";
+
 export interface DealInputs {
   // Acquisition
   askPrice: number;
@@ -20,6 +22,7 @@ export interface DealInputs {
 
   // Sale
   salePrice: number;
+  targetProfit?: number | null;
   mmrValue?: number;
   sellingFee?: number;
 
@@ -187,14 +190,22 @@ export function calculateProfit(inputs: DealInputs): ProfitResult {
 
   let verdict: "go" | "hold" | "pass";
   // Adjusted thresholds for 130-point scale
-  if (score >= 90 && profit >= 1500) verdict = "go";
+  if (score >= 90 && profit >= goProfitFloor(inputs.targetProfit))
+    verdict = "go";
   else if (score >= 65 && profit >= 500) verdict = "hold";
   else verdict = "pass";
+  verdict = enforceGoProfitFloor(verdict, profit, inputs.targetProfit);
 
   // ─── WARNINGS & RECOMMENDATIONS ──────────────────────────────────────────────
 
   const warnings: string[] = [];
   const recommendations: string[] = [];
+
+  if (profit >= 500 && profit < goProfitFloor(inputs.targetProfit)) {
+    warnings.push(
+      `Estimated net profit is below the $${goProfitFloor(inputs.targetProfit).toLocaleString("en-US")} GO threshold; this opportunity remains available for review.`,
+    );
+  }
 
   if (profit < 0) {
     warnings.push("Negative profit - this deal will lose money");

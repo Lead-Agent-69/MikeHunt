@@ -164,8 +164,12 @@ describe("pipeline wiring", () => {
   const src = readFileSync("lib/scrapers/pipeline.ts", "utf8");
   it("flags instead of dropping and keeps flagged rows out of scoring", () => {
     expect(src).toContain("quality_flags: flagged ? flags : null");
-    expect(src).toContain("profit_score: flagged ? null : analysis.score");
-    expect(src).toContain('deal_verdict: flagged ? "pass" : analysis.verdict');
+    expect(src).toContain(
+      "profit_score: flagged ? null : (analysis?.score ?? null)",
+    );
+    expect(src).toContain(
+      'deal_verdict: analysis ? (flagged ? "pass" : analysis.verdict) : null',
+    );
     expect(src).toContain(
       'columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)',
     );

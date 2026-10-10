@@ -521,7 +521,7 @@ export async function runScrapers(options: RunScraperOptions = {}) {
       const base = sourceIds && sourceIds.length ? sourceIds : enabled;
       if (base.length) {
         const kept = base.filter((id: string) => !skip.has(id));
-        if (kept.length && kept.length < base.length) {
+        if (kept.length < base.length) {
           sourceIds = kept;
           console.log(
             `[runScrapers] self-heal: skipping ${Array.from(skip).join(", ")} (recent failures)`,

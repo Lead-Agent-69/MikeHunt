@@ -28,6 +28,14 @@ export async function GET(req: NextRequest) {
       { status: 500 },
     );
   }
+  const integrity = await createServerComponentClient().rpc(
+    "run_integrity_retention",
+  );
+  if (integrity.error)
+    return NextResponse.json(
+      { ok: false, error: "integrity retention failed" },
+      { status: 500 },
+    );
   // VIN cache purge is best-effort: if the migration isn't applied yet (function missing) or it
   // fails, the main retention result still stands and the route still answers 200.
   let vinCache: unknown = null;
@@ -48,5 +56,10 @@ export async function GET(req: NextRequest) {
     "vin_cache",
     JSON.stringify(vinCache),
   );
-  return NextResponse.json({ ok: true, deleted: data, vinCache });
+  return NextResponse.json({
+    ok: true,
+    deleted: data,
+    integrity: integrity.data,
+    vinCache,
+  });
 }

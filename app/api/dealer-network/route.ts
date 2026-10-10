@@ -37,7 +37,9 @@ let cache: { at: number; map: Map<string, Inv> } | null = null;
 function service() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SECRET_KEY ||
+      "",
   );
 }
 
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
   });
   if (!rl.allowed) return tooManyRequests(rl);
 
+  if (process.env.NODE_ENV === "production") cache = null;
   const now = Date.now();
   const configured = isSupabaseConfigured();
   let map = cache && now - cache.at < 15 * 60 * 1000 ? cache.map : null;

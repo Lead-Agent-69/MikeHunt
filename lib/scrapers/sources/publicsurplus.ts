@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/publicsurplus.ts
 // PublicSurplus.com — government/municipal surplus auctions, fully OPEN (no Cloudflare, no login).
 // Police/fleet cars, trucks and vans sell here for a fraction of retail — prime cheap-acquisition
@@ -161,6 +162,7 @@ export function parsePublicSurplusHtml(html: string): Partial<Deal>[] {
 export async function previewPublicSurplus(
   maxPagesPerCat = 1,
 ): Promise<Partial<Deal>[]> {
+  assertSourceAccess("publicsurplus");
   const all: Partial<Deal>[] = [];
   for (const cat of VEHICLE_CATS) {
     let prevFirst = "";
@@ -186,6 +188,7 @@ export async function previewPublicSurplus(
 }
 
 export async function scrapePublicSurplus(maxPagesPerCat = 4): Promise<number> {
+  assertSourceAccess("publicsurplus");
   console.log("[PublicSurplus] Starting scrape...");
   const all: Partial<Deal>[] = [];
   for (const cat of VEHICLE_CATS) {

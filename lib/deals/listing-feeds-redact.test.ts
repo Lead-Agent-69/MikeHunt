@@ -86,9 +86,12 @@ describe("redactListingForNonFlipDesk covers every listing-feed key name", () =>
     expect(out).not.toHaveProperty("deal_analysis");
   });
 
-  it("listingsForDesk is a no-op for flip desks", () => {
+  it("preserves flip economics while guarding stale GO verdicts", () => {
     const items = [{ id: "1", trueNetProfit: 9 }];
-    expect(listingsForDesk(items, true)).toBe(items);
+    expect(listingsForDesk(items, true)).toEqual(items);
+    const stale = [{ id: "2", trueNetProfit: 2500, dealVerdict: "go" }];
+    expect(listingsForDesk(stale, true)[0].dealVerdict).toBe("hold");
+    expect(stale[0].dealVerdict).toBe("go");
     expect(listingsForDesk(items, false)[0]).not.toHaveProperty(
       "trueNetProfit",
     );

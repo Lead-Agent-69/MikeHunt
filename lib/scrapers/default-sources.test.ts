@@ -85,7 +85,7 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
     ]) {
       expect(CI_DEFAULT_SOURCES).not.toContain(id);
     }
-    expect(CI_DEFAULT_SOURCES).toEqual(["gsa_auctions", "curated_dealers"]);
+    expect(CI_DEFAULT_SOURCES).toEqual(["curated_dealers"]);
     const selection = resolveCiSources([], "");
     expect(selection).toEqual({
       sources: CI_DEFAULT_SOURCES,
@@ -96,21 +96,19 @@ describe("scrape-ci DEFAULT_SOURCES", () => {
 
   it("explicit args or SCRAPE_SOURCES are an operator opt-in and report restricted ids", () => {
     expect(resolveCiSources(["craigslist", "gsa_auctions"], "copart")).toEqual({
-      sources: ["craigslist", "gsa_auctions"],
+      sources: [],
       origin: "args",
-      optedInRestricted: ["craigslist"],
+      optedInRestricted: [],
     });
     expect(resolveCiSources([], " municibid, gsa_auctions ,municibid")).toEqual(
       {
-        sources: ["municibid", "gsa_auctions"],
+        sources: [],
         origin: "env",
-        optedInRestricted: ["municibid"],
+        optedInRestricted: [],
       },
     );
     expect(resolveCiSources([], "gsa_auctions").optedInRestricted).toEqual([]);
-    expect(resolveCiSources([], "govdeals").optedInRestricted).toEqual([
-      "govdeals",
-    ]);
+    expect(resolveCiSources([], "govdeals").sources).toEqual([]);
   });
 
   it("scrape-ci and the worker resolve sources through ci-sources, not a raw list", () => {

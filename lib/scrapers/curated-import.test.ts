@@ -187,3 +187,7 @@ describe("curated import receipts", () => {
     expect(mocks.save.mock.calls[0][0]).toEqual([]);
   });
 });
+vi.mock("./source-compliance", async (original) => ({
+  ...(await original<typeof import("./source-compliance")>()),
+  policyBlockFor: () => undefined,
+}));

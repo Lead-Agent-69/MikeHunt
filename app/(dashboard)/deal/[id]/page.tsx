@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useDealStore } from "@/lib/store/dealStore";
+import { goProfitFloor } from "@/lib/scoring/go-policy";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -515,7 +516,13 @@ export default function DealPage({
     buyerModeSynced.current = true;
   }, [prefs.buyerScope, prefsLoading, store]);
   const { dealerId, loading: dealerLoading } = useDealerId();
-  const { targetProfit: savedTargetProfit } = useDealerDefaults();
+  const { targetProfit: savedTargetProfit, loading: defaultsLoading } =
+    useDealerDefaults();
+  const updateScenario = store.updateField;
+  React.useEffect(() => {
+    if (!defaultsLoading && store.userType === "dealer")
+      updateScenario("targetProfit", goProfitFloor(savedTargetProfit));
+  }, [defaultsLoading, savedTargetProfit, store.userType, updateScenario]);
   // The dealer's learned calibration (null until they've logged enough outcomes).
   const { data: calData } = useSWR(
     store.userType === "dealer" ? "/api/calibration" : null,

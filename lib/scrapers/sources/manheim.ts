@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/manheim.ts
 // ─── Manheim auction scraper (requires dealer account / API token) ──────────────
 
@@ -30,6 +31,7 @@ export const MANHEIM_CONFIG: ScraperConfig = {
 };
 
 export async function scrapeManheim(maxPages = MANHEIM_CONFIG.maxPages) {
+  assertSourceAccess("manheim");
   console.log("[Manheim] Starting scrape...");
 
   const allDeals: Partial<Deal>[] = [];

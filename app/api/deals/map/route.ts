@@ -8,6 +8,8 @@ import {
 } from "@/lib/supabase";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { parseMapVerdicts } from "@/lib/deals/map-verdict";
+import { enforceGoProfitFloor } from "@/lib/scoring/go-policy";
+import { applyGoVerdictFilter } from "@/lib/search/go-verdict-filter";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
@@ -89,7 +91,7 @@ export async function GET(req: NextRequest) {
           .range(from, to);
         q = applyInventoryViewScope(q, sp);
         if (verdictFilter.mode === "eq") {
-          q = q.eq("deal_verdict", verdictFilter.values[0]);
+          q = applyGoVerdictFilter(q, verdictFilter.values[0]);
         } else if (verdictFilter.mode === "in") {
           q = q.in("deal_verdict", verdictFilter.values);
         }
@@ -161,7 +163,14 @@ export async function GET(req: NextRequest) {
         approx,
         url: `/deal/${encodeURIComponent(d.id)}`,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
-        type: flipDesk ? typeForVerdict(d.deal_verdict) : "dealer",
+        type: flipDesk
+          ? typeForVerdict(
+              enforceGoProfitFloor(
+                d.deal_verdict,
+                d.true_net_profit != null ? Number(d.true_net_profit) : null,
+              ),
+            )
+          : "dealer",
         label,
         // Public columns (20261010020000 grants): safe for every desk.
         condition: d.condition ?? null,

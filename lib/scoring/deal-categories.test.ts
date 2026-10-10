@@ -2,6 +2,18 @@ import { describe, it, expect } from "vitest";
 import { carCategories } from "./deal-categories";
 
 describe("carCategories", () => {
+  it("does not market a stale lower-margin GO as a buy category", () => {
+    const cats = carCategories({
+      askPrice: 10000,
+      sellEstimate: 15000,
+      true_net_profit: 2500,
+      dealVerdict: "go",
+      condition: "salvage",
+    });
+    expect(cats).not.toContain("high_margin");
+    expect(cats).not.toContain("below_market");
+    expect(cats).not.toContain("salvage_steal");
+  });
   it("tags a profitable auction salvage BUY across the right slices", () => {
     const cats = carCategories({
       askPrice: 8000,

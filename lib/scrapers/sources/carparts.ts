@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/carparts.ts
 // ─── CarParts.com salvage parts scraper for teardown opportunities ──────────
 
@@ -33,6 +34,7 @@ export async function scrapeCarParts(
   searchTerm = "salvage",
   maxPages = CARPARTS_CONFIG.maxPages,
 ) {
+  assertSourceAccess("carparts_com");
   console.log(`[CarParts.com] Starting scrape for "${searchTerm}"...`);
   const allDeals: Partial<Deal>[] = [];
 

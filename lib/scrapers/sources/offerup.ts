@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/offerup.ts
 // OfferUp — local private-party marketplace. Not dead: the SPA renders 50 listings/page and embeds them
 // in __NEXT_DATA__ (props.pageProps.searchFeedResponse.looseTiles). The old CSS-selector scraper rotted;
@@ -71,6 +72,7 @@ export function parseOfferUpHtml(html: string): Partial<Deal>[] {
 }
 
 export async function scrapeOfferUp(searchTerm = "") {
+  assertSourceAccess("offerup");
   console.log("[OfferUp] Starting scrape...");
   // OfferUp is local (IP-geolocated). A handful of vehicle queries maxes the 50/page yield per term;
   // the Docker fleet's different IPs naturally spread regional coverage.

@@ -106,12 +106,10 @@ test.describe("signed-in app, personal desk (local only)", () => {
         { timeout: 20_000 },
       );
     else
-      test
-        .info()
-        .annotations.push({
-          type: "note",
-          description: "no deal with >=2 price points",
-        });
+      test.info().annotations.push({
+        type: "note",
+        description: "no deal with >=2 price points",
+      });
     await expectHealthy(page, h);
   });
 

@@ -3,7 +3,7 @@
  *
  *  - Honest, stable User-Agent with a contact URL (identity.ts). No UA rotation, no fingerprint
  *    spoofing, no proxies, no headless-stealth escalation.
- *  - robots.txt is checked before every URL; Crawl-delay is honored (capped at 60s).
+ *  - robots.txt is checked before every URL; Crawl-delay is honored without shortening it.
  *  - Per-domain pacing: 1–2 requests in flight, a minimum gap plus jitter (limiter.ts).
  *  - Conditional GETs (ETag / Last-Modified) + a page cache, so unchanged pages cost a 304 (cache.ts).
  *  - 429/503: honor Retry-After, else exponential backoff with jitter (backoff.ts).
@@ -22,7 +22,9 @@ import {
 import { conditionalHeaders, defaultPageCache, type PageCache } from "./cache";
 import { politeUserAgent } from "./identity";
 import { DomainLimiter } from "./limiter";
+import { accessDecision, ACCESS_GRANTS } from "../access-policy";
 import { PoliteMetrics } from "./metrics";
+import { fetchApprovedPublicResponse } from "./public-fetch";
 import {
   robotsRecordAllows,
   robotsRecordFromBody,
@@ -43,7 +45,12 @@ export interface PoliteFetchOptions {
   signal?: AbortSignal;
 }
 
-export type PoliteSkipReason = "robots" | "breaker" | "invalid_url" | "blocked_url";
+export type PoliteSkipReason =
+  | "robots"
+  | "breaker"
+  | "invalid_url"
+  | "permission"
+  | "blocked_url";
 
 export interface PoliteResponse {
   url: string;
@@ -150,8 +157,9 @@ export class PoliteCrawler {
         : deps.fetchImpl
           ? null
           : assertPublicHttpUrl;
-    const raw: FetchLike = deps.fetchImpl ?? ((u, i) => fetch(u, i));
-    this.fetchImpl = this.urlGuard ? guardedFetch(raw, this.urlGuard) : raw;
+    const raw: FetchLike = deps.fetchImpl ?? fetchApprovedPublicResponse;
+    this.fetchImpl =
+      deps.fetchImpl && this.urlGuard ? guardedFetch(raw, this.urlGuard) : raw;
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = deps.now ?? Date.now;
     this.random = deps.random ?? Math.random;
@@ -380,6 +388,25 @@ export function politeCrawler(): PoliteCrawler {
 }
 
 export function politeFetch(url: string, opts?: PoliteFetchOptions) {
+  if (
+    !accessDecision(
+      undefined,
+      url,
+      "collect",
+      ACCESS_GRANTS,
+      Date.now(),
+      "website",
+    ).allowed
+  )
+    return Promise.resolve({
+      url,
+      status: 0,
+      body: "",
+      ok: false,
+      fromCache: false,
+      notModified: false,
+      skipped: "permission" as const,
+    });
   return politeCrawler().fetch(url, opts);
 }
 
@@ -389,12 +416,11 @@ export function politeMetricsSnapshot() {
 }
 
 /**
- * Route the legacy engine/smartFetch paths through politeFetch. Opt-in (SCRAPER_POLITE_MODE=1) so the
- * existing scrapers keep running exactly as before; new sources (dealer CMS family, GSA) always use
- * politeFetch directly.
+ * Production legacy entry points always use the approved polite transport.
  */
 export function politeModeEnabled(): boolean {
-  return process.env.SCRAPER_POLITE_MODE === "1";
+  // Production callers may not disable compliance by choosing a legacy fetch ladder.
+  return true;
 }
 
 /** Tests only. */

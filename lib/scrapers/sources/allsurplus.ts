@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/allsurplus.ts
 // AllSurplus.com — Liquidity Services' commercial/government surplus auction marketplace (sister site to
 // GovDeals). Same `maestro.lqdt1.com` backend, businessId "AD" (vs GovDeals' "GD"), vehicles under the
@@ -18,5 +19,6 @@ const ALLSURPLUS_OPTS = {
 };
 
 export async function scrapeAllSurplus(): Promise<number> {
+  assertSourceAccess("allsurplus");
   return scrapeMaestro(ALLSURPLUS_OPTS);
 }

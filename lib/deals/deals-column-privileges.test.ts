@@ -130,10 +130,15 @@ describe("no anon / browser select of non-granted deals columns", () => {
         ? [p]
         : [];
     });
-  const serverFiles = () =>
+  const sourceFiles = new Map(
     ["app", "lib", "scripts"]
       .flatMap(walk)
-      .filter((f) => !hasUseClientDirective(readFileSync(f, "utf8")));
+      .map((f) => [f, readFileSync(f, "utf8")] as const),
+  );
+  const serverFiles = () =>
+    Array.from(sourceFiles.keys()).filter(
+      (f) => !hasUseClientDirective(sourceFiles.get(f)!),
+    );
 
   // Files allowed to name the anon key, and why. Anything else that does is a failure.
   const ANON_KEY_ALLOWED: Record<string, string> = {
@@ -153,9 +158,9 @@ describe("no anon / browser select of non-granted deals columns", () => {
   it("no server code falls back from the service role to the anon key (|| or ??)", () => {
     const fallback =
       /SUPABASE_SERVICE_ROLE_KEY[\s\S]{0,40}?(\|\||\?\?)\s*process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY/;
-    const offenders = ["app", "lib", "scripts"]
-      .flatMap(walk)
-      .filter((f) => fallback.test(readFileSync(f, "utf8")));
+    const offenders = Array.from(sourceFiles.keys()).filter((f) =>
+      fallback.test(sourceFiles.get(f)!),
+    );
     expect(offenders).toEqual([]);
   });
 
@@ -180,7 +185,7 @@ describe("no anon / browser select of non-granted deals columns", () => {
   it("no server file builds a client from the anon key outside the allowlist", () => {
     const offenders = serverFiles().filter(
       (f) =>
-        readFileSync(f, "utf8").includes("NEXT_PUBLIC_SUPABASE_ANON_KEY") &&
+        sourceFiles.get(f)!.includes("NEXT_PUBLIC_SUPABASE_ANON_KEY") &&
         !(f in ANON_KEY_ALLOWED),
     );
     expect(offenders).toEqual([]);
@@ -190,7 +195,7 @@ describe("no anon / browser select of non-granted deals columns", () => {
     const direct =
       /createClient\(\s*[^,]+,\s*(process\.env\.NEXT_PUBLIC_SUPABASE_ANON_KEY|resolvedPublicAnonKey\(\))/;
     for (const f of serverFiles()) {
-      const src = readFileSync(f, "utf8");
+      const src = sourceFiles.get(f)!;
       if (!direct.test(src)) continue;
       expect(Object.keys(ANON_KEY_ALLOWED), f).toContain(f);
       expect(src, f).not.toMatch(/from\(["'](deals|top_deals)["']\)/);
@@ -206,7 +211,7 @@ describe("no anon / browser select of non-granted deals columns", () => {
     const readsDeals =
       /from\(["'](deals|top_deals)["']\)|rpc\(["']discover_deals["']/;
     const offenders = serverFiles().filter((f) => {
-      const src = readFileSync(f, "utf8");
+      const src = sourceFiles.get(f)!;
       return importsAnon.test(src) && readsDeals.test(src);
     });
     expect(offenders).toEqual([]);

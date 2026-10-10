@@ -4,6 +4,7 @@
 import { ScrapeResult, Deal } from "@/types";
 import { ScraperStateManager } from "./state";
 import { crossRunBackoffMultiplier } from "./circuit-breaker";
+import { runOutcome } from "../run-outcome";
 
 export type ScraperFunction = (args?: ScraperArgs) => Promise<number | Deal[]>;
 
@@ -141,7 +142,10 @@ export class ScraperRegistry {
     success: boolean,
     durationMs: number,
     dealsFound: number,
+    error?: string,
   ): Promise<void> {
+    const outcome = runOutcome(success, dealsFound, error);
+    if (outcome === "skipped" || outcome === "cancelled") return;
     const scraper = this.scrapers.get(id);
     if (!scraper) return;
 

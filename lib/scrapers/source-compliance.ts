@@ -12,6 +12,7 @@
  */
 
 import { politeUserAgent } from "./polite/identity";
+import { accessDecision, ACCESS_GRANTS } from "./access-policy";
 
 export type PolicyBlockKind =
   | "tos_bans_bots"
@@ -172,18 +173,25 @@ function restoredHostsActive() {
 export function policyBlockFor(url: string): PolicyBlock | undefined {
   const host = hostOf(url);
   if (!host) return undefined;
-  if (
-    restoredHostsActive() &&
-    OPERATOR_RESTORED_HOSTS.some(
-      (restored) => host === restored || host.endsWith(`.${restored}`),
-    )
-  ) {
-    return undefined;
-  }
+  const approved = accessDecision(
+    undefined,
+    url,
+    "collect",
+    ACCESS_GRANTS,
+    Date.now(),
+    "website",
+  ).allowed;
   for (const [blocked, block] of Object.entries(SITE_POLICY_BLOCKS)) {
-    if (host === blocked || host.endsWith(`.${blocked}`)) return block;
+    if (host === blocked || host.endsWith(`.${blocked}`))
+      return approved && block.kind !== "bot_challenge" ? undefined : block;
   }
-  return undefined;
+  return approved
+    ? undefined
+    : {
+        kind: "needs_permission",
+        reason:
+          "Documented authorization required before collecting this host.",
+      };
 }
 
 /* ---------------- robots.txt ---------------- */
@@ -286,7 +294,13 @@ export function createRobotsGate(
             },
             signal: AbortSignal.timeout(15_000),
           });
-          if (res.status >= 500) return null;
+          if (
+            res.status === 401 ||
+            res.status === 403 ||
+            res.status === 429 ||
+            res.status >= 500
+          )
+            return null;
           if (res.status >= 400) return "";
           return await res.text();
         } catch {

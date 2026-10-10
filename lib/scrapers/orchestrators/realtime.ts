@@ -114,6 +114,7 @@ export class RealtimeOrchestrator extends BaseScraperOrchestrator {
           execResult.success,
           duration,
           execResult.dealsFound,
+          execResult.error,
         );
         await this.recordResult({
           source: scraper.id,

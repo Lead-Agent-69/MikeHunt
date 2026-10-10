@@ -19,6 +19,9 @@
 BEGIN;
 
 DROP POLICY IF EXISTS "sold_public_read" ON public.sold_listings;
+-- The integrity foundation may already have added its restrictive client-read guard.
+-- Server-only access supersedes it: no client grants and no permissive policies remain.
+DROP POLICY IF EXISTS "sold_permission_guard" ON public.sold_listings;
 
 REVOKE ALL ON public.sold_listings FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sold_listings TO service_role;

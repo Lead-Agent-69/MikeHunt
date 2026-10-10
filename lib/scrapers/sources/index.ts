@@ -118,7 +118,9 @@ export function mileageFromDealerText(
 }
 
 /** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
-export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+export function craigslistGalleryImages(
+  urls: (string | undefined)[],
+): string[] {
   const byId = new Map<string, string>();
   for (const raw of urls) {
     const url = String(raw || "");
@@ -549,6 +551,8 @@ export async function scrapeIndependentDealer(
   fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   console.log(`[IndiDealer] Scraping ${profile.name} at ${baseUrl}`);
+  if (policyBlockFor(baseUrl))
+    throw new Error("Source permission required for dealer inventory");
   const allDeals: Partial<Deal>[] = [];
   const config = {
     ...INDI_CONFIG,
@@ -905,6 +909,8 @@ export async function autoDiscoverAndCrawl(
   fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   abortSignal?.throwIfAborted();
+  if (policyBlockFor(dealerWebsite))
+    throw new Error("Source permission required for dealer discovery");
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
   let html: string;

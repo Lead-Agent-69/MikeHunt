@@ -17,18 +17,18 @@ function admin(): SupabaseClient | null {
  * the cooldown window (so a dead source doesn't burn every run, but is retried every ~12h and can
  * heal itself once it starts working again). Returns an empty set on any error (fail-open).
  */
-export async function getSkipSources(cooldownHours = 12): Promise<Set<string>> {
+export async function getSkipSources(cooldownHours = 1): Promise<Set<string>> {
   const sb = admin();
   if (!sb) return new Set();
   try {
     const { data } = await sb
       .from("source_health")
-      .select("source, last3_all_failed, last_run");
+      .select("source, last5_all_failed, last_run");
     const skip = new Set<string>();
     const cutoff = Date.now() - cooldownHours * 3600_000;
     for (const r of data || []) {
       if (
-        r.last3_all_failed &&
+        r.last5_all_failed &&
         r.last_run &&
         new Date(r.last_run).getTime() > cutoff
       ) {

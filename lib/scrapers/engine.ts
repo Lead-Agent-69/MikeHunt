@@ -13,6 +13,9 @@ import * as cheerio from "cheerio";
 import pRetry from "p-retry";
 import pLimit from "p-limit";
 import { AdaptiveEngine } from "./adaptive-engine";
+import { accessDecision, assertSourceAccess } from "./access-policy";
+import { assertPublicHttpUrl } from "@/lib/net/public-url";
+import { browserRequestGate, RENDER_TIMEOUT_MS } from "./browser-request-gate";
 import {
   getProxyManager,
   proxyConfigToAxios,
@@ -32,6 +35,8 @@ import {
   politeFetch,
   politeModeEnabled,
   politeUserAgent,
+  robotsRecordAllows,
+  looksLikeChallenge,
   type PoliteResponse,
 } from "./polite";
 
@@ -188,30 +193,66 @@ export async function politeRender(
   url: string,
   config: ScraperConfig,
 ): Promise<string> {
+  assertSourceAccess(undefined, url);
+  await assertPublicHttpUrl(url);
   const domain = domainOf(url) || url;
+  const robots = await politeCrawler().robotsFor(new URL(url).origin, domain);
+  if (!robotsRecordAllows(robots, url))
+    throw new Error("Robots disallows rendering");
   const browser = await getPoliteBrowser();
-  return politeCrawler().limiter.run(domain, async () => {
+  const controller = new AbortController();
+  const signal = config.abortSignal
+    ? AbortSignal.any([config.abortSignal, controller.signal])
+    : controller.signal;
+  const deadline = setTimeout(
+    () => controller.abort(new Error("Rendering deadline exceeded")),
+    RENDER_TIMEOUT_MS,
+  );
+  const gate = browserRequestGate(signal);
+  try {
     const context = await browser.newContext({
       userAgent: politeUserAgent(),
       viewport: { width: 1400, height: 900 },
       locale: "en-US",
       extraHTTPHeaders: config.headers,
       javaScriptEnabled: true,
+      serviceWorkers: "block",
     });
     try {
+      await context.route("**/*", gate.handler);
+      await context.routeWebSocket("**/*", (socket) => socket.close());
       const page = await context.newPage();
-      await page.route("**/*", (route) => {
-        const type = route.request().resourceType();
-        if (["image", "media", "font", "stylesheet"].includes(type))
-          route.abort();
-        else route.continue();
-      });
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-      return await page.content();
+      const closeOnAbort = () => {
+        void context.close().catch(() => {});
+      };
+      signal.addEventListener("abort", closeOnAbort, { once: true });
+      if (signal.aborted) closeOnAbort();
+      try {
+        const response = await page.goto(url, {
+          waitUntil: "networkidle",
+          timeout: RENDER_TIMEOUT_MS,
+        });
+        gate.assertHealthy();
+        if (!response || !response.ok())
+          throw new Error(
+            `Render stopped: HTTP ${response?.status() || "unknown"}`,
+          );
+        const html = await page.content();
+        if (looksLikeChallenge(html))
+          throw new Error("Access challenge detected; no bypass attempted");
+        if (Buffer.byteLength(html) > 2 * 1024 * 1024)
+          throw new Error("Rendered response exceeds size budget");
+        return html;
+      } finally {
+        signal.removeEventListener("abort", closeOnAbort);
+      }
     } finally {
       await context.close().catch(() => {});
     }
-  });
+  } finally {
+    clearTimeout(deadline);
+    gate.close();
+  }
 }
 
 let _politeBrowser: Browser | null = null;

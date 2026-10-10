@@ -120,16 +120,16 @@ describe("DomainLimiter", () => {
       lim.run("a.com", task),
     ]);
     expect(peak).toBe(1);
-    expect(sleeps).toEqual([1_250, 1_250]);
+    expect(sleeps).toEqual([6_250, 6_250]);
   });
 
-  it("honors Crawl-delay above the minimum gap (capped at 60s)", () => {
+  it("never shortens a long provider Crawl-delay", () => {
     const lim = new DomainLimiter({ minGapMs: 1_000, jitterRatio: 0 });
     lim.setCrawlDelay("a.com", 10);
     expect(lim.gapMs("a.com")).toBe(10_000);
     lim.setCrawlDelay("a.com", 3_600);
-    expect(lim.gapMs("a.com")).toBe(60_000);
-    expect(lim.gapMs("b.com")).toBe(1_000);
+    expect(lim.gapMs("a.com")).toBe(3_600_000);
+    expect(lim.gapMs("b.com")).toBe(5_000);
   });
 });
 

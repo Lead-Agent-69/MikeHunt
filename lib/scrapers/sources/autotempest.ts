@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/autotempest.ts
 // Autotempest is a meta-search ENGINE — one query fans out to Cars.com, CarGurus, Carvana, eBay,
 // AutoTrader, TrueCar, CarMax, Facebook Marketplace, Hemmings, AutoByTel and more, then returns a
@@ -215,6 +216,7 @@ export function autotempestRegionalZips(
 }
 
 export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
+  assertSourceAccess("autotempest");
   console.log("[Autotempest] Starting aggregator scrape...");
   const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
   const nationalZip =

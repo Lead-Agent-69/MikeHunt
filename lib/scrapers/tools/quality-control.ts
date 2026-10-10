@@ -2,6 +2,7 @@
 // Validates scraped data, detects duplicates, and computes quality scores.
 
 import { Deal } from "@/types";
+import { normalizeVin } from "../listing-integrity";
 import { qualityFlags } from "@/lib/data-quality/sanity";
 
 export interface ValidationRule {
@@ -38,8 +39,8 @@ export class QualityController {
             return { valid: false, reason: "missing title" };
           if (!l.source) return { valid: false, reason: "missing source" };
           if (
-            l.ask_price === undefined ||
-            l.ask_price === null ||
+            typeof l.ask_price !== "number" ||
+            !Number.isFinite(l.ask_price) ||
             l.ask_price < 0
           )
             return { valid: false, reason: "missing or invalid price" };
@@ -54,7 +55,7 @@ export class QualityController {
         name: "year_parse",
         validate: (l) => {
           if (!l.year) return { valid: true };
-          if (l.year < 1900)
+          if (!Number.isInteger(l.year) || l.year < 1900)
             return { valid: false, reason: `unparseable year ${l.year}` };
           return { valid: true };
         },
@@ -132,9 +133,12 @@ export class QualityController {
   }
 
   private makeKey(deal: Partial<Deal>): string {
+    // Prefer offer identity: two sources' offers must survive for provenance and price comparison.
+    if (deal.source_deal_id || deal.source_url)
+      return `${deal.source}|${deal.source_deal_id || deal.source_url}`;
     return [
       deal.source,
-      deal.vin || deal.title?.toLowerCase(),
+      normalizeVin(deal.vin) || deal.title?.toLowerCase(),
       deal.ask_price,
       deal.location_state,
       deal.location_city,

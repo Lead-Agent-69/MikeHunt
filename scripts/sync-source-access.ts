@@ -1,0 +1,44 @@
+import "dotenv/config";
+import { createClient } from "@supabase/supabase-js";
+import { synchronizeAccessGrants } from "../lib/scrapers/access-grant-sync";
+import {
+  ACCESS_GRANTS,
+  ACCESS_POLICY_REVISION,
+  validGrant,
+} from "../lib/scrapers/access-policy";
+
+async function main() {
+  if (ACCESS_GRANTS.some((g) => !validGrant(g)))
+    throw new Error(
+      "Invalid/expired source-access evidence. Nothing synchronized.",
+    );
+  const keys = ACCESS_GRANTS.map((g) => `${g.sourceId}|${g.host}|${g.route}`);
+  if (new Set(keys).size !== keys.length)
+    throw new Error("Duplicate access grants");
+  console.log(
+    `${ACCESS_GRANTS.length} reviewed grants; revision ${ACCESS_POLICY_REVISION}`,
+  );
+  if (!process.argv.includes("--apply")) {
+    console.log(
+      "Validation only. --apply synchronizes evidence to the migrated database.",
+    );
+    return;
+  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("Supabase credentials required");
+  const client = createClient(url, key, { auth: { persistSession: false } });
+  const result = await synchronizeAccessGrants(client, ACCESS_GRANTS);
+  console.log(
+    `${result.unchanged} unchanged; ${result.revoked} revoked; ${result.updated} updated grants.`,
+  );
+  // Do not reactivate legacy listings: re-observation must establish availability and provenance.
+  console.log(
+    "Rules synchronized. Legacy inventory remains held until re-observed.",
+  );
+}
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "Access sync failed");
+  process.exitCode = 1;
+});

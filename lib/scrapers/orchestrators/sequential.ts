@@ -75,6 +75,7 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
           execResult.success,
           duration,
           execResult.dealsFound,
+          execResult.error,
         );
       } catch (error) {
         const duration = Date.now() - start;

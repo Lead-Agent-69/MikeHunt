@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/cargurus.ts
 // CarGurus is a React SPA whose CSS selectors rot. Its inventory AJAX endpoint
 // (ajaxFetchSubsetInventoryListing.action) returns a clean JSON `listings` array — we read THAT via
@@ -106,6 +107,7 @@ export async function scrapeCarGurus(
   zip = "",
   maxPages = CARGURUS_CONFIG.maxPages,
 ) {
+  assertSourceAccess("cargurus");
   if (!zip) {
     const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
     zip = zips[Math.floor(Math.random() * zips.length)] || "75201";

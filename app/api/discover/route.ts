@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { vehicleIdentity } from "@/lib/scrapers/listing-integrity";
 // A cold miss pulls up to 10k rows via discover_deals and grades them in JS: prod first hit measured
 // 7.0s (p95 3.5s over 25 sequential guest calls, 2026-10-10). Without an explicit maxDuration a legacy
 // Hobby project kills it at 10s; 60s is within every Hobby/Pro limit.
@@ -55,6 +56,7 @@ import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
 import { previewPublicSurplus } from "@/lib/scrapers/sources/publicsurplus";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
@@ -82,6 +84,7 @@ function mapDeal(
   d: any,
   alsoOn: { source: string; askPrice: number; url: string }[],
 ) {
+  d = applyGoProfitPolicy(d);
   const options = rowOptions(d);
   const contact = sellerContactFields(d);
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
@@ -680,8 +683,8 @@ export async function GET(request: NextRequest) {
         const byVin = new Map<string, any[]>();
         const noVin: any[] = [];
         for (const r of rows) {
-          if (r.vin && String(r.vin).length === 17) {
-            const k = String(r.vin).toUpperCase();
+          const k = vehicleIdentity(r);
+          if (k) {
             if (!byVin.has(k)) byVin.set(k, []);
             byVin.get(k)!.push(r);
           } else {

@@ -6,6 +6,7 @@
 // listing. Fail closed.
 
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
 import {
   discoverDeskForMode,
   type DiscoverDesk,
@@ -17,11 +18,10 @@ type PrefsClient = {
   from: (table: string) => any;
 };
 
-/** Read the saved buyerMode for a user. Returns undefined on any miss or error. */
-export async function readSavedBuyerMode(
+export async function readSavedBuyerScope(
   supabase: PrefsClient,
   userId: string | null | undefined,
-): Promise<unknown> {
+): Promise<{ buyerMode?: unknown; targetProfit?: number } | undefined> {
   if (!userId) return undefined;
   try {
     const { data, error } = await supabase
@@ -31,13 +31,30 @@ export async function readSavedBuyerMode(
       .maybeSingle();
     if (error || !data) return undefined;
     const prefs = (data as { prefs?: unknown }).prefs as
-      | { buyerScope?: { buyerMode?: unknown } }
+      | { buyerScope?: { buyerMode?: unknown; targetProfit?: unknown } }
       | null
       | undefined;
-    return prefs?.buyerScope?.buyerMode;
+    const scope = prefs?.buyerScope;
+    return scope
+      ? {
+          buyerMode: scope.buyerMode,
+          targetProfit:
+            typeof scope.targetProfit === "number"
+              ? scope.targetProfit
+              : undefined,
+        }
+      : undefined;
   } catch {
     return undefined;
   }
+}
+
+/** Read the saved buyerMode for a user. Returns undefined on any miss or error. */
+export async function readSavedBuyerMode(
+  supabase: PrefsClient,
+  userId: string | null | undefined,
+): Promise<unknown> {
+  return (await readSavedBuyerScope(supabase, userId))?.buyerMode;
 }
 
 /** True only for a saved reseller / dealer mode. Parts, diy, personal, unknown: false. */
@@ -161,6 +178,7 @@ const CARD_FLIP_ONLY_FIELDS = [
   "deal_verdict",
   "dealVerdict",
   "profitEstimate",
+  "verdict",
   "profit_score",
   "profitScore",
   "score",
@@ -280,7 +298,7 @@ export function listingsForDesk<T extends Record<string, any>>(
   flipDesk: boolean,
 ): Array<T | Record<string, any>> {
   return flipDesk
-    ? items
+    ? items.map((item) => applyGoProfitPolicy(item))
     : items.map((item) => redactListingForNonFlipDesk(item));
 }
 

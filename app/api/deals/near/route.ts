@@ -6,6 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { categorize } from "@/lib/discovery/categorize";
+import { applyGoProfitPolicy } from "@/lib/scoring/go-policy";
+import { applyGoVerdictFilter } from "@/lib/search/go-verdict-filter";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import { haversineMiles, boundingBox } from "@/lib/geo/distance";
 import { geocodeZip } from "@/lib/geo/geocode";
@@ -28,6 +30,7 @@ import {
 // (zippopotam / Nominatim), never street addresses, so "N mi from you" is centroid to
 // centroid. Rows with no lat/lng are skipped whenever a radius is set.
 function mapDeal(d: any, distanceMiles: number | null) {
+  d = applyGoProfitPolicy(d);
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
   const miles =
     distanceMiles != null && Number.isFinite(distanceMiles)
@@ -98,7 +101,8 @@ export async function GET(req: NextRequest) {
   )?.homeLocation;
 
   const sp = new URL(req.url).searchParams;
-  const verdict = nearVerdictFilter(sp.get("verdict"));
+  const flipDesk = await resolveCallerFlipDesk();
+  const verdict = flipDesk ? nearVerdictFilter(sp.get("verdict")) : null;
   const zip = sp.get("zip");
   const lock = nearQueryLock({
     zip,
@@ -150,7 +154,7 @@ export async function GET(req: NextRequest) {
     .eq("location_state", lock.state)
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0);
-  if (verdict) q = q.eq("deal_verdict", verdict);
+  if (verdict) q = applyGoVerdictFilter(q, verdict);
   // An explicit radius narrows inside the locked state. It never adds neighbor states.
   if (lock.radius > 0 && canMeasure) {
     const bb = boundingBox(
@@ -201,7 +205,6 @@ export async function GET(req: NextRequest) {
 
   // NearbyDeals is mostly personal buyers: flip economics and seller contact only for a saved
   // reseller / dealer desk.
-  const flipDesk = await resolveCallerFlipDesk();
   const deals = listingsForDesk(
     withDist.slice(0, 24).map(({ d, miles }) => mapDeal(d, miles)),
     flipDesk,

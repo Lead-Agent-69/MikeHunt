@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/govdeals.ts
 // GovDeals.com — the largest U.S. government-surplus auction marketplace (Liquidity Services). Police
 // cruisers, municipal fleet sedans, public-works trucks sell here for a fraction of retail = prime
@@ -31,6 +32,7 @@ export function govDealsAssetToDeal(a: MaestroAsset): Partial<Deal> | null {
 }
 
 export async function previewGovDeals(maxPages = 1): Promise<Partial<Deal>[]> {
+  assertSourceAccess("govdeals");
   const assets = await fetchMaestroAssets(
     GOVDEALS_OPTS.businessId,
     GOVDEALS_OPTS.categoryCodes,
@@ -45,5 +47,6 @@ export async function previewGovDeals(maxPages = 1): Promise<Partial<Deal>[]> {
 }
 
 export async function scrapeGovDeals(): Promise<number> {
+  assertSourceAccess("govdeals");
   return scrapeMaestro(GOVDEALS_OPTS);
 }

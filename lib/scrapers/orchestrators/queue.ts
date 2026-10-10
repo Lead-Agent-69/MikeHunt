@@ -219,6 +219,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         execResult.success,
         duration,
         execResult.dealsFound,
+        execResult.error,
       );
       const result = {
         source: scraper.id,

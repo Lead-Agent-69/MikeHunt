@@ -103,6 +103,9 @@ describe("sold_listings server-only migration", () => {
       'DROP POLICY IF EXISTS "sold_public_read" ON public.sold_listings;',
     );
     expect(sql).toContain(
+      'DROP POLICY IF EXISTS "sold_permission_guard" ON public.sold_listings;',
+    );
+    expect(sql).toContain(
       "REVOKE ALL ON public.sold_listings FROM PUBLIC, anon, authenticated;",
     );
     expect(sql).toContain(

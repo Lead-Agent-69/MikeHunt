@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/truecar.ts
 // ─── TrueCar scraper - Certified pre-owned with market value data ─────────────
 
@@ -124,6 +125,7 @@ export async function scrapeTrueCar(
   zip = "75201",
   maxPages = TRUECAR_CONFIG.maxPages,
 ) {
+  assertSourceAccess("truecar");
   console.log(`[TrueCar] Starting scrape for "${searchTerm}" near ${zip}...`);
   const allDeals: Partial<Deal>[] = [];
 

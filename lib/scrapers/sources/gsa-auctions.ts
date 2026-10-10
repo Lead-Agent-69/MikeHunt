@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/gsa-auctions.ts
 // GSA Auctions (gsaauctions.gov) — U.S. FEDERAL surplus: GSA fleet sedans/SUVs/trucks, clean-title and
 // well-maintained = high-quality flip leads. The site is a token-walled SPA, BUT its search backend
@@ -114,6 +115,7 @@ function body(page: number, size: number) {
 }
 
 export async function scrapeGsaAuctions(maxPages = 6): Promise<number> {
+  assertSourceAccess("gsa_auctions");
   console.log("[GSA] Starting scrape...");
   const SIZE = 50;
   const byId = new Map<string, Partial<Deal>>();

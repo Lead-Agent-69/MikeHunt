@@ -4,6 +4,8 @@
 // Each is a distinguishing, money-relevant slice a flipper actually hunts by (not the whole inventory), so
 // the chips only surface when there are matches. Computed from fields already on the scan Deal — no I/O.
 
+import { enforceGoProfitFloor } from "./go-policy";
+
 export interface CarLike {
   askPrice?: number | null;
   sellEstimate?: number | null;
@@ -37,7 +39,7 @@ const isSalvage = (d: CarLike) =>
   );
 
 const isPurchaseReady = (d: CarLike) =>
-  d.dealVerdict === "go" &&
+  enforceGoProfitFloor(d.dealVerdict, d.true_net_profit) === "go" &&
   !d.dealAnalysis?.priceImplausible &&
   !["typo", "implausible"].includes(String(d.dealAnalysis?.priceSanity || ""));
 

@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/carvana.ts
 // Carvana exposes its ENTIRE inventory (~73k vehicles) via an open JSON API — no Cloudflare, no
 // FlareSolverr, no browser. POST to /merch/search/api/v2/search and read inventory.vehicles: clean
@@ -93,6 +94,7 @@ export async function scrapeCarvana(
   maxPages = 15,
   pageSize = 50,
 ): Promise<number> {
+  assertSourceAccess("carvana");
   console.log("[Carvana] Starting API scrape...");
   const all: Partial<Deal>[] = [];
 

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { previewCopartLots } from "@/lib/scrapers/sources/copart";
 import { previewGovDeals } from "@/lib/scrapers/sources/govdeals";
 import { previewMunicibid } from "@/lib/scrapers/sources/municibid";
+import { ACCESS_GRANTS } from "@/lib/scrapers/access-policy";
 
 vi.mock("@/lib/deals/deal-desk-access", async (importOriginal) => {
   const actual =
@@ -65,21 +66,30 @@ function req(path: string) {
   });
 }
 
-// GovDeals is terms-restricted (Liquidity Services User Agreement), so these preview-path tests run
-// with the operator opt-in. The honesty block below checks the default (no opt-in) refuses it.
+// Controlled preview fixtures get explicit reviewed grants; source selection alone is not permission.
 let prevSources: string | undefined;
 function optInGovDeals() {
   prevSources = process.env.SCRAPE_SOURCES;
   process.env.SCRAPE_SOURCES = "govdeals";
+  ACCESS_GRANTS.push({
+    sourceId: "govdeals",
+    host: "govdeals.com",
+    route: "website",
+    evidence: "https://govdeals.com/fixture-authorization",
+    reviewedAt: "2020-01-01",
+    expiresAt: "2099-01-01",
+    collect: true,
+    display: true,
+    derive: false,
+  });
 }
 function restoreSources() {
+  ACCESS_GRANTS.pop();
   if (prevSources === undefined) delete process.env.SCRAPE_SOURCES;
   else process.env.SCRAPE_SOURCES = prevSources;
 }
 
-// These suites pin the terms-safe gate itself. Since 2026-10-09 the default restores the
-// operator's sources (OPERATOR_RESTORED_SOURCES / OPERATOR_RESTORED_HOSTS); the gate still runs
-// whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
+// Legacy operator overrides cannot authorize collection.
 beforeEach(() => {
   vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
 });
@@ -229,7 +239,7 @@ describe("GET /api/scan/live-preview", () => {
 });
 
 describe("GET /api/scan/live-preview honesty", () => {
-  it("never live-fetches Copart without an operator opt-in", async () => {
+  it("never live-fetches Copart without reviewed authorization", async () => {
     const prev = process.env.SCRAPE_SOURCES;
     delete process.env.SCRAPE_SOURCES;
     try {
@@ -246,7 +256,7 @@ describe("GET /api/scan/live-preview honesty", () => {
     }
   });
 
-  it("never live-fetches GovDeals without an operator opt-in", async () => {
+  it("never live-fetches GovDeals without reviewed authorization", async () => {
     const prev = process.env.SCRAPE_SOURCES;
     delete process.env.SCRAPE_SOURCES;
     vi.mocked(previewGovDeals).mockClear();

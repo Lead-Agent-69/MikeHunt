@@ -4,6 +4,10 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { ScrapeResult, ScraperRun } from "@/types";
 import { CostGuard, CostGuardOptions } from "../tools/cost-guard";
+import { ACCESS_POLICY_REVISION } from "../access-policy";
+import { runOutcome, redactDiagnostic } from "../run-outcome";
+import { spoolReceipt, reconcileReceipts } from "../receipt-spool";
+import { hostname } from "node:os";
 import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
@@ -97,6 +101,7 @@ export abstract class BaseScraperOrchestrator {
   protected async logScrapeStart(source: string): Promise<string> {
     if (this.options.dryRun || this.options.skipSupabaseRunTracking)
       return `untracked-${source}-${Date.now()}`;
+    await reconcileReceipts(this.supabase);
 
     const { data, error } = await this.supabase
       .from("scraper_runs")
@@ -104,6 +109,15 @@ export abstract class BaseScraperOrchestrator {
         source,
         status: "running",
         started_at: new Date().toISOString(),
+        metadata: {
+          policyRevision: ACCESS_POLICY_REVISION,
+          commitSha:
+            process.env.VERCEL_GIT_COMMIT_SHA ||
+            process.env.SCRAPER_COMMIT_SHA ||
+            "unknown",
+          workerId:
+            process.env.SCRAPER_WORKER_ID || `${hostname()}:${process.pid}`,
+        },
       })
       .select("id")
       .single();
@@ -113,10 +127,17 @@ export abstract class BaseScraperOrchestrator {
       // deal_source enum, like "publicsurplus") must never crash the actual scrape — that once took the
       // whole run down with it. Warn and continue with a synthetic id so deals still get scraped + saved.
       this.log(
-        `Failed to create scraper run for ${source} (${error?.message}); continuing without run tracking`,
+        `Failed to create scraper run for ${source} (${redactDiagnostic(error?.message || "missing receipt")}); spooling receipt locally`,
         "warn",
       );
-      return `untracked-${source}-${Date.now()}`;
+      const id = `untracked-${source}-${Date.now()}`;
+      await spoolReceipt({
+        runId: id,
+        source,
+        status: "running",
+        diagnostic: redactDiagnostic(error?.message || "missing receipt"),
+      });
+      return id;
     }
 
     return data.id;
@@ -139,43 +160,77 @@ export abstract class BaseScraperOrchestrator {
     if (this.options.dryRun) return;
     // Run was never tracked (logScrapeStart fell back to a synthetic id) — nothing to update, and the
     // id isn't a uuid so the query would just log a noisy error. Skip cleanly.
-    if (runId.startsWith("untracked-")) return;
+    if (runId.startsWith("untracked-")) {
+      await spoolReceipt({
+        runId,
+        source,
+        status,
+        dealsFound,
+        dealsSaved,
+        duration,
+        outcome: runOutcome(status === "success", dealsSaved, errorMessage),
+      });
+      return;
+    }
 
     const { error } = await this.supabase
       .from("scraper_runs")
       .update({
         status,
+        outcome: runOutcome(status === "success", dealsSaved, errorMessage),
         deals_found: dealsFound,
         deals_new: dealsSaved,
         duration_ms: duration,
         completed_at: new Date().toISOString(),
         error_message:
           status === "error"
-            ? errorMessage || "Scraper failed without an error message"
+            ? redactDiagnostic(
+                errorMessage || "Scraper failed without an error message",
+              )
             : null,
       })
       .eq("id", runId)
       .eq("status", "running");
 
     if (error) {
+      await spoolReceipt({
+        runId,
+        source,
+        status,
+        dealsFound,
+        dealsSaved,
+        duration,
+        diagnostic: redactDiagnostic(error.message),
+      });
       this.log(
-        `Failed to mark scraper run ${runId} complete: ${error.message}`,
+        `Failed to mark scraper run ${runId} complete: ${redactDiagnostic(error.message)}`,
         "error",
       );
     }
   }
 
   protected async logScrapeError(runId: string, error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = redactDiagnostic(
+      error instanceof Error ? error.message : "Unknown error",
+    );
     this.log(`Run failed: ${message}`, "error");
 
     if (this.options.dryRun || this.options.skipSupabaseRunTracking) return;
-    if (runId.startsWith("untracked-")) return;
+    if (runId.startsWith("untracked-")) {
+      await spoolReceipt({
+        runId,
+        status: "error",
+        outcome: runOutcome(false, 0, message),
+        diagnostic: message,
+      });
+      return;
+    }
 
     const { error: updateError } = await this.supabase
       .from("scraper_runs")
       .update({
         status: "error",
+        outcome: runOutcome(false, 0, message),
         error_message: message,
         completed_at: new Date().toISOString(),
       })
@@ -183,8 +238,9 @@ export abstract class BaseScraperOrchestrator {
       .eq("status", "running");
 
     if (updateError) {
+      await spoolReceipt({ runId, status: "error", diagnostic: message });
       this.log(
-        `Failed to mark scraper run ${runId} errored: ${updateError.message}`,
+        `Failed to mark scraper run ${runId} errored: ${redactDiagnostic(updateError.message)}`,
         "error",
       );
     }

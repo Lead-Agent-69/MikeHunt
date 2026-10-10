@@ -37,34 +37,26 @@ describe("state arsenal", () => {
       expect(byId.get(id)?.status).toBe("restricted");
       expect(byId.get(id)?.reason).toBeTruthy();
     }
-    expect(byId.get("gsa_auctions")?.status).toBe("live");
+    expect(byId.get("gsa_auctions")?.status).toBe("restricted");
     const optIn = buildStateArsenal("TX", {
       scrapeSources: "copart",
       arsenalEnable: "",
     });
-    expect(optIn.find((e) => e.id === "copart")?.status).toBe(
-      "operator_enabled",
-    );
+    expect(optIn.find((e) => e.id === "copart")?.status).toBe("restricted");
   });
 
   it("keeps researched candidates catalog-only until ARSENAL_ENABLE lists the exact id", () => {
-    const cand = STATE_DEALER_CANDIDATES.find((c) => !policyBlockFor(c.url))!;
+    const cand = STATE_DEALER_CANDIDATES[0];
     const st = cand.states![0];
     const off = buildStateArsenal(st, { scrapeSources: "", arsenalEnable: "" });
-    expect(off.find((e) => e.id === cand.id)?.status).toBe("candidate");
+    expect(off.find((e) => e.id === cand.id)?.status).toBe("blocked");
     expect(arsenalCuratedSites("")).toEqual([]);
     const on = buildStateArsenal(st, {
       scrapeSources: "",
       arsenalEnable: cand.id,
     });
-    expect(on.find((e) => e.id === cand.id)?.status).toBe("operator_enabled");
-    expect(arsenalCuratedSites(cand.id)).toEqual([
-      expect.objectContaining({
-        url: cand.url,
-        state: st,
-        type: "independent_dealer",
-      }),
-    ]);
+    expect(on.find((e) => e.id === cand.id)?.status).toBe("blocked");
+    expect(arsenalCuratedSites(cand.id)).toEqual([]);
     // Whole-state or junk tokens enable nothing.
     expect(arsenalEnabledIds(`state:${st},*,../x`).size).toBe(0);
   });

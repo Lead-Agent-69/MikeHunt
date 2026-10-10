@@ -1,8 +1,48 @@
 import { describe, it, expect, vi } from "vitest";
 import { ScraperExecutor } from "./executor";
 import { ScraperRegistry } from "./registry";
+import { accessDecision } from "../access-policy";
+vi.mock("../access-policy", () => ({
+  accessDecision: vi.fn(() => ({ allowed: true })),
+}));
 
 describe("ScraperExecutor", () => {
+  it("never calls an unauthorized adapter", async () => {
+    vi.mocked(accessDecision).mockReturnValueOnce({ allowed: false } as any);
+    const fn = vi.fn(async () => 5);
+    const scraper = new ScraperRegistry().register({
+      id: "held",
+      name: "Held",
+      type: "dealer",
+      priority: "medium",
+      frequencyMinutes: 60,
+      requiresAuth: false,
+      stealthRequired: false,
+      enabled: true,
+      estimatedDealsPerRun: 5,
+      fn,
+    });
+    const result = await new ScraperExecutor().execute(scraper);
+    expect(result.outcome).toBe("skipped");
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("does not claim zero yield is verified empty", async () => {
+    const scraper = new ScraperRegistry().register({
+      id: "empty",
+      name: "Empty",
+      type: "dealer",
+      priority: "medium",
+      frequencyMinutes: 60,
+      requiresAuth: false,
+      stealthRequired: false,
+      enabled: true,
+      estimatedDealsPerRun: 5,
+      fn: async () => 0,
+    });
+    const result = await new ScraperExecutor().execute(scraper);
+    expect(result.success).toBe(false);
+    expect(result.outcome).toBe("unverified_empty");
+  });
   it("aborts timed-out work without starting overlapping retries", async () => {
     const scraper = new ScraperRegistry().register({
       id: "timeout",

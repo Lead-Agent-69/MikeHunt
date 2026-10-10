@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/ebay-motors.ts
 // eBay Motors (category 6001) — NOT Cloudflare-walled, so it fetches directly (no FlareSolverr).
 // eBay redesigned the SRP away from .s-item to .s-card / .su-card-container; we parse THAT. eBay's
@@ -121,6 +122,7 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
 export async function scrapeEbayMotors(
   maxPagesPerSearch = EBAY_MOTORS_CONFIG.maxPages,
 ) {
+  assertSourceAccess("ebay_motors");
   console.log("[eBay Motors] Starting scrape...");
   const allDeals: Partial<Deal>[] = [];
 

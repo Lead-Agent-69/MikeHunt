@@ -14,19 +14,26 @@ export type PublicImageResult =
   | { ok: true; body: Buffer; contentType: string; finalUrl: string }
   | { ok: false; status: number; reason: string };
 
-const IMAGE_TYPE = /^image\/(avif|webp|apng|png|jpe?g|pjpeg|gif|bmp|x-icon|vnd\.microsoft\.icon|heic|heif)$/;
+const IMAGE_TYPE =
+  /^image\/(avif|webp|apng|png|jpe?g|pjpeg|gif|bmp|x-icon|vnd\.microsoft\.icon|heic|heif)$/;
 
 /**
  * Normalize an upstream Content-Type to a safe raster image type.
  * SVG (can carry script), HTML, and anything else that isn't a known raster image is refused.
  * application/octet-stream / missing is served as image/jpeg with nosniff on the response.
  */
-export function safeImageContentType(raw: string | null | undefined): string | null {
+export function safeImageContentType(
+  raw: string | null | undefined,
+): string | null {
   const type = String(raw || "")
     .split(";")[0]
     .trim()
     .toLowerCase();
-  if (!type || type === "application/octet-stream" || type === "binary/octet-stream") {
+  if (
+    !type ||
+    type === "application/octet-stream" ||
+    type === "binary/octet-stream"
+  ) {
     return "image/jpeg";
   }
   return IMAGE_TYPE.test(type) ? type : null;
@@ -78,15 +85,21 @@ export async function fetchPublicImage(
     const status = Number(response.status);
     if (status >= 300 && status < 400) {
       const loc = locationHeader(response.headers || {});
-      if (!loc) return { ok: false, status: 502, reason: "redirect without location" };
+      if (!loc)
+        return { ok: false, status: 502, reason: "redirect without location" };
       const next = new URL(loc, current).toString();
-      if (!isAllowed(next)) throw new UrlNotAllowedError("Redirect host not allowed");
+      if (!isAllowed(next))
+        throw new UrlNotAllowedError("Redirect host not allowed");
       target = await resolvePinnedTarget(next);
       current = target.url;
       continue;
     }
     if (status < 200 || status >= 300) {
-      return { ok: false, status: status >= 400 && status < 600 ? status : 502, reason: "upstream status" };
+      return {
+        ok: false,
+        status: status >= 400 && status < 600 ? status : 502,
+        reason: "upstream status",
+      };
     }
     const contentType = safeImageContentType(
       (response.headers?.["content-type"] as string | undefined) ?? null,

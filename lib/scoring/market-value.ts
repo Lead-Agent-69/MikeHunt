@@ -8,6 +8,7 @@
 // them is the real arbitrage signal — and it sharpens automatically as coverage grows.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { eligibleInventoryClient } from "../deals/eligible-client";
 import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
@@ -360,13 +361,19 @@ export async function loadMarketIndex(
   supabase: SupabaseClient,
   force = false,
 ): Promise<void> {
+  if (process.env.NODE_ENV === "production") force = true;
   if (computed && !force && Date.now() - loadedAt < TTL_MS) return;
   if (loadingPromise) {
     await loadingPromise;
     return;
   }
 
-  loadingPromise = loadMarketIndexUnlocked(supabase, force)
+  loadingPromise = loadMarketIndexUnlocked(
+    process.env.NODE_ENV === "production"
+      ? eligibleInventoryClient(supabase, "derive")
+      : supabase,
+    force,
+  )
     .catch(() => {
       // A rejected page must invalidate prior anchors just like a database error response.
       computed = null;
@@ -389,6 +396,7 @@ async function loadMarketIndexUnlocked(
   supabase: SupabaseClient,
   force = false,
 ): Promise<void> {
+  if (process.env.NODE_ENV === "production") force = true;
   if (computed && !force && Date.now() - loadedAt < TTL_MS) return;
 
   // PostgREST caps a single response at ~1000 rows, so .limit(50000) silently returned only 1000 —

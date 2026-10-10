@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/copart.ts
 // Copart — the largest salvage auction in North America — exposes its FULL public runlist via an open
 // JSON API (POST /public/lots/search-results), no login and no FlareSolverr. Salvage/repairable cars
@@ -159,6 +160,7 @@ async function fetchCopartPage(
 export async function previewCopartLots(
   pageSize = 24,
 ): Promise<Partial<Deal>[]> {
+  assertSourceAccess("copart");
   const json = await fetchCopartPage(0, pageSize);
   return json ? parseCopartLots(json).slice(0, pageSize) : [];
 }
@@ -169,6 +171,7 @@ export async function scrapeCopart(
   maxPages = 12,
   pageSize = 100,
 ): Promise<number> {
+  assertSourceAccess("copart");
   console.log("[Copart] Starting open-API scrape...");
   const all: Partial<Deal>[] = [];
 
