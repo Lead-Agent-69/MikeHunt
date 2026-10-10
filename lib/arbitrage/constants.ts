@@ -110,4 +110,6 @@ export const CONFIDENCE = {
   damageEstimate: 5,
   labels: { high: 75, medium: 50 },
   unknownTitleMaxScore: 49,
+  /** More than this share of the used comp tier is Unknown-title → title_unverified penalty. */
+  unverifiedCompShare: 0.5,
 } as const;

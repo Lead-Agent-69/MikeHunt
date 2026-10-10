@@ -229,3 +229,101 @@ export function titleSourceOf(row: unknown): TitleSource | null {
       : undefined) ?? r.title_source;
   return raw === "listing" || raw === "source_default" ? raw : null;
 }
+
+// ─── Sold-row headlines ──────────────────────────────────────────────────────────────────────────
+// sold_listings has no condition enum: the only title evidence is the seller's headline text
+// ("2018 Honda Accord EX, clean title"). This is the ONE classifier for those headlines, used by
+// market-value (sold index lanes) and lib/arbitrage (sold comps), so the two never disagree.
+//
+//   Clean        only on an explicit, un-negated "clean title" / "title: clean" with no brand word
+//   Salvage      salvage, flood, hail, fire, lemon/buyback, junk, branded title, COD, wrecked,
+//                non-runner, and parts cars ("for parts", "parts only", "parts car", a bare
+//                "parts" that is not "new/OEM/extra/with parts")
+//   Rebuilt      rebuilt / reconstructed / restored title, when no salvage-class word is present
+//   Rebuildable  repairable / rebuildable, when neither salvage-class nor rebuilt words are present
+//   Unknown      everything else, including "Clean Carfax", "no accidents" and a bare headline
+// Branded words map to the most conservative branded category (salvage → rebuilt → rebuildable:
+// "rebuilt from salvage" is Salvage). Negated brand words ("not salvage", "never flooded", "no hail")
+// are ignored. Any brand word beats a clean-title claim: "clean title, flood damage" is not clean.
+// "not clean title" / "clean title pending" are Unknown.
+
+// A car sold for parts, said outright.
+const SOLD_PARTS_CAR_RX =
+  /\b(?:for[\s-]+parts(?:[\s-]+(?:or|and|\/)[\s-]+(?:repair|not[\s-]+working))?|parts[\s-]+only|parts[\s-]+(?:car|truck|vehicle))\b/i;
+// A bare "parts" that is not "new parts", "OEM parts", "extra parts", "with parts"... (checked by
+// hand, not a lookbehind, because this module also ships to the browser).
+const SOLD_PARTS_WORD_RX = /(\S+)?[\s-]+parts\b|^parts\b/gi;
+const NOT_PARTS_CAR_BEFORE = new Set([
+  "new",
+  "oem",
+  "aftermarket",
+  "extra",
+  "spare",
+  "upgraded",
+  "performance",
+  "original",
+  "factory",
+  "with",
+  "w/",
+  "plus",
+  "and",
+  "+",
+]);
+function hasBarePartsWord(text: string): boolean {
+  const rx = new RegExp(SOLD_PARTS_WORD_RX.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(text))) {
+    const before = (m[1] || "").toLowerCase().replace(/[,;:()]+$/, "");
+    if (!NOT_PARTS_CAR_BEFORE.has(before)) return true;
+  }
+  return false;
+}
+const SOLD_REBUILT_RX =
+  /\b(?:rebuilt|re-?built|reconstructed|restored[\s-]+title|prior[\s-]+salvage|previously[\s-]+salvaged?)\b/i;
+const SOLD_REBUILDABLE_RX = /\b(?:repairable|rebuildable|rebuilder)\b/i;
+const SOLD_SALVAGE_RX =
+  /\b(?:salvage[d]?|flood(?:ed)?|hail|fire[\s-]+damage(?:d)?|lemon|buy[\s-]?back|junk|branded[\s-]+title|title[\s-]+brand(?:ed)?|certificate[\s-]+of[\s-]+destruction|cod|non-?runner|not[\s-]+running|wreck(?:ed)?|totaled|total[\s-]+loss)\b/i;
+const SOLD_BRAND_WORD =
+  "salvage[d]?|flood(?:ed)?|hail|fire|lemon|buy[\\s-]?back|junk|rebuilt|reconstructed|branded|wreck(?:ed)?|accidents?|damage[d]?|repairable|rebuildable";
+// "not salvage", "never flooded", "no hail damage", "non-salvage", "not a rebuilt"
+const SOLD_NEGATED_BRAND_RX = new RegExp(
+  `\\b(?:not|no|never|non|without|zero)[\\s-]+(?:a[\\s-]+|an[\\s-]+|been[\\s-]+)?(?:${SOLD_BRAND_WORD})(?:[\\s-]+(?:title|damage|history))?\\b`,
+  "gi",
+);
+const SOLD_CLEAN_NEGATED_RX =
+  /\b(?:not|no|non|unknown|unconfirmed|pending|missing)[\s-]+(?:a[\s-]+)?clean[\s-]+title\b|\bclean[\s-]+title[\s:=?-]+(?:unknown|unconfirmed|pending|not[\s-]+(?:confirmed|verified|available|in[\s-]+hand)|no\s*$|\?)/i;
+const SOLD_CLEAN_RX = /\bclean[\s-]+title\b|\btitle[\s:=-]+clean\b/i;
+
+/** Title bucket for a sold-row headline. See the table above; Unknown unless the text says so. */
+export function soldTitleCategory(
+  headline: string | null | undefined,
+): TitleCategory {
+  const raw = String(headline ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "unknown";
+  if (isPartsOnlySoldHeadline(raw)) return "salvage";
+  const text = raw.replace(SOLD_NEGATED_BRAND_RX, " ");
+  // Most conservative branded category first: salvage (and other brands) → rebuilt → rebuildable,
+  // so "rebuilt from salvage" / "rebuildable salvage" are Salvage (same order as lib/arbitrage).
+  if (SOLD_SALVAGE_RX.test(text)) return "salvage";
+  if (SOLD_REBUILT_RX.test(text)) return "rebuilt";
+  if (SOLD_REBUILDABLE_RX.test(text)) return "rebuildable";
+  if (SOLD_CLEAN_NEGATED_RX.test(raw)) return "unknown";
+  return SOLD_CLEAN_RX.test(raw) ? "clean" : "unknown";
+}
+
+/** True when a sold headline says outright it is a car sold for parts ("for parts", "parts car"). */
+export function isPartsCarSoldHeadline(
+  headline: string | null | undefined,
+): boolean {
+  return SOLD_PARTS_CAR_RX.test(String(headline ?? ""));
+}
+
+/** Salvage with the parts-only sub-chip: a parts car, or a headline with a bare "parts". */
+export function isPartsOnlySoldHeadline(
+  headline: string | null | undefined,
+): boolean {
+  const text = String(headline ?? "");
+  return SOLD_PARTS_CAR_RX.test(text) || hasBarePartsWord(text);
+}

@@ -38,6 +38,14 @@ describe("sold title lanes", () => {
     expect(soldTitleLane("2018 Honda Accord salvage title")).toBe("salvage");
     expect(soldTitleLane("2018 Honda Accord REBUILT")).toBe("salvage");
     expect(soldTitleLane(null)).toBe("unknown");
+    // Shared soldTitleCategory: hail/lemon/rebuildable are branded; "Clean Carfax" is not a title.
+    expect(soldTitleLane("2018 Honda Accord hail damage")).toBe("salvage");
+    expect(soldTitleLane("2018 Honda Accord lemon buyback")).toBe("salvage");
+    expect(soldTitleLane("2018 Honda Accord rebuildable")).toBe("salvage");
+    expect(soldTitleLane("2018 Honda Accord Clean Carfax")).toBe("unknown");
+    expect(soldTitleLane("2018 Honda Accord clean title, never flooded")).toBe(
+      "clean",
+    );
     expect(shortSoldTitle("  2018   Honda Accord  ")).toBe("2018 Honda Accord");
     expect(shortSoldTitle("x".repeat(200))).toHaveLength(160);
 
