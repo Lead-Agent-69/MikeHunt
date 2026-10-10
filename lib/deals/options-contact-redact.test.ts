@@ -46,3 +46,42 @@ describe("non-flip desks never get seller contact out of options", () => {
     expect(card.options.contact.phone).toBe("5550100");
   });
 });
+
+describe("safeOptions is recursive with a depth cap", () => {
+  it("strips contact keys at any depth and inside arrays", () => {
+    const out = redactListingForNonFlipDesk({
+      id: "d",
+      options: {
+        lots: [{ seller: { phone: "5550199", name: "A" } }, { email: "x@y.z" }],
+        a: { b: { c: { contact: { phone: "5550198" }, keep: 1 } } },
+      },
+    } as any) as any;
+    const raw = JSON.stringify(out);
+    expect(raw).not.toContain("5550199");
+    expect(raw).not.toContain("5550198");
+    expect(raw).not.toContain("x@y.z");
+    expect(out.options.lots[0].seller).toEqual({ name: "A" });
+    expect(out.options.a.b.c).toEqual({ keep: 1 });
+  });
+
+  it("drops subtrees past depth 5 instead of passing them through", () => {
+    const deep = { l1: { l2: { l3: { l4: { l5: { phone: "5550197" } } } } } };
+    const out = redactListingForNonFlipDesk({
+      id: "d",
+      options: deep,
+    } as any) as any;
+    expect(JSON.stringify(out)).not.toContain("5550197");
+  });
+
+  it("card redaction drops snake_case seller_phone / seller_email", () => {
+    const out = redactListingForNonFlipDesk({
+      id: "d",
+      seller_phone: "5550196",
+      seller_email: "s@x.y",
+      seller_contact_url: "https://seller",
+    } as any);
+    expect(out).not.toHaveProperty("seller_phone");
+    expect(out).not.toHaveProperty("seller_email");
+    expect(out).not.toHaveProperty("seller_contact_url");
+  });
+});

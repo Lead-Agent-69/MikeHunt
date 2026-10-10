@@ -89,21 +89,19 @@ const CONTACT_KEY = /contact|phone|email/i;
  * options.contact (and sometimes options.seller.*), and sellerContact() reads it from there, so a
  * card or deal that carries raw options must lose those keys on a non-flip desk.
  */
-function safeOptions(options: unknown): unknown {
-  if (!options || typeof options !== "object" || Array.isArray(options))
-    return options;
+const SAFE_OPTIONS_MAX_DEPTH = 5;
+
+function safeOptions(options: unknown, depth = 0): unknown {
+  if (!options || typeof options !== "object") return options;
+  // Past the depth cap, drop the subtree rather than risk passing contact through unchecked.
+  if (depth >= SAFE_OPTIONS_MAX_DEPTH) return undefined;
+  if (Array.isArray(options)) {
+    return options.map((v) => safeOptions(v, depth + 1));
+  }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(options as Record<string, unknown>)) {
     if (CONTACT_KEY.test(k)) continue;
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      const inner: Record<string, unknown> = {};
-      for (const [ik, iv] of Object.entries(v as Record<string, unknown>)) {
-        if (!CONTACT_KEY.test(ik)) inner[ik] = iv;
-      }
-      out[k] = inner;
-    } else {
-      out[k] = v;
-    }
+    out[k] = safeOptions(v, depth + 1);
   }
   return out;
 }
@@ -163,6 +161,9 @@ const CARD_FLIP_ONLY_FIELDS = [
   "sellerPhone",
   "sellerEmail",
   "sellerContactUrl",
+  "seller_phone",
+  "seller_email",
+  "seller_contact_url",
 ] as const;
 
 /**

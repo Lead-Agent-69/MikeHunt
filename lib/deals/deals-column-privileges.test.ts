@@ -118,7 +118,8 @@ describe("no anon / browser select of non-granted deals columns", () => {
     expect(src).toContain("createServerComponentClient()");
   });
 
-  // Server code: app/api, server lib modules, scripts. Client components ("use client") are the
+  // Server code: everything under app/ (routes, server components, auth callback), server lib
+  // modules, scripts. Client components ("use client") are the
   // browser and legitimately hold the anon key; they are checked by the deals-read tests below.
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -129,9 +130,9 @@ describe("no anon / browser select of non-granted deals columns", () => {
         : [];
     });
   const serverFiles = () =>
-    ["app/api", "lib", "scripts"]
+    ["app", "lib", "scripts"]
       .flatMap(walk)
-      .filter((f) => !/^\s*["']use client["']/.test(readFileSync(f, "utf8")));
+      .filter((f) => !/^\s*["']use client["']/m.test(readFileSync(f, "utf8")));
 
   // Files allowed to name the anon key, and why. Anything else that does is a failure.
   const ANON_KEY_ALLOWED: Record<string, string> = {
@@ -142,6 +143,8 @@ describe("no anon / browser select of non-granted deals columns", () => {
     "lib/auth/provider-readiness.ts": "env presence check, no client",
     "app/api/dealers/profile/route.ts":
       "cookie session client: RLS-scoped to the signed-in dealer's own row",
+    "app/auth/callback/route.ts":
+      "cookie session client for the OAuth / magic-link code exchange only",
     "lib/data/dealers-service.ts":
       "public dealers directory under RLS; must never read deals (asserted below)",
   };
@@ -192,6 +195,20 @@ describe("no anon / browser select of non-granted deals columns", () => {
       expect(src, f).not.toMatch(/from\(["'](deals|top_deals)["']\)/);
       expect(src, f).not.toMatch(/rpc\(["']discover_deals["']/);
     }
+  });
+
+  it("server code never reads deals / top_deals / discover_deals via the anon getSupabase()/getSupabaseClient()", () => {
+    // Only the shared anon factories from @/lib/supabase count; files that define their own local
+    // service-role getSupabase() (pipeline, vin) don't import these.
+    const importsAnon =
+      /import\s*\{[^}]*\b(getSupabase|getSupabaseClient)\b[^}]*\}\s*from\s*["']@\/lib\/supabase["']/;
+    const readsDeals =
+      /from\(["'](deals|top_deals)["']\)|rpc\(["']discover_deals["']/;
+    const offenders = serverFiles().filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return importsAnon.test(src) && readsDeals.test(src);
+    });
+    expect(offenders).toEqual([]);
   });
 
   it("demandIndex counts via the server client on a granted column", () => {
