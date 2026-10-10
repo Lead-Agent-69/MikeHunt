@@ -53,7 +53,7 @@ describe("retailFairValue basis ladder", () => {
       ...many("ask", [16000, 16500, 17000, 17500]),
     ], { now: NOW });
     expect(fv).toMatchObject({ basis: "ask", scope: "state", value: 16750, n: 4 });
-    expect(fv.label).toBe("Typical asking price · 4 live listings (asking prices, not sales)");
+    expect(fv.label).toBe("Typical asking price · 4 recent asking prices (not sales)");
   });
 
   it("auction / wholesale sales are not retail sales", () => {
