@@ -13,13 +13,17 @@ name: Embeddings backfill
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # bounded batches keep pace with new inventory and drain the backlog
+    # Every 3h (8 runs/day). The endpoint caps each run at 250 texts and each PT day at
+    # EMBEDDING_DAILY_CAP (default 900, under the Gemini free tier's 1,000 requests/day), so
+    # extra runs only pick up newly scraped/changed deals; once the day's cap is spent a run
+    # returns in seconds. Runs on the self-hosted Zeus runner, so it uses no hosted Actions minutes.
+    - cron: "17 */3 * * *"
   workflow_dispatch: # manual re-run from the Actions tab
     inputs:
       limit:
-        description: "Deals to embed this run (max 200)"
+        description: "Deals to embed this run (max 250; daily cap still applies)"
         required: false
-        default: "200"
+        default: "250"
 
 concurrency:
   group: embeddings-backfill
@@ -42,7 +46,7 @@ jobs:
           # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
           BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          LIMIT: ${{ github.event.inputs.limit || '200' }}
+          LIMIT: ${{ github.event.inputs.limit || '250' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:CRON_SECRET)) {
@@ -70,7 +74,25 @@ jobs:
             exit 1
           }
           $result = Get-Content $out -Raw | ConvertFrom-Json
-          if ($result.skipped -or $result.success -ne $true) {
+          if ($result.skipped) {
+            # Clean exit, loud log: nothing was embedded and nothing is claimed.
+            Write-Output "::warning::Embedding backfill SKIPPED - GOOGLE_GENERATIVE_AI_API_KEY is not set in production. 0 deals embedded."
+            exit 0
+          }
+          if ($result.success -ne $true) {
             Write-Output "::error::Embedding backfill did not run successfully. Check the production provider configuration."
             exit 1
+          }
+          $c = $result.coverage
+          if ($c) {
+            Write-Output ("Coverage: {0}/{1} active deals embedded ({2}%); hash-verified fresh: {3}; missing: {4}" -f $c.embedded, $c.active, $c.pct, $c.fresh, $result.remaining)
+          }
+          Write-Output ("Updated {0} this run (missing {1}, changed {2}, legacy {3}); today {4}/{5}" -f $result.updated, $result.byTier.missing, $result.byTier.changed, $result.byTier.legacy, $result.budget.usedToday, $result.budget.dailyCap)
+          if ($result.schemaReady -eq $false) {
+            Write-Output "::warning::Freshness migration 20261009200000 not applied - running missing-only mode (no change detection)."
+          }
+          if ($result.quotaExhausted) {
+            Write-Output "::warning::Gemini free-tier quota hit ($($result.quotaExhausted)) - stopped cleanly after $($result.updated) deals; resumes next run / after midnight PT."
+          } elseif ($result.budgetExhausted) {
+            Write-Output "::notice::Daily embedding cap reached ($($result.budget.dailyCap)/day) - nothing embedded this run; resumes after midnight PT."
           }
