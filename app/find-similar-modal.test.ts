@@ -13,7 +13,10 @@ describe("Find similar modal", () => {
   });
 
   it("empty state describes collected inventory, not saved cars or sold comps", () => {
-    const modal = read("components/saved/FindSimilarModal.tsx");
+    const modal = read("components/saved/FindSimilarModal.tsx").replace(
+      /\s+/g,
+      " ",
+    );
     expect(modal).toContain("No similar listings yet");
     expect(modal).toContain(
       "checks collected inventory; it does not run a live market scan.",
