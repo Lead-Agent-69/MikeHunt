@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { titleCaseMake, canonicalModel } from "@/lib/vehicle/canonical";
 import type { GovSaleChannel } from "@/lib/scoring/sale-channels";
+import { scrubContact } from "@/lib/security/scrub-urls";
 import {
   extractMake,
   extractModel,
@@ -113,19 +114,38 @@ function display(v: OpenGovVehicle) {
   return { make, model };
 }
 
-// VIN-shaped tokens (17 chars, no I/O/Q) and US phone numbers. Gov titles are built from
-// year/make/model only (never the lot's free text), and even those fields are scrubbed, because a
-// seller-typed make/model can carry a VIN or a contact number.
-const VIN_TOKEN = /\b[A-HJ-NPR-Z0-9]{17}\b/gi;
-const PHONE_TOKEN = /(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+// Gov titles are built from year/make/model only (never the lot's free text), and even those fields
+// are scrubbed, because a seller-typed make/model can carry a VIN or contact details (Ren #331 R1).
+// VINs: any run of 17+ VIN characters (no I/O/Q) holding at least 4 digits, with NO word-boundary
+// requirement, so a VIN glued to other characters ("SN1GNSKAKC0FR000001", "VIN#1GNS...x") goes too.
+// Phones, emails and URLs: the shared scrubContact from lib/security/scrub-urls (#314/#323).
+const VIN_RUN = /[A-HJ-NPR-Z0-9]{17,}/gi;
+const CONTACT_PLACEHOLDER = /\[(?:url|email|phone)\]/g;
 
-/** Remove VIN-like and phone-like tokens from display text. */
+/** Remove VIN-like runs, URLs, emails and phone numbers from display text. */
 export function scrubGovText(s: string): string {
-  return s
-    .replace(VIN_TOKEN, " ")
-    .replace(PHONE_TOKEN, " ")
+  const noVin = String(s ?? "").replace(VIN_RUN, (m) =>
+    (m.match(/\d/g)?.length ?? 0) >= 4 ? " " : m,
+  );
+  return scrubContact(noVin)
+    .replace(CONTACT_PLACEHOLDER, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Max stored length for a seller-typed make or model on a gov-lane row. */
+export const GOV_NAME_MAX = 40;
+
+/** Clean a seller-typed make/model at write time: scrubbed, plain characters only, <= 40 chars. */
+export function cleanGovName(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = scrubGovText(v)
+    .replace(/[^A-Za-z0-9\u00C0-\u024F .&'/+-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, GOV_NAME_MAX)
+    .trim();
+  return s || null;
 }
 
 /** Display title for a gov/fleet/surplus row: scrubbed "year make model (suffix)". */
