@@ -1,10 +1,10 @@
-const ALLOWED_VERDICTS = new Set(["go", "hold", "pass"]);
+const ALLOWED_VERDICTS = new Set(["go", "hold", "pass", "not_enough_data"]);
 
 /**
  * Parse ?verdict= into a PostgREST filter for /api/deals/map.
  * - missing / "actionable" → go+hold (trust gate demotes most GO→HOLD; go-only maps were empty)
  * - "all" → no verdict filter
- * - "go" | "hold" | "pass" → single eq
+ * - "go" | "hold" | "pass" | "not_enough_data" → single eq
  * - "go,hold" → in()
  */
 export function parseMapVerdicts(raw: string | null): {

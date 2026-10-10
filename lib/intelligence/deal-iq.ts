@@ -171,10 +171,11 @@ export function computeDealIQ(inp: IQInputs): DealIQ {
   // Respect the engine's own gate so the IQ never contradicts the verdict on the same card:
   //  • implausible price (financing/lease bait, fake $999) → the "discount" is a mirage; hard-floor.
   //  • verdict "pass" → the engine rejected it; cap below "fair".
+  //  • verdict "not_enough_data" → no evidence to call it good; same cap as pass.
   //  • verdict "hold" → workable but not a standout; cap below "elite".
   const gated = inp.priceImplausible
     ? Math.min(score, 12)
-    : inp.dealVerdict === "pass"
+    : inp.dealVerdict === "pass" || inp.dealVerdict === "not_enough_data"
       ? Math.min(score, 45)
       : inp.dealVerdict === "hold"
         ? Math.min(score, 78)

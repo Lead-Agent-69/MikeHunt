@@ -7,6 +7,12 @@ export const VERDICT_STYLES: Record<
   go: { label: "BUY", text: "var(--green)", bg: "var(--glo)" },
   hold: { label: "HOLD", text: "var(--amber)", bg: "var(--amber-lo)" },
   pass: { label: "PASS", text: "var(--t4)", bg: "var(--s2)" },
+  // Too few comps and no third-party value: no buy/pass call (lib/scoring/deal-analyzer.ts).
+  not_enough_data: {
+    label: "NOT ENOUGH DATA",
+    text: "var(--t4)",
+    bg: "var(--s1)",
+  },
 };
 
 export const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {

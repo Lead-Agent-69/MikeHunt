@@ -359,7 +359,7 @@ export const DealCard = memo(function DealCard({
   const sourceWeakDetails = weakSourceDetails(sourceHealth?.completeness);
   const weakAssumption = mathGaps[0] || "source freshness";
   const visibleWarnings = warnings.filter(Boolean).slice(0, 2);
-  const decisionLabel =
+  const mathDecisionLabel =
     showFlipEconomics && dealVerdict === "pass"
       ? "Pass for now"
       : showFlipEconomics && dealVerdict === "hold"
@@ -374,6 +374,12 @@ export const DealCard = memo(function DealCard({
             : profitEstimate > 0
               ? "Needs check"
               : "Pass for now";
+  // Engine "not_enough_data" (too few comps, no third-party value). The prop type predates it, so widen.
+  const decisionLabel =
+    showFlipEconomics &&
+    (dealVerdict as string | undefined) === "not_enough_data"
+      ? "Not enough data"
+      : mathDecisionLabel;
   const decisionTone =
     decisionLabel === "Possible buy"
       ? "text-[var(--green)]"
