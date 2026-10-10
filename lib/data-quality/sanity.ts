@@ -7,16 +7,20 @@
 // budget on the rows that need it most.
 
 import { normalizeVin, isValidVin } from "@/lib/vehicle/vin";
+import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
 
 export const QUALITY_FLAGS = [
   "price_below_300",
   "price_above_500k",
   "mileage_negative",
   "mileage_above_500k",
+  "mileage_implausible",
   "year_before_1950",
   "year_after_next_model_year",
   "vin_bad_format",
   "vin_check_digit",
+  "year_vin_mismatch",
+  "make_unknown",
 ] as const;
 
 export type QualityFlag = (typeof QUALITY_FLAGS)[number];
@@ -25,17 +29,62 @@ export const PRICE_MIN = 300;
 export const PRICE_MAX = 500_000;
 export const MILEAGE_MAX = 500_000;
 export const YEAR_MIN = 1950;
+/** Under this odometer reading on a car 3+ model years old is a placeholder ("0", "1", "100"). */
+export const MILEAGE_PLACEHOLDER_MAX = 100;
 
 /** Latest plausible model year: next year's models go on sale during the current calendar year. */
 export function maxModelYear(now: Date = new Date()): number {
   return now.getFullYear() + 1;
 }
 
+/** Sources whose ask_price is a CURRENT BID on a live lot, not an asking price. */
+export const AUCTION_BID_SOURCES = new Set([
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "acv",
+  "gov_auction",
+  "repo_network",
+]);
+
+/** Miles per year of age above which an odometer reading is implausible (2025 model at 400k). */
+export const MILES_PER_YEAR_MAX = 150_000;
+
 export interface SanityInput {
   ask_price?: number | null;
   mileage?: number | null;
   year?: number | null;
   vin?: string | null;
+  make?: string | null;
+  source?: string | null;
+  auction_end_at?: string | null;
+  /** Year as the listing stated it, before a VIN decode overwrote `year` (pipeline). */
+  listed_year?: number | null;
+}
+
+/** A live auction lot's price is the current bid: a $100 bid is normal, not a placeholder. */
+export function isAuctionBid(
+  deal: Pick<SanityInput, "source" | "auction_end_at">,
+): boolean {
+  return (
+    AUCTION_BID_SOURCES.has(String(deal.source || "").toLowerCase()) ||
+    !!deal.auction_end_at
+  );
+}
+
+const VIN_YEAR_CODES = "ABCDEFGHJKLMNPRSTVWXY123456789";
+
+/**
+ * Model-year candidates from VIN position 10 (the code repeats every 30 years: A = 1980 or 2010).
+ * Empty when the VIN is not a check-digit-valid 17-char VIN or the code is not a year code.
+ */
+export function vinModelYears(raw: string | null | undefined): number[] {
+  const vin = normalizeVin(String(raw || ""));
+  if (!isValidVin(vin)) return [];
+  const i = VIN_YEAR_CODES.indexOf(vin[9]);
+  if (i < 0) return [];
+  return [1980 + i, 2010 + i];
 }
 
 function num(v: unknown): number | null {
@@ -59,12 +108,30 @@ export function qualityFlags(
 ): QualityFlag[] {
   const flags: QualityFlag[] = [];
   const price = num(deal.ask_price);
-  if (price !== null && price < PRICE_MIN) flags.push("price_below_300");
+  if (price !== null && price < PRICE_MIN && !isAuctionBid(deal))
+    flags.push("price_below_300");
   if (price !== null && price > PRICE_MAX) flags.push("price_above_500k");
   const miles = num(deal.mileage);
   if (miles !== null && miles < 0) flags.push("mileage_negative");
   if (miles !== null && miles > MILEAGE_MAX) flags.push("mileage_above_500k");
   const year = num(deal.year);
+  if (
+    miles !== null &&
+    miles >= 0 &&
+    miles < MILEAGE_PLACEHOLDER_MAX &&
+    year !== null &&
+    year > 0 &&
+    now.getFullYear() - year >= 3
+  )
+    flags.push("mileage_implausible");
+  else if (
+    miles !== null &&
+    year !== null &&
+    year > 0 &&
+    miles <= MILEAGE_MAX &&
+    miles > MILES_PER_YEAR_MAX * Math.max(1, now.getFullYear() - year + 1)
+  )
+    flags.push("mileage_implausible");
   if (year !== null && year > 0 && year < YEAR_MIN)
     flags.push("year_before_1950");
   if (year !== null && year > maxModelYear(now))
@@ -72,6 +139,19 @@ export function qualityFlags(
   // Pre-1981 cars have no standard 17-char VIN, so only judge VINs on 1981+ (or unknown-year) rows.
   if (!(year !== null && year > 0 && year < 1981))
     flags.push(...vinFlags(deal.vin));
+  // Stated year vs the VIN's model-year code: off by one is normal (model year vs sale year), 2+ is not.
+  const stated = num(deal.listed_year) ?? year;
+  const vinYears = vinModelYears(deal.vin);
+  if (
+    stated !== null &&
+    stated > 0 &&
+    vinYears.length &&
+    Math.min(...vinYears.map((y) => Math.abs(y - stated))) > 1
+  )
+    flags.push("year_vin_mismatch");
+  // A model or trim stored as the make ("Odyssey", "F150"): flag it, never guess the make.
+  if (String(deal.make || "").trim() && !isKnownMake(deal.make))
+    flags.push("make_unknown");
   return flags;
 }
 

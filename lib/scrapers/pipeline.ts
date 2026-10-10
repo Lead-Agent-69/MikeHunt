@@ -152,6 +152,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   const normalized = normalizeDeals(scopedDeals);
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
   // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
+  // The year each listing stated, before a VIN decode overwrites it (year_vin_mismatch flag).
+  const listedYears = new WeakMap<object, number | undefined>(
+    normalized.map((d) => [d as object, d.year]),
+  );
   const vinApplied = localContext?.cacheOnly
     ? 0
     : await enrichVins(getSupabase(), normalized);
@@ -207,6 +211,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mileage: deal.mileage,
         year: deal.year,
         vin: statedVin,
+        make: deal.make,
+        source: deal.source,
+        auction_end_at: normalizeAuctionEndAt(deal.auction_end),
+        listed_year: listedYears.get(deal as object) ?? deal.year,
       });
       const flagged = flags.length > 0;
       const auctionEndAt = normalizeAuctionEndAt(deal.auction_end);

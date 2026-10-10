@@ -17,7 +17,7 @@ describe("qualityFlags", () => {
   it("passes a normal listing", () => {
     expect(
       qualityFlags(
-        { ask_price: 12000, mileage: 80000, year: 2018, vin: GOOD_VIN },
+        { ask_price: 12000, mileage: 80000, year: 2003, vin: GOOD_VIN },
         NOW,
       ),
     ).toEqual([]);
@@ -136,8 +136,18 @@ describe("migration mirrors the TS rules", () => {
       "year_before_1950",
       "year_after_next_model_year",
       "vin_bad_format",
+      "vin_check_digit",
+      "mileage_implausible",
+      "year_vin_mismatch",
     ])
       expect(sql).toContain(`'${f}'`);
+    expect(sql).toContain(
+      "CREATE OR REPLACE FUNCTION public.vin_check_digit_ok(p_vin text)",
+    );
+    // auction bids are exempt from the low-price flag, same as isAuctionBid()
+    expect(sql).toContain(
+      "'copart','iaa','adesa','manheim','acv','gov_auction','repo_network'",
+    );
     expect(sql).toContain("d.ask_price < 300");
     expect(sql).toContain("d.ask_price > 500000");
     expect(sql).toContain("d.mileage > 500000");

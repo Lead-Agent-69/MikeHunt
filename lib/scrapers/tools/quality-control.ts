@@ -1,42 +1,49 @@
 // lib/scrapers/tools/quality-control.ts
 // Validates scraped data, detects duplicates, and computes quality scores.
 
-import { Deal } from '@/types'
+import { Deal } from "@/types";
+import { qualityFlags } from "@/lib/data-quality/sanity";
 
 export interface ValidationRule {
-  name: string
-  validate: (deal: Partial<Deal>) => { valid: boolean; reason?: string }
+  name: string;
+  validate: (deal: Partial<Deal>) => { valid: boolean; reason?: string };
 }
 
 export interface QualityReport {
-  source: string
-  total: number
-  valid: number
-  invalid: number
-  duplicates: number
-  validDeals: Partial<Deal>[]
-  issues: { index: number; field: string; reason: string }[]
-  score: number
-  recommendations: string[]
+  source: string;
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicates: number;
+  validDeals: Partial<Deal>[];
+  issues: { index: number; field: string; reason: string }[];
+  score: number;
+  recommendations: string[];
 }
 
 export class QualityController {
-  private rules: ValidationRule[]
-  private seenKeys: Set<string> = new Set()
+  private rules: ValidationRule[];
+  private seenKeys: Set<string> = new Set();
 
   constructor(rules?: ValidationRule[]) {
-    this.rules = rules || this.defaultRules()
+    this.rules = rules || this.defaultRules();
   }
 
   private defaultRules(): ValidationRule[] {
     return [
       {
-        name: 'required_fields',
+        name: "required_fields",
         validate: (l) => {
-          if (!l.title || l.title.trim().length < 3) return { valid: false, reason: 'missing title' }
-          if (!l.source) return { valid: false, reason: 'missing source' }
-          if (l.ask_price === undefined || l.ask_price === null || l.ask_price < 0) return { valid: false, reason: 'missing or invalid price' }
-          return { valid: true }
+          if (!l.title || l.title.trim().length < 3)
+            return { valid: false, reason: "missing title" };
+          if (!l.source) return { valid: false, reason: "missing source" };
+          if (
+            l.ask_price === undefined ||
+            l.ask_price === null ||
+            l.ask_price < 0
+          )
+            return { valid: false, reason: "missing or invalid price" };
+          return { valid: true };
         },
       },
       {
@@ -44,49 +51,67 @@ export class QualityController {
         // Plausibility bounds (price, mileage, year < 1950 or past next model year, VIN format and
         // check digit) FLAG the row instead of dropping it: lib/data-quality/sanity.ts, applied in
         // upsertDeals, stores the reason and keeps the row out of scoring and valuation.
-        name: 'year_parse',
+        name: "year_parse",
         validate: (l) => {
-          if (!l.year) return { valid: true }
-          if (l.year < 1900) return { valid: false, reason: `unparseable year ${l.year}` }
-          return { valid: true }
+          if (!l.year) return { valid: true };
+          if (l.year < 1900)
+            return { valid: false, reason: `unparseable year ${l.year}` };
+          return { valid: true };
         },
       },
-    ]
+    ];
   }
 
   validateBatch(source: string, deals: Partial<Deal>[]): QualityReport {
-    const issues: { index: number; field: string; reason: string }[] = []
-    const validDeals: Partial<Deal>[] = []
-    let duplicates = 0
+    const issues: { index: number; field: string; reason: string }[] = [];
+    const validDeals: Partial<Deal>[] = [];
+    let duplicates = 0;
 
     for (let i = 0; i < deals.length; i++) {
-      const deal = deals[i]
-      let isValid = true
+      const deal = deals[i];
+      let isValid = true;
 
       for (const rule of this.rules) {
-        const result = rule.validate(deal)
+        const result = rule.validate(deal);
         if (!result.valid) {
-          isValid = false
-          issues.push({ index: i, field: rule.name, reason: result.reason || 'validation failed' })
+          isValid = false;
+          issues.push({
+            index: i,
+            field: rule.name,
+            reason: result.reason || "validation failed",
+          });
         }
       }
 
       if (isValid) {
-        const key = this.makeKey(deal)
+        // Sanity flags (lib/data-quality/sanity.ts) are reported but never drop the row: upsertDeals
+        // stores them in quality_flags and keeps the row out of scoring and valuation.
+        for (const flag of qualityFlags(deal)) {
+          issues.push({
+            index: i,
+            field: flag,
+            reason: "flagged, kept out of scoring",
+          });
+        }
+        const key = this.makeKey(deal);
         if (this.seenKeys.has(key)) {
-          duplicates += 1
-          issues.push({ index: i, field: 'duplicate', reason: 'duplicate within batch' })
+          duplicates += 1;
+          issues.push({
+            index: i,
+            field: "duplicate",
+            reason: "duplicate within batch",
+          });
         } else {
-          this.seenKeys.add(key)
-          validDeals.push(deal)
+          this.seenKeys.add(key);
+          validDeals.push(deal);
         }
       }
     }
 
-    const total = deals.length
-    const valid = validDeals.length
-    const invalid = total - valid - duplicates
-    const score = total > 0 ? Math.round((valid / total) * 100) : 0
+    const total = deals.length;
+    const valid = validDeals.length;
+    const invalid = total - valid - duplicates;
+    const score = total > 0 ? Math.round((valid / total) * 100) : 0;
 
     return {
       source,
@@ -97,8 +122,13 @@ export class QualityController {
       validDeals,
       issues,
       score,
-      recommendations: this.generateRecommendations(total, valid, duplicates, issues),
-    }
+      recommendations: this.generateRecommendations(
+        total,
+        valid,
+        duplicates,
+        issues,
+      ),
+    };
   }
 
   private makeKey(deal: Partial<Deal>): string {
@@ -108,25 +138,38 @@ export class QualityController {
       deal.ask_price,
       deal.location_state,
       deal.location_city,
-    ].join('|')
+    ].join("|");
   }
 
-  private generateRecommendations(total: number, valid: number, duplicates: number, issues: { field: string }[]): string[] {
-    const recs: string[] = []
-    if (total === 0) recs.push('No deals were scraped; check source health.')
-    if (valid / total < 0.8) recs.push('Low valid-deal rate; review extraction selectors.')
-    if (duplicates > 0) recs.push(`${duplicates} duplicates detected; improve deduplication.`)
-    const fieldCounts = issues.reduce((acc, issue) => {
-      acc[issue.field] = (acc[issue.field] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+  private generateRecommendations(
+    total: number,
+    valid: number,
+    duplicates: number,
+    issues: { field: string }[],
+  ): string[] {
+    const recs: string[] = [];
+    if (total === 0) recs.push("No deals were scraped; check source health.");
+    if (valid / total < 0.8)
+      recs.push("Low valid-deal rate; review extraction selectors.");
+    if (duplicates > 0)
+      recs.push(`${duplicates} duplicates detected; improve deduplication.`);
+    const fieldCounts = issues.reduce(
+      (acc, issue) => {
+        acc[issue.field] = (acc[issue.field] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
     for (const [field, count] of Object.entries(fieldCounts)) {
-      if (count > 5 && field !== 'duplicate') recs.push(`Many issues with ${field} (${count}); consider fixing selectors.`)
+      if (count > 5 && field !== "duplicate")
+        recs.push(
+          `Many issues with ${field} (${count}); consider fixing selectors.`,
+        );
     }
-    return recs
+    return recs;
   }
 
   reset() {
-    this.seenKeys.clear()
+    this.seenKeys.clear();
   }
 }
