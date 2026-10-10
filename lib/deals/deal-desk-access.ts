@@ -103,6 +103,16 @@ export function isContactKey(key: string): boolean {
  */
 const SAFE_OPTIONS_MAX_DEPTH = 5;
 
+// options.seller is the scraper's raw seller blob (seller name, address, profile link). A signed-in
+// non-flip desk keeps the name (contact keys are stripped by safeOptions); a signed-out guest gets
+// none of it (redactSellerForGuest).
+const RAW_SELLER_KEYS = new Set([
+  "seller",
+  "sellerInfo",
+  "seller_info",
+  "sellerProfile",
+]);
+
 function safeOptions(options: unknown, depth = 0): unknown {
   if (!options || typeof options !== "object") return options;
   // Past the depth cap, drop the subtree rather than risk passing contact through unchecked.
@@ -227,6 +237,40 @@ export function redactListingForNonFlipDesk<T extends Record<string, any>>(
       o && typeof o === "object" ? redactListingForNonFlipDesk(o) : o,
     );
   }
+  return out;
+}
+
+// Seller identity a signed-out guest never gets: the display name of a (often private) seller plus
+// any raw seller blob under options. Signed-in users keep the display name.
+const GUEST_SELLER_FIELDS = [
+  "seller",
+  "sellerName",
+  "seller_name",
+  "sellerUrl",
+  "seller_url",
+  "sellerProfileUrl",
+];
+
+/** Copy of a deal or card without seller identity, for a signed-out request. Never mutates the input. */
+export function redactSellerForGuest<T extends Record<string, any>>(
+  item: T,
+): Record<string, any> {
+  const out: Record<string, any> = { ...item };
+  for (const key of GUEST_SELLER_FIELDS) delete out[key];
+  if (
+    out.options &&
+    typeof out.options === "object" &&
+    !Array.isArray(out.options)
+  ) {
+    const opts: Record<string, unknown> = { ...out.options };
+    for (const key of Array.from(RAW_SELLER_KEYS)) delete opts[key];
+    for (const key of GUEST_SELLER_FIELDS) delete opts[key];
+    out.options = opts;
+  }
+  if (Array.isArray(item?.alsoOn))
+    out.alsoOn = item.alsoOn.map((o: Record<string, any>) =>
+      o && typeof o === "object" ? redactSellerForGuest(o) : o,
+    );
   return out;
 }
 
