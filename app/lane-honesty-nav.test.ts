@@ -7,6 +7,11 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("Auction Lane UI honesty", () => {
   const page = read("app/(dashboard)/lane/page.tsx");
 
+  it("shows a human condition label, not a raw enum", () => {
+    expect(page).not.toContain('activeDeal.condition?.replace("_", " ")');
+    expect(page).toContain("readCondition(activeDeal.condition");
+  });
+
   it("never paints negative/zero profit green", () => {
     expect(page).toContain("profitColor(activeDeal.true_net_profit)");
     expect(page).not.toMatch(

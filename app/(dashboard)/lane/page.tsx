@@ -1,5 +1,6 @@
 "use client";
 
+import { readCondition } from "@/lib/intelligence/condition";
 import React, { useState, useEffect, useRef } from "react";
 import { Ico } from "@/components/shared/Ico";
 import {
@@ -343,8 +344,9 @@ export default function LaneModePage() {
                 <div className="text-sm font-mono text-[var(--t3)] mt-1 flex items-center gap-2">
                   <span>VIN: {activeDeal.vin}</span>
                   <span>·</span>
-                  <span className="capitalize">
-                    {activeDeal.condition?.replace("_", " ")}
+                  <span>
+                    {readCondition(activeDeal.condition, activeDeal.damage_type)
+                      ?.label || "Condition not reported"}
                   </span>
                 </div>
               </div>
