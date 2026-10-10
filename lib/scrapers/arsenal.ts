@@ -49,6 +49,7 @@ const NATIONAL_RUNNER_NAMES: Record<string, string> = {
   offerup: "OfferUp",
   carvana: "Carvana",
   autotempest: "AutoTempest",
+  visor: "Visor.vin",
   ebay_sold: "eBay sold comps",
   ebay_motors: "eBay Motors",
   cars_com: "Cars.com",

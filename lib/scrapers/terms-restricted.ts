@@ -18,6 +18,8 @@ export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
     "Autotrader terms: no automated means (robots, screen scrapers, spiders) to collect or index content",
   autotempest:
     "autotempest.com/legal: no bots, scrapers, crawlers or scripts without express written authorization",
+  visor:
+    "visor.vin terms: no unauthorized linking, and no use of the site or its data as part of any effort to compete",
   carvana:
     "carvana.com/terms-of-use: no bots, scripts, crawling, scraping or spidering unless expressly agreed",
   cargurus:

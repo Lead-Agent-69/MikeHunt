@@ -284,7 +284,7 @@ async function cacheGoPhotos(limit: number): Promise<void> {
   );
   const { data } = await sb
     .from("deals")
-    .select("id, images, source, source_url")
+    .select("id, images, source, source_url, options")
     .eq("active", true)
     .eq("deal_verdict", "go")
     .or("images_cached.is.null,images_cached.eq.false")

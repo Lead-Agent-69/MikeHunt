@@ -44,6 +44,7 @@ export const SWEEP_SOURCE_TIER: Record<string, SweepSourceTier> = {
   independent_dealer: "primary",
   carvana: "primary",
   autotempest: "primary",
+  visor: "primary",
   cars_com: "primary",
   autotrader: "primary",
   ebay_motors: "primary",
@@ -97,6 +98,7 @@ export const DEFAULT_SWEEP_SOURCES = [
   "cars_com",
   "autotrader",
   "autotempest",
+  "visor",
   "carvana",
   "craigslist",
   "offerup",
@@ -127,11 +129,14 @@ export const DEFAULT_SWEEP_SOURCES = [
  * `termsRestricted` + `termsReason` for them. Kill switch: SCRAPE_TERMS_SAFE_ONLY=1 returns to the
  * terms-safe default without a deploy of new code.
  */
+// visor added by Jonah 2026-10-10 ("save ... listings also autotempest and visor.vin"): operator
+// override, recorded in lib/scrapers/access-class.ts.
 export const OPERATOR_RESTORED_SOURCES: readonly string[] = [
   "craigslist",
   "offerup",
   "carvana",
   "autotempest",
+  "visor",
   "ebay_sold",
   "ebay_motors",
   "cars_com",
@@ -174,6 +179,8 @@ export const TOS_RESTRICTED_SOURCES: Record<string, string> = {
     "Autotrader terms: no automated means (robots, screen scrapers, spiders) to collect or index content",
   autotempest:
     "autotempest.com/legal: no bots, scrapers, crawlers or scripts without express written authorization",
+  visor:
+    "visor.vin terms: no unauthorized linking, and no use of the site or its data as part of any effort to compete",
   carvana:
     "carvana.com/terms-of-use: no bots, scripts, crawling, scraping or spidering unless expressly agreed",
   cargurus:

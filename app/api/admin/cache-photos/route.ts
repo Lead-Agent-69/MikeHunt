@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const sb = admin();
   let q = sb
     .from("deals")
-    .select("id, images, source, source_url")
+    .select("id, images, source, source_url, options")
     .eq("active", true)
     .or("images_cached.is.null,images_cached.eq.false")
     .not("images", "is", null)
