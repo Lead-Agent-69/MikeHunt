@@ -249,6 +249,9 @@ export default function OnboardingPage() {
             : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
 
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
+  // Until saved prefs load, no mode is shown as selected — the "personal" default would otherwise
+  // flash as the choice for a saved Dealer (onboarding?edit=1).
+  const selectedMode: BuyerMode | null = prefsHydrated ? buyerMode : null;
 
   async function finish() {
     if (!buyerMode || !vehicle || !scopeChosen) return;
@@ -321,8 +324,9 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 key={mode}
-                aria-pressed={buyerMode === mode}
+                aria-pressed={selectedMode === mode}
                 disabled={!prefsHydrated}
+                aria-busy={!prefsHydrated}
                 onClick={() => {
                   modeTouchedRef.current = true;
                   setBuyerMode(mode);
@@ -330,9 +334,9 @@ export default function OnboardingPage() {
                 className="group overflow-hidden rounded-lg border-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
                 style={{
                   borderColor:
-                    buyerMode === mode ? "var(--accent)" : "var(--b1)",
+                    selectedMode === mode ? "var(--accent)" : "var(--b1)",
                   background:
-                    buyerMode === mode ? "var(--accent-surface)" : "var(--s0)",
+                    selectedMode === mode ? "var(--accent-surface)" : "var(--s0)",
                 }}
               >
                 <span
@@ -352,9 +356,9 @@ export default function OnboardingPage() {
                   <span
                     className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full border bg-white"
                     style={{
-                      color: buyerMode === mode ? "white" : "transparent",
+                      color: selectedMode === mode ? "white" : "transparent",
                       background:
-                        buyerMode === mode ? "var(--accent)" : "white",
+                        selectedMode === mode ? "var(--accent)" : "white",
                     }}
                   >
                     <Check size={15} aria-hidden="true" />

@@ -6,7 +6,7 @@ const settings = readFileSync("app/(dashboard)/settings/page.tsx", "utf8");
 describe("Settings fields by buyer desk", () => {
   it("shows Target Profit Threshold to reseller/dealer desks only", () => {
     expect(settings).toMatch(
-      /const showProfitTarget = isFlipBuyerMode\(\s*intent\?\.buyerMode \|\| prefs\?\.buyerScope\?\.buyerMode,?\s*\)/,
+      /const showProfitTarget = !prefsLoading && isFlipBuyerMode\(savedBuyerMode\)/,
     );
     expect(settings).toMatch(
       /\{showProfitTarget && \(\s*<Field\s+label="Target Profit Threshold \(\$\)"/,
