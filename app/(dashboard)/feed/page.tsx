@@ -113,7 +113,8 @@ export default function FeedPage() {
           return [...prev, ...next.filter((n) => !seen.has(n.id))];
         });
         offset.current = data.nextOffset ?? cursor + 12;
-        if (next.length === 0) setDone(true);
+        // null = the guest paging cap (or the end of the pool): stop asking for more.
+        if (next.length === 0 || data.nextOffset === null) setDone(true);
       } catch {
         if (requestGeneration === generation.current) setLoadError(true);
       } finally {
