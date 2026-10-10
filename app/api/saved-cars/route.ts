@@ -7,6 +7,11 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { recordDealSignal } from "@/lib/reco/signals";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import {
+  CHECKLIST_SELECT,
+  SAVED_CARS_LIMIT,
+  toChecklistRow,
+} from "@/lib/saved/purchase-checklist";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +162,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
+    // view=checklist (/fleet Purchase plan) needs no snapshot JSON — slim projection.
+    const checklistView = searchParams.get("view") === "checklist";
+    const buildQuery = (columns: string) => {
+      let q = supabase.from("saved_cars").select(columns).eq("user_id", userId);
+      if (filter === "active") {
+        q = q.in("status", ["active", "price_drop", "price_increase"]);
+      } else if (filter === "price_drops") {
+        q = q.eq("status", "price_drop");
+      } else if (filter === "ending_soon") {
+        q = q.eq("status", "ending_soon");
+      } else if (filter === "gone" || filter === "unavailable") {
+        q = q.eq("status", "unavailable");
+      }
+      return q.order("saved_at", { ascending: false }).limit(SAVED_CARS_LIMIT);
+    };
+
+    if (checklistView) {
+      let { data, error } = await buildQuery(CHECKLIST_SELECT);
+      // Projection unsupported for some reason → fall back to full rows rather than fail the page.
+      if (error) ({ data, error } = await buildQuery("*"));
+      if (error) throw error;
+      return NextResponse.json((data || []).map(toChecklistRow));
+    }
+
     let query = supabase.from("saved_cars").select("*").eq("user_id", userId);
 
     if (filter === "active") {
@@ -169,7 +198,9 @@ export async function GET(request: NextRequest) {
       query = query.eq("status", "unavailable");
     }
 
-    const { data, error } = await query.order("saved_at", { ascending: false });
+    const { data, error } = await query
+      .order("saved_at", { ascending: false })
+      .limit(SAVED_CARS_LIMIT);
     if (error) throw error;
 
     return NextResponse.json(data || []);
