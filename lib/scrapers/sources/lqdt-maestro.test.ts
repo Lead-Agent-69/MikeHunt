@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { maestroAssetToDeal, type MaestroAsset } from "./lqdt-maestro";
+import {
+  maestroAssetToDeal,
+  maestroAssetToSoldComp,
+  type MaestroAsset,
+} from "./lqdt-maestro";
 
 const GD = {
   source: "gov_auction",
@@ -130,6 +134,77 @@ describe("maestroAssetToDeal — requireUS filter (AllSurplus is international)"
     ).not.toBeNull();
     expect(
       maestroAssetToDeal({ ...noCountry, locationState: "ZA-GT" }, AD),
+    ).toBeNull();
+  });
+});
+
+describe("maestroAssetToSoldComp — sold lots kept as comps (were discarded)", () => {
+  const NOW = new Date("2026-10-10T12:00:00Z");
+  const SOLD: MaestroAsset = {
+    ...DETAIL,
+    isSoldAuction: true,
+    currentBid: 4250,
+    assetAuctionEndDateUtc: "2026-10-01T18:00:00Z",
+  };
+
+  it("still keeps sold lots out of live deals", () => {
+    expect(maestroAssetToDeal(SOLD, GD)).toBeNull();
+  });
+
+  it("maps a GovDeals sold lot to a labelled sold comp", () => {
+    const c = maestroAssetToSoldComp(SOLD, GD, NOW)!;
+    expect(c).toMatchObject({
+      source: "govdeals",
+      source_item_id: "gd-7-31897",
+      source_url: "https://www.govdeals.com/asset/7/31897",
+      basis: "sold",
+      sale_channel: "gov_surplus_auction",
+      sold_price: 4250,
+      sold_at: "2026-10-01T18:00:00.000Z",
+      year: 2000,
+      make: "Toyota",
+      model: "Avalon",
+      vin: "JN1AR5EF5EM270025",
+      mileage: 65000,
+      location_state: "CA",
+    });
+    expect(c.title).toMatch(
+      /GovDeals sold lot, winning bid before buyer's premium/,
+    );
+    expect(c.attribution).toMatch(/GovDeals/);
+  });
+
+  it("labels AllSurplus separately", () => {
+    const c = maestroAssetToSoldComp(SOLD, AD, NOW)!;
+    expect(c.source).toBe("allsurplus");
+    expect(c.source_item_id).toBe("as-7-31897");
+  });
+
+  it("ignores live lots, future end dates, scrap prices and non-vehicles", () => {
+    expect(
+      maestroAssetToSoldComp({ ...SOLD, isSoldAuction: false }, GD, NOW),
+    ).toBeNull();
+    expect(
+      maestroAssetToSoldComp(
+        { ...SOLD, assetAuctionEndDateUtc: "2026-11-01T00:00:00Z" },
+        GD,
+        NOW,
+      ),
+    ).toBeNull();
+    expect(
+      maestroAssetToSoldComp({ ...SOLD, currentBid: 40 }, GD, NOW),
+    ).toBeNull();
+    expect(
+      maestroAssetToSoldComp(
+        {
+          ...SOLD,
+          assetShortDescription: "2015 Big Tex Utility Trailer",
+          makebrand: "Big Tex",
+          model: "Trailer",
+        },
+        GD,
+        NOW,
+      ),
     ).toBeNull();
   });
 });
