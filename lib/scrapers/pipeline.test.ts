@@ -31,3 +31,21 @@ describe("scoped persistence receipts", () => {
     expect(sources).toContain("return saved");
   });
 });
+
+describe("auctionEndedLongAgo", () => {
+  const NOW = Date.parse("2026-10-10T02:00:00Z");
+  it("is false for fixed-price rows and live or just-ended auctions", async () => {
+    const { auctionEndedLongAgo } = await import("./pipeline");
+    expect(auctionEndedLongAgo(null, NOW)).toBe(false);
+    expect(auctionEndedLongAgo("2026-10-11T00:00:00Z", NOW)).toBe(false);
+    expect(auctionEndedLongAgo("2026-10-09T22:00:00Z", NOW)).toBe(false); // 4h ago, grace
+    expect(auctionEndedLongAgo("garbage", NOW)).toBe(false);
+  });
+  it("is true once the auction closed more than 6h ago", async () => {
+    const { auctionEndedLongAgo } = await import("./pipeline");
+    expect(auctionEndedLongAgo("2026-10-09T18:00:00Z", NOW)).toBe(true);
+    expect(auctionEndedLongAgo(new Date("2026-10-01T00:00:00Z"), NOW)).toBe(
+      true,
+    );
+  });
+});

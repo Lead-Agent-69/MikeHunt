@@ -26,6 +26,17 @@ function text(value: unknown) {
   return String(value || "").trim();
 }
 
+/** Closed auction: auction_end_at more than 6h in the past (grace for extensions / tz slop). */
+export function auctionEndedLongAgo(
+  endAt: unknown,
+  now: number = Date.now(),
+): boolean {
+  if (endAt == null || endAt === "") return false;
+  const ms =
+    endAt instanceof Date ? endAt.getTime() : new Date(endAt as any).getTime();
+  return Number.isFinite(ms) && ms < now - 6 * 3_600_000;
+}
+
 export function normalizeAuctionEndAt(value: unknown): string | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(String(value));
@@ -234,7 +245,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // A listing we just re-observed IS available → force active. This is what makes the staleness prune
         // SELF-HEALING: if a still-listed car was wrongly deactivated (a scraper missed it one cycle), the
         // next scrape that sees it flips it back on. Without this, deactivation was permanent + unsafe.
-        active: true,
+        // Exception: an auction whose end time is >6h past is closed, so it is written inactive even
+        // when the lot page still renders (lib/deals/freshness "ended"; scrape-ci demotes the rest).
+        active: !auctionEndedLongAgo(auctionEndAt),
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],

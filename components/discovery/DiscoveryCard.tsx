@@ -18,6 +18,20 @@ import {
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { dealFreshness } from "@/lib/deals/freshness";
+
+/** "Last updated 8d ago, not live" for frozen / stale / ended rows; normal age line otherwise. */
+function cardFreshnessLabel(deal: DiscoveryDeal) {
+  const freshness =
+    deal.freshness ??
+    dealFreshness({
+      source: deal.source,
+      sourceUrl: deal.sourceUrl,
+      lastSeenAt: deal.lastSeenAt,
+      auctionEndAt: (deal as any).auctionEndAt,
+    });
+  return freshness.live ? listingFreshnessLabel(deal) : freshness.label;
+}
 
 const TITLE_STYLES: Record<
   string,
@@ -94,6 +108,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
+  const notLive = cardFreshnessLabel(deal) !== listingFreshnessLabel(deal);
   // Operability read ΓÇö "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
   const cond = readCondition(deal.condition, deal.damageType, title);
   const href =
@@ -231,7 +246,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           >
             <div>
               <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
-                {terms.priceLabel}
+                {notLive ? "Last recorded price" : terms.priceLabel}
               </p>
               <span className="font-mono text-xl font-black text-[var(--t1)]">
                 {Number.isFinite(deal.askPrice) && deal.askPrice > 0
@@ -376,7 +391,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
-            {listingFreshnessLabel(deal)} /{" "}
+            {cardFreshnessLabel(deal)} /{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
           </p>
           <p className="text-xs leading-relaxed text-[var(--t3)]">
@@ -401,7 +416,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       deal.compCount ? ` · ${deal.compCount} listing asks` : ""
                     }`
                   : "Resale basis not on file."}
-              {` · ${listingFreshnessLabel(deal)}`}
+              {` · ${cardFreshnessLabel(deal)}`}
               {deal.valueAsOf
                 ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
                 : ""}

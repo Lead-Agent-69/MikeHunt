@@ -3,6 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { freshnessFields, type DealFreshness } from "@/lib/deals/freshness";
 
 export type Deal = {
   id: string;
@@ -30,6 +31,10 @@ export type Deal = {
   lastSeenAt: string | Date;
   sourceUrl: string;
   auctionEndAt?: Date;
+  /** live / stale / frozen / ended (lib/deals/freshness). */
+  freshness?: DealFreshness;
+  stale?: boolean;
+  lastUpdatedAt?: string | null;
   bidCount?: number;
   damageType?: string;
   seller?: string;
@@ -136,6 +141,12 @@ export class DealsService {
       auctionEndAt: row.auction_end_at
         ? new Date(row.auction_end_at)
         : undefined,
+      ...freshnessFields({
+        source: row.source,
+        sourceUrl: row.source_url,
+        lastSeenAt: row.last_seen_at,
+        auctionEndAt: row.auction_end_at,
+      }),
       bidCount:
         bidCount != null && Number.isFinite(Number(bidCount))
           ? Number(bidCount)

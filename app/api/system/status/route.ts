@@ -13,6 +13,8 @@ import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { dealFreshness } from "@/lib/deals/freshness";
+import { summarizeFreshness } from "@/lib/deals/freshness-rollups";
 import {
   applyAuthProviderReadiness,
   readAuthProviderReadiness,
@@ -412,7 +414,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   // Per-source health, computed live and cached 5 min. Some sources share a DB enum
   // (`gov_auction`, `independent_dealer`), so group by source URL when we know the host.
   const sourceBreakdown = await cached(
-    "status:source-breakdown:v6",
+    "status:source-breakdown:v7",
     300_000,
     async () => {
       const pageSize = 1000;
@@ -422,7 +424,9 @@ async function computeFullStatus(): Promise<Record<string, any>> {
         const to = from + pageSize - 1;
         const { data: pageRows } = await sb
           .from("deals")
-          .select("source, source_url, images, last_seen_at, created_at")
+          .select(
+            "source, source_url, images, last_seen_at, created_at, auction_end_at",
+          )
           .eq("active", true)
           .range(from, to);
         data.push(...(pageRows || []));
@@ -430,16 +434,35 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       }
       const groups = new Map<
         string,
-        { active: number; withImages: number; newest: string | null }
+        {
+          active: number;
+          withImages: number;
+          newest: string | null;
+          live: number;
+          frozen: number;
+          stale: number;
+          ended: number;
+          gated: boolean;
+        }
       >();
+      const now = Date.now();
       for (const row of data || []) {
         const key = statusSource(row);
         const group = groups.get(key) || {
           active: 0,
           withImages: 0,
           newest: null,
+          live: 0,
+          frozen: 0,
+          stale: 0,
+          ended: 0,
+          gated: false,
         };
         group.active += 1;
+        // Split live vs frozen (terms-gated, unrefreshed) / stale / ended per row.
+        const fresh = dealFreshness(row, now);
+        group[fresh.state] += 1;
+        if (fresh.gatedSource) group.gated = true;
         if (Array.isArray(row.images) && row.images.length)
           group.withImages += 1;
         const seen = row.last_seen_at || row.created_at || null;
@@ -466,7 +489,14 @@ async function computeFullStatus(): Promise<Record<string, any>> {
               ? Math.round((group.withImages / group.active) * 100)
               : 0,
             ageHours,
-            status: sourceListingStatus(group.active, ageHours),
+            status: group.gated
+              ? "frozen"
+              : sourceListingStatus(group.active, ageHours),
+            live: group.live,
+            frozen: group.frozen,
+            stale: group.stale,
+            ended: group.ended,
+            termsGated: group.gated,
           };
         })
         .filter((row) => row.active > 0)
@@ -483,6 +513,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   );
 
   const mergedSources = mergeStatusSources(health, sourceBreakdown);
+  const freshnessSplit = summarizeFreshness(sourceBreakdown);
   const sourceHealth = summarizeSourceHealth(mergedSources, realData);
 
   return {
@@ -517,7 +548,11 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       newLast7d: new7,
       updatedLast24h: updated24,
       newestAgeHours: hoursSince,
-      stale: hoursSince == null || hoursSince > 24,
+      ...freshnessSplit,
+      // Stale when nothing new landed in 24h OR most "active" rows are not live inventory. The
+      // newest row alone hid that 45% of active rows were frozen gated imports (eli, 2026-10-09).
+      stale:
+        hoursSince == null || hoursSince > 24 || freshnessSplit.liveShare < 0.5,
     },
     quality: {
       goDeals: go,
@@ -596,6 +631,19 @@ export function toPublicStatus(full: Record<string, any>) {
         typeof freshness.newestAgeHours === "number"
           ? freshness.newestAgeHours
           : null,
+      liveDeals: Number(freshness.liveDeals || 0),
+      notLiveDeals: Number(freshness.notLiveDeals || 0),
+      frozenDeals: Number(freshness.frozenDeals || 0),
+      liveShare:
+        typeof freshness.liveShare === "number" ? freshness.liveShare : 0,
+      staleSources: Array.isArray(freshness.staleSources)
+        ? freshness.staleSources.map((row: any) => ({
+            source: String(row.source),
+            status: String(row.status),
+            ageHours: typeof row.ageHours === "number" ? row.ageHours : null,
+            active: Number(row.active || 0),
+          }))
+        : [],
       stale: freshness.stale !== false,
     },
     quality: {

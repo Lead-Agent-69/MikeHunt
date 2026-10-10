@@ -80,6 +80,7 @@ import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButt
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { dealFreshness, type DealFreshness } from "@/lib/deals/freshness";
 
 type SourceHealthItem = {
   id: string;
@@ -154,6 +155,36 @@ function relativeFreshness(value?: string | Date | null) {
   return `seen ${Math.round(hours / 24)}d ago`;
 }
 
+/** Server-attached `freshness`, else computed from the row (frozen / stale / ended → not live). */
+function dealFreshnessFor(deal: any): DealFreshness {
+  return (
+    deal?.freshness ??
+    dealFreshness({
+      source: deal?.source,
+      sourceUrl: deal?.sourceUrl ?? deal?.source_url,
+      lastSeenAt: deal?.lastSeenAt ?? deal?.last_seen_at,
+      auctionEndAt: deal?.auctionEndAt ?? deal?.auction_end_at,
+    })
+  );
+}
+
+function NotLiveNotice({ freshness }: { freshness: DealFreshness }) {
+  return (
+    <div
+      role="status"
+      data-testid="deal-not-live"
+      className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]"
+    >
+      <span className="font-black">{freshness.label}.</span>{" "}
+      {freshness.state === "ended"
+        ? "This auction is over, so the amount above is no longer available."
+        : freshness.state === "frozen"
+          ? "MikeHunt no longer refreshes this source, so this is the last price we recorded, not a current one."
+          : "We have not re-checked this listing recently. Confirm it is still for sale at this price."}
+    </div>
+  );
+}
+
 function money(value?: number | null) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "\u2014";
   return new Intl.NumberFormat("en-US", {
@@ -167,10 +198,13 @@ function PersonalListingLead({ deal }: { deal: any }) {
   const ask = Number(deal?.ask_price || deal?.askPrice || 0);
   const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
-  const seenLabel = listingFreshnessLabel({
-    firstSeenAt: deal?.firstSeenAt || deal?.first_seen_at,
-    lastSeenAt: lastSeen,
-  });
+  const freshness = dealFreshnessFor(deal);
+  const seenLabel = freshness.live
+    ? listingFreshnessLabel({
+        firstSeenAt: deal?.firstSeenAt || deal?.first_seen_at,
+        lastSeenAt: lastSeen,
+      })
+    : freshness.label;
   const checks = [
     "VIN matches the listing",
     "Mileage and title status",
@@ -189,11 +223,12 @@ function PersonalListingLead({ deal }: { deal: any }) {
         {title || "This vehicle"}
       </h2>
       <p className="mt-3 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-        Asking price
+        {freshness.live ? "Asking price" : "Last recorded price"}
       </p>
       <p className="mt-1 text-2xl font-black text-[var(--t1)]">
         {ask > 0 ? money(ask) : "Price not provided"}
       </p>
+      {!freshness.live && <NotLiveNotice freshness={freshness} />}
       <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
         <span className="font-black">All-in cost is not confirmed.</span>{" "}
         Repair, transport, taxes, and registration still need to be checked.
@@ -984,9 +1019,11 @@ export default function DealPage({
               ? money(Number(serverDeal?.ask_price || serverDeal?.askPrice))
               : "Price not provided"}
             <span className="ml-2 text-xs font-normal text-[var(--t4)]">
-              {serverDeal?.decisionEvidence?.state === "auction_watch"
-                ? "Reported auction amount"
-                : "Asking price"}
+              {serverDeal?.decisionEvidence?.state === "not_live"
+                ? `Last recorded price · ${serverDeal.decisionEvidence.label}`
+                : serverDeal?.decisionEvidence?.state === "auction_watch"
+                  ? "Reported auction amount"
+                  : "Asking price"}
             </span>
           </p>
           <p className="text-[var(--t4)] text-sm">

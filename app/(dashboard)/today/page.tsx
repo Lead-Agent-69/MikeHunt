@@ -39,8 +39,15 @@ function SystemPulse() {
 
   const cells = [
     {
-      label: "saved listings",
-      value: (f?.activeDeals ?? 0).toLocaleString(),
+      // Live inventory only; frozen gated imports and stale rows are counted separately.
+      label:
+        typeof f?.liveDeals === "number" && f?.notLiveDeals
+          ? `live listings · ${Number(f.notLiveDeals).toLocaleString()} not live`
+          : "saved listings",
+      value: (typeof f?.liveDeals === "number" && f?.notLiveDeals
+        ? f.liveDeals
+        : (f?.activeDeals ?? 0)
+      ).toLocaleString(),
       tone: "var(--t1)",
       href: `/scan?sort=${sort}`,
     },

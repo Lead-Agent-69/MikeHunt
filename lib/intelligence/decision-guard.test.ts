@@ -163,3 +163,26 @@ describe("assessDecisionEvidence", () => {
     }
   });
 });
+
+describe("assessDecisionEvidence liveness", () => {
+  it("never calls a frozen copart amount a current auction price", () => {
+    const evidence = assessDecisionEvidence({
+      source: "copart",
+      askPrice: 4200,
+      sourceUrl: "https://www.copart.com/lot/1",
+      lastSeenAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+    } as any);
+    expect(evidence.state).toBe("not_live");
+    expect(evidence.acquisitionReady).toBe(false);
+    expect(evidence.label).toMatch(/not live/i);
+    expect(evidence.summary).not.toMatch(/is a current auction price/);
+  });
+  it("leaves fresh rows to the normal checks", () => {
+    const evidence = assessDecisionEvidence({
+      source: "independent_dealer",
+      askPrice: 9000,
+      lastSeenAt: new Date().toISOString(),
+    } as any);
+    expect(evidence.state).not.toBe("not_live");
+  });
+});

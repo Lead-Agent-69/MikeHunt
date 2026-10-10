@@ -17,6 +17,7 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { dealFreshness } from "@/lib/deals/freshness";
 import {
   TOS_RESTRICTED_SOURCES,
   isAutomationAllowedSource,
@@ -959,6 +960,16 @@ function buildHealthSummary(health: any[]) {
     (sum, row) => sum + Number(row.rowsWithPhotos || 0),
     0,
   );
+  const sumOf = (key: string) =>
+    health.reduce((sum, row) => sum + Number(row[key] || 0), 0);
+  const liveRows = sumOf("liveRows");
+  const frozenRows = sumOf("frozenRows");
+  const staleRows = sumOf("staleRows");
+  const endedRows = sumOf("endedRows");
+  // A terms-gated source keeps rows it can't refresh; it is not a live source even with rows.
+  const frozenSources = health.filter(
+    (row) => row.termsRestricted && Number(row.activeRows || 0) > 0,
+  ).length;
   const qualityRows = health.filter(
     (row) => Number(row.averageQuality || 0) > 0,
   );
@@ -974,6 +985,12 @@ function buildHealthSummary(health: any[]) {
     needsRun,
     termsOff,
     activeRows,
+    liveRows,
+    notLiveRows: frozenRows + staleRows + endedRows,
+    frozenRows,
+    staleRows,
+    endedRows,
+    frozenSources,
     rowsWithPhotos,
     photoCoveragePct: activeRows
       ? Math.round((rowsWithPhotos / activeRows) * 100)
@@ -1265,8 +1282,13 @@ export async function GET(request: NextRequest) {
         qualityTotal: number;
         completeness: ReturnType<typeof emptyCompleteness>;
         lastSeenAt: string | null;
+        live: number;
+        frozen: number;
+        stale: number;
+        ended: number;
       }
     > = {};
+    const freshnessNow = Date.now();
     for (const row of (activeDeals || []).filter((row: any) =>
       matchesScope(row, scope),
     )) {
@@ -1279,7 +1301,13 @@ export async function GET(request: NextRequest) {
           qualityTotal: 0,
           completeness: emptyCompleteness(),
           lastSeenAt: null,
+          live: 0,
+          frozen: 0,
+          stale: 0,
+          ended: 0,
         });
+      // live / frozen (terms-gated, unrefreshed) / stale / ended, per row (lib/deals/freshness).
+      proof[dealFreshness(row, freshnessNow).state] += 1;
       const images = Array.isArray(row.images) ? row.images : [];
       proof.activeRows += 1;
       if (images.length > 0) proof.rowsWithPhotos += 1;
@@ -1377,6 +1405,10 @@ export async function GET(request: NextRequest) {
         estimatedDealsPerRun: source.estimatedDealsPerRun,
         readiness,
         activeRows: proof?.activeRows || 0,
+        liveRows: proof?.live || 0,
+        frozenRows: proof?.frozen || 0,
+        staleRows: proof?.stale || 0,
+        endedRows: proof?.ended || 0,
         rowsWithPhotos: proof?.rowsWithPhotos || 0,
         averageQuality: proof?.activeRows
           ? Math.round(proof.qualityTotal / proof.activeRows)
