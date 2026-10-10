@@ -206,7 +206,7 @@ describe("primaryJobForPath", () => {
       expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",
         "Saved",
-        "Plan",
+        mode === "personal" ? "Purchase plan" : "Plan",
       ]);
       expect(mobileNavForMode(mode).map((item) => item.name)).toEqual([
         "Discover",

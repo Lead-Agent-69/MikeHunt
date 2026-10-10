@@ -44,7 +44,7 @@ import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
-import { sourceMeta } from "@/lib/sources/source-meta";
+import { sellerTypeLabel, sourceMeta } from "@/lib/sources/source-meta";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -801,7 +801,9 @@ function LocalSavedSection({
                       style={{ background: "var(--s1)", color: "var(--t3)" }}
                     >
                       {sourceMeta(item.source).label}
-                      {item.sellerType ? ` · ${item.sellerType}` : ""}
+                      {item.sellerType
+                        ? ` · ${sellerTypeLabel(item.sellerType)}`
+                        : ""}
                       {item.locationState ? ` · ${item.locationState}` : ""}
                     </Badge>
                     <h4 className="truncate text-base font-black text-[var(--t1)]">

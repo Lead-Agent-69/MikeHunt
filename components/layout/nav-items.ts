@@ -157,11 +157,22 @@ function isFlipOnly(item: NavItem) {
   return FLIP_ONLY_HREFS.includes(item.href);
 }
 
+/** Personal buyers (and unknown mode) plan a purchase; they do not run a dealer pipeline. */
+function isPersonalNavMode(buyerMode: unknown): boolean {
+  const mode = normalizeFlipLeadMode(buyerMode);
+  return mode === undefined || mode === "personal";
+}
+
 /** Desktop primary nav for the saved buyer mode. */
 export function primaryNavForMode(buyerMode: unknown): NavItem[] {
   if (!hidesFlipNav(buyerMode)) return PRIMARY;
   return PRIMARY.filter((item) => !isFlipOnly(item)).map((item) =>
-    item.href === "/fleet" ? { ...item, name: "Plan" } : item,
+    item.href === "/fleet"
+      ? {
+          ...item,
+          name: isPersonalNavMode(buyerMode) ? "Purchase plan" : "Plan",
+        }
+      : item,
   );
 }
 
@@ -548,6 +559,13 @@ export function accountMenuForMode(buyerMode: unknown): {
     },
     { name: "Transport", href: "/move", group: "Plan" },
   ];
+  // Personal buyers: no dealer-sourcing directory or urgency flash list in their tools.
+  if (mode === undefined || mode === "personal") {
+    for (const href of ["/dealer-network", "/flash-deals"]) {
+      const index = tools.findIndex((tool) => tool.href === href);
+      if (index >= 0) tools.splice(index, 1);
+    }
+  }
   if (partsDesk) {
     tools.push({ name: "Parts", href: "/parts", group: "Plan" });
   }

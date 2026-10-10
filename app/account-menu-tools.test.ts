@@ -38,7 +38,6 @@ describe("account menu", () => {
       "Feed",
       "Map",
       "Swipe",
-      "Dealer network",
       "Deal Check",
       "Compare",
       "Purchase plan",

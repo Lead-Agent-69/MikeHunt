@@ -20,6 +20,7 @@ import {
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { hidesFlipNav, scanHrefForMode } from "@/components/layout/nav-items";
+import { sourceLabel } from "@/lib/sources/source-meta";
 
 export default function AlertsPage() {
   const supabase = createClientComponentClient();
@@ -575,7 +576,7 @@ function LocalWatchInbox({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[var(--s1)] px-2 py-1 text-[10px] font-black uppercase text-[var(--t4)]">
-                        {item.source.replace(/_/g, " ")}
+                        {sourceLabel(item.source)}
                         {item.locationState ? ` · ${item.locationState}` : ""}
                       </span>
                       <span className="rounded-full bg-[var(--amber-lo)] px-2 py-1 text-[10px] font-black uppercase text-[var(--amber-d)]">

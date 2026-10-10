@@ -22,7 +22,7 @@ import { DataSetupState } from "@/components/shared/DataSetupState";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
-import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
+import { sourceLabel } from "@/lib/sources/source-meta";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
@@ -222,8 +222,7 @@ export default function FeedPage() {
                     id: it.id,
                     image: proxiedImage(it.image),
                     title: it.title,
-                    category: sourceMeta(displaySource(it.source, it.sourceUrl))
-                      .label,
+                    category: sourceLabel(it.source, it.sourceUrl) || "Deal",
                     year: it.year?.toString() || "",
                     price: it.askPrice,
                     priceLabel: dealCardCopy(false).priceLabel(it.source),

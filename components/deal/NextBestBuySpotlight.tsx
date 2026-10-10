@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import type { DecisionEvidence } from "@/lib/intelligence/decision-guard";
+import { sourceLabel } from "@/lib/sources/source-meta";
 
 interface BestBuyDeal {
   id: string;
@@ -143,7 +144,7 @@ export function NextBestBuySpotlight({
           <p className="text-sm font-semibold text-[var(--t2)]">
             Ask ${deal.askPrice.toLocaleString()}
             {city ? ` · ${city}` : ""}
-            {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
+            {deal.source ? ` · ${sourceLabel(deal.source)}` : ""}
           </p>
           <p className="text-sm text-[var(--t3)]">
             Not a buy until condition and the all-in price are checked.

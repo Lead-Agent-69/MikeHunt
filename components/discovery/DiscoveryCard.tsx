@@ -5,7 +5,13 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
-import { sourceMeta, buyTerms, tint } from "@/lib/sources/source-meta";
+import {
+  sourceMeta,
+  buyTerms,
+  tint,
+  sellerTypeLabel,
+  sourceLabel,
+} from "@/lib/sources/source-meta";
 import { CONFIDENCE_META } from "@/lib/valuation/confidence";
 import {
   readCondition,
@@ -396,12 +402,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               {deal.valueAsOf
                 ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
                 : ""}
-              {deal.source ? ` · ${deal.source.replace(/_/g, " ")}` : ""}
-              {deal.sellerType === "dealer"
-                ? " · Dealer"
-                : deal.sellerType === "private"
-                  ? " · Private"
-                  : ""}
+              {deal.source ? ` · ${sourceLabel(deal.source)}` : ""}
+              {deal.sellerType === "dealer" || deal.sellerType === "private"
+                ? ` · ${sellerTypeLabel(deal.sellerType)}`
+                : ""}
             </p>
 
             {/* Sell estimate + max bid ΓÇö the context that makes the profit number mean something. */}

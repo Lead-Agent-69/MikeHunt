@@ -28,6 +28,10 @@ housing handoff. A merged release is not signed-in production acceptance or Copa
   checks verified actual photos and first-viewport price. Production rendering needs release smoke.
 - Unified main protections are retained: recent clean completed-sale evidence, bounded document
   reading, VIN-history limitations, similar-listing response allowlists and coarse public map points.
+- Later main UX fixes are retained: human source/condition labels, role-specific Settings,
+  personal Purchase plan naming, and home-state Swipe defaults without discarding explicit filters.
+- Vercel reported a preview build-rate limit during release. Final production status must be
+  recorded in the PR release record; a successful local build or merge does not prove deployment.
 - Worker: mikehunt-scraper-1, image mikehunt-scraper-inventory:f437604, last verified running/healthy.
   Existing Docker overrides keep CACHE_PHOTOS_MAX=0 and SCRAPE_SOURCES empty, selecting terms-safe
   defaults (GSA + curated dealers). Do not enable restricted marketplaces to inflate coverage.

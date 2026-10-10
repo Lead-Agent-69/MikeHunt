@@ -19,7 +19,12 @@ import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
-import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
+import { sourceLabel } from "@/lib/sources/source-meta";
+import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
+import { savedScopeStates } from "@/lib/preferences/location-form";
+import { readCondition } from "@/lib/intelligence/condition";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
 // left to pass — the same two decisions the buttons below the stack make, for keyboard users.
@@ -64,9 +69,10 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
-  const sourceLabel = sourceMeta(
-    displaySource(deal.source, deal.sourceUrl),
-  ).label;
+  const sourceName = sourceLabel(deal.source, deal.sourceUrl);
+  const conditionLabel = deal.condition
+    ? readCondition(deal.condition, undefined, title)?.label || ""
+    : "";
   const seller =
     (deal as { sellerType?: string }).sellerType === "dealer"
       ? "Dealer"
@@ -123,7 +129,7 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
                 backdropFilter: "blur(8px)",
               }}
             >
-              {sourceLabel}
+              {sourceName}
             </span>
           )}
         </div>
@@ -143,13 +149,9 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
               {deal.mileage.toLocaleString()} mi
             </span>
           ) : null}
-          {deal.condition && (
-            <span className="capitalize">
-              {deal.condition.replace(/_/g, " ")}
-            </span>
-          )}
+          {conditionLabel && <span>{conditionLabel}</span>}
           {location && <span className="truncate">{location}</span>}
-          {deal.source && <span>{sourceLabel}</span>}
+          {deal.source && <span>{sourceName}</span>}
           {seller && <span>{seller}</span>}
         </div>
 
@@ -220,7 +222,28 @@ function StackSkeleton() {
 }
 
 export default function SwipePage() {
-  const { query, ready, intent } = useInventoryViewScope();
+  const { query: sharedQuery, ready, intent } = useInventoryViewScope();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const homeState = (
+    effectiveHome(prefs)?.state ||
+    savedScopeStates(prefs)?.[0] ||
+    ""
+  ).toUpperCase();
+  const query = useMemo(() => {
+    const params = new URLSearchParams(sharedQuery);
+    if (
+      homeState &&
+      params.get("scope") !== "explicit" &&
+      !params.has("state") &&
+      !params.has("states")
+    )
+      params.set("state", homeState);
+    return params.toString();
+  }, [sharedQuery, homeState]);
+  const swipeReady = ready && !prefsLoading;
+  const scopeLabel =
+    inventoryScopeStates(new URLSearchParams(query))?.join(", ") ||
+    "Nationwide";
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [batch, setBatch] = useState(0);
   // Bumped by "Start over" so a repeat of batch 0 still remounts the stack and clears counters.
@@ -242,13 +265,19 @@ export default function SwipePage() {
     setSaved(0);
     setPassed(0);
   }, [query]);
-  const { data, error, isLoading, mutate } = useSWR(
-    ready
+  const {
+    data,
+    error,
+    isLoading: dealsLoading,
+    mutate,
+  } = useSWR(
+    swipeReady
       ? `/api/scan?${query}&sort=newest&pageSize=${PAGE}&page=${effectiveBatch}`
       : null,
     fetcher,
     { revalidateOnFocus: true, keepPreviousData: false },
   );
+  const isLoading = !swipeReady || dealsLoading;
 
   const hasMore: boolean = !!data?.hasMore;
 
@@ -359,8 +388,9 @@ export default function SwipePage() {
       <div className="flex items-center justify-between gap-2 text-[11px] font-bold">
         <span style={{ color: "var(--green)" }}>{saved} saved</span>
         <span className="font-mono text-[var(--t5)]">
-          batch {batch + 1}
-          {data?.total ? ` · ${Number(data.total).toLocaleString()} total` : ""}
+          {prefsLoading
+            ? "Loading your home state…"
+            : `${scopeLabel} · batch ${effectiveBatch + 1}`}
         </span>
         <span className="text-[var(--t4)]">{passed} passed</span>
       </div>
@@ -430,7 +460,11 @@ export default function SwipePage() {
           <EmptyState
             icon="search"
             title="No deals to triage yet"
-            message="No saved-inventory listings are in the queue yet."
+            message={
+              scopeLabel !== "Nationwide"
+                ? `No matching listings in ${scopeLabel} to review right now.`
+                : "No saved-inventory listings are in the queue yet."
+            }
           />
         </div>
       ) : (

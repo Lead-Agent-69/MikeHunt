@@ -12,7 +12,8 @@ describe("signed-out nav", () => {
       navItemForViewer(item, true),
     );
     const saved = desktop.find((item) => item.name === "Saved");
-    const pipeline = desktop.find((item) => item.name === "Plan");
+    // Signed out = personal, so the /fleet tab reads "Purchase plan".
+    const pipeline = desktop.find((item) => item.name === "Purchase plan");
     expect(saved).toMatchObject({
       href: "/login?next=%2Fsaved",
       signInRequired: true,

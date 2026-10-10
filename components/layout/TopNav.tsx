@@ -219,9 +219,9 @@ function TopNavContent() {
         </Link>
         {activeJob && (
           <span className="hidden max-w-[8rem] truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-1 text-[11px] font-black text-[var(--t4)] sm:inline-flex lg:hidden">
-            {activeJob === "Pipeline" &&
-            primaryNav.some((item) => item.name === "Plan")
-              ? "Plan"
+            {activeJob === "Pipeline"
+              ? primaryNav.find((item) => item.href === "/fleet")?.name ||
+                activeJob
               : activeJob}
           </span>
         )}

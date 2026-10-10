@@ -17,6 +17,7 @@ import {
 } from "@/lib/valuation/evidence-confidence";
 import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { sellerTypeLabel } from "@/lib/sources/source-meta";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -140,7 +141,7 @@ export const DealCard = memo(function DealCard({
   const actionDetails = [
     auctionEndText ? `Ends ${auctionEndText}` : null,
     bidCount != null ? `${bidCount} bid${bidCount === 1 ? "" : "s"}` : null,
-    seller ? seller : sellerType ? `${sellerType} seller` : null,
+    seller ? seller : sellerType ? sellerTypeLabel(sellerType) : null,
   ].filter(Boolean);
   const resaleBasis = sellEstimate || mmrValue || 0;
   // Wording follows the flipDesk prop: reseller/dealer keep resale/bid copy, everyone else gets buyer copy.

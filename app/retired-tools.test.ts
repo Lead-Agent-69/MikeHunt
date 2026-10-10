@@ -55,7 +55,7 @@ describe("retired non-sourcing tools", () => {
         expect(workspace).toContain("/scan");
         expect(workspace).toContain("/saved");
         expect(workspace).toContain("/compare");
-        expect(workspace).toContain("/dealer-network");
+        expect(workspace.includes("/dealer-network")).toBe(mode !== "personal");
       }
     }
   });
