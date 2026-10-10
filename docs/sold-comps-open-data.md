@@ -46,7 +46,12 @@ mode, never fails the live scrape).
   ("Sold for") and GSA closing bids ("Last observed bid at close"). Each row carries its
   `attribution`, plus a `credits` list. Rows without attribution are not shown, and the DB rejects a
   gov row without attribution (`sold_listings_gov_attribution`). **Show the CC BY 4.0 credit wherever
-  GSA rows are displayed.** Any UI that renders `govLane` must render `attribution`/`credits`.
+  GSA rows are displayed.** The sold-comps card (`components/deal/RecentlySold.tsx`, `GovLane`)
+  shows the lane under the retail records, with each row's price meaning and a "Sources:" credits
+  line. Any other UI that renders `govLane` must render `attribution`/`credits` too.
+- `20261010411000` adds `CHECK (basis <> 'last_bid' OR attribution IS NOT NULL)`; its self-check
+  verifies both credit constraints by definition (`pg_get_constraintdef`).
+- The guard test resolves `.from(CONST)` too: any identifier bound to `"sold_listings"`.
 - `last_bid` is GSA only. Norfolk, Seattle and GovDeals `isSoldAuction` are `sold`.
 - Hold: this PR needs #264 (basis column + filters) merged first. Don't run the GSA import with
   `--write` before both are applied.
@@ -72,3 +77,5 @@ then the stream is counted and cancelled once it passes the cap.
 
 All three scripts dry-run by default and print counts by month. Add `--write` to upsert (needs
 `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`). Scheduling Norfolk daily on Zeus is a deploy step.
+
+GovDeals/AllSurplus (maestro) fetches: search 30s timeout / 8 MB cap per page, detail 15s / 1 MB.

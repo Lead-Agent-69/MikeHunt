@@ -136,6 +136,9 @@ export function RecentlySold({
             ))}
           </div>
         ) : null}
+        {!error && data?.govLane?.sales?.length ? (
+          <GovLane lane={data.govLane} />
+        ) : null}
         {data && !error && (
           <p className="mt-3 text-xs leading-relaxed text-[var(--t4)]">
             Last {data.windowDays} days ·{" "}
@@ -148,5 +151,71 @@ export function RecentlySold({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Government impound / fleet / surplus auction results and GSA closing bids. Shown apart from the
+// retail median (never part of it), each with its price meaning, and with the source credits the
+// data licences require (CC BY 4.0 for the GSA dataset) printed under the list.
+export function GovLane({
+  lane,
+}: {
+  lane: {
+    note?: string;
+    sales?: Array<{
+      title?: string | null;
+      year?: number | null;
+      price?: number | null;
+      priceLabel?: string;
+      soldAt?: string | null;
+      sourceUrl?: string | null;
+      attribution?: string | null;
+    }>;
+    credits?: string[];
+  };
+}) {
+  const sales = (lane.sales || []).filter((s) => s.attribution);
+  if (!sales.length) return null;
+  const credits = Array.from(
+    new Set([
+      ...(lane.credits || []),
+      ...sales.map((s) => String(s.attribution)),
+    ]),
+  );
+  return (
+    <section className="mt-5" aria-label="Government auction results">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
+        Government auction results · not retail prices
+      </p>
+      <div className="mt-2 divide-y divide-[var(--b1)]">
+        {sales.slice(0, 6).map((s, i) => (
+          <a
+            key={i}
+            href={s.sourceUrl || undefined}
+            target={s.sourceUrl ? "_blank" : undefined}
+            rel={s.sourceUrl ? "noopener noreferrer" : undefined}
+            className="flex items-center justify-between gap-3 py-2 text-sm"
+          >
+            <span className="truncate text-[var(--t2)]">
+              {s.title || s.year || "Vehicle"}
+              {soldOn(s.soldAt) ? ` · ${soldOn(s.soldAt)}` : ""}
+            </span>
+            <span className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-[var(--t4)]">
+                {s.priceLabel || "Sold for"}
+              </span>
+              <Mono className="font-bold text-[var(--t2)]">
+                {money(s.price)}
+              </Mono>
+            </span>
+          </a>
+        ))}
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
+        {lane.note ||
+          "Government auction results. Not retail prices; not part of the median above."}{" "}
+        Sources: {credits.join(" · ")}
+      </p>
+    </section>
   );
 }
