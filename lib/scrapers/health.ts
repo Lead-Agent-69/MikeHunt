@@ -1,3 +1,5 @@
+// Superseded for scheduling by lib/scrapers/ops/source-breaker.ts (5 consecutive failures, exponential
+// cooldown, alerts). getSkipSources is kept for any external caller; the runner no longer uses it.
 // Self-monitoring + self-healing for the scraper fleet. Runs are recorded to scraper_runs by the
 // orchestrator itself (orchestrators/base.ts); the scheduler reads the source_health view to
 // auto-skip sources that have failed their last few runs (with a cooldown so they retry

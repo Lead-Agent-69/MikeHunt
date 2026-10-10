@@ -12,6 +12,7 @@
  *  - Every outcome is counted per domain for the /status ban-risk panel (metrics.ts).
  */
 import { DomainBreaker } from "./breaker";
+import { registryDomainOverride } from "./source-limits";
 import { isRobotsExemptUrl } from "./robots-exempt";
 import {
   backoffMs,
@@ -19,7 +20,13 @@ import {
   isRetryableStatus,
   parseRetryAfterMs,
 } from "./backoff";
-import { conditionalHeaders, defaultPageCache, type PageCache } from "./cache";
+import { conditionalHeaders, contentHash, defaultPageCache, type PageCache } from "./cache";
+import {
+  recordChallenge,
+  recordError,
+  recordFetchFailure,
+  recordResponse,
+} from "../ops/run-telemetry";
 import { politeUserAgent } from "./identity";
 import { DomainLimiter } from "./limiter";
 import { PoliteMetrics } from "./metrics";
@@ -70,6 +77,10 @@ export interface PoliteResponse {
   skipped?: PoliteSkipReason;
   /** The site served a bot challenge / denial page. The domain is now paused. */
   challenge?: boolean;
+  /** 200 whose body hash equals the cached copy (the server sent no usable ETag/Last-Modified). */
+  unchanged?: boolean;
+  /** Final network failure after retries (timeout, DNS, reset), for run telemetry. */
+  networkError?: { name: string; code: string; message: string };
   headers?: Record<string, string>;
 }
 
@@ -218,7 +229,35 @@ export class PoliteCrawler {
     return pending;
   }
 
+  /**
+   * Fetch one URL politely. Every outcome is also recorded on the current scraper run's telemetry
+   * (lib/scrapers/ops/run-telemetry.ts): HTTP class, timeout/DNS/network, robots, breaker, challenge,
+   * 304 / unchanged. Outside a run that is a no-op.
+   */
   async fetch(
+    url: string,
+    opts: PoliteFetchOptions = {},
+  ): Promise<PoliteResponse> {
+    let res: PoliteResponse;
+    try {
+      res = await this.fetchInner(url, opts);
+    } catch (error) {
+      recordFetchFailure(url, error);
+      throw error;
+    }
+    if (res.skipped === "robots") recordError("robots", { url });
+    else if (res.skipped === "breaker") recordError("breaker", { url });
+    else if (res.challenge) recordChallenge(url, res.status);
+    else if (res.networkError)
+      recordFetchFailure(url, Object.assign(new Error(res.networkError.message), res.networkError));
+    else if (res.notModified) recordResponse(url, 304, { notModified: true });
+    else if (res.fromCache || res.skipped) {
+      // fresh-cache hit (no request sent) or an invalid URL: nothing to record
+    } else recordResponse(url, res.status, { unchanged: res.unchanged });
+    return res;
+  }
+
+  private async fetchInner(
     url: string,
     opts: PoliteFetchOptions = {},
   ): Promise<PoliteResponse> {
@@ -299,7 +338,17 @@ export class PoliteCrawler {
       } catch (error) {
         if (opts.signal?.aborted) throw error;
         this.metrics.recordNetworkError(domain);
-        if (attempt > maxRetries) return base;
+        if (attempt > maxRetries) {
+          const e = error as { name?: string; code?: string; message?: string; cause?: any };
+          return {
+            ...base,
+            networkError: {
+              name: String(e?.name || "Error"),
+              code: String(e?.code || e?.cause?.code || ""),
+              message: String(e?.message || error),
+            },
+          };
+        }
         await this.sleep(backoffMs(attempt, { random: this.random }));
         continue;
       }
@@ -329,10 +378,13 @@ export class PoliteCrawler {
         const body = await res.text();
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs(domain));
           return { ...base, status, challenge: true, headers };
         }
         this.breaker.recordSuccess(domain);
+        // Change detection without validators: same content hash as the cached copy = unchanged.
+        const hash = contentHash(body);
+        const unchanged = !!cached && (cached.hash ? cached.hash === hash : cached.body === body);
         if (cacheable)
           this.cache.set({
           url,
@@ -340,9 +392,10 @@ export class PoliteCrawler {
           body,
           etag: headers["etag"],
           lastModified: headers["last-modified"],
+          hash,
           fetchedAt: this.now(),
         });
-        return { ...base, status, body, ok: true, headers };
+        return { ...base, status, body, ok: true, headers, ...(unchanged ? { unchanged } : {}) };
       }
 
       if (isBanSignal(status)) {
@@ -352,7 +405,7 @@ export class PoliteCrawler {
       if (status === 403) {
         if (looksLikeChallenge(body)) {
           this.metrics.recordChallenge(domain);
-          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs());
+          this.breaker.pause(domain, "bot challenge page", this.now(), challengeBackoffMs(domain));
           return { ...base, status, challenge: true, headers };
         }
         return { ...base, status, headers };
@@ -404,7 +457,10 @@ export function politeMetricsSnapshot() {
  * and backs the domain off briefly. It is NOT a permanent skip: the default 30 minutes is shorter
  * than the sweep interval (4h), so the source is retried on its next schedule.
  */
-export function challengeBackoffMs(): number {
+export function challengeBackoffMs(domain?: string): number {
+  // Per-source registry override (SourceConfig.polite.challengeBackoffMin) wins over the env default.
+  const override = domain ? registryDomainOverride(domain).challengeBackoffMs : undefined;
+  if (override !== undefined) return override;
   const min = Number(process.env.POLITE_CHALLENGE_BACKOFF_MIN);
   return (Number.isFinite(min) && min >= 0 ? Math.min(min, 120) : 30) * 60_000;
 }
@@ -431,6 +487,7 @@ export async function politeGate<T>(
   const c = politeCrawler();
   if (c.breaker.isOpen(domain)) {
     c.metrics.recordBreakerSkip(domain);
+    recordError("breaker", { url });
     throw new Error(`polite: ${domain} paused by circuit breaker (retried next schedule)`);
   }
   // Crawl-delay only (Ren #269): read robots.txt so its Crawl-delay is the minimum gap for this
@@ -446,15 +503,18 @@ export async function politeGate<T>(
     result = await c.limiter.run(domain, fn);
   } catch (error) {
     c.metrics.recordNetworkError(domain);
+    recordFetchFailure(url, error);
     throw error;
   }
   const status = statusOf?.(result);
   if (status !== undefined) {
     c.metrics.recordStatus(domain, status);
+    recordResponse(url, status);
     if (status === 403 || status === 429) c.breaker.recordBanSignal(domain, status);
     else if (status >= 200 && status < 400) c.breaker.recordSuccess(domain);
   } else {
     c.metrics.recordStatus(domain, 200);
+    recordResponse(url, 200);
   }
   return result;
 }

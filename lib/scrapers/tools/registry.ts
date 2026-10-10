@@ -4,6 +4,7 @@
 import { ScrapeResult, Deal } from "@/types";
 import { ScraperStateManager } from "./state";
 import { crossRunBackoffMultiplier } from "./circuit-breaker";
+import { breakerPolicy, cooldownMs } from "../ops/source-breaker";
 
 export type ScraperFunction = (args?: ScraperArgs) => Promise<number | Deal[]>;
 
@@ -38,7 +39,10 @@ export interface RegisteredScraper {
   successRate: number;
   estimatedDealsPerRun: number;
   consecutiveFailures: number;
+  /** Consecutive failures that trip the temporary pause (name kept for scraper_state compat). */
   autoDisableThreshold: number;
+  /** Temporary circuit-breaker pause. The source stays enabled and registered. */
+  pausedUntil?: Date;
 }
 
 export class ScraperRegistry {
@@ -118,6 +122,7 @@ export class ScraperRegistry {
   getDueForRun(lookbackMinutes: number = 60): RegisteredScraper[] {
     const now = new Date();
     return this.getEnabled().filter((s) => {
+      if (this.isPaused(s, now)) return false;
       if (!s.lastRun) return true;
       // Persistent cross-run circuit breaker: a source with consecutive failures backs off
       // exponentially (its consecutive_failures is hydrated from scraper_state across runs).
@@ -150,15 +155,19 @@ export class ScraperRegistry {
 
     if (success) {
       scraper.consecutiveFailures = 0;
+      scraper.pausedUntil = undefined;
     } else {
       scraper.consecutiveFailures += 1;
-      if (
-        scraper.consecutiveFailures >= scraper.autoDisableThreshold &&
-        scraper.enabled
-      ) {
-        scraper.enabled = false;
+      // Never disable a source (Jonah's rule): past the threshold it is PAUSED for an exponential
+      // cooldown and then retried automatically. `enabled` is never touched here.
+      if (scraper.consecutiveFailures >= scraper.autoDisableThreshold) {
+        const ms = cooldownMs(scraper.consecutiveFailures, {
+          ...breakerPolicy(scraper.id),
+          threshold: scraper.autoDisableThreshold,
+        });
+        scraper.pausedUntil = new Date(Date.now() + ms);
         console.warn(
-          `[ScraperRegistry] Auto-disabled ${scraper.id} after ${scraper.consecutiveFailures} consecutive failures`,
+          `[ScraperRegistry] Paused ${scraper.id} for ${Math.round(ms / 60_000)}m after ${scraper.consecutiveFailures} consecutive failures (still enabled; retried after the cooldown)`,
         );
       }
     }
@@ -181,8 +190,13 @@ export class ScraperRegistry {
     await this.persistState(id);
   }
 
-  getAutoDisabled(): RegisteredScraper[] {
-    return this.getAll().filter((s) => !s.enabled && s.consecutiveFailures > 0);
+  /** Sources currently paused by the breaker (formerly "auto-disabled"; they stay enabled). */
+  getAutoDisabled(now: Date = new Date()): RegisteredScraper[] {
+    return this.getAll().filter((s) => this.isPaused(s, now));
+  }
+
+  isPaused(s: RegisteredScraper, now: Date = new Date()): boolean {
+    return !!s.pausedUntil && s.pausedUntil.getTime() > now.getTime();
   }
 
   resetConsecutiveFailures(id: string): boolean {

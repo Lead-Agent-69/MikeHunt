@@ -4,7 +4,7 @@
  * 0–100% jitter (POLITE_JITTER_RATIO). The first request to a domain is also staggered by a random
  * 0–50% of the gap, so parallel domains never fire in lockstep.
  */
-import { registryGapFloorMs } from "./source-limits";
+import { registryDomainOverride, type DomainOverride } from "./source-limits";
 
 export interface DomainLimiterOptions {
   maxConcurrent?: number;
@@ -18,6 +18,8 @@ export interface DomainLimiterOptions {
    * pass `() => 0` to opt out (tests).
    */
   domainFloorMs?: (domain: string) => number;
+  /** Full per-domain override (registry SourceConfig.polite + rateLimit). Default: the registry. */
+  domainOverride?: (domain: string) => DomainOverride;
 }
 
 interface DomainSlot {
@@ -36,7 +38,7 @@ export class DomainLimiter {
   private readonly random: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
-  private readonly domainFloorMs: (domain: string) => number;
+  private readonly override: (domain: string) => DomainOverride;
   private slots = new Map<string, DomainSlot>();
 
   constructor(opts: DomainLimiterOptions = {}) {
@@ -55,16 +57,29 @@ export class DomainLimiter {
     this.random = opts.random ?? Math.random;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = opts.now ?? Date.now;
-    this.domainFloorMs = opts.domainFloorMs ?? registryGapFloorMs;
+    const floor = opts.domainFloorMs;
+    this.override =
+      opts.domainOverride ??
+      (floor ? (d: string) => ({ floorMs: floor(d) }) : registryDomainOverride);
   }
 
-  /** max(POLITE_MIN_GAP_MS, robots Crawl-delay, registry rateLimit gap) before jitter. */
+  /**
+   * max(min gap, robots Crawl-delay, registry rateLimit gap) before jitter. The min gap is the
+   * source's polite.minGapMs when the registry sets one, else POLITE_MIN_GAP_MS.
+   */
   baseGapMs(domain: string): number {
+    const o = this.override(domain);
     return Math.max(
-      this.minGapMs,
+      o.minGapMs ?? this.minGapMs,
       this.slot(domain).crawlDelayMs,
-      this.domainFloorMs(domain) || 0,
+      o.floorMs || 0,
     );
+  }
+
+  /** In-flight cap for a domain: the registry override (1-2) or the worker default. */
+  maxConcurrentFor(domain: string): number {
+    const o = this.override(domain).maxConcurrent;
+    return o ? Math.min(MAX_DOMAIN_CONCURRENCY, Math.max(1, o)) : this.maxConcurrent;
   }
 
   private slot(domain: string): DomainSlot {
@@ -93,14 +108,15 @@ export class DomainLimiter {
 
   gapMs(domain: string): number {
     const base = this.baseGapMs(domain);
-    return Math.round(base + base * this.jitterRatio * this.random());
+    const jitter = this.override(domain).jitterRatio ?? this.jitterRatio;
+    return Math.round(base + base * jitter * this.random());
   }
 
   async run<T>(domain: string, task: () => Promise<T>): Promise<T> {
     const s = this.slot(domain);
     // Slots are handed straight to the next waiter on release, so a late caller can never jump
     // the queue and push a domain past maxConcurrent.
-    if (s.active >= this.maxConcurrent) {
+    if (s.active >= this.maxConcurrentFor(domain)) {
       await new Promise<void>((resolve) => s.waiters.push(resolve));
     } else {
       s.active += 1;

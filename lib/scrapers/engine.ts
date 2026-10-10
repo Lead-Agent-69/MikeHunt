@@ -36,6 +36,12 @@ import {
   politeUserAgent,
   type PoliteResponse,
 } from "./polite";
+import {
+  deadLetter,
+  isIncrementalRun,
+  recordError,
+  recordPageSkipped,
+} from "./ops/run-telemetry";
 
 let _adaptiveEngine: AdaptiveEngine | null = null;
 
@@ -344,6 +350,37 @@ export async function fetchBrowser(
   };
 }
 
+/**
+ * Run a page parser and log what goes wrong on the current run (lib/scrapers/ops/run-telemetry):
+ * a throw is a `parse` error plus a dead letter with a 2 KB snippet of the page.
+ */
+export async function parseWithTelemetry<T>(
+  parsePage: (html: string) => Promise<{ items: T[]; hasMore: boolean }>,
+  html: string,
+  url: string,
+): Promise<{ items: T[]; hasMore: boolean }> {
+  try {
+    return await parsePage(html);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    recordError("parse", { url, message });
+    deadLetter(`parse: ${message}`, { url, raw: html });
+    throw error;
+  }
+}
+
+/** Page 1 of a clean 200 that yields nothing is `parse_empty` (markup drift / soft block). */
+export function noteEmptyFirstPage<R extends { items: unknown[] }>(
+  out: R,
+  url: string,
+  pageNum: number,
+  bytes: number,
+): R {
+  if (pageNum === 1 && !out.items.length)
+    recordError("parse_empty", { url, message: `no items parsed from ${bytes} bytes` });
+  return out;
+}
+
 // ─── Paginator — crawls all pages automatically ───────────────────────────────
 export async function* paginate<T>(
   config: ScraperConfig,
@@ -369,18 +406,32 @@ export async function* paginate<T>(
         return parsePage(html);
       }
       if (politeRobotsPathFor(url)) {
-        const html = await politeHtml(url, config.abortSignal);
-        const first = await parsePage(html);
+        const res = await politeFetch(url, { signal: config.abortSignal });
+        if (!res.ok) throw new PoliteBlockedError(url, res);
+        // Incremental run: an unchanged listing page (304 or same content hash) has nothing new.
+        // Stop here; the periodic full rescan re-reads everything (and refreshes last_seen_at).
+        if (isIncrementalRun() && (res.notModified || res.unchanged)) {
+          recordPageSkipped();
+          return { items: [] as T[], hasMore: false };
+        }
+        const html = res.body;
+        const first = await parseWithTelemetry(parsePage, html, url);
         if (
           first.items.length ||
           config.renderMode === "static" ||
           process.env.POLITE_ALLOW_RENDER === "0"
         )
-          return first;
+          return noteEmptyFirstPage(first, url, pageNum, html.length);
         // Clean page, no listings in the server HTML: the inventory is built by JS. Render it with
         // an honest headless browser (same robots/pacing) rather than any stealth tier.
         config.abortSignal?.throwIfAborted();
-        return parsePage(await politeRender(url, config));
+        const rendered = await politeRender(url, config);
+        return noteEmptyFirstPage(
+          await parseWithTelemetry(parsePage, rendered, url),
+          url,
+          pageNum,
+          rendered.length,
+        );
       }
       if (config.renderMode === "static") {
         const $ = await fetchHtml(url, config);

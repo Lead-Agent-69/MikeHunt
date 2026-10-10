@@ -90,14 +90,16 @@ export class PriorityOrchestrator extends BaseScraperOrchestrator {
       const start = Date.now();
 
       try {
-        const execResult = await this.executor.execute(scraper, {
-          abortSignal: this.abortController?.signal,
-          dryRun: this.options.dryRun,
-          maxRetries: this.retries,
-          timeoutMs: 300000,
-          costGuard: this.costGuard,
-          circuitBreaker: this.circuitBreaker,
-        });
+        const execResult = await this.executeWithTelemetry(scraper.id, () =>
+          this.executor.execute(scraper, {
+            abortSignal: this.abortController?.signal,
+            dryRun: this.options.dryRun,
+            maxRetries: this.retries,
+            timeoutMs: 300000,
+            costGuard: this.costGuard,
+            circuitBreaker: this.circuitBreaker,
+          }),
+        );
 
         const duration = Date.now() - start;
         await this.logScrapeComplete(
@@ -128,7 +130,7 @@ export class PriorityOrchestrator extends BaseScraperOrchestrator {
         const duration = Date.now() - start;
         const message =
           error instanceof Error ? error.message : "Unknown error";
-        await this.logScrapeError(runId, error);
+        await this.logScrapeError(runId, error, scraper.id);
         await this.registry.updateStats(scraper.id, false, duration, 0);
         await this.recordResult({
           source: scraper.id,

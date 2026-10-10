@@ -3,10 +3,14 @@
  * domain is paused for `pauseMs` (hours, not minutes). While paused we send it nothing. A success
  * resets the strike count. We never try a different route around the block: we wait.
  */
+import { registryDomainOverride } from "./source-limits";
+
 export interface DomainBreakerOptions {
   threshold?: number;
   windowMs?: number;
   pauseMs?: number;
+  /** Per-domain pause override (registry SourceConfig.polite.breakerPauseHours). */
+  pauseMsFor?: (domain: string) => number | undefined;
 }
 
 export interface BreakerState {
@@ -19,6 +23,7 @@ export class DomainBreaker {
   readonly threshold: number;
   readonly windowMs: number;
   readonly pauseMs: number;
+  private readonly pauseMsFor: (domain: string) => number | undefined;
   private states = new Map<string, BreakerState>();
 
   constructor(opts: DomainBreakerOptions = {}) {
@@ -27,6 +32,16 @@ export class DomainBreaker {
     this.pauseMs =
       opts.pauseMs ??
       Number(process.env.POLITE_BREAKER_PAUSE_HOURS || 6) * 60 * 60_000;
+    this.pauseMsFor =
+      opts.pauseMsFor ??
+      (opts.pauseMs !== undefined
+        ? () => undefined
+        : (d: string) => registryDomainOverride(d).breakerPauseMs);
+  }
+
+  /** Pause length for a domain: the registry override, else the worker default. */
+  pauseMsOf(domain: string): number {
+    return this.pauseMsFor(domain) ?? this.pauseMs;
   }
 
   private state(domain: string): BreakerState {
@@ -56,7 +71,7 @@ export class DomainBreaker {
     s.strikes = s.strikes.filter((t) => now - t < this.windowMs);
     s.strikes.push(now);
     if (s.strikes.length >= this.threshold && s.pausedUntil <= now) {
-      s.pausedUntil = now + this.pauseMs;
+      s.pausedUntil = now + this.pauseMsOf(domain);
       s.reason = `HTTP ${status} x${s.strikes.length} within ${Math.round(this.windowMs / 60_000)}m`;
       s.strikes = [];
       return true;

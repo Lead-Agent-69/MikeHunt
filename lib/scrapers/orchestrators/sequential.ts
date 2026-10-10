@@ -43,12 +43,14 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
       let result: ScrapeResult;
 
       try {
-        const execResult = await this.executor.execute(scraper, {
-          abortSignal: this.abortController.signal,
-          dryRun: this.options.dryRun,
-          costGuard: this.costGuard,
-          circuitBreaker: this.circuitBreaker,
-        });
+        const execResult = await this.executeWithTelemetry(scraper.id, () =>
+          this.executor.execute(scraper, {
+            abortSignal: this.abortController?.signal,
+            dryRun: this.options.dryRun,
+            costGuard: this.costGuard,
+            circuitBreaker: this.circuitBreaker,
+          }),
+        );
 
         const duration = Date.now() - start;
         result = {
@@ -88,7 +90,7 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
           error: message,
         };
         await this.registry.updateStats(scraper.id, false, duration, 0);
-        await this.logScrapeError(runId, error);
+        await this.logScrapeError(runId, error, scraper.id);
       }
 
       await this.recordResult(result);

@@ -496,6 +496,11 @@ async function main() {
   const { closeSmartFetch } = await import("../lib/scrapers/smart-fetch");
   await closeSmartFetch().catch(() => {});
 
+  if (results.length === 0) {
+    // Every requested source is cooling down after repeated failures (circuit breaker). Normal.
+    console.log("⏸️  nothing to run this cycle: all requested sources are paused by the breaker");
+    process.exit(0);
+  }
   if (succeeded === 0) {
     console.error("❌ All sources failed — exiting non-zero.");
     process.exit(1);

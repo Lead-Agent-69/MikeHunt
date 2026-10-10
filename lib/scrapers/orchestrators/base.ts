@@ -8,6 +8,19 @@ import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
 } from "../tools/circuit-breaker";
+import {
+  classifyFetchError,
+  newRunTelemetry,
+  recordError,
+  withRunTelemetry,
+  type RunTelemetry,
+  type ScanMode,
+} from "../ops/run-telemetry";
+import {
+  runSummaryColumns,
+  updateRunRow,
+  writeRunTelemetry,
+} from "../ops/run-log";
 
 export type OrchestratorStatus =
   | "idle"
@@ -29,6 +42,8 @@ export interface OrchestratorOptions {
   circuitBreaker?: CircuitBreakerRegistry;
   circuitBreakerOptions?: CircuitBreakerOptions;
   skipSupabaseRunTracking?: boolean;
+  /** Per-source scan mode for this run (lib/scrapers/ops/scan-mode.ts). Default: full. */
+  scanModes?: Record<string, ScanMode>;
 }
 
 export interface OrchestratorProgress {
@@ -51,6 +66,8 @@ export abstract class BaseScraperOrchestrator {
   protected startTime: number = 0;
   protected costGuard: CostGuard;
   protected circuitBreaker: CircuitBreakerRegistry;
+  /** Telemetry of each source's current/last run in this orchestrator (job-level failure log). */
+  protected telemetry = new Map<string, RunTelemetry>();
 
   constructor(options: OrchestratorOptions = {}) {
     this.options = {
@@ -122,6 +139,27 @@ export abstract class BaseScraperOrchestrator {
     return data.id;
   }
 
+  /**
+   * Run one source's work inside a telemetry scope, so every fetch / parse / validation failure it
+   * hits is captured where it happens (before the processor) and written with the run row.
+   */
+  protected executeWithTelemetry<T>(
+    source: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const t = newRunTelemetry(
+      source,
+      this.options.scanModes?.[source] ?? "full",
+    );
+    this.telemetry.set(source, t);
+    return withRunTelemetry(t, fn);
+  }
+
+  /** Telemetry for a source's last run in this orchestrator (tests, /status job results). */
+  getRunTelemetry(source: string): RunTelemetry | undefined {
+    return this.telemetry.get(source);
+  }
+
   protected async logScrapeComplete(
     runId: string,
     source: string,
@@ -141,9 +179,11 @@ export abstract class BaseScraperOrchestrator {
     // id isn't a uuid so the query would just log a noisy error. Skip cleanly.
     if (runId.startsWith("untracked-")) return;
 
-    const { error } = await this.supabase
-      .from("scraper_runs")
-      .update({
+    const t = this.telemetry.get(source);
+    const error = await updateRunRow(
+      this.supabase,
+      runId,
+      {
         status,
         deals_found: dealsFound,
         deals_new: dealsSaved,
@@ -153,9 +193,10 @@ export abstract class BaseScraperOrchestrator {
           status === "error"
             ? errorMessage || "Scraper failed without an error message"
             : null,
-      })
-      .eq("id", runId)
-      .eq("status", "running");
+      },
+      runSummaryColumns(t, dealsFound, status === "success"),
+    );
+    await writeRunTelemetry(this.supabase, runId, t);
 
     if (error) {
       this.log(
@@ -165,22 +206,35 @@ export abstract class BaseScraperOrchestrator {
     }
   }
 
-  protected async logScrapeError(runId: string, error: unknown) {
+  protected async logScrapeError(
+    runId: string,
+    error: unknown,
+    source?: string,
+  ) {
     const message = error instanceof Error ? error.message : "Unknown error";
     this.log(`Run failed: ${message}`, "error");
+
+    const t = source ? this.telemetry.get(source) : undefined;
+    // The throw itself is a failure of this run (timeout / network / anything else).
+    if (t) {
+      const cls = classifyFetchError(error);
+      withRunTelemetry(t, async () => recordError(cls, { message }));
+    }
 
     if (this.options.dryRun || this.options.skipSupabaseRunTracking) return;
     if (runId.startsWith("untracked-")) return;
 
-    const { error: updateError } = await this.supabase
-      .from("scraper_runs")
-      .update({
+    const updateError = await updateRunRow(
+      this.supabase,
+      runId,
+      {
         status: "error",
         error_message: message,
         completed_at: new Date().toISOString(),
-      })
-      .eq("id", runId)
-      .eq("status", "running");
+      },
+      t ? runSummaryColumns(t, 0, false) : null,
+    );
+    await writeRunTelemetry(this.supabase, runId, t);
 
     if (updateError) {
       this.log(

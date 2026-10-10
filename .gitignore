@@ -84,3 +84,4 @@ Thumbs.db
 /tmp-*.jpg
 /tmp-mh-logo-video/
 /.tmp-mikehunt-loading-assets/
+.scraper-version.json

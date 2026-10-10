@@ -9,7 +9,10 @@ service `scraper`) once they are merged to `main`. Nothing here applies to Verce
 2. On Zeus: `git pull` in the MikeHunt checkout.
 3. Add or adjust env in `.env.local.scraper` (section 1). Never paste secrets into the compose file or a
    shell argument; edit the env file.
-4. Rebuild and restart only the scraper: `docker compose -f docker-compose.local.yml up -d --build scraper`
+4. Stamp the image with the commit, then rebuild and restart only the scraper:
+   `sh scripts/write-scraper-version.sh && docker compose -f docker-compose.local.yml up -d --build scraper`
+   (writes `.scraper-version.json`, git-ignored, so every `scraper_runs` row and /status show the live
+   git SHA and build time; skip it and /status shows the version as unknown)
    (the image bakes the code: `Dockerfile.scraper` copies the repo; a restart without `--build` runs old code).
 5. Check `http://127.0.0.1:8787` (status port) and `/status` on the app for the new per-domain ban-risk
    and polite counters (section 4).
@@ -30,8 +33,27 @@ service `scraper`) once they are merged to `main`. Nothing here applies to Verce
 | `NEXT_PUBLIC_APP_URL` | Already set | `https://mikehunt-69.vercel.app` | Used for the contact URL in the honest MikeHunt User-Agent. |
 | `CL_USE_FREE_PROXY` | Leave unset | — | Legacy-only. Ignored while polite mode is on (no proxy use in polite mode). |
 
-No new Supabase migration is required by the scraper PRs below (they write through existing tables and
-`scrape_jobs.result`).
+Reliability & operations PR (job failure log, SLA view, breaker, dead letters, incremental scans,
+version tracking) adds these, all optional with safe defaults:
+
+| Variable | Needed? | Value / default | Why |
+|---|---|---|---|
+| `SCRAPER_BREAKER_THRESHOLD` | Optional | `5` | Consecutive failed runs before a source is paused (temporary; never disabled or removed). |
+| `SCRAPER_BREAKER_COOLDOWN_MIN` | Optional | `60` | First pause length; doubles for each further failed run. |
+| `SCRAPER_BREAKER_MAX_COOLDOWN_HOURS` | Optional | `24` | Cap on the pause. After it the source is retried automatically. |
+| `SCRAPER_INCREMENTAL_SOURCES` | Optional | unset (every source full scan, as before) | `a,b` or `all`: those sources skip unchanged pages (304 / same content hash) between full rescans. Needs `POLITE_CACHE_DIR` to persist. |
+| `SCRAPER_FULL_RESCAN_HOURS` | Optional | `24` | Full rescan interval for incremental sources (keeps `last_seen_at` moving). |
+| `SCRAPER_GIT_SHA` / `SCRAPER_BUILT_AT` | Optional | unset | Override the version stamp (otherwise `.scraper-version.json`, then `.git`). |
+| `SENTRY_DSN` | Optional | unset | When set, breaker open/close alerts also go to Sentry. The `scraper_alerts` row is written either way. |
+
+Per-source overrides live in the registry (`lib/scrapers/sources-registry.ts`, `polite: { minGapMs,
+jitterRatio, maxConcurrent, breakerPauseHours, challengeBackoffMin, breakerThreshold, breakerCooldownMin,
+incremental, fullRescanHours }`) and ship with the image; no env needed. Registry `rateLimit` (Copart/IAA
+2 per 60s) is now a per-domain minimum gap.
+
+Supabase: migration `20261010200000_scraper_reliability.sql` (Ren applies it; service-role only, no anon
+grants). The scraper and /status work before it is applied (they fall back to the old columns and skip
+the new tables), so deploy order is free. After it is applied there is nothing to do on Zeus.
 
 ## 2. What changes behavior on Zeus
 
@@ -42,6 +64,8 @@ No new Supabase migration is required by the scraper PRs below (they write throu
 | #270 shared dealer-CMS parser (Damage.com, D&G pagination, AutoVada, St. James, Riverbend, Premier, Gary's) | More salvage rows from curated yards | Rebuild |
 | #272 platform dealers (4cdg + VehiclesNETWORK) + new verified sites | New curated dealers join their state's demand ring automatically (#247) | Rebuild |
 | #271 GSA official API adapter (cars and trucks only) | GSA lots via api.gsa.gov | Rebuild + `GSA_API_KEY` |
+| reliability & operations (this PR) | Every run row gets `outcome`, `error_counts`, `git_sha`; failed records go to `scraper_dead_letters`; 5 failed runs in a row pause a source for 1h, 2h, 4h… (max 24h) then retry | `sh scripts/write-scraper-version.sh` before the rebuild; Ren applies the migration |
+| #269 Ren nits (Crawl-delay on exempt hosts, registry rate limits, source+path exemptions, photo-cache gate) | Grandfathered sources now read robots.txt for Crawl-delay only (disallow still not applied); Copart/IAA paced 30s apart; ebay-sold's exemption no longer covers ebay_motors | Rebuild |
 | #247 (merged) per-state curated demand ring | A user's home/saved-search state kicks that state's dealers first | Rebuild |
 | source-gathering PRs (open-gov feed registry, link-only multi-site sources) | Catalog only; nothing new is fetched until each parser lands | None |
 
@@ -59,6 +83,11 @@ No new Supabase migration is required by the scraper PRs below (they write throu
 - Code rollback: check out the previous `main` commit and rebuild the `scraper` service.
 
 ## 4. Verify after deploy
+- `/status` → **Source health SLA**: one row per source (status, last success, rows in the last run,
+  fresh %, fails in a row, challenged/blocked) and the scraper version (short SHA + build time) in the
+  panel header. The SHA should match `git rev-parse --short HEAD` on Zeus.
+- Dead letters: `npx tsx scripts/replay-dead-letters.ts --list` (review), `--replay [--source x]` (re-run
+  them through the normal quality gate).
 - `/status` → Scraper section: per-domain requests, ok, 304 (notModified), 403 (forbidden), 429 (tooMany),
   challenges, robotsDenied, breakerSkips.
 - `docker compose -f docker-compose.local.yml logs --tail=200 scraper` shows no proxy or FlareSolverr use

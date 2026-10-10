@@ -15,7 +15,13 @@ export interface CachedPage {
   body: string;
   etag?: string;
   lastModified?: string;
+  /** sha256 of the body (first 32 hex), for change detection when the server sends no validators. */
+  hash?: string;
   fetchedAt: number;
+}
+
+export function contentHash(body: string): string {
+  return createHash("sha256").update(body).digest("hex").slice(0, 32);
 }
 
 export interface PageCache {

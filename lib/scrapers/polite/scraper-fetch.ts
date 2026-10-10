@@ -9,6 +9,7 @@
  */
 import { politeFetch, politeGate, politeModeEnabled } from "./polite-fetch";
 import { isRobotsExemptUrl } from "./robots-exempt";
+import { recordFetchFailure, recordResponse } from "../ops/run-telemetry";
 
 export const POLITE_SKIP_STATUS = 599;
 
@@ -26,7 +27,17 @@ export async function scraperFetch(
   init: RequestInit = {},
 ): Promise<Response> {
   const href = String(url);
-  if (!politeModeEnabled()) return fetch(href, init);
+  if (!politeModeEnabled()) {
+    // Legacy (polite off): plain fetch, still counted on the run's failure log.
+    try {
+      const res = await fetch(href, init);
+      recordResponse(href, res.status);
+      return res;
+    } catch (error) {
+      recordFetchFailure(href, error);
+      throw error;
+    }
+  }
   // Grandfathered source (Jonah's rule): the original request, headers and all, exactly as before,
   // with only the polite per-domain delay, breaker and 403/429 accounting around it.
   if (isRobotsExemptUrl(href))

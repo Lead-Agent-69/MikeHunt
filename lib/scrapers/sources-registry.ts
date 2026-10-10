@@ -68,6 +68,33 @@ export interface SourceConfig {
   exemptPaths?: string[];
   /** Runner ids that fetch this source (e.g. curated_dealers crawls ReCar). The registry id always counts. */
   exemptRunnerIds?: string[];
+  /**
+   * Per-source polite tuning that overrides the worker-wide defaults (POLITE_* env). Domain-level
+   * keys apply to this source's hosts (url + exemptHosts); source-level keys to its runner id(s).
+   * A robots.txt Crawl-delay is always the floor: nothing here can go faster than the site asks.
+   */
+  polite?: SourcePoliteTuning;
+}
+
+export interface SourcePoliteTuning {
+  /** Base gap between request starts to this source's hosts (replaces POLITE_MIN_GAP_MS). */
+  minGapMs?: number;
+  /** Random spread on each gap, 0-3 (replaces POLITE_JITTER_RATIO). */
+  jitterRatio?: number;
+  /** In-flight requests per host, 1-2 (replaces POLITE_DOMAIN_CONCURRENCY). */
+  maxConcurrent?: number;
+  /** Domain pause after repeated 403/429 (replaces POLITE_BREAKER_PAUSE_HOURS). */
+  breakerPauseHours?: number;
+  /** Domain backoff after a bot-challenge page, minutes (replaces POLITE_CHALLENGE_BACKOFF_MIN). */
+  challengeBackoffMin?: number;
+  /** Consecutive failed runs before the source is paused (replaces SCRAPER_BREAKER_THRESHOLD). */
+  breakerThreshold?: number;
+  /** First pause length in minutes; doubles per further failure (SCRAPER_BREAKER_COOLDOWN_MIN). */
+  breakerCooldownMin?: number;
+  /** Incremental runs skip unchanged pages (304 / same content hash) between full rescans. */
+  incremental?: boolean;
+  /** Hours between full rescans when incremental (default SCRAPER_FULL_RESCAN_HOURS, 24). */
+  fullRescanHours?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
