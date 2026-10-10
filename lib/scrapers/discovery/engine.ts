@@ -3,6 +3,7 @@
 //   → classify (refine type from the page) → dedup vs known → append to the registry → optionally crawl.
 // Plus link-expansion: rebuilder dealers link to each other, so we mine outbound links from known sites.
 // $0 beyond the AI calls we already make (gpt-4o-mini / gemini-flash). Scripts/CI only (uses fs + axios).
+import { politeUserAgent } from "../polite/identity";
 import { generateText } from "ai";
 import { getTextModel, hasTextModel } from "@/lib/ai/text-model";
 import {
@@ -31,16 +32,20 @@ const HUNT_TYPES: CuratedSiteType[] = [
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 // Aggregators we already crawl directly or never want as a "discovered dealer".
-const BLOCKED = /copart|iaa(?:i)?\.|insuranceauto|adesa|manheim|ebay|cars\.com|carsforsale|carvana|cargurus|facebook|craigslist|autotrader|kbb|edmunds|truecar|carfax|vroom|carmax|offerup|cargrurus|surplusrecord|machinerytrader|equipmenttrader|govdeals\.com|shopgoodwill/i;
+const BLOCKED =
+  /copart|iaa(?:i)?\.|insuranceauto|adesa|manheim|ebay|cars\.com|carsforsale|carvana|cargurus|facebook|craigslist|autotrader|kbb|edmunds|truecar|carfax|vroom|carmax|offerup|cargrurus|surplusrecord|machinerytrader|equipmenttrader|govdeals\.com|shopgoodwill/i;
 
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36";
+// Honest identity (see polite/identity.ts): never a browser impersonation.
+const UA = politeUserAgent();
 
 const TYPE_LABEL: Record<CuratedSiteType, string> = {
   salvage_yard: "salvage yards / total-loss & branded-title vehicle sellers",
-  rebuilder_dealer: "dealers specializing in rebuilt / repairable / rebuildable-title cars",
-  auction_proxy: "salvage auction reseller / broker sites (public buys Copart/IAA lots)",
-  independent_dealer: "independent used-car dealers that carry branded-title cars",
+  rebuilder_dealer:
+    "dealers specializing in rebuilt / repairable / rebuildable-title cars",
+  auction_proxy:
+    "salvage auction reseller / broker sites (public buys Copart/IAA lots)",
+  independent_dealer:
+    "independent used-car dealers that carry branded-title cars",
   clean_retail: "used-car dealers",
 };
 
@@ -63,8 +68,14 @@ export async function generateCandidates(
     if (a < 0 || b < 0) return [];
     const arr = JSON.parse(text.slice(a, b + 1));
     return (Array.isArray(arr) ? arr : [])
-      .filter((x: any) => x && typeof x.url === "string" && /^https?:\/\//.test(x.url))
-      .map((x: any) => ({ url: x.url.trim(), name: String(x.name || "").trim() }))
+      .filter(
+        (x: any) =>
+          x && typeof x.url === "string" && /^https?:\/\//.test(x.url),
+      )
+      .map((x: any) => ({
+        url: x.url.trim(),
+        name: String(x.name || "").trim(),
+      }))
       .filter((x: { url: string }) => !BLOCKED.test(x.url));
   } catch {
     return [];
@@ -99,7 +110,8 @@ export async function validateSite(
       return { status: "live", name, html };
     }
     // Bot walls (403/429/503) are usually REAL dealer platforms (DealerCarSearch/Overfuel) — keep them.
-    if ([401, 403, 406, 429, 503].includes(res.status)) return { status: "blocked" };
+    if ([401, 403, 406, 429, 503].includes(res.status))
+      return { status: "blocked" };
     return { status: "dead" };
   } catch (e: any) {
     const code = e?.code || "";
@@ -118,13 +130,21 @@ export function classifySite(
   if (!html) return fallback;
   const x = html.toLowerCase();
   if (
-    /(copart|iaa|salvage auction).{0,40}(broker|reseller|membership|member price|buy)/.test(x) ||
+    /(copart|iaa|salvage auction).{0,40}(broker|reseller|membership|member price|buy)/.test(
+      x,
+    ) ||
     /bid on (salvage|copart|iaa)/.test(x)
   )
     return "auction_proxy";
-  if (/rebuilt title|repairable|rebuildable|salvage rebuilt|prior salvage/.test(x))
+  if (
+    /rebuilt title|repairable|rebuildable|salvage rebuilt|prior salvage/.test(x)
+  )
     return "rebuilder_dealer";
-  if (/u-?pull|pull-?a-?part|self[\s-]?service|parts? yard|junk yard|we buy junk/.test(x))
+  if (
+    /u-?pull|pull-?a-?part|self[\s-]?service|parts? yard|junk yard|we buy junk/.test(
+      x,
+    )
+  )
     return "salvage_yard";
   if (/salvage|flood|total[\s-]?loss|branded title|hail damage/.test(x))
     return "salvage_yard";
@@ -141,7 +161,11 @@ export function expandFromHtml(html: string, known: Set<string>): string[] {
     const text = (m[2] || "").toLowerCase();
     const key = domainKey(url);
     if (known.has(key) || BLOCKED.test(url)) continue;
-    if (/auto|motor|salvage|rebuilt|repairable|cars?\b|dealer/.test(key + " " + text)) {
+    if (
+      /auto|motor|salvage|rebuilt|repairable|cars?\b|dealer/.test(
+        key + " " + text,
+      )
+    ) {
       known.add(key);
       out.push(`https://${key}`);
     }
