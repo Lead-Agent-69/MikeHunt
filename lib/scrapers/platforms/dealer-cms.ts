@@ -644,11 +644,49 @@ export interface DealerCmsDeps {
   log?: (msg: string) => void;
 }
 
+const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+// US phone numbers: (555) 123-4567, 555.123.4567, +1 555 123 4567, 1-800-555-1234.
+const PHONE = /(?:\+?1[\s.-]?)?\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+
+/**
+ * Dealer-page descriptions are stored on deals; keep the vehicle copy but never contact details.
+ * Emails and phone numbers are removed (VINs and prices don't match these shapes).
+ */
+export function stripContactInfo(text: string | undefined): string | undefined {
+  if (!text) return text;
+  const out = text
+    .replace(EMAIL, "")
+    .replace(PHONE, "")
+    .replace(/\b(?:call|text|email|e-mail|phone)(?:\s+(?:us|now|today))?\s*(?:at|:)?\s*(?=[.,;!]|$)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.,;!])/g, "$1")
+    .trim();
+  return out || undefined;
+}
+
+const bareHost = (u: string) => {
+  try {
+    return new URL(u).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * True when a scraped card href points at the site itself (www. ignored). Cards linking anywhere
+ * else are dropped before any detail fetch, so a hostile page can't steer our crawler off-site.
+ */
+export function isSameSiteHref(href: string, baseUrl: string): boolean {
+  const h = bareHost(href);
+  return !!h && h === bareHost(baseUrl);
+}
+
 /** Walk every inventory page of one site and return deals (does not save). */
 export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
   const log = deps.log ?? (() => {});
   const byId = new Map<string, Partial<Deal>>();
   let sold = 0;
+  let offSite = 0;
   let pages = 1;
   for (let n = 1; n <= pages; n++) {
     const url = pageUrlFor(site, n);
@@ -669,6 +707,10 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
       pages = site.singlePage ? 1 : plannedPages(parsed, site.maxPages ?? 15);
     let fresh = 0;
     for (const card of parsed.cards) {
+      if (!isSameSiteHref(card.url, site.baseUrl)) {
+        offSite++;
+        continue;
+      }
       const deal = cardToDeal(card, site);
       if (!deal) {
         if (card.sold) sold++;
@@ -681,7 +723,7 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     if (n > 1 && fresh === 0) break;
   }
   log(
-    `[DealerCMS] ${site.name}: ${byId.size} listings over ${pages} page(s), ${sold} sold/on-hold skipped`,
+    `[DealerCMS] ${site.name}: ${byId.size} listings over ${pages} page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
 }
