@@ -44,21 +44,14 @@ describe("scraper execution mode", () => {
 describe("sweep sources and cadence", () => {
   it("defaults to the free sweep set minus ToS-restricted sources, and honors SCRAPE_SOURCES", () => {
     const defaults = resolveSweepSources(undefined);
-    expect(defaults).toEqual(
-      DEFAULT_SWEEP_SOURCES.filter((id) => !TOS_RESTRICTED_SOURCES[id]),
-    );
-    expect(defaults).toEqual(
-      expect.arrayContaining(["curated_dealers", "gsa_auctions"]),
-    );
+    expect(defaults).toEqual(["curated_dealers"]);
+    expect(defaults).toEqual(expect.arrayContaining(["curated_dealers"]));
     for (const id of ["cars_com", "craigslist", "copart", "autotempest"])
       expect(defaults).not.toContain(id);
     expect(optedInRestrictedSources(["copart", "gsa_auctions"])).toEqual([
       "copart",
     ]);
-    expect(resolveSweepSources("cars_com, autotrader,cars_com")).toEqual([
-      "cars_com",
-      "autotrader",
-    ]);
+    expect(resolveSweepSources("cars_com, autotrader,cars_com")).toEqual([]);
   });
 
   it("orders primary sources before secondary (terms-safe + opt-in)", () => {
@@ -74,7 +67,7 @@ describe("sweep sources and cadence", () => {
     // Opted-in restricted primaries still sort ahead of secondary.
     expect(
       resolveSweepSources("gsa_auctions,craigslist,curated_dealers"),
-    ).toEqual(["craigslist", "curated_dealers", "gsa_auctions"]);
+    ).toEqual(["curated_dealers"]);
   });
 
   it("defaults to 4h and never goes under 1h", () => {
@@ -196,16 +189,16 @@ describe("automation allow-list for public preview routes", () => {
     expect(isAutomationAllowedSource("copart", "")).toBe(false);
     expect(isAutomationAllowedSource("publicsurplus", undefined)).toBe(false);
     expect(isAutomationAllowedSource("copart", "craigslist, copart")).toBe(
-      true,
+      false,
     );
-    expect(isAutomationAllowedSource("gsa_auctions", "")).toBe(true);
+    expect(isAutomationAllowedSource("gsa_auctions", "")).toBe(false);
     expect(isAutomationAllowedSource("govdeals", "")).toBe(false);
-    expect(isAutomationAllowedSource("govdeals", "govdeals")).toBe(true);
+    expect(isAutomationAllowedSource("govdeals", "govdeals")).toBe(false);
     expect(isAutomationAllowedSource("allsurplus", "")).toBe(false);
     expect(isAutomationAllowedSource("carparts_com", undefined)).toBe(false);
     expect(isAutomationAllowedSource("municibid", "")).toBe(false);
     expect(isAutomationAllowedSource("offerup", undefined)).toBe(false);
-    expect(isAutomationAllowedSource("municibid", "municibid")).toBe(true);
+    expect(isAutomationAllowedSource("municibid", "municibid")).toBe(false);
   });
 
   it("keeps municibid and offerup out of the default sweep", () => {
@@ -220,10 +213,6 @@ describe("automation allow-list for public preview routes", () => {
     expect(TOS_RESTRICTED_SOURCES.allsurplus).toMatch(/spiders|robots/);
     expect(TOS_RESTRICTED_SOURCES.carparts_com).toMatch(/automated|scrap/);
     expect(resolveSweepSources("")).not.toContain("govdeals");
-    expect(resolveSweepSources("")).toEqual([
-      "curated_dealers",
-      "independent_dealer",
-      "gsa_auctions",
-    ]);
+    expect(resolveSweepSources("")).toEqual(["curated_dealers"]);
   });
 });

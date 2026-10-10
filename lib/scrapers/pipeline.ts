@@ -23,6 +23,9 @@ import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
+import { accessDecision, ACCESS_POLICY_REVISION } from "./access-policy";
+import { integritySummary } from "./listing-integrity";
+import { quarantineRows } from "./quarantine";
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -117,13 +120,40 @@ export function ingestCondition(
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!deals.length) return 0;
 
+  // Recheck originating hosts at the write boundary, including aggregator and direct-import rows.
+  const permitted = deals.filter(
+    (deal) =>
+      deal.source_url && accessDecision(undefined, deal.source_url).allowed,
+  );
+  if (permitted.length !== deals.length) {
+    console.warn(
+      `[Pipeline] permission hold: ${deals.length - permitted.length} rows not imported`,
+    );
+    if (!getLocalWriteContext()?.cacheOnly)
+      await quarantineRows(
+        getSupabase(),
+        deals[0]?.source || "unknown",
+        deals
+          .filter((deal) => !permitted.includes(deal))
+          .map((deal) => ({ deal, reason: "permission_required" })),
+      );
+  }
+  deals = permitted;
+  if (!deals.length) return 0;
+
   const localContext = getLocalWriteContext();
 
   const now = new Date().toISOString();
   const quality = new QualityController();
 
   // Load the $0 market-comps index (cached) so the analyzer can value deals from real data.
-  if (!localContext?.cacheOnly) await loadMarketIndex(getSupabase());
+  if (
+    !localContext?.cacheOnly &&
+    deals.some(
+      (deal) => accessDecision(undefined, deal.source_url, "derive").allowed,
+    )
+  )
+    await loadMarketIndex(getSupabase());
 
   const source = deals[0]?.source || "unknown";
   const runScope = getScrapeRunScope();
@@ -147,8 +177,25 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.log(`[Pipeline] VIN-decoded make/model on ${vinApplied} deals`);
   const report = quality.validateBatch(source, normalized);
   if (report.issues.length > 0) {
-    console.warn(`[Pipeline] quality report for ${source}:`, report);
+    console.warn(`[Pipeline] quality report for ${source}:`, {
+      total: report.total,
+      valid: report.valid,
+      invalid: report.invalid,
+      duplicates: report.duplicates,
+      issues: report.issues,
+    });
   }
+  if (!localContext?.cacheOnly)
+    await quarantineRows(
+      getSupabase(),
+      source,
+      report.issues
+        .filter((issue) => issue.field !== "duplicate")
+        .map((issue) => ({
+          deal: normalized[issue.index],
+          reason: `${issue.field}: ${issue.reason}`,
+        })),
+    );
 
   // Passenger cars and light/medium trucks only (Jonah 2026-10-09). Gov-surplus feeds mix in
   // heavy equipment, trailers, boats, buses and class-8 trucks; drop them before they are stored.
@@ -171,7 +218,10 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         deal.ask_price > 0,
     )
     .map((deal) => {
-      const analysis = analyzeDeal(deal);
+      const analysis = accessDecision(undefined, deal.source_url, "derive")
+        .allowed
+        ? analyzeDeal(deal)
+        : null;
       const source_deal_id = localContext
         ? stableListingId(deal as Record<string, unknown>)
         : deal.source_deal_id ||
@@ -231,6 +281,18 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           ),
           // Let scrapers contribute structured options (e.g. AutoTrader's free KBB price rating).
           ...scraperOptions,
+          integrity: integritySummary(deal),
+          provenance: {
+            source: deal.source,
+            sourceId: source_deal_id,
+            url: deal.source_url,
+            observedAt: now,
+            policyRevision: ACCESS_POLICY_REVISION,
+            adapterVersion:
+              process.env.VERCEL_GIT_COMMIT_SHA ||
+              process.env.SCRAPER_COMMIT_SHA ||
+              "unknown",
+          },
           seller: sellerName || scraperOptions.seller,
           // Stated on the listing vs assumed from the source (salvage yard, ReCar, CPO-less retail).
           ...(titleSource ? { titleSource } : {}),
@@ -275,44 +337,46 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         // Absent columns kept OUT of the upsert — writing a non-existent column rejects the whole row.
         // description: deal.description,
         // seller_phone / seller_email do NOT exist — contact lives in options.contact above.
-        estimated_transport_cost: analysis.transportCost,
-        estimated_repair_cost: analysis.repairCost,
-        true_net_profit: analysis.profit,
-        profit_score: analysis.score,
-        is_arbitrage_opportunity: analysis.verdict === "go",
+        estimated_transport_cost: analysis?.transportCost ?? null,
+        estimated_repair_cost: analysis?.repairCost ?? null,
+        true_net_profit: analysis?.profit ?? null,
+        profit_score: analysis?.score ?? null,
+        is_arbitrage_opportunity: analysis?.verdict === "go",
         // Free market-value anchor when a scraper has one (AutoTrader ships KBB Fair Purchase Price on
         // every listing — a legit MMR-equivalent benchmark). Shown on cards + available to valuation.
-        mmr_value: (deal as any).mmr_value ?? null,
-        sell_estimate: analysis.sellEstimate,
-        recommended_max_bid: analysis.recommendedMaxBid,
-        deal_verdict: analysis.verdict,
-        deal_analysis: {
-          roi: Math.round(analysis.roi * 10) / 10,
-          profitMargin: Math.round(analysis.profitMargin * 10) / 10,
-          breakEvenDay: analysis.breakEvenDay,
-          sellBasis: analysis.sellBasis,
-          transportMiles: analysis.miles,
-          costs: {
-            acquisition: analysis.acquisitionCost,
-            repair: analysis.repairCost,
-            transport: analysis.transportCost,
-            holding: analysis.holdingCost,
-            selling: analysis.sellingCost,
-            total: analysis.totalCost,
-          },
-          scoreBreakdown: analysis.scoreBreakdown,
-          warnings: analysis.warnings,
-          recommendations: analysis.recommendations,
-          priceImplausible: analysis.priceImplausible,
-          priceSanity: analysis.priceSanity,
-          inferredPrice: analysis.inferredPrice ?? null,
-          conditionTag: analysis.conditionTag,
-          soldAnchored: analysis.soldAnchored,
-          // Evidence + adjustments behind the resale number — powers the "How we valued this" card.
-          valuation: analysis.valuation,
-          // Forward-looking forecasts (time-to-sell, price-drop odds, urgency, projected ROI).
-          prediction: analysis.prediction,
-        },
+        mmr_value: analysis ? ((deal as any).mmr_value ?? null) : null,
+        sell_estimate: analysis?.sellEstimate ?? null,
+        recommended_max_bid: analysis?.recommendedMaxBid ?? null,
+        deal_verdict: analysis?.verdict ?? null,
+        deal_analysis: analysis
+          ? {
+              roi: Math.round(analysis.roi * 10) / 10,
+              profitMargin: Math.round(analysis.profitMargin * 10) / 10,
+              breakEvenDay: analysis.breakEvenDay,
+              sellBasis: analysis.sellBasis,
+              transportMiles: analysis.miles,
+              costs: {
+                acquisition: analysis.acquisitionCost,
+                repair: analysis.repairCost,
+                transport: analysis.transportCost,
+                holding: analysis.holdingCost,
+                selling: analysis.sellingCost,
+                total: analysis.totalCost,
+              },
+              scoreBreakdown: analysis.scoreBreakdown,
+              warnings: analysis.warnings,
+              recommendations: analysis.recommendations,
+              priceImplausible: analysis.priceImplausible,
+              priceSanity: analysis.priceSanity,
+              inferredPrice: analysis.inferredPrice ?? null,
+              conditionTag: analysis.conditionTag,
+              soldAnchored: analysis.soldAnchored,
+              // Evidence + adjustments behind the resale number — powers the "How we valued this" card.
+              valuation: analysis.valuation,
+              // Forward-looking forecasts (time-to-sell, price-drop odds, urgency, projected ROI).
+              prediction: analysis.prediction,
+            }
+          : null,
         created_at: deal.created_at || now,
         updated_at: now,
         // Advance last_seen_at on every re-observation so days-on-market / listing velocity actually
@@ -387,7 +451,6 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   const sleep2s = () => new Promise((r) => setTimeout(r, 2000));
   let upsertedRows: any[] | null = null;
   let error: { message: string } | null = null;
-  let localPriceChangedKeys: Set<string> | null = null;
   if (localContext) {
     const result = await localContext.cache.persistRows(
       rows as any[],
@@ -395,7 +458,6 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       SELECT_COLS,
     );
     upsertedRows = result.rows;
-    localPriceChangedKeys = result.priceChangedKeys;
     if (result.touches)
       console.log(
         `[LocalCache] ${source}: last_seen_at bumped on ${result.touches} unchanged rows`,
@@ -464,29 +526,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   const returnedRows = upsertedRows || [];
 
-  // Insert price history for deals that have a price
-  const priceHistoryRows = returnedRows
-    .filter(
-      (r) =>
-        !localPriceChangedKeys ||
-        localPriceChangedKeys.has(`${r.source}|${r.source_deal_id}`),
-    )
-    .filter((r) => typeof r.ask_price === "number")
-    .map((r) => ({
-      deal_id: r.id,
-      price: r.ask_price,
-      observed_at: r.updated_at,
-    }));
-
-  if (priceHistoryRows.length > 0) {
-    const { error: priceError } = await getSupabase()
-      .from("price_history")
-      .insert(priceHistoryRows);
-
-    if (priceError) {
-      console.warn("[upsertDeals] Price history insert warning:", priceError);
-    }
-  }
+  // The database records actual price changes in the same transaction as the offer write.
 
   // Mark duplicate deals by VIN
   const vinRows = returnedRows.filter((r) => r.vin);

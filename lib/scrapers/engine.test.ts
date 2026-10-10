@@ -76,3 +76,7 @@ describe("crawler cancellation and cleanup", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 });
+vi.mock("./polite", async (original) => ({
+  ...(await original<typeof import("./polite")>()),
+  politeModeEnabled: () => false,
+}));

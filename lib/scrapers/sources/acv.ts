@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/acv.ts
 // ─── ACV Auctions wholesale scraper (requires dealer account) ─────────────────
 
@@ -30,6 +31,7 @@ export const ACV_CONFIG: ScraperConfig = {
 };
 
 export async function scrapeAcv(maxPages = ACV_CONFIG.maxPages) {
+  assertSourceAccess("acv");
   console.log("[ACV Auctions] Starting scrape...");
   const allDeals: Partial<Deal>[] = [];
 

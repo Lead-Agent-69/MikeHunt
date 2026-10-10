@@ -6,6 +6,10 @@ import { internalError } from "@/lib/api/http-error";
 import { createClient } from "@supabase/supabase-js";
 import { canSeeScrapeDetail } from "@/lib/auth/scrape-gate";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  accessDecision,
+  ACCESS_POLICY_REVISION,
+} from "@/lib/scrapers/access-policy";
 import { gradeDataQuality } from "@/lib/data-quality";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
@@ -582,6 +586,15 @@ function explainSource(
   row?: any,
   scope?: HealthScope,
 ) {
+  if (row?.permissionStatus === "held")
+    return {
+      userStatus: "Permission required",
+      proofLevel: "off",
+      userImpact:
+        "Collection and public inventory are held until source access is documented.",
+      nextAction:
+        "Review permitted collection, display, and derived uses; record the approved evidence before enabling a route.",
+    };
   if (row?.termsRestricted) {
     return {
       userStatus: "Off for site terms",
@@ -590,7 +603,7 @@ function explainSource(
         ? "This site's terms ban automated access, so MikeHunt does not import from it. Rows already on file are older imports and are not refreshed."
         : "This site's terms ban automated access, so MikeHunt does not import from it.",
       nextAction:
-        "Stays off unless the operator opts in through SCRAPE_SOURCES. Prefer a licensed feed or written permission.",
+        "Record reviewed authorization or a licensed feed. SCRAPE_SOURCES only selects sources; it does not grant permission.",
     };
   }
   if (readiness === "ready") {
@@ -630,7 +643,7 @@ function explainSource(
       userImpact:
         "The app cannot trust this source until the latest failure is resolved.",
       nextAction: source.stealthRequired
-        ? "Check browser/proxy/anti-bot handling, then rerun this source."
+        ? "Resolve source access with the provider; do not bypass a challenge."
         : "Inspect the latest scraper error, fix the parser or endpoint, then rerun.",
     };
   }
@@ -1212,7 +1225,7 @@ export async function GET(request: NextRequest) {
           requiresAuth: source.requiresAuth,
           stealthRequired: source.stealthRequired,
           frequencyMinutes: source.frequencyMinutes,
-          isDue: !proof && !termsOffForSource(source.id),
+          isDue: !proof && isAutomationAllowedSource(source.id),
           lastRunAt: null,
           lastStatus: proof?.lastStatus || "not_configured",
           lastError: showInternalErrors
@@ -1220,7 +1233,12 @@ export async function GET(request: NextRequest) {
             : null,
           totalRuns: 0,
           failedRuns: proof?.readiness === "blocked" ? 1 : 0,
-          successRate: proof?.readiness === "blocked" ? 0 : 100,
+          successRate: proof ? (proof.readiness === "blocked" ? 0 : 100) : null,
+          permissionStatus: accessDecision(
+            source.id,
+            source.catalogUrl || undefined,
+          ).status,
+          policyRevision: ACCESS_POLICY_REVISION,
           estimatedDealsPerRun: source.estimatedDealsPerRun,
           readiness: termsOffForSource(source.id)
             ? "disabled"
@@ -1415,8 +1433,14 @@ export async function GET(request: NextRequest) {
       const failedRuns = runs.filter((r) => r.status === "error").length;
       const successRate =
         totalRuns > 0
-          ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100)
-          : 100;
+          ? Math.round(
+              (runs.filter(
+                (r) => r.status === "success" && Number(r.deals_found) > 0,
+              ).length /
+                totalRuns) *
+                100,
+            )
+          : null;
       const lastRunTime =
         lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt;
       const lastRunAt = lastRunTime
@@ -1465,7 +1489,15 @@ export async function GET(request: NextRequest) {
         failedRuns,
         successRate,
         estimatedDealsPerRun: source.estimatedDealsPerRun,
-        readiness,
+        readiness: accessDecision(source.id, source.catalogUrl || undefined)
+          .allowed
+          ? readiness
+          : "permission_required",
+        permissionStatus: accessDecision(
+          source.id,
+          source.catalogUrl || undefined,
+        ).status,
+        policyRevision: ACCESS_POLICY_REVISION,
         activeRows: proof?.activeRows || 0,
         ...(runVia ? { runVia } : {}),
         ...(attributedRows != null

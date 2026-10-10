@@ -13,6 +13,8 @@ import * as cheerio from "cheerio";
 import pRetry from "p-retry";
 import pLimit from "p-limit";
 import { AdaptiveEngine } from "./adaptive-engine";
+import { accessDecision, assertSourceAccess } from "./access-policy";
+import { assertPublicHttpUrl } from "@/lib/net/public-url";
 import {
   getProxyManager,
   proxyConfigToAxios,
@@ -32,6 +34,8 @@ import {
   politeFetch,
   politeModeEnabled,
   politeUserAgent,
+  robotsRecordAllows,
+  looksLikeChallenge,
   type PoliteResponse,
 } from "./polite";
 
@@ -188,7 +192,12 @@ export async function politeRender(
   url: string,
   config: ScraperConfig,
 ): Promise<string> {
+  assertSourceAccess(undefined, url);
+  await assertPublicHttpUrl(url);
   const domain = domainOf(url) || url;
+  const robots = await politeCrawler().robotsFor(new URL(url).origin, domain);
+  if (!robotsRecordAllows(robots, url))
+    throw new Error("Robots disallows rendering");
   const browser = await getPoliteBrowser();
   return politeCrawler().limiter.run(domain, async () => {
     const context = await browser.newContext({
@@ -197,17 +206,44 @@ export async function politeRender(
       locale: "en-US",
       extraHTTPHeaders: config.headers,
       javaScriptEnabled: true,
+      serviceWorkers: "block",
     });
     try {
       const page = await context.newPage();
-      await page.route("**/*", (route) => {
+      await page.route("**/*", async (route) => {
+        const target = route.request().url();
+        try {
+          await assertPublicHttpUrl(target);
+          assertSourceAccess(undefined, target);
+          const parsed = new URL(target);
+          const robots = await politeCrawler().robotsFor(
+            parsed.origin,
+            domainOf(target) || parsed.hostname,
+          );
+          if (!robotsRecordAllows(robots, target))
+            return route.abort("blockedbyclient");
+        } catch {
+          return route.abort("blockedbyclient");
+        }
         const type = route.request().resourceType();
         if (["image", "media", "font", "stylesheet"].includes(type))
           route.abort();
         else route.continue();
       });
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-      return await page.content();
+      const response = await page.goto(url, {
+        waitUntil: "networkidle",
+        timeout: 30_000,
+      });
+      if (!response || !response.ok())
+        throw new Error(
+          `Render stopped: HTTP ${response?.status() || "unknown"}`,
+        );
+      const html = await page.content();
+      if (looksLikeChallenge(html))
+        throw new Error("Access challenge detected; no bypass attempted");
+      if (Buffer.byteLength(html) > 2 * 1024 * 1024)
+        throw new Error("Rendered response exceeds size budget");
+      return html;
     } finally {
       await context.close().catch(() => {});
     }

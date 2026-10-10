@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { accessDecision } from "./access-policy";
 
 /**
  * Broad inventory sweeps for the Docker scraper.
@@ -22,18 +23,16 @@ export function resolveScraperExecutionMode(
 }
 
 /**
- * Free, unauthenticated sources a broad sweep could walk, in order. The default sweep drops
- * TOS_RESTRICTED_SOURCES (below). The order is kept so that an explicit opt-in still runs in this order. Retail sources with a VIN and a
+ * Candidate sources a broad sweep could walk after reviewed authorization. Retail sources with a VIN and a
  * listing location go first because the daily insert budget is spent in this order. Auction and
  * surplus feeds take what is left.
  */
 /**
  * Scheduler tiers (Jonah 2026-10-06). Among sources already allowed by resolveSweepSources
- * (terms-safe defaults, plus any SCRAPE_SOURCES opt-in), run PRIMARY before SECONDARY so
+ * (reviewed authorization, not SCRAPE_SOURCES selection), run PRIMARY before SECONDARY so
  * idle ticks fill retail/private density for demanded rings before auction/surplus.
  *
- * Restricted aggregators (craigslist, carvana, autotempest, cars_com, …) stay off unless the
- * operator opted in — listing them here only orders them when present.
+ * Unapproved aggregators stay off; listing candidates here only orders approved sources.
  */
 export type SweepSourceTier = "primary" | "secondary";
 
@@ -154,7 +153,9 @@ function termsSafeOnly(
 export function operatorRestoredSources(
   killSwitch: string | undefined = process.env.SCRAPE_TERMS_SAFE_ONLY,
 ): string[] {
-  return termsSafeOnly(killSwitch) ? [] : [...OPERATOR_RESTORED_SOURCES];
+  return termsSafeOnly(killSwitch)
+    ? []
+    : OPERATOR_RESTORED_SOURCES.filter((id) => accessDecision(id).allowed);
 }
 
 /**
@@ -213,7 +214,7 @@ export function resolveSweepSources(
     : DEFAULT_SWEEP_SOURCES.filter(
         (id) => !TOS_RESTRICTED_SOURCES[id] || restored.has(id),
       );
-  return orderSourcesByTier(list);
+  return orderSourcesByTier(list.filter((id) => isAutomationAllowedSource(id)));
 }
 
 /**
@@ -228,12 +229,9 @@ export function isAutomationAllowedSource(
   const id = String(sourceId || "")
     .trim()
     .toLowerCase();
-  if (!TOS_RESTRICTED_SOURCES[id]) return true;
-  if (operatorRestoredSources().includes(id)) return true;
-  return String(raw || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .includes(id);
+  // The curated dispatcher makes no request itself; each dealer host is gated separately.
+  if (id === "curated_dealers") return true;
+  return accessDecision(id).allowed;
 }
 
 /** Restricted sources the operator opted into (SCRAPE_SOURCES or the restored default). */

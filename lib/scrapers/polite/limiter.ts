@@ -37,7 +37,10 @@ export class DomainLimiter {
       Math.max(1, Math.floor(requested) || 1),
     );
     this.minGapMs =
-      opts.minGapMs ?? Number(process.env.POLITE_MIN_GAP_MS || 3_000);
+      Math.max(
+        5_000,
+        opts.minGapMs ?? Number(process.env.POLITE_MIN_GAP_MS || 5_000),
+      ) || 5_000;
     this.jitterRatio = opts.jitterRatio ?? 0.5;
     this.random = opts.random ?? Math.random;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -53,13 +56,11 @@ export class DomainLimiter {
     return s;
   }
 
-  /** Apply a robots.txt Crawl-delay (seconds). Capped at 60s so one host can't stall a sweep forever. */
+  /** Never shorten a provider's requested delay. */
   setCrawlDelay(domain: string, seconds: number | null) {
     if (seconds == null) return;
-    this.slot(domain).crawlDelayMs = Math.min(
-      60_000,
-      Math.max(0, seconds * 1000),
-    );
+    if (Number.isFinite(seconds))
+      this.slot(domain).crawlDelayMs = Math.max(0, seconds * 1000);
   }
 
   /** Push the next start for a domain out (e.g. after Retry-After). */

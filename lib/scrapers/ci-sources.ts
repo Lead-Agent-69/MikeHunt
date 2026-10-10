@@ -1,7 +1,6 @@
 import {
-  TOS_RESTRICTED_SOURCES,
-  operatorRestoredSources,
   optedInRestrictedSources,
+  isAutomationAllowedSource,
 } from "./sweep-schedule";
 
 /**
@@ -13,10 +12,8 @@ import {
  * manheim, acv, adesa, facebook_marketplace, vroom, auto_discover. truecar is enabled but
  * headed-only, so it only runs when an operator names it.
  *
- * The default run drops every id in TOS_RESTRICTED_SOURCES, the same rule the Zeus sweep
- * (resolveSweepSources) and the public preview routes (isAutomationAllowedSource) use. A
- * restricted source runs only when the operator names it in CLI args or SCRAPE_SOURCES, and
- * scrape-ci logs that opt-in on every run.
+ * Defaults and explicit lists both require reviewed source authorization. CLI args and
+ * SCRAPE_SOURCES select candidates; neither grants permission.
  */
 export const CI_CANDIDATE_SOURCES = [
   "craigslist",
@@ -37,9 +34,9 @@ export const CI_CANDIDATE_SOURCES = [
   "copart",
 ] as const;
 
-/** Terms-safe default set: candidates minus TOS_RESTRICTED_SOURCES, order kept. */
-export const CI_DEFAULT_SOURCES: string[] = CI_CANDIDATE_SOURCES.filter(
-  (id) => !TOS_RESTRICTED_SOURCES[id],
+/** Reviewed candidates only; the curated dispatcher checks each underlying host separately. */
+export const CI_DEFAULT_SOURCES: string[] = CI_CANDIDATE_SOURCES.filter((id) =>
+  isAutomationAllowedSource(id),
 );
 
 export type CiSourceSelection = {
@@ -58,8 +55,7 @@ function splitIds(raw: string | undefined): string[] {
 
 /**
  * Resolve the sources for one scrape-ci run. Priority: CLI args, then SCRAPE_SOURCES, then the
- * terms-safe default. Explicit lists are kept as typed (deduped) because naming a source is the
- * operator's opt-in; the caller logs any restricted ids in `optedInRestricted`.
+ * reviewed default. Explicit lists are deduped and filtered through the same approval gate.
  */
 export function resolveCiSources(
   args: readonly string[] = [],
@@ -67,7 +63,9 @@ export function resolveCiSources(
 ): CiSourceSelection {
   const fromArgs = args.flatMap((arg) => splitIds(arg));
   if (fromArgs.length) {
-    const sources = Array.from(new Set(fromArgs));
+    const sources = Array.from(new Set(fromArgs)).filter((id) =>
+      isAutomationAllowedSource(id),
+    );
     return {
       sources,
       origin: "args",
@@ -76,18 +74,18 @@ export function resolveCiSources(
   }
   const fromEnv = splitIds(envSources);
   if (fromEnv.length) {
-    const sources = Array.from(new Set(fromEnv));
+    const sources = Array.from(new Set(fromEnv)).filter((id) =>
+      isAutomationAllowedSource(id),
+    );
     return {
       sources,
       origin: "env",
       optedInRestricted: optedInRestrictedSources(sources),
     };
   }
-  // Default: terms-safe candidates plus the sources the operator restored (OPERATOR_RESTORED_SOURCES,
-  // off again with SCRAPE_TERMS_SAFE_ONLY=1). Restored ids are reported so every run logs them.
-  const restored = new Set(operatorRestoredSources());
-  const sources = CI_CANDIDATE_SOURCES.filter(
-    (id) => !TOS_RESTRICTED_SOURCES[id] || restored.has(id),
+  // Default selection uses reviewed authorization, with no operator permission override.
+  const sources = CI_CANDIDATE_SOURCES.filter((id) =>
+    isAutomationAllowedSource(id),
   );
   return {
     sources,

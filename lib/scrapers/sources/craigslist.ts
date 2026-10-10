@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 import * as cheerio from "cheerio";
 import axios from "axios";
 import { getWorkingProxy } from "../tools/free-proxy-manager";
@@ -57,6 +58,7 @@ export async function scrapeCraigslist(
   searchTerm = "cars trucks",
   cities = CL_CITIES,
 ) {
+  assertSourceAccess("craigslist");
   let totalFound = 0;
 
   for (const city of cities) {

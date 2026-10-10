@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
+import { ACCESS_GRANTS } from "@/lib/scrapers/access-policy";
 
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: vi.fn(() => false),
@@ -282,6 +283,17 @@ describe("GET /api/scrape/health lane scoping", () => {
     // GovDeals is terms-restricted; this proof path runs with the operator opt-in.
     const prior = process.env.SCRAPE_SOURCES;
     process.env.SCRAPE_SOURCES = "govdeals";
+    ACCESS_GRANTS.push({
+      sourceId: "govdeals",
+      host: "govdeals.com",
+      route: "api",
+      evidence: "https://govdeals.com/test-authorization",
+      reviewedAt: "2020-01-01",
+      expiresAt: "2099-01-01",
+      collect: true,
+      display: true,
+      derive: true,
+    });
     try {
       const { GET } = await import("./route");
       const res = await GET(
@@ -322,6 +334,7 @@ describe("GET /api/scrape/health lane scoping", () => {
       });
       expect(body.healthy).toBe(1);
     } finally {
+      ACCESS_GRANTS.pop();
       if (prior === undefined) delete process.env.SCRAPE_SOURCES;
       else process.env.SCRAPE_SOURCES = prior;
     }
@@ -347,12 +360,13 @@ describe("GET /api/scrape/health lane scoping", () => {
         expect(row).toMatchObject({
           readiness: "disabled",
           termsRestricted: true,
-          userStatus: "Off for site terms",
+          userStatus: "Permission required",
           proofLevel: "off",
           isDue: false,
         });
         expect(row.termsReason).toMatch(/automat|robot/i);
-        expect(row.nextAction).toContain("SCRAPE_SOURCES");
+        expect(row.nextAction).toContain("approved evidence");
+        expect(row.successRate).toBeNull();
         expect(row.userStatus).not.toBe("Needs run");
       }
       expect(
@@ -366,7 +380,7 @@ describe("GET /api/scrape/health lane scoping", () => {
     }
   });
 
-  it("an explicit SCRAPE_SOURCES opt-in lifts the terms label", async () => {
+  it("an explicit source selection never lifts a permission hold", async () => {
     const prior = process.env.SCRAPE_SOURCES;
     process.env.SCRAPE_SOURCES = "municibid";
     previewMunicibid.mockClear();
@@ -375,9 +389,9 @@ describe("GET /api/scrape/health lane scoping", () => {
       const res = await GET(req("/api/scrape/health?lane=government&state=FL"));
       const body = await res.json();
       const row = body.sources.find((source: any) => source.id === "municibid");
-      expect(row).not.toHaveProperty("termsRestricted");
-      expect(row.readiness).not.toBe("disabled");
-      expect(previewMunicibid).toHaveBeenCalled();
+      expect(row).toHaveProperty("termsRestricted", true);
+      expect(row.readiness).toBe("disabled");
+      expect(previewMunicibid).not.toHaveBeenCalled();
     } finally {
       if (prior === undefined) delete process.env.SCRAPE_SOURCES;
       else process.env.SCRAPE_SOURCES = prior;
@@ -415,8 +429,9 @@ describe("GET /api/scrape/health lane scoping", () => {
       readiness: "not_configured",
       activeRows: 0,
       rowsWithPhotos: 0,
-      proofSummary:
-        "This source is known, but matching rows cannot be saved until Supabase is connected.",
+      userStatus: "Permission required",
+      permissionStatus: "held",
+      successRate: null,
     });
     expect(previewGovDeals).not.toHaveBeenCalled();
     expect(previewPublicSurplus).not.toHaveBeenCalled();

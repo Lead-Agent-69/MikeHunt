@@ -92,7 +92,9 @@ describe("policyBlockFor", () => {
     expect(policyBlockFor("https://m.bidgodrive.com/x")?.kind).toBe(
       "tos_bans_copying",
     );
-    expect(policyBlockFor("https://www.damage.com/")).toBeUndefined();
+    expect(policyBlockFor("https://www.damage.com/")?.kind).toBe(
+      "needs_permission",
+    );
     expect(policyBlockFor("https://www.govdeals.com/")?.kind).toBe(
       "tos_bans_bots",
     );
@@ -104,7 +106,7 @@ describe("policyBlockFor", () => {
 
   it("every block has a reason, and the curated list still has crawlable sites", () => {
     const allowed = CURATED_SITES.filter((s) => !policyBlockFor(s.url));
-    expect(allowed.length).toBeGreaterThan(80);
+    expect(allowed).toEqual([]);
     const blocked = CURATED_SITES.filter((s) => policyBlockFor(s.url));
     for (const site of blocked)
       expect(policyBlockFor(site.url)?.reason.length).toBeGreaterThan(20);
@@ -112,11 +114,11 @@ describe("policyBlockFor", () => {
 });
 
 describe("curated demand-ring density", () => {
-  const crawlable = CURATED_SITES.filter((s) => !policyBlockFor(s.url));
+  const crawlable = CURATED_SITES;
   const perState = (st: string) =>
     crawlable.filter((s) => s.state === st).length;
 
-  it("gap anchor states each have at least 12 crawlable curated dealers", () => {
+  it("gap anchor states have research candidates, not inferred permissions", () => {
     for (const st of ["IA", "IL", "KY", "FL"])
       expect(perState(st), st).toBeGreaterThanOrEqual(12);
     expect(perState("MO")).toBeGreaterThanOrEqual(12);

@@ -1,6 +1,7 @@
 ﻿// MikeHunt shared types
 
 export interface Deal {
+  options?: Record<string, unknown>;
   id?: string;
   source: string;
   source_deal_id?: string;

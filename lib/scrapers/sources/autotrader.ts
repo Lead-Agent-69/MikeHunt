@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/autotrader.ts
 // AutoTrader is a Next.js SPA — the old data-cmp/CSS selectors rotted. The full inventory is in the
 // __NEXT_DATA__ JSON (props.pageProps.__eggsState.inventory), keyed by listing id, with clean
@@ -169,6 +170,7 @@ export async function scrapeAutoTrader(
   zip = "",
   maxPages = AUTOTRADER_CONFIG.maxPages,
 ) {
+  assertSourceAccess("autotrader");
   const zips = autotraderSearchZips(zip);
   // A sweep spreads pages across many centers instead of 10 deep pages around one city.
   const pagesPerZip =

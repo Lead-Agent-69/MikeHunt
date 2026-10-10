@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/ebay-sold.ts
 // Completed-listing price observations, not independently verified settlements.
 // Hidden accepted offers and ambiguous prices cannot be treated as sold-price evidence.
@@ -247,6 +248,7 @@ async function curlGet(
 }
 
 export async function scrapeEbaySold(): Promise<number> {
+  assertSourceAccess("ebay_sold");
   console.log("[eBay Sold] Starting real-sold-price scrape...");
   const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
   // Warm-up: seed cookies from the homepage.

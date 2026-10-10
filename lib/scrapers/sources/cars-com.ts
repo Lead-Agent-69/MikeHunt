@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { enrichAndStore } from "./shared";
@@ -196,6 +197,7 @@ export const CARS_COM_CONFIG: ScraperConfig = {
 };
 
 export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
+  assertSourceAccess("cars_com");
   const code = listingStateCode(state);
   const zips = code ? carsComZipsForState(code) : [];
   if (!code || !zips.length) return 0;
@@ -242,6 +244,7 @@ export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
 // CARS_STATES, else one saved buyer state, else the sweep plan's rotating slice. Cap pages with
 // CARS_MAX_PAGES. Never walks all 50 states in one run.
 export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
+  assertSourceAccess("cars_com");
   const states = resolveCarsComStates();
   if (!states.length) {
     console.warn(

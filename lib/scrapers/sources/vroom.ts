@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/vroom.ts
 // ─── Vroom scraper - Online dealer with nationwide delivery ───────────────────
 
@@ -33,6 +34,7 @@ export async function scrapeVroom(
   searchTerm = "",
   maxPages = VROOM_CONFIG.maxPages,
 ) {
+  assertSourceAccess("vroom");
   console.log(`[Vroom] Starting scrape for "${searchTerm}"...`);
   const allDeals: Partial<Deal>[] = [];
 

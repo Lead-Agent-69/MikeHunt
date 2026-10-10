@@ -523,6 +523,8 @@ export async function scrapeIndependentDealer(
   fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   console.log(`[IndiDealer] Scraping ${profile.name} at ${baseUrl}`);
+  if (policyBlockFor(baseUrl))
+    throw new Error("Source permission required for dealer inventory");
   const allDeals: Partial<Deal>[] = [];
   const config = {
     ...INDI_CONFIG,
@@ -879,6 +881,8 @@ export async function autoDiscoverAndCrawl(
   fetchPageHtml?: (url: string) => Promise<string>,
 ): Promise<number> {
   abortSignal?.throwIfAborted();
+  if (policyBlockFor(dealerWebsite))
+    throw new Error("Source permission required for dealer discovery");
   console.log(`[AutoDiscover] Analyzing ${dealerWebsite}`);
 
   let html: string;

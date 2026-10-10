@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { vehicleIdentity } from "@/lib/scrapers/listing-integrity";
 import {
   hasReportedRepairRisk,
   includesRepairable,
@@ -676,8 +677,8 @@ export async function GET(request: NextRequest) {
         const byVin = new Map<string, any[]>();
         const noVin: any[] = [];
         for (const r of rows) {
-          if (r.vin && String(r.vin).length === 17) {
-            const k = String(r.vin).toUpperCase();
+          const k = vehicleIdentity(r);
+          if (k) {
             if (!byVin.has(k)) byVin.set(k, []);
             byVin.get(k)!.push(r);
           } else {

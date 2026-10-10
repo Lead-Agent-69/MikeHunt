@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/municibid.ts
 // Municibid.com — "America's leading online auction marketplace for government surplus" (7,000+ govt
 // sellers). Police/fleet cars, township trucks, public-works vehicles — net-new free cheap-acquisition
@@ -198,6 +199,7 @@ function parseMunicibidLegacy(html: string): Partial<Deal>[] {
 }
 
 export async function previewMunicibid(maxPages = 1): Promise<Partial<Deal>[]> {
+  assertSourceAccess("municibid");
   const byId = new Map<string, Partial<Deal>>();
   let prevFirst = "";
 
@@ -222,6 +224,7 @@ export async function previewMunicibid(maxPages = 1): Promise<Partial<Deal>[]> {
 }
 
 export async function scrapeMunicibid(maxPages = 6): Promise<number> {
+  assertSourceAccess("municibid");
   console.log("[Municibid] Starting scrape...");
   const byId = new Map<string, Partial<Deal>>();
   let prevFirst = "";

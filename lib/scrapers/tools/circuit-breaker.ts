@@ -29,6 +29,7 @@ export interface CircuitBreakerRecord {
   lastSuccessAt?: Date;
   openedAt?: Date;
   halfOpenAttempts: number;
+  cooldownMs?: number;
 }
 
 export class CircuitBreakerRegistry {
@@ -38,7 +39,7 @@ export class CircuitBreakerRegistry {
   constructor(options: CircuitBreakerOptions = {}) {
     this.options = {
       failureThreshold: options.failureThreshold || 5,
-      resetTimeoutMs: options.resetTimeoutMs || 60 * 1000,
+      resetTimeoutMs: options.resetTimeoutMs || 60 * 60 * 1000,
       halfOpenMaxAttempts: options.halfOpenMaxAttempts || 1,
       ...options,
     };
@@ -66,10 +67,11 @@ export class CircuitBreakerRegistry {
     if (record.state === "open") {
       if (
         record.openedAt &&
-        Date.now() - record.openedAt.getTime() >= this.options.resetTimeoutMs
+        Date.now() - record.openedAt.getTime() >=
+          (record.cooldownMs || this.options.resetTimeoutMs)
       ) {
         record.state = "half-open";
-        record.halfOpenAttempts = 0;
+        record.halfOpenAttempts = 1;
         return { allowed: true, state: "half-open" };
       }
       return {
@@ -90,6 +92,7 @@ export class CircuitBreakerRegistry {
       };
     }
 
+    if (record.state === "half-open") record.halfOpenAttempts += 1;
     return { allowed: true, state: record.state };
   }
 
@@ -97,12 +100,10 @@ export class CircuitBreakerRegistry {
     const record = this.get(id);
     record.successes += 1;
     record.lastSuccessAt = new Date();
+    record.failures = 0;
 
     if (record.state === "half-open") {
-      record.halfOpenAttempts += 1;
-      if (record.halfOpenAttempts >= this.options.halfOpenMaxAttempts) {
-        this.closeCircuit(id);
-      }
+      this.closeCircuit(id);
     }
   }
 
@@ -112,6 +113,10 @@ export class CircuitBreakerRegistry {
     record.lastFailureAt = new Date();
 
     if (record.state === "half-open") {
+      record.cooldownMs = Math.min(
+        24 * 60 * 60 * 1000,
+        (record.cooldownMs || this.options.resetTimeoutMs) * 2,
+      );
       this.openCircuit(id);
       return;
     }
@@ -128,6 +133,7 @@ export class CircuitBreakerRegistry {
     const record = this.get(id);
     record.state = "open";
     record.openedAt = new Date();
+    record.cooldownMs ??= this.options.resetTimeoutMs;
     console.warn(
       `[CircuitBreaker] OPENED for ${id} after ${record.failures} failures`,
     );
@@ -139,6 +145,7 @@ export class CircuitBreakerRegistry {
     record.failures = 0;
     record.halfOpenAttempts = 0;
     record.openedAt = undefined;
+    record.cooldownMs = undefined;
     console.log(`[CircuitBreaker] CLOSED for ${id}`);
   }
 

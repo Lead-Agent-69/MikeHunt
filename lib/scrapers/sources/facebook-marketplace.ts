@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/facebook-marketplace.ts
 // ─── Facebook Marketplace scraper (requires login / heavy anti-bot) ───────────
 
@@ -38,6 +39,7 @@ export async function scrapeFacebookMarketplace(
   searches: string[] = SEARCHES,
   maxPagesPerSearch = 3,
 ) {
+  assertSourceAccess("facebook_marketplace");
   console.log("[Facebook Marketplace] Starting scrape...");
   const allDeals: Partial<Deal>[] = [];
 

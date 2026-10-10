@@ -115,6 +115,7 @@ export class PriorityOrchestrator extends BaseScraperOrchestrator {
           execResult.success,
           duration,
           execResult.dealsFound,
+          execResult.error,
         );
         await this.recordResult({
           source: scraper.id,

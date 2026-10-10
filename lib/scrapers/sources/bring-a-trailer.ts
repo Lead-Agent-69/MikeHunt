@@ -1,3 +1,4 @@
+import { assertSourceAccess } from "../access-policy";
 // lib/scrapers/sources/bring-a-trailer.ts
 // ─── Bring a Trailer scraper - Enthusiast auctions for classic/collectible ────
 
@@ -33,6 +34,7 @@ export async function scrapeBringATrailer(
   searchTerm = "",
   maxPages = BAT_CONFIG.maxPages,
 ) {
+  assertSourceAccess("bring_a_trailer");
   console.log(`[Bring a Trailer] Starting scrape for "${searchTerm}"...`);
   const allDeals: Partial<Deal>[] = [];
 

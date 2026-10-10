@@ -94,6 +94,7 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
           execResult.success,
           duration,
           execResult.dealsFound,
+          execResult.error,
         );
         await this.recordResult(result);
       } catch (error) {

@@ -4,6 +4,8 @@
 import { ScrapeResult, Deal } from "@/types";
 import { RegisteredScraper, ScraperArgs } from "./registry";
 import { CostGuard, CostGuardOptions } from "./cost-guard";
+import { accessDecision } from "../access-policy";
+import { runOutcome, redactDiagnostic, type RunOutcome } from "../run-outcome";
 import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
@@ -22,6 +24,7 @@ export interface ExecutorOptions {
 }
 
 export interface ExecutorResult {
+  outcome?: RunOutcome;
   success: boolean;
   dealsFound: number;
   dealsSaved: number;
@@ -51,6 +54,21 @@ export class ScraperExecutor {
       circuitBreaker || new CircuitBreakerRegistry(circuitBreakerOptions);
     const start = Date.now();
     let lastError: Error | null = null;
+
+    if (
+      !dryRun &&
+      scraper.id !== "curated_dealers" &&
+      !accessDecision(scraper.id).allowed
+    ) {
+      return {
+        success: false,
+        outcome: "skipped",
+        dealsFound: 0,
+        dealsSaved: 0,
+        durationMs: 0,
+        error: "Source permission required; selection is not authorization",
+      };
+    }
 
     const budget = guard.check("time");
     if (!budget.allowed) {
@@ -110,15 +128,40 @@ export class ScraperExecutor {
         const cappedDeals = Math.min(dealsFound, remaining);
         guard.trackDeals(cappedDeals);
 
+        if (
+          !Number.isFinite(dealsFound) ||
+          dealsFound < 0 ||
+          !Number.isInteger(dealsFound)
+        )
+          throw new Error("Invalid scraper result count");
+        // A numeric zero supplies no proof of an empty inventory page. Never reset health on it.
+        if (dealsFound === 0) {
+          breaker.recordFailure(scraper.id);
+          return {
+            success: false,
+            outcome: "unverified_empty",
+            dealsFound: 0,
+            dealsSaved: 0,
+            durationMs,
+            error: "No accepted rows; empty inventory is not verified",
+          };
+        }
         breaker.recordSuccess(scraper.id);
         return {
           success: true,
+          outcome: "imported",
           dealsFound: cappedDeals,
           dealsSaved: cappedDeals,
           durationMs,
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        if (
+          /permission|\b40[13]\b|captcha|challenge|robots|disallow/i.test(
+            lastError.message,
+          )
+        )
+          break;
         // Timed-out work may still be closing network/browser resources. Never overlap it with a retry.
         if (
           abortSignal?.aborted ||
@@ -136,15 +179,20 @@ export class ScraperExecutor {
     }
 
     const durationMs = Date.now() - start;
-    breaker.recordFailure(scraper.id);
+    if (!abortSignal?.aborted) breaker.recordFailure(scraper.id);
     return {
       success: false,
+      outcome: runOutcome(
+        false,
+        0,
+        abortSignal?.aborted ? "Aborted" : lastError?.message,
+      ),
       dealsFound: 0,
       dealsSaved: 0,
       durationMs,
       error: abortSignal?.aborted
         ? "Aborted by user"
-        : lastError?.message || "Unknown error",
+        : redactDiagnostic(lastError?.message || "Unknown error"),
     };
   }
 
