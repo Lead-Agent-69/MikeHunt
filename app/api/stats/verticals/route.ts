@@ -14,11 +14,13 @@ export async function GET() {
       sb
         .from("deals")
         .select("id", { count: "exact", head: true })
-        .eq("active", true),
+        .eq("active", true)
+        .is("duplicate_of_id", null), // canonical rows only (cross-source dedup)
       sb
         .from("deals")
         .select("id", { count: "exact", head: true })
         .eq("active", true)
+        .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
         .eq("deal_verdict", "go"),
     ]);
     cars = { active: active.count || 0, go: go.count || 0 };
@@ -46,6 +48,7 @@ export async function GET() {
         "year, make, model, ask_price, location_city, location_state, images, lat, lng",
       )
       .eq("active", true)
+      .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
       .eq("deal_verdict", "go")
       .not("images", "is", null)
       .order("last_seen_at", { ascending: false })

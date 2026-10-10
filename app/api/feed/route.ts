@@ -103,6 +103,7 @@ async function getFeed(req: NextRequest) {
           .from("deals")
           .select(COLS)
           .eq("active", true)
+          .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
           .not("images", "is", null)
           .neq("images", "{}")
           .order(flipDesk ? "profit_score" : "last_seen_at", {
@@ -158,6 +159,7 @@ async function getFeed(req: NextRequest) {
     .from("deals")
     .select(COLS)
     .eq("active", true)
+    .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
     .not("images", "is", null)
     .neq("images", "{}")
     .order("last_seen_at", { ascending: false, nullsFirst: false })

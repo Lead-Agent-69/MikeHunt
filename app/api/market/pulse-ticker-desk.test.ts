@@ -5,19 +5,29 @@ import { NextRequest } from "next/server";
 const resolveFlip = vi.hoisted(() => vi.fn(async () => false));
 const rpc = vi.hoisted(() =>
   vi.fn(async () => ({
-    data: [{ make: "Ford", model: "F-150", go_deals: 4, avg_profit: 3100, avg_days: 12 }],
+    data: [
+      {
+        make: "Ford",
+        model: "F-150",
+        go_deals: 4,
+        avg_profit: 3100,
+        avg_days: 12,
+      },
+    ],
   })),
 );
 const eqCalls = vi.hoisted(() => [] as unknown[][]);
 
 function chain(result: any) {
   const c: any = {};
-  for (const m of ["select", "neq", "order", "limit", "gte"]) c[m] = vi.fn(() => c);
+  for (const m of ["select", "neq", "order", "limit", "gte", "is"])
+    c[m] = vi.fn(() => c);
   c.eq = vi.fn((...args: unknown[]) => {
     eqCalls.push(args);
     return c;
   });
-  c.then = (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject);
+  c.then = (resolve: any, reject: any) =>
+    Promise.resolve(result).then(resolve, reject);
   return c;
 }
 
@@ -64,7 +74,11 @@ describe("/api/market/pulse desk gate", () => {
     resolveFlip.mockResolvedValue(true);
     const res = await pulseGET(req("/api/market/pulse"));
     const body = await res.json();
-    expect(body.rows[0]).toMatchObject({ make: "Ford", goDeals: 4, avgProfit: 3100 });
+    expect(body.rows[0]).toMatchObject({
+      make: "Ford",
+      goDeals: 4,
+      avgProfit: 3100,
+    });
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   });
 });

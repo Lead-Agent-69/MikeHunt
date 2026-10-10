@@ -1110,7 +1110,8 @@ export async function GET(req: NextRequest) {
     .select(SCAN_SELECT, { count: "exact" })
     // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
-    .eq("active", true);
+    .eq("active", true)
+    .is("duplicate_of_id", null); // canonical rows only (cross-source dedup)
 
   query = applyLiveAuctionWindow(query);
 

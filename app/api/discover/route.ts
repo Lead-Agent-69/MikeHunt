@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { groupSameCar } from "@/lib/data-quality/canonical-groups";
 import {
   hasReportedRepairRisk,
   includesRepairable,
@@ -673,20 +674,10 @@ export async function GET(request: NextRequest) {
           return true;
         });
 
-        const byVin = new Map<string, any[]>();
-        const noVin: any[] = [];
-        for (const r of rows) {
-          if (r.vin && String(r.vin).length === 17) {
-            const k = String(r.vin).toUpperCase();
-            if (!byVin.has(k)) byVin.set(k, []);
-            byVin.get(k)!.push(r);
-          } else {
-            noVin.push(r);
-          }
-        }
-
+        // One card per car: copies linked by public.dedupe_deals (duplicate_of_id: exact VIN or
+        // fuzzy cross-source) and rows sharing a VIN merge; the other sources show as "also on".
         const m: any[] = [];
-        byVin.forEach((group) => {
+        for (const group of groupSameCar(rows)) {
           group.sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
           const [primary, ...rest] = group;
           const deal = mapDeal(
@@ -697,22 +688,6 @@ export async function GET(request: NextRequest) {
               url: r.source_url,
             })),
           );
-          m.push({
-            ...deal,
-            matchReasons: buyerScopeReasons(deal, {
-              state: state || undefined,
-              states: scopeStates,
-              maxPrice: maxPrice || undefined,
-              minPrice: minPrice || undefined,
-              q,
-              lane,
-              titleType,
-              dealerSourceIds,
-            }),
-          });
-        });
-        for (const r of noVin) {
-          const deal = mapDeal(r, []);
           m.push({
             ...deal,
             matchReasons: buyerScopeReasons(deal, {

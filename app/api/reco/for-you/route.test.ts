@@ -29,7 +29,17 @@ const DEAL = {
 
 function chain(rows: any[], error: any = null) {
   const q: any = {};
-  for (const m of ["select", "eq", "gt", "gte", "not", "order", "limit", "in"])
+  for (const m of [
+    "select",
+    "eq",
+    "gt",
+    "gte",
+    "not",
+    "order",
+    "limit",
+    "in",
+    "is",
+  ])
     q[m] = (...args: any[]) => {
       queryCalls.push([m, ...args]);
       return q;

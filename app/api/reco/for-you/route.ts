@@ -160,6 +160,7 @@ export async function GET(req: NextRequest) {
       .from("deals")
       .select(COLS)
       .eq("active", true)
+      .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
       .gt("ask_price", 0)
       .not("images", "is", null);
     // Discover's eligible IDs already reflect the current filters, including location overrides.

@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       { count: "exact" },
     )
     .eq("active", true)
+    .is("duplicate_of_id", null) // canonical rows only (cross-source dedup)
     .gt("ask_price", 0)
     .order("last_seen_at", { ascending: false })
     .limit(1);

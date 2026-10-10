@@ -51,6 +51,7 @@ function query() {
     "limit",
     "range",
     "in",
+    "is",
   ])
     q[m] = () => q;
   q.then = (resolve: (v: unknown) => unknown) =>

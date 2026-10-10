@@ -828,6 +828,8 @@ export type Database = {
           drivetrain: string | null
           duplicate_confidence: number | null
           duplicate_of_id: string | null
+          completeness: number | null
+          quality_flags: string[] | null
           embedded_at: string | null
           embedding: string | null
           embedding_source_hash: string | null
@@ -902,6 +904,8 @@ export type Database = {
           drivetrain?: string | null
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
+          completeness?: number | null
+          quality_flags?: string[] | null
           embedded_at?: string | null
           embedding?: string | null
           embedding_source_hash?: string | null
@@ -976,6 +980,8 @@ export type Database = {
           drivetrain?: string | null
           duplicate_confidence?: number | null
           duplicate_of_id?: string | null
+          completeness?: number | null
+          quality_flags?: string[] | null
           embedded_at?: string | null
           embedding?: string | null
           embedding_source_hash?: string | null
