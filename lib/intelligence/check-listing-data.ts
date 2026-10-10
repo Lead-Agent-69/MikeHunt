@@ -67,14 +67,20 @@ const isPrefix = (a: string[], b: string[]) =>
  * longer matches "Model 3", while "Civic" still matches a sold row stored as "Civic EX" (eBay
  * sold rows keep the trim in `model`) and vice versa.
  */
-export function sameModel(target?: string | null, comp?: string | null): boolean {
+export function sameModel(
+  target?: string | null,
+  comp?: string | null,
+): boolean {
   const t = modelTokens(target);
   const c = modelTokens(comp);
   return isPrefix(t, c) || isPrefix(c, t);
 }
 
 /** The comp's trim words: its `trim`, else whatever its model name carries past the target's. */
-function compTrimTokens(targetModel: string, c: { model?: unknown; trim?: unknown }): string[] {
+function compTrimTokens(
+  targetModel: string,
+  c: { model?: unknown; trim?: unknown },
+): string[] {
   const own = modelTokens(String(c.trim || ""));
   if (own.length) return own;
   const t = modelTokens(targetModel);
@@ -158,6 +164,8 @@ export async function loadCheckListingData(
   supabase: any,
   input: CheckListingInput,
   now = Date.now(),
+  /** The tracked row when the caller already loaded it (dealId requests): skips the lookup. */
+  preloadedSelf: CheckListingSelf | null = null,
 ): Promise<CheckListingData> {
   const make = like(input.make.trim());
   // Broad DB prefilter on the first word; sameModel() does the real match below.
@@ -173,7 +181,10 @@ export async function loadCheckListingData(
     .ilike("make", make)
     .ilike("model", `${modelWord}%`)
     .gt("ask_price", 0)
-    .gte("last_seen_at", new Date(now - ASK_COMP_WINDOW_DAYS * 86_400_000).toISOString())
+    .gte(
+      "last_seen_at",
+      new Date(now - ASK_COMP_WINDOW_DAYS * 86_400_000).toISOString(),
+    )
     .limit(1000);
   if (year) asksQ = asksQ.gte("year", year - 1).lte("year", year + 1);
 
@@ -187,7 +198,10 @@ export async function loadCheckListingData(
     .eq("currency_code", "USD")
     .eq("country_code", "US")
     .gt("sold_price", 0)
-    .gte("sold_at", new Date(now - SOLD_COMP_WINDOW_DAYS * 86_400_000).toISOString())
+    .gte(
+      "sold_at",
+      new Date(now - SOLD_COMP_WINDOW_DAYS * 86_400_000).toISOString(),
+    )
     .lte("sold_at", new Date(now).toISOString())
     .limit(500);
   if (year) soldQ = soldQ.gte("year", year - 1).lte("year", year + 1);
@@ -200,25 +214,48 @@ export async function loadCheckListingData(
     .limit(1);
 
   const [asks, sold, timing] = await Promise.all([
-    asksQ.then((r: any) => (r.error ? [] : r.data || []), () => []),
-    soldQ.then((r: any) => (r.error ? [] : r.data || []), () => []),
-    timingQ.then((r: any) => (r.error ? [] : r.data || []), () => []),
+    asksQ.then(
+      (r: any) => (r.error ? [] : r.data || []),
+      () => [],
+    ),
+    soldQ.then(
+      (r: any) => (r.error ? [] : r.data || []),
+      () => [],
+    ),
+    timingQ.then(
+      (r: any) => (r.error ? [] : r.data || []),
+      () => [],
+    ),
   ]);
 
   // The pasted car, if we already track it: never a comp, its freshness decides "live", and its
   // price history is evidence. Matched by normalized URL (market-comps normUrl) or VIN.
   const target = { vin: input.vin ?? null, url: input.url ?? null };
-  let selfRow: any =
-    input.url || input.vin
-      ? (asks as any[]).find((d) => isSameVehicleOrListing(d, target)) ?? null
+  let selfRow: any = preloadedSelf
+    ? {
+        id: preloadedSelf.id,
+        source: preloadedSelf.source,
+        source_deal_id: preloadedSelf.sourceDealId,
+        source_url: preloadedSelf.sourceUrl,
+        last_seen_at: preloadedSelf.lastSeenAt,
+        auction_end_at: preloadedSelf.auctionEndAt,
+      }
+    : input.url || input.vin
+      ? ((asks as any[]).find((d) => isSameVehicleOrListing(d, target)) ?? null)
       : null;
-  if (!selfRow && input.dealId) selfRow = (asks as any[]).find((d) => d.id === input.dealId) ?? null;
+  if (!selfRow && input.dealId)
+    selfRow = (asks as any[]).find((d) => d.id === input.dealId) ?? null;
   if (!selfRow && (input.url || input.dealId)) {
     let q = supabase
       .from("deals")
-      .select("id, source, source_deal_id, source_url, last_seen_at, auction_end_at");
+      .select(
+        "id, source, source_deal_id, source_url, last_seen_at, auction_end_at",
+      );
     q = input.dealId ? q.eq("id", input.dealId) : q.eq("source_url", input.url);
-    const r = await q.limit(1).then((x: any) => x, () => ({ data: null }));
+    const r = await q.limit(1).then(
+      (x: any) => x,
+      () => ({ data: null }),
+    );
     selfRow = r?.data?.[0] ?? null;
   }
   const self: CheckListingSelf | null = selfRow
@@ -241,7 +278,10 @@ export async function loadCheckListingData(
       .eq("deal_id", dealId)
       .order("observed_at", { ascending: true })
       .limit(100)
-      .then((x: any) => x, () => ({ data: null }));
+      .then(
+        (x: any) => x,
+        () => ({ data: null }),
+      );
     priceHistory = (r?.data || []).map((p: any) => ({
       price: Number(p.price),
       observedAt: p.observed_at,
@@ -249,7 +289,9 @@ export async function loadCheckListingData(
   }
 
   // Asks: retail channels only (no auction bids) AND live right now (not stale, frozen or ended).
-  const liveAsks = eligibleAskingPrices(asks as any[]).filter((d: any) => isLiveDeal(d, now));
+  const liveAsks = eligibleAskingPrices(asks as any[]).filter((d: any) =>
+    isLiveDeal(d, now),
+  );
   const askComps: ArbitrageComp[] = liveAsks.map((d: any) => ({
     id: d.id,
     price: Number(d.ask_price),
@@ -262,7 +304,12 @@ export async function loadCheckListingData(
     sourceDealId: d.source_deal_id ?? null,
     title: d.condition ?? null,
     // Extra keys: self check (url / vin) and model / trim matching.
-    ...({ url: d.source_url ?? null, vin: d.vin ?? null, model: d.model, trim: d.trim ?? null } as object),
+    ...({
+      url: d.source_url ?? null,
+      vin: d.vin ?? null,
+      model: d.model,
+      trim: d.trim ?? null,
+    } as object),
   }));
   const soldComps: ArbitrageComp[] = (sold as any[]).map((s, i) => ({
     id: `sold:${s.source_item_id || s.source_url || i}`,
@@ -275,7 +322,12 @@ export async function loadCheckListingData(
     source: s.source || "ebay_motors",
     sourceDealId: s.source_item_id ?? null,
     title: soldTitleCondition(s.title),
-    ...({ url: s.source_url ?? null, vin: s.vin ?? null, model: s.model, trim: s.trim ?? null } as object),
+    ...({
+      url: s.source_url ?? null,
+      vin: s.vin ?? null,
+      model: s.model,
+      trim: s.trim ?? null,
+    } as object),
   }));
 
   const matched = matchComps([...askComps, ...soldComps], input);
@@ -284,7 +336,10 @@ export async function loadCheckListingData(
     comps: matched.comps,
     timing:
       t && Number.isFinite(Number(t.pct_change))
-        ? { pctChange: Number(t.pct_change), dataPoints: Number(t.data_points) || 0 }
+        ? {
+            pctChange: Number(t.pct_change),
+            dataPoints: Number(t.data_points) || 0,
+          }
         : null,
     priceHistory,
     dealId,
