@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { normalizeCondition } from "./normalize-condition";
+import {
+  normalizeCondition,
+  resolveListingCondition,
+} from "./normalize-condition";
 
 describe("normalizeCondition — coerce free text to the listing_condition enum", () => {
   it("passes through valid enum values (snake or spaced)", () => {
@@ -29,5 +32,31 @@ describe("normalizeCondition — coerce free text to the listing_condition enum"
     expect(normalizeCondition("")).toBeUndefined();
     expect(normalizeCondition(null)).toBeUndefined();
     expect(normalizeCondition("purple monkey")).toBeUndefined();
+  });
+});
+
+describe("certified + title provenance", () => {
+  it("certified pre-owned is not a title brand", () => {
+    for (const v of [
+      "certified",
+      "Certified",
+      "CPO",
+      "certified pre-owned",
+      "cert",
+    ])
+      expect(normalizeCondition(v)).toBeUndefined();
+    expect(normalizeCondition("Certified, clean title")).toBe("clean_title");
+  });
+
+  it("resolveListingCondition prefers the listing, tags source defaults, else nothing", () => {
+    expect(resolveListingCondition("rebuilt_title", "salvage_title")).toEqual({
+      condition: "rebuilt_title",
+      title_source: "listing",
+    });
+    expect(resolveListingCondition(undefined, "salvage_title")).toEqual({
+      condition: "salvage_title",
+      title_source: "source_default",
+    });
+    expect(resolveListingCondition(undefined, undefined)).toEqual({});
   });
 });

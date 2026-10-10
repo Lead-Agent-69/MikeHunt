@@ -78,3 +78,58 @@ describe("parseMunicibidHtml", () => {
     expect(f350.location_state).toBe("PA");
   });
 });
+
+describe("parseMunicibidHtml — 2026-10 listing-row layout", () => {
+  const row = (
+    id: string,
+    slug: string,
+    title: string,
+    where: string,
+    agency: string,
+    bid: string,
+  ) =>
+    `<article class="listing-row"><a class="listing-row__photo-link" href="/listing/${id}/${slug}"><img src="https://storagemunicibidpro.blob.core.windows.net/assets/media/${id}_thumbcrop.jpg" alt=""/></a><div class="listing-row__body"><h3 class="listing-row__title"><a href="/listing/${id}/${slug}">${title}</a></h3><p class="listing-row__where"><span>${where}</span><span class="listing-row__sep">|</span><a class="listing-row__agency" href="/seller/x">${agency}</a></p><p class="listing-row__bidline"><span><strong>Bid(s):</strong> <!-- -->9</span><span class="listing-row__sep">|</span><span><strong>Current Bid:</strong> <!-- -->${bid}</span></p></div></article>`;
+
+  it("parses cards and keeps cars and trucks only", () => {
+    const html =
+      row(
+        "85587978",
+        "2020-ford-explorer-police-package",
+        "2020 Ford Explorer: Police Package",
+        "East Lansdowne, PA",
+        "East Lansdowne Police",
+        "$8,300.00",
+      ) +
+      row(
+        "85000001",
+        "2008-bobcat-s185-skid-steer",
+        "2008 Bobcat S185 Skid Steer",
+        "Hull, WI",
+        "Town of Hull",
+        "$4,000.00",
+      ) +
+      row(
+        "85000002",
+        "2012-utility-trailer",
+        "2012 Utility Trailer",
+        "Hull, WI",
+        "Town of Hull",
+        "$400.00",
+      );
+    const out = parseMunicibidHtml(html);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      source_deal_id: "mb-85587978",
+      title: "2020 Ford Explorer Police Package",
+      year: 2020,
+      make: "Ford",
+      ask_price: 8300,
+      location_city: "East Lansdowne",
+      location_state: "PA",
+      seller: "East Lansdowne Police",
+      bid_count: 9,
+      source_url:
+        "https://municibid.com/listing/85587978/2020-ford-explorer-police-package",
+    });
+  });
+});

@@ -11,6 +11,7 @@
 // x-api-correlation-id is just a required request-trace UUID (any value).
 
 import type { Deal } from "@/types";
+import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
 
 const API = "https://maestro.lqdt1.com/search/list";
@@ -239,6 +240,9 @@ export function maestroAssetToDeal(
   const title =
     (a.assetShortDescription || "").trim() ||
     [a.modelYear, a.makebrand, a.model].filter(Boolean).join(" ");
+  // Cars and trucks only: no trailers, buses, boats, aircraft, equipment or heavy trucks.
+  if (!isCarOrTruck(`${title} ${a.makebrand || ""} ${a.model || ""}`))
+    return null;
 
   // A7: build the full image URL from the photo filename. Strip any `?cb=` cache-buster for a canonical URL.
   const photoFile = (a.photo || "").split("?")[0].trim();

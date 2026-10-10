@@ -17,6 +17,7 @@ import { effectiveHome } from "@/lib/preferences/locations";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import dynamic from "next/dynamic";
+import { AlsoSearchOn } from "@/components/multisite/AlsoSearchOn";
 
 // Dynamically import the Leaflet map, disabling SSR since it uses window
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -137,6 +138,8 @@ export default function ArbitrageDashboardPage() {
           </Link>
         </div>
       </div>
+
+      <AlsoSearchOn />
 
       {!homeState && !authError ? (
         <div
