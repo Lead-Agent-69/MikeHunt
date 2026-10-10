@@ -58,6 +58,23 @@ export function parseStates(
   return states.length ? states : undefined;
 }
 
+/** Page size bounds. Without a cap, `GET /api/deals` returned every active row PostgREST allowed
+ * (1000 rows / ~780 KB on prod, 4481 rows / 3.4 MB on a 5k-row local seed). */
+export const DEALS_DEFAULT_LIMIT = 50;
+export const DEALS_MAX_LIMIT = 200;
+export const DEALS_MAX_HOT_LIMIT = 50;
+
+export function clampInt(
+  raw: string | null,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const n = raw == null ? NaN : parseInt(raw, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 function parseFilters(searchParams: URLSearchParams): DealFilters {
   return {
     states: parseStates(searchParams),
@@ -75,12 +92,13 @@ function parseFilters(searchParams: URLSearchParams): DealFilters {
     sortBy: (searchParams.get("sortBy") as DealFilters["sortBy"]) || undefined,
     sortOrder:
       (searchParams.get("sortOrder") as DealFilters["sortOrder"]) || undefined,
-    limit: searchParams.get("limit")
-      ? parseInt(searchParams.get("limit")!, 10)
-      : undefined,
-    offset: searchParams.get("offset")
-      ? parseInt(searchParams.get("offset")!, 10)
-      : undefined,
+    limit: clampInt(
+      searchParams.get("limit"),
+      DEALS_DEFAULT_LIMIT,
+      1,
+      DEALS_MAX_LIMIT,
+    ),
+    offset: clampInt(searchParams.get("offset"), 0, 0, 100_000) || undefined,
   };
 }
 
@@ -113,7 +131,7 @@ export async function GET(request: NextRequest) {
     // "Hot" is ranked by profit score: a flip-desk view only.
     if (hot === "true" && flipDesk) {
       const deals = await dealsService.getHotDeals(
-        parseInt(searchParams.get("limit") || "10", 10),
+        clampInt(searchParams.get("limit"), 10, 1, DEALS_MAX_HOT_LIMIT),
       );
       return deskResult({ deals, total: deals.length, hasMore: false }, true);
     }

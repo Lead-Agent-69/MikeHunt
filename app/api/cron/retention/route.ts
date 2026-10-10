@@ -1,4 +1,6 @@
 export const dynamic = "force-dynamic";
+// Daily cron (kera audit #9: no maxDuration). Explicit limit so it is not cut at a 10s legacy default.
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";

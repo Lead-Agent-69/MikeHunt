@@ -143,3 +143,33 @@ describe("filtersForDesk", () => {
     expect(parseStates(new URLSearchParams(""))).toBeUndefined();
   });
 });
+
+describe("GET /api/deals page bounds", () => {
+  it("defaults to 50 rows when no limit is given (was: every row PostgREST allowed)", async () => {
+    await GET(new NextRequest("https://x.test/api/deals"));
+    expect(getDeals.mock.calls[0][0].limit).toBe(50);
+  });
+
+  it("caps limit at 200 and floors junk / negatives", async () => {
+    await GET(
+      new NextRequest("https://x.test/api/deals?limit=100000&offset=-5"),
+    );
+    expect(getDeals.mock.calls[0][0].limit).toBe(200);
+    expect(getDeals.mock.calls[0][0].offset).toBeUndefined();
+    await GET(new NextRequest("https://x.test/api/deals?limit=abc"));
+    expect(getDeals.mock.calls[1][0].limit).toBe(50);
+    await GET(new NextRequest("https://x.test/api/deals?limit=0"));
+    expect(getDeals.mock.calls[2][0].limit).toBe(1);
+  });
+
+  it("keeps an in-range limit/offset as given", async () => {
+    await GET(new NextRequest("https://x.test/api/deals?limit=24&offset=48"));
+    expect(getDeals.mock.calls[0][0]).toMatchObject({ limit: 24, offset: 48 });
+  });
+
+  it("caps the flip-desk hot list at 50", async () => {
+    resolveFlip.mockResolvedValue(true);
+    await GET(new NextRequest("https://x.test/api/deals?hot=true&limit=5000"));
+    expect(getHotDeals).toHaveBeenCalledWith(50);
+  });
+});

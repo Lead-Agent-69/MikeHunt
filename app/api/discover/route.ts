@@ -1,4 +1,8 @@
 export const dynamic = "force-dynamic";
+// A cold miss pulls up to 10k rows via discover_deals and grades them in JS: prod first hit measured
+// 7.0s (p95 3.5s over 25 sequential guest calls, 2026-10-10). Without an explicit maxDuration a legacy
+// Hobby project kills it at 10s; 60s is within every Hobby/Pro limit.
+export const maxDuration = 60;
 import {
   hasReportedRepairRisk,
   includesRepairable,
