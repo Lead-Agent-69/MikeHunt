@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, Clock, X } from "lucide-react";
+import { Ban, Check, Clock, X } from "lucide-react";
 import {
   advisorRequestFor,
   advisorView,
@@ -72,6 +72,53 @@ export function AdvisorCardView({
   /** Extra evidence for the Why sheet (deal page passes its score / proof blocks). */
   children?: React.ReactNode;
 }) {
+  const why = children ? (
+    <details className="mt-2 text-sm text-[var(--t3)]">
+      <summary className="min-h-11 cursor-pointer py-2 font-bold text-[var(--t2)]">
+        Why
+      </summary>
+      {children}
+    </details>
+  ) : null;
+  if (view.state === "not_live") {
+    return (
+      <section
+        className={`glass-panel p-4 ${className}`}
+        data-testid="advisor-card"
+        data-advisor-state="not_live"
+      >
+        <h2 className="flex items-center gap-2 text-lg font-black text-[var(--t1)]">
+          <Ban aria-hidden className="h-4 w-4 text-[var(--t4)]" />
+          {view.headline}
+        </h2>
+        <p className="mt-1 text-sm text-[var(--t3)]">{view.reason}</p>
+        {why}
+      </section>
+    );
+  }
+  if (view.state === "fair_only") {
+    return (
+      <section
+        className={`glass-panel p-4 ${className}`}
+        data-testid="advisor-card"
+        data-advisor-state="fair_only"
+      >
+        <h2 className="text-lg font-black text-[var(--t1)]">{view.headline}</h2>
+        <p className="mt-1 text-sm text-[var(--t3)]">{view.reason}</p>
+        <div className="mt-3">
+          <Stat
+            label="Fair value"
+            value={money(view.fairValue.value)}
+            note={view.fairValue.basisLabel}
+          />
+          {view.confidenceNote && (
+            <p className="mt-1 text-xs text-[var(--t4)]">{view.confidenceNote}</p>
+          )}
+        </div>
+        {why}
+      </section>
+    );
+  }
   if (view.state === "insufficient") {
     return (
       <section
@@ -81,14 +128,7 @@ export function AdvisorCardView({
       >
         <h2 className="text-lg font-black text-[var(--t1)]">{view.headline}</h2>
         <p className="mt-1 text-sm text-[var(--t3)]">{view.reason}</p>
-        {children && (
-          <details className="mt-2 text-sm text-[var(--t3)]">
-            <summary className="min-h-11 cursor-pointer py-2 font-bold text-[var(--t2)]">
-              Why
-            </summary>
-            {children}
-          </details>
-        )}
+        {why}
       </section>
     );
   }
@@ -176,18 +216,21 @@ export function AdvisorCardView({
 export function AdvisorCard({
   deal,
   flipDesk,
+  homeState,
   className = "",
   children,
   onView,
 }: {
   deal: Record<string, unknown> | null | undefined;
   flipDesk: boolean;
+  /** Buyer's home state, offered to the API as a sell market. */
+  homeState?: string | null;
   className?: string;
   children?: React.ReactNode;
   /** Lets the page key its primary action off the verdict. */
   onView?: (view: AdvisorView | null) => void;
 }) {
-  const body = advisorRequestFor(deal);
+  const body = advisorRequestFor(deal, { homeState });
   const { data, error, isLoading } = useAdvisorRead(body);
   const view: AdvisorView | null =
     body && isLoading

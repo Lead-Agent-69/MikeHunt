@@ -7,6 +7,9 @@ import {
 } from "@/lib/intelligence/advisor-view";
 
 const read = (over: Partial<CheckListingRead> = {}): CheckListingRead => ({
+  desk: "flip",
+  live: { state: "live", label: "Seen today" } as CheckListingRead["live"],
+  priceRating: null,
   vehicle: {
     year: 2018,
     make: "Honda",
@@ -18,7 +21,7 @@ const read = (over: Partial<CheckListingRead> = {}): CheckListingRead => ({
   },
   verdict: "buy",
   headline: "Good price.",
-  fairValue: { value: 11400, basis: "estimate", state: "IL", comps: 9 },
+  fairValue: { value: 11400, basis: "estimate", state: "IL", comps: 9, label: null, kind: "ask", range: null },
   maxBuy: { value: 10200, basis: "estimate", targetProfit: 1490 },
   resale: { value: 14900, basis: "estimate", state: "TX" },
   profit: {
@@ -77,6 +80,9 @@ describe("advisorView honesty gate", () => {
           basis: "insufficient" as const,
           state: null,
           comps: 1,
+          label: null,
+          kind: "none" as const,
+          range: null,
         },
       },
     ],
@@ -88,6 +94,9 @@ describe("advisorView honesty gate", () => {
           basis: "insufficient" as const,
           state: null,
           comps: 2,
+          label: null,
+          kind: "none" as const,
+          range: null,
         },
       },
     ],
@@ -140,44 +149,84 @@ describe("advisorView honesty gate", () => {
   });
 });
 
-describe("advisorRequestFor (tracked deal → check-listing body)", () => {
-  it("sends the car's own fields, no url, and the title bucket", () => {
-    expect(
-      advisorRequestFor({
-        year: 2018,
-        make: "Honda",
-        model: "Civic",
-        askPrice: 9500,
-        mileage: 71000,
-        vin: "1HGBH41JXMN109186",
-        locationZip: "60432",
-        condition: "salvage_title",
-        sourceUrl: "https://example.com/x",
-      }),
-    ).toEqual({
-      year: 2018,
-      make: "Honda",
-      model: "Civic",
-      price: 9500,
-      mileage: 71000,
-      zip: "60432",
-      vin: "1HGBH41JXMN109186",
-      title: "salvage",
-    });
+describe("new verdicts from #254", () => {
+  it("not_live: Listing not live, no verdict or price on any desk", () => {
+    for (const flipDesk of [true, false]) {
+      const v = advisorView(
+        read({
+          verdict: "not_live",
+          headline: "This listing left the market 3 days ago.",
+          live: { state: "gone", label: "Gone" } as unknown as CheckListingRead["live"],
+        }),
+        { flipDesk },
+      );
+      expect(v.state).toBe("not_live");
+      expect(v.headline).toBe("Listing not live");
+      expect(JSON.stringify(v)).not.toMatch(/11,?400|10,?200|"Buy"/);
+    }
   });
 
-  it("omits an unknown title and returns null with nothing to price", () => {
-    expect(
-      advisorRequestFor({
-        make: "Ford",
-        model: "F-150",
-        ask_price: 5000,
-        condition: "run_drive",
+  it("personal not_enough_data with a labelled fair value shows it without a verdict", () => {
+    const v = advisorView(
+      read({
+        desk: "personal",
+        verdict: "not_enough_data",
+        headline: "Not enough sales to call it.",
+        profit: null,
+        fairValue: {
+          value: 11400,
+          basis: "estimate",
+          state: "IL",
+          comps: 4,
+          label: "Typical asking price · 4 listings in IL",
+          kind: "ask",
+          range: null,
+        },
       }),
-    ).not.toHaveProperty("title");
+      { flipDesk: false },
+    );
+    expect(v.state).toBe("fair_only");
+    if (v.state !== "fair_only") return;
+    expect(v.fairValue).toEqual({
+      value: 11400,
+      basisLabel: "Typical asking price · 4 listings in IL",
+    });
+    expect(v).not.toHaveProperty("verdict");
+  });
+
+  it("the same read on the flip desk stays Not enough data", () => {
     expect(
-      advisorRequestFor({ make: "Ford", model: "F-150", ask_price: 0 }),
-    ).toBeNull();
+      advisorView(read({ verdict: "not_enough_data" }), { flipDesk: true }).state,
+    ).toBe("insufficient");
+  });
+
+  it("a null profit (personal redaction) never breaks the view", () => {
+    const v = advisorView(read({ profit: null }), { flipDesk: true });
+    if (v.state !== "ready") throw new Error("expected ready");
+    expect(v.profit).toBeNull();
+    expect(v.breakdown).toEqual([]);
+  });
+});
+
+describe("advisorRequestFor (tracked deal → check-listing body)", () => {
+  it("sends only the dealId (server reads the stored row, no scrape), plus homeState", () => {
+    expect(
+      advisorRequestFor(
+        {
+          id: "7F1C2D3E-1111-4222-8333-944455556666",
+          make: "Honda",
+          askPrice: 9500,
+          vin: "1HGBH41JXMN109186",
+          sourceUrl: "https://example.com/x",
+        },
+        { homeState: "tx" },
+      ),
+    ).toEqual({ dealId: "7f1c2d3e-1111-4222-8333-944455556666", homeState: "TX" });
+  });
+
+  it("returns null without a tracked id (no loose-field guessing)", () => {
+    expect(advisorRequestFor({ make: "Ford", model: "F-150", ask_price: 5000 })).toBeNull();
+    expect(advisorRequestFor({ id: "not-a-uuid" })).toBeNull();
     expect(advisorRequestFor(null)).toBeNull();
   });
 });

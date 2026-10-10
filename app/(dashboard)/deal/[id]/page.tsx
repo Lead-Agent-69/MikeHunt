@@ -983,8 +983,9 @@ export default function DealPage({
           {serverDeal && !prefsLoading && (
             <AdvisorCard
               className="mt-3"
-              deal={serverDeal}
+              deal={{ ...serverDeal, id }}
               flipDesk={advisorFlipDesk}
+              homeState={effectiveHome(prefs)?.state}
             />
           )}
           <div className="mt-2 flex flex-wrap items-center gap-3">

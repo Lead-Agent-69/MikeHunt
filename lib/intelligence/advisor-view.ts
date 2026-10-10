@@ -1,17 +1,23 @@
 // The advisor card's view of one /api/check-listing read (#254, docs/intelligence-advisor.md).
 // Pure, so the deal page card, the DealCard summary and tests share one honesty gate:
 //
+// - "not_live": the listing isn't live, so the card says so and never shows Buy or a price.
 // - No verdict and no price unless the read has a real basis: verdict "not_enough_data",
 //   confidence "low"/"none", or a missing/insufficient fair value all mean "Not enough data".
+//   One exception, from the contract: on the personal desk a not_enough_data read can still carry
+//   a labelled fair value, which is shown on its own, with no verdict.
 // - A number is shown only when it exists and its basis isn't "insufficient", with its basis label.
 // - Profit and the sell market are flip-desk only (isFlipBuyerMode). This is enforced here even
 //   though the API already redacts them for personal callers (readForDesk).
-import type { Basis, CheckListingRead } from "@/lib/intelligence/check-listing";
-import { titleCategory } from "@/lib/deals/title-category";
+import type {
+  Basis,
+  CheckListingRead,
+} from "@/lib/intelligence/check-listing";
 
 export const NOT_ENOUGH_DATA = "Not enough data";
 /** Shown when the read couldn't be fetched (rate limit, market data down). */
 export const NOT_ENOUGH_DATA_YET = "Not enough data yet";
+export const NOT_LIVE = "Listing not live";
 
 export const BASIS_LABEL: Readonly<Record<Basis, string>> = {
   measured: "from recent sales",
@@ -26,6 +32,15 @@ export type AdvisorCostLine = { label: string; value: number; sign: "+" | "-" | 
 
 export type AdvisorView =
   | { state: "insufficient"; headline: string; reason: string }
+  | { state: "not_live"; headline: string; reason: string }
+  | {
+      /** Personal desk, not_enough_data, but with a labelled fair value: no verdict. */
+      state: "fair_only";
+      headline: string;
+      fairValue: AdvisorNumber;
+      reason: string;
+      confidenceNote: string | null;
+    }
   | {
       state: "ready";
       verdict: "buy" | "wait" | "pass";
@@ -53,10 +68,11 @@ const WORD = { buy: "Buy", wait: "Wait", pass: "Pass" } as const;
 function shown(
   value: number | null | undefined,
   basis: Basis,
+  label?: string | null,
 ): AdvisorNumber | null {
   if (value == null || !Number.isFinite(value) || basis === "insufficient")
     return null;
-  return { value, basisLabel: BASIS_LABEL[basis] };
+  return { value, basisLabel: label || BASIS_LABEL[basis] };
 }
 
 function compsLine(read: CheckListingRead): string {
@@ -78,6 +94,7 @@ const finite = (n: unknown): n is number =>
  */
 export function costBreakdown(read: CheckListingRead): AdvisorCostLine[] {
   const p = read.profit;
+  if (!p) return [];
   const sale = shown(read.resale.value, read.resale.basis);
   const net = shown(p.net, p.basis);
   if (!sale || !net) return [];
@@ -114,9 +131,27 @@ export function advisorView(
       headline: NOT_ENOUGH_DATA,
       reason: "We don't have enough on this car to give a read.",
     };
-  const fair = shown(read.fairValue.value, read.fairValue.basis);
+  if (read.verdict === "not_live")
+    return {
+      state: "not_live",
+      headline: NOT_LIVE,
+      reason: read.headline || read.live?.label || "This listing is no longer live.",
+    };
+  const fair = shown(
+    read.fairValue.value,
+    read.fairValue.basis,
+    read.fairValue.label,
+  );
   const lowConfidence =
     read.confidence.label === "low" || read.confidence.label === "none";
+  if (read.verdict === "not_enough_data" && !opts.flipDesk && fair)
+    return {
+      state: "fair_only",
+      headline: NOT_ENOUGH_DATA,
+      fairValue: fair,
+      reason: read.headline,
+      confidenceNote: lowConfidence ? "Low confidence" : null,
+    };
   if (read.verdict === "not_enough_data" || lowConfidence || !fair) {
     return {
       state: "insufficient",
@@ -138,7 +173,10 @@ export function advisorView(
     headline: read.headline,
     buyCeiling: shown(read.maxBuy.value, read.maxBuy.basis),
     fairValue: fair,
-    profit: opts.flipDesk ? shown(read.profit.net, read.profit.basis) : null,
+    profit:
+      opts.flipDesk && read.profit
+        ? shown(read.profit.net, read.profit.basis)
+        : null,
     sellMarket: resale ? { ...resale, state: read.resale.state } : null,
     confidence: read.confidence.label as "high" | "medium",
     confidenceNote:
@@ -150,40 +188,23 @@ export function advisorView(
   };
 }
 
-type AdvisorDeal = Record<string, unknown> | null | undefined;
-
-const pick = (d: Record<string, unknown>, ...keys: string[]) => {
-  for (const k of keys) if (d[k] != null && d[k] !== "") return d[k];
-  return undefined;
-};
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * POST body for /api/check-listing from a tracked deal: the car's own fields only. No `url`, so
- * the route doesn't re-fetch the source page; the VIN (when present) keeps the car out of its own
- * comps. Returns null when the deal lacks make, model or a positive price (nothing to price).
+ * POST body for /api/check-listing from a tracked deal: just its `dealId`. The route reads the
+ * stored row (no page scrape) and keeps the car out of its own comps. Null when there's no
+ * tracked id, so the card shows "Not enough data" instead of guessing from loose fields.
  */
 export function advisorRequestFor(
-  deal: AdvisorDeal,
-): Record<string, unknown> | null {
-  if (!deal) return null;
-  const make = pick(deal, "make");
-  const model = pick(deal, "model");
-  const price = Number(pick(deal, "askPrice", "ask_price") ?? 0);
-  if (!make || !model || !(price > 0)) return null;
-  const category = titleCategory({
-    condition: pick(deal, "condition") as string,
-  });
-  const zip = String(pick(deal, "locationZip", "location_zip") ?? "");
-  const vin = String(pick(deal, "vin") ?? "");
+  deal: Record<string, unknown> | null | undefined,
+  opts: { homeState?: string | null } = {},
+): { dealId: string; homeState?: string } | null {
+  const id = typeof deal?.id === "string" ? deal.id.trim() : "";
+  if (!UUID_RE.test(id)) return null;
+  const home = opts.homeState?.trim().toUpperCase();
   return {
-    make,
-    model,
-    price,
-    ...(pick(deal, "year") ? { year: pick(deal, "year") } : {}),
-    ...(pick(deal, "trim") ? { trim: pick(deal, "trim") } : {}),
-    ...(pick(deal, "mileage") ? { mileage: pick(deal, "mileage") } : {}),
-    ...(/^\d{5}$/.test(zip) ? { zip } : {}),
-    ...(/^[A-HJ-NPR-Z0-9]{17}$/i.test(vin) ? { vin } : {}),
-    ...(category !== "unknown" ? { title: category } : {}),
+    dealId: id.toLowerCase(),
+    ...(home && /^[A-Z]{2}$/.test(home) ? { homeState: home } : {}),
   };
 }
