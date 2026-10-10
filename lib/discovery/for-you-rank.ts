@@ -1,11 +1,17 @@
 // Ranking helpers for Discover "For You" and Top Flips.
 // Scope match uses the saved buyerScope (segment + title), not a title-substring of "suvs".
-// Transport re-rank swaps the cost already stored on the deal for the buyer's home state.
+// Transport re-rank swaps the cost already stored on the deal for the buyer's home (a state code
+// or a GeoPoint from lib/geo/buyer-home: coords → haversine, ZIP/state → state centroid).
 // It does not invent a per-mile rate and does not rewrite the displayed dollar.
+// No home → unknown distance; nothing here substitutes a default state.
 
 import {
   buyerDistance,
+  resolvePointState,
   transportCostForDistance,
+  type BuyerDistance,
+  type DistanceBasis,
+  type GeoPoint,
 } from "@/lib/geo/buyer-distance";
 import {
   isLuxury,
@@ -50,7 +56,60 @@ type Rankable = {
   grade?: string | null;
   lastSeenAt?: string | null;
   auctionEndAt?: string | null;
+  lat?: number | string | null;
+  lng?: number | string | null;
+  location_zip?: string | null;
+  locationZip?: string | null;
 };
+
+/** The buyer's home: a 2-letter state (legacy callers) or a GeoPoint (coords / ZIP / state). */
+export type BuyerHomeArg = string | GeoPoint | null | undefined;
+
+function homePoint(home: BuyerHomeArg): GeoPoint | null {
+  if (!home) return null;
+  if (typeof home === "string") {
+    const st = home.trim().toUpperCase();
+    return st && st !== "NATIONWIDE" ? { state: st } : null;
+  }
+  return home;
+}
+
+function homeStateOf(home: BuyerHomeArg): string {
+  return resolvePointState(homePoint(home)) || "";
+}
+
+/** Buyer home → listing distance with its basis. No home → basis "unknown", miles null. */
+export function rowBuyerDistance(
+  row: Rankable,
+  home: BuyerHomeArg,
+): BuyerDistance {
+  const h = homePoint(home);
+  const listing: GeoPoint = {
+    lat: row.lat,
+    lng: row.lng,
+    zip: row.location_zip ?? row.locationZip ?? null,
+    state: row.locationState || row.location_state || null,
+  };
+  if (!h)
+    return {
+      miles: null,
+      basis: "unknown",
+      homeState: null,
+      listingState: resolvePointState(listing),
+    };
+  return buyerDistance(h, listing);
+}
+
+/** Response fields for a card: always the basis, miles only when actually measured. */
+export function buyerDistanceFields(
+  row: Rankable,
+  home: BuyerHomeArg,
+): { distanceBasis: DistanceBasis; distanceMiles?: number } {
+  const d = rowBuyerDistance(row, home);
+  return d.miles != null
+    ? { distanceBasis: d.basis, distanceMiles: d.miles }
+    : { distanceBasis: d.basis };
+}
 
 const TOKEN_SEGMENT: Record<string, Segment | "luxury"> = {
   suv: "suv",
@@ -181,7 +240,7 @@ export function scopeMatchScore(
   row: Rankable,
   scope: BuyerScopePrefs,
   makes: string[] = [],
-  homeState?: string | null,
+  homeState?: BuyerHomeArg,
 ): number {
   let score = 0;
   const want = wantedVehicleSegment(scope);
@@ -197,11 +256,11 @@ export function scopeMatchScore(
   ) {
     score += 2;
   }
-  const home = (homeState || "").trim().toUpperCase();
+  const home = homeStateOf(homeState);
   const listing = String(row.locationState || row.location_state || "")
     .trim()
     .toUpperCase();
-  if (home && home !== "NATIONWIDE" && listing === home) score += 1;
+  if (home && listing === home) score += 1;
   if (makes.length && makes.includes((row.make || "").toLowerCase()))
     score += 2;
   const max = Number(scope.maxPrice) || 0;
@@ -220,30 +279,24 @@ export function dropsForNoRepair(
 
 /**
  * Stored profit with the buyer's tow swapped in.
- * Missing home or listing state keeps the stored profit. Does not mutate the deal.
+ * Missing home or an unmeasurable listing keeps the stored profit. Does not mutate the deal.
  */
 export function transportAdjustedProfit(
   row: Rankable,
-  homeState?: string | null,
+  homeState?: BuyerHomeArg,
 ): number | null {
   if (row.trueNetProfit == null || !Number.isFinite(Number(row.trueNetProfit)))
     return null;
   const stored = Number(row.trueNetProfit);
-  const home = (homeState || "").trim().toUpperCase();
-  const listing = String(row.locationState || row.location_state || "")
-    .trim()
-    .toUpperCase();
-  if (!home || home === "NATIONWIDE" || !listing) return stored;
+  if (!homePoint(homeState)) return stored;
   if (
     row.transportEstimate == null ||
     !Number.isFinite(Number(row.transportEstimate))
   )
     return stored;
-  // Haversine between state centroids; same state books the carrier minimum (no fake 45 mi).
-  const cost = transportCostForDistance(
-    buyerDistance({ state: home }, { state: listing }),
-    null,
-  );
+  // Real coords when both sides have them, else state centroids; same state books the carrier
+  // minimum (no fake 45 mi); unknown keeps the stored cost.
+  const cost = transportCostForDistance(rowBuyerDistance(row, homeState), null);
   if (cost == null) return stored;
   return stored + Number(row.transportEstimate) - cost;
 }
@@ -273,7 +326,7 @@ export function comparePersonal(
   b: Rankable,
   scope: BuyerScopePrefs,
   makes: string[] = [],
-  homeState?: string | null,
+  homeState?: BuyerHomeArg,
   now = Date.now(),
 ): number {
   const byScope =
@@ -290,9 +343,9 @@ export function comparePersonal(
 export function compareFlip(
   a: Rankable,
   b: Rankable,
-  homeState?: string | null,
+  homeState?: BuyerHomeArg,
 ): number {
-  if (homeState) {
+  if (homePoint(homeState)) {
     const pa = transportAdjustedProfit(a, homeState);
     const pb = transportAdjustedProfit(b, homeState);
     if (pa != null || pb != null) {
