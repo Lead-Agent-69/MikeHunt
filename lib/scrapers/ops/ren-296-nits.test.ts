@@ -18,8 +18,10 @@ describe("P2-1: payload fits the jsonb CHECK; one bad row never loses the batch"
     expect(jsonbTextBytes({ a: 1, b: "x" })).toBe(
       Buffer.byteLength('{"a": 1, "b": "x"}'),
     );
+    // allow-listed fields only (#314 c), long enough together to exceed the cap
     const wide = Object.fromEntries(
-      Array.from({ length: 60 }, (_, i) => [`field_${i}`, "v".repeat(40)]),
+      ["title", "make", "model", "trim", "condition", "damage_type", "engine", "drivetrain",
+       "transmission", "fuel_type"].map((k) => [k, "v".repeat(250)]),
     );
     const out = compactPayload(wide)!;
     expect(jsonbTextBytes(out)).toBeLessThanOrEqual(MAX_PAYLOAD_BYTES);
