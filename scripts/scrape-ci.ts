@@ -324,6 +324,25 @@ async function main() {
     );
     process.exit(1);
   }
+  // Reap scraper_runs stuck in 'running' for more than 24h (crashed / killed workers), so health
+  // and the sweep stop treating them as in progress (e.g. craigslist stuck since 2026-10-05).
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { reapTimedOutRuns, RUN_TIMEOUT_HOURS } =
+      await import("../lib/scrapers/run-recovery");
+    const reaped = await reapTimedOutRuns(
+      createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ) as any,
+    );
+    if (reaped)
+      console.log(
+        `⏱️  reaped ${reaped} scraper run(s) stuck 'running' > ${RUN_TIMEOUT_HOURS}h`,
+      );
+  } catch (e) {
+    console.warn("run reaper skipped:", (e as Error).message);
+  }
   if (!process.env.FLARESOLVERR_URL) {
     console.warn(
       "⚠️  FLARESOLVERR_URL not set — Cloudflare-gated sources (cars_com/autotrader/cargurus) may be blocked.",
