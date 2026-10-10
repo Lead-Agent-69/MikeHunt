@@ -20,6 +20,7 @@ import {
   type EditorialCardData,
 } from "@/components/ui/editorial-card";
 import { DataSetupState } from "@/components/shared/DataSetupState";
+import { sourceLabel } from "@/lib/sources/source-meta";
 
 // The FEED — a full-screen, vertical snap-scroll stream of real car deals (TikTok for flips). Full-bleed
 // photo, price + net-profit + forecast overlaid, a right-side action rail (save / details / source), and
@@ -171,7 +172,7 @@ export default function FeedPage() {
                     id: it.id,
                     image: proxiedImage(it.image),
                     title: it.title,
-                    category: it.source || "Deal",
+                    category: sourceLabel(it.source, it.sourceUrl) || "Deal",
                     year: it.year?.toString() || "",
                     description:
                       it.forYouReason ||
