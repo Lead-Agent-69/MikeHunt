@@ -30,6 +30,9 @@ import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
+  dealerCmsSiteFromCurated,
+  isSameSiteHref,
+  stripContactInfo,
   type DealerCmsSite,
 } from "@/lib/scrapers/platforms/dealer-cms";
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
@@ -1145,7 +1148,8 @@ export async function scrapeCuratedSites(
       );
     }
     try {
-      const dealerCms = dealerCmsSiteFor(site.url);
+      const dealerCms =
+        dealerCmsSiteFor(site.url) ?? dealerCmsSiteFromCurated(site);
       const cdgDealer = dealerCms ? undefined : cdgDealerForSite(site.url);
       const firstPages = [
         site.url,
@@ -1552,7 +1556,7 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
       vin: vin || deal.vin,
       mileage: mileage || deal.mileage,
       images: images.length ? images : deal.images,
-      description: description || deal.description,
+      description: stripContactInfo(description) || deal.description,
     };
   } catch {
     return deal;
@@ -1564,7 +1568,8 @@ async function enrichCdgDetail(
   config: Pick<DealerCmsSite, "baseUrl" | "defaultCondition">,
 ) {
   const sourceUrl = deal.source_url;
-  if (!sourceUrl) return deal;
+  // Only ever fetch detail pages on the dealer's own host (crawlDealerCms already drops others).
+  if (!sourceUrl || !isSameSiteHref(sourceUrl, config.baseUrl)) return deal;
   try {
     const res = await politeFetch(sourceUrl, { freshForMs: 24 * 3600_000 });
     if (!res.ok) return deal;
@@ -1603,7 +1608,7 @@ async function enrichCdgDetail(
             deal.condition || config.defaultCondition,
           )),
       images: images.length ? images : deal.images,
-      description: description || deal.description,
+      description: stripContactInfo(description) || deal.description,
     };
   } catch {
     return deal;
@@ -1695,7 +1700,7 @@ async function enrichCdgDetailLegacy(
             deal.condition || config.defaultCondition,
           )),
       images: images.length ? images : deal.images,
-      description: description || deal.description,
+      description: stripContactInfo(description) || deal.description,
     };
   } catch {
     return deal;

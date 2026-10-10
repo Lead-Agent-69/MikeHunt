@@ -17,6 +17,11 @@ export interface CuratedSite {
   // Exact inventory page (absolute or path) for sites whose listings live at a non-standard URL the
   // auto-discovery can miss (e.g. St. James's /vehicles.php). When set, the crawler starts here.
   inventoryUrl?: string;
+  /**
+   * Website platform the shared dealer-CMS parser reads (lib/scrapers/platforms/dealer-cms.ts).
+   * Tagging a site with its platform is all it takes for the shared parser to crawl it.
+   */
+  platform?: "4cdg" | "vehiclesnetwork";
 }
 
 // type → defaults injected onto every car scraped from a site of that type. These land on
@@ -104,7 +109,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.25autollc.com", name: "25 Auto LLC", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.cameronautollc.com", name: "Cameron Auto LLC", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.lambmotors.com", name: "Lamb Motors", type: "rebuilder_dealer" },
-  { url: "https://www.glensautosales.com", name: "Glen's Auto Sales", type: "rebuilder_dealer" },
+  { url: "https://www.glensautosales.com", name: "Glen's Auto Sales", state: "MO", city: "Malden", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.glensautosales.com/" }, // 4cdg; featured grid on home (verified 2026-10-10)
   { url: "https://www.rogersautosales.com", name: "Rogers Auto (Late Model Rebuilders)", type: "rebuilder_dealer" },
   // ── Wave 5 — mined from the Creative Design Group (4cdg.com) auto-dealer portfolio (verified) ──
   { url: "https://www.johannesauto.com", name: "Johannes Auto Sales", state: "MO", type: "rebuilder_dealer" }, // salvage/rebuilt cars + parts, Jackson MO
@@ -143,21 +148,21 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.florasauto.com", name: "Flora's Auto", state: "IN", type: "rebuilder_dealer" },
   { url: "https://autonetworkinc.com", name: "Auto Network, Inc.", state: "IN", type: "rebuilder_dealer" },
   { url: "https://www.billsmithauto.com", name: "Bill Smith Auto", state: "IL", type: "rebuilder_dealer" },
-  { url: "https://www.autoworksinc.com", name: "Auto Works Inc.", state: "WI", type: "rebuilder_dealer" },
-  { url: "https://www.mnrepairables.com", name: "MN Motors", state: "MN", type: "rebuilder_dealer" },
+  { url: "https://www.autoworksinc.com", name: "Auto Works Inc.", state: "WI", city: "Madison", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://autoworksinc.com/vehicles.php" }, // 4cdg (verified 2026-10-10)
+  { url: "https://www.mnrepairables.com", name: "MN Motors", state: "MN", city: "Faribault", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.mnrepairables.com/vehicles.php" }, // 4cdg (verified 2026-10-10)
   { url: "https://www.starautous.com", name: "Star Auto", state: "MN", type: "rebuilder_dealer" },
   { url: "https://midwestrepairables.com", name: "Midwest Repairables", state: "MN", type: "rebuilder_dealer" },
   { url: "https://www.royaldriveautos.com", name: "Royal Drive", state: "MN", type: "rebuilder_dealer" },
   { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", city: "Des Moines", type: "salvage_yard", inventoryUrl: "https://www.samsriverside.com/vehicles.php" }, // verified 2026-10-06
   { url: "https://www.dgautollc.com", name: "D & G Auto", state: "MO", type: "rebuilder_dealer" },
-  { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard" },
+  { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard", platform: "4cdg", inventoryUrl: "https://www.southsiderebuilders.com/all_vehicles.php" }, // 4cdg (verified 2026-10-10)
   { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
   { url: "https://www.rebuildautos.com", name: "RebuildAutos", state: "MO", type: "auction_proxy" },
   { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer" },
   { url: "https://repairableautos.com", name: "Ken's Auto Body & Sales", state: "ND", type: "rebuilder_dealer" },
 
   // ── West / Southwest ──
-  { url: "https://www.prestigeautobrokers.com", name: "Prestige Auto Brokers", state: "TX", type: "rebuilder_dealer" },
+  { url: "https://www.prestigeautobrokers.com", name: "Prestige Auto Brokers", state: "TX", city: "Grand Prairie", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://prestigeautobrokers.com/vehicles.php" }, // 4cdg, ~350 units (verified 2026-10-10)
   { url: "https://www.axautostx.com", name: "America's Xtreme Auto", state: "TX", type: "rebuilder_dealer" },
   { url: "https://www.montanaautorecyclers.com", name: "Montana Auto Recyclers", state: "MT", type: "rebuilder_dealer" },
   { url: "https://asalvagecar.com", name: "STS Automotive Denver", state: "CO", type: "rebuilder_dealer" },
@@ -283,6 +288,29 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "http://kyautosales.com", name: "Kentuckiana Auto Sales", state: "KY", city: "Louisville", type: "rebuilder_dealer" },
   { url: "https://www.4thstreetauto.com", name: "4th Street Auto", state: "KY", city: "Louisville", type: "independent_dealer" },
   { url: "https://www.neilhuffmanchevrolet.com", name: "Neil Huffman Chevrolet", state: "KY", city: "Frankfort", type: "clean_retail", inventoryUrl: "https://www.neilhuffmanchevrolet.com/used-inventory/index.htm" },
+  // ── Platform dealers found 2026-10-10 by footprint (one polite fetch each: robots allowed, terms
+  //    silent on automated access, priced cars/trucks parsed by the shared dealer-CMS parser) ──
+  // Creative Design Group / Smart Marketing ("Website Designed by Creative Design Group", vehiclesDetail.php)
+  { url: "https://www.drivenation.com", name: "DriveNation", state: "MO", city: "Jackson", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.drivenation.com/vehicles.php" },
+  // VehiclesNETWORK / apogeeINVENT independent-dealer sites ("Powered by VehiclesNETWORK", /autos)
+  { url: "https://www.usedcarsokc.com", name: "Super Sports & Imports", state: "OK", city: "Oklahoma City", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.usedcarsanchorageak.com", name: "Lyberger's Car & Truck Sales", state: "AK", city: "Anchorage", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.affordableusedcars.com", name: "Affordable Used Cars Anchorage", state: "AK", city: "Anchorage", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.ridetimeautocredit.com", name: "Ride Time", state: "LA", city: "Monroe", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.texasbhph.com", name: "DFW Car Mart", state: "TX", city: "Arlington", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.kwsautosales.com", name: "KWS Auto Sales", state: "TX", city: "San Antonio", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.randyadamsinc.com", name: "Randy Adams Inc.", state: "TX", city: "New Braunfels", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.redcarpetautosales.net", name: "Red Carpet Auto Sales", state: "TX", city: "Seguin", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.beasautosales.com", name: "Beas Auto Sales", state: "CA", city: "Stockton", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.camachoauto.com", name: "Camacho Auto Sales", state: "CA", city: "Palmdale", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.crowncitymotors.com", name: "Crown City Motors", state: "CA", city: "Pasadena", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.craseautoil.com", name: "Crase Auto Connection", state: "IL", city: "Channahon", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.duntonmotors.com", name: "Dunton Motors", state: "AZ", city: "Bullhead City", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.jakesautomall.com", name: "Jake's Auto Mall", state: "MN", city: "Ham Lake", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.missoulacarandtruck.com", name: "Turner's Missoula Car and Truck", state: "MT", city: "Missoula", type: "independent_dealer", platform: "vehiclesnetwork" },
+  { url: "https://www.wildwestomaha.com", name: "Wild West Auto Sales", state: "NE", city: "Omaha", type: "independent_dealer", platform: "vehiclesnetwork" },
+  // schema.org JSON-LD inventory (generic JSON-LD path, no platform template needed)
+  { url: "https://www.drivenowmidwest.com", name: "Drive Now", state: "KS", city: "Wichita", type: "independent_dealer" },
 ];
 
 /**
