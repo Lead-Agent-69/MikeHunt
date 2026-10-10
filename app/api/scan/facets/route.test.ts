@@ -2,14 +2,22 @@ import { describe, expect, it } from "vitest";
 import { buildScanFacetSummary } from "./route";
 
 describe("buildScanFacetSummary", () => {
-  it("does not infer title status from operability or repairability", () => {
+  it("returns all five title buckets; operability is not a clean title", () => {
     expect(
       buildScanFacetSummary([
         { condition: "repairable" },
         { condition: "run_drive" },
         { condition: "clean" },
+        { condition: null },
+        { condition: "parts_only" },
       ]).titleTypes,
-    ).toEqual([]);
+    ).toEqual([
+      { value: "clean", count: 0, label: "Clean title" },
+      { value: "rebuilt", count: 0, label: "Rebuilt title" },
+      { value: "salvage", count: 1, label: "Salvage title", partsOnly: 1 },
+      { value: "rebuildable", count: 1, label: "Rebuildable" },
+      { value: "unknown", count: 3, label: "Title unknown" },
+    ]);
   });
   it("turns live inventory rows into buyer-facing filter categories", () => {
     const facets = buildScanFacetSummary([
@@ -46,8 +54,11 @@ describe("buildScanFacetSummary", () => {
     expect(facets.states).toEqual(["FL", "TX"]);
     expect(facets.years).toEqual([2022, 2021, 2020]);
     expect(facets.titleTypes).toEqual([
-      { value: "salvage", count: 2, label: "Salvage title" },
       { value: "clean", count: 1, label: "Clean title" },
+      { value: "rebuilt", count: 0, label: "Rebuilt title" },
+      { value: "salvage", count: 2, label: "Salvage title", partsOnly: 0 },
+      { value: "rebuildable", count: 0, label: "Rebuildable" },
+      { value: "unknown", count: 0, label: "Title unknown" },
     ]);
     expect(facets.sellerTypes).toEqual([
       { value: "auction", count: 2, label: "Auctions" },

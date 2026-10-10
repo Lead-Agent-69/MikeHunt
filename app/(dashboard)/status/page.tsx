@@ -94,6 +94,8 @@ export default function StatusPage() {
   const sources: any[] = data?.sources ?? [];
   const healthSources: any[] = sourceHealth?.sources ?? [];
   const runs: any[] = data?.recentRuns ?? [];
+  const reliability: any = data?.scraperReliability ?? null;
+  const politeness: any = reliability?.politeness ?? null;
   const breakdown: any[] = data?.sourceBreakdown ?? [];
   const kb = data?.knowledgeBase;
   const acc = data?.valuationAccuracy;
@@ -1592,6 +1594,73 @@ export default function StatusPage() {
               </div>
             )}
           </div>
+
+          {/* Scraper success + ban risk (operator payload only) */}
+          {reliability && (
+            <div className="glass-panel p-5" data-testid="scraper-reliability">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
+                Scraper success (7 days)
+              </p>
+              <div className="flex flex-wrap gap-4 text-xs text-[var(--t2)] mb-3">
+                <span>
+                  <strong>{reliability.successRatePct ?? "–"}%</strong> of runs
+                  found cars
+                </span>
+                <span>{reliability.empty} came back empty</span>
+                <span>{reliability.failed} failed</span>
+                <span>{reliability.abandoned} never finished</span>
+              </div>
+              <div className="divide-y divide-[var(--b1)]">
+                {(reliability.sources || []).map((s: any) => (
+                  <div
+                    key={s.source}
+                    className="flex items-center justify-between py-2 text-xs"
+                  >
+                    <span className="text-[var(--t2)] font-semibold capitalize">
+                      {String(s.source).replace(/_/g, " ")}
+                    </span>
+                    <span className="text-[var(--t4)]">
+                      {s.successRatePct ?? "–"}% · {s.productive}/
+                      {s.runs - s.inFlight} runs found cars
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mt-4 mb-2">
+                Ban risk
+              </p>
+              {politeness ? (
+                <div className="text-xs text-[var(--t2)] space-y-1">
+                  <p>
+                    {politeness.banRiskPct}% of {politeness.requests} requests
+                    got 403/429 (403: {politeness.rate403Pct}%, 429:{" "}
+                    {politeness.rate429Pct}%). {politeness.cacheHitPct}% were
+                    unchanged pages (304).
+                  </p>
+                  {(politeness.pausedDomains || []).length > 0 && (
+                    <p className="text-[var(--t4)]">
+                      Paused:{" "}
+                      {politeness.pausedDomains
+                        .map((d: any) => `${d.domain} (${d.reason})`)
+                        .join(", ")}
+                    </p>
+                  )}
+                  {(politeness.domains || [])
+                    .filter((d: any) => d.banRiskPct > 0)
+                    .slice(0, 8)
+                    .map((d: any) => (
+                      <p key={d.domain} className="text-[var(--t4)]">
+                        {d.domain}: {d.banRiskPct}% of {d.requests}
+                      </p>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--t4)]">
+                  No crawler report yet. It appears after the next worker job.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Recent runs */}
           {runs.length > 0 && (
