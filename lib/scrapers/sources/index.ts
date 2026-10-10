@@ -116,6 +116,20 @@ export function mileageFromDealerText(
   return value >= 1000 && value <= 400000 ? value : undefined;
 }
 
+/** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
+export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+  const byId = new Map<string, string>();
+  for (const raw of urls) {
+    const url = String(raw || "");
+    const m = url.match(
+      /^https:\/\/images\.craigslist\.org\/(?:[0-9A-Za-z]{5}_)?([A-Za-z0-9]+_[A-Za-z0-9]+)_(\d+x\d+c?)\.jpg$/,
+    );
+    if (!m || m[2].endsWith("c")) continue; // 50x50c / 300x300c are thumbnails
+    if (!byId.has(m[1])) byId.set(m[1], url);
+  }
+  return Array.from(byId.values()).slice(0, 12);
+}
+
 export async function enrichCraigslistDetail(
   url: string,
 ): Promise<Partial<Deal>> {
@@ -150,12 +164,14 @@ export async function enrichCraigslistDetail(
     const cond = mapCraigslistTitle(attr("auto_title_status"));
     if (cond) out.condition = cond as any;
 
-    // Better/more images from the detail gallery.
-    const imgs = $('.gallery img, .slide img, img[src*="images.craigslist"]')
-      .map((_, e) => $(e).attr("src"))
-      .get()
-      .filter(Boolean) as string[];
-    if (imgs.length) out.images = Array.from(new Set(imgs)).slice(0, 12);
+    // Better/more images from the detail gallery: full-size URLs only (the 50x50c thumbnail strip
+    // repeats every photo), one per image id, capped thin.
+    out.images = craigslistGalleryImages(
+      $('.gallery img, .slide img, img[src*="images.craigslist"], a.thumb')
+        .map((_, e) => $(e).attr("href") || $(e).attr("src"))
+        .get() as string[],
+    );
+    if (!out.images.length) delete out.images;
 
     return out;
   } catch (error) {

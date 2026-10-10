@@ -38,6 +38,20 @@ const isNonCar = (vt: string): boolean =>
     vt.toUpperCase(),
   );
 
+/** Odometer from the public lots JSON (`orr`), unless Copart marks it not actual / exempt. */
+export function copartOdometer(v: any): number | undefined {
+  const miles = Math.round(Number(v?.orr));
+  if (!Number.isFinite(miles) || miles < 1 || miles > 999_999) return undefined;
+  if (/not actual|exempt|exceeds|tmu|broken|unknown/i.test(String(v?.ord ?? "")))
+    return undefined;
+  return miles;
+}
+
+/** "33578 7610" -> "33578". */
+export function copartZip(raw: unknown): string | undefined {
+  return String(raw ?? "").match(/^\s*(\d{5})/)?.[1];
+}
+
 /** Parse a Copart search-results API response (data.results.content) into salvage deal rows. */
 export function parseCopartLots(json: any): Partial<Deal>[] {
   const lots = json?.data?.results?.content;
@@ -81,7 +95,11 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
       make,
       model,
       ask_price: price,
-      mileage: 0, // odometer not in the public list payload
+      // `orr` is the odometer reading in the public lots JSON (checked 2026-10-10: 74308 on a 2017
+      // Sentra). Not-actual / exempt readings ("ord") are dropped, never guessed.
+      mileage: copartOdometer(v),
+      trim: str(v.ltd),
+      location_zip: copartZip(v.zip),
       condition: damageToCondition(damage),
       damage_type: damage || undefined,
       // `tims` is the lot's real photo (cs.copart.com JPG). Was hardcoded [], so every Copart car —

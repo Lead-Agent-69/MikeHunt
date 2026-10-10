@@ -1,7 +1,31 @@
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 import type { DiscoveryDeal } from "./types";
+import { sourceMeta } from "@/lib/sources/source-meta";
+import type { ConditionRead } from "@/lib/intelligence/condition";
+
+export function discoveryConditionLabel(condition: ConditionRead): string {
+  return condition.runs === "unknown" &&
+    /^(clean title|rebuilt title|salvage)$/i.test(condition.label)
+    ? "Running status not reported"
+    : condition.label;
+}
 
 export function discoveryEvidence(deal: DiscoveryDeal) {
+  const channel = sourceMeta(deal.source).channel;
+  if (
+    (channel === "dealer" || channel === "retail") &&
+    (deal.lane === "auction" || deal.sellerType === "auction")
+  ) {
+    return {
+      state: "needs_evidence" as const,
+      label: "Sale terms unclear",
+      summary: "The listing's sale type conflicts with its source information.",
+      nextCheck:
+        "Confirm whether this is an asking price or auction bid, then verify title, condition and purchase costs.",
+      acquisitionReady: false,
+      saleTermsUnclear: true,
+    };
+  }
   // Summary records do not include completed inspection and purchase checks.
   return assessDecisionEvidence({
     source:

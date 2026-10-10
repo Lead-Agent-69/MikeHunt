@@ -78,7 +78,12 @@ export function readCondition(
       detail: dmg,
     };
   if (/hail/.test(c))
-    return { label: "Hail (cosmetic)", tier: "caution", runs: "yes" };
+    return {
+      label: "Hail reported",
+      tier: "caution",
+      runs: "unknown",
+      detail: dmg,
+    };
   if (/repairable|fixer|damaged|needs/.test(c))
     return {
       label: "Needs work",
@@ -87,7 +92,12 @@ export function readCondition(
       detail: dmg,
     };
   if (/certified|cpo/.test(c))
-    return { label: "Certified", tier: "good", runs: "yes" };
+    return {
+      label: "Certification reported",
+      tier: "caution",
+      runs: "unknown",
+      detail: dmg,
+    };
   if (/clean/.test(c))
     return { label: "Clean title", tier: "good", runs: "unknown", detail: dmg };
 

@@ -18,7 +18,11 @@ import {
   CONDITION_TIER_COLOR,
 } from "@/lib/intelligence/condition";
 import { useDiscoverySave } from "./DiscoverySaveProvider";
-import { discoveryEvidence, discoveryReason } from "./card-evidence";
+import {
+  discoveryConditionLabel,
+  discoveryEvidence,
+  discoveryReason,
+} from "./card-evidence";
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
@@ -81,6 +85,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
+  const sourceChannel = sourceMeta(deal.source).channel;
+  const laneLabel =
+    deal.lane === "private" && sourceChannel === "dealer"
+      ? "Dealer"
+      : deal.lane === "private" && sourceChannel === "retail"
+        ? "Retail"
+        : LANE_LABELS[deal.lane || ""] || deal.lane;
   // Operability read ΓÇö "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
   const cond = readCondition(deal.condition, deal.damageType, title);
   const href =
@@ -90,6 +101,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const external = href.startsWith("http");
   const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
+  const priceLabel =
+    "saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel;
   const decision = {
     label: evidence.label,
     background: "rgba(35, 43, 55, .88)",
@@ -212,7 +225,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           >
             <div>
               <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
-                {terms.priceLabel}
+                {priceLabel}
               </p>
               <span className="font-mono text-xl font-black text-[var(--t1)]">
                 {Number.isFinite(deal.askPrice) && deal.askPrice > 0
@@ -261,13 +274,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   background: `${deal.laneColor}22`,
                   color: deal.laneColor,
                 }}
-                title={`${LANE_LABELS[deal.lane] || deal.lane} channel`}
+                title={`${laneLabel} channel`}
               >
                 <span
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ background: deal.laneColor }}
                 />
-                {LANE_LABELS[deal.lane] || deal.lane}
+                {laneLabel}
               </span>
             )}
             {cond && (
@@ -279,13 +292,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 }}
                 title={
                   cond.runs === "yes"
-                    ? "Runs & drives"
+                    ? "Listing reports runs & drives. Verify with an inspection."
                     : cond.runs === "no"
-                      ? "Does not run"
+                      ? "Listing reports a non-runner or parts-only vehicle. Verify with the source."
                       : "Operability unconfirmed"
                 }
               >
-                {cond.label}
+                {discoveryConditionLabel(cond)}
                 {cond.detail ? ` / ${cond.detail}` : ""}
               </span>
             )}
@@ -367,7 +380,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </summary>
             <p className="text-[11px] leading-relaxed text-[var(--t3)]">
               {deal.askPrice > 0
-                ? `${terms.priceLabel} $${deal.askPrice.toLocaleString()}`
+                ? `${priceLabel} $${deal.askPrice.toLocaleString()}`
                 : "Price not reported"}
               {" · "}
               {deal.soldAnchored &&

@@ -64,7 +64,12 @@ export async function sendAlertMatchEmail(options: {
   askPrice: number;
   estimatedProfit: number;
   dealUrl: string;
+  /** Open-tracking pixel URL (opaque delivery id only, never the recipient's email). */
+  pixelUrl?: string;
 }) {
+  const pixel = options.pixelUrl
+    ? `<img src="${options.pixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0" />`
+    : "";
   const html = `
     <!DOCTYPE html>
     <html>
@@ -142,6 +147,7 @@ export async function sendAlertMatchEmail(options: {
             This is an automated alert from MikeHunt. To manage your alerts, visit your dashboard.
           </p>
         </div>
+        ${pixel}
       </body>
     </html>
   `;

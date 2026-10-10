@@ -45,7 +45,26 @@ describe("readCondition", () => {
       label: "Clean title",
       tier: "good",
     });
-    expect(readCondition("certified")!.label).toBe("Certified");
+    expect(readCondition("certified")!.label).toBe("Certification reported");
+  });
+
+  it.each([
+    "hail",
+    "certified",
+    "cpo",
+    "clean_title",
+    "rebuilt_title",
+    "salvage_title",
+  ])("does not infer running status from %s", (claim) => {
+    expect(readCondition(claim)?.runs).toBe("unknown");
+  });
+
+  it("does not describe hail as cosmetic without inspection evidence", () => {
+    expect(readCondition("hail", "ROOF")!).toMatchObject({
+      label: "Hail reported",
+      runs: "unknown",
+      detail: "Roof",
+    });
   });
 
   it("ignores the placeholder damage value 'repairable'", () => {

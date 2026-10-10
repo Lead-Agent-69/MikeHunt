@@ -85,3 +85,18 @@ function explicitRadius(
   if (!Number.isFinite(requested) || requested <= 0) return 0;
   return requested;
 }
+
+/**
+ * Verdict filter for /api/deals/near. Only an explicit go/hold/pass narrows; anything else
+ * (missing, "all", junk) means every verdict. There is deliberately no "go" default: with
+ * zero "go" rows the old default made every ZIP search come back empty.
+ */
+export const NEAR_VERDICTS = ["go", "hold", "pass"] as const;
+export function nearVerdictFilter(
+  raw: string | null | undefined,
+): string | null {
+  const v = String(raw || "")
+    .trim()
+    .toLowerCase();
+  return (NEAR_VERDICTS as readonly string[]).includes(v) ? v : null;
+}
