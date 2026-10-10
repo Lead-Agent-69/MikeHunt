@@ -8,6 +8,13 @@ import { RefreshCw } from "lucide-react";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import {
+  titleFilterOptions,
+  titleTypeFromQuery,
+  withTitleType,
+} from "@/lib/deals/title-filter-options";
+
+const MAP_TITLE_OPTIONS = titleFilterOptions(null, "Any title");
 
 // Leaflet touches `window`, so the map must be client-only (no SSR).
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
@@ -33,7 +40,10 @@ const FILTERS = [
 ];
 
 export default function MapPage() {
-  const { query, ready, intent } = useInventoryViewScope();
+  const { query: scopeQuery, ready, intent } = useInventoryViewScope();
+  // null = follow the saved scope's titleType; otherwise the map-only title choice.
+  const [titleFilter, setTitleFilter] = useState<string | null>(null);
+  const query = withTitleType(scopeQuery, titleFilter);
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [verdict, setVerdict] = useState("actionable");
   const { data, error, isLoading, mutate } = useSWR(
@@ -97,6 +107,21 @@ export default function MapPage() {
         )}
       </div>
       <InventoryViewLinks query={query} current="/map" />
+      <label className="flex items-center gap-2 text-xs font-bold text-[var(--t4)]">
+        Title
+        <select
+          aria-label="Title filter"
+          value={titleTypeFromQuery(query)}
+          onChange={(event) => setTitleFilter(event.target.value)}
+          className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
+        >
+          {MAP_TITLE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
       {data?.limited && (
         <p role="status" className="text-xs text-[var(--t3)]">
           Limited map sample: up to {data.limit} located listings.

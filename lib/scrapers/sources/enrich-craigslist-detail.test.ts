@@ -53,3 +53,24 @@ describe("enrichCraigslistDetail", () => {
     });
   });
 });
+
+import { craigslistGalleryImages } from "./index";
+
+describe("craigslistGalleryImages", () => {
+  it("keeps full-size photos once per image id and drops the thumbnail strip", () => {
+    expect(
+      craigslistGalleryImages([
+        "https://images.craigslist.org/01010_4eft6Hinzq1_0CI0t2_600x450.jpg",
+        "https://images.craigslist.org/01010_4eft6Hinzq1_0CI0t2_50x50c.jpg",
+        "https://images.craigslist.org/00a0a_hWRNhXErGNm_0CI0t2_50x50c.jpg",
+        "https://images.craigslist.org/00a0a_hWRNhXErGNm_0CI0t2_600x450.jpg",
+        "https://images.craigslist.org/01010_4eft6Hinzq1_0CI0t2_600x450.jpg",
+        "https://evil.example/x_600x450.jpg",
+        undefined,
+      ]),
+    ).toEqual([
+      "https://images.craigslist.org/01010_4eft6Hinzq1_0CI0t2_600x450.jpg",
+      "https://images.craigslist.org/00a0a_hWRNhXErGNm_0CI0t2_600x450.jpg",
+    ]);
+  });
+});
