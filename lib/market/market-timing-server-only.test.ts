@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 const NAME = "20261010120000_market_timing_stripe_events_server_only.sql";
 const RECHECK = "20261010140000_market_timing_stripe_events_recheck.sql";
+const COLUMN_RECHECK = "20261010150000_market_timing_stripe_events_column_recheck.sql";
 const DIR = "supabase/migrations";
 const sql = readFileSync(`${DIR}/${NAME}`, "utf8");
 const recheck = readFileSync(`${DIR}/${RECHECK}`, "utf8");
+const columnRecheck = readFileSync(`${DIR}/${COLUMN_RECHECK}`, "utf8");
 const files = readdirSync(DIR)
   .filter((f) => f.endsWith(".sql"))
   .sort();
@@ -18,11 +20,17 @@ const CLIENT = String.raw`\b(anon|authenticated|PUBLIC)\b`;
 const objRef = (obj: string) =>
   String.raw`("?public"?\s*\.\s*)?"?${obj}"?(?![\w$])`;
 
+// The object may be anywhere in a multi-table list: GRANT SELECT ON public.deals, public.x TO anon
 const CLIENT_GRANT = (obj: string) =>
   new RegExp(
-    String.raw`GRANT\s+[^;]*\bON\s+(TABLE\s+)?${objRef(obj)}[^;]*\bTO\b[^;]*${CLIENT}`,
+    String.raw`GRANT\s+[^;]*\bON\s+(TABLE\s+)?([^;]*?[\s,])?${objRef(obj)}[^;]*\bTO\b[^;]*${CLIENT}`,
     "i",
   );
+// Role membership granted to a client role (GRANT service_role TO anon): no ON clause at all.
+const ROLE_GRANT = new RegExp(
+  String.raw`\bGRANT\s+(?:(?!\bON\b)[^;])*\bTO\b[^;]*${CLIENT}`,
+  "i",
+);
 // GRANT ... ON ALL TABLES IN SCHEMA public TO anon/authenticated/PUBLIC
 const SCHEMA_WIDE_GRANT = new RegExp(
   String.raw`GRANT\s+[^;]*\bON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+[^;]*?"?public"?[^;]*\bTO\b[^;]*${CLIENT}`,
@@ -34,9 +42,18 @@ const DEFAULT_PRIV_GRANT = new RegExp(
   "i",
 );
 // security_invoker = false/off/0/no, quoted or not
-const INVOKER_OFF =
-  /market_timing_signals[^;]*security_invoker\s*=\s*['"]?\s*(false|off|0|no)\s*['"]?(?![\w])/i;
-const INVOKER_ON = /security_invoker\s*=\s*['"]?\s*(true|on|1|yes)\s*['"]?(?![\w])/i;
+// Postgres booleans accept any unique prefix: f/fa/fal/fals/false, n/no, of/off, 0 (and the
+// true side t/tr/tru/true, y/ye/yes, on, 1). "o" alone is ambiguous and rejected by Postgres.
+const BOOL_FALSE = String.raw`(f|fa|fal|fals|false|n|no|of|off|0)`;
+const BOOL_TRUE = String.raw`(t|tr|tru|true|y|ye|yes|on|1)`;
+const INVOKER_OFF = new RegExp(
+  String.raw`market_timing_signals[^;]*security_invoker\s*=\s*['"]?\s*${BOOL_FALSE}\s*['"]?(?![\w])`,
+  "i",
+);
+const INVOKER_ON = new RegExp(
+  String.raw`security_invoker\s*=\s*['"]?\s*${BOOL_TRUE}\s*['"]?(?![\w])`,
+  "i",
+);
 const VIEW_DEF = new RegExp(
   String.raw`CREATE\s+(OR\s+REPLACE\s+)?VIEW\s+${objRef("market_timing_signals")}[^;]*?\bAS\b`,
   "gi",
@@ -96,12 +113,28 @@ describe("market_timing_signals + stripe_events server-only migration", () => {
     );
   });
 
+  it("column recheck migration: has_any_column_privilege for S/I/U/REFERENCES, no client role membership", () => {
+    const body = columnRecheck.replace(/--[^\n]*/g, "");
+    expect(body).not.toMatch(/\b(GRANT|REVOKE|ALTER|CREATE|DROP|COMMENT)\b/i);
+    expect(body).toMatch(/ARRAY\['anon', 'authenticated'\]/);
+    expect(body).toContain("ARRAY['SELECT', 'INSERT', 'UPDATE', 'REFERENCES']");
+    expect(body).toMatch(
+      /has_any_column_privilege\(r, 'public\.market_timing_signals', p\)/,
+    );
+    expect(body).toMatch(/has_any_column_privilege\(r, 'public\.stripe_events', p\)/);
+    expect(body).toMatch(/pg_has_role\(r, g, 'MEMBER'\)/);
+    expect(body).toContain(
+      "ARRAY['service_role', 'postgres', 'supabase_admin', 'authenticator']",
+    );
+  });
+
   it("no migration grants market_timing_signals or stripe_events to client roles", () => {
     for (const f of files) {
       const body = read(f);
       expect(body, f).not.toMatch(CLIENT_GRANT("market_timing_signals"));
       expect(body, f).not.toMatch(CLIENT_GRANT("stripe_events"));
       expect(body, f).not.toMatch(SCHEMA_WIDE_GRANT);
+      expect(body, f).not.toMatch(ROLE_GRANT);
       expect(body, f).not.toMatch(DEFAULT_PRIV_GRANT);
       expect(body, f).not.toMatch(
         new RegExp(
