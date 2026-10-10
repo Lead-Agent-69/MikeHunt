@@ -10,13 +10,16 @@ let root: Root;
 let container: HTMLDivElement;
 const fetchMock = vi.fn();
 
-async function render(open = true) {
+async function render(
+  open = true,
+  current: typeof snapshot & { id?: string } = snapshot,
+) {
   await act(async () => {
     root.render(
       React.createElement(FindSimilarModal, {
         isOpen: open,
         onClose: vi.fn(),
-        snapshot,
+        snapshot: current,
       }),
     );
   });
@@ -39,6 +42,21 @@ afterEach(async () => {
 });
 
 describe("similar listing request lifecycle", () => {
+  it("does not show the current vehicle as its own alternative", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { id: "current", make: "SELF", model: "MDX" },
+        { id: "alternative", make: "Acura", model: "MDX", ask_price: 14000 },
+      ],
+    });
+    await render(true, { ...snapshot, id: "current" });
+    expect(document.querySelector('a[href="/deal/current"]')).toBeNull();
+    expect(
+      document.querySelector('a[href="/deal/alternative"]'),
+    ).not.toBeNull();
+    expect(document.body.textContent).not.toContain("SELF");
+  });
   it("shows friendly failure and retries without fabricated data", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false });
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

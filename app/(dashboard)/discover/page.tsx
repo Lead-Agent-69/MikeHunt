@@ -22,6 +22,7 @@ import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { laneAllowedForMode } from "@/lib/buyer/lane-access";
 import { hiddenRailKeysForMode } from "@/lib/discovery/desk-rails";
+import { distinctDiscoveryRails } from "@/lib/discovery/distinct-rails";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
@@ -382,9 +383,14 @@ export default function DiscoverPage() {
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);
   // Same table the API enforces (lib/discovery/desk-rails); parts keeps salvage/teardown.
   const hiddenNonFlipRails = hiddenRailKeysForMode(buyerScope?.buyerMode);
-  const visibleRails = (data?.rails || []).filter(
-    (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
+  const visibleRails = distinctDiscoveryRails(
+    (data?.rails || []).filter(
+      (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
+    ),
   );
+  const eligibleDeals = visibleRails.flatMap((rail) => rail.deals);
+  const hasRankingChoices =
+    new Set(eligibleDeals.map((deal) => deal.id)).size > 1;
   // Wholesale-auction lane is flip-desk only; a stale "auction" draft falls back to All deals.
   const laneOptions = Object.entries(LANE_VALUE_TO_LABEL).filter(([value]) =>
     laneAllowedForMode(value, buyerScope?.buyerMode),
@@ -626,11 +632,8 @@ export default function DiscoverPage() {
         )}
       </details>
       {/* For You: personal reco rail, hidden unless the backend is personalizing */}
-      {!isValidating && !error && (
-        <ForYouRail
-          flipDesk={flipDesk}
-          eligibleDeals={visibleRails.flatMap((rail) => rail.deals)}
-        />
+      {!isValidating && !error && hasRankingChoices && (
+        <ForYouRail flipDesk={flipDesk} eligibleDeals={eligibleDeals} />
       )}
 
       {/* Body */}

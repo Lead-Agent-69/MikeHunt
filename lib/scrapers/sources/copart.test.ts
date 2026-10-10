@@ -97,3 +97,44 @@ describe("parseCopartLots", () => {
     expect(parseCopartLots(resp([]))).toEqual([]);
   });
 });
+
+import { copartOdometer, copartZip } from "./copart";
+
+describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", () => {
+  it("reads orr as mileage unless the reading is not actual or exempt", () => {
+    expect(copartOdometer({ orr: 74308.0, ord: null })).toBe(74308);
+    expect(copartOdometer({ orr: 0 })).toBeUndefined();
+    expect(copartOdometer({ orr: 120000, ord: "NOT ACTUAL" })).toBeUndefined();
+    expect(copartOdometer({ orr: 120000, ord: "EXEMPT" })).toBeUndefined();
+    expect(copartOdometer({})).toBeUndefined();
+  });
+  it("keeps the 5-digit zip", () => {
+    expect(copartZip("33578 7610")).toBe("33578");
+    expect(copartZip(undefined)).toBeUndefined();
+  });
+  it("maps orr, ltd and zip on a parsed lot", () => {
+    const [row] = parseCopartLots({
+      data: {
+        results: {
+          content: [
+            {
+              ln: 25875430,
+              lcy: 2017,
+              mkn: "NISSAN",
+              lm: "SENTRA",
+              ltd: "S",
+              orr: 74308.0,
+              zip: "33578 7610",
+              la: 11125,
+              memberVehicleType: "AUTOMOBILE",
+              dd: "FRONT END",
+              locState: "FL",
+              locCity: "RIVERVIEW",
+            },
+          ],
+        },
+      },
+    });
+    expect(row).toMatchObject({ mileage: 74308, trim: "S", location_zip: "33578" });
+  });
+});

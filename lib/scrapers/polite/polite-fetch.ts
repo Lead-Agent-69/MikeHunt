@@ -11,6 +11,7 @@
  *    A challenge is a "no" from the site. We never try to get past it.
  *  - Every outcome is counted per domain for the /status ban-risk panel (metrics.ts).
  */
+import { assertPublicHttpUrl } from "@/lib/net/public-url";
 import { DomainBreaker } from "./breaker";
 import {
   backoffMs,
@@ -42,7 +43,7 @@ export interface PoliteFetchOptions {
   signal?: AbortSignal;
 }
 
-export type PoliteSkipReason = "robots" | "breaker" | "invalid_url";
+export type PoliteSkipReason = "robots" | "breaker" | "invalid_url" | "blocked_url";
 
 export interface PoliteResponse {
   url: string;
@@ -88,8 +89,39 @@ function setExpiry(map: Map<string, RobotsEntry>, origin: string, at: number) {
   if (entry) entry.expiresAt = at;
 }
 
+const REDIRECT = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+/**
+ * SSRF guard for scraped hrefs: every hop (the first URL and each redirect target) must be a public
+ * http(s) host, so a dealer page can't bounce us into localhost / metadata / private ranges.
+ * Redirects are followed manually for that reason.
+ */
+export function guardedFetch(
+  raw: FetchLike,
+  guard: (url: string) => Promise<unknown>,
+): FetchLike {
+  return async (url, init = {}) => {
+    let current = url;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      await guard(current);
+      const res = await raw(current, { ...init, redirect: "manual" });
+      const location = res.headers.get("location");
+      if (!REDIRECT.has(res.status) || !location) return res;
+      await res.body?.cancel().catch(() => {});
+      current = new URL(location, current).toString();
+    }
+    throw new Error("too many redirects");
+  };
+}
+
 export interface PoliteCrawlerDeps {
   fetchImpl?: FetchLike;
+  /**
+   * Public-URL check run before the request and on every redirect hop. Defaults to
+   * assertPublicHttpUrl when the real network fetch is used; injected test fetches skip it.
+   */
+  urlGuard?: ((url: string) => Promise<unknown>) | null;
   limiter?: DomainLimiter;
   breaker?: DomainBreaker;
   metrics?: PoliteMetrics;
@@ -105,13 +137,21 @@ export class PoliteCrawler {
   readonly metrics: PoliteMetrics;
   readonly cache: PageCache;
   private readonly fetchImpl: FetchLike;
+  private readonly urlGuard: ((url: string) => Promise<unknown>) | null;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
   private readonly random: () => number;
   private robots = new Map<string, RobotsEntry>();
 
   constructor(deps: PoliteCrawlerDeps = {}) {
-    this.fetchImpl = deps.fetchImpl ?? ((u, i) => fetch(u, i));
+    this.urlGuard =
+      deps.urlGuard !== undefined
+        ? deps.urlGuard
+        : deps.fetchImpl
+          ? null
+          : assertPublicHttpUrl;
+    const raw: FetchLike = deps.fetchImpl ?? ((u, i) => fetch(u, i));
+    this.fetchImpl = this.urlGuard ? guardedFetch(raw, this.urlGuard) : raw;
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = deps.now ?? Date.now;
     this.random = deps.random ?? Math.random;
@@ -195,6 +235,13 @@ export class PoliteCrawler {
     };
     if (!domain) return { ...base, skipped: "invalid_url" };
     const origin = new URL(url).origin;
+    if (this.urlGuard) {
+      try {
+        await this.urlGuard(url);
+      } catch {
+        return { ...base, skipped: "blocked_url" };
+      }
+    }
 
     if (this.breaker.isOpen(domain, this.now())) {
       this.metrics.recordBreakerSkip(domain);
