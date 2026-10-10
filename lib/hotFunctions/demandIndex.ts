@@ -1,6 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase";
-
-const supabase = getSupabaseClient();
+import { createServerComponentClient } from "@/lib/supabase";
 
 export async function getMarketDemand(
   make: string,
@@ -8,9 +6,12 @@ export async function getMarketDemand(
   state: string,
 ) {
   // Query Supabase: how many of this make/model in this state
+  // Server-side (service role) count of a granted column only: the anon role no longer has
+  // table-wide SELECT on deals, so select("*") would 42501.
+  const supabase = createServerComponentClient();
   const { count: activeListings } = await supabase
     .from("deals")
-    .select("*", { count: "exact", head: true })
+    .select("id", { count: "exact", head: true })
     .ilike("make", make)
     .ilike("model", `%${model}%`)
     .eq("location_state", state)
