@@ -78,9 +78,26 @@ Multi-site deep links (#220) let users check sites we don't ingest. No data is t
 
 Request (any one of these is enough to start):
 - `{ "q": "<listing URL | VIN | '2018 Civic EX 71k $9,500 60432'>" }`, the single box on /find
-- or fields: `url`, `vin`, `year`, `make`, `model`, `trim`, `mileage`, `price`, `zip`, `title`
-  (clean | salvage | rebuilt | rebuildable). `homeState` is optional: the signed-in buyer's saved home
-  (`resolveBuyerHome`, server-side) is used by default, and `homeState` only overrides it. No default state.
+- `{ "dealId": "<deal uuid>" }`, a car we track: read from our `deals` row (price, source + `source_deal_id`,
+  URL, VIN, `last_seen_at`, `auction_end_at`, price history), never re-scraped. Unknown id → `404 DEAL_NOT_FOUND`.
+- or fields: `url`, `vin`, `year`, `make`, `model`, `trim`, `mileage`, `price`, `zip`, `state`, `title`
+  (clean | salvage | rebuilt | rebuildable). Body fields override a tracked row's values.
+- Location: `zip` and/or `state` (two-letter, incl. DC). Both are validated: an invalid ZIP, an unknown state,
+  or a ZIP in another state is a `400`. Same for the buyer-home override `homeZip` / `homeState`: the
+  signed-in buyer's saved home (`resolveBuyerHome`, server-side) is used by default and body values only
+  override it. No default state.
+- Rate limit: 10 requests / min per client (`check-listing` bucket).
+
+`POST /api/check-listing/batch`, for list cards (tracked deals only):
+- Request `{ "dealIds": ["<uuid>", …] }` (1–20; more is `400 TOO_MANY`), optional `homeState` / `homeZip`.
+- Response `{ desk: "flip" | "personal", reads: { [dealId]: CheckListingRead }, missing: string[] }`
+  (`missing`: unknown ids, or rows without make / model / price).
+- Market data per deal is computed on demand and cached in memory (`lib/cache` `cached`, per instance,
+  10 min TTL) keyed by `dealId + updated_at`. The cache holds the unredacted comps; `readForDesk` runs on
+  every request, so a flip and a personal caller never share a card.
+- Separate rate-limit bucket `check-listing-batch`: 30 requests / min per client (600 cards / min).
+  No external cache or paid service.
+- Both endpoints send `Cache-Control: private, no-store`.
 
 How it reads the car:
 - A URL goes through save-from-url's guarded, IP-pinned fetch (public http(s) only, redirects
@@ -101,7 +118,11 @@ the desk-specific card):
   miles when the car's mileage is known.
 
 Response `{ read, desk }`, where `read` is `CheckListingRead` (`lib/intelligence/check-listing.ts`).
-The flip desk gets `readListing`; everyone else gets `readPersonal`, which never runs the flip evaluation.
+`readForDesk` picks the card: the flip desk gets `readListing`; everyone else gets `readPersonal`, which
+never runs the flip evaluation, gated server-side: retail confidence `none` or `low` → verdict
+`not_enough_data` (no Buy / Wait / Pass, `priceRating` null; fair value and its label stay). An unknown
+title caps confidence at low, so a personal check needs a stated title (or 6+ sales / listings with one)
+to get a verdict.
 
 | Field | Flip desk (`readListing`) | Personal desk (`readPersonal`) |
 | --- | --- | --- |
@@ -113,7 +134,7 @@ The flip desk gets `readListing`; everyone else gets `readPersonal`, which never
 | `profit` | engine cost line and net | null |
 | `confidence` | engine label + score | retail label (score null) |
 | `why`, `assumptions`, `comps` | from the sell-market evaluation | from the at-location retail valuation only; no sell state anywhere |
-| `live` | the tracked row's freshness (`frozen` / `ended` → `not_live`); a page fetched now is live | same |
+| `live` | the tracked row's freshness (`isLiveDeal`: `stale` / `frozen` / `ended` → `not_live`, never Buy); a page fetched now is live | same |
 | `trend` | model-wide `market_timing_signals`, `usedInVerdict: false`; not shown and never changes the verdict until timing is like-for-like | same |
 
 Retail fair value (`lib/intelligence/retail-fair-value.ts`), personal desk only:
