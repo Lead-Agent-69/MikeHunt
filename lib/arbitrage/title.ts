@@ -1,13 +1,24 @@
 // lib/arbitrage/title.ts
 // Title categories for resale comps.
 //
-// TODO(arbitrage-v2): swap this local adapter for Amy's lib/deals/title-category.ts once it lands on
-// main. The mapping here is the same contract:
+// Listing rows (deals.condition enum) delegate to Amy's lib/deals/title-category.ts, the single
+// mapping the badge, the scan filter and this engine share:
 //   clean_title → Clean · rebuilt_title → Rebuilt · salvage_title + parts_only → Salvage ·
-//   repairable → Rebuildable · anything else → Unknown.
-// Free-text conditions ("SALVAGE CERTIFICATE", "rebuildable") are matched by keyword in the same
-// order as lib/discovery/categorize titleClass (salvage/parts before rebuilt: "rebuilt from salvage"
-// is treated as Salvage, the conservative side).
+//   repairable → Rebuildable · run_drive / hail / flood / fire / null → Unknown.
+// The engine's labels are the capitalized form of that module's categories.
+//
+// Free text (sold_listings.title is the source listing HEADLINE, not a title document; title-category
+// deliberately never reads text) goes through soldTitleCategory: only an explicit clean-title claim
+// is Clean (market-value soldTitleLane, which rejects "not clean title"); branded keywords map to
+// the most conservative branded category (salvage/parts before rebuilt: "rebuilt from salvage" is
+// Salvage). Everything else stays Unknown.
+
+import {
+  LISTING_CONDITIONS,
+  titleCategory as dealTitleCategory,
+  type TitleCategory as DealTitleCategory,
+} from "@/lib/deals/title-category";
+import { soldTitleLane } from "@/lib/scoring/market-value";
 
 export type TitleCategory =
   | "Clean"
@@ -16,14 +27,36 @@ export type TitleCategory =
   | "Rebuildable"
   | "Unknown";
 
-export function titleCategory(condition?: string | null): TitleCategory {
-  const c = String(condition || "").toLowerCase();
+const LABEL: Readonly<Record<DealTitleCategory, TitleCategory>> = {
+  clean: "Clean",
+  rebuilt: "Rebuilt",
+  salvage: "Salvage",
+  rebuildable: "Rebuildable",
+  unknown: "Unknown",
+};
+
+/** Category for a free-text title (sold-comp headline, legacy free-text condition). */
+export function soldTitleCategory(text?: string | null): TitleCategory {
+  const raw = String(text || "").trim();
+  const c = raw.toLowerCase();
   if (!c) return "Unknown";
   if (/salvage|parts/.test(c)) return "Salvage";
-  if (/rebuilt/.test(c)) return "Rebuilt";
+  if (/rebuilt|rebuild\b/.test(c)) return "Rebuilt";
   if (/repairable|rebuildable/.test(c)) return "Rebuildable";
-  if (/clean/.test(c)) return "Clean";
+  // Other branded words (flood, junk, wrecked, certificate of destruction…) → conservative Salvage.
+  if (soldTitleLane(raw) === "salvage") return "Salvage";
+  if (c === "clean" || soldTitleLane(raw) === "clean") return "Clean";
   return "Unknown";
+}
+
+export function titleCategory(condition?: string | null): TitleCategory {
+  const c = String(condition || "")
+    .trim()
+    .toLowerCase();
+  if (!c) return "Unknown";
+  if ((LISTING_CONDITIONS as readonly string[]).includes(c))
+    return LABEL[dealTitleCategory({ condition: c })];
+  return soldTitleCategory(condition);
 }
 
 export function isBrandedTitle(cat: TitleCategory): boolean {

@@ -31,7 +31,7 @@ vi.mock("@/lib/cache", () => ({
     fn(),
 }));
 
-import { GET, isStaleArbitrageRow, resolveArbitrageHome } from "./route";
+import { GET, normalizeModel, soldGroupKey, soldModelPattern } from "./route";
 
 const NOW = Date.now();
 const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
@@ -44,6 +44,7 @@ type Tables = {
   sold?: Record<string, unknown>[];
 };
 const calls: Record<string, number> = {};
+const orArgs: string[] = [];
 
 /** Chainable PostgREST stand-in: filters are recorded, range() resolves the table's rows once. */
 function tables(t: Tables) {
@@ -52,6 +53,10 @@ function tables(t: Tables) {
     const q: any = {};
     for (const m of ["select", "eq", "in", "gte", "lte", "gt", "order"])
       q[m] = () => q;
+    q.or = (arg: string) => {
+      orArgs.push(arg);
+      return q;
+    };
     q.maybeSingle = async () => {
       if (table === "user_profiles")
         return { data: t.profile ?? null, error: null };
@@ -80,6 +85,7 @@ beforeEach(() => {
   getServerUser.mockResolvedValue({ data: { user: null } });
   fromMock.mockReset();
   for (const k of Object.keys(calls)) delete calls[k];
+  orArgs.length = 0;
   tables({});
 });
 
@@ -189,47 +195,34 @@ describe("GET /api/arbitrage home resolution", () => {
     expect(body.homeState).toBeNull();
     expect(getDeals).not.toHaveBeenCalled();
   });
-
-  it("resolveArbitrageHome: prefs coords, profile pin only when states match, ZIP state wins", () => {
-    expect(
-      resolveArbitrageHome({
-        prefsHomeLocation: { state: "MO", lat: 38.6, lng: -90.2 },
-      }),
-    ).toMatchObject({ state: "MO", lat: 38.6, lng: -90.2 });
-    expect(
-      resolveArbitrageHome({
-        prefsHomeLocation: { state: "MO" },
-        profile: { home_state: "KS", home_lat: 39, home_lng: -95 },
-      }),
-    ).toEqual({ state: "MO" });
-    expect(
-      resolveArbitrageHome({ profile: { home_state: "CA", home_zip: "63101" } })
-        ?.state,
-    ).toBe("MO");
-    expect(resolveArbitrageHome({})).toBeNull();
-  });
 });
 
-describe("stale predicate (fallback until lib/deals/freshness lands)", () => {
-  it("gated sources and rows last seen > 72h ago are stale", () => {
-    expect(
-      isStaleArbitrageRow({ source: "copart", lastSeenAt: hoursAgo(1) }),
-    ).toBe(true);
-    expect(
-      isStaleArbitrageRow({ source: "govdeals", lastSeenAt: hoursAgo(1) }),
-    ).toBe(true);
-    expect(
-      isStaleArbitrageRow({ source: "publicsurplus", lastSeenAt: hoursAgo(1) }),
-    ).toBe(true);
-    expect(
-      isStaleArbitrageRow({ source: "carscom", lastSeenAt: hoursAgo(80) }),
-    ).toBe(true);
-    expect(isStaleArbitrageRow({ source: "carscom", lastSeenAt: null })).toBe(
-      true,
+describe("sold-comp model join (trim-in-model rows)", () => {
+  it("normalizes like market-value and matches the longest candidate prefix", () => {
+    expect(normalizeModel("F-150")).toBe("f150");
+    const byMake = new Map([
+      ["ford", ["f150"]],
+      ["jeep", ["grandcherokee", "cherokee"]],
+    ]);
+    expect(soldGroupKey(byMake, "FORD", "F-150 XLT")).toBe("ford|f150");
+    expect(soldGroupKey(byMake, "Ford", "F150 Lariat SuperCrew")).toBe(
+      "ford|f150",
     );
-    expect(
-      isStaleArbitrageRow({ source: "carscom", lastSeenAt: hoursAgo(2) }),
-    ).toBe(false);
+    expect(soldGroupKey(byMake, "Jeep", "Grand Cherokee Limited")).toBe(
+      "jeep|grandcherokee",
+    );
+    expect(soldGroupKey(byMake, "Jeep", "Cherokee Latitude")).toBe(
+      "jeep|cherokee",
+    );
+    expect(soldGroupKey(byMake, "Ford", "Ranger XLT")).toBeNull();
+    expect(soldGroupKey(byMake, "Chevrolet", "F-150")).toBeNull();
+  });
+
+  it("builds a DB prefix pattern tolerant of dash/space and free of PostgREST specials", () => {
+    expect(soldModelPattern("F-150")).toBe("F%150%");
+    expect(soldModelPattern("Grand Cherokee")).toBe("Grand%Cherokee%");
+    expect(soldModelPattern("C,(x)")).toBe("C%x%");
+    expect(soldModelPattern("---")).toBeNull();
   });
 });
 
@@ -249,7 +242,7 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
   const soldCamry = (i: number, over: Record<string, unknown> = {}) => ({
     id: 900 + i,
     make: "TOYOTA",
-    model: "camry",
+    model: "Camry SE", // eBay keeps the trim in the model
     year: 2020,
     sold_price: 20000,
     location_state: "MO",
@@ -280,8 +273,14 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
       deals: [
         deal({ id: "good", askPrice: 10000 }),
         deal({ id: "nocomps", make: "Honda", model: "Civic", askPrice: 9000 }),
-        deal({ id: "frozen", source: "copart", askPrice: 3000 }),
+        deal({
+          id: "frozen",
+          source: "copart",
+          askPrice: 3000,
+          lastSeenAt: hoursAgo(30),
+        }),
         deal({ id: "old", askPrice: 3000, lastSeenAt: hoursAgo(100) }),
+        deal({ id: "ended", askPrice: 3000, auctionEndAt: hoursAgo(1) }),
         deal({ id: "token", source: "iaai", askPrice: 100 }),
         deal({ id: "pass", askPrice: 5000, dealVerdict: "pass" }),
       ],
@@ -373,8 +372,9 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
     ]);
     expect(ids).not.toContain('"frozen"');
     expect(ids).not.toContain('"old"');
+    expect(ids).not.toContain('"ended"');
     expect(ids).not.toContain('"pass"');
-    expect(body.summary.excluded.stale).toBe(2);
+    expect(body.summary.excluded.stale).toBe(3);
   });
 
   it("comps are fetched in batches, not per row", async () => {
@@ -385,6 +385,12 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
     expect(calls.deals).toBe(1);
     expect(calls.sold_listings).toBe(1);
     expect(body.compQueries).toBe(2);
+    // Sold rows are matched by model prefix, not exact IN(model).
+    expect(orArgs).toHaveLength(1);
+    expect(orArgs[0].split(",").sort()).toEqual([
+      "model.ilike.Camry%",
+      "model.ilike.Civic%",
+    ]);
   });
 
   it("all-no-comps inventory reports zero profit and an honest needsComps count", async () => {

@@ -5,8 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { DealsService } from "@/lib/data/deals-service";
 import { milesBetweenStates } from "@/lib/geo";
 import type { GeoPoint } from "@/lib/geo/buyer-distance";
-import { zipToState } from "@/lib/geo/zip-state";
-import { sanitizeHomeLocation } from "@/lib/preferences/locations";
+import { resolveBuyerHome, type BuyerHome } from "@/lib/geo/buyer-home";
+import { isLiveDeal, type FreshnessInput } from "@/lib/deals/freshness";
 import { getServerUser } from "@/lib/server-supabase";
 import {
   createServerComponentClient,
@@ -56,93 +56,15 @@ const MODEL_BATCH = 60;
 
 const NO_STORE = { "Cache-Control": "private, no-store" } as const;
 
-// ─── Stale / frozen ──────────────────────────────────────────────────────────────────────────────
-// TODO(arbitrage-v2): swap for isFrozenDeal from lib/deals/freshness.ts (Amy, #202/#205) once it is
-// on main. Same contract: terms-gated sources nothing refreshes (copart, govdeals, publicsurplus) or
-// last seen more than 72h ago are not a buyable price.
-const STALE_AFTER_HOURS = 72;
-const GATED_SOURCE = /copart|govdeals|publicsurplus/i;
-
-export function isStaleArbitrageRow(
-  row: { source?: unknown; sourceUrl?: unknown; lastSeenAt?: unknown },
-  now: number = Date.now(),
-): boolean {
-  if (GATED_SOURCE.test(String(row.source || ""))) return true;
-  if (GATED_SOURCE.test(String(row.sourceUrl || "").replace(/[.\s-]/g, "")))
-    return true;
-  const seen =
-    row.lastSeenAt instanceof Date
-      ? row.lastSeenAt.getTime()
-      : Date.parse(String(row.lastSeenAt || ""));
-  if (!Number.isFinite(seen)) return true; // never seen live → not a current price
-  return now - seen > STALE_AFTER_HOURS * 3_600_000;
-}
-
-// ─── Buyer home ──────────────────────────────────────────────────────────────────────────────────
-// Minimal inline equivalent of resolveBuyerHome (lib/geo/buyer-home.ts, Eva #198 — not on this base
-// yet). TODO(arbitrage-v2): replace with resolveBuyerHome once #198 lands. Evidence order, never a
-// default state: prefs.homeLocation (+ZIP when it agrees, +lat/lng when present, else the profile pin
-// when its state matches) → legacy profile ZIP state / home_state (the untouched "CA" column default
-// with no ZIP and no pin is NOT a home) → null.
-
-export interface ArbitrageHome extends GeoPoint {
-  state: string;
-}
+// Stale / frozen / ended rows: lib/deals/freshness isLiveDeal (terms-gated imports older than the
+// grace window, last seen > 72h, missing last_seen_at, or an ended auction are not a buyable price).
+// Buyer home: lib/geo/buyer-home resolveBuyerHome (never a default state).
 
 function stateCode(v: unknown): string | null {
   const s = String(v ?? "")
     .trim()
     .toUpperCase();
   return /^[A-Z]{2}$/.test(s) && s !== "NA" ? s : null;
-}
-
-function coords(
-  lat: unknown,
-  lng: unknown,
-): { lat: number; lng: number } | null {
-  if (lat == null || lng == null || lat === "" || lng === "") return null;
-  const a = Number(lat);
-  const b = Number(lng);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  if ((a === 0 && b === 0) || Math.abs(a) > 90 || Math.abs(b) > 180)
-    return null;
-  return { lat: a, lng: b };
-}
-
-export function resolveArbitrageHome(input: {
-  prefsHomeLocation?: unknown;
-  profile?: {
-    home_state?: unknown;
-    home_zip?: unknown;
-    home_lat?: unknown;
-    home_lng?: unknown;
-  } | null;
-}): ArbitrageHome | null {
-  const profile = input.profile || null;
-  const pin = profile ? coords(profile.home_lat, profile.home_lng) : null;
-  const profileState = stateCode(profile?.home_state);
-  const prefsHome = sanitizeHomeLocation(input.prefsHomeLocation);
-  if (prefsHome) {
-    const state = prefsHome.state;
-    const zip =
-      prefsHome.zip && zipToState(prefsHome.zip) === state
-        ? prefsHome.zip
-        : null;
-    const raw = input.prefsHomeLocation as { lat?: unknown; lng?: unknown };
-    const c =
-      coords(raw?.lat, raw?.lng) ??
-      (pin && profileState === state ? pin : null);
-    return { state, ...(zip ? { zip } : {}), ...(c || {}) };
-  }
-  if (!profile) return null;
-  const z = String(profile.home_zip ?? "").trim();
-  const zip = /^\d{5}$/.test(z) ? z : null;
-  const zipState = zip ? zipToState(zip) : null;
-  const untouchedCaDefault = profileState === "CA" && !zipState && !pin;
-  const state = zipState || (untouchedCaDefault ? null : profileState);
-  if (!state) return null;
-  const c = pin && (!profileState || profileState === state) ? pin : null;
-  return { state, ...(zipState && zip ? { zip } : {}), ...(c || {}) };
 }
 
 // ─── Payload types ───────────────────────────────────────────────────────────────────────────────
@@ -222,8 +144,41 @@ const norm = (v: unknown) =>
   String(v ?? "")
     .trim()
     .toLowerCase();
+/** Same normalization as lib/scoring/market-value normalizeModel (not exported there):
+ *  'F-150', 'f150', 'F 150' → 'f150'. */
+export const normalizeModel = (model: unknown) =>
+  String(model ?? "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "")
+    .replace(/[^a-z0-9]/g, "");
 const groupKey = (make: unknown, model: unknown) =>
-  `${norm(make)}|${norm(model)}`;
+  `${norm(make)}|${normalizeModel(model)}`;
+
+/**
+ * Sold rows often carry the trim inside the model (eBay: "F-150 XLT", "Camry SE"). Assign a sold row
+ * to the candidate group whose normalized model is the LONGEST prefix of the row's normalized model
+ * (same make). "f150xlt" → "f150"; "grandcherokee" never matches "cherokee" (not a prefix).
+ */
+export function soldGroupKey(
+  modelsByMake: Map<string, string[]>,
+  make: unknown,
+  model: unknown,
+): string | null {
+  const mk = norm(make);
+  const nm = normalizeModel(model);
+  if (!mk || !nm) return null;
+  for (const m of modelsByMake.get(mk) || []) {
+    if (nm.startsWith(m)) return `${mk}|${m}`;
+  }
+  return null;
+}
+
+/** ILIKE prefix pattern tolerant of space/dash spelling: "F-150" → "F%150%". Only [A-Za-z0-9]
+ *  reach the pattern, so no PostgREST or() quoting / LIKE escaping is needed. */
+export function soldModelPattern(model: string): string | null {
+  const tokens = model.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  return tokens.length ? `${tokens.join("%")}%` : null;
+}
 const titleCase = (s: string) =>
   s.toLowerCase().replace(/\b[a-z]/g, (m) => m.toUpperCase());
 /** Spellings to send to IN() (exact match); matching afterwards is case-insensitive. */
@@ -254,6 +209,8 @@ type AskRow = {
   lat: number | string | null;
   lng: number | string | null;
   last_seen_at: string | null;
+  source_url: string | null;
+  auction_end_at: string | null;
 };
 
 type SoldRow = {
@@ -268,7 +225,7 @@ type SoldRow = {
 };
 
 export const COMP_ASK_COLUMNS =
-  "id, source, source_deal_id, make, model, year, ask_price, condition, location_state, location_zip, lat, lng, last_seen_at";
+  "id, source, source_deal_id, make, model, year, ask_price, condition, location_state, location_zip, lat, lng, last_seen_at, source_url, auction_end_at";
 export const COMP_SOLD_COLUMNS =
   "id, make, model, year, sold_price, location_state, title, sold_at";
 
@@ -281,7 +238,13 @@ async function loadComps(
   sb: ReturnType<typeof createServerComponentClient>,
   groups: Map<
     string,
-    { make: string; model: string; minYear: number; maxYear: number }
+    {
+      make: string;
+      model: string;
+      spellings?: Set<string>;
+      minYear: number;
+      maxYear: number;
+    }
   >,
   now: number,
 ): Promise<{
@@ -301,12 +264,22 @@ async function loadComps(
     if (arr) arr.push(c);
     else byGroup.set(k, [c]);
   };
+  // make → normalized candidate models, longest first (for the sold prefix match).
+  const modelsByMake = new Map<string, string[]>();
+  for (const k of Array.from(groups.keys())) {
+    const [mk, m] = k.split("|");
+    if (!mk || !m) continue;
+    modelsByMake.set(mk, [...(modelsByMake.get(mk) || []), m]);
+  }
+  modelsByMake.forEach((arr) => arr.sort((a, b) => b.length - a.length));
   const soldCutoff = new Date(
     now - SOLD_COMP_WINDOW_DAYS * 86_400_000,
   ).toISOString();
 
   // Batch by model name; make is filtered too (exact spellings), then re-checked case-insensitively.
-  const models = Array.from(new Set(all.map((g) => g.model)));
+  const models = Array.from(
+    new Set(all.flatMap((g) => Array.from(g.spellings || [g.model]))),
+  );
   const makes = variants(Array.from(new Set(all.map((g) => g.make))));
   for (let i = 0; i < models.length; i += MODEL_BATCH) {
     const modelBatch = variants(models.slice(i, i + MODEL_BATCH));
@@ -332,13 +305,7 @@ async function loadComps(
         const k = groupKey(r.make, r.model);
         if (!groups.has(k)) continue;
         // A stale/frozen ask is not market evidence either.
-        if (
-          isStaleArbitrageRow(
-            { source: r.source, lastSeenAt: r.last_seen_at },
-            now,
-          )
-        )
-          continue;
+        if (!isLiveDeal(r, now)) continue;
         push(k, {
           kind: "ask",
           price: Number(r.ask_price) || 0,
@@ -355,6 +322,17 @@ async function loadComps(
       if (rows.length < PAGE) break;
     }
 
+    // Sold: model prefix (trim-in-model rows), not an exact IN(); still one query per batch.
+    const soldOr = Array.from(
+      new Set(
+        models
+          .slice(i, i + MODEL_BATCH)
+          .map(soldModelPattern)
+          .filter((x): x is string => !!x),
+      ),
+    )
+      .map((pat) => `model.ilike.${pat}`)
+      .join(",");
     let soldRows = 0;
     for (let from = 0; soldRows < MAX_COMP_ROWS; from += PAGE) {
       queries += 1;
@@ -364,7 +342,7 @@ async function loadComps(
         .eq("currency_code", "USD")
         .eq("country_code", "US")
         .in("make", makes)
-        .in("model", modelBatch)
+        .or(soldOr)
         .gte("year", minYear)
         .lte("year", maxYear)
         .gt("sold_price", 0)
@@ -375,8 +353,8 @@ async function loadComps(
       if (error) break;
       const rows = (data || []) as SoldRow[];
       for (const r of rows) {
-        const k = groupKey(r.make, r.model);
-        if (!groups.has(k)) continue;
+        const k = soldGroupKey(modelsByMake, r.make, r.model);
+        if (!k) continue;
         push(k, {
           kind: "sold",
           price: Number(r.sold_price) || 0,
@@ -384,8 +362,8 @@ async function loadComps(
           year: r.year,
           observedAt: r.sold_at,
           id: `sold:${r.id}`,
-          // sold_listings.title is the source listing headline; titleCategory reads brand keywords
-          // ("salvage", "rebuilt") from it and leaves the rest Unknown.
+          // sold_listings.title is the source listing headline: lib/arbitrage soldTitleCategory reads
+          // branded keywords / explicit clean-title claims from it and leaves the rest Unknown.
           title: r.title,
         });
       }
@@ -403,7 +381,7 @@ export async function GET(request: NextRequest) {
   try {
     // Param overrides saved home (view-another-base). Saved home: prefs.homeLocation wins over
     // legacy user_profiles columns; never a default state.
-    let savedHome: ArbitrageHome | null = null;
+    let savedHome: BuyerHome | null = null;
     if (isSupabaseConfigured()) {
       try {
         const {
@@ -423,7 +401,7 @@ export async function GET(request: NextRequest) {
               .eq("user_id", user.id)
               .maybeSingle(),
           ]);
-          savedHome = resolveArbitrageHome({
+          savedHome = resolveBuyerHome({
             prefsHomeLocation: (
               prefRow?.prefs as { homeLocation?: unknown } | null
             )?.homeLocation,
@@ -499,7 +477,7 @@ export async function GET(request: NextRequest) {
       for (const deal of deals as any[]) {
         const src = String(deal.locationState || "").toUpperCase();
         if (!src) continue;
-        if (isStaleArbitrageRow(deal, now)) {
+        if (!isLiveDeal(deal, now)) {
           excluded.stale += 1;
           continue;
         }
@@ -510,7 +488,13 @@ export async function GET(request: NextRequest) {
       // 2) Batched comp fetch: one paginated query per table per MODEL_BATCH model names.
       const groups = new Map<
         string,
-        { make: string; model: string; minYear: number; maxYear: number }
+        {
+          make: string;
+          model: string;
+          spellings: Set<string>;
+          minYear: number;
+          maxYear: number;
+        }
       >();
       for (const d of candidates) {
         if (!d.make || !d.model) continue;
@@ -521,10 +505,13 @@ export async function GET(request: NextRequest) {
           groups.set(k, {
             make: String(d.make),
             model: String(d.model),
+            spellings: new Set([String(d.model)]),
             minYear: y || 1900,
             maxYear: y || new Date(now).getFullYear() + 1,
           });
-        else if (y) {
+        else {
+          g.spellings.add(String(d.model));
+          if (!y) continue;
           g.minYear = Math.min(g.minYear, y);
           g.maxYear = Math.max(g.maxYear, y);
         }
@@ -539,8 +526,14 @@ export async function GET(request: NextRequest) {
       for (const deal of candidates) {
         const src = String(deal.locationState).toUpperCase();
         const raw = activeById.get(String(deal.id));
-        const listing: ArbitrageListing = {
+        const toIso = (v: unknown) =>
+          v instanceof Date ? v.toISOString() : ((v as string | null) ?? null);
+        // Freshness fields ride along so the engine's isStale (isLiveDeal) sees ended auctions and
+        // gated source URLs too.
+        const listing: ArbitrageListing & FreshnessInput = {
           id: String(deal.id),
+          sourceUrl: deal.sourceUrl ?? raw?.source_url ?? null,
+          auctionEndAt: toIso(deal.auctionEndAt ?? raw?.auction_end_at),
           ask: Number(deal.askPrice) || null,
           source: deal.source,
           sourceDealId: raw?.source_deal_id ?? null,
@@ -552,10 +545,7 @@ export async function GET(request: NextRequest) {
             lat: raw?.lat ?? null,
             lng: raw?.lng ?? null,
           },
-          lastSeenAt:
-            deal.lastSeenAt instanceof Date
-              ? deal.lastSeenAt.toISOString()
-              : (deal.lastSeenAt ?? null),
+          lastSeenAt: toIso(deal.lastSeenAt),
         };
         const y = Number(deal.year) || null;
         const pool = (
@@ -569,7 +559,7 @@ export async function GET(request: NextRequest) {
         const r = evaluateOpportunity(listing, pool, {
           sellMarket,
           now,
-          isStale: () => false, // already filtered above
+          isStale: (row) => !isLiveDeal(row as FreshnessInput, now),
         });
         if (isExcluded(r)) {
           if (r.reason === "stale") excluded.stale += 1;
