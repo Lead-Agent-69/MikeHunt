@@ -16,7 +16,7 @@ import {
   TITLE_DISCOUNT,
   UNKNOWN_DISTANCE_TRANSPORT_COST,
 } from "./constants";
-import { titleLane } from "./title";
+import { titleCategory } from "./title";
 import { buyerDistance } from "@/lib/geo/buyer-distance";
 import { transportCostForMiles } from "@/lib/geo";
 import { SOLD_MEDIAN_WINDOW_DAYS } from "@/lib/scoring/market-value";
@@ -66,9 +66,19 @@ describe("arbitrage engine — needs_comps", () => {
     const o = r as ArbitrageOpportunity;
     expect(o.status).toBe("needs_comps");
     expect(o).not.toHaveProperty("profit");
-    expect(o).not.toHaveProperty("expectedResale");
-    expect(o).not.toHaveProperty("costs");
     expect(o).not.toHaveProperty("rankKey");
+    expect(o.spread).toMatchObject({
+      net: null,
+      expectedResale: null,
+      sellingCost: null,
+      compsCount: 0,
+      compsNewestAt: null,
+      compKind: "none",
+      compScope: "none",
+      confidence: "none",
+      titleCategory: "Clean",
+    });
+    expect(o.confidence.label).toBe("none");
   });
 
   it("never lets the listing be its own comp", () => {
@@ -87,22 +97,44 @@ describe("arbitrage engine — needs_comps", () => {
 });
 
 describe("arbitrage engine — formula", () => {
-  it("spread = resale − (ask + buyerFees + transport + recon + sellingFees)", () => {
+  it("net = resale − (ask + fees + transport + recon + repair + sellingCost)", () => {
     const comps = [sold(15000, "MO"), sold(16000, "MO"), sold(17000, "MO")];
     const o = scored(evaluateOpportunity(listing(), comps, opts));
-    expect(o.expectedResale).toBe(16000);
-    expect(o.comps).toMatchObject({
-      scope: "state",
-      kind: "sold",
-      n: 3,
-      sellState: "MO",
-    });
-    const c = o.costs;
-    expect(c.sellingFees).toBe(Math.round(16000 * SELLING_FEE_PCT));
-    expect(c.total).toBe(
-      c.ask + c.buyerFees + c.transport + c.recon + c.sellingFees,
+    const c = o.spread;
+    expect(Object.keys(c).sort()).toEqual(
+      [
+        "ask",
+        "fees",
+        "transport",
+        "recon",
+        "repair",
+        "sellingCost",
+        "expectedResale",
+        "net",
+        "compsCount",
+        "compsNewestAt",
+        "compKind",
+        "compScope",
+        "confidence",
+        "titleCategory",
+      ].sort(),
     );
-    expect(o.profit).toBe(16000 - c.total);
+    expect(c).toMatchObject({
+      expectedResale: 16000,
+      compsCount: 3,
+      compKind: "sold",
+      compScope: "same_state",
+      titleCategory: "Clean",
+      compsNewestAt: daysAgo(10),
+    });
+    expect(o.comps.sellState).toBe("MO");
+    expect(c.sellingCost).toBe(Math.round(16000 * SELLING_FEE_PCT));
+    expect(c.net).toBe(
+      16000 -
+        (c.ask + c.fees + c.transport + c.recon + c.repair + c.sellingCost!),
+    );
+    expect(o.profit).toBe(c.net);
+    expect(c.confidence).toBe(o.confidence.label);
     expect(o.assumptions.length).toBeGreaterThan(0);
   });
 
@@ -111,7 +143,7 @@ describe("arbitrage engine — formula", () => {
     const o = scored(evaluateOpportunity(listing(), comps, opts));
     const d = buyerDistance(STL, KC);
     expect(o.distance).toEqual({ miles: d.miles, basis: "coords" });
-    expect(o.costs.transport).toBe(transportCostForMiles(d.miles!));
+    expect(o.spread.transport).toBe(transportCostForMiles(d.miles!));
   });
 
   it("books the conservative default and loses confidence when distance is unknown", () => {
@@ -121,7 +153,7 @@ describe("arbitrage engine — formula", () => {
       evaluateOpportunity(listing({ location: null }), comps, opts),
     );
     expect(unknown.distance.basis).toBe("unknown");
-    expect(unknown.costs.transport).toBe(UNKNOWN_DISTANCE_TRANSPORT_COST);
+    expect(unknown.spread.transport).toBe(UNKNOWN_DISTANCE_TRANSPORT_COST);
     expect(unknown.confidence.score).toBeLessThan(known.confidence.score);
     expect(unknown.confidence.reasons.join(" ")).toMatch(/distance unknown/);
   });
@@ -135,18 +167,56 @@ describe("arbitrage engine — formula", () => {
         opts,
       ),
     );
-    expect(o.costs.buyerFees).toBe(Math.round(10000 * 0.1 + 130 + 100));
-    expect(o.costs.recon).toBe(2500 + 500);
+    expect(o.spread.fees).toBe(Math.round(10000 * 0.1 + 130 + 100));
+    expect(o.spread.repair).toBe(2500); // estimateRepairCost("FRONT END")
+    expect(o.spread.recon).toBe(500); // Copart cleanup baseline
   });
 });
 
 describe("arbitrage engine — title lanes", () => {
   const clean = [sold(20000, "MO"), sold(21000, "MO"), sold(22000, "MO")];
 
-  it("maps rebuildable onto the salvage lane", () => {
-    expect(titleLane("Rebuildable")).toBe("salvage");
-    expect(titleLane("SALVAGE CERTIFICATE")).toBe("salvage");
-    expect(titleLane("rebuilt title")).toBe("rebuilt");
+  it("maps titles onto Amy's title-category contract", () => {
+    expect(titleCategory("clean_title")).toBe("Clean");
+    expect(titleCategory("rebuilt_title")).toBe("Rebuilt");
+    expect(titleCategory("salvage_title")).toBe("Salvage");
+    expect(titleCategory("parts_only")).toBe("Salvage");
+    expect(titleCategory("repairable")).toBe("Rebuildable");
+    expect(titleCategory("used")).toBe("Unknown");
+    expect(titleCategory(null)).toBe("Unknown");
+  });
+
+  it("values Rebuildable on Rebuildable/Salvage comps", () => {
+    const comps = [
+      ...clean,
+      sold(8000, "MO", "salvage_title"),
+      sold(8500, "MO", "repairable"),
+      sold(9000, "MO", "salvage_title"),
+    ];
+    const o = scored(
+      evaluateOpportunity(
+        listing({ title: "repairable", ask: 4000 }),
+        comps,
+        opts,
+      ),
+    );
+    expect(o.spread).toMatchObject({
+      expectedResale: 8500,
+      titleCategory: "Rebuildable",
+      compScope: "same_state",
+    });
+  });
+
+  it("caps Unknown title at low confidence", () => {
+    const comps = Array.from({ length: 12 }, () => sold(16000, "MO"));
+    const known = scored(evaluateOpportunity(listing(), comps, opts));
+    const unk = scored(
+      evaluateOpportunity(listing({ title: "used" }), comps, opts),
+    );
+    expect(known.confidence.label).toBe("high");
+    expect(unk.spread.titleCategory).toBe("Unknown");
+    expect(unk.confidence.label).toBe("low");
+    expect(unk.spread.confidence).toBe("low");
   });
 
   it("values salvage on salvage comps, never clean, when salvage comps exist", () => {
@@ -163,8 +233,9 @@ describe("arbitrage engine — title lanes", () => {
         opts,
       ),
     );
-    expect(o.expectedResale).toBe(9500);
-    expect(o.comps.titleAdjusted).toBe("same_title");
+    expect(o.spread.expectedResale).toBe(9500);
+    expect(o.spread.compScope).toBe("same_state");
+    expect(o.spread.titleCategory).toBe("Salvage");
   });
 
   it("only touches clean comps through the flagged discount fallback", () => {
@@ -176,9 +247,11 @@ describe("arbitrage engine — title lanes", () => {
         opts,
       ),
     );
-    expect(o.comps.titleAdjusted).toBe("discount_fallback");
-    expect(o.expectedResale).toBe(Math.round(21000 * TITLE_DISCOUNT.salvage));
-    expect(o.expectedResale).toBeLessThan(21000);
+    expect(o.spread.compScope).toBe("title_discount_fallback");
+    expect(o.spread.expectedResale).toBe(
+      Math.round(21000 * TITLE_DISCOUNT.Salvage),
+    );
+    expect(o.spread.expectedResale!).toBeLessThan(21000);
     expect(o.assumptions.join(" ")).toMatch(/title discount/);
     const same = scored(
       evaluateOpportunity(
@@ -207,10 +280,10 @@ describe("arbitrage engine — title lanes", () => {
     const o = scored(
       evaluateOpportunity(listing({ title: "rebuilt" }), comps, opts),
     );
-    expect(o.expectedResale).toBe(14000);
+    expect(o.spread.expectedResale).toBe(14000);
   });
 
-  it("needs_comps when neither same-title nor clean fallback qualifies; parts has no fallback", () => {
+  it("needs_comps when neither same-title nor clean fallback qualifies", () => {
     const s = evaluateOpportunity(
       listing({ title: "salvage" }),
       [sold(20000, "MO"), sold(9000, "MO", "salvage")],
@@ -218,12 +291,8 @@ describe("arbitrage engine — title lanes", () => {
     ) as ArbitrageOpportunity;
     expect(s.status).toBe("needs_comps");
     expect(s).not.toHaveProperty("profit");
-    const p = evaluateOpportunity(
-      listing({ title: "parts only" }),
-      clean,
-      opts,
-    ) as ArbitrageOpportunity;
-    expect(p.status).toBe("needs_comps");
+    expect(s.spread.net).toBeNull();
+    expect(s.spread.titleCategory).toBe("Salvage");
   });
 
   it("never pools salvage comps into a clean listing's resale", () => {
@@ -307,6 +376,7 @@ describe("arbitrage engine — ranking", () => {
     const ranked = rankOpportunities([needs, lo, hi]);
     expect(ranked.map((r) => r.id)).toEqual(["hi", "lo", "nc"]);
     expect(ranked[2]).not.toHaveProperty("profit");
+    expect(ranked[2].spread.net).toBeNull();
     expect(hi.confidence.label).toBe("high");
   });
 

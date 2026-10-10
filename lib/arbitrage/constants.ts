@@ -4,8 +4,17 @@
 // parity test in engine.test.ts pins it). "New" = introduced by this engine; each is an estimate
 // and the engine lists it in `assumptions` whenever it is applied.
 
-/** Mirrors lib/scoring/deal-analyzer.ts SELL_COST_PCT default (0.09): selling + recon-to-retail load as a share of resale. */
+/**
+ * Mirrors lib/scoring/deal-analyzer.ts SELL_COST_PCT default (0.09), the only selling-cost model in
+ * the repo (profit-calculator takes sellingFee as an input; app/api/arbitrage has its own copy of
+ * the same 9%, which PR 2 removes in favour of sellingCostFor). It is a selling + retail-prep load
+ * as a share of resale; channel cleanup is booked separately as `recon`, so this errs high.
+ */
 export const SELLING_FEE_PCT = 0.09;
+
+export function sellingCostFor(expectedResale: number): number {
+  return Math.round(expectedResale * SELLING_FEE_PCT);
+}
 
 /** Mirrors lib/scoring/deal-analyzer.ts DEFAULT_TRANSPORT_COST default ($600): conservative national
  *  carrier cost, booked only when the distance cannot be measured (and confidence is lowered). */
@@ -54,18 +63,22 @@ export function conditionReconBaseline(condition?: string | null): number {
  * with a confidence penalty. Rationale: consumer pricing guides (KBB / Edmunds / Carfax) commonly
  * put rebuilt/branded titles 20–40% below an equivalent clean title. We take the conservative end:
  *   rebuilt  0.70 → 30% below clean (repaired, inspected, re-titled).
- *   salvage  0.55 → 45% below clean (incl. rebuildable): harder to finance/insure and the buyer pool
- *                  is mostly dealers/rebuilders. Repair is booked separately in recon.
- * Parts-only and clean lanes never use a discount fallback.
+ *   Salvage / Rebuildable  0.55 → 45% below clean: harder to finance/insure and the buyer pool is
+ *                  mostly dealers/rebuilders. Repair is booked separately as `repair`.
+ * Clean and Unknown never use a discount fallback.
  */
-export const TITLE_DISCOUNT: Readonly<Record<"rebuilt" | "salvage", number>> = {
-  rebuilt: 0.7,
-  salvage: 0.55,
+export const TITLE_DISCOUNT: Readonly<
+  Record<"Rebuilt" | "Salvage" | "Rebuildable", number>
+> = {
+  Rebuilt: 0.7,
+  Salvage: 0.55,
+  Rebuildable: 0.55,
 };
 
 /**
  * NEW. Confidence model (0–100, start at 100, subtract penalties). Labels: >= 75 high, >= 50
- * medium, else low. needs_comps rows get no score (they are never ranked on profit).
+ * medium, else low. Unknown title caps the label at "low" (score <= UNKNOWN_TITLE_MAX_SCORE).
+ * needs_comps rows are label "none", score 0, and are never ranked on profit.
  */
 export const CONFIDENCE = {
   /** By comp count (same 12 / 6 / 3 ladder as compConfidence in comps-aggregate). */
@@ -96,4 +109,5 @@ export const CONFIDENCE = {
   /** Reported damage: repair is a keyword estimate, not a quote. */
   damageEstimate: 5,
   labels: { high: 75, medium: 50 },
+  unknownTitleMaxScore: 49,
 } as const;

@@ -1,19 +1,20 @@
 // lib/arbitrage/engine.ts
 // Resale-profit finder (arbitrage v2) — pure engine. No DB, no network, no clock unless `now` is
-// omitted. The /api/arbitrage route (PR 2) loads listings + comps and hands them here.
+// omitted. The /api/arbitrage route (PR 2) loads listings + comps and maps `spread` onto its rows.
 //
-//   spread = expectedResale − (ask + buyerFees + transport + recon + sellingFees)
+//   net = expectedResale − (ask + fees + transport + recon + repair + sellingCost)
 //
 // Honesty rules (covered by engine.test.ts):
 //   • expectedResale comes ONLY from aggregateComps on real comps in the buyer's SELL market:
 //     sold same-state → sold national → ask same-state → ask national, n >= 3 per tier. No tier
-//     qualifies → status "needs_comps" with NO profit, resale or cost total. Never a guess.
-//   • Title lanes: salvage (incl. rebuildable) vs salvage, rebuilt vs rebuilt, parts vs parts.
+//     qualifies → status "needs_comps": expectedResale, sellingCost and net are null, confidence
+//     "none". Never a guess.
+//   • Title categories: Salvage vs Salvage, Rebuilt vs Rebuilt, Rebuildable vs Rebuildable/Salvage.
 //     A branded car is never graded on clean comps directly. Thin same-title comps (< 3) may fall
-//     back to clean comps × TITLE_DISCOUNT, flagged titleAdjusted "discount_fallback" with a
-//     confidence penalty. Parts-only has no fallback.
+//     back to clean comps × TITLE_DISCOUNT, compScope "title_discount_fallback", with a confidence
+//     penalty. Unknown title caps confidence at "low".
 //   • Stale / frozen rows are excluded before valuation (stale | is_stale | frozen | is_frozen
-//     fields, or an injected isStale predicate).
+//     fields, or an injected isStale predicate, e.g. lib/deals/freshness isFrozenDeal once it lands).
 //   • Every estimate that is not measured is written into `assumptions`.
 
 import {
@@ -40,9 +41,15 @@ import {
   TITLE_DISCOUNT,
   UNKNOWN_DISTANCE_TRANSPORT_COST,
   conditionReconBaseline,
+  sellingCostFor,
   sourceReconBaseline,
 } from "./constants";
-import { compLanesFor, titleLane, type TitleLane } from "./title";
+import {
+  compCategoriesFor,
+  isBrandedTitle,
+  titleCategory,
+  type TitleCategory,
+} from "./title";
 
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -52,7 +59,7 @@ export interface ArbitrageListing {
   ask: number | null;
   source?: string | null;
   sourceDealId?: string | null;
-  /** Free-text title/condition (deals.condition / title_type). */
+  /** Title/condition (deals.condition: clean_title, salvage_title, … or free text). */
   title?: string | null;
   damageType?: string | null;
   location?: GeoPoint | null;
@@ -66,67 +73,81 @@ export interface ArbitrageListing {
 }
 
 export interface ArbitrageComp extends CompObservation {
-  /** Free-text title/condition of the comp; mapped to a TitleLane. Missing → "unknown". */
+  /** Title/condition of the comp; mapped to a TitleCategory. Missing → Unknown. */
   title?: string | null;
 }
 
 export interface ArbitrageOptions {
   /** Buyer's SELL market (their home). Comps are same-state to this, then national. */
   sellMarket?: GeoPoint | null;
-  /** Extra stale/frozen predicate (e.g. the stale flag another worker is adding). */
+  /** Extra stale/frozen predicate (e.g. isFrozenDeal from lib/deals/freshness once it lands). */
   isStale?: (row: ArbitrageListing) => boolean;
   now?: number;
   compMaxAgeDays?: number | null;
 }
 
-export type TitleAdjusted =
-  | "same_title"
-  | "title_unverified"
-  | "discount_fallback";
+export type ConfidenceLabel = "high" | "medium" | "low" | "none";
+export type CompScope =
+  | "same_state"
+  | "national"
+  | "title_discount_fallback"
+  | "none";
+
+/** The row contract PR 2 maps onto /api/arbitrage (May's UI contract). */
+export interface Spread {
+  ask: number;
+  /** Buyer fees (auction premium + flat + title fee). */
+  fees: number;
+  transport: number;
+  /** Channel cleanup/keys/detailing baseline. */
+  recon: number;
+  /** Damage-type (or condition) repair estimate. */
+  repair: number;
+  /** Null when there is no comp-backed resale. */
+  sellingCost: number | null;
+  expectedResale: number | null;
+  /** Null whenever comps are insufficient. */
+  net: number | null;
+  compsCount: number;
+  compsNewestAt: string | null;
+  compKind: "sold" | "ask" | "none";
+  compScope: CompScope;
+  confidence: ConfidenceLabel;
+  titleCategory: TitleCategory;
+}
 
 export interface Confidence {
   score: number;
-  label: "high" | "medium" | "low";
+  label: ConfidenceLabel;
   reasons: string[];
 }
 
-export interface ScoredOpportunity {
-  status: "scored";
+interface OpportunityBase {
   id: string;
-  profit: number;
-  expectedResale: number;
-  costs: {
-    ask: number;
-    buyerFees: number;
-    transport: number;
-    recon: number;
-    sellingFees: number;
-    total: number;
-  };
-  comps: {
-    n: number;
-    scope: "state" | "national";
-    kind: "sold" | "ask";
-    titleLane: TitleLane;
-    titleAdjusted: TitleAdjusted;
-    medianAgeDays: number | null;
-    sellState: string | null;
-  };
-  distance: { miles: number | null; basis: DistanceBasis };
+  spread: Spread;
   confidence: Confidence;
-  /** profit × confidence.score / 100 — see rankOpportunities. */
-  rankKey: number;
+  distance: { miles: number | null; basis: DistanceBasis };
   assumptions: string[];
 }
 
-/** No profit, no resale, no cost total — by type, not by convention. */
-export interface NeedsCompsOpportunity {
+export interface ScoredOpportunity extends OpportunityBase {
+  status: "scored";
+  /** Same as spread.net (always a number here). */
+  profit: number;
+  /** profit × confidence.score / 100 — see rankOpportunities. */
+  rankKey: number;
+  comps: {
+    medianAgeDays: number | null;
+    sellState: string | null;
+    /** Where the comps actually came from: same-state or national (also for the fallback). */
+    geoScope: "state" | "national";
+  };
+}
+
+/** No profit, no resale, no rank key — by type, not by convention. */
+export interface NeedsCompsOpportunity extends OpportunityBase {
   status: "needs_comps";
-  id: string;
-  ask: number;
-  titleLane: TitleLane;
   reason: string;
-  assumptions: string[];
 }
 
 export type ArbitrageOpportunity = ScoredOpportunity | NeedsCompsOpportunity;
@@ -153,16 +174,16 @@ function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** Median age (days) of the comps aggregateComps actually used for `agg`. */
-function tierMedianAgeDays(
+/** Median age (days) and newest observedAt of the comps aggregateComps used for `agg`. */
+function tierDates(
   pool: readonly ArbitrageComp[],
   agg: CompAggregate,
   listing: ArbitrageListing,
   now: number,
   maxAgeDays: number | null,
-): number | null {
+): { medianAgeDays: number | null; newestAt: string | null } {
   const cutoff = maxAgeDays ? now - maxAgeDays * 86_400_000 : null;
-  const ages: number[] = [];
+  const times: number[] = [];
   for (const c of pool) {
     if (!(Number(c.price) > 0) || c.kind !== agg.kind) continue;
     if (
@@ -183,22 +204,28 @@ function tierMedianAgeDays(
     const t = c.observedAt ? Date.parse(c.observedAt) : NaN;
     if (!Number.isFinite(t)) continue;
     if (cutoff != null && t < cutoff) continue;
-    ages.push(Math.max(0, (now - t) / 86_400_000));
+    times.push(t);
   }
-  const m = median(ages);
-  return m == null ? null : Math.round(m);
+  if (!times.length) return { medianAgeDays: null, newestAt: null };
+  const m = median(times.map((t) => Math.max(0, (now - t) / 86_400_000)))!;
+  return {
+    medianAgeDays: Math.round(m),
+    newestAt: new Date(Math.max(...times)).toISOString(),
+  };
 }
+
+type TitleMatch = "same_title" | "title_unverified" | "discount_fallback";
 
 interface Valuation {
   value: number;
   agg: CompAggregate;
   pool: ArbitrageComp[];
-  titleAdjusted: TitleAdjusted;
+  titleMatch: TitleMatch;
 }
 
 function valueFromComps(
   listing: ArbitrageListing,
-  lane: TitleLane,
+  cat: TitleCategory,
   comps: readonly ArbitrageComp[],
   sellState: string | null,
   now: number,
@@ -213,36 +240,33 @@ function valueFromComps(
     state: sellState,
   };
   const opts = { now, maxAgeDays, minSamples: COMP_MIN_SAMPLES };
-  const byLane = (lanes: readonly TitleLane[]) =>
-    comps.filter((c) => lanes.includes(titleLane(c.title)));
+  const byCat = (cats: readonly TitleCategory[]) =>
+    comps.filter((c) => cats.includes(titleCategory(c.title)));
 
-  const pool = byLane(compLanesFor(lane));
+  const pool = byCat(compCategoriesFor(cat));
   const agg = aggregateComps(target, pool, opts);
-  if (
-    agg.value != null &&
-    (agg.scope === "state" || agg.scope === "national")
-  ) {
+  if (agg.value != null) {
     return {
       value: agg.value,
       agg,
       pool,
-      titleAdjusted: lane === "unknown" ? "title_unverified" : "same_title",
+      titleMatch: cat === "Unknown" ? "title_unverified" : "same_title",
     };
   }
 
-  if (lane === "salvage" || lane === "rebuilt") {
-    const cleanPool = byLane(["clean"]);
+  if (cat === "Salvage" || cat === "Rebuilt" || cat === "Rebuildable") {
+    const cleanPool = byCat(["Clean"]);
     const cleanAgg = aggregateComps(target, cleanPool, opts);
     if (cleanAgg.value != null) {
-      const factor = TITLE_DISCOUNT[lane];
+      const factor = TITLE_DISCOUNT[cat];
       assumptions.push(
-        `Fewer than ${COMP_MIN_SAMPLES} ${lane}-title comps: resale = clean-title comps × ${factor} (documented ${lane} title discount), not a same-title comp.`,
+        `Fewer than ${COMP_MIN_SAMPLES} ${cat}-title comps: resale = clean-title comps × ${factor} (documented ${cat} title discount), not a same-title comp.`,
       );
       return {
         value: Math.round(cleanAgg.value * factor),
         agg: cleanAgg,
         pool: cleanPool,
-        titleAdjusted: "discount_fallback",
+        titleMatch: "discount_fallback",
       };
     }
   }
@@ -254,7 +278,7 @@ function scoreConfidence(input: {
   kind: "sold" | "ask";
   scope: "state" | "national";
   medianAgeDays: number | null;
-  titleAdjusted: TitleAdjusted;
+  titleMatch: TitleMatch;
   basis: DistanceBasis;
   lastSeenHours: number | null;
   hasDamage: boolean;
@@ -288,8 +312,8 @@ function scoreConfidence(input: {
   else if (input.medianAgeDays > C.recency.freshDays)
     hit(C.recency.aging, `comps median ${input.medianAgeDays} days old`);
   hit(
-    C.title[input.titleAdjusted],
-    input.titleAdjusted === "discount_fallback"
+    C.title[input.titleMatch],
+    input.titleMatch === "discount_fallback"
       ? "branded title valued from clean comps × title discount"
       : "title not stated on the listing",
   );
@@ -313,7 +337,14 @@ function scoreConfidence(input: {
     hit(C.damageEstimate, "repair cost is a damage-type estimate");
 
   score = Math.max(0, Math.min(100, score));
-  const label =
+  if (
+    input.titleMatch === "title_unverified" &&
+    score > C.unknownTitleMaxScore
+  ) {
+    score = C.unknownTitleMaxScore;
+    reasons.push("unknown title caps confidence at low");
+  }
+  const label: ConfidenceLabel =
     score >= C.labels.high
       ? "high"
       : score >= C.labels.medium
@@ -324,7 +355,7 @@ function scoreConfidence(input: {
 
 // ─── Public API ──────────────────────────────────────────────────────────────────────────────────
 
-/** Evaluate one listing. Returns null when it must be excluded (stale/frozen or no usable ask). */
+/** Evaluate one listing. Excluded (stale/frozen or no usable ask) rows come back as ExcludedListing. */
 export function evaluateOpportunity(
   listing: ArbitrageListing,
   comps: readonly ArbitrageComp[],
@@ -339,7 +370,7 @@ export function evaluateOpportunity(
   const now = opts.now ?? Date.now();
   const maxAgeDays =
     opts.compMaxAgeDays === undefined ? COMP_MAX_AGE_DAYS : opts.compMaxAgeDays;
-  const lane = titleLane(listing.title);
+  const cat = titleCategory(listing.title);
   const sellState = resolvePointState(opts.sellMarket);
   const assumptions: string[] = [];
   if (!sellState)
@@ -347,44 +378,11 @@ export function evaluateOpportunity(
       "No sell-market state for the buyer: comps are national only.",
     );
 
-  const val = valueFromComps(
-    listing,
-    lane,
-    comps,
-    sellState,
-    now,
-    maxAgeDays,
-    assumptions,
-  );
-  if (!val) {
-    return {
-      status: "needs_comps",
-      id: listing.id,
-      ask,
-      titleLane: lane,
-      reason:
-        lane === "parts"
-          ? `Fewer than ${COMP_MIN_SAMPLES} parts-only comps (no clean-comp fallback for parts-only titles).`
-          : lane === "salvage" || lane === "rebuilt"
-            ? `Fewer than ${COMP_MIN_SAMPLES} ${lane}-title comps and fewer than ${COMP_MIN_SAMPLES} clean comps for the title-discount fallback.`
-            : `Fewer than ${COMP_MIN_SAMPLES} comps in any tier (same-state or national, sold or ask).`,
-      assumptions,
-    };
-  }
-  const { value: expectedResale, agg } = val;
-  if (agg.kind === "ask")
-    assumptions.push(
-      "Resale from asking-price comps × 0.95 ask→sold haircut (no sold comps in the tier).",
-    );
-  if (lane === "unknown")
-    assumptions.push(
-      "Listing title not stated: valued on clean/unknown-title comps; verify the title.",
-    );
-
+  // ── Costs that do not depend on resale ──
   // Buyer fees — lib/scoring/max-bid feeModel (per source).
   const fm = feeModel(listing.source);
-  const buyerFees = Math.round(ask * fm.feeRate + fm.flatFee + fm.titleFee);
-  if (buyerFees > 0)
+  const fees = Math.round(ask * fm.feeRate + fm.flatFee + fm.titleFee);
+  if (fees > 0)
     assumptions.push(
       `Buyer fees from the ${listing.source} fee model: ${Math.round(fm.feeRate * 100)}% + $${fm.flatFee} + $${fm.titleFee} title.`,
     );
@@ -407,49 +405,107 @@ export function evaluateOpportunity(
       "Distance measured between state centroids (no exact coordinates).",
     );
 
-  // Recon — profit-calculator estimateRepairCost by damage type, else condition baseline, plus
-  // the channel's cleanup baseline.
+  // Repair vs recon — the split profit-calculator / deal-analyzer already use:
+  //   repair = estimateRepairCost(damage_type), else the condition baseline;
+  //   recon  = the channel's cleanup/keys/detailing baseline.
   const damage = String(listing.damageType || "").trim();
   const hasDamage = !!damage && damage.toLowerCase() !== "none";
   const repair = hasDamage
     ? estimateRepairCost(damage)
     : conditionReconBaseline(listing.title);
-  const recon = repair + sourceReconBaseline(listing.source);
-  if (recon > 0)
+  const recon = sourceReconBaseline(listing.source);
+  if (repair > 0)
     assumptions.push(
       hasDamage
-        ? `Recon is an estimate from damage type "${damage}", not a repair quote.`
-        : "Recon is an estimate from the stated condition, not an inspection.",
+        ? `Repair is an estimate from damage type "${damage}", not a repair quote.`
+        : "Repair is an estimate from the stated condition, not an inspection.",
+    );
+  if (recon > 0)
+    assumptions.push(
+      `Recon is the ${listing.source} channel cleanup baseline ($${recon}).`,
     );
 
-  const sellingFees = Math.round(expectedResale * SELLING_FEE_PCT);
+  const distanceOut = { miles: distance.miles, basis: distance.basis };
+  const val = valueFromComps(
+    listing,
+    cat,
+    comps,
+    sellState,
+    now,
+    maxAgeDays,
+    assumptions,
+  );
+  if (!val) {
+    return {
+      status: "needs_comps",
+      id: listing.id,
+      spread: {
+        ask,
+        fees,
+        transport,
+        recon,
+        repair,
+        sellingCost: null,
+        expectedResale: null,
+        net: null,
+        compsCount: 0,
+        compsNewestAt: null,
+        compKind: "none",
+        compScope: "none",
+        confidence: "none",
+        titleCategory: cat,
+      },
+      confidence: {
+        score: 0,
+        label: "none",
+        reasons: ["not enough comps"],
+      },
+      distance: distanceOut,
+      reason: isBrandedTitle(cat)
+        ? `Fewer than ${COMP_MIN_SAMPLES} ${cat}-title comps and fewer than ${COMP_MIN_SAMPLES} clean comps for the title-discount fallback.`
+        : `Fewer than ${COMP_MIN_SAMPLES} comps in any tier (same-state or national, sold or ask).`,
+      assumptions,
+    };
+  }
+
+  const { value: expectedResale, agg } = val;
+  if (agg.kind === "ask")
+    assumptions.push(
+      "Resale from asking-price comps × 0.95 ask→sold haircut (no sold comps in the tier).",
+    );
+  if (cat === "Unknown")
+    assumptions.push(
+      "Listing title not stated: valued on clean/unknown-title comps; verify the title.",
+    );
+  const sellingCost = sellingCostFor(expectedResale);
   assumptions.push(
-    `Selling costs ${Math.round(SELLING_FEE_PCT * 100)}% of resale.`,
+    `Selling cost ${Math.round(SELLING_FEE_PCT * 100)}% of resale.`,
   );
   assumptions.push("Holding/floorplan cost not included.");
 
-  const total = ask + buyerFees + transport + recon + sellingFees;
-  const profit = Math.round(expectedResale - total);
+  const net = Math.round(
+    expectedResale - (ask + fees + transport + recon + repair + sellingCost),
+  );
 
   const seen = listing.lastSeenAt ? Date.parse(listing.lastSeenAt) : NaN;
   const lastSeenHours = Number.isFinite(seen)
     ? Math.max(0, (now - seen) / 3_600_000)
     : null;
-  const medianAgeDays = tierMedianAgeDays(
+  const { medianAgeDays, newestAt } = tierDates(
     val.pool,
     agg,
     listing,
     now,
     maxAgeDays,
   );
-  const scope = agg.scope as "state" | "national";
+  const geoScope = agg.scope as "state" | "national";
   const kind = agg.kind as "sold" | "ask";
   const confidence = scoreConfidence({
     n: agg.n,
     kind,
-    scope,
+    scope: geoScope,
     medianAgeDays,
-    titleAdjusted: val.titleAdjusted,
+    titleMatch: val.titleMatch,
     basis: distance.basis,
     lastSeenHours,
     hasDamage,
@@ -458,21 +514,32 @@ export function evaluateOpportunity(
   return {
     status: "scored",
     id: listing.id,
-    profit,
-    expectedResale,
-    costs: { ask, buyerFees, transport, recon, sellingFees, total },
-    comps: {
-      n: agg.n,
-      scope,
-      kind,
-      titleLane: lane,
-      titleAdjusted: val.titleAdjusted,
-      medianAgeDays,
-      sellState,
+    profit: net,
+    spread: {
+      ask,
+      fees,
+      transport,
+      recon,
+      repair,
+      sellingCost,
+      expectedResale,
+      net,
+      compsCount: agg.n,
+      compsNewestAt: newestAt,
+      compKind: kind,
+      compScope:
+        val.titleMatch === "discount_fallback"
+          ? "title_discount_fallback"
+          : geoScope === "state"
+            ? "same_state"
+            : "national",
+      confidence: confidence.label,
+      titleCategory: cat,
     },
-    distance: { miles: distance.miles, basis: distance.basis },
+    comps: { medianAgeDays, sellState, geoScope },
+    distance: distanceOut,
     confidence,
-    rankKey: Math.round((profit * confidence.score) / 100),
+    rankKey: Math.round((net * confidence.score) / 100),
     assumptions,
   };
 }
@@ -484,10 +551,10 @@ export function isExcluded(
 }
 
 /**
- * Rank opportunities. Scored rows first, by rankKey = profit × confidence.score / 100
+ * Rank opportunities. Scored rows first, by rankKey = net × confidence.score / 100
  * (confidence-weighted expected profit: $3,000 at 90 → 2,700 beats $3,200 at 55 → 1,760), then
- * higher confidence, then higher profit, then id for a stable order. needs_comps rows always sort
- * after every scored row (by ask ascending, then id) and never carry a profit.
+ * higher confidence, then higher net, then id for a stable order. needs_comps rows always sort
+ * after every scored row (by ask ascending, then id) and never carry a net.
  */
 export function rankOpportunities(
   rows: readonly ArbitrageOpportunity[],
@@ -505,12 +572,12 @@ export function rankOpportunities(
       b.profit - a.profit ||
       a.id.localeCompare(b.id),
   );
-  needs.sort((a, b) => a.ask - b.ask || a.id.localeCompare(b.id));
+  needs.sort((a, b) => a.spread.ask - b.spread.ask || a.id.localeCompare(b.id));
   return [...scored, ...needs];
 }
 
 /** Evaluate + exclude + rank a batch. `compsFor` returns the pre-filtered comps for a listing
- *  (same make/model/year band); the engine applies title lanes, sell market and tiers. */
+ *  (same make/model/year band); the engine applies title categories, sell market and tiers. */
 export function findOpportunities(
   listings: readonly ArbitrageListing[],
   compsFor: (listing: ArbitrageListing) => readonly ArbitrageComp[],
