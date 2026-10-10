@@ -239,11 +239,13 @@ export function titleSourceOf(row: unknown): TitleSource | null {
 //   Salvage      salvage, flood, hail, fire, lemon/buyback, junk, branded title, COD, wrecked,
 //                non-runner, and parts cars ("for parts", "parts only", "parts car", a bare
 //                "parts" that is not "new/OEM/extra/with parts")
-//   Rebuilt      rebuilt / reconstructed / restored / prior-salvage titles (the title it sold on)
-//   Rebuildable  repairable / rebuildable (an unrepaired branded car), when not rebuilt
+//   Rebuilt      rebuilt / reconstructed / restored title, when no salvage-class word is present
+//   Rebuildable  repairable / rebuildable, when neither salvage-class nor rebuilt words are present
 //   Unknown      everything else, including "Clean Carfax", "no accidents" and a bare headline
-// Negated brand words ("not salvage", "never flooded", "no hail") are ignored. Any brand word beats
-// a clean-title claim: "clean title, flood damage" is not a clean comp.
+// Branded words map to the most conservative branded category (salvage → rebuilt → rebuildable:
+// "rebuilt from salvage" is Salvage). Negated brand words ("not salvage", "never flooded", "no hail")
+// are ignored. Any brand word beats a clean-title claim: "clean title, flood damage" is not clean.
+// "not clean title" / "clean title pending" are Unknown.
 
 // A car sold for parts, said outright.
 const SOLD_PARTS_CAR_RX =
@@ -302,9 +304,11 @@ export function soldTitleCategory(
   if (!raw) return "unknown";
   if (isPartsOnlySoldHeadline(raw)) return "salvage";
   const text = raw.replace(SOLD_NEGATED_BRAND_RX, " ");
+  // Most conservative branded category first: salvage (and other brands) → rebuilt → rebuildable,
+  // so "rebuilt from salvage" / "rebuildable salvage" are Salvage (same order as lib/arbitrage).
+  if (SOLD_SALVAGE_RX.test(text)) return "salvage";
   if (SOLD_REBUILT_RX.test(text)) return "rebuilt";
   if (SOLD_REBUILDABLE_RX.test(text)) return "rebuildable";
-  if (SOLD_SALVAGE_RX.test(text)) return "salvage";
   if (SOLD_CLEAN_NEGATED_RX.test(raw)) return "unknown";
   return SOLD_CLEAN_RX.test(raw) ? "clean" : "unknown";
 }
