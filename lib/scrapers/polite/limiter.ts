@@ -4,6 +4,8 @@
  * 0–100% jitter (POLITE_JITTER_RATIO). The first request to a domain is also staggered by a random
  * 0–50% of the gap, so parallel domains never fire in lockstep.
  */
+import { registryGapFloorMs } from "./source-limits";
+
 export interface DomainLimiterOptions {
   maxConcurrent?: number;
   minGapMs?: number;
@@ -11,6 +13,11 @@ export interface DomainLimiterOptions {
   random?: () => number;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  /**
+   * Per-domain minimum gap from the source registry (rateLimit). Defaults to registryGapFloorMs;
+   * pass `() => 0` to opt out (tests).
+   */
+  domainFloorMs?: (domain: string) => number;
 }
 
 interface DomainSlot {
@@ -29,6 +36,7 @@ export class DomainLimiter {
   private readonly random: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => number;
+  private readonly domainFloorMs: (domain: string) => number;
   private slots = new Map<string, DomainSlot>();
 
   constructor(opts: DomainLimiterOptions = {}) {
@@ -47,6 +55,16 @@ export class DomainLimiter {
     this.random = opts.random ?? Math.random;
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.now = opts.now ?? Date.now;
+    this.domainFloorMs = opts.domainFloorMs ?? registryGapFloorMs;
+  }
+
+  /** max(POLITE_MIN_GAP_MS, robots Crawl-delay, registry rateLimit gap) before jitter. */
+  baseGapMs(domain: string): number {
+    return Math.max(
+      this.minGapMs,
+      this.slot(domain).crawlDelayMs,
+      this.domainFloorMs(domain) || 0,
+    );
   }
 
   private slot(domain: string): DomainSlot {
@@ -74,7 +92,7 @@ export class DomainLimiter {
   }
 
   gapMs(domain: string): number {
-    const base = Math.max(this.minGapMs, this.slot(domain).crawlDelayMs);
+    const base = this.baseGapMs(domain);
     return Math.round(base + base * this.jitterRatio * this.random());
   }
 
@@ -90,7 +108,7 @@ export class DomainLimiter {
     try {
       if (s.nextStartAt < 0) {
         // First touch of this domain: a small random stagger, then normal pacing.
-        const base = Math.max(this.minGapMs, s.crawlDelayMs);
+        const base = this.baseGapMs(domain);
         s.nextStartAt = this.now() + Math.round(base * 0.5 * this.random());
       }
       const wait = s.nextStartAt - this.now();

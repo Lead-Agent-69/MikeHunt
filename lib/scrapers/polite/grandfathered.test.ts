@@ -88,7 +88,8 @@ describe("robots.txt skip applies only to new / 0-row sources", () => {
     const res = await c.fetch("https://www.recar.com/vehicles/");
     expect(res.ok).toBe(true);
     expect(res.skipped).toBeUndefined();
-    expect(seen.some((u) => u.endsWith("/robots.txt"))).toBe(false);
+    // robots.txt is read for its Crawl-delay only (Ren #269); the Disallow is not applied.
+    expect(seen.some((u) => u.endsWith("/robots.txt"))).toBe(true);
     expect(run).toHaveBeenCalled(); // per-domain delay slot
   });
 
@@ -133,7 +134,17 @@ describe("robots.txt skip applies only to new / 0-row sources", () => {
 describe("grandfathered sources keep their own request, with polite delays added", () => {
   it("scraperFetch keeps the original headers for an exempt host (inside politeGate)", async () => {
     process.env.SCRAPER_POLITE_MODE = "1";
-    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("[]", { status: 200 }));
+    // No real sleeps: politeGate now also reads robots.txt (Crawl-delay only), which takes a slot.
+    resetPoliteCrawler(
+      new PoliteCrawler({
+        sleep: async () => {},
+        limiter: new DomainLimiter({ sleep: async () => {}, minGapMs: 0, domainFloorMs: () => 0 }),
+        cache: new MemoryPageCache(),
+      }),
+    );
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response("[]", { status: 200 }));
     const init = { headers: { "User-Agent": "legacy-ua", Accept: "application/json" } };
     const res = await scraperFetch("https://aeofmiami.com/api/vehicle/listed?page=1", init);
     expect(res.status).toBe(200);

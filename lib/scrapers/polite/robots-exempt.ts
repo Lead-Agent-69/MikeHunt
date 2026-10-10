@@ -15,6 +15,7 @@
  *     an aggregate run like curated_dealers is matched by its own host).
  */
 import { ALL_SOURCES } from "../sources-registry";
+import { currentPoliteSource } from "./source-context";
 
 const RECENT_DAYS = 7;
 const REFRESH_MS = 60 * 60_000;
@@ -37,13 +38,63 @@ export function normalizeExemptId(id: string): string {
 }
 
 const staticSources = new Set<string>();
+
+/**
+ * One static exemption: a host, the paths on it the source actually uses, and the runner ids that
+ * may use it. Ren's #269 review: an exemption is source-plus-path, never host-wide, so ebay-sold
+ * (/sch/i.html) does not also exempt ebay_motors (/sch/6001/i.html) on the same host.
+ */
+export interface StaticExemption {
+  sourceId: string;
+  host: string;
+  /** null = every path on the host (the registry URL is the site root). */
+  paths: string[] | null;
+  /** Normalized runner ids allowed to use this exemption (the registry id plus exemptRunnerIds). */
+  runners: Set<string>;
+}
+
+const staticExemptions: StaticExemption[] = [];
 const staticHosts = new Set<string>();
+
+/** "/sch/i.html" matches that path exactly; "/marketplace/*" matches the prefix. */
+export function pathMatches(pathname: string, patterns: string[] | null): boolean {
+  if (!patterns) return true;
+  const p = (pathname || "/").replace(/\/+$/, "") || "/";
+  return patterns.some((pat) => {
+    if (pat.endsWith("*")) {
+      const prefix = pat.slice(0, -1).replace(/\/+$/, "");
+      return p === (prefix || "/") || p.startsWith(`${prefix}/`) || prefix === "";
+    }
+    return p === (pat.replace(/\/+$/, "") || "/");
+  });
+}
+
+function defaultPaths(url: string): string[] | null {
+  try {
+    const path = new URL(url).pathname.replace(/\/+$/, "");
+    return path ? [path, `${path}/*`] : null;
+  } catch {
+    return null;
+  }
+}
+
 for (const s of ALL_SOURCES) {
   if (!s.robotsExempt) continue;
-  staticSources.add(normalizeExemptId(s.id));
-  for (const h of [s.url, ...(s.exemptHosts ?? [])]) {
+  const id = normalizeExemptId(s.id);
+  staticSources.add(id);
+  const runners = new Set([id, ...(s.exemptRunnerIds ?? []).map(normalizeExemptId)]);
+  const mainHost = bareHost(s.url);
+  const paths = s.exemptPaths ?? defaultPaths(s.url);
+  if (mainHost) {
+    staticHosts.add(mainHost);
+    staticExemptions.push({ sourceId: id, host: mainHost, paths, runners });
+  }
+  for (const h of s.exemptHosts ?? []) {
     const host = bareHost(h);
-    if (host) staticHosts.add(host);
+    if (!host) continue;
+    staticHosts.add(host);
+    // Extra API/CDN hosts are owned by the source: every path on them.
+    staticExemptions.push({ sourceId: id, host, paths: null, runners });
   }
 }
 
@@ -71,10 +122,40 @@ function hostMatches(host: string, set: Set<string>): boolean {
   return Array.from(set).some((h) => host === h || host.endsWith(`.${h}`));
 }
 
-/** Is this URL's host grandfathered (skip the robots.txt disallow check)? */
-export function isRobotsExemptUrl(url: string): boolean {
-  const host = bareHost(url);
-  return hostMatches(host, staticHosts) || hostMatches(host, runtimeHosts);
+function staticExemptionMatches(url: string, runner: string | undefined): boolean {
+  let host = "";
+  let pathname = "/";
+  try {
+    const u = new URL(url);
+    host = u.hostname.toLowerCase().replace(/^www\./, "");
+    pathname = u.pathname;
+  } catch {
+    return false;
+  }
+  const r = runner ? normalizeExemptId(runner) : undefined;
+  return staticExemptions.some(
+    (e) =>
+      (host === e.host || host.endsWith(`.${e.host}`)) &&
+      pathMatches(pathname, e.paths) &&
+      (!r || e.runners.has(r)),
+  );
+}
+
+/**
+ * Is this URL grandfathered (skip the robots.txt disallow check)? Static (registry) exemptions match
+ * source-plus-path: the URL's host and path must be ones the flagged source uses, and when the
+ * calling source is known (`sourceId`, or the current run's source from source-context.ts) it must
+ * be that source. The run-time "rows in the last 7 days" set is host-wide, unchanged (that scope
+ * waits on Jonah's decision).
+ */
+export function isRobotsExemptUrl(url: string, sourceId?: string): boolean {
+  const runner = sourceId ?? currentPoliteSource();
+  return staticExemptionMatches(url, runner) || hostMatches(bareHost(url), runtimeHosts);
+}
+
+/** Static exemptions (tests, /status). */
+export function staticRobotsExemptions(): readonly StaticExemption[] {
+  return staticExemptions;
 }
 
 /** Is this source id grandfathered (named by Jonah, or produced rows in the last 7 days)? */

@@ -174,7 +174,11 @@ export class PoliteCrawler {
    * unreadable one (5xx, network, 403/429) means "disallow everything" (RFC 9309) and is retried
    * after 30 minutes, so one bad moment doesn't lock a site out for the life of the worker.
    */
-  robotsFor(origin: string, domain: string): Promise<RobotsRecord> {
+  robotsFor(
+    origin: string,
+    domain: string,
+    opts: { exempt?: boolean } = {},
+  ): Promise<RobotsRecord> {
     const hit = this.robots.get(origin);
     if (hit && (hit.expiresAt === undefined || hit.expiresAt > this.now()))
       return hit.record;
@@ -189,7 +193,10 @@ export class PoliteCrawler {
           });
           this.metrics.recordStatus(domain, res.status);
           if (isBanSignal(res.status)) {
-            this.breaker.recordBanSignal(domain, res.status, this.now());
+            // A grandfathered source only reads robots.txt for its Crawl-delay; a 403/429 on the
+            // file must not add a breaker strike that would pause a working source.
+            if (!opts.exempt)
+              this.breaker.recordBanSignal(domain, res.status, this.now());
             return null; // a 403/429 on robots.txt means "go away"
           }
           if (res.status >= 500) return null;
@@ -238,6 +245,10 @@ export class PoliteCrawler {
         this.metrics.recordRobotsDenied(domain);
         return { ...base, skipped: "robots" };
       }
+    } else {
+      // Grandfathered (Ren #269): the disallow rules are not applied, but the site's Crawl-delay
+      // still sets the minimum gap between our requests (robotsFor feeds it to the limiter).
+      await this.robotsFor(origin, domain, { exempt: true });
     }
 
     const method = (opts.method || "GET").toUpperCase();
@@ -421,6 +432,14 @@ export async function politeGate<T>(
   if (c.breaker.isOpen(domain)) {
     c.metrics.recordBreakerSkip(domain);
     throw new Error(`polite: ${domain} paused by circuit breaker (retried next schedule)`);
+  }
+  // Crawl-delay only (Ren #269): read robots.txt so its Crawl-delay is the minimum gap for this
+  // domain. Disallow rules are NOT applied to a grandfathered request, and robots.txt trouble never
+  // stops it (robotsFor never throws; an unreadable file just means no Crawl-delay).
+  try {
+    await c.robotsFor(new URL(url).origin, domain, { exempt: true });
+  } catch {
+    // never block the legacy request on robots.txt
   }
   let result: T;
   try {

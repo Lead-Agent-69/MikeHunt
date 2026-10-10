@@ -61,6 +61,13 @@ export interface SourceConfig {
   robotsExempt?: boolean;
   /** Extra hosts this source fetches from (API or CDN hosts) that share its exemption. */
   exemptHosts?: string[];
+  /**
+   * Paths on the main host the exemption covers ("/sch/i.html" exact, "/inventory/*" prefix).
+   * Default: the registry URL's path and below, or the whole host when the URL is the site root.
+   */
+  exemptPaths?: string[];
+  /** Runner ids that fetch this source (e.g. curated_dealers crawls ReCar). The registry id always counts. */
+  exemptRunnerIds?: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -245,6 +252,7 @@ export const INDEPENDENT_DEALERS: SourceConfig[] = [
     status: "active",
     notes: "Rebuilt title focus. High volume.",
     robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
   },
   {
     id: "ae-of-miami",
@@ -263,6 +271,7 @@ export const INDEPENDENT_DEALERS: SourceConfig[] = [
     status: "active",
     notes: "Export specialists. Multiple locations.",
     robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
     exemptHosts: ["aeofmiami.com"],
   },
   {
@@ -1278,6 +1287,9 @@ export const GRANDFATHERED_EXTRA_SOURCES: SourceConfig[] = [
     priority: "P1",
     status: "active",
     robotsExempt: true,
+    // The sold search plus the homepage cookie warm-up. Not /sch/6001/i.html (ebay_motors).
+    exemptPaths: ["/sch/i.html", "/"],
+    exemptRunnerIds: ["ebay_sold"],
     notes: "Runner id ebay_sold. Restored by Jonah 2026-10-09.",
   },
   {
@@ -1291,6 +1303,7 @@ export const GRANDFATHERED_EXTRA_SOURCES: SourceConfig[] = [
     priority: "P2",
     status: "active",
     robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
     notes: "Restored by Jonah 2026-10-09.",
   },
   {
@@ -1305,6 +1318,7 @@ export const GRANDFATHERED_EXTRA_SOURCES: SourceConfig[] = [
     priority: "P2",
     status: "active",
     robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
     notes: "Restored by Jonah 2026-10-09.",
   },
   {
@@ -1318,6 +1332,7 @@ export const GRANDFATHERED_EXTRA_SOURCES: SourceConfig[] = [
     priority: "P2",
     status: "active",
     robotsExempt: true,
+    exemptRunnerIds: ["curated_dealers"],
     notes: "Restored by Jonah 2026-10-09.",
   },
 ];
