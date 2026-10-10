@@ -91,9 +91,12 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      { source: "/deals", destination: "/find", permanent: false },
+      { source: "/deals", destination: "/scan", permanent: false },
       { source: "/scanner", destination: "/scan", permanent: false },
-      { source: "/syndicate", destination: "/list", permanent: false },
+      { source: "/syndicate", destination: "/fleet", permanent: false },
+      { source: "/list", destination: "/fleet", permanent: false },
+      { source: "/finance", destination: "/fleet", permanent: false },
+      { source: "/bulk", destination: "/scan", permanent: false },
       { source: "/watchlist", destination: "/fleet", permanent: false },
     ];
   },

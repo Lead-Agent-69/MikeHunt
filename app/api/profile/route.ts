@@ -53,7 +53,9 @@ export async function GET(req: NextRequest) {
     error: authError,
   } = await getServerUser();
 
-  if (authError || !user) {
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+  if (!user) {
     return NextResponse.json({
       profile: readGuestProfile(req),
       authed: false,
@@ -68,8 +70,7 @@ export async function GET(req: NextRequest) {
     .single();
 
   if (error) {
-    // If table doesn't exist or row missing, just return defaults rather than 500
-    return NextResponse.json({ profile: {} });
+    return NextResponse.json({ error: "Profile unavailable" }, { status: 503 });
   }
 
   // Settings Dealer Defaults bind profile.home_state; LocationPrefs may only have
@@ -117,7 +118,9 @@ export async function POST(req: NextRequest) {
     error: authError,
   } = await getServerUser();
 
-  if (authError || !user) {
+  if (authError)
+    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+  if (!user) {
     return guestProfileResponse({
       ...readGuestProfile(req),
       ...body,

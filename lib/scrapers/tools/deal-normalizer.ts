@@ -2,6 +2,7 @@
 // Normalize scraped deal fields before validation and persistence to improve accuracy and deduplication.
 
 import type { Deal } from "@/types";
+import { broncoSportIdentity } from "@/lib/vehicle/bronco-sport-identity";
 
 // Known makes incl. multi-word, luxury, and newer EV brands. Common aliases map to canonical.
 const MAKE_ALIASES: Record<string, string> = {
@@ -144,7 +145,14 @@ export function extractMileage(title?: string): number | undefined {
 // their real comps (the #1 cause of common, high-volume vehicles falling back to the offline baseline).
 const MODEL_SECOND_WORD: Record<string, Set<string>> = {
   grand: new Set([
-    "cherokee", "caravan", "wagoneer", "prix", "am", "marquis", "voyager", "national",
+    "cherokee",
+    "caravan",
+    "wagoneer",
+    "prix",
+    "am",
+    "marquis",
+    "voyager",
+    "national",
   ]),
   model: new Set(["3", "y", "s", "x", "t"]),
   santa: new Set(["fe", "cruz"]),
@@ -158,8 +166,11 @@ const MODEL_SECOND_WORD: Record<string, Set<string>> = {
 export function extractModel(
   title?: string,
   make?: string,
+  year?: number,
 ): string | undefined {
   if (!title || !make) return undefined;
+  const sport = broncoSportIdentity({ title, make, model: "Bronco", year });
+  if (sport) return sport.model;
   // Escape regex-special chars in the make (e.g. nothing today, but multi-word makes have spaces).
   const safeMake = make.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(
@@ -226,16 +237,27 @@ export function normalizeDeal(deal: Partial<Deal>): Partial<Deal> {
   // Title is authoritative for make: scrapers do positional guessing that mangles multi-word
   // makes ("Land Rover", "Mercedes-Benz") — re-derive from the title when we recognize a make.
   const titleMake = extractMake(normalized.title);
+  const identityRepair = broncoSportIdentity({
+    ...normalized,
+    make: titleMake || normalized.make,
+    model: normalized.model || "Bronco",
+  });
   if (titleMake) {
     normalized.make = titleMake;
     normalized.model =
-      extractModel(normalized.title, titleMake) || normalized.model;
+      extractModel(normalized.title, titleMake, normalized.year) ||
+      normalized.model;
   } else {
     normalized.make = normalized.make || extractMake(normalized.title);
     normalized.model =
-      normalized.model || extractModel(normalized.title, normalized.make);
+      normalized.model ||
+      extractModel(normalized.title, normalized.make, normalized.year);
   }
   normalized.mileage = normalized.mileage || extractMileage(normalized.title);
+  if (identityRepair) {
+    normalized.model = identityRepair.model;
+    normalized.trim = identityRepair.trim || undefined;
+  }
   // Trim from the title when the scraper didn't supply one — feeds baseline-value's trim tier so a
   // Raptor/Denali isn't valued like a base unit (and vice-versa) for the ~96% of deals without a VIN.
   if (!normalized.trim)

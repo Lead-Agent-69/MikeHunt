@@ -24,15 +24,23 @@ const build = (marketRows: ReturnType<typeof rows>, states: string[]) =>
   });
 
 describe("coverageNotice", () => {
-  it("shows nothing for ok, unavailable or a missing block", () => {
+  it("shows nothing for ok or a missing block", () => {
     const ok = build(
       [...rows(40, "TX", "craigslist"), ...rows(20, "TX", "cargurus")],
       ["TX"],
     );
     expect(ok.status).toBe("ok");
     expect(coverageNotice(ok)).toBeNull();
-    expect(coverageNotice(unavailableCoverage("no db"))).toBeNull();
     expect(coverageNotice(undefined)).toBeNull();
+  });
+
+  it("unavailable remains unknown even when location warming is active", () => {
+    const notice = coverageNotice(unavailableCoverage("private diagnostic"), {
+      scanning: true,
+    });
+    expect(notice?.tone).toBe("unavailable");
+    expect(notice?.detail).toContain("does not mean there are no cars");
+    expect(notice?.detail).not.toContain("private diagnostic");
   });
 
   it("none: honest cold banner — Zeus not instant, no ETA", () => {
@@ -89,7 +97,8 @@ describe("coverageNotice", () => {
 
   it("Discover renders the notice from data.coverage with next steps", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
-    expect(page).toContain("<CoverageNotice coverage={data?.coverage} />");
+    expect(page).toContain("coverage={data?.coverage}");
+    expect(page).toContain("onRetry={() => void mutate()}");
     const comp = readFileSync(
       "components/discovery/CoverageNotice.tsx",
       "utf8",

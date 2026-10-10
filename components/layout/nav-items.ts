@@ -1,12 +1,10 @@
 import {
   Activity,
   ArrowLeftRight,
-  Banknote,
   BellRing,
   Bookmark,
-  CalendarDays,
   Clock,
-  CircleUserRound,
+  Grid3X3,
   Code2,
   Columns3,
   Compass,
@@ -17,7 +15,6 @@ import {
   Gavel,
   Hammer,
   Layers,
-  ListPlus,
   MapPin,
   Search,
   Settings,
@@ -28,10 +25,10 @@ import {
   TrendingUp,
   Truck,
   Wrench,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { isFlipBuyerMode, normalizeFlipLeadMode } from "@/lib/buyer/flip-lead";
+import { FOCUSED_TOOLS } from "@/lib/workspace";
 
 export type NavItem = {
   name: string;
@@ -54,22 +51,20 @@ export type PrimaryJob =
 /** The desktop daily-driver routes from the acquisition workflow. */
 export const PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
-  { name: "Auction Lane", href: "/lane", icon: Gavel },
-  { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Saved", href: "/saved", icon: Bookmark },
+  { name: "Pipeline", href: "/fleet", icon: Clock },
+  { name: "Auction Lane", href: "/lane", icon: Gavel },
 ];
 
-/** The mobile bottom bar exposes the four daily buyer actions plus account. */
-export const MOBILE_TAB_COUNT = 5;
+/** The mobile bottom bar exposes three daily buyer actions plus Tools. */
+export const MOBILE_TAB_COUNT = 4;
 
 /** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
 export const MOBILE_PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
-  { name: "Deal Check", href: "/deal-check", icon: FileCheck },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
-  { name: "Account", href: "/settings", icon: CircleUserRound },
+  { name: "Tools", href: "/tools", icon: Grid3X3 },
 ];
 
 /**
@@ -82,6 +77,9 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
   "/lane",
   "/auctions",
   "/arbitrage",
+  "/find",
+  "/best-buy",
+  "/market",
 ];
 
 /**
@@ -90,6 +88,32 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
  * silently bouncing them.
  */
 export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
+  "/discover",
+  "/deal-check",
+  "/today",
+  "/swipe",
+  "/find",
+  "/feed",
+  "/market",
+  "/best-buy",
+  "/arbitrage",
+  "/flash-deals",
+  "/auctions",
+  "/lane",
+  "/map",
+  "/save",
+  "/move",
+  "/recon",
+  "/parts",
+  "/insights",
+  "/onboarding",
+  "/compare",
+  "/overview",
+  "/changelog",
+  "/upgrade",
+  "/deal",
+  "/searches",
+  "/settings",
   "/saved",
   "/alerts",
   "/fleet",
@@ -98,7 +122,7 @@ export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
 export type ViewerNavItem = NavItem & { signInRequired?: boolean };
 
 /**
- * For a signed-out visitor, Saved and Alerts link straight to sign-in (with a
+ * For a signed-out visitor, protected routes link straight to sign-in (with a
  * return path) and are flagged so the nav can mark them. Pass `signedOut` only
  * once the session check has finished, so signed-in users never see a flash.
  */
@@ -106,7 +130,13 @@ export function navItemForViewer(
   item: NavItem,
   signedOut: boolean,
 ): ViewerNavItem {
-  if (!signedOut || !SIGN_IN_REQUIRED_HREFS.includes(item.href)) return item;
+  if (
+    !signedOut ||
+    !SIGN_IN_REQUIRED_HREFS.some((href) =>
+      navItemMatchesPath({ href }, item.href.split("?")[0]),
+    )
+  )
+    return item;
   return {
     ...item,
     href: `/login?next=${encodeURIComponent(item.href)}`,
@@ -136,16 +166,22 @@ function isPersonalNavMode(buyerMode: unknown): boolean {
 /** Desktop primary nav for the saved buyer mode. */
 export function primaryNavForMode(buyerMode: unknown): NavItem[] {
   if (!hidesFlipNav(buyerMode)) return PRIMARY;
-  const items = PRIMARY.filter((item) => !isFlipOnly(item));
-  if (!isPersonalNavMode(buyerMode)) return items;
-  return items.map((item) =>
-    item.href === "/fleet" ? { ...item, name: "Purchase plan" } : item,
+  return PRIMARY.filter((item) => !isFlipOnly(item)).map((item) =>
+    item.href === "/fleet"
+      ? {
+          ...item,
+          name: isPersonalNavMode(buyerMode) ? "Purchase plan" : "Plan",
+        }
+      : item,
   );
 }
 
 /** Purchase planning is available to every buyer mode. */
-export function mobileNavForMode(_buyerMode: unknown): NavItem[] {
-  return MOBILE_PRIMARY;
+export function mobileNavForMode(buyerMode: unknown): NavItem[] {
+  if (!hidesFlipNav(buyerMode)) return MOBILE_PRIMARY;
+  return MOBILE_PRIMARY.map((item) =>
+    item.href === "/fleet" ? { ...item, name: "Plan" } : item,
+  );
 }
 
 /**
@@ -170,40 +206,30 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Discover",
     items: [
       {
-        name: "Today",
-        href: "/today",
-        icon: CalendarDays,
-        description: "Daily shortlist and time-sensitive tasks.",
-      },
-      {
-        name: "Search",
+        name: "Arbitrage routes",
         href: "/find",
         icon: Search,
-        description: "Direct search for a make, model, VIN, or buyer goal.",
+        description:
+          "Compare sourcing routes from your home state, including transport estimates.",
       },
       {
         name: "Feed",
         href: "/feed",
         icon: Flame,
-        description: "Browse recent listings from saved inventory.",
+        description:
+          "Browse recent indexed listings; freshness depends on the source.",
       },
       {
         name: "Swipe",
         href: "/swipe",
         icon: Layers,
-        description: "Fast yes/no review of saved listings.",
+        description: "Review search results one vehicle at a time.",
       },
       {
         name: "Map search",
         href: "/map",
         icon: MapPin,
-        description: "Browse opportunities by state and distance.",
-      },
-      {
-        name: "Flash deals",
-        href: "/flash-deals",
-        icon: Zap,
-        description: "Urgent listings and auctions ending soon.",
+        description: "Browse listings with known map coordinates.",
       },
     ],
   },
@@ -211,16 +237,29 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Discover collections",
     items: [
       {
-        name: "Scan inventory",
+        name: "Search cars",
         href: "/scan",
         icon: Search,
         description: "Run the full search workflow against matching sources.",
       },
       {
-        name: "Next Best Buy",
+        name: "Ranked picks",
         href: "/best-buy",
         icon: Flame,
-        description: "The one listing to check first.",
+        description:
+          "Compare ranked buying candidates by budget and strategy; estimates are not guaranteed returns.",
+      },
+    ],
+  },
+  {
+    group: "Deal Check",
+    items: [
+      {
+        name: "Deal Check",
+        href: "/deal-check",
+        icon: FileCheck,
+        description:
+          "Review an offer's itemized costs; extracted amounts require verification.",
       },
     ],
   },
@@ -228,10 +267,11 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Market",
     items: [
       {
-        name: "Market",
+        name: "Market explorer",
         href: "/market",
         icon: SlidersHorizontal,
-        description: "Pricing, demand, timing, and market signals.",
+        description:
+          "Explore indexed inventory and geographic market comparisons.",
       },
       {
         name: "Arbitrage",
@@ -255,7 +295,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Parts",
         href: "/parts",
         icon: Wrench,
-        description: "Part-out and teardown value checks.",
+        description:
+          "Entered repair and teardown budgets, not a valuation or shop quote.",
       },
     ],
   },
@@ -306,25 +347,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Recon",
         href: "/recon",
         icon: Hammer,
-        description: "Repair/reconditioning assumptions and costs.",
-      },
-      {
-        name: "List a car",
-        href: "/list",
-        icon: ListPlus,
-        description: "Prepare a vehicle for resale.",
-      },
-      {
-        name: "Bulk actions",
-        href: "/bulk",
-        icon: Layers,
-        description: "Batch review and cleanup workflows.",
-      },
-      {
-        name: "Finance",
-        href: "/finance",
-        icon: Banknote,
-        description: "Capital, floorplan, and lender tools.",
+        description:
+          "Recorded recon costs and readiness to list, not repair completion tracking.",
       },
     ],
   },
@@ -341,7 +365,8 @@ export const MORE_GROUPS: NavGroup[] = [
         name: "Upgrade",
         href: "/upgrade",
         icon: Sparkles,
-        description: "Plan limits and premium sourcing tools.",
+        description:
+          "Free customer access and workspace options. No payment required.",
       },
       {
         name: "What's new",
@@ -353,13 +378,25 @@ export const MORE_GROUPS: NavGroup[] = [
   },
 ];
 
-export function navItemMatchesPath(item: NavItem, pathname: string) {
+export function navItemMatchesPath(
+  item: Pick<NavItem, "href">,
+  pathname: string,
+) {
   const normalized = pathname === "/" ? "/discover" : pathname;
   return normalized === item.href || normalized.startsWith(`${item.href}/`);
 }
 
 export function primaryJobForPath(pathname: string): PrimaryJob | null {
   const normalized = pathname === "/" ? "/discover" : pathname;
+  if (navItemMatchesPath({ href: "/compare" }, normalized)) return "Saved";
+  if (navItemMatchesPath({ href: "/dealer-network" }, normalized))
+    return "Discover";
+  if (
+    ["/insights", "/parts"].some((href) =>
+      navItemMatchesPath({ href }, normalized),
+    )
+  )
+    return "Pipeline";
   const primary = PRIMARY.find((item) => navItemMatchesPath(item, normalized));
   if (primary) return primary.name as PrimaryJob;
 
@@ -410,10 +447,7 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   if (
     normalized.startsWith("/fleet") ||
     normalized.startsWith("/move") ||
-    normalized.startsWith("/recon") ||
-    normalized.startsWith("/list") ||
-    normalized.startsWith("/bulk") ||
-    normalized.startsWith("/finance")
+    normalized.startsWith("/recon")
   ) {
     return "Pipeline";
   }
@@ -430,27 +464,29 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   return null;
 }
 
+/** Route ownership stays stable when the buyer-facing label is Plan instead of Pipeline. */
+export function navItemIsActive(item: NavItem, pathname: string): boolean {
+  if (navItemMatchesPath(item, pathname)) return true;
+  const job = primaryJobForPath(pathname);
+  if (item.href === "/tools" && job === "Deal Check") return true;
+  return (
+    job !== null &&
+    PRIMARY.some(
+      (primary) =>
+        primary.href === item.href && primaryJobForPath(primary.href) === job,
+    )
+  );
+}
+
 export function navJobCoverage() {
   const covered = new Map<PrimaryJob, NavItem[]>(
     PRIMARY.map((item) => [item.name as PrimaryJob, [item]]),
   );
   for (const group of MORE_GROUPS) {
-    if (
-      ![
-        "Discover",
-        "Discover collections",
-        "Auction Lane",
-        "Pipeline",
-        "Saved",
-      ].includes(group.group)
-    ) {
-      continue;
+    for (const item of group.items) {
+      const key = primaryJobForPath(item.href);
+      if (key) covered.set(key, [...(covered.get(key) || []), item]);
     }
-    const key =
-      group.group === "Discover collections"
-        ? "Discover"
-        : (group.group as PrimaryJob);
-    covered.set(key, [...(covered.get(key) || []), ...group.items]);
   }
   return covered;
 }
@@ -491,8 +527,8 @@ export const ADMIN_GROUP: NavGroup = {
 export type AccountMenuEntry = { name: string; href: string; group?: string };
 
 /**
- * Signed-in account menu, in order: Saved, Saved searches, Alerts, then a
- * compact Tools section filtered by desk, then Settings and Help. Labels stay
+ * Shared role-aware catalog for Tools, workspace navigation and search.
+ * Account renders the primary and secondary shortcuts, not the full catalog. Labels stay
  * buyer-neutral (no profit or inventory wording). Flip tools appear only on a
  * reseller or dealer desk. There is no admin entry here for anyone.
  */
@@ -506,19 +542,16 @@ export function accountMenuForMode(buyerMode: unknown): {
   const partsDesk = flip || mode === "parts" || mode === "diy";
   const tools: AccountMenuEntry[] = [
     {
-      name: "Scan listings",
+      name: "Search cars",
       href: scanHrefForMode(buyerMode),
       group: "Browse",
     },
-    { name: "Feed", href: "/feed", group: "Browse" },
-    { name: "Map", href: "/map", group: "Browse" },
-    { name: "Swipe", href: "/swipe", group: "Browse" },
+    { name: "Feed", href: "/feed", group: "Search views" },
+    { name: "Map", href: "/map", group: "Search views" },
+    { name: "Swipe", href: "/swipe", group: "Search views" },
     { name: "Dealer network", href: "/dealer-network", group: "Browse" },
-    { name: "Today", href: "/today", group: "Browse" },
-    { name: "Flash deals", href: "/flash-deals", group: "Browse" },
     { name: "Deal Check", href: "/deal-check", group: "Evaluate" },
     { name: "Compare", href: "/compare", group: "Evaluate" },
-    { name: "Vehicle intel", href: "/insights", group: "Evaluate" },
     {
       name: flip ? "Pipeline" : "Purchase plan",
       href: "/fleet",
@@ -535,27 +568,27 @@ export function accountMenuForMode(buyerMode: unknown): {
   }
   if (partsDesk) {
     tools.push({ name: "Parts", href: "/parts", group: "Plan" });
+  }
+  if (flip) {
     tools.push({ name: "Recon", href: "/recon", group: "Plan" });
   }
   if (flip) {
     tools.push(
+      { name: "Outcomes & intelligence", href: "/insights", group: "Business" },
       { name: "Auctions", href: "/auctions", group: "Business" },
       { name: "Auction Lane", href: "/lane", group: "Business" },
-      { name: "Market", href: "/market", group: "Business" },
+      { name: "Market explorer", href: "/market", group: "Business" },
       { name: "Arbitrage", href: "/arbitrage", group: "Business" },
-      { name: "Search markets", href: "/find", group: "Business" },
-      { name: "Next best buy", href: "/best-buy", group: "Business" },
-      { name: "List vehicles", href: "/list", group: "Business" },
-      { name: "Bulk tools", href: "/bulk", group: "Business" },
-      { name: "Finance", href: "/finance", group: "Business" },
+      { name: "Arbitrage routes", href: "/find", group: "Business" },
+      { name: "Ranked picks", href: "/best-buy", group: "Business" },
     );
   }
   if (mode === "parts" || mode === "diy") {
-    const groupOrder = ["Plan", "Browse", "Evaluate"];
+    const groupOrder = ["Plan", "Browse", "Search views", "Evaluate"];
     const planOrder =
       mode === "parts"
         ? ["/parts", "/recon", "/fleet", "/move"]
-        : ["/recon", "/parts", "/fleet", "/move"];
+        : ["/parts", "/fleet", "/move"];
     tools.sort((a, b) => {
       const groupDifference =
         groupOrder.indexOf(a.group || "") - groupOrder.indexOf(b.group || "");
@@ -578,4 +611,32 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Help & updates", href: "/changelog" },
     ],
   };
+}
+
+export function workspaceGroupsForMode(
+  buyerMode: unknown,
+  expanded = true,
+): NavGroup[] {
+  const menu = accountMenuForMode(buyerMode);
+  const catalog = [...PRIMARY, ...MORE_GROUPS.flatMap((group) => group.items)];
+  const groups = new Map<string, NavItem[]>();
+  for (const entry of [
+    ...menu.tools,
+    ...menu.primary.map((item) => ({ ...item, group: "Saved" })),
+    ...menu.secondary.map((item) => ({ ...item, group: "Account" })),
+  ]) {
+    const base = entry.href.split("?")[0];
+    if (!expanded && !FOCUSED_TOOLS.has(base)) continue;
+    const item = catalog.find((candidate) => candidate.href === base);
+    const group = entry.group || "Browse";
+    const items = groups.get(group) || [];
+    items.push({
+      ...entry,
+      icon: item?.icon || Search,
+      description: item?.description,
+    });
+    groups.set(group, items);
+  }
+  groups.get("Browse")?.unshift(PRIMARY[0]);
+  return Array.from(groups, ([group, items]) => ({ group, items }));
 }

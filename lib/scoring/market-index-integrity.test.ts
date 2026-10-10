@@ -15,6 +15,7 @@ const ask = {
   condition: "used",
   title: "clean title",
   mileage: 40000,
+  last_seen_at: new Date().toISOString(),
 };
 const sale = {
   make: "Honda",

@@ -21,6 +21,7 @@ import { getLocalWriteContext } from "./local-write-context";
 import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
+import { isWithinAuctionWindow } from "../search/live-auction-window";
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -231,10 +232,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
-        // A listing we just re-observed IS available → force active. This is what makes the staleness prune
-        // SELF-HEALING: if a still-listed car was wrongly deactivated (a scraper missed it one cycle), the
-        // next scrape that sees it flips it back on. Without this, deactivation was permanent + unsafe.
-        active: true,
+        // Re-observation restores ordinary listings and rescheduled auctions, not known-ended lots.
+        active: isWithinAuctionWindow({ auction_end_at: auctionEndAt }),
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
         images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
@@ -329,7 +328,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
 
   const SELECT_COLS =
-    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng";
+    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at";
   const sb = getSupabase();
   // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
   // salvage below still run; this only adds throttle beside them.
@@ -464,8 +463,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
 
   // Evaluate against user_saved_searches
-  if (returnedRows.length > 0) {
-    await matchUserSearches(returnedRows);
+  const liveRows = returnedRows.filter(
+    (row) => row.active !== false && isWithinAuctionWindow(row),
+  );
+  if (liveRows.length > 0) {
+    await matchUserSearches(liveRows);
   }
 
   // Report rows actually accepted by the persistence layer. This keeps run receipts honest when

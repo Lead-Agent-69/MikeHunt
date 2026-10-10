@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
 import { internalError } from "@/lib/api/http-error";
 import {
   createServerComponentClient,
@@ -617,7 +618,9 @@ export async function GET(request: NextRequest) {
           },
         );
         if (rpcErr) throw new Error(rpcErr.message);
-        const marketRows: any[] = Array.isArray(rpcData) ? rpcData : [];
+        const marketRows: any[] = Array.isArray(rpcData)
+          ? rpcData.filter((row: any) => isWithinAuctionWindow(row))
+          : [];
         const rows: any[] = marketRows.filter((row: any) => {
           if (
             excludeRepairable &&

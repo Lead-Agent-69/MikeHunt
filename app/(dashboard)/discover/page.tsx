@@ -68,6 +68,7 @@ const fetcher = (url: string) =>
   });
 
 function Rail({ rail }: { rail: DiscoveryRail }) {
+  const title = rail.key === "foryou" ? "Profile matches" : rail.title;
   const strip = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
   const [edges, setEdges] = useState({ start: true, end: true });
@@ -109,7 +110,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
-            {rail.title}
+            {title}
           </h2>
           {rail.subtitle && (
             <p className="mt-0.5 text-xs text-[var(--t4)]">{rail.subtitle}</p>
@@ -118,7 +119,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
         <div className="flex shrink-0 gap-1">
           <button
             type="button"
-            aria-label={`Previous vehicles in ${rail.title}`}
+            aria-label={`Previous vehicles in ${title}`}
             title="Previous vehicles"
             aria-controls={railId}
             disabled={edges.start}
@@ -129,7 +130,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
           </button>
           <button
             type="button"
-            aria-label={`Next vehicles in ${rail.title}`}
+            aria-label={`Next vehicles in ${title}`}
             title="Next vehicles"
             aria-controls={railId}
             disabled={edges.end}
@@ -144,7 +145,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
         ref={strip}
         id={railId}
         role="region"
-        aria-label={`${rail.title} vehicles`}
+        aria-label={`${title} vehicles`}
         tabIndex={0}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
@@ -420,7 +421,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <CoverageNotice coverage={data?.coverage} />
+      <CoverageNotice coverage={data?.coverage} onRetry={() => void mutate()} />
 
       <section className="border-y border-[var(--b1)] py-3">
         <form

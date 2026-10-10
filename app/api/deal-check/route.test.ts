@@ -76,6 +76,12 @@ beforeEach(() => {
 });
 
 describe("POST /api/deal-check URL paste SSRF guard", () => {
+  it("rejects malformed model extraction instead of returning unusable success", async () => {
+    generateText.mockResolvedValueOnce({
+      text: '{"selling_price":"unknown","fees":{}}',
+    });
+    expect((await post("Fictional offer text")).status).toBe(422);
+  });
   it("rejects malformed extraction instead of displaying unchecked fields", async () => {
     generateText.mockResolvedValueOnce({
       text: '{"selling_price":"3000","fees":"none"}',

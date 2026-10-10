@@ -9,21 +9,21 @@ describe("parts page honesty", () => {
   it("empty state does not leak DB enums or point at a missing Fleet control", () => {
     expect(page).not.toMatch(/parts_only or salvage_title in Fleet/);
     expect(page).not.toMatch(/Mark a vehicle as/);
-    expect(page).toContain("No parts or salvage vehicles saved yet.");
+    expect(page).toContain("Saved budgets");
   });
 
-  it("missing salvage cost shows a dash and never computes net/ROI", () => {
-    expect(page).toContain("const hasCost = salvageCost > 0;");
+  it("missing entered costs never compute a teardown margin", () => {
     expect(page).toContain(
-      "const net = hasCost ? partsValue - salvageCost : null;",
+      "const margin = total === null || gross === null ? null : gross - total;",
     );
-    expect(page).toContain("cost needed");
-    expect(page).not.toMatch(/: 0;\s*\n\s*const togglePart/);
+    expect(page).toContain("Not calculated");
+    expect(page).not.toContain("roi.toFixed");
   });
 
-  it("hardcoded part prices are labeled as typical examples", () => {
-    expect(page).toContain("not priced for this");
-    expect(page).toContain("typical");
-    expect(page).toContain("Example Parts Value");
+  it("uses buyer-entered amounts instead of hardcoded example part values", () => {
+    expect(page).toContain("budgetTotal(fields.map");
+    expect(page).toContain("budgetAmount(income)");
+    expect(page).not.toContain('name: "Engine (Complete)", value: 3800');
+    expect(page).not.toContain("Example Parts Value");
   });
 });

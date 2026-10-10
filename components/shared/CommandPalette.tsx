@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
+import { CarFront, Grid3X3, X, type LucideIcon } from "lucide-react";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { useDealerId } from "@/hooks/useDealerId";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import {
+  navItemForViewer,
+  scanHrefForMode,
+  workspaceGroupsForMode,
+} from "@/components/layout/nav-items";
 
 interface Command {
   id: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   action: () => void;
   keywords?: string[];
 }
@@ -18,108 +27,42 @@ export function CommandPalette() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(0);
   const router = useRouter();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const { intent } = useBuyerIntent();
+  const { dealerId, loading } = useDealerId();
+  const { expanded } = useWorkspace();
 
   const commands: Command[] = useMemo(() => {
-    const dest: {
-      id: string;
-      label: string;
-      icon: string;
-      href: string;
-      keywords?: string[];
-    }[] = [
+    const groups = workspaceGroupsForMode(
+      intent?.buyerMode,
+      expanded || !!search.trim(),
+    );
+    return [
       {
-        id: "discover",
-        label: "Discover",
-        icon: "search",
-        href: "/discover",
-        keywords: ["home", "deals", "feed"],
+        id: "/tools",
+        label: "All tools",
+        icon: Grid3X3,
+        action: () => router.push("/tools"),
       },
-      {
-        id: "scan",
-        label: "Scan Market",
-        icon: "scan",
-        href: "/scan",
-        keywords: ["search", "grid", "filter"],
-      },
-      {
-        id: "check",
-        label: "Deal Check",
-        icon: "calculator",
-        href: "/deal-check",
-        keywords: ["analyze", "fees", "vin"],
-      },
-      {
-        id: "map",
-        label: "Deal Map",
-        icon: "map",
-        href: "/map",
-        keywords: ["location", "near", "geo"],
-      },
-      {
-        id: "insights",
-        label: "Intel & ROI",
-        icon: "trending-up",
-        href: "/insights",
-        keywords: ["intelligence", "outcomes", "calibration", "roi"],
-      },
-      {
-        id: "auctions",
-        label: "Auctions",
-        icon: "list",
-        href: "/auctions",
-        keywords: ["auction", "runlist", "copart"],
-      },
-      {
-        id: "lane",
-        label: "Lane Scanner",
-        icon: "scan",
-        href: "/lane",
-        keywords: ["auction", "lane", "barcode", "vin", "scanner", "camera"],
-      },
-      {
-        id: "fleet",
-        label: "Fleet",
-        icon: "fleet",
-        href: "/fleet",
-        keywords: ["inventory", "pipeline", "recon"],
-      },
-      {
-        id: "searches",
-        label: "Saved Searches",
-        icon: "bell",
-        href: "/searches",
-        keywords: ["alerts", "watch"],
-      },
-      {
-        id: "saved",
-        label: "Saved Vehicles",
-        icon: "car",
-        href: "/saved",
-        keywords: ["watchlist", "bookmarks"],
-      },
-      {
-        id: "alerts",
-        label: "Alerts",
-        icon: "bell",
-        href: "/alerts",
-        keywords: ["notifications", "matches"],
-      },
-      {
-        id: "settings",
-        label: "Settings",
-        icon: "settings",
-        href: "/settings",
-        keywords: ["preferences", "profile"],
-      },
+      ...groups.flatMap((group) =>
+        group.items.map((item) => {
+          const entry = navItemForViewer(item, !loading && !dealerId);
+          return {
+            id: item.href,
+            label: `${item.name}${entry.signInRequired ? " (sign in required)" : ""}`,
+            icon: item.icon,
+            keywords: [
+              group.group.toLowerCase(),
+              item.href,
+              item.description?.toLowerCase() || "",
+            ],
+            action: () => router.push(entry.href),
+          };
+        }),
+      ),
     ];
-    return dest.map((d) => ({
-      id: d.id,
-      label: d.label,
-      icon: d.icon,
-      keywords: d.keywords,
-      action: () => router.push(d.href),
-    }));
-  }, [router]);
+  }, [router, intent?.buyerMode, dealerId, loading, expanded, search]);
 
   const filteredCommands = useMemo(() => {
     if (!search) return commands;
@@ -136,16 +79,21 @@ export function CommandPalette() {
   const [dealResults, setDealResults] = useState<Command[]>([]);
   useEffect(() => {
     const q = search.trim();
-    if (q.length < 2) {
+    if (!open || q.length < 2) {
       setDealResults([]);
       return;
     }
+    const controller = new AbortController();
+    setDealResults([]);
     const t = setTimeout(async () => {
       try {
         const res = await fetch(
-          `/api/scan?q=${encodeURIComponent(q)}&sort=profit`,
+          `${scanHrefForMode(intent?.buyerMode).replace("/scan", "/api/scan")}&q=${encodeURIComponent(q)}`,
+          { signal: controller.signal },
         );
+        if (!res.ok) throw new Error("Search unavailable");
         const data = await res.json();
+        if (controller.signal.aborted) return;
         const items: Command[] = (data.vehicles || data.deals || [])
           .slice(0, 6)
           .map((v: any) => {
@@ -160,17 +108,20 @@ export function CommandPalette() {
               label:
                 [label, money, v.locationState].filter(Boolean).join(" · ") ||
                 "Deal",
-              icon: "car",
+              icon: CarFront,
               action: () => router.push(`/deal/${v.id}`),
             };
           });
         setDealResults(items);
       } catch {
-        setDealResults([]);
+        if (!controller.signal.aborted) setDealResults([]);
       }
     }, 250);
-    return () => clearTimeout(t);
-  }, [search, router]);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
+  }, [search, router, open, intent?.buyerMode]);
 
   // The full navigable list = matching nav commands, then live deal results.
   const allItems = useMemo(
@@ -179,9 +130,20 @@ export function CommandPalette() {
   );
 
   useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      returnFocus.current?.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
+        if (!open) returnFocus.current = document.activeElement as HTMLElement;
         setOpen((prev) => !prev);
         setSearch("");
         setSelected(0);
@@ -215,8 +177,17 @@ export function CommandPalette() {
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] animate-fadeIn"
+    <dialog
+      ref={dialogRef}
+      aria-label="Search tools and vehicles"
+      onCancel={(event) => {
+        event.preventDefault();
+        setOpen(false);
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+      className="fixed inset-0 z-50 m-0 h-full w-full max-h-none max-w-none border-0 flex items-start justify-center pt-[12vh] animate-fadeIn"
       style={{ background: "rgba(36,28,43,0.4)" }}
     >
       <div
@@ -227,6 +198,7 @@ export function CommandPalette() {
         <div className="flex items-center gap-3 p-4 border-b border-[var(--b1)]">
           <Ico name="search" className="text-[var(--t3)]" size={20} />
           <input
+            aria-label="Search tools and vehicles"
             type="text"
             value={search}
             onChange={(e) => {
@@ -237,9 +209,15 @@ export function CommandPalette() {
             className="flex-1 bg-transparent border-none outline-none text-base text-[var(--t1)] placeholder:text-[var(--t3)]"
             autoFocus
           />
-          <kbd className="px-2 py-1 text-xs bg-[var(--s2)] border border-[var(--b1)] rounded">
-            ESC
-          </kbd>
+          <button
+            type="button"
+            aria-label="Close search"
+            title="Close search"
+            onClick={() => setOpen(false)}
+            className="grid min-h-11 min-w-11 place-items-center text-[var(--t3)] hover:bg-[var(--s2)]"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
         </div>
 
         {/* Commands + live deal results */}
@@ -275,10 +253,9 @@ export function CommandPalette() {
                       : undefined
                   }
                 >
-                  <Ico
-                    name={cmd.icon as any}
-                    size={20}
-                    className="text-[var(--t2)]"
+                  <cmd.icon
+                    className="h-5 w-5 text-[var(--t2)]"
+                    aria-hidden="true"
                   />
                   <span className="flex-1 text-sm font-medium text-[var(--t1)]">
                     {cmd.label}
@@ -321,6 +298,6 @@ export function CommandPalette() {
           </span>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

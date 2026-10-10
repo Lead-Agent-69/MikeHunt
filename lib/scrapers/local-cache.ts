@@ -43,8 +43,6 @@ export interface PersistResult {
   paused: boolean;
 }
 
-const TOUCH_CHUNK = 100;
-
 /**
  * Daily write budgets for the thin free-tier Supabase project. Writes pause at 80% of each.
  * ~1,000 effective new rows/day at ~4 KB/row on disk (row + indexes) keeps the 60-day retention
@@ -157,6 +155,25 @@ export function stableListingId(deal: Record<string, unknown>): string {
 }
 
 const utcDay = () => new Date().toISOString().slice(0, 10);
+
+export function listingIdBatches(ids: readonly string[]): string[][] {
+  const batches: string[][] = [];
+  let batch: string[] = [];
+  let encodedLength = 0;
+  for (const id of ids) {
+    const length = encodeURIComponent(JSON.stringify(id)).length + 3;
+    // PostgREST filters travel in the URL. Long dealer slugs need a byte budget, not just a row cap.
+    if (batch.length && (batch.length >= 50 || encodedLength + length > 3000)) {
+      batches.push(batch);
+      batch = [];
+      encodedLength = 0;
+    }
+    batch.push(id);
+    encodedLength += length;
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
 
 export class LocalScraperCache {
   private filePath: string;
@@ -298,6 +315,63 @@ export class LocalScraperCache {
     await rename(temp, this.filePath);
   }
 
+  /** Reversible auction expiry, serialized with imports and charged to the same update budget. */
+  async deactivateEndedAuctions(
+    supabase: SupabaseClient,
+    limit = 100,
+  ): Promise<number> {
+    return this.exclusive(async () => {
+      this.rollDay();
+      if (this.cacheOnly) return 0;
+      const available = Math.max(
+        0,
+        Math.floor(this.maxDailyUpdates * 0.8) - this.state.quota.updates,
+      );
+      const take = Math.min(100, available, Math.max(0, Math.floor(limit)));
+      if (!Number.isFinite(take) || take === 0) return 0;
+      if (this.beforeWrite && !(await this.beforeWrite())) return 0;
+      const endedAt = new Date().toISOString();
+      const { data: candidates, error: readError } = await supabase
+        .from("deals")
+        .select("id")
+        .eq("active", true)
+        .lte("auction_end_at", endedAt)
+        .order("auction_end_at", { ascending: true })
+        .limit(take);
+      if (readError)
+        throw new Error(`Auction expiry read failed: ${readError.message}`);
+      if (!candidates?.length) return 0;
+      if (this.beforeWrite && !(await this.beforeWrite())) return 0;
+      // Repeat the expiry predicate so a concurrent reschedule cannot deactivate a reopened lot.
+      const { data: changed, error: writeError } = await supabase
+        .from("deals")
+        .update({ active: false })
+        .in(
+          "id",
+          candidates.map((row) => row.id),
+        )
+        .eq("active", true)
+        .lte("auction_end_at", endedAt)
+        .select("id,source,source_deal_id");
+      if (writeError)
+        throw new Error(`Auction expiry update failed: ${writeError.message}`);
+      for (const row of changed || []) {
+        const entry = this.state.entries[`${row.source}|${row.source_deal_id}`];
+        if (entry) entry.synced = false;
+      }
+      const count = changed?.length || 0;
+      this.state.quota.updates += count;
+      await this.save();
+      const quota = this.getQuota();
+      this.onQuota?.(
+        quota,
+        quota.updates >= Math.floor(this.maxDailyUpdates * 0.8) ||
+          quota.inserts >= Math.floor(this.maxDailyInserts * 0.8),
+      );
+      return count;
+    });
+  }
+
   async persistRows(
     inputRows: Record<string, any>[],
     supabase: SupabaseClient,
@@ -370,10 +444,9 @@ export class LocalScraperCache {
         const sourceRows = candidates.filter(
           (row) => String(row.source) === source,
         );
-        for (let offset = 0; offset < sourceRows.length; offset += 500) {
-          const ids = sourceRows
-            .slice(offset, offset + 500)
-            .map((row) => row.source_deal_id);
+        for (const ids of listingIdBatches(
+          sourceRows.map((row) => String(row.source_deal_id)),
+        )) {
           let { data, error } = await supabase
             .from("deals")
             .select(classifyColumns(sourceRows))
@@ -563,13 +636,10 @@ export class LocalScraperCache {
       bySource.set(String(row.source), list);
     }
     for (const [source, ids] of Array.from(bySource.entries())) {
-      for (let offset = 0; offset < ids.length; offset += TOUCH_CHUNK) {
+      for (const batch of listingIdBatches(ids)) {
         if (available <= 0) return touched;
         if (this.beforeWrite && !(await this.beforeWrite())) return touched;
-        const chunk = ids.slice(
-          offset,
-          offset + Math.min(TOUCH_CHUNK, available),
-        );
+        const chunk = batch.slice(0, available);
         const seenAt = new Date().toISOString();
         const { error } = await supabase
           .from("deals")

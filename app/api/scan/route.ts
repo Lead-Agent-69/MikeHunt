@@ -31,6 +31,10 @@ import {
 } from "@/lib/search/category-inventory";
 import { cached } from "@/lib/cache";
 import {
+  SCAN_EXTRA_KEYS,
+  hasAuctionDetailFilters,
+} from "@/lib/search/extended-inventory-filters";
+import {
   uniqueDbSources,
   sellerTypeSourceValues,
   sourceUrlNeedles,
@@ -1044,8 +1048,6 @@ export async function GET(req: NextRequest) {
   const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
   const minPrice = parseInt(searchParams.get("minPrice") || "0");
   const verdict = searchParams.get("verdict") || "";
-  const minMileage = parseInt(searchParams.get("minMileage") || "0");
-  const maxMileage = parseInt(searchParams.get("maxMileage") || "0");
   const availability = searchParams.get("availability") || "";
   const madeInUsa = searchParams.get("madeInUsa") === "1";
   // Resolve the caller's SAVED desk before building the query: sort, profit floors and verdict
@@ -1064,6 +1066,11 @@ export async function GET(req: NextRequest) {
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
   if (!isSupabaseConfigured()) {
+    if (SCAN_EXTRA_KEYS.some((key) => searchParams.get(key)))
+      return NextResponse.json(
+        { error: "Detailed source inventory is temporarily unavailable" },
+        { status: 503, headers: SCAN_CACHE_HEADERS },
+      );
     const preview = await publicPreviewFallback({
       includeRepairable: searchParams.get("includeRepairable"),
       lane,
@@ -1089,8 +1096,10 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
+  query = applyLiveAuctionWindow(query);
+
   if (
-    searchParams.get("buyNow") !== "1" &&
+    !hasAuctionDetailFilters(searchParams) &&
     !wantsAuctionInventory({
       lane,
       sellerType,
@@ -1153,13 +1162,6 @@ export async function GET(req: NextRequest) {
   }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
-  if (maxPrice > 0) query = query.lte("ask_price", maxPrice);
-  if (maxPrice > 0 || minPrice > 0) query = query.gt("ask_price", 0);
-  if (minPrice > 0) query = query.gte("ask_price", minPrice);
-  // Mileage may be null on some rows; range filters naturally exclude nulls, which is acceptable
-  // for an explicit mileage search.
-  if (searchParams.has("minMileage")) query = query.gte("mileage", minMileage);
-  if (searchParams.has("maxMileage")) query = query.lte("mileage", maxMileage);
   query = applyVehicleDetails(query, searchParams);
 
   if (source && source.toLowerCase() !== "all") {
@@ -1375,3 +1377,4 @@ export async function POST(req: NextRequest) {
     return internalError("scan", error);
   }
 }
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

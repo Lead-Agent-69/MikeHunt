@@ -23,7 +23,8 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain("hidden max-w-[calc(100vw-24px)]");
     expect(aiFeatures).toContain("md:flex");
     expect(aiFeatures).toContain("right-4 top-20");
-    expect(aiFeatures).toContain("lg:top-auto lg:bottom-6");
+    expect(aiFeatures).toContain("lg:top-auto lg:bottom-24");
+    expect(aiFeatures).not.toContain("lg:bottom-6");
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain(
@@ -46,7 +47,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("hidden items-center justify-end gap-2 lg:flex");
     expect(topNav).toContain("flex items-center justify-end gap-2 lg:hidden");
     expect(topNav).toContain("max-w-[88px]");
-    expect(topNav).toContain("activeJob === item.name");
+    expect(topNav).toContain("navItemIsActive(item, pathname)");
     expect(topNav).not.toContain("More dropdown");
     expect(accountMenu).toContain("LogOut");
     expect(accountMenu).not.toContain('router.push("/sources")');

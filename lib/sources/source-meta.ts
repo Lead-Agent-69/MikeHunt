@@ -344,7 +344,11 @@ export function sourceMeta(source?: string | null): SourceMeta {
 export function humanizeEnumLabel(value?: string | null): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
-  if (!/[_-]/.test(raw) && raw !== raw.toUpperCase() && raw !== raw.toLowerCase())
+  if (
+    !/[_-]/.test(raw) &&
+    raw !== raw.toUpperCase() &&
+    raw !== raw.toLowerCase()
+  )
     return raw;
   const words = raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);

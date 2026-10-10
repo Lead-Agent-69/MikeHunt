@@ -217,7 +217,7 @@ export function MikeHuntCopilotDrawer() {
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
         aria-label="Open decision guide"
-        className="fixed right-4 top-20 z-40 hidden max-w-[calc(100vw-24px)] items-center gap-3 rounded-full border px-4 py-3 text-sm font-bold shadow-2xl md:flex lg:right-6 lg:top-auto lg:bottom-6 lg:z-50 lg:px-5 lg:py-3.5"
+        className="fixed right-4 top-20 z-40 hidden max-w-[calc(100vw-24px)] items-center gap-3 rounded-full border px-4 py-3 text-sm font-bold shadow-2xl md:flex lg:right-6 lg:top-auto lg:bottom-24 lg:z-40 lg:px-5 lg:py-3.5"
         style={{
           background: "var(--s0)",
           color: "var(--t1)",

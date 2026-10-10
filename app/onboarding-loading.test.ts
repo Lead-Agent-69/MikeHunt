@@ -67,7 +67,7 @@ it("offers recovery rather than replacing failed preferences with defaults", asy
     root.render(React.createElement(OnboardingPage));
   });
   expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-    "Retry before making changes",
+    "Retry before saving",
   );
   fetchMock.mockResolvedValue({ ok: true, json: async () => ({ prefs: {} }) });
   await act(async () => {
