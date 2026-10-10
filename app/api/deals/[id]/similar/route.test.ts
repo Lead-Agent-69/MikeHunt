@@ -4,6 +4,13 @@ import { NextRequest } from "next/server";
 const getServerUser = vi.hoisted(() => vi.fn());
 const rpc = vi.hoisted(() => vi.fn());
 const savedMode = vi.hoisted(() => ({ value: null as string | null }));
+// Source deal for the hard prefilters (same segment, ±40% ask, ±3 years).
+const BASE = vi.hoisted(() => ({
+  make: "Toyota",
+  model: "Camry",
+  year: 2019,
+  ask_price: 14500,
+}));
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
 vi.mock("@/lib/supabase", () => ({
@@ -17,7 +24,9 @@ vi.mock("@/lib/supabase", () => ({
             data:
               table === "user_preferences" && savedMode.value
                 ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
-                : null,
+                : table === "deals"
+                  ? BASE
+                  : null,
             error: null,
           }),
         }),
