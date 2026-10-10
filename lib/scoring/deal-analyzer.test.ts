@@ -48,7 +48,8 @@ describe("analyzeDeal reality gate", () => {
     } as any);
     expect(a.priceImplausible).toBe(false);
     expect(a.sellEstimate).toBeGreaterThan(0);
-    expect(["go", "hold", "pass"]).toContain(a.verdict);
+    // No comps loaded in this test → no buy/pass call.
+    expect(a.verdict).toBe("not_enough_data");
     expect(a.score).toBeGreaterThanOrEqual(0);
     expect(a.score).toBeLessThanOrEqual(100);
     expect(a.recommendedMaxBid).toBeGreaterThanOrEqual(0);

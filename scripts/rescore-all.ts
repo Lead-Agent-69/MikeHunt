@@ -20,11 +20,13 @@ async function main() {
     scanned = 0,
     updated = 0,
     goToPass = 0;
+  const verdicts: Record<string, number> = {};
   while (true) {
     const { data: deals, error } = await sb
       .from("deals")
       .select("*")
       .eq("active", true)
+      .order("id", { ascending: true }) // stable pages while rows are being updated
       .range(page * pageSize, (page + 1) * pageSize - 1);
     if (error) throw error;
     if (!deals || deals.length === 0) break;
@@ -37,6 +39,7 @@ async function main() {
         }
         const a = analyzeDeal(row);
         if (row.deal_verdict === "go" && a.verdict !== "go") goToPass++;
+        verdicts[a.verdict] = (verdicts[a.verdict] || 0) + 1;
         const { error: upErr } = await sb
           .from("deals")
           .update({
@@ -50,6 +53,10 @@ async function main() {
             deal_analysis: {
               ...(row.deal_analysis || {}),
               sellBasis: a.sellBasis,
+              // Keep "How we valued this" + the not_enough_data evidence flag in step with the verdict.
+              valuation: a.valuation,
+              scoreBreakdown: a.scoreBreakdown,
+              recommendations: a.recommendations,
               priceImplausible: a.priceImplausible,
               conditionTag: a.conditionTag,
               soldAnchored: a.soldAnchored,
@@ -84,5 +91,6 @@ async function main() {
   console.log(
     `DONE: scanned ${scanned}, updated ${updated}, demoted go→pass ${goToPass}`,
   );
+  console.log("verdicts:", JSON.stringify(verdicts));
 }
 main().then(() => process.exit(0));
