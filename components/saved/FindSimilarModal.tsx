@@ -36,6 +36,7 @@ export function FindSimilarModal({
   const [loading, setLoading] = useState(true);
   const [comparables, setComparables] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -50,6 +51,8 @@ export function FindSimilarModal({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const focusTimer = window.setTimeout(() => {
       closeButtonRef.current?.focus();
     }, 0);
@@ -91,6 +94,7 @@ export function FindSimilarModal({
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKeyDown, true);
+      document.body.style.overflow = previousOverflow;
       if (trigger && document.contains(trigger)) trigger.focus();
     };
   }, [isOpen]);
@@ -136,7 +140,15 @@ export function FindSimilarModal({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [isOpen, snapshot]);
+  }, [
+    isOpen,
+    snapshot.make,
+    snapshot.model,
+    snapshot.year,
+    snapshot.askingPrice,
+    snapshot.odometer,
+    attempt,
+  ]);
 
   if (!isOpen || typeof document === "undefined") return null;
 
@@ -167,7 +179,7 @@ export function FindSimilarModal({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative z-10 flex max-h-[min(80vh,calc(100dvh-8rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--b2)] bg-white shadow-2xl animate-scaleUp"
+        className="relative z-10 flex max-h-[min(80vh,calc(100dvh-8rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--b2)] bg-[var(--s1)] shadow-2xl animate-scaleUp"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--b1)] bg-[var(--s1)]">
@@ -176,7 +188,7 @@ export function FindSimilarModal({
               Find Similar Vehicles
             </h3>
             <p className="text-xs text-[var(--t3)]">
-              Comparables for: {snapshot.year} {snapshot.make} {snapshot.model}
+              Similar listings: {snapshot.year} {snapshot.make} {snapshot.model}
             </p>
           </div>
           <button
@@ -184,7 +196,7 @@ export function FindSimilarModal({
             type="button"
             onClick={onClose}
             aria-label="Close find similar vehicles"
-            className="p-1.5 rounded-full hover:bg-[var(--s2)] text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-[var(--s2)] text-[var(--t3)] hover:text-[var(--t1)] transition-colors"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -196,14 +208,23 @@ export function FindSimilarModal({
             <div className="flex flex-col items-center justify-center py-12 space-y-3">
               <Loader2 className="w-8 h-8 text-[var(--amber)] animate-spin" />
               <p className="text-sm font-medium text-[var(--t3)]">
-                Checking saved listings…
+                Checking available listings...
               </p>
             </div>
           )}
 
           {error && (
             <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-center">
-              <p className="text-sm font-semibold text-red-600">{error}</p>
+              <p role="alert" className="text-sm font-semibold text-red-700">
+                {error}
+              </p>
+              <button
+                type="button"
+                onClick={() => setAttempt((value) => value + 1)}
+                className="mt-2 min-h-11 px-4 font-semibold text-red-700 underline"
+              >
+                Try again
+              </button>
             </div>
           )}
 
@@ -214,12 +235,13 @@ export function FindSimilarModal({
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-bold text-[var(--t2)]">
-                  No similar saved listings yet
+                  No similar listings yet
                 </p>
                 <p className="text-xs text-[var(--t4)] max-w-sm mx-auto">
-                  No other saved listings match this year range, make and model
-                  right now. This checks saved inventory only; it does not run a
-                  live market scan.
+                  No available listings match these filters right now. This
+                  checks collected inventory; it does not run a live market
+                  scan. Listing prices are asking prices, not verified sale
+                  prices.
                 </p>
               </div>
             </div>
@@ -232,21 +254,24 @@ export function FindSimilarModal({
                   key={comp.id}
                   className="flex items-center justify-between py-4 first:pt-0 last:pb-0 hover:bg-[var(--s1)]/30 px-3 -mx-3 rounded-lg transition-colors"
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex min-w-0 items-center gap-3">
                     {/* Image Thumbnail */}
                     <div className="w-16 h-12 bg-[var(--s2)] rounded-lg overflow-hidden flex-shrink-0 border border-[var(--b1)]">
-                      <img
-                        src={
-                          comp.images?.[0] ||
-                          "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=150"
-                        }
-                        alt={comp.title}
-                        className="w-full h-full object-cover"
-                      />
+                      {comp.images?.[0] ? (
+                        <img
+                          src={comp.images[0]}
+                          alt={`${comp.year ?? ""} ${comp.make ?? ""} ${comp.model ?? ""}`.trim()}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full items-center justify-center text-[10px] text-[var(--t3)]">
+                          No photo
+                        </span>
+                      )}
                     </div>
 
                     {/* Vehicle Text details */}
-                    <div>
+                    <div className="min-w-0 break-words">
                       <h4 className="text-sm font-bold text-[var(--t1)]">
                         {comp.year} {comp.make} {comp.model} {comp.trim}
                       </h4>
@@ -256,7 +281,9 @@ export function FindSimilarModal({
                       </p>
                       <div className="flex items-center space-x-2 mt-1">
                         <span className="text-xs font-black text-[var(--t2)]">
-                          {formatMoney(comp.ask_price)}
+                          {Number(comp.ask_price) > 0
+                            ? `${formatMoney(comp.ask_price)} asking`
+                            : "Price not provided"}
                         </span>
                         {flipDesk && comp.profit_score != null ? (
                           <Badge className="bg-[var(--green)] hover:bg-[var(--green)] text-white text-[9px] px-1 py-0 shadow-none border-none">
@@ -269,16 +296,6 @@ export function FindSimilarModal({
 
                   {/* Actions */}
                   <div className="flex items-center space-x-3">
-                    {flipDesk && (
-                      <div className="text-right hidden sm:block">
-                        <span className="text-xs text-[var(--t4)] block uppercase font-bold tracking-wider">
-                          Est. Profit
-                        </span>
-                        <span className="text-sm font-black text-[var(--green)]">
-                          +{formatMoney(comp.profit_estimate)}
-                        </span>
-                      </div>
-                    )}
                     <Link
                       href={`/deal/${comp.id}`}
                       onClick={onClose}
@@ -287,7 +304,7 @@ export function FindSimilarModal({
                           .replace(/\s+/g, " ")
                           .trim() || "Open listing"
                       }
-                      className="flex items-center justify-center p-2 rounded-lg bg-[var(--s1)] text-[var(--t2)] hover:bg-[var(--amber)] hover:text-white transition-all shadow-sm"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--amber)] hover:text-white transition-all shadow-sm"
                     >
                       <ChevronRight className="w-4 h-4" aria-hidden="true" />
                     </Link>
@@ -303,7 +320,7 @@ export function FindSimilarModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-[var(--t3)] hover:text-[var(--t1)] bg-white border border-[var(--b2)] rounded-lg shadow-sm transition-colors"
+            className="min-h-11 px-4 py-2 text-xs font-bold text-[var(--t3)] hover:text-[var(--t1)] bg-[var(--s2)] border border-[var(--b2)] rounded-lg shadow-sm transition-colors"
           >
             Cancel
           </button>

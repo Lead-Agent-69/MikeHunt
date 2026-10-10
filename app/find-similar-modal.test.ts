@@ -12,11 +12,25 @@ describe("Find similar modal", () => {
     expect(modal).toContain("max-h-[min(80vh,calc(100dvh-8rem))]");
   });
 
-  it("empty state is honest about saved inventory", () => {
+  it("empty state describes collected inventory, not saved cars or sold comps", () => {
     const modal = read("components/saved/FindSimilarModal.tsx");
-    expect(modal).toContain("No similar saved listings yet");
-    expect(modal).toContain("it does not run a");
-    expect(modal).not.toContain("Searching active inventory");
+    expect(modal).toContain("No similar listings yet");
+    expect(modal).toContain(
+      "checks collected inventory; it does not run a live market scan.",
+    );
+    expect(modal).toContain("not verified sale prices");
+    expect(modal).not.toContain("saved inventory only");
+    expect(modal).not.toContain("images.unsplash.com");
+    expect(modal).not.toContain("formatMoney(comp.profit_estimate)");
+  });
+
+  it("uses theme surfaces, locks background scrolling, and offers retry", () => {
+    const modal = read("components/saved/FindSimilarModal.tsx");
+    expect(modal).not.toContain("bg-white");
+    expect(modal).toContain('document.body.style.overflow = "hidden"');
+    expect(modal).toContain("document.body.style.overflow = previousOverflow");
+    expect(modal).toContain("h-11 w-11");
+    expect(modal).toContain("setAttempt((value) => value + 1)");
   });
 
   it("is an accessible modal dialog", () => {
