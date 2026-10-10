@@ -588,10 +588,15 @@ function accessFields(sourceId: string) {
   };
 }
 
-function termsFields(sourceId: string) {
-  if (!termsOffForSource(sourceId)) return accessFields(sourceId);
+/**
+ * Terms fields for one source. The access class (and the operator-override flag) are internal: this
+ * route is public, so they're only included for callers who can see scrape detail (Ren #321 P2).
+ */
+function termsFields(sourceId: string, showAccess: boolean) {
+  const access = showAccess ? accessFields(sourceId) : {};
+  if (!termsOffForSource(sourceId)) return access;
   return {
-    ...accessFields(sourceId),
+    ...access,
     termsRestricted: true,
     termsReason: TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
   };
@@ -1256,7 +1261,7 @@ export async function GET(request: NextRequest) {
             ...completenessPercentages(emptyCompleteness(), 0),
           },
           lastSeenAt: proof?.lastSeenAt || null,
-          ...termsFields(source.id),
+          ...termsFields(source.id, showInternalErrors),
         };
         return enrichHealthRow(source, row, false, scope);
       });
@@ -1507,7 +1512,7 @@ export async function GET(request: NextRequest) {
               ...completenessPercentages(emptyCompleteness(), 0),
             },
         lastSeenAt: proof?.lastSeenAt || null,
-        ...termsFields(source.id),
+        ...termsFields(source.id, showInternalErrors),
       };
       return enrichHealthRow(source, row, true, scope);
     });

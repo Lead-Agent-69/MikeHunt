@@ -2,12 +2,9 @@
 // fewer Vercel proxy invokes). Proxy only hosts known to hotlink-block.
 // Local/already-proxied/data/our Storage URLs pass through untouched.
 
-const HOTLINK_BLOCK_DOMAINS = [
-  "craigslist.org",
-  "fbcdn.net",
-  "facebook.com",
-  "salvagezone.com",
-] as const;
+// Craigslist and Facebook photos are never proxied (Ren #321 R1 / #322): they render direct. Craigslist
+// images load cross-site without a referrer check (checked 2026-10-10).
+const HOTLINK_BLOCK_DOMAINS = ["salvagezone.com"] as const;
 
 const OUR_STORAGE_MARKERS = [
   "/storage/v1/object/public/vehicle-photos/",

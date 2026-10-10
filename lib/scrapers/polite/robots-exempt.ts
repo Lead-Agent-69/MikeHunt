@@ -14,6 +14,7 @@
  *     deals_found > 0, and the seller hosts of deals last seen in the last 7 days (so a dealer inside
  *     an aggregate run like curated_dealers is matched by its own host).
  */
+import { getDomain, parse as parseHost } from "tldts";
 import { ALL_SOURCES } from "../sources-registry";
 import { currentPoliteSource } from "./source-context";
 
@@ -113,8 +114,22 @@ export function grandfatheredHosts(): string[] {
 /** Replace the "produced rows in the last 7 days" set (from refreshRecentProducers or a test). */
 export function setRecentProducers(p: { sources?: string[]; hosts?: string[] }) {
   runtimeSources = new Set((p.sources ?? []).map(normalizeExemptId));
-  runtimeHosts = new Set((p.hosts ?? []).map(bareHost).filter(Boolean));
+  runtimeHosts = new Set((p.hosts ?? []).map(bareHost).filter(isExemptableHost));
   refreshedAt = Date.now();
+}
+
+/**
+ * A host may join the run-time exempt set only if it is a registrable domain or a subdomain of one
+ * (public-suffix list, private suffixes included): never an IP, a bare TLD ("com"), a public suffix
+ * ("co.uk", "github.io") or a single-label name. Otherwise a planted row like https://com would
+ * exempt every .com host from robots.txt via the endsWith match.
+ */
+export function isExemptableHost(host: string): boolean {
+  const h = host.trim().toLowerCase().replace(/\.$/, "");
+  if (!h || !h.includes(".")) return false;
+  if (parseHost(h, { allowPrivateDomains: true }).isIp) return false;
+  const domain = getDomain(h, { allowPrivateDomains: true });
+  return !!domain && (h === domain || h.endsWith(`.${domain}`));
 }
 
 function hostMatches(host: string, set: Set<string>): boolean {
@@ -187,10 +202,13 @@ export async function refreshRecentProducers(
       .gt("deals_found", 0)
       .limit(5000);
     if (runs.error) throw runs.error;
+    // Rows found through an aggregator (options.discoveredVia: Visor, AutoTempest) point at hosts we
+    // never crawled ourselves, so they must not grandfather those hosts past robots.txt.
     const deals = await client
       .from("deals")
-      .select("source_url")
+      .select("source_url, discovered_via:options->>discoveredVia")
       .gte("last_seen_at", since)
+      .is("options->>discoveredVia", null)
       .limit(20000);
     if (deals.error) throw deals.error;
     const sources = Array.from(
@@ -199,8 +217,9 @@ export async function refreshRecentProducers(
     const hosts = Array.from(
       new Set<string>(
         (deals.data ?? [])
+          .filter((d: { discovered_via?: string | null }) => !d.discovered_via)
           .map((d: { source_url: string | null }) => bareHost(String(d.source_url || "")))
-          .filter(Boolean),
+          .filter(isExemptableHost),
       ),
     );
     setRecentProducers({ sources, hosts });

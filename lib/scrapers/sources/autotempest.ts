@@ -112,7 +112,10 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
       ask_price: price,
       mileage: num(r.mileage),
       condition: titleToCondition(s(r.vehicleTitle)),
-      images: s(r.img) ? [String(r.img).replace(/^\/\//, "https://")] : [],
+      // https photo URLs only (Ren #321 nit)
+      images: s(r.img)
+        ? [String(r.img).replace(/^\/\//, "https://")].filter((u) => /^https:\/\//i.test(u))
+        : [],
       seller_type: /private/i.test(String(r.sellerType || ""))
         ? "private"
         : "dealer",

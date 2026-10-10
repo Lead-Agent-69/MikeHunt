@@ -8,10 +8,10 @@ vi.mock("axios", () => ({
 
 vi.mock("dns/promises", () => {
   const lookup = vi.fn(async (hostname: string) => {
-    if (hostname === "images.craigslist.org" || hostname === "cdn.cars.com") {
+    if (hostname === "cs.copart.com" || hostname === "cdn.cars.com") {
       return [{ address: "93.184.216.34", family: 4 }];
     }
-    if (hostname === "rebind.craigslist.org") {
+    if (hostname === "rebind.copart.com") {
       return [{ address: "169.254.169.254", family: 4 }];
     }
     throw Object.assign(new Error("nxdomain"), { code: "ENOTFOUND" });
@@ -23,7 +23,7 @@ import { UrlNotAllowedError } from "./public-url";
 import { fetchPublicImage, safeImageContentType } from "./fetch-public-image";
 import { isAllowedImageUrl } from "@/app/api/image/proxy/route";
 
-const IMG = "https://images.craigslist.org/abc_600x450.jpg";
+const IMG = "https://cs.copart.com/abc_600x450.jpg";
 
 function ok(contentType = "image/jpeg") {
   return {
@@ -69,7 +69,7 @@ describe("fetchPublicImage", () => {
 
   it("refuses an allowlisted hostname whose DNS points at a private address", async () => {
     await expect(
-      fetchPublicImage("https://rebind.craigslist.org/a.jpg", isAllowedImageUrl),
+      fetchPublicImage("https://rebind.copart.com/a.jpg", isAllowedImageUrl),
     ).rejects.toBeInstanceOf(UrlNotAllowedError);
     expect(axiosGet).not.toHaveBeenCalled();
   });

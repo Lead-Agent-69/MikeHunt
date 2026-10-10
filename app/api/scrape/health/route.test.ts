@@ -366,6 +366,26 @@ describe("GET /api/scrape/health lane scoping", () => {
     }
   });
 
+  it("hides accessClass / accessOverrideActive from anonymous callers (Ren #321 P2)", async () => {
+    const { canSeeScrapeDetail } = await import("@/lib/auth/scrape-gate");
+    const { GET } = await import("./route");
+    const anon = await (
+      await GET(req("/api/scrape/health?lane=government&state=FL"))
+    ).json();
+    expect(anon.sources.length).toBeGreaterThan(0);
+    for (const row of anon.sources) {
+      expect(row).not.toHaveProperty("accessClass");
+      expect(row).not.toHaveProperty("accessOverrideActive");
+    }
+    vi.mocked(canSeeScrapeDetail).mockResolvedValueOnce(true);
+    const admin = await (
+      await GET(req("/api/scrape/health?lane=government&state=FL"))
+    ).json();
+    expect(
+      admin.sources.some((row: any) => typeof row.accessClass === "string"),
+    ).toBe(true);
+  });
+
   it("an explicit SCRAPE_SOURCES opt-in lifts the terms label", async () => {
     const prior = process.env.SCRAPE_SOURCES;
     process.env.SCRAPE_SOURCES = "municibid";

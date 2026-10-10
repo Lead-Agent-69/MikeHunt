@@ -39,7 +39,9 @@ export interface VisorSitemapEntry {
 export function parseVisorSitemap(xml: string): VisorSitemapEntry[] {
   const out: VisorSitemapEntry[] = [];
   const seen = new Set<string>();
-  for (const block of String(xml || "").split(/<url>/i).slice(1)) {
+  for (const block of String(xml || "")
+    .split(/<url>/i)
+    .slice(1)) {
     const loc = block.match(/<loc>\s*([^<\s]+)\s*<\/loc>/i)?.[1];
     if (!loc) continue;
     let u: URL;
@@ -49,26 +51,36 @@ export function parseVisorSitemap(xml: string): VisorSitemapEntry[] {
       continue;
     }
     if (u.hostname !== "visor.vin") continue;
-    const vin = u.pathname.match(/^\/search\/listings\/([A-Za-z0-9]{17})\/?$/)?.[1];
+    const vin = u.pathname.match(
+      /^\/search\/listings\/([A-Za-z0-9]{17})\/?$/,
+    )?.[1];
     if (!vin || !VIN_RX.test(vin.toUpperCase())) continue;
     const key = vin.toUpperCase();
     if (seen.has(key)) continue;
     seen.add(key);
     const lastmod = block.match(/<lastmod>\s*([^<\s]+)\s*<\/lastmod>/i)?.[1];
-    out.push({ url: `${VISOR_ORIGIN}/search/listings/${key}`, vin: key, lastmod });
+    out.push({
+      url: `${VISOR_ORIGIN}/search/listings/${key}`,
+      vin: key,
+      lastmod,
+    });
   }
-  return out.sort((a, b) => String(b.lastmod || "").localeCompare(String(a.lastmod || "")));
+  return out.sort((a, b) =>
+    String(b.lastmod || "").localeCompare(String(a.lastmod || "")),
+  );
 }
 
 const str = (v: unknown): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
 const numOf = (v: unknown): number | undefined => {
-  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.]/g, ""));
+  const n =
+    typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.]/g, ""));
   return Number.isFinite(n) && n > 0 ? n : undefined;
 };
 
 function vehicleJsonLd(html: string): Record<string, any> | undefined {
-  const rx = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  const rx =
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(html))) {
     try {
@@ -76,7 +88,11 @@ function vehicleJsonLd(html: string): Record<string, any> | undefined {
       const list = Array.isArray(parsed) ? parsed : [parsed];
       for (const node of list) {
         const type = node?.["@type"];
-        if (type === "Vehicle" || type === "Car" || (Array.isArray(type) && type.includes("Vehicle")))
+        if (
+          type === "Vehicle" ||
+          type === "Car" ||
+          (Array.isArray(type) && type.includes("Vehicle"))
+        )
           return node;
       }
     } catch {
@@ -96,7 +112,18 @@ function httpsUrl(raw: unknown): string | undefined {
   }
 }
 
-const NON_CAR_RX = /\b(motorcycle|motorbike|scooter|atv|utv|snowmobile|boat|trailer|rv|motorhome|camper)\b/i;
+/** Photo URLs are stored only when https (never http, data: or protocol-relative). */
+function httpsOnly(raw: unknown): string | undefined {
+  try {
+    const u = new URL(String(raw || ""));
+    return u.protocol === "https:" ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const NON_CAR_RX =
+  /\b(motorcycle|motorbike|scooter|atv|utv|snowmobile|boat|trailer|rv|motorhome|camper)\b/i;
 
 /**
  * One Visor listing page -> a thin deal row, or undefined when the page has no usable Vehicle block
@@ -114,7 +141,12 @@ export function parseVisorListing(
   const offers = Array.isArray(v.offers) ? v.offers[0] : v.offers;
   const price = numOf(offers?.price);
   if (!price || price < 500 || price > 500_000) return undefined;
-  if (offers?.availability && !/InStock|LimitedAvailability|PreOrder|OnlineOnly/i.test(String(offers.availability)))
+  if (
+    offers?.availability &&
+    !/InStock|LimitedAvailability|PreOrder|OnlineOnly/i.test(
+      String(offers.availability),
+    )
+  )
     return undefined;
   const bodyType = str(v.bodyType);
   if (bodyType && NON_CAR_RX.test(bodyType)) return undefined;
@@ -130,13 +162,14 @@ export function parseVisorListing(
       .replace(new RegExp(`^\\s*${year}\\s+`), "");
     const lower = rest.toLowerCase();
     const prefix = `${make} ${model}`.toLowerCase();
-    if (lower.startsWith(prefix)) trim = str(rest.slice(prefix.length)) || undefined;
+    if (lower.startsWith(prefix))
+      trim = str(rest.slice(prefix.length)) || undefined;
   }
   const seller = v.seller || offers?.seller || {};
   const address = seller.address || {};
   const dealerUrl = httpsUrl(seller.url);
   const images = (Array.isArray(v.image) ? v.image : v.image ? [v.image] : [])
-    .map(httpsUrl)
+    .map(httpsOnly)
     .filter(Boolean)
     .slice(0, MAX_IMAGES) as string[];
   const state = str(address.addressRegion);
@@ -146,7 +179,9 @@ export function parseVisorListing(
     source_deal_id: `visor-${vin}`,
     // Canonical link = the dealer's own listing; Visor only when the dealer link is missing.
     source_url: dealerUrl || visorUrl,
-    title: name.replace(/\s+for sale in\s+.*$/i, "").trim() || `${year ?? ""} ${make ?? ""} ${model ?? ""}`.trim(),
+    title:
+      name.replace(/\s+for sale in\s+.*$/i, "").trim() ||
+      `${year ?? ""} ${make ?? ""} ${model ?? ""}`.trim(),
     year,
     make,
     model,
@@ -158,7 +193,7 @@ export function parseVisorListing(
     location_city: str(address.addressLocality),
     location_state: state && /^[A-Z]{2}$/.test(state) ? state : undefined,
     location_zip: str(address.postalCode),
-    seller: str(seller.name),
+    // No dealer name in seller / options.seller (Ren #321 P2): seller_type only.
     seller_type: "dealer",
     scraped_at: new Date().toISOString(),
     // Persisted by the pipeline into deals.options (server-only jsonb).
@@ -167,7 +202,6 @@ export function parseVisorListing(
         discoveredVia: "visor",
         discoveredUrl: visorUrl,
         canonicalUrl: canonicalListingUrl(dealerUrl || visorUrl),
-        seller: str(seller.name),
         sellerType: "dealer",
         bodyType,
       },
@@ -189,29 +223,63 @@ export interface VisorRunResult {
 }
 
 function recordBarrier(status: number, reason: string) {
-  getLocalWriteContext()?.onAccessBarrier?.({ host: "visor.vin", status, reason });
+  getLocalWriteContext()?.onAccessBarrier?.({
+    host: "visor.vin",
+    status,
+    reason,
+  });
 }
 
 /** Read one page politely. A challenge/ban/robots answer is returned as a barrier, never retried around. */
 async function politeGet(
   url: string,
   accept: string,
-): Promise<{ body?: string; barrier?: { outcome: VisorOutcome; status: number; reason: string } }> {
-  const res = await politeFetch(url, { accept, timeoutMs: 20_000, maxRetries: 1 });
+): Promise<{
+  body?: string;
+  barrier?: { outcome: VisorOutcome; status: number; reason: string };
+}> {
+  const res = await politeFetch(url, {
+    accept,
+    timeoutMs: 20_000,
+    maxRetries: 1,
+  });
   if (res.challenge)
-    return { barrier: { outcome: "challenged", status: res.status, reason: "bot challenge page" } };
+    return {
+      barrier: {
+        outcome: "challenged",
+        status: res.status,
+        reason: "bot challenge page",
+      },
+    };
   if (res.skipped === "robots")
-    return { barrier: { outcome: "robots", status: 0, reason: "robots.txt disallows" } };
+    return {
+      barrier: { outcome: "robots", status: 0, reason: "robots.txt disallows" },
+    };
   if (res.skipped === "breaker")
-    return { barrier: { outcome: "challenged", status: 0, reason: "domain paused by breaker" } };
+    return {
+      barrier: {
+        outcome: "challenged",
+        status: 0,
+        reason: "domain paused by breaker",
+      },
+    };
   if (res.status === 403 || res.status === 429)
-    return { barrier: { outcome: "blocked", status: res.status, reason: `HTTP ${res.status}` } };
+    return {
+      barrier: {
+        outcome: "blocked",
+        status: res.status,
+        reason: `HTTP ${res.status}`,
+      },
+    };
   if (!res.ok) return {};
   return { body: res.body };
 }
 
 export async function runVisorCapture(
-  maxPerRun = Math.max(1, Number(process.env.VISOR_MAX_PER_RUN) || DEFAULT_MAX_PER_RUN),
+  maxPerRun = Math.max(
+    1,
+    Number(process.env.VISOR_MAX_PER_RUN) || DEFAULT_MAX_PER_RUN,
+  ),
 ): Promise<VisorRunResult> {
   const result: VisorRunResult = {
     outcome: "ok",
@@ -222,23 +290,35 @@ export async function runVisorCapture(
     deduped: 0,
     stored: 0,
   };
-  const sm = await politeGet(VISOR_FRESH_SITEMAP, "application/xml,text/xml;q=0.9,*/*;q=0.5");
+  const sm = await politeGet(
+    VISOR_FRESH_SITEMAP,
+    "application/xml,text/xml;q=0.9,*/*;q=0.5",
+  );
   if (sm.barrier) {
     recordBarrier(sm.barrier.status, sm.barrier.reason);
-    return { ...result, outcome: sm.barrier.outcome, reason: sm.barrier.reason };
+    return {
+      ...result,
+      outcome: sm.barrier.outcome,
+      reason: sm.barrier.reason,
+    };
   }
   const entries = parseVisorSitemap(sm.body || "");
   result.sitemapListings = entries.length;
-  if (!entries.length) return { ...result, outcome: "empty", reason: "sitemap had no listings" };
+  if (!entries.length)
+    return { ...result, outcome: "empty", reason: "sitemap had no listings" };
 
   // Skip VINs we already hold before spending a request on them.
   const known = await knownVins(entries.map((e) => e.vin));
   const todo = entries.filter((e) => !known.has(e.vin)).slice(0, maxPerRun);
-  result.alreadyKnown = entries.length - entries.filter((e) => !known.has(e.vin)).length;
+  result.alreadyKnown =
+    entries.length - entries.filter((e) => !known.has(e.vin)).length;
 
   const rows: Partial<Deal>[] = [];
   for (const entry of todo) {
-    const page = await politeGet(entry.url, "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8");
+    const page = await politeGet(
+      entry.url,
+      "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    );
     if (page.barrier) {
       recordBarrier(page.barrier.status, page.barrier.reason);
       result.outcome = page.barrier.outcome;
@@ -258,12 +338,16 @@ export async function runVisorCapture(
 
 /** Runner entry. Fails the run (recorded as an error) when Visor challenged us and nothing was read. */
 export async function scrapeVisor(): Promise<number> {
-  console.log("[Visor] Starting sitemap capture (politeFetch, operator_override)...");
+  console.log(
+    "[Visor] Starting sitemap capture (politeFetch, operator_override)...",
+  );
   const r = await runVisorCapture();
   console.log(
     `[Visor] ${r.outcome}${r.reason ? ` (${r.reason})` : ""}: sitemap ${r.sitemapListings}, already known ${r.alreadyKnown}, fetched ${r.fetched}, parsed ${r.parsed}, deduped ${r.deduped}, stored ${r.stored}`,
   );
   if (r.outcome !== "ok" && r.outcome !== "empty" && r.parsed === 0)
-    throw new Error(`${r.outcome}: visor.vin ${r.reason ?? ""}; 0 rows (no bypass attempted)`.trim());
+    throw new Error(
+      `${r.outcome}: visor.vin ${r.reason ?? ""}; 0 rows (no bypass attempted)`.trim(),
+    );
   return r.parsed - r.deduped;
 }

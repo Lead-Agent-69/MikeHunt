@@ -3,6 +3,20 @@
  * already working. Polite mode (default) must not start skipping grandfathered sources.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Tests run offline on made-up hosts: the per-hop public-address check keeps its literal-IP /
+// localhost rules but skips the DNS lookup.
+vi.mock("../../net/public-url", async (importOriginal) => {
+  const m = await importOriginal<typeof import("../../net/public-url")>();
+  return {
+    ...m,
+    assertPublicHttpUrl: async (raw: string) => {
+      const u = new URL(raw);
+      if (m.classifyHostname(u.hostname) === "blocked") throw new m.UrlNotAllowedError();
+      return u;
+    },
+  };
+});
 import { getRobotsExemptSources } from "../sources-registry";
 import { CURATED_SITES } from "../curated-sites";
 import { planCuratedRotation } from "../curated-rotation";
@@ -23,6 +37,7 @@ import {
   refreshRecentProducers,
   resetRecentProducers,
   setRecentProducers,
+  isExemptableHost,
 } from "./robots-exempt";
 import { scraperFetch } from "./scraper-fetch";
 
@@ -112,7 +127,7 @@ describe("robots.txt skip applies only to new / 0-row sources", () => {
 
   it("refreshRecentProducers reads scraper_runs + deals, and keeps the old set on error", async () => {
     const q = (data: unknown[]) => {
-      const chain: any = { select: () => chain, gte: () => chain, gt: () => chain, limit: async () => ({ data, error: null }) };
+      const chain: any = { select: () => chain, gte: () => chain, gt: () => chain, is: () => chain, limit: async () => ({ data, error: null }) };
       return chain;
     };
     const ok = {
@@ -219,5 +234,52 @@ describe("every grandfathered source still gets scheduled", () => {
 
   it("polite mode does not change what is scheduled", () => {
     expect(scheduledBy("1")).toEqual(scheduledBy("0"));
+  });
+});
+
+describe("run-time exempt hosts (Ren #321 P1)", () => {
+  it("rejects a planted bare-TLD row: https://com must not exempt every .com host", () => {
+    setRecentProducers({ sources: [], hosts: ["https://com", "com", "co.uk", "github.io", "1.2.3.4", "localhost"] });
+    expect(isRobotsExemptUrl("https://www.cars.com/vehicledetail/x")).toBe(false);
+    expect(isRobotsExemptUrl("https://anything.co.uk/x")).toBe(false);
+    expect(isRobotsExemptUrl("https://someone.github.io/x")).toBe(false);
+    expect(isRobotsExemptUrl("https://1.2.3.4/x")).toBe(false);
+  });
+
+  it("isExemptableHost needs a registrable domain (public-suffix list, private suffixes included)", () => {
+    for (const h of ["com", "co.uk", "github.io", "vercel.app", "1.2.3.4", "localhost", ""])
+      expect(isExemptableHost(h)).toBe(false);
+    for (const h of ["glensautosales.com", "inv.glensautosales.com", "foo.co.uk", "me.github.io"])
+      expect(isExemptableHost(h)).toBe(true);
+  });
+
+  it("rows found via an aggregator (options.discoveredVia) never feed the exempt hosts", async () => {
+    resetRecentProducers();
+    const filters: unknown[][] = [];
+    const q = (data: unknown[]) => {
+      const chain: any = {
+        select: (...a: unknown[]) => (filters.push(["select", ...a]), chain),
+        gte: () => chain,
+        gt: () => chain,
+        is: (...a: unknown[]) => (filters.push(["is", ...a]), chain),
+        limit: async () => ({ data, error: null }),
+      };
+      return chain;
+    };
+    const client = {
+      from: (t: string) =>
+        t === "scraper_runs"
+          ? q([])
+          : q([
+              // even if the server filter were ignored, the row-level check drops it
+              { source_url: "https://www.somedealer-via-visor.com/v/1", discovered_via: "visor" },
+              { source_url: "https://com", discovered_via: null },
+              { source_url: "https://www.ownyard.com/inv/2", discovered_via: null },
+            ]),
+    };
+    expect(await refreshRecentProducers(client, 50_000_000)).toEqual({ sources: 0, hosts: 1 });
+    expect(filters).toContainEqual(["is", "options->>discoveredVia", null]);
+    expect(isRobotsExemptUrl("https://somedealer-via-visor.com/v/1")).toBe(false);
+    expect(isRobotsExemptUrl("https://ownyard.com/x")).toBe(true);
   });
 });
