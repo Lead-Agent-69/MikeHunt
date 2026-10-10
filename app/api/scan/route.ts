@@ -25,6 +25,11 @@ import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import { expandFreeTextQuery } from "@/lib/search/expand-free-text";
+import {
+  applyZipRadiusBox,
+  milesFrom,
+  resolveZipRadius,
+} from "@/lib/search/zip-radius";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
   CATEGORY_PROJECTION,
@@ -49,11 +54,17 @@ import {
   wantsAuctionInventory,
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import {
+  parseTitleTypes,
+  titleCategory,
+  titleCategoryOrFilter,
+  titleSourceOf,
+} from "@/lib/deals/title-category";
 
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
 const SCAN_SELECT =
-  "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options";
+  "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options,lat,lng";
 
 const SCAN_CACHE_HEADERS = {
   // Response is desk-scoped (flip economics redacted for non-flip / signed-out). A public
@@ -438,6 +449,8 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     mileage,
     condition,
     titleType,
+    titleCategory: titleCategory({ condition: r.condition }),
+    titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
     mmrValue,
@@ -1133,6 +1146,11 @@ export async function GET(req: NextRequest) {
     query = query.eq("location_state", state.toUpperCase());
   }
 
+  // Guest-friendly ZIP + radius ("within 50 mi of 60601"). Cache-first geocode, then a lat/lng box in
+  // SQL and an exact straight-line check per row below. Rows without coordinates can't be placed.
+  const zipRadius = await resolveZipRadius(supabase, searchParams);
+  if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
+
   if (availability && availability !== "all") {
     query = query.eq("availability_status", availability);
   }
@@ -1200,16 +1218,9 @@ export async function GET(req: NextRequest) {
     if (sellerSources.length) query = query.in("source", sellerSources);
   }
 
-  if (titleType && titleType !== "all") {
-    const conditionMapping: Record<string, string> = {
-      clean: "clean_title",
-      rebuilt: "rebuilt_title",
-      salvage: "salvage_title",
-      parts: "parts_only",
-    };
-    const mappedCondition = conditionMapping[titleType] || titleType;
-    query = query.eq("condition", mappedCondition);
-  }
+  // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
+  const titleFilter = titleCategoryOrFilter(parseTitleTypes(titleType));
+  if (titleFilter) query = query.or(titleFilter);
 
   query = applyInventoryLane(query, lane);
   query = applyRepairEligibility(query, searchParams.get("includeRepairable"));
@@ -1311,8 +1322,20 @@ export async function GET(req: NextRequest) {
     dealers,
     dealerSourceIds,
   };
-  const dRows = (data || []).map((r: any) => {
-    const normalized = normalizeRow(r, "deals");
+  const inRadius = zipRadius
+    ? (data || []).filter((r: any) => {
+        const mi = milesFrom(zipRadius, r);
+        return mi != null && mi <= zipRadius.radius;
+      })
+    : data || [];
+  const dRows = inRadius.map((r: any) => {
+    const normalized = {
+      ...normalizeRow(r, "deals"),
+      // Distance only; exact coordinates never leave the server.
+      ...(zipRadius
+        ? { distanceMiles: milesFrom(zipRadius, r) ?? undefined }
+        : {}),
+    };
     return {
       ...normalized,
       trustExplanation: buildTrustExplanation(normalized, scanFilters, desk),

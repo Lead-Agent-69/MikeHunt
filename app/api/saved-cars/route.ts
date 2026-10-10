@@ -1,5 +1,6 @@
 // app/api/saved-cars/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { titleSourceOf } from "@/lib/deals/title-category";
 import {
   isSupabaseConfigured,
   createServerComponentClient,
@@ -329,6 +330,8 @@ export async function POST(request: NextRequest) {
       model: deal.model,
       trim: deal.trim,
       titleType,
+      // options.titleSource only (#211): lets the saved badge show a source-default title as weaker.
+      titleSource: titleSourceOf(deal),
       condition: deal.condition,
       damageType: deal.damage_type || deal.damageType,
       odometer: deal.mileage,
