@@ -8,7 +8,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
+import {
+  loadSoldItemCache,
+  saveSoldItemCache,
+  soldCacheScope,
+} from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
 import { normalizeModel } from "../../scoring/market-value";
 import { US_STATES } from "../../geo/us-states";
@@ -233,8 +237,84 @@ export interface SoldRow {
   title?: string;
   source: string;
   location_state?: string;
+  /** City from the card's explicit "Located in City, ST" line only. Never guessed. */
+  location_city?: string;
+  /** eBay item condition as shown on the card (used / certified / new / for_parts). */
+  condition?: SoldCondition;
+  /** Title brand stated in the title or subtitle (clean / salvage / rebuilt / flood / lemon). */
+  title_status?: SoldTitleStatus;
   item_id: string;
   source_url: string;
+}
+
+export type SoldCondition = "used" | "certified" | "new" | "for_parts";
+export type SoldTitleStatus =
+  | "clean"
+  | "salvage"
+  | "rebuilt"
+  | "flood"
+  | "lemon";
+
+/**
+ * Item condition from the card subtitle ("Pre-Owned", "Used", "Certified Pre-Owned", "New",
+ * "For parts or not working"). Only what the card states; undefined otherwise.
+ */
+export function soldConditionFrom(text: string): SoldCondition | undefined {
+  const t = (text || "").toLowerCase();
+  if (/for parts|not working/.test(t)) return "for_parts";
+  if (/certified/.test(t)) return "certified";
+  if (/pre-?owned|\bused\b/.test(t)) return "used";
+  if (/\bnew\b/.test(t)) return "new";
+  return undefined;
+}
+
+/**
+ * Title brand stated on the card (title or subtitle). Branded words win over "clean": a "clean
+ * rebuilt title" is rebuilt. Undefined when the card says nothing about the title.
+ */
+export function soldTitleStatusFrom(text: string): SoldTitleStatus | undefined {
+  const t = (text || "").toLowerCase();
+  if (/\bflood(?:ed)?\b|water damage/.test(t)) return "flood";
+  if (/\bsalvage(?:d)?\b/.test(t)) return "salvage";
+  if (/\brebuil(?:t|d)\b|\breconstructed\b/.test(t)) return "rebuilt";
+  if (/lemon|buy ?back/.test(t)) return "lemon";
+  if (/\b(?:clean|clear)\s+(?:\w+\s+)?title\b/.test(t)) return "clean";
+  return undefined;
+}
+
+/**
+ * City from an explicit "Located in City, ST" piece. "Located in Texas, United States" or "Located in
+ * United States" have no city and give undefined.
+ */
+export function parseSoldLocationCity(pieces: string[]): string | undefined {
+  for (const raw of pieces) {
+    const text = (raw || "").replace(/\s+/g, " ").trim();
+    const m = text.match(
+      /^(?:located in|item location:?|location:)\s+([A-Za-z .'-]{2,40}),\s*([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?(?:,\s*(?:united states|usa|us))?$/i,
+    );
+    if (m && US_STATES[m[2].toUpperCase()]) return m[1].trim();
+  }
+  return undefined;
+}
+
+/**
+ * Why a fetched page is not a results page: an HTTP ban signal, eBay's edge "Error Page", or a bot
+ * challenge. Null when the page looks like a normal results page. A barrier is a "no" from eBay: the
+ * run stops and records it. Nothing here tries to get past it.
+ */
+export function ebaySoldBarrier(status: number, html: string): string | null {
+  if (status === 403 || status === 429 || status === 503)
+    return `HTTP ${status}`;
+  const head = String(html || "").slice(0, 20_000);
+  if (/<title>\s*Error Page \| eBay/i.test(head)) return "eBay error page";
+  if (
+    /captcha|robot check|just a moment|verify you(?:'| a)re human|access denied|pardon our interruption|splashui\/challenge/i.test(
+      head,
+    )
+  )
+    return "bot challenge page";
+  if (status !== 0 && (status < 200 || status >= 300)) return `HTTP ${status}`;
+  return null;
 }
 
 /** Parse explicit USD sold-listing observations, excluding hidden accepted offers. */
@@ -319,6 +399,11 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       .map((_i: number, n: any) => $(n).text())
       .get() as string[];
     const location_state = parseSoldLocationState(pieces);
+    const location_city = location_state
+      ? parseSoldLocationCity(pieces)
+      : undefined;
+    const condition = soldConditionFrom(subtitle);
+    const title_status = soldTitleStatusFrom(`${title} ${subtitle}`);
 
     rows.push({
       year,
@@ -331,6 +416,9 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       title: shortSoldTitle(title),
       source: "ebay_motors",
       location_state,
+      location_city,
+      condition,
+      title_status,
       item_id,
       source_url: absoluteLink.split("?")[0],
     });
@@ -416,50 +504,68 @@ export async function scrapeEbaySold(): Promise<number> {
     `[eBay Sold] ${queries.length} queries (${QUERIES.length} static + ${dynamic.length} from live inventory)`,
   );
 
+  const maxQueries = Math.max(
+    1,
+    Number(process.env.EBAY_SOLD_MAX_QUERIES) || DEFAULT_MAX_QUERIES,
+  );
   const all = new Map<string, SoldRow>();
-  for (const q of queries) {
+  let barrier: { status: number; reason: string } | null = null;
+  let failures = 0;
+  for (const q of queries.slice(0, maxQueries)) {
     try {
       const url =
         `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}` +
         `&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
       const { html, status } = await curlGet(url, jar);
-      const blocked =
-        status === 403 ||
-        status === 429 ||
-        /captcha|robot check|just a moment|verify you(?:'| a)re human|access denied/i.test(
-          html.slice(0, 20_000),
+      const reason = ebaySoldBarrier(status, html);
+      if (reason) {
+        // A ban signal or challenge is a "no" from eBay. Stop the whole source for this run (with or
+        // without the Zeus local context) and record it; never keep requesting the next query.
+        barrier = { status, reason };
+        getLocalWriteContext()?.onAccessBarrier?.({
+          host: "www.ebay.com",
+          status,
+          reason,
+        });
+        console.warn(
+          `[eBay Sold] challenged (${reason}) on query "${q}"; stopping this source for the run`,
         );
-      if (blocked) {
-        const context = getLocalWriteContext();
-        if (context?.respectAccessBlocks) {
-          context.onAccessBarrier?.({
-            host: "www.ebay.com",
-            status,
-            reason: status ? `HTTP ${status}` : "access barrier detected",
-          });
-          console.warn(
-            "[eBay Sold] access barrier detected; stopping this source for the cycle",
-          );
-          break;
-        }
+        break;
       }
+      failures = 0;
       const parsed = parseEbaySoldHtml(html);
       for (const r of parsed) all.set(r.item_id, r);
-      await new Promise((r) => setTimeout(r, 1500)); // be polite
     } catch (e) {
+      failures += 1;
       console.warn(`[eBay Sold] "${q}" failed:`, (e as Error).message);
+      if (failures >= MAX_CONSECUTIVE_FAILURES) {
+        barrier = { status: 0, reason: `${failures} network failures in a row` };
+        break;
+      }
+      // Exponential backoff before the next query after a network failure.
+      await sleep(soldDelayMs() * 2 ** failures);
+      continue;
     }
+    await sleep(soldDelayMs());
   }
 
   const rows = Array.from(all.values());
   if (!rows.length) {
+    if (barrier) {
+      // Recorded as a failed run (scraper_runs.status='error'), never "success, 0 rows".
+      throw new Error(
+        `challenged: www.ebay.com ${barrier.reason}; 0 sold rows (no bypass attempted)`,
+      );
+    }
     console.log("[eBay Sold] No sold rows parsed");
     return 0;
   }
 
   // Sold rows are immutable market observations. The mounted local cache avoids repeat Supabase
-  // writes; the unique database index remains the cross-machine source of truth.
-  const seen = await loadSoldItemCache();
+  // writes; the unique database index remains the cross-machine source of truth. The cache is kept
+  // per Supabase project, so ids written to a local or staging database never hide them from hosted.
+  const cacheScope = soldCacheScope(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const seen = await loadSoldItemCache(cacheScope);
   const fresh = rows.filter((r) => !seen.has(r.item_id));
 
   const localContext = getLocalWriteContext();
@@ -471,51 +577,117 @@ export async function scrapeEbaySold(): Promise<number> {
         value: row as unknown as Record<string, unknown>,
       })),
     );
-    console.log(
-      `[eBay Sold] cache-only mode saved ${fresh.length} local observations; no Supabase writes`,
+    console.warn(
+      `[eBay Sold] CACHE_ONLY_MODE: kept ${fresh.length} sold observations locally; 0 written to Supabase`,
     );
     return 0;
   }
 
   if (fresh.length) {
-    const insertRows = fresh.map((r) => ({
-      vin: r.vin ?? null,
-      year: r.year ?? null,
-      make: r.make ?? null,
-      model: r.model ?? null,
-      trim: r.trim ?? null,
-      mileage: r.mileage ?? null,
-      sold_price: r.sold_price,
-      sold_at: r.sold_at ?? null,
-      title: r.title ? shortSoldTitle(r.title) : null,
-      source: r.source,
-      source_item_id: r.item_id,
-      source_url: r.source_url,
-      currency_code: "USD",
-      country_code: "US",
-      location_state: r.location_state ?? null,
-    }));
-    const { data: inserted, error } = await sb
-      .from("sold_listings")
-      .upsert(insertRows, {
-        onConflict: "source,source_item_id",
-        ignoreDuplicates: true,
-      })
-      .select("source_item_id");
-    if (error) {
-      console.warn("[eBay Sold] insert error:", error.message);
-      return 0;
-    }
+    const inserted = await writeSoldRows(sb, fresh);
     for (const row of fresh) seen.add(row.item_id);
-    await saveSoldItemCache(seen);
+    await saveSoldItemCache(seen, cacheScope);
     console.log(
-      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted?.length ?? 0} new sales`,
+      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted} new sales${barrier ? ` (stopped early: ${barrier.reason})` : ""}`,
     );
-    return inserted?.length ?? 0;
+    return inserted;
   }
 
   console.log(
     `[eBay Sold] parsed ${rows.length} completed listings; ${rows.length} already known locally`,
   );
   return 0;
+}
+
+const DEFAULT_MAX_QUERIES = 40;
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Randomized gap between sold-search requests: EBAY_SOLD_DELAY_MS (default 5s) plus up to 50% jitter. */
+export function soldDelayMs(random = Math.random): number {
+  const base = Math.max(1500, Number(process.env.EBAY_SOLD_DELAY_MS) || 5000);
+  return Math.round(base + base * 0.5 * random());
+}
+
+/** Map a parsed row to a sold_listings insert row (basis 'sold', sale_channel 'ebay'). */
+export function soldInsertRow(r: SoldRow) {
+  return {
+    vin: r.vin ?? null,
+    year: r.year ?? null,
+    make: r.make ?? null,
+    model: r.model ?? null,
+    trim: r.trim ?? null,
+    mileage: r.mileage ?? null,
+    sold_price: r.sold_price,
+    sold_at: r.sold_at ?? null,
+    title: r.title ? shortSoldTitle(r.title) : null,
+    source: r.source,
+    source_item_id: r.item_id,
+    source_url: r.source_url,
+    currency_code: "USD",
+    country_code: "US",
+    location_state: r.location_state ?? null,
+    basis: "sold",
+    sale_channel: "ebay",
+    location_city: r.location_city ?? null,
+    condition: r.condition ?? null,
+    title_status: r.title_status ?? null,
+  };
+}
+
+/** Columns added by 20261010500000 (and sale_channel by 20261010410000). */
+export const SOLD_DETAIL_COLUMNS = [
+  "sale_channel",
+  "location_city",
+  "condition",
+  "title_status",
+] as const;
+
+/** PostgREST / Postgres "that column does not exist" (the detail migration is not applied yet). */
+export function isMissingColumnError(
+  error: { code?: string; message?: string } | null | undefined,
+): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST204" ||
+    error.code === "42703" ||
+    /could not find the '[a-z_]+' column|column "?[a-z_]+"? (?:of relation "sold_listings" )?does not exist/i.test(
+      error.message || "",
+    )
+  );
+}
+
+/**
+ * Upsert sold rows. Before 20261010500000 is applied the detail columns don't exist, so the batch is
+ * retried once without them (price, date, model, mileage, state and URL still land). Any other write
+ * error throws, so the run is recorded as failed instead of "success, 0 rows".
+ */
+export async function writeSoldRows(
+  sb: SupabaseClient,
+  rows: SoldRow[],
+): Promise<number> {
+  const full = rows.map(soldInsertRow);
+  const upsert = (payload: Record<string, unknown>[]) =>
+    sb
+      .from("sold_listings")
+      .upsert(payload, {
+        onConflict: "source,source_item_id",
+        ignoreDuplicates: true,
+      })
+      .select("source_item_id");
+  let { data, error } = await upsert(full);
+  if (error && isMissingColumnError(error)) {
+    console.warn(
+      `[eBay Sold] sold_listings detail columns missing (migration 20261010500000 not applied): ${error.message}; storing without them`,
+    );
+    const legacy = full.map((row) => {
+      const copy: Record<string, unknown> = { ...row };
+      for (const c of SOLD_DETAIL_COLUMNS) delete copy[c];
+      return copy;
+    });
+    ({ data, error } = await upsert(legacy));
+  }
+  if (error) throw new Error(`sold_listings write failed: ${error.message}`);
+  return data?.length ?? 0;
 }
