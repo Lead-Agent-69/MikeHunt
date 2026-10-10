@@ -3,6 +3,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
+import { assertPublicHttpUrl } from "../lib/net/public-url";
 
 dotenv.config({ path: ".env.local" });
 
@@ -119,14 +120,34 @@ export async function checkSavedCars() {
   return saves?.length ?? 0;
 }
 
-async function checkUrlAlive(url: string): Promise<boolean> {
+const ALIVE_MAX_REDIRECTS = 3;
+
+/**
+ * HEAD a saved listing's source_url to see if it's still up. source_url is user-supplied
+ * (save-from-url), so every hop goes through the public-URL guard and redirects are followed
+ * manually: a public URL can't bounce the worker onto metadata / localhost / RFC1918, and a
+ * non-public target is refused before any request is sent (no blind SSRF probe).
+ */
+export async function checkUrlAlive(url: string): Promise<boolean> {
   try {
-    const res = await fetch(url, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(5000),
-    });
-    return res.ok && res.status !== 404;
+    let current = await assertPublicHttpUrl(url);
+    for (let hop = 0; hop <= ALIVE_MAX_REDIRECTS; hop++) {
+      const res = await fetch(current.toString(), {
+        method: "HEAD",
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return false;
+        current = await assertPublicHttpUrl(new URL(loc, current).toString());
+        continue;
+      }
+      return res.ok;
+    }
+    return false;
   } catch {
+    // UrlNotAllowedError, timeout, network error: not provably alive.
     return false;
   }
 }

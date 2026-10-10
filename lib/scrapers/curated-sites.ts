@@ -31,7 +31,8 @@ export const SITE_TYPE_DEFAULTS: Record<
     damage_type: "repairable",
     seller_type: "dealer",
   },
-  independent_dealer: { condition: "run_drive", seller_type: "dealer" },
+  // Mixed lot: no title assumption (titles vary per car); unknown unless the listing says.
+  independent_dealer: { seller_type: "dealer" },
   auction_proxy: { condition: "salvage_title", seller_type: "auction" },
   clean_retail: { condition: "clean", seller_type: "dealer" },
 };
@@ -130,7 +131,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://robbinsrepairables.com", name: "Robbins Repairables", state: "NC", type: "rebuilder_dealer" },
   { url: "https://www.newbuildcars.com", name: "Newbuild Automotive", state: "GA", type: "rebuilder_dealer" },
   { url: "https://www.autoworldofamerica.com", name: "Autoworld of America", state: "FL", type: "rebuilder_dealer" },
-  { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" }, // SITE_POLICY_BLOCKS tos_bans_bots — intentional skip, not a parser bug
+  { url: "https://casmiami.com", name: "CAS Miami", state: "FL", type: "auction_proxy" }, // SITE_POLICY_BLOCKS tos_bans_bots, restored by operator (OPERATOR_RESTORED_HOSTS)
   { url: "https://sperryauto.com", name: "Sperry Auto Sales", state: "KY", type: "rebuilder_dealer", inventoryUrl: "https://www.sperryauto.com/newandusedcars" },
   { url: "https://cullmanautorebuilders.com", name: "Cullman Auto Rebuilders", state: "AL", type: "rebuilder_dealer" },
   { url: "https://www.tennisonautosales.com", name: "Tennison Auto Sales & Salvage", state: "AR", type: "rebuilder_dealer" },

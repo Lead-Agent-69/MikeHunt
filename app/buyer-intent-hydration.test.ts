@@ -56,4 +56,27 @@ describe("account buyer scope hydration", () => {
     expect(node.textContent).toBe("personal");
     act(() => root.unmount());
   });
+  it.each(["personal", "diy", "parts", "reseller", "dealer"])(
+    "keeps saved %s mode after browser-local scope events",
+    (buyerMode) => {
+      preferences.prefs = { buyerScope: { buyerMode } };
+      const node = document.createElement("div");
+      const root = createRoot(node);
+      function Scope() {
+        const { intent } = useBuyerIntent();
+        return React.createElement("span", null, intent?.buyerMode || "none");
+      }
+      act(() => root.render(React.createElement(Scope)));
+      act(() => {
+        localStorage.setItem(
+          BUYER_INTENT_KEY,
+          JSON.stringify({ buyerMode: "dealer" }),
+        );
+        window.dispatchEvent(new Event("mh-buyer-scope-change"));
+        window.dispatchEvent(new Event("storage"));
+      });
+      expect(node.textContent).toBe(buyerMode);
+      act(() => root.unmount());
+    },
+  );
 });

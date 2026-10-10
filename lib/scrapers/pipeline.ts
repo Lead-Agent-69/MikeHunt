@@ -22,6 +22,7 @@ import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
+import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -97,6 +98,22 @@ function getSupabase() {
   return getLocalWriteContext()?.supabase || createServerComponentClient();
 }
 
+/**
+ * Stored condition + its provenance for one scraped deal. Unmapped/absent → null (title unknown),
+ * never a run_drive guess. Provenance is only kept when there is a condition to attribute.
+ */
+export function ingestCondition(
+  deal: Pick<Partial<Deal>, "condition" | "title_source">,
+): { condition: string | null; titleSource?: "listing" | "source_default" } {
+  const condition = normalizeCondition(deal.condition) ?? null;
+  const titleSource =
+    condition &&
+    (deal.title_source === "listing" || deal.title_source === "source_default")
+      ? deal.title_source
+      : undefined;
+  return { condition, titleSource };
+}
+
 export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!deals.length) return 0;
 
@@ -133,7 +150,17 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.warn(`[Pipeline] quality report for ${source}:`, report);
   }
 
-  const rows = report.validDeals
+  // Passenger cars and light/medium trucks only (Jonah 2026-10-09). Gov-surplus feeds mix in
+  // heavy equipment, trailers, boats, buses and class-8 trucks; drop them before they are stored.
+  const scope = partitionVehicleScope(report.validDeals as any[]);
+  if (scope.dropped.length) {
+    console.log(
+      `[Pipeline] vehicle scope ${source}: dropped ${scope.dropped.length}/${report.validDeals.length} non car/truck rows ${JSON.stringify(scope.byReason)}`,
+    );
+  }
+  const inScopeDeals = scope.kept as typeof report.validDeals;
+
+  const rows = inScopeDeals
     .filter(
       (deal) =>
         deal.year &&
@@ -174,6 +201,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
             ? scraperOptions.auction.bidCount
             : undefined;
 
+      const { condition, titleSource } = ingestCondition(deal);
+
       // Omit `id` to allow Supabase to generate UUID, but include source_deal_id
       return {
         source: deal.source,
@@ -203,6 +232,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           // Let scrapers contribute structured options (e.g. AutoTrader's free KBB price rating).
           ...scraperOptions,
           seller: sellerName || scraperOptions.seller,
+          // Stated on the listing vs assumed from the source (salvage yard, ReCar, CPO-less retail).
+          ...(titleSource ? { titleSource } : {}),
           sellerType: sellerType || scraperOptions.sellerType,
           auction: {
             ...(typeof scraperOptions.auction === "object" &&
@@ -220,8 +251,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mileage: deal.mileage,
         // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
         // ("Clean Title", "Non-Repairable") that the enum rejects, which silently dropped every row.
-        // condition is NOT NULL, so fall back to run_drive when nothing maps rather than drop the row.
-        condition: normalizeCondition(deal.condition) ?? "run_drive",
+        // Nothing maps → NULL (title unknown), never a made-up run_drive. Needs
+        // 20261010060000_deals_condition_nullable_dealer_inventory.sql (condition DROP NOT NULL).
+        condition,
         damage_type: deal.damage_type,
         availability_status: detectAvailability(
           deal.title,

@@ -16,6 +16,7 @@ describe("Settings fields by buyer desk", () => {
   it("leaves the stored target_profit field alone", () => {
     // Hiding the input must not drop the value from the profile payload.
     expect(settings).toContain("target_profit: 3500");
-    expect(settings).toContain("targetProfit: profile.target_profit");
+    expect(settings).toContain("target_profit: profile.target_profit");
+    expect(settings).not.toContain("dh_dealer_defaults");
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
 
@@ -133,6 +133,16 @@ vi.mock("@/lib/scrapers/sources/municibid", () => ({
 function req(path: string) {
   return new NextRequest(`http://localhost:3000${path}`);
 }
+
+// These suites pin the terms-safe gate itself. Since 2026-10-09 the default restores the
+// operator's sources (OPERATOR_RESTORED_SOURCES / OPERATOR_RESTORED_HOSTS); the gate still runs
+// whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
+beforeEach(() => {
+  vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("GET /api/scrape/health lane scoping", () => {
   it("enriches ready rows with buyer-facing proof and weak-field guidance", async () => {
@@ -571,5 +581,46 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(source).toContain(
       'lastRun?.status || (proof?.activeRows ? "observed" : "never_run")',
     );
+  });
+});
+
+describe("buildLiveCoverage (Decision guide 'working markets')", () => {
+  it("counts distinct seller sites and states with live rows, not scraper ids", async () => {
+    const { buildLiveCoverage } = await import("./route");
+    const c = buildLiveCoverage([
+      {
+        source: "independent_dealer",
+        source_url: "https://www.alanjay.com/a",
+        location_state: "FL",
+      },
+      {
+        source: "independent_dealer",
+        source_url: "https://alanjay.com/b",
+        location_state: "FL",
+      },
+      {
+        source: "independent_dealer",
+        source_url: "https://economynj.com/c",
+        location_state: "NJ",
+      },
+      {
+        source: "copart",
+        source_url: "https://www.copart.com/lot/1",
+        location_state: "tx",
+      },
+      {
+        source: "gov_auction",
+        source_url: "https://www.govdeals.com/x",
+        location_state: null,
+      },
+    ]);
+    expect(c).toMatchObject({
+      liveRows: 5,
+      workingMarkets: 4,
+      liveSites: 4,
+      liveStates: 3,
+      liveSourceGroups: 3,
+    });
+    expect(c.topSites[0]).toEqual({ host: "alanjay.com", activeRows: 2 });
   });
 });

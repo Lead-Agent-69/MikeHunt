@@ -94,5 +94,15 @@ No paid hosts (Fly.io, VPS, proxies): the stack stays free.
 - Enable after reviewing the site's terms: add exact ids to `ARSENAL_ENABLE` in the scraper's runtime
   env (`research-tx-...`). Enabled candidates ride the curated crawler with the same policy and
   robots.txt gates. There is no "enable a whole state" switch on purpose.
-- Copart / IAAI / OfferUp / Municibid / GovDeals / AllSurplus / CarParts stay off unless named in
-  `SCRAPE_SOURCES`.
+- Restored 2026-10-09 by operator decision (never remove or disable a source): Copart, OfferUp,
+  Municibid, GovDeals, AllSurplus, PublicSurplus, CarParts, Craigslist, Carvana, AutoTempest,
+  Cars.com, Autotrader, eBay Motors/Sold run by default again (`OPERATOR_RESTORED_SOURCES`), and the
+  curated hosts in `OPERATOR_RESTORED_HOSTS` (A&E of Miami, ProSalvage, RebuildAutos, Global Auto
+  Auctions, CAS Miami, BidGoDrive) are crawled again. robots.txt, polite per-host delays and
+  URL-only photos still apply; bot-challenge sites stay blocked (no bypass). IAAI/Manheim/ADESA/ACV/
+  Facebook need logins and CarGurus is DataDome-walled, so their runners stay off.
+  `SCRAPE_TERMS_SAFE_ONLY=1` returns to the terms-safe default. An explicit `SCRAPE_SOURCES` list
+  still replaces the default entirely, so do not set it on Zeus unless you mean to narrow it.
+- Vehicle scope: only passenger cars and light/medium trucks are stored
+  (`lib/vehicle/vehicle-scope.ts`, applied in `upsertDeals`). Heavy equipment, trailers, boats, RVs,
+  buses, class-8 trucks and powersports are dropped at ingest.

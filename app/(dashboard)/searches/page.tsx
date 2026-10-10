@@ -15,6 +15,7 @@ import {
   toggleLocalSavedSearch,
   writeLocalSavedSearches,
 } from "@/hooks/useLocalSavedSearches";
+import { LoadingState } from "@/components/shared/PageStates";
 
 export default function SearchesPage() {
   const supabase = createClientComponentClient();
@@ -559,9 +560,7 @@ export default function SearchesPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-[var(--t3)]">
-          Loading your alerts...
-        </div>
+        <LoadingState label="Loading your alerts…" />
       ) : searches.length === 0 && !loadError ? (
         <div className="text-center py-12 glass-panel">
           <Ico
