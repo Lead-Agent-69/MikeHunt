@@ -1011,7 +1011,7 @@ export const DealCard = memo(function DealCard({
       <div className="px-4 py-1 border-t" style={{ borderColor: "var(--b1)" }}>
         <AdvisorSummary
           flipDesk={flipDesk}
-          deal={{ year, make, model, trim, mileage, askPrice, vin, condition }}
+          deal={{ id }}
         />
       </div>
 

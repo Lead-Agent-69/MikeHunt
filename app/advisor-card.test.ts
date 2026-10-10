@@ -91,6 +91,9 @@ describe("DealCard advisor summary", () => {
     );
     expect(src).toContain("useAdvisorRead(asked ? body : null)");
     expect(src).toContain("Check this deal");
+    expect(src).toContain("TODO(advisor-auto-show)");
+    expect(src).toContain("NOT_LIVE");
+    expect(readFileSync("components/shared/DealCard.tsx", "utf8")).toContain("deal={{ id }}");
     expect(src).toContain("NOT_ENOUGH_DATA_YET");
     expect(src).not.toContain("MikeHunt read");
     expect(src).toMatch(/flipDesk &&\s*isFlipBuyerMode\(/);
