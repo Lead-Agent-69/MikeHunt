@@ -9,10 +9,8 @@ describe("Swipe home-state scope", () => {
   it("scopes the queue to the saved home state", () => {
     expect(page).toContain("usePreferences");
     expect(page).toContain("effectiveHome(prefs)");
-    expect(page).toContain("&location=");
-    expect(page).toContain(
-      'String(d.locationState || "").toUpperCase() === homeState',
-    );
+    expect(page).toContain("&state=");
+    expect(page).not.toContain("&location=");
   });
 
   it("waits for prefs before fetching (no nationwide flash)", () => {

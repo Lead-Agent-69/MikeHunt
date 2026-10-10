@@ -24,7 +24,7 @@ vi.mock("@/lib/deals/deal-desk-access", async () => {
   return { ...actual, resolveCallerFlipDesk: () => resolveFlip() };
 });
 
-import { GET, filtersForDesk } from "./route";
+import { GET, filtersForDesk, parseStates } from "./route";
 
 const row = {
   id: "d1",
@@ -119,5 +119,27 @@ describe("filtersForDesk", () => {
       sortBy: "askPrice",
       sortOrder: "asc",
     });
+  });
+
+  it("passes an exact, validated state scope to the service", async () => {
+    await GET(new NextRequest("https://x.test/api/deals?state=mo"));
+    expect(getDeals.mock.calls[0][0].states).toEqual(["MO"]);
+    getDeals.mockClear();
+    await GET(
+      new NextRequest(
+        "https://x.test/api/deals?state=NATIONWIDE&states=ks,MO,xyz,1",
+      ),
+    );
+    expect(getDeals.mock.calls[0][0].states).toEqual(["KS", "MO"]);
+    getDeals.mockClear();
+    await GET(new NextRequest("https://x.test/api/deals?state=Nationwide"));
+    expect(getDeals.mock.calls[0][0].states).toBeUndefined();
+  });
+
+  it("parseStates de-dupes and ignores junk", () => {
+    expect(parseStates(new URLSearchParams("state=MO&states=MO,mo"))).toEqual([
+      "MO",
+    ]);
+    expect(parseStates(new URLSearchParams(""))).toBeUndefined();
   });
 });

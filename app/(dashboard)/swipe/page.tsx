@@ -225,9 +225,8 @@ export default function SwipePage() {
     ""
   ).toUpperCase();
   const swipeReady = !prefsLoading;
-  const scopeParam = homeState
-    ? `&location=${encodeURIComponent(homeState)}`
-    : "";
+  // Exact location_state filter server-side (no city-name false positives).
+  const scopeParam = homeState ? `&state=${encodeURIComponent(homeState)}` : "";
 
   const {
     data,
@@ -251,18 +250,11 @@ export default function SwipePage() {
   // Memoised on `data` so the stack only resets its queue when a genuinely new batch arrives.
   const cards = useMemo(
     () =>
-      ((data?.deals ?? []) as SwipeDeal[])
-        // `location` also matches city names server-side; keep exact state hits only.
-        .filter(
-          (d) =>
-            !homeState ||
-            String(d.locationState || "").toUpperCase() === homeState,
-        )
-        .map((d) => ({
-          id: d.id,
-          content: <DealFace deal={d} flipDesk={flipDesk} />,
-        })),
-    [data, homeState, flipDesk],
+      ((data?.deals ?? []) as SwipeDeal[]).map((d) => ({
+        id: d.id,
+        content: <DealFace deal={d} flipDesk={flipDesk} />,
+      })),
+    [data, flipDesk],
   );
 
   // Decision counters are per-batch; a new batch starts from zero.
