@@ -79,3 +79,28 @@ No new Supabase migration is required by the scraper PRs below (they write throu
 - **Open-gov feeds:** the parsers exist, but there's no runner job yet. A follow-up PR adds an `open_gov` runner source. The image then needs `poppler-utils` (`pdftotext -layout`) for Baltimore, MoCo MD, Honolulu, Delaware and Boston, plus `tesseract-ocr` for Memphis's scanned impound PDF and a sheet reader for the Memphis XLSX. Poll at most daily (Memphis robots: crawl-delay 10). Seattle and Norfolk sold rows go into `sold_listings` with `basis='sold'`, which needs #264's `basis` column first.
 - **"Ready" researched dealers** (BrandCarX SC, Midwest Jeeps IN, Kim Motor VA, Incredibuilt, Beard's AR, Kershner's NE, L&C TX): move them into `CURATED_SITES` once #270/#272 land. They then ride the existing `curated_dealers` sweep, with no Zeus change.
 - **Unchanged:** don't bake `SCRAPE_SOURCES` into the image, terms-restricted sources stay opt-in, and no rotating proxies.
+
+## 6. Capture audit follow-ups (docs/capture-audit.md, 2026-10-10)
+
+- **Rebuild the scraper image from current `main`** after the eBay sold and Visor/AutoTempest PRs land.
+  Since the Oct 9 restore, Zeus has only swept Craigslist, curated dealers, GSA and GovDeals: Cars.com,
+  Autotrader, Carvana, eBay Motors, OfferUp, AutoTempest and eBay sold have never stored a row.
+- **Env check** in `.env.local.scraper`: `SCRAPE_SOURCES` unset (or it overrides the restored default),
+  `SCRAPE_TERMS_SAFE_ONLY` unset, `CACHE_ONLY_MODE=false` (cache-only keeps eBay sold rows local and
+  writes 0 to Supabase), `SCRAPER_EXECUTION_MODE=hybrid`.
+- **eBay sold:** `EBAY_SOLD_DELAY_MS` (default 5000, 5-7.5s with jitter) and `EBAY_SOLD_MAX_QUERIES`
+  (default 40). Expect `scraper_runs.status='error'` with `challenged: www.ebay.com HTTP 403` while eBay
+  refuses the request (seen from a residential IP on Oct 10). That is the honest state, not a crash.
+  The old shared `cache/sold-item-ids.json` is no longer read; the new file is per Supabase project
+  (`sold-item-ids.<project>.json`).
+- **Visor:** new runner id `visor` (primary tier, operator-restored). `VISOR_MAX_PER_RUN` (default 100
+  listing pages per run, after skipping VINs we already hold). Expect `challenged: visor.vin bot
+  challenge page` if Cloudflare challenges Zeus's client the way it challenged the box; the sitemap
+  itself is open.
+- **AutoTempest:** expect `challenged: autotempest.com refused: You are not authorized...` while its API
+  requires a signed token. Not bypassed.
+- **Craigslist:** `CL_ENRICH_MAX` (default 60 detail pages per run) is why VIN/photos are thin
+  (VIN 0/830, photos 5/830). Raising it to 200-300 costs that many extra polite page reads per run.
+- **Verify:** `scraper_runs` shows rows for `ebay_sold`, `visor` and `autotempest` after a full sweep
+  (success or an honest `challenged` error), and `deals.options->>'discoveredVia'` is set on any
+  Visor/AutoTempest row.
