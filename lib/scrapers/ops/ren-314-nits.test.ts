@@ -147,10 +147,14 @@ describe("(f) source-path schemes survive the URL scrubber", () => {
   it.each([
     "at handler (file:///app/.next/server/chunks/123.js:4:17)",
     "at webpack-internal:///(rsc)/./lib/scrapers/engine.ts:367:5",
-    "at webpack:///./lib/x.ts?abcd:10:2",
+    "at webpack:///./lib/x.ts:10:2",
     "at app:///_next/static/chunks/main.js:1:200",
     "at node:///internal/process/task_queues:95:5",
   ])("%s", (line) => expect(scrubUrls(line)).toBe(line));
+
+  it("webpack's ?hash keeps its trailing :line:col (Ren #327)", () => {
+    expect(scrubUrls("at webpack:///./lib/x.ts?abcd:10:2")).toBe("at webpack:///./lib/x.ts:10:2");
+  });
 
   it("still scrubs real URLs on the same line", () => {
     expect(
