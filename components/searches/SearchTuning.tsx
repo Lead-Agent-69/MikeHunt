@@ -32,7 +32,7 @@ export function SearchTuning({
   search: any;
   onChanged: () => void;
 }) {
-  const supabase = createClientComponentClient();
+  const [supabase] = useState(() => createClientComponentClient());
   const precisionId = useId();
   const deliveryId = useId();
   const [precision, setPrecision] = useState<MatchPrecision>(
@@ -47,16 +47,21 @@ export function SearchTuning({
 
   useEffect(() => {
     let cancelled = false;
-    supabase
-      .from("user_feed_inbox")
-      .select("feedback")
-      .eq("search_id", search.id)
-      .not("feedback", "is", null)
-      .limit(200)
-      .then(({ data }) => {
+    // Ratings only feed the optional suggestion; a failed read just hides it.
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_feed_inbox")
+          .select("feedback")
+          .eq("search_id", search.id)
+          .not("feedback", "is", null)
+          .limit(200);
         if (!cancelled && Array.isArray(data))
           setRatings(data.map((r: any) => Number(r.feedback)).filter(Boolean));
-      });
+      } catch {
+        /* suggestion stays hidden */
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -72,6 +77,7 @@ export function SearchTuning({
       .from("user_saved_searches")
       .update(patch)
       .eq("id", search.id)
+      .eq("user_id", search.user_id)
       .select("id")
       .maybeSingle();
     setSaving(false);
