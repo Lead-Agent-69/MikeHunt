@@ -820,8 +820,10 @@ export default function DealPage({
       : (detailQuality?.score || 0) >= 58 || resaleBasis > 0
         ? "Medium"
         : "Low";
+  // Personal / DIY / parts are not flip desks: no resale line, no "bid" wording in buyer math.
+  const flipBuyerMath = store.userType === "dealer";
   const detailMathGaps = [
-    !resaleBasis ? "market value" : null,
+    flipBuyerMath && !resaleBasis ? "market value" : null,
     !detailCosts?.repair ? "repair estimate" : null,
     !detailCosts?.transport ? "transport" : null,
     ...(detailQuality?.missing.slice(0, 2).map(fieldLabel) || []),
@@ -1138,7 +1140,8 @@ export default function DealPage({
                   Decision readiness
                 </CardTitle>
                 <p className="mt-1 text-xs text-[var(--t4)]">
-                  Listing proof, source health, and buyer math before you bid.
+                  Listing proof, source health, and buyer math before you{" "}
+                  {flipBuyerMath ? "bid" : "buy"}.
                 </p>
               </div>
               <Badge
@@ -1330,14 +1333,18 @@ export default function DealPage({
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {formatMoney(Number(serverDeal.askPrice || 0))}
                 </Mono>
-                <span className="text-[var(--t4)]">Resale</span>
-                <Mono className="text-right font-bold text-[var(--t2)]">
-                  {serverDeal.decisionEvidence?.acquisitionReady !== true
-                    ? "Needs verified comparisons"
-                    : resaleBasis
-                      ? formatMoney(resaleBasis)
-                      : "Unknown"}
-                </Mono>
+                {flipBuyerMath && (
+                  <>
+                    <span className="text-[var(--t4)]">Resale</span>
+                    <Mono className="text-right font-bold text-[var(--t2)]">
+                      {serverDeal.decisionEvidence?.acquisitionReady !== true
+                        ? "Needs verified comparisons"
+                        : resaleBasis
+                          ? formatMoney(resaleBasis)
+                          : "Unknown"}
+                    </Mono>
+                  </>
+                )}
                 <span className="text-[var(--t4)]">Repair</span>
                 <Mono className="text-right font-bold text-[var(--t2)]">
                   {serverDeal.decisionEvidence?.acquisitionReady !== true
@@ -1357,7 +1364,7 @@ export default function DealPage({
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
                 {detailMathGaps.length
-                  ? `Tighten before bidding: ${detailMathGaps.slice(0, 4).join(", ")}.`
+                  ? `${flipBuyerMath ? "Tighten before bidding" : "Check before you buy"}: ${detailMathGaps.slice(0, 4).join(", ")}.`
                   : "Review all costs and evidence before making an offer."}
               </p>
             </div>
