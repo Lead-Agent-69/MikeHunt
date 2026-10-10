@@ -6,6 +6,7 @@
 // fully reachable from our IP, no login, no proxy. Each listing card carries id + title + current bid +
 // location + agency + end date; we dedupe by id (the id appears twice per card) and gate on year+make.
 
+import { scraperFetch } from "@/lib/scrapers/polite/scraper-fetch";
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 import { isCarOrTruck } from "../vehicle-class";
@@ -202,7 +203,7 @@ export async function previewMunicibid(maxPages = 1): Promise<Partial<Deal>[]> {
   let prevFirst = "";
 
   for (let page = 1; page <= maxPages; page++) {
-    const res = await fetch(`${BROWSE}&page=${page}`, {
+    const res = await scraperFetch(`${BROWSE}&page=${page}`, {
       headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
     });
     if (!res.ok) break;
@@ -229,7 +230,7 @@ export async function scrapeMunicibid(maxPages = 6): Promise<number> {
   for (let page = 1; page <= maxPages; page++) {
     let html: string;
     try {
-      const res = await fetch(`${BROWSE}&page=${page}`, {
+      const res = await scraperFetch(`${BROWSE}&page=${page}`, {
         headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
       });
       if (!res.ok) break;

@@ -10,6 +10,7 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
 import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
+import { sourceAccessFor } from "@/lib/scrapers/access-class";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
@@ -567,9 +568,30 @@ function termsOffForSource(sourceId: string, raw?: string) {
   );
 }
 
-function termsFields(sourceId: string) {
-  if (!termsOffForSource(sourceId)) return {};
+/**
+ * Access class label only (see lib/scrapers/access-class.ts). curated_dealers shows "mixed" (it
+ * crawls the 8 operator-override hosts alongside reviewed dealer sites). A restricted source the operator has
+ * running (restored default or SCRAPE_SOURCES) is flagged as running under operator override, which
+ * is not permission.
+ */
+function accessFields(sourceId: string) {
+  // Fail closed: an id nobody classified shows as unreviewed (the coverage test catches it in CI).
+  const entry = sourceAccessFor(sourceId);
+  const access = entry?.access ?? "unreviewed";
   return {
+    accessClass: entry?.mixed ? "mixed" : access,
+    ...(access === "restricted" &&
+    TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()] &&
+    !termsOffForSource(sourceId)
+      ? { accessOverrideActive: true }
+      : {}),
+  };
+}
+
+function termsFields(sourceId: string) {
+  if (!termsOffForSource(sourceId)) return accessFields(sourceId);
+  return {
+    ...accessFields(sourceId),
     termsRestricted: true,
     termsReason: TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
   };
