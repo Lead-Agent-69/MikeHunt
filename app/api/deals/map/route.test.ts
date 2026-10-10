@@ -102,6 +102,16 @@ describe("Map scope and role safety", () => {
     expect(JSON.stringify(body)).not.toContain("4000");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
+  it("sorts personal buyers by recency, flip desks by profit_score (Ren P3)", async () => {
+    const orders = () =>
+      state.calls.filter((c) => c[0] === "order").map((c) => c[1]);
+    await request("");
+    expect(orders()).toEqual(["last_seen_at", "id"]);
+    state.calls = [];
+    state.flip = true;
+    await request("");
+    expect(orders()).toEqual(["profit_score", "id"]);
+  });
   it("preserves dealer verdict views", async () => {
     state.flip = true;
     await request("verdict=actionable");

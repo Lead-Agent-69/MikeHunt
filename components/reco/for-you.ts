@@ -36,6 +36,9 @@ const FLIP_ONLY = [
   "sellerPhone",
   "sellerEmail",
   "sellerContactUrl",
+  "seller_phone",
+  "seller_email",
+  "seller_contact_url",
   // Nested analysis / forecasts can carry profit or max bid; the rail doesn't need them.
   "dealAnalysis",
   "deal_analysis",

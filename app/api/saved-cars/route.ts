@@ -7,6 +7,8 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { recordDealSignal } from "@/lib/reco/signals";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { savedCarsForDesk } from "@/lib/saved/saved-car-desk-redact";
 import {
   CHECKLIST_SELECT,
   SAVED_CARS_LIMIT,
@@ -203,7 +205,11 @@ export async function GET(request: NextRequest) {
       .limit(SAVED_CARS_LIMIT);
     if (error) throw error;
 
-    return NextResponse.json(data || []);
+    // Redact on READ (not on save) so a desk switch is honored for existing snapshots.
+    const flipDesk = await resolveCallerFlipDesk();
+    return NextResponse.json(
+      savedCarsForDesk((data || []) as Record<string, any>[], flipDesk),
+    );
   } catch (error: any) {
     console.error("[SAVED-CARS-API] GET error:", error);
     console.error("[saved-cars]", error.message);
