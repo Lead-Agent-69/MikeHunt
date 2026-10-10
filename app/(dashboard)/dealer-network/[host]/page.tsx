@@ -5,7 +5,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 
-// A single dealer's storefront inside our app: their live inventory, each with the ACCURATE title status +
+// A single dealer's storefront inside our app: their imported inventory, each with the ACCURATE title status +
 // our resale estimate + BUY/HOLD/PASS verdict, newest listings first. This is the payoff of watching a shop.
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
@@ -93,7 +93,7 @@ export default function DealerStorefront({
             )}
           </div>
           <p className="text-xs text-[var(--t4)] mt-0.5">
-            {cars.length.toLocaleString()} live vehicles
+            {cars.length.toLocaleString()} saved / imported vehicles
             {dealer?.state ? ` · ${dealer.state}` : ""}
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function DealerStorefront({
         </div>
       ) : cars.length === 0 ? (
         <div className="glass-panel p-10 text-center text-sm text-[var(--t4)]">
-          No live inventory synced from this dealer right now.
+          No imported inventory from this dealer yet.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
