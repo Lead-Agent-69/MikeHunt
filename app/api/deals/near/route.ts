@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
-import { nearQueryLock } from "@/lib/discovery/near-lock";
+import { nearQueryLock, nearVerdictFilter } from "@/lib/discovery/near-lock";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -14,9 +14,19 @@ import {
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 
-// GET /api/deals/near?verdict=go&radius=
+// GET /api/deals/near?zip=&radius=&verdict=
 // State-locked. A ZIP or saved home state is required. Miles never cross that
 // state, and a missing radius is not a 150mi net.
+//
+// verdict defaults to "all". It used to default to "go", but the analyzer currently
+// grades every active listing "pass" or "hold" (0 "go" rows nationwide on 2026-10-10),
+// so a plain ?zip=33601&radius=50 came back empty even with 489 FL listings ~30 mi
+// away. An explicit ?verdict=go|hold|pass still narrows; ?verdict=all is the same as
+// leaving it off.
+//
+// Location accuracy: deals.lat/lng are ZIP or city centroids from lib/geo/geocode.ts
+// (zippopotam / Nominatim), never street addresses, so "N mi from you" is centroid to
+// centroid. Rows with no lat/lng are skipped whenever a radius is set.
 function mapDeal(d: any, distanceMiles: number | null) {
   const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
   const miles =
@@ -58,7 +68,12 @@ export async function GET(req: NextRequest) {
   const {
     data: { user },
   } = await getServerUser();
-  if (!user?.id) return NextResponse.json({ deals: [] });
+  // Signed out: say so, rather than an empty list that reads as "nothing near you".
+  if (!user?.id)
+    return NextResponse.json(
+      { deals: [], needsSignIn: true },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
 
   const supabase = createServerComponentClient();
   const [{ data: profile }, prefsRes] = await Promise.all([
@@ -83,7 +98,7 @@ export async function GET(req: NextRequest) {
   )?.homeLocation;
 
   const sp = new URL(req.url).searchParams;
-  const verdict = sp.get("verdict") || "go";
+  const verdict = nearVerdictFilter(sp.get("verdict"));
   const zip = sp.get("zip");
   const lock = nearQueryLock({
     zip,
@@ -135,7 +150,7 @@ export async function GET(req: NextRequest) {
     .eq("location_state", lock.state)
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0);
-  if (verdict && verdict !== "all") q = q.eq("deal_verdict", verdict);
+  if (verdict) q = q.eq("deal_verdict", verdict);
   // An explicit radius narrows inside the locked state. It never adds neighbor states.
   if (lock.radius > 0 && canMeasure) {
     const bb = boundingBox(
