@@ -33,10 +33,13 @@ import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import {
+  curatedRingStates,
   curatedSiteKey,
   loadCuratedRotation,
   planCuratedRotation,
   saveCuratedRotation,
+  scopeDemandStates,
+  selectCuratedSitesForDemand,
 } from "../curated-rotation";
 import { createPoliteHtmlFetcher } from "../polite-html";
 
@@ -998,14 +1001,23 @@ export async function scrapeCuratedSites(
         .map((site) => `${site.name} (${policyBlockFor(site.url)?.kind})`)
         .join(", ")}`,
     );
-  // Least-recently-attempted dealers lead; demand / want-hit gaps break ties.
-  const plannedStates = getSweepPlan()?.states || [];
+  // A buyer-demand run (home / saved-search state kick) crawls that state's ring first and only;
+  // a plain sweep keeps the rotation: least-recently-attempted dealers lead, demand breaks ties.
+  const demandStates = requestedDealers.size ? [] : scopeDemandStates(scope);
+  const plannedStates = demandStates.length
+    ? curatedRingStates(demandStates)
+    : getSweepPlan()?.states || [];
   const rotation = await loadCuratedRotation();
-  const sites = planCuratedRotation(
-    candidates.filter((site) => !policyBlockFor(site.url)),
-    rotation,
-    plannedStates,
+  const eligible = candidates.filter((site) => !policyBlockFor(site.url));
+  const sites = (
+    demandStates.length
+      ? selectCuratedSitesForDemand(eligible, rotation, demandStates)
+      : planCuratedRotation(eligible, rotation, plannedStates)
   ).slice(0, maxSites);
+  if (demandStates.length)
+    console.log(
+      `[CuratedSites] demand run for ${demandStates.join(", ")}: ${sites.length} dealers in ring ${plannedStates.join(", ")}`,
+    );
   const robotsAllowed = createRobotsGate();
   const fetchPageHtml = createPoliteHtmlFetcher();
   console.log(

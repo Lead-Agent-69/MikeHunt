@@ -46,6 +46,19 @@ interface ArbitrageDashboard {
   }>;
 }
 
+/**
+ * Comps are unverified when there is no third-party value and the resale basis
+ * is not comp-backed (the same rule as DealCard's "Needs comps" note), or when the
+ * API withholds the profit (null). Never print a big positive profit then.
+ */
+function needsComps(deal: Deal, potentialProfit?: number | null): boolean {
+  if (potentialProfit == null || !Number.isFinite(Number(potentialProfit)))
+    return true;
+  return (
+    !(Number(deal.mmrValue) > 0) && deal.dealAnalysis?.sellBasis !== "comps"
+  );
+}
+
 // Fetcher function for SWR
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -300,10 +313,21 @@ export default function ArbitrageDashboardPage() {
                       <span className="text-[var(--t4)]">•</span>
                       <span>
                         Est. Net Profit:{" "}
-                        <Mono className="text-[var(--t1)]">
-                          $
-                          {item.arbitrage.arbitrage.potentialProfit.toLocaleString()}
-                        </Mono>
+                        {needsComps(
+                          item.deal,
+                          item.arbitrage?.arbitrage?.potentialProfit,
+                        ) ? (
+                          <span className="text-[var(--t3)] normal-case">
+                            — Needs comps
+                          </span>
+                        ) : (
+                          <Mono className="text-[var(--t1)]">
+                            $
+                            {Number(
+                              item.arbitrage.arbitrage.potentialProfit,
+                            ).toLocaleString()}
+                          </Mono>
+                        )}
                       </span>
                       <span className="text-[var(--t4)]">•</span>
                       <span className="text-[var(--amber)] bg-[var(--amber-lo)] px-2 py-0.5 rounded">
@@ -328,6 +352,10 @@ export default function ArbitrageDashboardPage() {
                       damageType={item.deal.damageType}
                       dealVerdict={item.deal.dealVerdict}
                       recommendedMaxBid={item.deal.recommendedMaxBid}
+                      needsComps={needsComps(
+                        item.deal,
+                        item.arbitrage?.arbitrage?.potentialProfit,
+                      )}
                       sellEstimate={item.deal.sellEstimate}
                       priceDropAmount={item.deal.priceDropAmount}
                       priceDropDays={item.deal.priceDropDays}
@@ -378,6 +406,7 @@ export default function ArbitrageDashboardPage() {
                         damageType={deal.damageType}
                         dealVerdict={deal.dealVerdict}
                         recommendedMaxBid={deal.recommendedMaxBid}
+                        needsComps={needsComps(deal, deal.profitEstimate)}
                         sellEstimate={deal.sellEstimate}
                         priceDropAmount={deal.priceDropAmount}
                         priceDropDays={deal.priceDropDays}
