@@ -14,6 +14,7 @@ const item = {
   sellEstimate: 14000,
   trueNetProfit: 1500,
   profitScore: 72,
+  verdict: "go",
   recommendedMaxBid: 11000,
   sellerPhone: "555-0100",
   dealAnalysis: { costs: { transport: 300 } },
@@ -67,6 +68,7 @@ describe("For You rail data", () => {
     for (const k of [
       "trueNetProfit",
       "profitScore",
+      "verdict",
       "recommendedMaxBid",
       "sellerPhone",
       "dealAnalysis",
