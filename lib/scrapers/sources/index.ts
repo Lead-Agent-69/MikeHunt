@@ -27,6 +27,12 @@ import {
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
+import {
+  crawlDealerCms,
+  dealerCmsSiteFor,
+  type DealerCmsSite,
+} from "@/lib/scrapers/platforms/dealer-cms";
+import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
@@ -1037,6 +1043,12 @@ export async function scrapeCuratedSites(
     "damage-com": ["damage.com"],
     "dg-auto": ["dgautollc.com"],
     recar: ["recar.com"],
+    autovada: ["autovada.com"],
+    polecats: ["polecatsautosales.com"],
+    "elite-sikeston": ["elitesikeston.com"],
+    "riverbend-rebuildables": ["riverbendrebuildables.com"],
+    "premier-salvage": ["premiersalvage.com"],
+    "garys-auto-ia": ["garysautoia.net"],
     "stjames-auto": ["stjamesautoparts.com", "stjamesauto.com"],
     "cas-miami": ["casmiami.com"],
     salvagezone: ["salvagezone.com"],
@@ -1121,12 +1133,13 @@ export async function scrapeCuratedSites(
       );
     }
     try {
-      const cdgDealer = cdgDealerForSite(site.url);
+      const dealerCms = dealerCmsSiteFor(site.url);
+      const cdgDealer = dealerCms ? undefined : cdgDealerForSite(site.url);
       const firstPages = [
         site.url,
         site.inventoryUrl
           ? new URL(site.inventoryUrl, site.url).toString()
-          : cdgDealer?.inventoryUrl,
+          : (dealerCms ?? cdgDealer)?.inventoryUrl,
       ].filter(Boolean) as string[];
       const disallowed = [];
       for (const page of firstPages)
@@ -1145,22 +1158,24 @@ export async function scrapeCuratedSites(
       }
       const n = site.url.toLowerCase().includes("aeofmiami.com")
         ? await scrapeAeOfMiami(scope)
-        : cdgDealer
-          ? await scrapeCdgDealer(cdgDealer)
-          : await autoDiscoverAndCrawl(
-              site.url,
-              {
-                name: site.name,
-                city: site.city,
-                state: site.state,
-                conditionDefault: d.condition,
-                damageDefault: d.damage_type,
-                sellerDefault: d.seller_type,
-                inventoryUrl: site.inventoryUrl,
-              },
-              execution?.abortSignal,
-              fetchPageHtml,
-            );
+        : dealerCms
+          ? await scrapeDealerCms(dealerCms, scope)
+          : cdgDealer
+            ? await scrapeCdgDealer(cdgDealer)
+            : await autoDiscoverAndCrawl(
+                site.url,
+                {
+                  name: site.name,
+                  city: site.city,
+                  state: site.state,
+                  conditionDefault: d.condition,
+                  damageDefault: d.damage_type,
+                  sellerDefault: d.seller_type,
+                  inventoryUrl: site.inventoryUrl,
+                },
+                execution?.abortSignal,
+                fetchPageHtml,
+              );
       execution?.abortSignal?.throwIfAborted();
       console.log(
         `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
@@ -1333,49 +1348,9 @@ type CdgDealerConfig = {
   titleFromCard: ($: any, card: any) => string;
 };
 
+// Legacy per-site CDG config, kept exactly as before for ReCar. D&G and St. James moved to the
+// shared dealer-CMS parser (lib/scrapers/platforms/dealer-cms.ts).
 const CDG_DEALERS: CdgDealerConfig[] = [
-  {
-    sourceId: "dg-auto",
-    name: "D&G Auto LLC",
-    baseUrl: "https://www.dgautollc.com",
-    inventoryUrl: "https://www.dgautollc.com/vehicles.php",
-    city: "Poplar Bluff",
-    state: "MO",
-    defaultCondition: "salvage_title",
-    defaultDamage: "repairable",
-    cardSelector: ".product-item",
-    titleSelector: ".title a",
-    priceSelector: ".price",
-    imageSelector: ".product-item__thumb img",
-    linkSelector: ".product-item__thumb a, .title a",
-    mileageSelector: ".cdg-miles",
-    conditionSelector: ".cdg-title",
-    stockSelector: ".cdg-stock",
-    titleFromCard: ($, card) => {
-      const year = textClean(
-        card.find(".product-item__sale .sale-txt").first().text(),
-      );
-      const name = textClean(card.find(".title a").first().text());
-      return [year, name].filter(Boolean).join(" ");
-    },
-  },
-  {
-    sourceId: "stjames-auto",
-    name: "St. James Auto & Truck Parts",
-    baseUrl: "https://rebuilders.stjamesautoparts.com",
-    inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php",
-    city: "Saint James",
-    state: "MO",
-    defaultCondition: "salvage_title",
-    defaultDamage: "repairable",
-    cardSelector: ".dlab-feed-list",
-    titleSelector: ".dlab-title a",
-    priceSelector: ".price",
-    imageSelector: ".cdg-photo img",
-    linkSelector: ".cdg-photo a, .dlab-title a",
-    titleFromCard: ($, card) =>
-      textClean(card.find(".dlab-title a").first().text()),
-  },
   {
     sourceId: "recar",
     name: "ReCar",
@@ -1572,7 +1547,93 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
   }
 }
 
-async function enrichCdgDetail(deal: Partial<Deal>, config: CdgDealerConfig) {
+async function enrichCdgDetail(
+  deal: Partial<Deal>,
+  config: Pick<DealerCmsSite, "baseUrl" | "defaultCondition">,
+) {
+  const sourceUrl = deal.source_url;
+  if (!sourceUrl) return deal;
+  try {
+    const res = await politeFetch(sourceUrl, { freshForMs: 24 * 3600_000 });
+    if (!res.ok) return deal;
+    const cheerio = await import("cheerio");
+    const html = res.body;
+    const $ = cheerio.load(html);
+    const text = textClean($.root().text());
+    const car = parseJsonLdCars($)[0] || {};
+    const vin =
+      car.vehicleIdentificationNumber ||
+      text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
+      undefined;
+    const mileage =
+      Number(car.mileageFromOdometer?.value) ||
+      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
+      extractMileage(text);
+    const titleText =
+      car.additionalProperty?.find?.((entry: any) =>
+        /title/i.test(String(entry?.name || "")),
+      )?.value ||
+      detailValueByLabel($, /Title:?/i) ||
+      $("title").first().text();
+    const images = imagesFromDetail($, config.baseUrl);
+    const description =
+      textClean(car.description) ||
+      textClean($(".vehicle-description, .icon-bx-wraper").first().text());
+    return {
+      ...deal,
+      vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
+      mileage: mileage || deal.mileage,
+      condition: conditionFromDealerText(
+        titleText,
+        deal.condition || config.defaultCondition,
+      ),
+      images: images.length ? images : deal.images,
+      description: description || deal.description,
+    };
+  } catch {
+    return deal;
+  }
+}
+
+/**
+ * Small-dealer CMS family (4cdg vehiclesDetail.php sites + SalvageZone): one shared parser
+ * (lib/scrapers/platforms/dealer-cms.ts), every page walked, fetched politely.
+ */
+async function scrapeDealerCms(
+  site: DealerCmsSite,
+  scope = getScrapeRunScope(),
+) {
+  const cheerio = await import("cheerio");
+  const deals = await crawlDealerCms(site, {
+    fetchHtml: (url) => politeFetch(url, { freshForMs: 30 * 60_000 }),
+    load: (html) => cheerio.load(html),
+    log: (msg) => console.log(msg),
+  });
+  // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
+  // a re-sweep only costs requests for cars we haven't seen.
+  const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
+  const enrichLimit = Math.min(
+    deals.length,
+    Number(process.env.CDG_DETAIL_LIMIT || (targeted ? deals.length : 12)),
+  );
+  let enriched = 0;
+  for (let i = 0; i < enrichLimit; i++) {
+    const next = await enrichCdgDetail(deals[i], site);
+    if (next.vin && next.vin !== deals[i].vin) enriched += 1;
+    deals[i] = next;
+  }
+  if (enrichLimit)
+    console.log(
+      `[CuratedSites] ${site.name} detail enriched ${enriched}/${enrichLimit}`,
+    );
+  if (deals.length) await upsertDeals(deals);
+  return deals.length;
+}
+
+async function enrichCdgDetailLegacy(
+  deal: Partial<Deal>,
+  config: CdgDealerConfig,
+) {
   const sourceUrl = deal.source_url;
   if (!sourceUrl) return deal;
   try {
@@ -1725,7 +1786,7 @@ async function scrapeCdgDealer(config: CdgDealerConfig) {
     const detailed = await Promise.all(
       targets.map((deal) =>
         limit(async () => {
-          const next = await enrichCdgDetail(deal, config);
+          const next = await enrichCdgDetailLegacy(deal, config);
           if (
             next.vin ||
             (next.images?.length || 0) > (deal.images?.length || 0)
