@@ -3,7 +3,10 @@
 // Transport re-rank swaps the cost already stored on the deal for the buyer's home state.
 // It does not invent a per-mile rate and does not rewrite the displayed dollar.
 
-import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
+import {
+  buyerDistance,
+  transportCostForDistance,
+} from "@/lib/geo/buyer-distance";
 import {
   isLuxury,
   segmentOf,
@@ -230,14 +233,18 @@ export function transportAdjustedProfit(
     .trim()
     .toUpperCase();
   if (!home || home === "NATIONWIDE" || !listing) return stored;
-  const miles = milesBetweenStates(listing, home);
-  if (miles == null) return stored;
   if (
     row.transportEstimate == null ||
     !Number.isFinite(Number(row.transportEstimate))
   )
     return stored;
-  return stored + Number(row.transportEstimate) - transportCostForMiles(miles);
+  // Haversine between state centroids; same state books the carrier minimum (no fake 45 mi).
+  const cost = transportCostForDistance(
+    buyerDistance({ state: home }, { state: listing }),
+    null,
+  );
+  if (cost == null) return stored;
+  return stored + Number(row.transportEstimate) - cost;
 }
 
 const GRADE_RANK: Record<string, number> = {
