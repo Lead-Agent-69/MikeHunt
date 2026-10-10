@@ -74,6 +74,7 @@ import { buildBuyerIntentQuery, useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
+import { scanStatusCopy } from "@/lib/ui/load-state-copy";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -470,12 +471,14 @@ function StatusStrip({
   total,
   results,
   lastScan,
+  hasData,
 }: {
   loading: boolean;
   error: string | null;
   total: number;
   results: ScanResult[];
   lastScan: Date | null;
+  hasData: boolean;
 }) {
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -490,9 +493,14 @@ function StatusStrip({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
 
-  const lastScanText = lastScan
-    ? lastScan.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "never";
+  // No false "0 · never" before the first response (lib/ui/load-state-copy).
+  const copy = scanStatusCopy({
+    hasData,
+    error,
+    total,
+    lastLoadedAt: lastScan,
+  });
+  const busy = loading || (!hasData && !error);
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1 text-xs">
@@ -501,14 +509,14 @@ function StatusStrip({
         <span
           className={cn(
             "w-2 h-2 rounded-full inline-block",
-            loading ? "animate-pulse" : "",
+            busy ? "animate-pulse" : "",
           )}
           style={{ background: error ? "var(--red)" : "var(--green)" }}
         />
         <span className="text-[var(--t4)] font-semibold">
           {error
             ? "Couldn't update vehicles"
-            : loading
+            : busy
               ? "Updating saved inventory…"
               : "Saved inventory loaded"}
         </span>
@@ -517,13 +525,18 @@ function StatusStrip({
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
 
       <span className="text-[var(--t2)] shrink-0">
-        <span style={{ color: "var(--amber)" }}>{total}</span> active deals
+        {copy.count !== null && (
+          <>
+            <span style={{ color: "var(--amber)" }}>{copy.count}</span>{" "}
+          </>
+        )}
+        {copy.countLabel}
       </span>
 
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
 
       <span className="text-[var(--t4)] shrink-0">
-        Last loaded: <span className="text-[var(--t2)]">{lastScanText}</span>
+        Last loaded: <span className="text-[var(--t2)]">{copy.lastLoaded}</span>
       </span>
 
       {topSources.length > 0 && (
@@ -3872,7 +3885,9 @@ function ScanPageInner() {
   // intent from ?mode= or a guest cookie can disagree; then the rows carry no economics, so show
   // the price-first result view instead of "$0 net" / "no positive spread" on every row.
   const flipEconomics = flipDesk && swrData?.deskAccess !== "personal";
-  const loading = swrLoading;
+  // Treat "no response yet" as loading too: on the SSR pass and the first client tick SWR reports
+  // isLoading=false with no data, which painted the empty state and "0 · never" for seconds.
+  const loading = swrLoading || (swrData === undefined && !swrError);
   const scanConfigured =
     swrData?.configured === false ? false : isSupabaseConfigured();
   const swrPreviewRows =
@@ -4472,6 +4487,7 @@ function ScanPageInner() {
         total={total}
         results={results}
         lastScan={lastScan}
+        hasData={swrData !== undefined}
       />
 
       <div className="text-xs leading-relaxed text-[var(--t3)]">

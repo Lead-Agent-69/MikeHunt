@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { preload } from "swr";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { PurchasePipeline } from "@/components/saved/PurchasePipeline";
@@ -11,6 +12,11 @@ import {
   flipToolAccess,
   type FlipToolRoute,
 } from "@/lib/buyer/flip-tool-access";
+import {
+  PURCHASE_CHECKLIST_KEY,
+  fetchPurchaseChecklist,
+} from "@/lib/saved/purchase-checklist";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 /**
  * Route-level gate for wholesale flip tools (see FLIP_TOOL_ROUTES). Wraps the
@@ -35,6 +41,17 @@ export function FlipDeskGate({
     savedMode: prefs.buyerScope?.buyerMode,
     prefsLoading: isLoading,
   });
+
+  // /fleet for a non-flip desk renders the Purchase plan checklist. Start its fetch NOW, in
+  // parallel with /api/preferences, instead of waiting for prefs to mount the checklist first.
+  const preloadChecklist =
+    route === "/fleet" &&
+    access !== "allow" &&
+    !isFlipBuyerMode(intent?.buyerMode);
+  useEffect(() => {
+    if (preloadChecklist)
+      preload(PURCHASE_CHECKLIST_KEY, fetchPurchaseChecklist);
+  }, [preloadChecklist]);
 
   if (access === "allow") return <>{children}</>;
   if (access === "pending") {

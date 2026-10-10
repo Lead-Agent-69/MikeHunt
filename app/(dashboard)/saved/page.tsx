@@ -28,6 +28,10 @@ import {
   Mail,
 } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
+import {
+  savedSyncStatus,
+  savedWatchlistHeadline,
+} from "@/lib/ui/load-state-copy";
 import { SkeletonCard } from "@/components/shared/Skeleton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import {
@@ -122,7 +126,6 @@ export default function SavedCarsPage() {
     },
   );
 
-  const loading = isLoading || dealerLoading;
   const authError =
     !dealerLoading && !dealerId
       ? "Please sign in to view your saved cars."
@@ -139,15 +142,17 @@ export default function SavedCarsPage() {
   const canShowLocalSaves = unsyncedLocalItems.length > 0;
   // Signed-in users with a failed /api/saved-cars fetch are not "missing" auth —
   // treat that as sync unavailable so we never push a Sign-in CTA while authed.
-  const supabaseStatus =
-    dealerLoading || isLoading
-      ? "checking"
-      : !dealerId
-        ? "guest"
-        : error
-          ? "unavailable"
-          : "ready";
+  // "checking" until auth resolved AND the first account fetch settled — never flash an error
+  // while the session or the request is still in flight (lib/ui/load-state-copy).
+  const supabaseStatus = savedSyncStatus({
+    authLoading: dealerLoading,
+    userId: dealerId,
+    fetchLoading: isLoading,
+    hasData: saves !== undefined,
+    error,
+  });
   const cloudSyncReady = supabaseStatus === "ready";
+  const loading = supabaseStatus === "checking";
   const signedIn = Boolean(dealerId);
 
   const handleDelete = async (id: string) => {
@@ -395,22 +400,16 @@ export default function SavedCarsPage() {
               Saved vehicles
             </p>
             <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-              {cloudSyncReady
-                ? "Your account watchlist is connected."
-                : signedIn && canShowLocalSaves
-                  ? "Account sync is unavailable — local watchlist still works."
-                  : signedIn
-                    ? "Could not load your account watchlist."
-                    : canShowLocalSaves
-                      ? "Your watchlist is saved on this device."
-                      : "Save a vehicle to start watching locally."}
+              {savedWatchlistHeadline(supabaseStatus, canShowLocalSaves)}
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
               {cloudSyncReady
                 ? "Saved vehicles are available through your account. Notification delivery is managed separately in Settings."
-                : signedIn
-                  ? "You are signed in. Retry the connection or keep using local saves on this device."
-                  : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
+                : supabaseStatus === "checking"
+                  ? "Loading saved vehicles from your account."
+                  : signedIn
+                    ? "You are signed in. Retry the connection or keep using local saves on this device."
+                    : "Saved vehicles stay usable on this device. Sign in to keep your watchlist across devices."}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -445,7 +444,7 @@ export default function SavedCarsPage() {
                   color: dealerId ? "var(--green)" : "var(--amber)",
                 }}
               >
-                {dealerId ? "connected" : "guest"}
+                {dealerLoading ? "checking" : dealerId ? "connected" : "guest"}
               </p>
               <p className="text-[10px] font-black uppercase text-[var(--t5)]">
                 account
@@ -456,7 +455,7 @@ export default function SavedCarsPage() {
         {!cloudSyncReady && (
           <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2">
             <p className="text-xs leading-relaxed text-[var(--amber-d)]">
-              {loading
+              {supabaseStatus === "checking"
                 ? "Checking your account watchlist..."
                 : signedIn
                   ? "Your local saves remain available. Retry to load account saves."

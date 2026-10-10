@@ -17,6 +17,7 @@ import { CalibrationNudge } from "@/components/deal/CalibrationNudge";
 import { NextBestBuySpotlight } from "@/components/deal/NextBestBuySpotlight";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { todaySourceProofLabel } from "@/lib/discovery/count-labels";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -202,11 +203,12 @@ function BuyerIntentToday() {
             {isLoading
               ? "Checking matching source proof..."
               : ready.length
-                ? `${ready.length} source${
-                    ready.length === 1 ? "" : "s"
-                  } can return matching cars now: ${rows.toLocaleString()} row${
-                    rows === 1 ? "" : "s"
-                  }, ${photos.toLocaleString()} photo-backed, ${quality}/100 average detail quality.`
+                ? todaySourceProofLabel({
+                    readySources: ready.length,
+                    rows,
+                    photos,
+                    quality,
+                  })
                 : action.length
                   ? `We need a broader search before we can recommend vehicles for this exact scope.`
                   : "No matching vehicles are ready to review yet. Start from Discover to choose a lane, state, budget, seller type, and watched dealers."}
