@@ -17,6 +17,7 @@ import {
   locationPatchTouchesDemand,
 } from "@/lib/preferences/kick-location-demand";
 import { syncPrefsHomeLocationToProfile } from "@/lib/preferences/sync-home-state";
+import { mergePreferencePatch } from "@/lib/preferences/merge-patch";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: located.error }, { status: 400 });
   patch = located.patch;
 
-  const guestMerged = { ...readGuestPrefs(req), ...patch };
+  const guestMerged = mergePreferencePatch(readGuestPrefs(req), patch);
   const guestLocation = locationPatchTouchesDemand(patch);
 
   function guestWithDemand(prefs: Record<string, unknown>) {
@@ -136,25 +137,42 @@ export async function PUT(req: NextRequest) {
   }
 
   if (!isSupabaseConfigured()) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
     return guestWithDemand(guestMerged);
   }
 
   const {
     data: { user },
   } = await getServerUser();
-  if (!user?.id) return guestWithDemand(guestMerged);
+  if (!user?.id) {
+    if (req.headers.get("x-require-account") === "true")
+      return NextResponse.json(
+        { error: "Sign in again to save your settings" },
+        { status: 401 },
+      );
+    return guestWithDemand(guestMerged);
+  }
 
   const sb = createServerComponentClient();
   // Merge server-side so one app's save never drops another's keys.
-  const { data: existing } = await sb
+  const { data: existing, error: readError } = await sb
     .from("user_preferences")
     .select("prefs")
     .eq("user_id", user.id)
     .maybeSingle();
-  let merged: Record<string, unknown> = {
-    ...((existing?.prefs as object) || {}),
-    ...patch,
-  };
+  if (readError)
+    return NextResponse.json(
+      { error: "Preferences unavailable" },
+      { status: 500 },
+    );
+  let merged: Record<string, unknown> = mergePreferencePatch(
+    (existing?.prefs as Record<string, unknown>) || {},
+    patch,
+  );
 
   let locationDemand: {
     states: string[];
@@ -207,6 +225,7 @@ export async function PUT(req: NextRequest) {
 
   return NextResponse.json({
     prefs: merged,
+    authed: true,
     ...(locationDemand ? { locationDemand } : {}),
   });
 }

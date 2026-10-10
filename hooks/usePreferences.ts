@@ -3,11 +3,12 @@
 import useSWR from "swr";
 import type { HomeLocation, SearchLocation } from "@/lib/preferences/locations";
 
-// User view preferences. Reads /api/preferences (RLS-scoped to the user) and gives an optimistic
-// `save(patch)` that merges. Used by the settings page and by the deal pages to land the user on their
+// User view preferences. Reads /api/preferences (RLS-scoped to the user) and confirms
+// `save(patch)` from the server. Used by settings and deal pages to land users on their
 // preferred state without re-picking each visit.
 
 export interface Prefs {
+  profileContact?: { phone?: string; city?: string; state?: string };
   /** Where the user lives (signup / profile). Weighted 3x for scraping; local radius + same-state comps. */
   homeLocation?: HomeLocation | null;
   /** Markets the user added on purpose (max 10). Weighted 2x; own comps + travel/shipping in ranking. */
@@ -48,7 +49,7 @@ const fetcher = async (u: string) => {
 };
 
 export function usePreferences() {
-  const { data, mutate, isLoading } = useSWR<
+  const { data, mutate, isLoading, error } = useSWR<
     { prefs: Prefs; authed?: boolean } | { error: string }
   >("/api/preferences", fetcher, { revalidateOnFocus: false });
 
@@ -56,20 +57,31 @@ export function usePreferences() {
   const authed = !!data && "prefs" in data && data.authed !== false;
 
   const save = async (patch: Partial<Prefs>) => {
-    const next = { ...prefs, ...patch };
-    mutate({ prefs: next, authed }, false); // optimistic
-    try {
-      const response = await fetch("/api/preferences", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!response.ok) throw new Error("Preferences could not be saved");
-    } finally {
-      mutate();
+    if (isLoading || error)
+      throw new Error("Load your saved preferences before making changes");
+    const response = await fetch("/api/preferences", {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...(authed ? { "x-require-account": "true" } : {}),
+      },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) throw new Error("Preferences could not be saved");
+    const confirmed = await response.json();
+    if (
+      !confirmed.prefs ||
+      typeof confirmed.prefs !== "object" ||
+      (authed && confirmed.authed === false)
+    ) {
+      throw new Error("Sign in again to save to your account");
     }
-    return next;
+    await mutate(
+      { prefs: confirmed.prefs, authed: confirmed.authed ?? authed },
+      false,
+    );
+    return confirmed.prefs as Prefs;
   };
 
-  return { prefs, save, authed, isLoading };
+  return { prefs, save, authed, isLoading, error, retry: () => mutate() };
 }

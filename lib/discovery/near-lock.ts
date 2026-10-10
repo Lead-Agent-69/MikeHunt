@@ -54,7 +54,10 @@ export function nearQueryLock(input: NearQueryLockInput): NearQueryLock {
     const zipAgrees = fromPrefsZip === prefsHome.state;
     return {
       state: prefsHome.state,
-      radius: explicitRadius(input.radiusParam, true),
+      radius:
+        input.radiusParam == null
+          ? (prefsHome.radiusMi ?? 0)
+          : explicitRadius(input.radiusParam, true),
       from: "prefs",
       ...(zipAgrees && prefsHome.zip ? { homeZip: prefsHome.zip } : {}),
     };
@@ -73,7 +76,10 @@ export function nearQueryLock(input: NearQueryLockInput): NearQueryLock {
   };
 }
 
-function explicitRadius(radiusParam: string | null | undefined, hasState: boolean) {
+function explicitRadius(
+  radiusParam: string | null | undefined,
+  hasState: boolean,
+) {
   if (!hasState) return 0;
   const requested = Number(radiusParam);
   if (!Number.isFinite(requested) || requested <= 0) return 0;

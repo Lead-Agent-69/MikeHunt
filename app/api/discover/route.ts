@@ -871,15 +871,23 @@ export async function GET(request: NextRequest) {
           (prefRow?.prefs as { homeLocation?: unknown } | null)?.homeLocation,
           profile?.home_state,
         );
-        const makes = [
-          ...((profile?.preferred_makes as string[] | null) || []),
-          ...((scope as { makes?: string[] }).makes || []),
-          ...((scope as { preferredMakes?: string[] }).preferredMakes || []),
-        ]
+        const savedMakes = scope as {
+          makes?: string[];
+          preferredMakes?: string[];
+        };
+        const makes = (
+          Array.isArray(savedMakes.makes)
+            ? savedMakes.makes
+            : Array.isArray(savedMakes.preferredMakes)
+              ? savedMakes.preferredMakes
+              : (profile?.preferred_makes as string[] | null) || []
+        )
           .map((m) => String(m).toLowerCase())
           .filter(Boolean);
         const maxPrice =
-          Number(profile?.budget_max) || Number(scope.maxPrice) || 0;
+          scope.maxPrice !== undefined
+            ? Number(scope.maxPrice) || 0
+            : Number(profile?.budget_max) || 0;
         const minProfit = Number(profile?.target_profit) || 0;
         const hasScope =
           !!usableHome ||

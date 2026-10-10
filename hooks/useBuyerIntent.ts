@@ -107,7 +107,7 @@ export function normalizeBuyerMode(value: unknown): BuyerMode | undefined {
   return undefined;
 }
 
-const VEHICLE_TO_QUERY: Record<string, string> = {
+export const VEHICLE_TO_QUERY: Record<string, string> = {
   "All vehicle types": "",
   Trucks: "truck",
   SUVs: "suv",
@@ -439,7 +439,16 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
   );
 
   useEffect(() => {
-    const sync = () => setIntent(readLocalBuyerIntent());
+    const sync = () =>
+      setIntent(
+        isLoading
+          ? null
+          : resolveBuyerIntentScope(
+              authed,
+              prefs.buyerScope,
+              readLocalBuyerIntent(),
+            ),
+      );
     sync();
     window.addEventListener(BUYER_INTENT_EVENT, sync);
     window.addEventListener("storage", sync);
@@ -447,7 +456,7 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
       window.removeEventListener(BUYER_INTENT_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, []);
+  }, [authed, isLoading, prefs.buyerScope]);
 
   // Account preferences take precedence over a desk left by another browser user.
   useEffect(() => {

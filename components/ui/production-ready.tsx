@@ -1,7 +1,9 @@
 "use client";
 
+import { PhotoPreview } from "@/components/shared/PhotoPreview";
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // ── Error Boundary ──
@@ -15,7 +17,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<
+  ErrorBoundaryProps,
+  ErrorBoundaryState
+> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -35,13 +40,23 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         this.props.fallback || (
           <div className="flex flex-col items-center justify-center p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-[var(--rlo)] flex items-center justify-center mb-4">
-              <svg className="w-8 h-8 text-[var(--red)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="w-8 h-8 text-[var(--red)]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M12 9v4M12 17h.01" />
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-bold text-[var(--t1)] mb-2">Something went wrong</h3>
-            <p className="text-sm text-[var(--t4)] mb-4">Please refresh the page or try again later.</p>
+            <h3 className="text-lg font-bold text-[var(--t1)] mb-2">
+              Something went wrong
+            </h3>
+            <p className="text-sm text-[var(--t4)] mb-4">
+              Please refresh the page or try again later.
+            </p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
               className="px-4 py-2 rounded-xl bg-[var(--grad)] text-white text-sm font-bold"
@@ -63,9 +78,14 @@ interface LoadingStateProps {
   className?: string;
 }
 
-export function LoadingState({ message = "Loading...", className }: LoadingStateProps) {
+export function LoadingState({
+  message = "Loading...",
+  className,
+}: LoadingStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center p-8", className)}>
+    <div
+      className={cn("flex flex-col items-center justify-center p-8", className)}
+    >
       <div className="relative w-12 h-12 mb-4">
         <div className="absolute inset-0 rounded-full border-2 border-[var(--s3)]" />
         <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--amber)] animate-spin" />
@@ -84,16 +104,29 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+}: EmptyStateProps) {
   return (
-    <div className={cn("flex flex-col items-center justify-center p-12 text-center", className)}>
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center p-12 text-center",
+        className,
+      )}
+    >
       {icon && (
         <div className="w-20 h-20 rounded-full bg-[var(--s2)] flex items-center justify-center mb-4 text-[var(--t4)]">
           {icon}
         </div>
       )}
       <h3 className="text-lg font-bold text-[var(--t1)] mb-2">{title}</h3>
-      {description && <p className="text-sm text-[var(--t4)] max-w-sm mb-4">{description}</p>}
+      {description && (
+        <p className="text-sm text-[var(--t4)] max-w-sm mb-4">{description}</p>
+      )}
       {action}
     </div>
   );
@@ -107,7 +140,12 @@ interface SkeletonProps {
   height?: string | number;
 }
 
-export function Skeleton({ className, variant = "text", width, height }: SkeletonProps) {
+export function Skeleton({
+  className,
+  variant = "text",
+  width,
+  height,
+}: SkeletonProps) {
   const variants = {
     text: "h-4 rounded",
     circular: "rounded-full",
@@ -116,7 +154,11 @@ export function Skeleton({ className, variant = "text", width, height }: Skeleto
 
   return (
     <div
-      className={cn("bg-[var(--s2)] animate-pulse", variants[variant], className)}
+      className={cn(
+        "bg-[var(--s2)] animate-pulse",
+        variants[variant],
+        className,
+      )}
       style={{ width, height }}
     />
   );
@@ -125,21 +167,46 @@ export function Skeleton({ className, variant = "text", width, height }: Skeleto
 // ── Skeleton Card ──
 export function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className={cn("rounded-[var(--r4)] overflow-hidden bg-[var(--s0)] border border-[var(--b1)]", className)}>
+    <div
+      className={cn(
+        "rounded-[var(--r4)] overflow-hidden bg-[var(--s0)] border border-[var(--b1)]",
+        className,
+      )}
+    >
       <div className="aspect-[4/3] bg-[var(--s2)] animate-pulse" />
       <div className="p-4 space-y-3">
-        <div className="h-4 bg-[var(--s2)] rounded animate-pulse" style={{ width: "60%" }} />
-        <div className="h-3 bg-[var(--s2)] rounded animate-pulse" style={{ width: "40%" }} />
-        <div className="h-3 bg-[var(--s2)] rounded animate-pulse" style={{ width: "80%" }} />
+        <div
+          className="h-4 bg-[var(--s2)] rounded animate-pulse"
+          style={{ width: "60%" }}
+        />
+        <div
+          className="h-3 bg-[var(--s2)] rounded animate-pulse"
+          style={{ width: "40%" }}
+        />
+        <div
+          className="h-3 bg-[var(--s2)] rounded animate-pulse"
+          style={{ width: "80%" }}
+        />
       </div>
     </div>
   );
 }
 
 // ── Skeleton Grid ──
-export function SkeletonGrid({ count = 6, columns = 3, className }: { count?: number; columns?: 2 | 3 | 4; className?: string }) {
+export function SkeletonGrid({
+  count = 6,
+  columns = 3,
+  className,
+}: {
+  count?: number;
+  columns?: 2 | 3 | 4;
+  className?: string;
+}) {
   return (
-    <div className={cn("grid gap-4", className)} style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+    <div
+      className={cn("grid gap-4", className)}
+      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+    >
       {Array.from({ length: count }).map((_, i) => (
         <SkeletonCard key={i} />
       ))}
@@ -154,7 +221,10 @@ export function SkeletonCarousel({ className }: { className?: string }) {
       <div className="aspect-[16/9] rounded-[var(--r4)] bg-[var(--s2)] animate-pulse" />
       <div className="flex gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="w-20 h-14 rounded-lg bg-[var(--s2)] animate-pulse" />
+          <div
+            key={i}
+            className="w-20 h-14 rounded-lg bg-[var(--s2)] animate-pulse"
+          />
         ))}
       </div>
     </div>
@@ -169,7 +239,12 @@ interface LazyImageProps {
   priority?: boolean;
 }
 
-export function LazyImage({ src, alt, className, priority = false }: LazyImageProps) {
+export function LazyImage({
+  src,
+  alt,
+  className,
+  priority = false,
+}: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(false);
   const imgRef = useRef<HTMLDivElement>(null);
@@ -182,7 +257,7 @@ export function LazyImage({ src, alt, className, priority = false }: LazyImagePr
           observer.disconnect();
         }
       },
-      { rootMargin: "200px" }
+      { rootMargin: "200px" },
     );
 
     if (imgRef.current) observer.observe(imgRef.current);
@@ -193,7 +268,13 @@ export function LazyImage({ src, alt, className, priority = false }: LazyImagePr
     <div ref={imgRef} className={cn("relative overflow-hidden", className)}>
       {!isLoaded && (
         <div className="absolute inset-0 bg-[var(--s2)] animate-pulse flex items-center justify-center">
-          <svg className="w-8 h-8 text-[var(--s4)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            className="w-8 h-8 text-[var(--s4)]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
             <circle cx="8.5" cy="8.5" r="1.5" />
             <path d="M21 15l-5-5L5 21" />
@@ -204,7 +285,10 @@ export function LazyImage({ src, alt, className, priority = false }: LazyImagePr
         <img
           src={src}
           alt={alt}
-          className={cn("w-full h-full object-cover transition-opacity duration-500", isLoaded ? "opacity-100" : "opacity-0")}
+          className={cn(
+            "w-full h-full object-cover transition-opacity duration-500",
+            isLoaded ? "opacity-100" : "opacity-0",
+          )}
           loading={priority ? "eager" : "lazy"}
           decoding="async"
           onLoad={() => setIsLoaded(true)}
@@ -232,12 +316,16 @@ export function OptimizedButton({
   disabled,
   ...props
 }: OptimizedButtonProps) {
-  const baseStyles = "inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--amber)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles =
+    "inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--amber)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variants = {
-    primary: "bg-[var(--grad-amber)] text-[#0A0A0F] hover:opacity-90 active:scale-[0.98]",
-    secondary: "bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--s3)] active:scale-[0.98]",
-    ghost: "bg-transparent text-[var(--t2)] border border-[var(--b1)] hover:bg-[var(--s2)] active:scale-[0.98]",
+    primary:
+      "bg-[var(--grad-amber)] text-[#0A0A0F] hover:opacity-90 active:scale-[0.98]",
+    secondary:
+      "bg-[var(--s2)] text-[var(--t2)] hover:bg-[var(--s3)] active:scale-[0.98]",
+    ghost:
+      "bg-transparent text-[var(--t2)] border border-[var(--b1)] hover:bg-[var(--s2)] active:scale-[0.98]",
     danger: "bg-[var(--red)] text-white hover:opacity-90 active:scale-[0.98]",
   };
 
@@ -254,9 +342,24 @@ export function OptimizedButton({
       {...props}
     >
       {loading ? (
-        <svg className="animate-spin -ml-1 mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        <svg
+          className="animate-spin -ml-1 mr-2 h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       ) : icon ? (
         <span className="mr-2">{icon}</span>
@@ -274,14 +377,19 @@ interface OptimizedCardProps {
   onClick?: () => void;
 }
 
-export function OptimizedCard({ children, className, hover = true, onClick }: OptimizedCardProps) {
+export function OptimizedCard({
+  children,
+  className,
+  hover = true,
+  onClick,
+}: OptimizedCardProps) {
   return (
     <motion.div
       className={cn(
         "relative rounded-[var(--r4)] overflow-hidden bg-[var(--s0)] border border-[var(--b1)]",
         hover && "transition-shadow duration-300 hover:shadow-lg",
         onClick && "cursor-pointer",
-        className
+        className,
       )}
       onClick={onClick}
       whileHover={hover ? { y: -4 } : undefined}
@@ -302,7 +410,13 @@ interface OptimizedModalProps {
   className?: string;
 }
 
-export function OptimizedModal({ isOpen, onClose, children, title, className }: OptimizedModalProps) {
+export function OptimizedModal({
+  isOpen,
+  onClose,
+  children,
+  title,
+  className,
+}: OptimizedModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -318,14 +432,20 @@ export function OptimizedModal({ isOpen, onClose, children, title, className }: 
 
   return (
     <motion.div
-      className={cn("fixed inset-0 z-[100] flex items-center justify-center p-4", className)}
+      className={cn(
+        "fixed inset-0 z-[100] flex items-center justify-center p-4",
+        className,
+      )}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <motion.div
-        className={cn("relative w-full max-w-lg bg-[var(--s0)] rounded-[var(--r4)] shadow-2xl", className)}
+        className={cn(
+          "relative w-full max-w-lg bg-[var(--s0)] rounded-[var(--r4)] shadow-2xl",
+          className,
+        )}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -338,7 +458,14 @@ export function OptimizedModal({ isOpen, onClose, children, title, className }: 
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-[var(--s2)] flex items-center justify-center text-[var(--t4)] hover:bg-[var(--s3)]"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
@@ -358,7 +485,12 @@ interface OptimizedTabsProps {
   className?: string;
 }
 
-export function OptimizedTabs({ tabs, activeTab, onChange, className }: OptimizedTabsProps) {
+export function OptimizedTabs({
+  tabs,
+  activeTab,
+  onChange,
+  className,
+}: OptimizedTabsProps) {
   return (
     <div className={cn("flex gap-1 p-1 bg-[var(--s2)] rounded-xl", className)}>
       {tabs.map((tab) => (
@@ -369,7 +501,7 @@ export function OptimizedTabs({ tabs, activeTab, onChange, className }: Optimize
             "flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all",
             activeTab === tab.id
               ? "bg-[var(--s0)] text-[var(--t1)] shadow-sm"
-              : "text-[var(--t4)] hover:text-[var(--t2)]"
+              : "text-[var(--t4)] hover:text-[var(--t2)]",
           )}
         >
           {tab.icon}
@@ -411,7 +543,7 @@ export function OptimizedSearch({
         onSearch?.(newValue);
       }, debounceMs);
     },
-    [onChange, debounceMs, onSearch]
+    [onChange, debounceMs, onSearch],
   );
 
   return (
@@ -438,7 +570,14 @@ export function OptimizedSearch({
           onClick={() => handleChange("")}
           className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[var(--s3)] flex items-center justify-center text-[var(--t4)] hover:bg-[var(--s4)]"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
@@ -454,7 +593,11 @@ interface OptimizedBadgeProps {
   className?: string;
 }
 
-export function OptimizedBadge({ children, variant = "default", className }: OptimizedBadgeProps) {
+export function OptimizedBadge({
+  children,
+  variant = "default",
+  className,
+}: OptimizedBadgeProps) {
   const variants = {
     default: "bg-[var(--s2)] text-[var(--t2)]",
     success: "bg-[var(--glo)] text-[var(--green)]",
@@ -464,7 +607,13 @@ export function OptimizedBadge({ children, variant = "default", className }: Opt
   };
 
   return (
-    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold", variants[variant], className)}>
+    <span
+      className={cn(
+        "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold",
+        variants[variant],
+        className,
+      )}
+    >
       {children}
     </span>
   );
@@ -478,7 +627,12 @@ interface OptimizedProgressProps {
   showLabel?: boolean;
 }
 
-export function OptimizedProgress({ value, max = 100, className, showLabel = false }: OptimizedProgressProps) {
+export function OptimizedProgress({
+  value,
+  max = 100,
+  className,
+  showLabel = false,
+}: OptimizedProgressProps) {
   const percentage = Math.min(100, Math.max(0, (value / max) * 100));
 
   return (
@@ -486,7 +640,9 @@ export function OptimizedProgress({ value, max = 100, className, showLabel = fal
       {showLabel && (
         <div className="flex justify-between mb-1">
           <span className="text-xs font-medium text-[var(--t4)]">Progress</span>
-          <span className="text-xs font-medium text-[var(--t4)]">{Math.round(percentage)}%</span>
+          <span className="text-xs font-medium text-[var(--t4)]">
+            {Math.round(percentage)}%
+          </span>
         </div>
       )}
       <div className="h-2 bg-[var(--s2)] rounded-full overflow-hidden">
@@ -508,7 +664,11 @@ interface OptimizedTooltipProps {
   position?: "top" | "bottom" | "left" | "right";
 }
 
-export function OptimizedTooltip({ content, children, position = "top" }: OptimizedTooltipProps) {
+export function OptimizedTooltip({
+  content,
+  children,
+  position = "top",
+}: OptimizedTooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
 
   const positions = {
@@ -529,7 +689,7 @@ export function OptimizedTooltip({ content, children, position = "top" }: Optimi
         <motion.div
           className={cn(
             "absolute z-50 px-3 py-1.5 text-xs font-medium text-white bg-[var(--t1)] rounded-lg whitespace-nowrap",
-            positions[position]
+            positions[position],
           )}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -565,7 +725,13 @@ export function OptimizedImageGallery({
 
   return (
     <>
-      <div className="grid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: `${gap}px` }}>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `repeat(${columns}, 1fr)`,
+          gap: `${gap}px`,
+        }}
+      >
         {images.map((image, index) => (
           <motion.div
             key={index}
@@ -574,39 +740,20 @@ export function OptimizedImageGallery({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <LazyImage src={image.src} alt={image.alt} className="w-full h-full" />
+            <LazyImage
+              src={image.src}
+              alt={image.alt}
+              className="w-full h-full"
+            />
           </motion.div>
         ))}
       </div>
 
-      <AnimatePresence>
-        {selectedIndex !== null && (
-          <motion.div
-            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setSelectedIndex(null)}
-          >
-            <motion.img
-              src={images[selectedIndex].src}
-              alt={images[selectedIndex].alt}
-              className="max-w-full max-h-full object-contain rounded-lg"
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-            />
-            <button
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20"
-              onClick={() => setSelectedIndex(null)}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <PhotoPreview
+        images={images}
+        selectedIndex={selectedIndex}
+        onSelect={setSelectedIndex}
+      />
     </>
   );
 }
@@ -619,7 +766,8 @@ export function usePrefersReducedMotion() {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     setPrefersReducedMotion(mediaQuery.matches);
 
-    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    const handler = (e: MediaQueryListEvent) =>
+      setPrefersReducedMotion(e.matches);
     mediaQuery.addEventListener("change", handler);
     return () => mediaQuery.removeEventListener("change", handler);
   }, []);
@@ -631,7 +779,7 @@ export function usePrefersReducedMotion() {
 export function useInfiniteScroll(
   callback: () => void,
   hasMore: boolean,
-  rootMargin = "200px"
+  rootMargin = "200px",
 ) {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -642,7 +790,7 @@ export function useInfiniteScroll(
       ([entry]) => {
         if (entry.isIntersecting) callback();
       },
-      { rootMargin }
+      { rootMargin },
     );
 
     if (sentinelRef.current) observer.observe(sentinelRef.current);
@@ -714,7 +862,10 @@ export function useNetworkStatus() {
 
 // ── useBatteryStatus Hook ──
 export function useBatteryStatus() {
-  const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
+  const [battery, setBattery] = useState<{
+    level: number;
+    charging: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const getBattery = async () => {
@@ -723,9 +874,13 @@ export function useBatteryStatus() {
         setBattery({ level: battery.level, charging: battery.charging });
 
         const handleLevelChange = () =>
-          setBattery((prev) => (prev ? { ...prev, level: battery.level } : null));
+          setBattery((prev) =>
+            prev ? { ...prev, level: battery.level } : null,
+          );
         const handleChargingChange = () =>
-          setBattery((prev) => (prev ? { ...prev, charging: battery.charging } : null));
+          setBattery((prev) =>
+            prev ? { ...prev, charging: battery.charging } : null,
+          );
 
         battery.addEventListener("levelchange", handleLevelChange);
         battery.addEventListener("chargingchange", handleChargingChange);
@@ -741,7 +896,10 @@ export function useBatteryStatus() {
 
 // ── useGeolocation Hook ──
 export function useGeolocation() {
-  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [location, setLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const requestLocation = useCallback(() => {
@@ -752,11 +910,14 @@ export function useGeolocation() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         setError(null);
       },
       (err) => setError(err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     );
   }, []);
 
@@ -867,7 +1028,11 @@ interface PerformanceMetrics {
 }
 
 export function usePerformanceMonitor() {
-  const [metrics, setMetrics] = useState<PerformanceMetrics>({ fps: 0, frameTime: 0, droppedFrames: 0 });
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    fps: 0,
+    frameTime: 0,
+    droppedFrames: 0,
+  });
 
   useEffect(() => {
     let frameCount = 0;
@@ -897,7 +1062,10 @@ export function usePerformanceMonitor() {
 
 // ── useMemoryUsage Hook ──
 export function useMemoryUsage() {
-  const [memory, setMemory] = useState<{ usedJSHeapSize: number; totalJSHeapSize: number } | null>(null);
+  const [memory, setMemory] = useState<{
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+  } | null>(null);
 
   useEffect(() => {
     const updateMemory = () => {
@@ -928,7 +1096,9 @@ export function useTitle(title: string) {
 // ── useMeta Hook ──
 export function useMeta(name: string, content: string) {
   useEffect(() => {
-    let element = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+    let element = document.querySelector<HTMLMetaElement>(
+      `meta[name="${name}"]`,
+    );
     if (!element) {
       element = document.createElement("meta");
       element.name = name;
@@ -944,7 +1114,9 @@ export function useMeta(name: string, content: string) {
 // ── useCanonical Hook ──
 export function useCanonical(url: string) {
   useEffect(() => {
-    let element = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    let element = document.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
     if (!element) {
       element = document.createElement("link");
       element.rel = "canonical";
@@ -1041,7 +1213,9 @@ export function useViewTransition(callback: () => void) {
 
 // ── PageLifecycle Hook ──
 export function usePageLifecycle() {
-  const [state, setState] = useState<"active" | "passive" | "hidden" | "frozen" | "terminated">("active");
+  const [state, setState] = useState<
+    "active" | "passive" | "hidden" | "frozen" | "terminated"
+  >("active");
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1049,7 +1223,8 @@ export function usePageLifecycle() {
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   return state;
@@ -1107,14 +1282,19 @@ interface ProductionReadyProviderProps {
   children: React.ReactNode;
 }
 
-export function ProductionReadyProvider({ children }: ProductionReadyProviderProps) {
+export function ProductionReadyProvider({
+  children,
+}: ProductionReadyProviderProps) {
   const { isOnline } = useNetworkStatus();
   const prefersReducedMotion = usePrefersReducedMotion();
 
   return (
     <ErrorBoundary>
       <div
-        className={cn(prefersReducedMotion && "motion-reduce:transition-none motion-reduce:animate-none")}
+        className={cn(
+          prefersReducedMotion &&
+            "motion-reduce:transition-none motion-reduce:animate-none",
+        )}
         data-online={isOnline}
       >
         {children}

@@ -120,6 +120,7 @@ export default function OnboardingPage() {
   const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [accountRequired, setAccountRequired] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const modeTouchedRef = useRef(false);
   const [vehicles, setVehicles] = useState<string[]>([]);
@@ -164,6 +165,7 @@ export default function OnboardingPage() {
           return;
         }
         const prefs = preferencesData?.prefs || null;
+        setAccountRequired(preferencesData?.authed !== false);
         setSavedPrefs(prefs);
         const saved = prefs?.buyerScope as Partial<BuyerIntent> | undefined;
         const homeState = onboardingHomeState(prefs, saved?.state);
@@ -265,16 +267,25 @@ export default function OnboardingPage() {
     try {
       const preferenceResult = await fetch("/api/preferences", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accountRequired ? { "x-require-account": "true" } : {}),
+        },
         body: JSON.stringify(preferences),
       });
       if (!preferenceResult.ok)
         throw new Error(
           "We could not save your buying profile. Please try again.",
         );
+      const confirmedPreferences = await preferenceResult.json();
+      if (accountRequired && confirmedPreferences.authed === false)
+        throw new Error("Sign in again to save your buying profile.");
       const profileResult = await fetch("/api/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accountRequired ? { "x-require-account": "true" } : {}),
+        },
         body: JSON.stringify({
           onboarded: true,
           home_state: state && state !== "Nationwide" ? state : undefined,
