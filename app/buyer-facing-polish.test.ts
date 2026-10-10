@@ -68,12 +68,13 @@ describe("buyer-facing polish", () => {
     expect(source).not.toContain("Fresh source proof");
   });
 
-  it("uses the active device scope before an older cloud fallback", () => {
+  it("uses saved account scope and reserves device scope for guests", () => {
     const source = read("components/discovery/BuyerScopeBuilder.tsx");
 
-    expect(source).toContain("const localScope = readLocalBuyerIntent()");
-    expect(source).toContain("if (!localScope)");
-    expect(source).toContain("let saved: any = localScope || {}");
+    expect(source).toContain("resolveBuyerIntentScope(");
+    expect(source).toContain("authed,");
+    expect(source).toContain("prefs.buyerScope,");
+    expect(source).toContain("readLocalBuyerIntent()");
   });
 
   it("shows source display names instead of raw registry ids in Scan proof copy", () => {

@@ -6,16 +6,14 @@ import { toast } from "sonner";
 import { Field } from "@/components/shared/Field";
 import { Ico } from "@/components/shared/Ico";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { US_STATES } from "@/lib/utils/titleRules";
 import { useDealerId } from "@/hooks/useDealerId";
-import { Skeleton } from "@/components/shared/Skeleton";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { EnablePush } from "@/components/EnablePush";
 import { LocationPrefs } from "@/components/settings/LocationPrefs";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
-import { includesRepairable } from "@/lib/intelligence/repair-risk";
+import { BuyingProfilePrefs } from "@/components/settings/BuyingProfilePrefs";
 
 // Fetcher function for SWR
 const fetcher = (url: string) =>
@@ -27,69 +25,15 @@ const fetcher = (url: string) =>
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function CarsViewPrefs() {
-  const { authed, isLoading, prefs, save } = usePreferences();
-  const [repairSaving, setRepairSaving] = useState(false);
-  const [repairStatus, setRepairStatus] = useState("");
-  async function saveRepairEligibility(enabled: boolean) {
-    setRepairSaving(true);
-    setRepairStatus("Saving...");
-    try {
-      await save({
-        buyerScope: { ...prefs.buyerScope, includeRepairable: enabled },
-      });
-      setRepairStatus("Saved");
-    } catch {
-      setRepairStatus("Could not save. Try again.");
-    } finally {
-      setRepairSaving(false);
-    }
-  }
-  if (isLoading || !authed) return null;
+  const { isLoading } = usePreferences();
+  if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
     <div className="glass-panel p-6 animate-popIn">
       <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
         Locations
       </h2>
       <LocationPrefs />
-      <p className="text-[12px] text-[var(--t4)] mt-4">
-        Saved to your account and synced across devices.
-      </p>
-      <div className="mt-5 border-t border-[var(--b1)] pt-5">
-        <p className="text-sm font-black text-[var(--t1)]">Buying profile</p>
-        <label className="mt-3 flex min-h-11 items-center gap-3 text-sm text-[var(--t1)]">
-          <input
-            type="checkbox"
-            className="h-5 w-5 accent-[var(--blue)]"
-            checked={includesRepairable(prefs.buyerScope)}
-            disabled={repairSaving}
-            onChange={(event) =>
-              void saveRepairEligibility(event.target.checked)
-            }
-          />
-          Include vehicles with reported damage or repair needs
-        </label>
-        <p className="mt-1 text-xs text-[var(--t4)]">
-          Separate from title status. Unknown condition still needs inspection.
-        </p>
-        <p className="mt-1 text-xs text-[var(--t4)]">
-          On personal and DIY profiles this also shows the Salvage &amp;
-          Rebuildable lane on Discover, for research only.
-        </p>
-        <p role="status" className="mt-1 min-h-5 text-xs text-[var(--t3)]">
-          {repairStatus}
-        </p>
-        <p className="mt-1 text-[12px] text-[var(--t4)]">
-          Change your buyer mode, vehicle types, budget, title tolerance, and
-          timeline.
-        </p>
-        <a
-          href="/onboarding?edit=1"
-          className="mt-3 inline-flex min-h-11 items-center rounded-lg border border-[var(--b2)] px-4 text-sm font-bold text-[var(--t1)] transition-colors hover:bg-[var(--s2)]"
-        >
-          Edit buying profile
-        </a>
-      </div>
-
+      <BuyingProfilePrefs />
       <div className="mt-6 pt-6 border-t border-[var(--b1)] flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
@@ -109,7 +53,12 @@ function CarsViewPrefs() {
 export default function SettingsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { intent } = useBuyerIntent();
-  const { prefs, authed, isLoading: prefsLoading } = usePreferences();
+  const {
+    prefs,
+    save: savePreferences,
+    authed,
+    isLoading: prefsLoading,
+  } = usePreferences();
   // UI only: the stored target_profit is untouched. Unknown mode = personal.
   // Signed in, the saved account mode decides — never a desk left in this browser's localStorage by a
   // previous (dealer) session — and Business profile / Dealer Defaults stay hidden until prefs load.
@@ -121,8 +70,8 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
   const [notificationSaved, setNotificationSaved] = useState(false);
-  const [homeZip, setHomeZip] = useState("");
-  const [locating, setLocating] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   const [profile, setProfile] = useState({
     name: "",
@@ -145,8 +94,8 @@ export default function SettingsPage() {
     isLoading,
     mutate,
   } = useSWR(
-    dealerId && !dealerLoading ? `/api/profile?dealerId=${dealerId}` : null,
-    fetcher,
+    dealerId && !dealerLoading ? ["/api/profile", dealerId] : null,
+    ([url]: [string, string]) => fetcher(url),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
@@ -166,9 +115,6 @@ export default function SettingsPage() {
       setProfile((p) => ({
         ...p,
         name: profileData.profile.name || profileData.profile.full_name || "",
-        phone: profileData.profile.phone || "",
-        city: profileData.profile.city || "",
-        state: profileData.profile.state || "",
         home_state: profileData.profile.home_state || "",
         auction_fee_default: profileData.profile.auction_fee_default ?? 450,
         recon_cost_default: profileData.profile.recon_cost_default ?? 500,
@@ -178,48 +124,81 @@ export default function SettingsPage() {
       }));
     }
   }, [profileData]);
+  useEffect(() => {
+    if (prefsLoading) return;
+    setProfile((previous) => ({
+      ...previous,
+      phone: prefs.profileContact?.phone || "",
+      city: prefs.profileContact?.city || "",
+      state: prefs.profileContact?.state || "",
+    }));
+  }, [prefs.profileContact, prefsLoading]);
+  const profileKey = JSON.stringify(profile);
+  useEffect(() => {
+    setSaved(false);
+  }, [profileKey]);
 
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError("");
     try {
-      // Optimistic update
-      mutate({ profile }, false);
+      if (!authed)
+        throw new Error("Sign in again to save your profile and costs.");
+      for (const amount of showProfitTarget
+        ? [
+            profile.auction_fee_default,
+            profile.recon_cost_default,
+            profile.daily_floor_rate,
+            profile.target_profit,
+          ]
+        : []) {
+        if (!Number.isFinite(amount) || amount < 0 || amount > 1000000)
+          throw new Error("Costs must be between $0 and $1,000,000.");
+      }
+      await savePreferences({
+        profileContact: {
+          phone: profile.phone,
+          city: profile.city,
+          state: profile.state,
+        },
+      });
 
       const res = await fetch("/api/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // An unpicked home state saves as null, not "" and not a guessed default.
+        headers: {
+          "Content-Type": "application/json",
+          "x-require-account": "true",
+        },
+        // Location is saved separately; a contact/cost save cannot overwrite it.
         body: JSON.stringify({
-          ...profile,
-          home_state: profile.home_state || null,
+          name: profile.name,
+          ...(showProfitTarget
+            ? {
+                auction_fee_default: profile.auction_fee_default,
+                recon_cost_default: profile.recon_cost_default,
+                daily_floor_rate: profile.daily_floor_rate,
+                target_profit: profile.target_profit,
+              }
+            : {}),
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        mutate(); // Revert on error
         throw new Error(data.error || "Save failed");
       }
       setSaved(true);
       toast.success("Settings saved");
 
-      // Update local storage cache for the hook
-      localStorage.setItem(
-        "dh_dealer_defaults",
-        JSON.stringify({
-          auctionFee: profile.auction_fee_default,
-          reconCost: profile.recon_cost_default,
-          dailyFloorRate: profile.daily_floor_rate,
-          targetProfit: profile.target_profit,
-          homeState: profile.home_state,
-        }),
-      );
-
       // Revalidate from server
-      mutate();
-    } catch (err: any) {
-      toast.error("Failed to save settings");
-      mutate(); // Revert on error
+      await mutate(data, false);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to save settings";
+      setSaveError(
+        `${message} Your draft is kept; retry to finish saving all changes.`,
+      );
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -229,11 +208,15 @@ export default function SettingsPage() {
     const previous = profile.notify_price_drops;
     setNotificationSaving(true);
     setNotificationSaved(false);
+    setNotificationError("");
     setProfile((p) => ({ ...p, notify_price_drops: enabled }));
     try {
       const response = await fetch("/api/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-require-account": "true",
+        },
         body: JSON.stringify({ notify_price_drops: enabled }),
       });
       if (!response.ok)
@@ -241,65 +224,12 @@ export default function SettingsPage() {
       setNotificationSaved(true);
     } catch (error) {
       setProfile((p) => ({ ...p, notify_price_drops: previous }));
+      setNotificationError("Could not save notifications. Try again.");
       toast.error(userFacingErrorMessage(error));
     } finally {
       setNotificationSaving(false);
     }
   }
-
-  // Home location → unlocks radius "near me" + nearest-deals (saved-search radius too).
-  const saveHomeZip = async () => {
-    if (!/^\d{5}$/.test(homeZip.trim())) {
-      toast.error("Enter a 5-digit ZIP code");
-      return;
-    }
-    try {
-      const r = await fetch("/api/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ home_zip: homeZip.trim() }),
-      });
-      if (!r.ok) throw new Error();
-      toast.success("Home ZIP saved — “near me” deals enabled");
-      mutate();
-    } catch {
-      toast.error("Couldn’t save ZIP");
-    }
-  };
-
-  const useMyLocation = () => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
-      toast.error("Location isn’t available on this device");
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const r = await fetch("/api/profile", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              home_lat: pos.coords.latitude,
-              home_lng: pos.coords.longitude,
-            }),
-          });
-          if (!r.ok) throw new Error();
-          toast.success("Location set — nearest deals + radius enabled");
-          mutate();
-        } catch {
-          toast.error("Couldn’t save your location");
-        } finally {
-          setLocating(false);
-        }
-      },
-      () => {
-        toast.error("Location permission denied");
-        setLocating(false);
-      },
-      { enableHighAccuracy: false, timeout: 8000 },
-    );
-  };
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto animate-fadeUp pb-24">
@@ -340,7 +270,10 @@ export default function SettingsPage() {
       )}
 
       {!loading && !authError && !error && (
-        <>
+        <fieldset
+          disabled={saving || notificationSaving}
+          className="min-w-0 space-y-6"
+        >
           {/* Profile Section */}
           <div className="glass-panel p-6 animate-popIn">
             <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
@@ -395,70 +328,9 @@ export default function SettingsPage() {
               style={{ animationDelay: "100ms" }}
             >
               <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-                Dealer Defaults
+                Deal cost defaults
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-[var(--t2)]">
-                    Home State (for transport calculation)
-                  </label>
-                  <select
-                    value={profile.home_state}
-                    onChange={(e) =>
-                      setProfile((p) => ({ ...p, home_state: e.target.value }))
-                    }
-                    className="w-full text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none transition-all border-none"
-                    style={{ background: "var(--s2)" }}
-                  >
-                    <option value="">No state picked</option>
-                    {US_STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Home location — unlocks "near me" radius + nearest-deals rails */}
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="block text-xs font-medium text-[var(--t2)]">
-                    Home location (enables “near me” radius + nearest deals)
-                  </label>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={homeZip}
-                      onChange={(e) => setHomeZip(e.target.value)}
-                      placeholder="ZIP code"
-                      inputMode="numeric"
-                      maxLength={5}
-                      className="w-28 text-sm text-[var(--t1)] rounded-lg px-3 py-2.5 outline-none border-none"
-                      style={{ background: "var(--s2)" }}
-                    />
-                    <button
-                      type="button"
-                      onClick={saveHomeZip}
-                      className="text-sm font-semibold rounded-lg px-3 py-2.5 border"
-                      style={{
-                        background: "var(--s0)",
-                        borderColor: "var(--b2)",
-                        color: "var(--t2)",
-                      }}
-                    >
-                      Set ZIP
-                    </button>
-                    <button
-                      type="button"
-                      onClick={useMyLocation}
-                      disabled={locating}
-                      className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3 py-2.5 text-white border-none disabled:opacity-60"
-                      style={{ background: "var(--grad)" }}
-                    >
-                      <Ico name={locating ? "refresh" : "map"} size={15} />
-                      {locating ? "Locating…" : "Use my location"}
-                    </button>
-                  </div>
-                </div>
-
                 <Field
                   label="Default Auction Fee ($)"
                   type="number"
@@ -536,17 +408,24 @@ export default function SettingsPage() {
                 Email me when a saved car drops in price
               </span>
             </label>
-            <p role="status" className="mt-2 text-xs text-[var(--t4)]">
+            <p
+              role={notificationError ? "alert" : "status"}
+              className="mt-2 text-xs text-[var(--t4)]"
+            >
               {notificationSaving
                 ? "Saving..."
                 : notificationSaved
                   ? "Saved"
-                  : "Notification changes save automatically."}
+                  : notificationError ||
+                    "Notification changes save automatically."}
             </p>
           </div>
 
           {/* Save Button */}
-          <div className="flex items-center justify-between border-t border-[var(--b1)] pt-4">
+          <div className="sticky bottom-20 lg:bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] bg-[var(--s0)] p-4">
+            <p role="status" className="w-full text-sm text-[var(--red)]">
+              {saveError}
+            </p>
             <span className="text-sm text-[var(--t4)] font-medium hidden sm:inline">
               Save changes to your profile.
             </span>
@@ -557,17 +436,21 @@ export default function SettingsPage() {
                 </span>
               )}
               <button
-                disabled={saving}
+                disabled={saving || notificationSaving || prefsLoading}
                 onClick={handleSave}
                 className="w-full sm:w-auto px-8 py-3 text-sm font-bold text-white rounded-xl transition-all border-none flex justify-center items-center gap-2 disabled:opacity-50"
                 style={{ background: "var(--grad)" }}
               >
                 {saving && <Ico name="refresh" className="animate-spin" />}
-                Save profile
+                {saving
+                  ? "Saving..."
+                  : showProfitTarget
+                    ? "Save profile and costs"
+                    : "Save profile"}
               </button>
             </div>
           </div>
-        </>
+        </fieldset>
       )}
     </div>
   );

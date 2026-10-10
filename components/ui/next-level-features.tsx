@@ -5,8 +5,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LiquidGlassButton } from "@/components/ui/framer-components";
 import { ArrowRight, Bot, Calculator, Send, X } from "lucide-react";
 
+type LiveCoverage = {
+  liveRows?: number;
+  workingMarkets?: number;
+  liveSites?: number;
+  liveStates?: number;
+  topSites?: Array<{ host: string; activeRows: number }>;
+};
+
 type SourceHealthSummary = {
   configured?: boolean;
+  coverage?: LiveCoverage;
+  summary?: LiveCoverage & { activeRows?: number };
   total?: number;
   enabled?: number;
   healthy?: number;
@@ -116,10 +126,16 @@ export function MikeHuntCopilotDrawer() {
   const readySourceCount =
     sourceHealth?.sources?.filter((source) => source.readiness === "ready")
       .length || 0;
+  const coverage = sourceHealth?.coverage || sourceHealth?.summary;
+  // A working market is a distinct seller site with live rows (see buildLiveCoverage in
+  // /api/scrape/health). Older API responses without coverage fall back to ready sources.
+  const marketCount = coverage?.workingMarkets ?? readySourceCount;
+  const stateCount = coverage?.liveStates || 0;
+  const listingCount = coverage?.liveRows ?? visibleRows;
   const launcherLabel = "Decision guide";
   const headerStatus =
-    visibleRows > 0
-      ? `${visibleRows.toLocaleString()} current listings from ${readySourceCount} working market${readySourceCount === 1 ? "" : "s"}`
+    listingCount > 0
+      ? `${listingCount.toLocaleString()} current listings from ${marketCount} working market${marketCount === 1 ? "" : "s"}${stateCount ? ` in ${stateCount} state${stateCount === 1 ? "" : "s"}` : ""}`
       : "Checking current market availability";
 
   const handleSend = (userText: string) => {
@@ -144,7 +160,9 @@ export function MikeHuntCopilotDrawer() {
     const readySources = sources.filter((s) => s.readiness === "ready");
     const authSources = sources.filter((s) => s.readiness === "needs_login");
     const noRowSources = sources.filter((s) => s.readiness === "no_rows");
-    const totalRows = sources.reduce((sum, s) => sum + (s.activeRows || 0), 0);
+    const totalRows =
+      coverage?.liveRows ??
+      sources.reduce((sum, s) => sum + (s.activeRows || 0), 0);
     const totalPhotos = sources.reduce(
       (sum, s) => sum + (s.rowsWithPhotos || 0),
       0,
@@ -158,25 +176,31 @@ export function MikeHuntCopilotDrawer() {
       lower.includes("market") ||
       lower.includes("working")
     ) {
-      responseText = readySources.length
-        ? `Working markets: ${readySources
-            .map(
-              (s) =>
-                `${s.name} (${s.activeRows || 0} listings, ${
-                  s.rowsWithPhotos || 0
-                } with photos)`,
-            )
-            .join(
-              "; ",
-            )}. ${authSources.length} market${authSources.length === 1 ? " needs" : "s need"} sign-in, and ${noRowSources.length} ${noRowSources.length === 1 ? "has" : "have"} no match for the current search.`
-        : "No market has current matches for this search yet. Try a broader location, vehicle type, title preference, or budget.";
+      const topSites = coverage?.topSites || [];
+      responseText = topSites.length
+        ? `${marketCount} working markets${stateCount ? ` across ${stateCount} states` : ""}. Largest: ${topSites
+            .slice(0, 8)
+            .map((site) => `${site.host} (${site.activeRows} listings)`)
+            .join("; ")}.`
+        : readySources.length
+          ? `Working markets: ${readySources
+              .map(
+                (s) =>
+                  `${s.name} (${s.activeRows || 0} listings, ${
+                    s.rowsWithPhotos || 0
+                  } with photos)`,
+              )
+              .join(
+                "; ",
+              )}. ${authSources.length} market${authSources.length === 1 ? " needs" : "s need"} sign-in, and ${noRowSources.length} ${noRowSources.length === 1 ? "has" : "have"} no match for the current search.`
+          : "No market has current matches for this search yet. Try a broader location, vehicle type, title preference, or budget.";
     } else if (
       lower.includes("empty") ||
       lower.includes("inventory") ||
       lower.includes("match")
     ) {
       responseText = totalRows
-        ? `${totalRows} current listings are available from ${readySources.length} working markets, including ${totalPhotos} with photos. Broaden one filter at a time to find more matches.`
+        ? `${totalRows.toLocaleString()} current listings are available from ${marketCount} working markets${stateCount ? ` in ${stateCount} states` : ""}, including ${totalPhotos.toLocaleString()} with photos. Broaden one filter at a time to find more matches.`
         : "No current listings match this search yet. Broaden the location or budget first, then consider more vehicle types or title conditions.";
     } else if (
       lower.includes("next") ||

@@ -7,11 +7,16 @@ import { useDealerWatch } from "@/hooks/useDealerWatch";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import { usePreferences } from "@/hooks/usePreferences";
 import { discoverHomeState } from "@/lib/discovery/home-state";
+import { ErrorState, LoadingState } from "@/components/shared/PageStates";
 
 // The curated salvage/rebuilder/dealer NETWORK — browse every independent shop we crawl, categorized, with
 // saved/imported inventory + accurate title-status mix, and ⭐ watch the ones you trust to follow their new listings.
 
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = (u: string) =>
+  fetch(u).then((r) => {
+    if (!r.ok) throw new Error("Dealer network unavailable");
+    return r.json();
+  });
 
 interface Dealer {
   name: string;
@@ -72,7 +77,7 @@ function TitleMix({ d }: { d: Dealer }) {
 }
 
 export default function DealerNetworkPage() {
-  const { data } = useSWR<{
+  const { data, error, mutate } = useSWR<{
     configured?: boolean;
     dealers: Dealer[];
     totalDealers: number;
@@ -134,7 +139,9 @@ export default function DealerNetworkPage() {
         <p className="mt-1 text-xs md:text-sm text-[var(--t4)]">
           {data
             ? `${data.totalDealers} independent salvage / rebuilder shops · ${data.liveDealers} with imported inventory`
-            : "Loading the salvage & rebuilder network…"}
+            : error
+              ? "Shop catalog unavailable right now."
+              : "Loading the salvage & rebuilder network…"}
           {watch.count > 0 && ` · ⭐ ${watch.count} watched`}
         </p>
         {data && (
@@ -201,12 +208,19 @@ export default function DealerNetworkPage() {
       </div>
 
       {/* Grid */}
-      {!data || prefsLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="glass-panel h-40 shimmer" />
-          ))}
-        </div>
+      {error && !data ? (
+        <ErrorState
+          compact
+          title="Couldn't load the dealer network"
+          message="The shop catalog didn't load. Try again in a moment."
+          onRetry={() => mutate()}
+        />
+      ) : !data || prefsLoading ? (
+        <LoadingState
+          label="Loading the shop catalog…"
+          variant="cards"
+          count={6}
+        />
       ) : (
         <>
           <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)]">

@@ -3,7 +3,10 @@ import { nearQueryLock } from "./near-lock";
 
 describe("nearQueryLock", () => {
   it("does not cast 150 miles when a ZIP is present and no radius was asked", () => {
-    expect(nearQueryLock({ zip: "77002" })).toMatchObject({ state: "TX", radius: 0 });
+    expect(nearQueryLock({ zip: "77002" })).toMatchObject({
+      state: "TX",
+      radius: 0,
+    });
   });
 
   it("keeps an explicit radius inside the ZIP state", () => {
@@ -41,6 +44,16 @@ describe("nearQueryLock", () => {
 });
 
 describe("nearQueryLock prefs.homeLocation", () => {
+  it("honors a saved radius, while allowing an explicit whole-state override", () => {
+    const prefsHomeLocation = { state: "MO", zip: "63021", radiusMi: 50 };
+    expect(nearQueryLock({ prefsHomeLocation }).radius).toBe(50);
+    expect(nearQueryLock({ prefsHomeLocation, radiusParam: "0" }).radius).toBe(
+      0,
+    );
+    expect(
+      nearQueryLock({ prefsHomeLocation, radiusParam: "100" }).radius,
+    ).toBe(100);
+  });
   it("prefers prefs.homeLocation over profile columns", () => {
     expect(
       nearQueryLock({
@@ -65,7 +78,12 @@ describe("nearQueryLock prefs.homeLocation", () => {
 
   it("ignores an invalid prefs home and falls back to the profile", () => {
     expect(
-      nearQueryLock({ prefsHomeLocation: { state: "ZZ" }, homeState: "FL", homeLat: 1, homeLng: 2 }),
+      nearQueryLock({
+        prefsHomeLocation: { state: "ZZ" },
+        homeState: "FL",
+        homeLat: 1,
+        homeLng: 2,
+      }),
     ).toMatchObject({ state: "FL", from: "profile" });
   });
 });

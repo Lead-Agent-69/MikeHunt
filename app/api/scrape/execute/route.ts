@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { EnhancedScrapingEngine } from "@/lib/scrapers/enhanced-engine";
+import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import { SCRAPER_CONFIGS } from "@/lib/scrapers/source-configs";
 import { createClient } from "@supabase/supabase-js";
 import { denyUnauthed } from "@/lib/auth/scrape-gate";
@@ -117,7 +118,17 @@ async function executeScraping(
           .single();
 
         // Scrape the source
-        const deals = await scrapingEngine.scrapeSource(config);
+        // Passenger cars and light/medium trucks only; see lib/vehicle/vehicle-scope.ts.
+        const deals = (await scrapingEngine.scrapeSource(config)).filter(
+          (deal: any) =>
+            isInVehicleScope({
+              title: deal.title,
+              make: deal.make,
+              model: deal.model,
+              source: deal.source,
+              source_url: deal.url,
+            }),
+        );
 
         // Save deals to database
         if (deals.length > 0) {
