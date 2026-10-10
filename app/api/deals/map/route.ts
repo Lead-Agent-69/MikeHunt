@@ -11,6 +11,7 @@ import { parseMapVerdicts } from "@/lib/deals/map-verdict";
 import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
+import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
 
 // GET /api/deals/map?verdict=actionable&limit= — active deals as map points. Precise geocoded coords
 // when we have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals
@@ -30,7 +31,7 @@ function typeForVerdict(v: string): "private" | "auction" | "dealer" {
 
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "deals-map", limit: 30, windowMs: 60000 });
-  if (!rl.allowed) return tooManyRequests(rl);
+  if (!rl.allowed) return withNoStore(tooManyRequests(rl));
 
   const sp = new URL(req.url).searchParams;
   const verdictFilter = parseMapVerdicts(sp.get("verdict"));
@@ -40,7 +41,9 @@ export async function GET(req: NextRequest) {
   );
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ points: [], count: 0, configured: false });
+    return withNoStore(
+      NextResponse.json({ points: [], count: 0, configured: false }),
+    );
   }
 
   const supabase = createServerComponentClient();
@@ -76,12 +79,14 @@ export async function GET(req: NextRequest) {
       "[deals-map]",
       error instanceof Error ? error.message : error,
     );
-    return NextResponse.json({
-      points: [],
-      count: 0,
-      degraded: true,
-      deskAccess: "personal",
-    });
+    return withNoStore(
+      NextResponse.json({
+        points: [],
+        count: 0,
+        degraded: true,
+        deskAccess: "personal",
+      }),
+    );
   }
 
   let flipDesk = false;
@@ -120,8 +125,9 @@ export async function GET(req: NextRequest) {
       return {
         id: d.id,
         name: `${d.year} ${d.make} ${d.model}`.trim(),
-        lat,
-        lng,
+        // ~1 km: never ship a source-exact geocode on this public endpoint.
+        lat: coarseCoord(lat),
+        lng: coarseCoord(lng),
         approx,
         url: `/deal/${encodeURIComponent(d.id)}`,
         price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
@@ -131,9 +137,11 @@ export async function GET(req: NextRequest) {
     })
     .filter(Boolean);
 
-  return NextResponse.json({
-    points,
-    count: points.length,
-    deskAccess: flipDesk ? "flip" : "personal",
-  });
+  return withNoStore(
+    NextResponse.json({
+      points,
+      count: points.length,
+      deskAccess: flipDesk ? "flip" : "personal",
+    }),
+  );
 }

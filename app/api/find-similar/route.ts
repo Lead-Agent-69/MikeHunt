@@ -6,6 +6,11 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import {
+  FIND_SIMILAR_SELECT,
+  pickFindSimilarColumns,
+  withNoStore,
+} from "@/lib/deals/find-similar-columns";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +18,10 @@ export async function GET(request: NextRequest) {
   try {
     const rl = rateLimit(request, {
       key: "find-similar",
-      limit: 90,
+      limit: 30,
       windowMs: 60_000,
     });
-    if (!rl.allowed) return tooManyRequests(rl);
+    if (!rl.allowed) return withNoStore(tooManyRequests(rl));
 
     const supabase = createServerComponentClient();
     const { searchParams } = new URL(request.url);
@@ -28,9 +33,11 @@ export async function GET(request: NextRequest) {
     const mileage = parseInt(searchParams.get("mileage") || "0");
 
     if (!make || !model) {
-      return NextResponse.json(
-        { error: "make and model are required" },
-        { status: 400 },
+      return withNoStore(
+        NextResponse.json(
+          { error: "make and model are required" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -46,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("deals")
-      .select("*")
+      .select(FIND_SIMILAR_SELECT)
       .eq("active", true)
       .eq("make", make)
       .ilike("model", `%${model.split(" ")[0]}%`) // match first word of model resiliently
@@ -67,12 +74,17 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     const flipDesk = await resolveCallerFlipDesk();
-    return NextResponse.json(listingsForDesk(data || [], flipDesk));
+    const rows = ((data || []) as unknown as Record<string, unknown>[]).map(
+      pickFindSimilarColumns,
+    );
+    return withNoStore(NextResponse.json(listingsForDesk(rows, flipDesk)));
   } catch (error: any) {
     console.error("[FIND-SIMILAR-API] GET error:", error);
-    return NextResponse.json(
-      { error: "Failed to find similar vehicles" },
-      { status: 500 },
+    return withNoStore(
+      NextResponse.json(
+        { error: "Failed to find similar vehicles" },
+        { status: 500 },
+      ),
     );
   }
 }
