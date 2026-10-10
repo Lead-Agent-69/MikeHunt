@@ -105,11 +105,14 @@ function CarsViewPrefs() {
 export default function SettingsPage() {
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { intent } = useBuyerIntent();
-  const { prefs } = usePreferences();
+  const { prefs, authed, isLoading: prefsLoading } = usePreferences();
   // UI only: the stored target_profit is untouched. Unknown mode = personal.
-  const showProfitTarget = isFlipBuyerMode(
-    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
-  );
+  // Signed in, the saved account mode decides — never a desk left in this browser's localStorage by a
+  // previous (dealer) session — and Business profile / Dealer Defaults stay hidden until prefs load.
+  const savedBuyerMode = authed
+    ? prefs?.buyerScope?.buyerMode
+    : intent?.buyerMode;
+  const showProfitTarget = !prefsLoading && isFlipBuyerMode(savedBuyerMode);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
