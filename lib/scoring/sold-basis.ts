@@ -3,7 +3,7 @@
 // listing that disappeared with its last ask, which is not a sale price. Every sold-comp reader asks
 // for basis = 'sold' only.
 //
-// Rollout order: code can ship before migration 20261010120000_sold_listings_basis.sql is applied.
+// Rollout order: code can ship before migration 20261010130000_sold_listings_basis.sql is applied.
 // Until then PostgREST rejects the unknown column (42703 / "column ... basis does not exist"), so
 // withSoldBasis retries once without the filter. That is safe because, before the migration, no row
 // can be anything but a sale: nothing writes basis = 'removed' yet.
