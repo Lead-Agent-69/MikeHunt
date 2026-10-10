@@ -208,9 +208,10 @@ describe("soldTitleCategory (sold-row headlines)", () => {
     ["2018 Honda Accord rebuilt title", "rebuilt"],
     ["2018 Honda Accord REBUILT", "rebuilt"],
     ["2018 Honda Accord reconstructed title", "rebuilt"],
-    ["2018 Honda Accord rebuilt salvage title", "rebuilt"],
+    ["2018 Honda Accord rebuilt salvage title", "salvage"],
     ["2018 Honda Accord repairable", "rebuildable"],
-    ["2018 Honda Accord rebuildable salvage", "rebuildable"],
+    ["2018 Honda Accord rebuildable salvage", "salvage"],
+    ["2018 Honda Accord rebuilt from salvage", "salvage"],
   ] as [string | null, string][])("%j -> %s", (headline, expected) => {
     expect(soldTitleCategory(headline)).toBe(expected);
   });

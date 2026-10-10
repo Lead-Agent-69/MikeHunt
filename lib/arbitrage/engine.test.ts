@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  compTitleCategory,
   evaluateOpportunity,
   findOpportunities,
   isExcluded,
@@ -17,11 +18,7 @@ import {
   TITLE_DISCOUNT,
   UNKNOWN_DISTANCE_TRANSPORT_COST,
 } from "./constants";
-import {
-  compTitleCategory,
-  soldCompTitleCategory,
-  titleCategory,
-} from "./title";
+import { titleCategory } from "./title";
 import { buyerDistance } from "@/lib/geo/buyer-distance";
 import { transportCostForMiles } from "@/lib/geo";
 import { SOLD_MEDIAN_WINDOW_DAYS } from "@/lib/scoring/market-value";
@@ -317,19 +314,15 @@ describe("arbitrage engine — title lanes", () => {
 });
 
 describe("arbitrage engine — sold headline titles", () => {
+  const soldComp = (title: string) =>
+    compTitleCategory({ kind: "sold", title });
   it("files sold headlines with soldTitleCategory: Clean only on an explicit clean title", () => {
-    expect(soldCompTitleCategory("2018 Honda Accord EX, clean title")).toBe(
-      "Clean",
-    );
-    expect(soldCompTitleCategory("2018 Honda Accord EX")).toBe("Unknown");
-    expect(soldCompTitleCategory("2018 Honda Accord clean carfax")).toBe(
-      "Unknown",
-    );
-    expect(soldCompTitleCategory("2018 Honda Accord flood")).toBe("Salvage");
-    expect(soldCompTitleCategory("2018 Honda Accord rebuilt title")).toBe(
-      "Rebuilt",
-    );
-    expect(soldCompTitleCategory("salvage_title")).toBe("Salvage");
+    expect(soldComp("2018 Honda Accord EX, clean title")).toBe("Clean");
+    expect(soldComp("2018 Honda Accord EX")).toBe("Unknown");
+    expect(soldComp("2018 Honda Accord clean carfax")).toBe("Unknown");
+    expect(soldComp("2018 Honda Accord flood")).toBe("Salvage");
+    expect(soldComp("2018 Honda Accord rebuilt title")).toBe("Rebuilt");
+    expect(soldComp("salvage_title")).toBe("Salvage");
     // Asking-price comps still use the listing condition mapping.
     expect(compTitleCategory({ kind: "ask", title: "clean" })).toBe("Clean");
     expect(compTitleCategory({ kind: "sold", title: "clean" })).toBe("Unknown");

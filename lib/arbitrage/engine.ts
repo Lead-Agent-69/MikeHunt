@@ -46,11 +46,46 @@ import {
 } from "./constants";
 import {
   compCategoriesFor,
-  compTitleCategory,
   isBrandedTitle,
   titleCategory,
   type TitleCategory,
 } from "./title";
+import {
+  LISTING_CONDITIONS,
+  soldTitleCategory,
+  titleCategory as sharedTitleCategory,
+  type TitleCategory as SharedTitleCategory,
+} from "@/lib/deals/title-category";
+
+// TODO(#216 on main): lib/arbitrage/title.ts should re-export lib/deals/title-category's
+// soldTitleCategory and this helper should move there; until then it lives here so #268 does not
+// touch title.ts (which #216 rewrites).
+const FROM_SHARED: Readonly<Record<SharedTitleCategory, TitleCategory>> = {
+  clean: "Clean",
+  rebuilt: "Rebuilt",
+  salvage: "Salvage",
+  rebuildable: "Rebuildable",
+  unknown: "Unknown",
+};
+
+/**
+ * Category for any comp. Sold comps carry the seller's headline, classified by the canonical
+ * lib/deals/title-category soldTitleCategory (Clean only on an explicit "clean title"); a sold row
+ * that already holds a listing_condition value uses the shared enum mapping. Asking-price comps keep
+ * titleCategory(condition).
+ */
+export function compTitleCategory(comp: {
+  kind?: string | null;
+  title?: string | null;
+}): TitleCategory {
+  if (comp.kind !== "sold") return titleCategory(comp.title);
+  const exact = String(comp.title || "")
+    .trim()
+    .toLowerCase();
+  if ((LISTING_CONDITIONS as readonly string[]).includes(exact))
+    return FROM_SHARED[sharedTitleCategory({ condition: exact })];
+  return FROM_SHARED[soldTitleCategory(comp.title)];
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────────
 
