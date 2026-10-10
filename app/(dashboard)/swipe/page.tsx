@@ -9,6 +9,13 @@ import { CarFront, Layers } from "lucide-react";
 import { SwipeCardStack } from "@/components/ui/framer-components";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { proxiedImage } from "@/lib/image-url";
+import { usePreferences } from "@/hooks/usePreferences";
+import { effectiveHome } from "@/lib/preferences/locations";
+import { savedScopeStates } from "@/lib/preferences/location-form";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
+import { sourceMeta } from "@/lib/sources/source-meta";
+import { readCondition } from "@/lib/intelligence/condition";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
 // left to pass — the same two decisions the buttons below the stack make, for keyboard users.
@@ -43,7 +50,7 @@ type SwipeDeal = {
   images?: string[];
 };
 
-function DealFace({ deal }: { deal: SwipeDeal }) {
+function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
   const [imgFailed, setImgFailed] = useState(false);
   const img = proxiedImage(deal.images?.[0]);
   const title =
@@ -53,6 +60,11 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
+  // Human labels, never raw enums like GOV_AUCTION / Run_drive.
+  const sourceLabel = deal.source ? sourceMeta(deal.source).label : "";
+  const conditionLabel = deal.condition
+    ? readCondition(deal.condition, undefined, title)?.label || ""
+    : "";
   const seller =
     (deal as { sellerType?: string }).sellerType === "dealer"
       ? "Dealer"
@@ -99,7 +111,7 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
                 backdropFilter: "blur(8px)",
               }}
             >
-              {deal.source}
+              {sourceLabel}
             </span>
           )}
         </div>
@@ -119,11 +131,8 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
               {deal.mileage.toLocaleString()} mi
             </span>
           ) : null}
-          {deal.condition && (
-            <span className="capitalize">{deal.condition}</span>
-          )}
+          {conditionLabel && <span>{conditionLabel}</span>}
           {location && <span className="truncate">{location}</span>}
-          {deal.source && <span>{deal.source}</span>}
           {seller && <span>{seller}</span>}
         </div>
 
@@ -136,19 +145,24 @@ function DealFace({ deal }: { deal: SwipeDeal }) {
               ${Math.round(deal.askPrice ?? 0).toLocaleString()}
             </span>
           </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-              Resale basis
-            </p>
-            <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
-              {deal.sellEstimate
-                ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
-                : "Resale basis not on file."}
-            </span>
-          </div>
+          {flipDesk ? (
+            <div className="text-right">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
+                Resale basis
+              </p>
+              <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
+                {deal.sellEstimate
+                  ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
+                  : "Resale basis not on file."}
+              </span>
+            </div>
+          ) : (
+            <div />
+          )}
         </div>
 
-        {(deal.sellEstimate || deal.recommendedMaxBid) && (
+        {/* Flip economics (sell est / max bid) are reseller/dealer only. */}
+        {flipDesk && (deal.sellEstimate || deal.recommendedMaxBid) && (
           <div className="grid grid-cols-2 gap-1.5 text-[10px]">
             <div
               className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
@@ -197,24 +211,58 @@ export default function SwipePage() {
   const [saved, setSaved] = useState(0);
   const [passed, setPassed] = useState(0);
 
-  const { data, error, isLoading, mutate } = useSWR(
-    `/api/deals?sortBy=lastSeenAt&sortOrder=desc&limit=${PAGE}&offset=${
-      batch * PAGE
-    }`,
-    fetcher,
-    { revalidateOnFocus: false, keepPreviousData: true },
+  // Scope the queue to the saved home market (same source of truth as Discover).
+  // Hold the fetch until prefs hydrate so we never paint a nationwide stack first.
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const { intent } = useBuyerIntent();
+  const flipDesk = isFlipBuyerMode(
+    intent?.buyerMode ??
+      (prefs.buyerScope as { buyerMode?: string } | undefined)?.buyerMode,
   );
+  const homeState = (
+    effectiveHome(prefs)?.state ||
+    savedScopeStates(prefs)?.[0] ||
+    ""
+  ).toUpperCase();
+  const swipeReady = !prefsLoading;
+  const scopeParam = homeState
+    ? `&location=${encodeURIComponent(homeState)}`
+    : "";
+
+  const {
+    data,
+    error,
+    isLoading: dealsLoading,
+    mutate,
+  } = useSWR(
+    swipeReady
+      ? `/api/deals?sortBy=lastSeenAt&sortOrder=desc&limit=${PAGE}&offset=${
+          batch * PAGE
+        }${scopeParam}`
+      : null,
+    fetcher,
+    // Never keep another market's cards while scope changes.
+    { revalidateOnFocus: false, keepPreviousData: false },
+  );
+  const isLoading = !swipeReady || dealsLoading;
 
   const hasMore: boolean = !!data?.hasMore;
 
   // Memoised on `data` so the stack only resets its queue when a genuinely new batch arrives.
   const cards = useMemo(
     () =>
-      ((data?.deals ?? []) as SwipeDeal[]).map((d) => ({
-        id: d.id,
-        content: <DealFace deal={d} />,
-      })),
-    [data],
+      ((data?.deals ?? []) as SwipeDeal[])
+        // `location` also matches city names server-side; keep exact state hits only.
+        .filter(
+          (d) =>
+            !homeState ||
+            String(d.locationState || "").toUpperCase() === homeState,
+        )
+        .map((d) => ({
+          id: d.id,
+          content: <DealFace deal={d} flipDesk={flipDesk} />,
+        })),
+    [data, homeState, flipDesk],
   );
 
   // Decision counters are per-batch; a new batch starts from zero.
@@ -275,7 +323,8 @@ export default function SwipePage() {
           Swipe
         </h1>
         <p className="relative mt-1.5 text-xs text-[var(--t4)] md:text-sm">
-          Drag right to save, left to pass — best-scored deals first.
+          Drag right to save, left to pass — newest saved listings in your home
+          state first.
         </p>
       </motion.div>
 
@@ -283,8 +332,11 @@ export default function SwipePage() {
       <div className="flex items-center justify-between gap-2 text-[11px] font-bold">
         <span style={{ color: "var(--green)" }}>{saved} saved</span>
         <span className="font-mono text-[var(--t5)]">
-          batch {batch + 1}
-          {data?.total ? ` · ${Number(data.total).toLocaleString()} total` : ""}
+          {prefsLoading
+            ? "Loading your home state…"
+            : homeState
+              ? `${homeState} · batch ${batch + 1}`
+              : `Nationwide · batch ${batch + 1}`}
         </span>
         <span className="text-[var(--t4)]">{passed} passed</span>
       </div>
@@ -347,7 +399,11 @@ export default function SwipePage() {
           <EmptyState
             icon="search"
             title="No deals to triage yet"
-            message="No saved-inventory listings are in the queue yet."
+            message={
+              homeState
+                ? `No saved listings in ${homeState} to triage right now. Change your home state in Settings to widen the queue.`
+                : "No saved-inventory listings are in the queue yet."
+            }
           />
         </div>
       ) : (
