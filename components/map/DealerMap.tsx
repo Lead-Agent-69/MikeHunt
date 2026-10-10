@@ -3,6 +3,13 @@
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+import {
+  clusterIconHtml,
+  clusterSize,
+  majorityVerdict,
+  pointVerdict,
+  type MapVerdict,
+} from "@/lib/map/clusterIcon";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
@@ -155,25 +162,52 @@ function cardPopup(p: MapPoint): string {
 function ClusteredMarkers({ points }: { points: MapPoint[] }) {
   const map = useMap();
   useEffect(() => {
+    // 3,000+ pins: build every marker first, then hand them over in ONE chunked addLayers() so the
+    // cluster index is built in 100ms slices instead of one long main-thread task per marker.
     const group = (L as any).markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 50,
+      chunkedLoading: true,
+      chunkInterval: 100,
+      disableClusteringAtZoom: 15,
+      spiderfyOnMaxZoom: true,
+      zoomToBoundsOnClick: true,
+      // Bubble colour = majority verdict of the listings inside (grey when there isn't enough data).
+      // Leaflet makes the icon a focusable role="button"; Enter zooms (clusterkeypress).
+      iconCreateFunction: (cluster: any) => {
+        const counts: Partial<Record<MapVerdict, number>> = {};
+        for (const m of cluster.getAllChildMarkers()) {
+          const v: MapVerdict = m.options.mhVerdict ?? "none";
+          counts[v] = (counts[v] ?? 0) + 1;
+        }
+        const n = cluster.getChildCount();
+        const size = clusterSize(n);
+        return new L.DivIcon({
+          className: "mh-cluster",
+          html: clusterIconHtml(n, majorityVerdict(counts)),
+          iconSize: [size, size],
+        });
+      },
     });
+    const markers: L.Marker[] = [];
     for (const p of points) {
       const rich =
         (p.price != null && p.price > 0) || p.image || p.score != null;
       const marker = L.marker([p.lat, p.lng], {
         icon: rich ? pillIcon(p) : icons[p.type ?? "dealer"],
-      });
+        mhVerdict: pointVerdict(p),
+      } as L.MarkerOptions);
       marker.bindPopup(
         rich
           ? cardPopup(p)
           : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}</div>`,
         rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
-      group.addLayer(marker);
+      markers.push(marker);
     }
+    // Add the (empty) group first: markercluster only chunks addLayers() for a group on the map.
     map.addLayer(group);
+    group.addLayers(markers);
     return () => {
       map.removeLayer(group);
     };
