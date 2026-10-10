@@ -6,7 +6,11 @@
 //     or the same listing URL that was pasted);
 //   • completed sales beat asks (aggregateComps evidence ladder), asks get the ask→sold haircut;
 //   • asks not seen live in ASK_COMP_WINDOW_DAYS (same 7-day window as draft #166) are dropped;
-//   • fewer than 3 independent comps → value is null ("unknown"), never a number.
+//   • fewer than 3 independent comps → value is null ("unknown"), never a number;
+//   • title lanes never mix: a salvage/rebuilt/rebuildable vehicle is valued only on same-title comps,
+//     a clean or unknown-title vehicle only on clean/unknown-title comps (dealCheckCompCategories).
+//     Sold rows are classified from their headline (soldTitleCategory: clean only on an explicit
+//     "clean title"), asking-price rows from deals.condition (titleCategory).
 
 import {
   aggregateComps,
@@ -15,6 +19,11 @@ import {
   type CompAggregate,
   type CompObservation,
 } from "@/lib/scoring/comps-aggregate";
+import {
+  soldTitleCategory,
+  titleCategory,
+  type TitleCategory,
+} from "@/lib/deals/title-category";
 
 /** Asks must have been seen live this recently to count (matches #166 market-value window). */
 export const ASK_COMP_WINDOW_DAYS = 7;
@@ -35,6 +44,10 @@ export interface DealCheckCompRow {
   mileage?: number | null;
   last_seen_at?: string | null;
   sold_at?: string | null;
+  /** Asking-price rows: deals.condition (clean_title, salvage_title, …). */
+  condition?: string | null;
+  /** Sold rows: the seller's headline (title evidence for soldTitleCategory). */
+  title?: string | null;
 }
 
 export interface DealCheckTarget {
@@ -44,6 +57,8 @@ export interface DealCheckTarget {
   vin?: string | null;
   url?: string | null;
   state?: string | null;
+  /** Title of the vehicle being checked; null/unknown → the clean/unknown lane. */
+  titleCategory?: TitleCategory | null;
 }
 
 export interface DealCheckMarket {
@@ -52,8 +67,41 @@ export interface DealCheckMarket {
   excludedSelf: number;
   /** Rows dropped as stale (ask not seen in 7 days, sale older than 180 days or undated). */
   excludedStale: number;
-  /** Ask rows that survived self/stale exclusion, for the "other listings" panel. */
+  /** Rows dropped because their title lane differs from the vehicle's (salvage vs clean). */
+  excludedTitle: number;
+  /** Comp categories the vehicle was valued against. */
+  titleLane: readonly TitleCategory[];
+  /** Ask rows that survived self/stale/title exclusion, for the "other listings" panel. */
   askRows: DealCheckCompRow[];
+}
+
+/**
+ * Comp categories that may value a vehicle of this title (same contract as lib/arbitrage
+ * compCategoriesFor, without the discount fallback): salvage → salvage; rebuilt → rebuilt;
+ * rebuildable → rebuildable + salvage (both unrepaired branded); clean / unknown → clean + unknown.
+ */
+export function dealCheckCompCategories(
+  cat: TitleCategory | null | undefined,
+): readonly TitleCategory[] {
+  switch (cat) {
+    case "salvage":
+      return ["salvage"];
+    case "rebuilt":
+      return ["rebuilt"];
+    case "rebuildable":
+      return ["rebuildable", "salvage"];
+    default:
+      return ["clean", "unknown"];
+  }
+}
+
+/** Title category of a comp row: sold rows by headline, asking-price rows by condition. */
+export function dealCheckCompTitle(
+  row: DealCheckCompRow,
+  kind: "sold" | "ask",
+): TitleCategory {
+  if (kind === "ask" || row.condition) return titleCategory(row);
+  return soldTitleCategory(row.title);
 }
 
 function normVin(v?: string | null): string {
@@ -104,6 +152,8 @@ export function dealCheckMarketValue(input: {
   const { target } = input;
   let excludedSelf = 0;
   let excludedStale = 0;
+  let excludedTitle = 0;
+  const lane = dealCheckCompCategories(target.titleCategory);
   const comps: CompObservation[] = [];
   const keptAsks: DealCheckCompRow[] = [];
 
@@ -112,6 +162,10 @@ export function dealCheckMarketValue(input: {
     if (!(Number.isFinite(price) && price > 0)) return;
     if (isSameVehicleOrListing(row, target)) {
       excludedSelf++;
+      return;
+    }
+    if (!lane.includes(dealCheckCompTitle(row, kind))) {
+      excludedTitle++;
       return;
     }
     const stamp = kind === "sold" ? row.sold_at : row.last_seen_at;
@@ -160,6 +214,8 @@ export function dealCheckMarketValue(input: {
     aggregate,
     excludedSelf: excludedSelf + aggregate.excludedSelf,
     excludedStale,
+    excludedTitle,
+    titleLane: lane,
     askRows: keptAsks.filter(
       (r) =>
         !isSelfComp(

@@ -13,6 +13,8 @@ export const dealDocumentSchema = z.object({
     model: z.string().max(200).nullable(),
     vin: z.string().max(17).nullable(),
     mileage: amount,
+    /** Title status exactly as printed ("Clean", "Salvage", "Rebuilt"…); null when not stated. */
+    title_status: z.string().max(100).nullable().optional(),
   }),
   selling_price: amount,
   fees: z.array(lineItem).max(100),

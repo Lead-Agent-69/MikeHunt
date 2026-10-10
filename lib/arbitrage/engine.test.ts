@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  compTitleCategory,
   evaluateOpportunity,
   findOpportunities,
   isExcluded,
@@ -11,6 +12,7 @@ import {
   type ScoredOpportunity,
 } from "./engine";
 import {
+  CONFIDENCE,
   COMP_MAX_AGE_DAYS,
   SELLING_FEE_PCT,
   TITLE_DISCOUNT,
@@ -26,10 +28,11 @@ const daysAgo = (d: number) => new Date(NOW - d * 86_400_000).toISOString();
 const STL = { lat: 38.627, lng: -90.1994, state: "MO" };
 const KC = { lat: 39.0997, lng: -94.5786, state: "MO" };
 
+// Sold comps carry the seller's headline: only an explicit "clean title" is Clean.
 const sold = (
   price: number,
   state: string,
-  title = "clean",
+  title = "2018 Honda Accord EX, clean title",
   age = 10,
 ): ArbitrageComp => ({
   price,
@@ -310,6 +313,71 @@ describe("arbitrage engine — title lanes", () => {
   });
 });
 
+describe("arbitrage engine — sold headline titles", () => {
+  const soldComp = (title: string) =>
+    compTitleCategory({ kind: "sold", title });
+  it("files sold headlines with soldTitleCategory: Clean only on an explicit clean title", () => {
+    expect(soldComp("2018 Honda Accord EX, clean title")).toBe("Clean");
+    expect(soldComp("2018 Honda Accord EX")).toBe("Unknown");
+    expect(soldComp("2018 Honda Accord clean carfax")).toBe("Unknown");
+    expect(soldComp("2018 Honda Accord flood")).toBe("Salvage");
+    expect(soldComp("2018 Honda Accord rebuilt title")).toBe("Rebuilt");
+    expect(soldComp("salvage_title")).toBe("Salvage");
+    // Asking-price comps still use the listing condition mapping.
+    expect(compTitleCategory({ kind: "ask", title: "clean" })).toBe("Clean");
+    expect(compTitleCategory({ kind: "sold", title: "clean" })).toBe("Unknown");
+  });
+
+  it("never values a salvage listing on flood/hail sold headlines filed as clean", () => {
+    const comps = [
+      sold(20000, "MO", "2018 Honda Accord EX clean title"),
+      sold(21000, "MO", "2018 Honda Accord EX clean title"),
+      sold(22000, "MO", "2018 Honda Accord EX clean title"),
+      sold(9000, "MO", "2018 Honda Accord flood damage"),
+      sold(9500, "MO", "2018 Honda Accord hail"),
+      sold(10000, "MO", "2018 Honda Accord salvage"),
+    ];
+    const o = scored(
+      evaluateOpportunity(
+        listing({ title: "salvage_title", ask: 5000 }),
+        comps,
+        opts,
+      ),
+    );
+    expect(o.spread.expectedResale).toBe(9500);
+    expect(o.spread.compScope).toBe("same_state");
+  });
+
+  it("adds a title_unverified penalty when more than half the used comps are Unknown title", () => {
+    const verified = Array.from({ length: 12 }, () => sold(16000, "MO"));
+    const mostlyUnknown = [
+      ...Array.from({ length: 5 }, () => sold(16000, "MO")),
+      ...Array.from({ length: 7 }, () =>
+        sold(16000, "MO", "2018 Honda Accord EX"),
+      ),
+    ];
+    const half = [
+      ...Array.from({ length: 6 }, () => sold(16000, "MO")),
+      ...Array.from({ length: 6 }, () =>
+        sold(16000, "MO", "2018 Honda Accord EX"),
+      ),
+    ];
+    const a = scored(evaluateOpportunity(listing(), verified, opts));
+    const b = scored(evaluateOpportunity(listing(), mostlyUnknown, opts));
+    const c = scored(evaluateOpportunity(listing(), half, opts));
+    expect(b.spread.compsCount).toBe(12);
+    expect(b.confidence.score).toBe(
+      a.confidence.score - CONFIDENCE.title.title_unverified,
+    );
+    expect(b.confidence.reasons.join(" ")).toMatch(
+      /title_unverified: 7 of 12 comps/,
+    );
+    expect(a.confidence.reasons.join(" ")).not.toMatch(/title_unverified/);
+    // Exactly half is not "more than half".
+    expect(c.confidence.score).toBe(a.confidence.score);
+  });
+});
+
 describe("arbitrage engine — exclusion", () => {
   const comps = [sold(15000, "MO"), sold(16000, "MO"), sold(17000, "MO")];
 
@@ -382,9 +450,9 @@ describe("arbitrage engine — ranking", () => {
 
   it("drops comps older than the comp window", () => {
     const old = [
-      sold(15000, "MO", "clean", 400),
-      sold(16000, "MO", "clean", 400),
-      sold(17000, "MO", "clean", 400),
+      sold(15000, "MO", "clean title", 400),
+      sold(16000, "MO", "clean title", 400),
+      sold(17000, "MO", "clean title", 400),
     ];
     const r = evaluateOpportunity(listing(), old, opts) as ArbitrageOpportunity;
     expect(r.status).toBe("needs_comps");
