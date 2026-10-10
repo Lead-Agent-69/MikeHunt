@@ -24,6 +24,7 @@ import type { DiscoverDesk } from "@/lib/discovery/desk-rails";
 import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
+import { expandFreeTextQuery } from "@/lib/search/expand-free-text";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
   CATEGORY_PROJECTION,
@@ -991,6 +992,8 @@ export async function GET(req: NextRequest) {
   if (!rl.allowed) return tooManyRequests(rl) as any;
 
   const { searchParams } = new URL(req.url);
+  // "honda civic under 15000" → make/model/maxPrice instead of a literal title match (Kera bug).
+  expandFreeTextQuery(searchParams);
   const rangeError = validateInventoryRanges(searchParams);
   if (rangeError)
     return NextResponse.json({ error: rangeError }, { status: 400 });
