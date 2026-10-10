@@ -79,6 +79,7 @@ import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 
 type SourceHealthItem = {
   id: string;
@@ -166,6 +167,10 @@ function PersonalListingLead({ deal }: { deal: any }) {
   const ask = Number(deal?.ask_price || deal?.askPrice || 0);
   const title = [deal?.year, deal?.make, deal?.model].filter(Boolean).join(" ");
   const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
+  const seenLabel = listingFreshnessLabel({
+    firstSeenAt: deal?.firstSeenAt || deal?.first_seen_at,
+    lastSeenAt: lastSeen,
+  });
   const checks = [
     "VIN matches the listing",
     "Mileage and title status",
@@ -214,7 +219,7 @@ function PersonalListingLead({ deal }: { deal: any }) {
           </a>
           <p className="mt-1 text-xs text-[var(--t5)]">
             {lastSeen
-              ? `Listing ${relativeFreshness(lastSeen)}. Open the source to confirm it is still available.`
+              ? `Listing ${seenLabel.charAt(0).toLowerCase()}${seenLabel.slice(1)}. Open the source to confirm it is still available.`
               : "Open the source to confirm this listing is still available."}
           </p>
         </div>

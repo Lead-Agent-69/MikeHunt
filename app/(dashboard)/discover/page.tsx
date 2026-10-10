@@ -44,6 +44,10 @@ import type {
   DiscoverResponse,
   DiscoveryRail,
 } from "@/components/discovery/types";
+import {
+  discoverMatchLabel,
+  marketListingsContext,
+} from "@/lib/discovery/count-labels";
 
 const LANE_VALUE_TO_LABEL: Record<string, string> = {
   all: "All deals",
@@ -349,11 +353,8 @@ export default function DiscoverPage() {
       },
     );
 
-  const statLine = data?.previewMode
-    ? `${data.uniqueVehicles.toLocaleString()} vehicles in preview`
-    : data
-      ? `${data.uniqueVehicles.toLocaleString()} matching vehicles`
-      : null;
+  // Vehicles = VIN-merged; listings = what Scan/Today count (lib/discovery/count-labels).
+  const statLine = data ? discoverMatchLabel(data) : null;
   const hasLiveListings = Boolean(data && data.totalListings > 0);
   const placeName = (() => {
     if (selectedStates)
@@ -370,10 +371,10 @@ export default function DiscoverPage() {
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
   const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or branded titles are excluded. " : ""}${!includesRepairable(buyerScope) ? "Vehicles with reported damage or repair needs are also excluded. " : ""}Review your buying preferences or try another market.`;
-  const marketContext =
-    data?.marketListings && data.marketListings > data.totalListings
-      ? `${data.marketListings.toLocaleString()} active listings in ${placeName} after your price ceiling, before the remaining profile filters.`
-      : null;
+  // Count labels live in lib/discovery/count-labels (listings vs VIN-merged vehicles).
+  const marketContext = data
+    ? marketListingsContext({ ...data, placeName })
+    : null;
   // Personal, DIY, and parts are not flip desks — hide wholesale flip rails.
   // Reseller/dealer keep roi / salvage / auctionLots / fresh.
   const flipDesk = isFlipBuyerMode(buyerScope?.buyerMode);

@@ -9,6 +9,8 @@ import { Ico } from "@/components/shared/Ico";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { InventoryItem } from "@/lib/data/inventory-service";
 import { useDealerId } from "@/hooks/useDealerId";
+import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 const DAILY_FLOOR_RATE = 35;
 
@@ -16,10 +18,12 @@ function ReconCard({
   item,
   now,
   onUpdated,
+  flipDesk,
 }: {
   item: InventoryItem;
   now: number;
   onUpdated: (item: InventoryItem) => void;
+  flipDesk: boolean;
 }) {
   const [advancing, setAdvancing] = useState(false);
 
@@ -70,7 +74,7 @@ function ReconCard({
         <div className="flex flex-col items-end gap-1 shrink-0">
           <Tag color="blue">In Repair</Tag>
           <span className="text-[10px] text-[var(--t5)]">
-            {days} Days on Lot
+            {days} {flipDesk ? "Days on Lot" : "Days in Repair"}
           </span>
         </div>
       </div>
@@ -123,7 +127,7 @@ function ReconCard({
           <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         ) : (
           <>
-            Complete Recon & Move to Listed{" "}
+            {flipDesk ? "Complete Recon & Move to Listed" : "Mark Repair Done"}{" "}
             <Ico name="arrow" size={14} className="rotate-90" />
           </>
         )}
@@ -135,6 +139,9 @@ function ReconCard({
 export default function ReconPage() {
   const router = useRouter();
   const { dealerId, loading: dealerLoading } = useDealerId();
+  const { intent } = useBuyerIntent();
+  // Back-lot recon is dealer/reseller language; parts, DIY and personal get a neutral repair tracker.
+  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [fleet, setFleet] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,10 +217,12 @@ export default function ReconPage() {
         </div>
         <div>
           <h1 className="text-lg md:text-2xl font-bold text-[var(--t1)]">
-            Back-Lot Recon Tracker
+            {flipDesk ? "Back-Lot Recon Tracker" : "Repair Tracker"}
           </h1>
           <p className="text-xs md:text-sm text-[var(--t4)] mt-0.5">
-            Track vehicles in repair, carrying costs, and shop progress.
+            {flipDesk
+              ? "Track vehicles in repair, carrying costs, and shop progress."
+              : "Track vehicles in repair and what you've spent on them."}
           </p>
         </div>
       </div>
@@ -223,7 +232,7 @@ export default function ReconPage() {
         <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
           <Panel padding="sm" className="text-center">
             <p className="text-[10px] uppercase font-semibold text-[var(--t5)] tracking-widest mb-1">
-              In Shop
+              {flipDesk ? "In Shop" : "In Repair"}
             </p>
             <Mono className="text-2xl font-bold text-[var(--t1)]">
               {stats.total}
@@ -235,7 +244,7 @@ export default function ReconPage() {
             style={{ background: "var(--blo)" }}
           >
             <p className="text-[10px] uppercase font-semibold text-[var(--blue)] tracking-widest mb-1">
-              Recon Spend
+              {flipDesk ? "Recon Spend" : "Repair Spend"}
             </p>
             <Mono className="text-2xl font-bold text-[var(--blue)]">
               ${stats.totalRepair.toLocaleString()}
@@ -247,7 +256,7 @@ export default function ReconPage() {
             style={{ background: "var(--alo)" }}
           >
             <p className="text-[10px] uppercase font-semibold text-[var(--amber)] tracking-widest mb-1">
-              Total Carry Bleed
+              {flipDesk ? "Total Carry Bleed" : "Holding Cost"}
             </p>
             <Mono className="text-2xl font-bold text-[var(--amber)]">
               ${stats.totalCarry.toLocaleString()}
@@ -278,17 +287,19 @@ export default function ReconPage() {
           </div>
           <div>
             <h2 className="font-bold text-lg text-[var(--t1)]">
-              Shop is clear!
+              {flipDesk ? "No vehicles in recon" : "No vehicles in repair yet"}
             </h2>
             <p className="text-sm text-[var(--t3)] mt-1">
-              No vehicles currently in recon.
+              {flipDesk
+                ? "Vehicles you move to the recon stage show up here."
+                : "Vehicles you're repairing show up here."}
             </p>
           </div>
           <button
             onClick={() => router.push("/fleet")}
             className="mt-2 px-6 py-2.5 rounded-[var(--r3)] text-sm font-bold bg-[var(--blue)] text-white shadow-lg transition-transform hover:-translate-y-0.5"
           >
-            View Fleet
+            {flipDesk ? "View Fleet" : "View vehicles"}
           </button>
         </Panel>
       )}
@@ -302,6 +313,7 @@ export default function ReconPage() {
               item={item}
               now={now}
               onUpdated={handleUpdated}
+              flipDesk={flipDesk}
             />
           ))}
         </div>

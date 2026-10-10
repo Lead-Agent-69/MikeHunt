@@ -11,7 +11,12 @@
 
 import { Deal } from "@/types";
 import { calculateProfit, type ProfitResult } from "./profit-calculator";
-import { milesBetweenStates, transportCostForMiles } from "@/lib/geo";
+import {
+  buyerDistance,
+  transportCostForDistance,
+  type DistanceBasis,
+  type GeoPoint,
+} from "@/lib/geo/buyer-distance";
 import {
   lookupMarketValue,
   lookupSupply,
@@ -19,6 +24,13 @@ import {
   lookupSalvageSold,
 } from "./market-value";
 import { estimateBaselineValue } from "./baseline-value";
+import {
+  aggregateComps,
+  compConfidence,
+  COMP_MIN_SAMPLES,
+  type CompAggregate,
+  type CompObservation,
+} from "./comps-aggregate";
 import {
   conditionAdjustedSell,
   titleSeverityMultiplier,
@@ -171,25 +183,68 @@ function isRetailAsk(source?: string): boolean {
   return !AUCTION_SOURCES.has((source || "").toLowerCase());
 }
 
-// Fallback sell value when no market/MMR number is available: source/condition-aware markup on ask.
-function estimateSellValue(
-  askPrice: number,
-  source?: string,
-  condition?: string,
-): number {
-  const c = (condition || "").toLowerCase();
-  const s = (source || "").toLowerCase();
-  let markup = 1.25;
-  if (c.includes("salvage") || c.includes("parts")) markup = 1.35;
-  else if (s === "copart" || s === "iaa") markup = 1.3;
-  else if (s === "manheim" || s === "adesa" || s === "acv") markup = 1.2;
-  else if (
-    s === "craigslist" ||
-    s === "facebook_marketplace" ||
-    s === "offerup"
-  )
-    markup = 1.15;
-  return Math.round(askPrice * markup);
+// Channels whose live asks feed the in-memory retail comp index (lib/scoring/market-value.ts
+// RETAIL_SOURCES on master). A listing from one of these is very likely INSIDE the median it is
+// graded against, so analyzeDeal discounts one comp for it (see selfInclusionGuard).
+const ASK_INDEX_SOURCES = new Set([
+  "cars_com",
+  "ebay_motors",
+  "cargurus",
+  "autotrader",
+  "carvana",
+  "truecar",
+  "vroom",
+  "carmax",
+  "craigslist_dealer",
+]);
+
+type IndexComps = NonNullable<ReturnType<typeof lookupMarketValue>>;
+
+const CONF_RANK = { none: 0, low: 1, medium: 2, high: 3 } as const;
+
+/**
+ * Circularity guard for the ask index: a retail-channel listing's own ask is one of the comps
+ * behind the median it is graded against. Count it out — if fewer than COMP_MIN_SAMPLES OTHER
+ * listings remain, there is no independent market value (retail → null). Confidence can only go
+ * down. Exact leave-one-out needs the raw bucket (market-value.ts); this bounds the effect.
+ */
+export function selfInclusionGuard(
+  comps: IndexComps | null,
+  deal: Partial<Deal>,
+): IndexComps | null {
+  if (!comps || comps.retail == null) return comps;
+  const ask = Number(deal.ask_price) || 0;
+  const likelyInPool =
+    ASK_INDEX_SOURCES.has((deal.source || "").toLowerCase()) &&
+    ask > 1000 &&
+    ask < 200000;
+  if (!likelyInPool) return comps;
+  const others = Math.max(0, (comps.nRetail || 0) - 1);
+  if (others < COMP_MIN_SAMPLES)
+    return { ...comps, retail: null, nRetail: others, confidence: "none" };
+  const capped = compConfidence(others);
+  return {
+    ...comps,
+    nRetail: others,
+    confidence:
+      CONF_RANK[capped] < CONF_RANK[comps.confidence]
+        ? capped
+        : comps.confidence,
+  };
+}
+
+/** A supplied comp feed (CompObservation[]) as the index shape analyzeDeal consumes. */
+function compsFromFeed(agg: CompAggregate): IndexComps | null {
+  if (agg.value == null) return null;
+  return {
+    retail: agg.value,
+    wholesale: null,
+    nRetail: agg.n,
+    nWholesale: 0,
+    mileageMed: agg.mileageMed,
+    confidence: agg.confidence,
+    retailLowFence: null,
+  };
 }
 
 export interface ValuationBreakdown {
@@ -214,6 +269,11 @@ export interface ValuationBreakdown {
   titleMult: number;
   titleTag: string;
   baseline: number;
+  /** Where the comp value came from: supplied feed (same-state / national) or the ask index. */
+  compScope?: "state" | "national" | "index" | "none";
+  compKind?: "sold" | "ask" | "none";
+  /** Comps dropped because they were this listing (circularity guard). */
+  compExcludedSelf?: number;
 }
 
 export interface DealAnalysis extends ProfitResult {
@@ -223,6 +283,8 @@ export interface DealAnalysis extends ProfitResult {
   valuation?: ValuationBreakdown;
   recommendedMaxBid: number;
   miles: number | null;
+  /** How `miles` was measured: real coords, state centroids, same state (unmeasured), or unknown. */
+  distanceBasis: DistanceBasis;
   priceImplausible: boolean;
   // Why the sell estimate is what it is: the title/damage class applied to clean retail, and whether
   // it was anchored to real completed-sale prices (eBay sold) for the damaged/budget segment.
@@ -266,7 +328,16 @@ function isPriceImplausible(deal: Partial<Deal>, baseline: number): boolean {
 /** Run the full decision model for one deal. */
 export function analyzeDeal(
   deal: Partial<Deal>,
-  opts?: { homeState?: string | null },
+  opts?: {
+    homeState?: string | null;
+    /** Buyer home with coords / ZIP / state. Coords give a real haversine distance. */
+    home?: GeoPoint | null;
+    /**
+     * External comp feed (see lib/scoring/comps-aggregate.ts for the row shape), pre-filtered to
+     * this make/model/year band and title lane. When it yields a value it replaces the ask index.
+     */
+    comps?: readonly CompObservation[] | null;
+  },
 ): DealAnalysis {
   const askPrice = deal.ask_price || 0;
   const fm = feeModel(deal.source);
@@ -276,7 +347,28 @@ export function analyzeDeal(
   //  2. a market value already attached to the deal (mmr_value, e.g. from MarketCheck/VIN)
   //  3. a source/condition markup on ask (fallback)
   // Nightly averages of our own estimates are not independent valuation evidence.
-  const comps = lookupMarketValue(deal.make, deal.model, deal.year, deal.trim);
+  //  The listing's own price is never its own comp (selfInclusionGuard / aggregateComps).
+  const feedAgg = opts?.comps?.length
+    ? aggregateComps(
+        {
+          id: (deal as { id?: string }).id,
+          source: deal.source,
+          sourceDealId: (deal as { source_deal_id?: string }).source_deal_id,
+          state: deal.location_state,
+        },
+        opts.comps,
+      )
+    : null;
+  const feedComps = feedAgg ? compsFromFeed(feedAgg) : null;
+  const indexRaw = feedComps
+    ? null
+    : lookupMarketValue(deal.make, deal.model, deal.year, deal.trim);
+  const comps = feedComps ?? selfInclusionGuard(indexRaw, deal);
+  const compExcludedSelf = feedComps
+    ? (feedAgg?.excludedSelf ?? 0)
+    : indexRaw && comps && indexRaw.nRetail !== comps.nRetail
+      ? indexRaw.nRetail - comps.nRetail
+      : 0;
   const hasMarket = typeof deal.mmr_value === "number" && deal.mmr_value > 0;
 
   // Free offline baseline (segment depreciation + trim tier). Doubles as a SANITY GATE so a single
@@ -358,6 +450,7 @@ export function analyzeDeal(
   let sellBasis: "comps" | "market" | "baseline";
   let valuationSource: ValuationBreakdown["source"] = "baseline";
   let soldAnchored = false;
+  let valuationUnknown = false;
   if (compAdj && compAccept) {
     // Confidence-blend: deep buckets trust the comps; thin/mixed-trim buckets get pulled toward the
     // trim-aware baseline (which is itself condition-adjusted) so one outlier can't over-value a unit.
@@ -384,8 +477,14 @@ export function analyzeDeal(
     sellEstimate = baseline;
     sellBasis = "baseline";
   } else {
-    sellEstimate = estimateSellValue(askPrice, deal.source, deal.condition);
+    // No comps, no market value, no baseline (e.g. missing year/make). We used to book ask × 1.15–1.35
+    // here — a resale "value" derived from the very price being graded, i.e. invented profit. Now the
+    // resale is unknown: hold it at the ask (zero gross margin), label it asking_price so no deal grade
+    // is drawn from it, and say so.
+    sellEstimate = askPrice;
     sellBasis = "baseline";
+    valuationSource = "asking_price";
+    valuationUnknown = true;
   }
 
   // ── ASK-ANCHOR (retail listings) ──────────────────────────────────────────────────────────────────
@@ -434,14 +533,32 @@ export function analyzeDeal(
         ? Math.round(sellEstimate * WHOLESALE_RATIO)
         : 0;
 
-  // TRANSPORT: listing state → home base. When location is missing (miles null), don't
-  // book $0 — use a conservative national-average so deals aren't falsely cheap to move.
-  const homeState = resolveHomeState(opts?.homeState);
-  const miles = homeState
-    ? milesBetweenStates(deal.location_state || undefined, homeState)
-    : null;
+  // TRANSPORT: buyer home → listing, by haversine (lib/geo/buyer-distance). Real coords when both
+  // sides have them, else state centroids. Same state without coords books the carrier minimum
+  // (we no longer pretend it is 45 miles). Unknown location → conservative national default.
+  const homeState = resolveHomeState(opts?.home?.state ?? opts?.homeState);
+  const home: GeoPoint | null =
+    opts?.home || homeState
+      ? { ...(opts?.home || {}), state: homeState || null }
+      : null;
+  const listingGeo = deal as { lat?: number | null; lng?: number | null };
+  const distance = home
+    ? buyerDistance(home, {
+        lat: listingGeo.lat,
+        lng: listingGeo.lng,
+        zip: deal.location_zip,
+        state: deal.location_state,
+      })
+    : {
+        miles: null,
+        basis: "unknown" as const,
+        homeState: null,
+        listingState: null,
+      };
+  const miles = distance.miles;
   const transportCost =
-    miles != null ? transportCostForMiles(miles) : DEFAULT_TRANSPORT_COST;
+    transportCostForDistance(distance, DEFAULT_TRANSPORT_COST) ??
+    DEFAULT_TRANSPORT_COST;
 
   const auctionFee = Math.round(askPrice * fm.feeRate + fm.flatFee);
 
@@ -554,6 +671,15 @@ export function analyzeDeal(
     ];
   }
 
+  if (valuationUnknown) {
+    if (verdict === "go") verdict = "hold";
+    score = Math.min(score, 40);
+    warnings = [
+      "No market evidence for this vehicle (no comps, no market value, no year/make baseline) — resale is unknown. Profit shown assumes it resells at its ask.",
+      ...warnings,
+    ];
+  }
+
   // TRUST GATE: a GO is a promise about resale value, made with the dealer's money. We never make that
   // promise on a baseline-only estimate (offline depreciation curve, no real market comps) — even if the
   // math pencils out, we can't VERIFY the resale price. Demote those to HOLD so a GO always means
@@ -612,6 +738,7 @@ export function analyzeDeal(
     sellBasis,
     recommendedMaxBid,
     miles,
+    distanceBasis: distance.basis,
     priceImplausible,
     conditionTag,
     soldAnchored,
@@ -648,6 +775,17 @@ export function analyzeDeal(
       titleMult: (compAdj ?? mmrAdj)?.titleMult ?? 1,
       titleTag: conditionTag,
       baseline,
+      compScope: feedComps
+        ? (feedAgg?.scope ?? "none")
+        : comps?.retail != null
+          ? "index"
+          : "none",
+      compKind: feedComps
+        ? (feedAgg?.kind ?? "none")
+        : comps?.retail != null
+          ? "ask"
+          : "none",
+      compExcludedSelf,
     },
   };
 }

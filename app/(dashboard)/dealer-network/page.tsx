@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
+import { usePreferences } from "@/hooks/usePreferences";
+import { discoverHomeState } from "@/lib/discovery/home-state";
 
 // The curated salvage/rebuilder/dealer NETWORK — browse every independent shop we crawl, categorized, with
-// live inventory + accurate title-status mix, and ⭐ watch the ones you trust to follow their new listings.
+// saved/imported inventory + accurate title-status mix, and ⭐ watch the ones you trust to follow their new listings.
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
@@ -93,6 +95,18 @@ export default function DealerNetworkPage() {
     [dealers],
   );
   const [state, setState] = useState("");
+  const [stateTouched, setStateTouched] = useState(false);
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const homeState = prefsLoading
+    ? ""
+    : discoverHomeState(prefs.homeLocation, prefs.carsState);
+
+  // Default the state filter to the saved home state (only once prefs have loaded, so the
+  // list doesn't flash "All states" first). Falls back to All states when no shop is there.
+  useEffect(() => {
+    if (stateTouched || prefsLoading || !homeState) return;
+    if (states.includes(homeState)) setState(homeState);
+  }, [stateTouched, prefsLoading, homeState, states]);
 
   const shown = useMemo(() => {
     let r = dealers;
@@ -123,9 +137,11 @@ export default function DealerNetworkPage() {
             : "Loading the salvage & rebuilder network…"}
           {watch.count > 0 && ` · ⭐ ${watch.count} watched`}
         </p>
-        {data?.message && (
+        {data && (
           <p className="mt-2 max-w-3xl text-xs leading-relaxed text-[var(--t4)]">
-            {data.message}
+            {data.configured === false
+              ? "Showing the dealer catalog. Inventory from these shops isn't imported yet."
+              : "Vehicle counts come from saved / imported inventory, not a live feed."}
           </p>
         )}
       </div>
@@ -142,7 +158,10 @@ export default function DealerNetworkPage() {
         />
         <select
           value={state}
-          onChange={(e) => setState(e.target.value)}
+          onChange={(e) => {
+            setStateTouched(true);
+            setState(e.target.value);
+          }}
           className="px-3 py-2 rounded-xl bg-[var(--s0)] border border-[var(--b1)] text-sm outline-none"
         >
           <option value="">All states</option>
@@ -182,7 +201,7 @@ export default function DealerNetworkPage() {
       </div>
 
       {/* Grid */}
-      {!data ? (
+      {!data || prefsLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="glass-panel h-40 shimmer" />
@@ -242,7 +261,7 @@ export default function DealerNetworkPage() {
                   <div className="text-[13px] text-[var(--t2)]">
                     {d.total > 0 ? (
                       <span className="font-bold text-[var(--t1)]">
-                        {d.total.toLocaleString()} live{" "}
+                        {d.total.toLocaleString()} imported{" "}
                         {d.total === 1 ? "vehicle" : "vehicles"}
                       </span>
                     ) : (
@@ -253,9 +272,8 @@ export default function DealerNetworkPage() {
                   </div>
                   {d.total === 0 && (
                     <p className="text-[11px] leading-relaxed text-[var(--t4)]">
-                      Covered in the small-shop network. Connect Supabase and
-                      run the curated dealer importer to prove fresh rows,
-                      photos, VINs, and last-seen freshness.
+                      In the dealer catalog. This shop&apos;s inventory
+                      isn&apos;t imported into MikeHunt yet.
                     </p>
                   )}
                   <TitleMix d={d} />

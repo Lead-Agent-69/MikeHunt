@@ -6,6 +6,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import {
+  PURCHASE_CHECKLIST_KEY,
+  fetchPurchaseChecklist,
+} from "@/lib/saved/purchase-checklist";
 
 type PurchaseSave = {
   id: string;
@@ -24,14 +28,10 @@ const tasks = [
 ];
 
 export function PurchasePipeline() {
+  // Same key FlipDeskGate preloads while preferences resolve (lib/saved/purchase-checklist).
   const { data, error, isLoading, mutate } = useSWR<PurchaseSave[]>(
-    "/api/saved-cars?filter=all",
-    async (url: string) => {
-      const response = await fetch(url);
-      if (!response.ok)
-        throw new Error("We couldn't load your purchase checklist.");
-      return response.json();
-    },
+    PURCHASE_CHECKLIST_KEY,
+    fetchPurchaseChecklist,
   );
   const [saving, setSaving] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState("All stages");

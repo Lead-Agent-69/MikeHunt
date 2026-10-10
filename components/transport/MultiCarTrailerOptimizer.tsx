@@ -70,7 +70,8 @@ export function MultiCarTrailerOptimizer({
     <div
       className="relative overflow-hidden rounded-3xl border border-[var(--b2)] bg-[var(--s0)]/80 backdrop-blur-2xl p-6 sm:p-7"
       style={{
-        boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
+        boxShadow:
+          "0 20px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
       }}
     >
       {/* Background neon glow */}
@@ -103,14 +104,21 @@ export function MultiCarTrailerOptimizer({
 
       <div className="relative z-10 pt-5 space-y-5">
         <p className="text-xs text-[var(--t3)] leading-relaxed">
-          Hauling a single vehicle across state lines eats 20–30% of your flip profit. Bundle 3 to 9 vehicles on a wedge or 9-car hauler along the{" "}
-          <strong className="text-[var(--t1)]">{fromState} ➔ {toState}</strong> corridor ({miles.toLocaleString()} miles) to maximize your net margin per unit.
+          Hauling vehicles one at a time costs more per unit. Bundle 3 to 9
+          vehicles on a wedge or 9-car hauler along the{" "}
+          <strong className="text-[var(--t1)]">
+            {fromState} ➔ {toState}
+          </strong>{" "}
+          corridor ({miles.toLocaleString()} miles) to maximize your net margin
+          per unit.
         </p>
 
         {/* Trailer Options Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {TRAILER_CONFIGS.map((tier) => {
-            const costPerCar = Math.round(miles * tier.ratePerMile + tier.baseFee);
+            const costPerCar = Math.round(
+              miles * tier.ratePerMile + tier.baseFee,
+            );
             const totalCost = costPerCar * tier.cars;
             const singleTotal = baseSingleCost * tier.cars;
             const totalSaved = Math.max(0, singleTotal - totalCost);
@@ -181,9 +189,18 @@ export function MultiCarTrailerOptimizer({
               Profit Impact Summary for {selectedCars}-Car Load
             </div>
             <p className="text-xs text-[var(--t2)] mt-0.5">
-              By loading {selectedCars} cars along this corridor, you add an average of{" "}
+              By loading {selectedCars} cars along this corridor, you add an
+              average of{" "}
               <strong className="text-emerald-400">
-                +${Math.round(baseSingleCost - (miles * (TRAILER_CONFIGS.find(t => t.cars === selectedCars)?.ratePerMile ?? 0.95) + (TRAILER_CONFIGS.find(t => t.cars === selectedCars)?.baseFee ?? 150))).toLocaleString()}
+                +$
+                {Math.round(
+                  baseSingleCost -
+                    (miles *
+                      (TRAILER_CONFIGS.find((t) => t.cars === selectedCars)
+                        ?.ratePerMile ?? 0.95) +
+                      (TRAILER_CONFIGS.find((t) => t.cars === selectedCars)
+                        ?.baseFee ?? 150)),
+                ).toLocaleString()}
               </strong>{" "}
               clean profit to every single car flipped.
             </p>
