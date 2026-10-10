@@ -200,3 +200,51 @@ describe("DealsService list projection", () => {
     expect(new Set(cols).size).toBe(cols.length);
   });
 });
+
+describe("DealsService.mapDbToDeal reads only selected columns", () => {
+  const map = (row: Record<string, unknown>) =>
+    (new DealsService() as any).mapDbToDeal({ id: "x", ...row });
+
+  it("takes seller / sellerType / bidCount from options, never from non-existent columns", () => {
+    const d = map({
+      seller: "top-level (not a deals column)",
+      seller_type: "private",
+      bid_count: 99,
+      options: {
+        seller: "Bob's Yard",
+        sellerType: "dealer",
+        auction: { bidCount: 7 },
+      },
+    });
+    expect(d.seller).toBe("Bob's Yard");
+    expect(d.sellerType).toBe("dealer");
+    expect(d.bidCount).toBe(7);
+  });
+
+  it("keeps the response keys: repair_estimate / transport_cost stay undefined, estimated_* carry values", () => {
+    const d = map({
+      estimated_transport_cost: 450,
+      estimated_repair_cost: 1200,
+    });
+    expect("repair_estimate" in d).toBe(true);
+    expect("transport_cost" in d).toBe(true);
+    expect(d.repair_estimate).toBeUndefined();
+    expect(d.transport_cost).toBeUndefined();
+    expect(d.estimated_transport_cost).toBe(450);
+    expect(d.estimated_repair_cost).toBe(1200);
+  });
+
+  it("DEALS_LIST_SELECT excludes the five columns deals does not have", async () => {
+    const { DEALS_LIST_SELECT } = await import("./deals-service");
+    const cols = DEALS_LIST_SELECT.split(",");
+    for (const c of [
+      "bid_count",
+      "seller",
+      "seller_type",
+      "repair_estimate",
+      "transport_cost",
+    ]) {
+      expect(cols).not.toContain(c);
+    }
+  });
+});

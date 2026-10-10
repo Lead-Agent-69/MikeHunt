@@ -3,6 +3,9 @@ import { ScraperAlertService } from "@/lib/scrapers/tools/alerts";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
+// Daily cron: ScraperAlertService.processAlerts sends email, then push, then a mark-sent update per
+// alert, in sequence (N+1; kera audit #9). Explicit limit so it is not cut at a 10s legacy default.
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCron(request)) {

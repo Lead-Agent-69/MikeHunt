@@ -15,6 +15,10 @@ import {
  * Columns mapDbToDeal reads. `select("*")` also pulled the 768-float `embedding` (and other unused
  * JSONB) for every row, which is most of the PostgREST -> function transfer on list calls.
  * Keep in sync with mapDbToDeal; only columns that exist in supabase/migrations belong here.
+ * `bid_count`, `seller`, `seller_type`, `repair_estimate` and `transport_cost` are NOT deals columns
+ * (absent from the migrations and from hosted, checked 2026-10-10), so they are not selected: the
+ * pipeline stores seller / sellerType / auction.bidCount in `options`, and cost estimates in
+ * `estimated_transport_cost` / `estimated_repair_cost`. mapDbToDeal reads those instead.
  */
 export const DEALS_LIST_SELECT = [
   "id",
@@ -183,7 +187,8 @@ export class DealsService {
   private mapDbToDeal(row: any): Deal {
     const contact = sellerContact(row);
     const options = this.rowOptions(row);
-    const bidCount = row.bid_count ?? options.auction?.bidCount;
+    // deals has no bid_count / seller / seller_type columns: these live in options (pipeline.ts).
+    const bidCount = options.auction?.bidCount;
     return {
       id: row.id,
       source: row.source,
@@ -222,8 +227,8 @@ export class DealsService {
         typeof row.run_drive === "boolean" ? row.run_drive : undefined,
       hasKeys:
         typeof row.keys_present === "boolean" ? row.keys_present : undefined,
-      seller: row.seller || options.seller,
-      sellerType: row.seller_type || options.sellerType,
+      seller: options.seller,
+      sellerType: options.sellerType,
       contact:
         contact.phone || contact.email || contact.url
           ? {
@@ -233,12 +238,10 @@ export class DealsService {
               listingUrl: row.source_url || undefined,
             }
           : undefined,
-      repair_estimate: row.repair_estimate
-        ? Number(row.repair_estimate)
-        : undefined,
-      transport_cost: row.transport_cost
-        ? Number(row.transport_cost)
-        : undefined,
+      // Kept in the Deal shape for scraper-input compatibility, but no deals column stores them, so
+      // they have always mapped to undefined here; the stored values are estimated_*_cost below.
+      repair_estimate: undefined,
+      transport_cost: undefined,
       is_arbitrage_opportunity: row.is_arbitrage_opportunity,
       estimated_transport_cost: row.estimated_transport_cost
         ? Number(row.estimated_transport_cost)
