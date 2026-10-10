@@ -21,19 +21,31 @@ interface UIDrawerCardProps {
   className?: string;
 }
 
-export function UIDrawerCard({ item, isOpen, onClose, className }: UIDrawerCardProps) {
+export function UIDrawerCard({
+  item,
+  isOpen,
+  onClose,
+  className,
+}: UIDrawerCardProps) {
   return (
     <>
       {/* Card trigger */}
       <motion.div
-        className={cn("relative w-full aspect-[4/3] rounded-[var(--r4)] overflow-hidden cursor-pointer", className)}
+        className={cn(
+          "relative w-full aspect-[4/3] rounded-[var(--r4)] overflow-hidden cursor-pointer",
+          className,
+        )}
         onClick={onClose}
         whileHover={{ y: -5 }}
         role="button"
         tabIndex={0}
         aria-label={`${item.title} - click to open details`}
       >
-        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+        <img
+          src={item.image}
+          alt={item.title}
+          className="w-full h-full object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-4">
           {item.category && (
@@ -42,7 +54,9 @@ export function UIDrawerCard({ item, isOpen, onClose, className }: UIDrawerCardP
             </span>
           )}
           <h3 className="text-base font-bold text-white">{item.title}</h3>
-          {item.subtitle && <p className="text-xs text-white/60">{item.subtitle}</p>}
+          {item.subtitle && (
+            <p className="text-xs text-white/60">{item.subtitle}</p>
+          )}
         </div>
       </motion.div>
 
@@ -76,14 +90,25 @@ export function UIDrawerCard({ item, isOpen, onClose, className }: UIDrawerCardP
                 className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[var(--s2)] flex items-center justify-center text-[var(--t3)] hover:bg-[var(--s3)] transition-colors z-10"
                 aria-label="Close"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
               </button>
 
               {/* Image */}
               <div className="relative w-full aspect-video">
-                <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className="w-full h-full object-cover"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>
 
@@ -94,20 +119,37 @@ export function UIDrawerCard({ item, isOpen, onClose, className }: UIDrawerCardP
                     {item.category}
                   </span>
                 )}
-                <h2 className="text-2xl font-bold text-[var(--t1)] mb-2">{item.title}</h2>
-                {item.subtitle && <p className="text-sm text-[var(--t4)] mb-4">{item.subtitle}</p>}
+                <h2 className="text-2xl font-bold text-[var(--t1)] mb-2">
+                  {item.title}
+                </h2>
+                {item.subtitle && (
+                  <p className="text-sm text-[var(--t4)] mb-4">
+                    {item.subtitle}
+                  </p>
+                )}
                 {item.description && (
-                  <p className="text-sm text-[var(--t3)] leading-relaxed mb-6">{item.description}</p>
+                  <p className="text-sm text-[var(--t3)] leading-relaxed mb-6">
+                    {item.description}
+                  </p>
                 )}
 
                 {/* Specs */}
                 {item.specs && item.specs.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-sm font-bold text-[var(--t2)] uppercase tracking-wider">Specifications</h3>
+                    <h3 className="text-sm font-bold text-[var(--t2)] uppercase tracking-wider">
+                      Specifications
+                    </h3>
                     {item.specs.map((spec, index) => (
-                      <div key={index} className="flex justify-between py-2 border-b border-[var(--b1)]">
-                        <span className="text-sm text-[var(--t4)]">{spec.label}</span>
-                        <span className="text-sm font-semibold text-[var(--t1)]">{spec.value}</span>
+                      <div
+                        key={index}
+                        className="flex justify-between py-2 border-b border-[var(--b1)]"
+                      >
+                        <span className="text-sm text-[var(--t4)]">
+                          {spec.label}
+                        </span>
+                        <span className="text-sm font-semibold text-[var(--t1)]">
+                          {spec.value}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -133,7 +175,11 @@ interface DrawerCardGridProps {
   className?: string;
 }
 
-export function DrawerCardGrid({ items, columns = 3, className }: DrawerCardGridProps) {
+export function DrawerCardGrid({
+  items,
+  columns = 3,
+  className,
+}: DrawerCardGridProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const openItem = items.find((i) => i.id === openId);
 

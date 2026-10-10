@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface PremiumCarouselItem {
@@ -62,15 +68,18 @@ export function PremiumCarousel({
   }, [dragX, itemCount]);
 
   // Wheel handling
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY + e.deltaX;
-    if (Math.abs(delta) > 10) {
-      const newDir = delta > 0 ? 1 : -1;
-      setDirection(newDir);
-      setActiveIndex((prev) => (prev + newDir + itemCount) % itemCount);
-    }
-  }, [itemCount]);
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY + e.deltaX;
+      if (Math.abs(delta) > 10) {
+        const newDir = delta > 0 ? 1 : -1;
+        setDirection(newDir);
+        setActiveIndex((prev) => (prev + newDir + itemCount) % itemCount);
+      }
+    },
+    [itemCount],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -141,7 +150,12 @@ export function PremiumCarousel({
             dragElastic={0.1}
             onDragEnd={handleDragEnd}
           >
-            <img src={activeItem.image} alt={activeItem.title} className="w-full h-full object-cover" draggable={false} />
+            <img
+              src={activeItem.image}
+              alt={activeItem.title}
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
             {/* Content */}
@@ -159,20 +173,34 @@ export function PremiumCarousel({
                     </span>
                   )}
                   {activeItem.year && (
-                    <span className="text-xs font-semibold text-white/60">{activeItem.year}</span>
+                    <span className="text-xs font-semibold text-white/60">
+                      {activeItem.year}
+                    </span>
                   )}
                 </div>
-                <h2 className="text-2xl md:text-4xl font-bold text-white mb-2">{activeItem.title}</h2>
-                {activeItem.subtitle && <p className="text-sm md:text-base text-white/70">{activeItem.subtitle}</p>}
+                <h2 className="text-2xl md:text-4xl font-bold text-white mb-2">
+                  {activeItem.title}
+                </h2>
+                {activeItem.subtitle && (
+                  <p className="text-sm md:text-base text-white/70">
+                    {activeItem.subtitle}
+                  </p>
+                )}
                 {activeItem.description && (
-                  <p className="mt-3 text-sm text-white/50 max-w-xl line-clamp-2">{activeItem.description}</p>
+                  <p className="mt-3 text-sm text-white/50 max-w-xl line-clamp-2">
+                    {activeItem.description}
+                  </p>
                 )}
                 <div className="flex items-center gap-4 mt-4">
                   {activeItem.price && (
-                    <span className="text-xl md:text-2xl font-bold text-[var(--amber)]">{activeItem.price}</span>
+                    <span className="text-xl md:text-2xl font-bold text-[var(--amber)]">
+                      {activeItem.price}
+                    </span>
                   )}
                   {activeItem.mileage && (
-                    <span className="text-sm text-white/50">{activeItem.mileage}</span>
+                    <span className="text-sm text-white/50">
+                      {activeItem.mileage}
+                    </span>
                   )}
                   {activeItem.cta && (
                     <button className="px-5 py-2.5 text-sm font-bold text-white bg-[image:var(--grad)] rounded-full hover:opacity-90 transition-opacity">
@@ -187,20 +215,40 @@ export function PremiumCarousel({
 
         {/* Navigation arrows */}
         <button
-          onClick={() => { setDirection(-1); setActiveIndex((prev) => (prev - 1 + itemCount) % itemCount); }}
+          onClick={() => {
+            setDirection(-1);
+            setActiveIndex((prev) => (prev - 1 + itemCount) % itemCount);
+          }}
           className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-colors"
           aria-label="Previous slide"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
         <button
-          onClick={() => { setDirection(1); setActiveIndex((prev) => (prev + 1) % itemCount); }}
+          onClick={() => {
+            setDirection(1);
+            setActiveIndex((prev) => (prev + 1) % itemCount);
+          }}
           className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-colors"
           aria-label="Next slide"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
@@ -211,15 +259,22 @@ export function PremiumCarousel({
         {items.map((item, index) => (
           <button
             key={item.id}
-            onClick={() => { setDirection(index > activeIndex ? 1 : -1); setActiveIndex(index); }}
+            onClick={() => {
+              setDirection(index > activeIndex ? 1 : -1);
+              setActiveIndex(index);
+            }}
             className={cn(
               "relative flex-shrink-0 w-36 h-24 rounded-xl overflow-hidden transition-all duration-300",
               index === activeIndex
                 ? "ring-2 ring-[var(--amber)] ring-offset-2 ring-offset-[var(--s1)]"
-                : "opacity-40 hover:opacity-70"
+                : "opacity-40 hover:opacity-70",
             )}
           >
-            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+            <img
+              src={item.image}
+              alt={item.title}
+              className="w-full h-full object-cover"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <span className="absolute bottom-1 left-2 right-2 text-[10px] font-bold text-white truncate">
               {item.title}
@@ -233,10 +288,15 @@ export function PremiumCarousel({
         {items.map((_, index) => (
           <button
             key={index}
-            onClick={() => { setDirection(index > activeIndex ? 1 : -1); setActiveIndex(index); }}
+            onClick={() => {
+              setDirection(index > activeIndex ? 1 : -1);
+              setActiveIndex(index);
+            }}
             className={cn(
               "h-1.5 rounded-full transition-all duration-300",
-              index === activeIndex ? "w-8 bg-[var(--amber)]" : "w-1.5 bg-[var(--s4)] hover:bg-[var(--s5)]"
+              index === activeIndex
+                ? "w-8 bg-[var(--amber)]"
+                : "w-1.5 bg-[var(--s4)] hover:bg-[var(--s5)]",
             )}
             aria-label={`Go to slide ${index + 1}`}
           />
