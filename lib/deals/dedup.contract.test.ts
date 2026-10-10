@@ -40,9 +40,43 @@ describe("dedup: schema and SQL", () => {
 
   it("detect_duplicates_by_vin now delegates to dedupe_deals (no VIN-only grouping left)", () => {
     const { file, sql } = latestFunctionSql("detect_duplicates_by_vin");
-    expect(file).toBe("20261010220000_deals_cross_source_dedup.sql");
+    expect(file).toBe("20261010221000_dedupe_ren_nits.sql");
     expect(sql).toContain("PERFORM public.dedupe_deals(");
     expect(sql).not.toMatch(/GROUP BY vin\s/);
+    // Ren #307 P3: same VIN normalization as vin_check_digit_ok / normalizeVin.
+    expect(sql).toContain("upper(regexp_replace(d.vin, '[\\s-]', '', 'g'))");
+    expect(sql).not.toContain("btrim(d.vin)");
+  });
+
+  it("Ren #307 nits: no function-level statement_timeout, one VIN key, conflict rows cleared like flagged rows", () => {
+    const { file, sql } = latestFunctionSql("dedupe_deals");
+    expect(file).toBe("20261010221000_dedupe_ren_nits.sql");
+    expect(sql).not.toMatch(/statement_timeout/i);
+    expect(sql).not.toContain("btrim(d.vin)");
+    for (const col of [
+      "true_net_profit = NULL",
+      "recommended_max_bid = NULL",
+      "sell_estimate = NULL",
+      "deal_verdict = 'pass'",
+    ])
+      expect(sql).toContain(col);
+    const mig = readFileSync(
+      "supabase/migrations/20261010221000_dedupe_ren_nits.sql",
+      "utf8",
+    );
+    expect(mig).toMatch(
+      /REVOKE ALL ON FUNCTION public\.get_market_pulse\(\) FROM PUBLIC, anon, authenticated;/,
+    );
+    // every get_market_pulse caller uses the service-role client
+    for (const f of [
+      "app/api/market/pulse/route.ts",
+      "app/api/market/ticker/route.ts",
+      "app/api/mcp/route.ts",
+    ]) {
+      const src = readFileSync(f, "utf8");
+      if (src.includes('rpc("get_market_pulse")'))
+        expect(src).toContain("createServerComponentClient()");
+    }
   });
 
   it("dedupe_deals: earliest-seen active row is canonical, confidence 1.0, conflicts flagged", () => {

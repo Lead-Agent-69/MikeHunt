@@ -46,7 +46,8 @@ describe.skipIf(!URL)("dedupe_deals on real Postgres", () => {
       location_zip text, location_city text, images text[] DEFAULT '{}', active boolean DEFAULT true,
       first_seen_at timestamptz NOT NULL, created_at timestamptz DEFAULT now(),
       duplicate_of_id uuid, duplicate_confidence numeric(4,3), quality_flags text[],
-      profit_score smallint, is_arbitrage_opportunity boolean DEFAULT false);`);
+      profit_score smallint, is_arbitrage_opportunity boolean DEFAULT false,
+      true_net_profit integer, recommended_max_bid integer, sell_estimate integer, deal_verdict text);`);
     for (const name of [
       "vin_check_digit_ok",
       "dedupe_deals",
@@ -79,6 +80,9 @@ describe.skipIf(!URL)("dedupe_deals on real Postgres", () => {
       ${v(ID.fuzzyA, "g.example", null, "Toyota", "Tacoma", "2026-10-01T00:00:00Z", { year: 2019, miles: 60000, price: 28000 })},
       ${v(ID.fuzzyB, "h.example", null, "TOYOTA", "Tacoma ", "2026-10-03T00:00:00Z", { year: 2019, miles: 60500, price: 28500 })},
       ${v(ID.sameHost, "g.example", null, "Toyota", "Tacoma", "2026-10-04T00:00:00Z", { year: 2019, miles: 60100, price: 28100 })};`);
+    // Scored as a GO before dedup runs: a VIN conflict must clear all of it (Ren #307 P2).
+    psql(`UPDATE ${SCHEMA}.deals SET profit_score = 80, true_net_profit = 4000, recommended_max_bid = 25000,
+      sell_estimate = 33000, deal_verdict = 'go', is_arbitrage_opportunity = true`);
     call();
   });
   afterAll(() => {
@@ -106,6 +110,16 @@ describe.skipIf(!URL)("dedupe_deals on real Postgres", () => {
     expect(flags(ID.conflict)).toBe("vin_conflict");
     expect(flags(ID.original)).toBe("vin_conflict");
     expect(row(ID.relist)).toBe("|");
+  });
+  it("VIN-conflict rows are cleared exactly like sanity-flagged rows (Ren #307 P2)", () => {
+    for (const id of [ID.conflict, ID.original])
+      expect(
+        psql(
+          `SELECT concat_ws('|', coalesce(profit_score::text,'-'), coalesce(true_net_profit::text,'-'),
+             coalesce(recommended_max_bid::text,'-'), coalesce(sell_estimate::text,'-'), deal_verdict,
+             is_arbitrage_opportunity) FROM ${SCHEMA}.deals WHERE id='${id}'`,
+        ),
+      ).toBe("-|-|-|-|pass|f");
   });
   it("rows with no VIN and single-VIN rows are left alone", () => {
     expect(row(ID.noVin)).toBe("|");
@@ -143,6 +157,42 @@ describe.skipIf(!URL)("dedupe_deals on real Postgres", () => {
     const before = [ID.relist, ID.conflict, ID.fuzzyB].map(row);
     call();
     expect([ID.relist, ID.conflict, ID.fuzzyB].map(row)).toEqual(before);
+  });
+  it("a second full pass writes 0 rows (Ren #307 P3: link/unlink converges)", () => {
+    // Churn case: a lookalike pair where the NEWER row carries a unique valid VIN (a one-row VIN
+    // group, which step 1 used to unlink every pass), plus a 4-row cluster whose newest row's best
+    // canonical (lowest id) is itself a copy, which a single link round can't finish.
+    const vinA = "00000000-0000-4000-8000-0000000000d1";
+    const noVinB = "00000000-0000-4000-8000-0000000000d2";
+    psql(`INSERT INTO ${SCHEMA}.deals (id, source, source_url, title, vin, year, make, model, mileage, ask_price,
+      location_state, location_zip, location_city, first_seen_at) VALUES
+      ('${vinA}', 'independent_dealer', 'https://p.example/1', 'Accord EX', '5TFAZ5CN9K1234567', 2019, 'Toyota', 'Camry', 40000, 20000, 'TX', '77002', 'Houston', '2026-09-05T00:00:00Z'),
+      ('${noVinB}', 'independent_dealer', 'https://q.example/1', 'Accord EX', NULL, 2019, 'Toyota', 'Camry', 40300, 20200, 'TX', '77002', 'Houston', '2026-09-01T00:00:00Z'),
+      ('00000000-0000-4000-8000-0000000000e1', 'independent_dealer', 'https://r1.example/1', 'Civic', NULL, 2018, 'Honda', 'Civic', 51200, 15600, 'TX', '77002', 'Houston', '2026-09-04T00:00:00Z'),
+      ('00000000-0000-4000-8000-0000000000e2', 'independent_dealer', 'https://r2.example/1', 'Civic', NULL, 2018, 'Honda', 'Civic', 50800, 15400, 'TX', '77002', 'Houston', '2026-09-03T00:00:00Z'),
+      ('00000000-0000-4000-8000-0000000000e3', 'independent_dealer', 'https://r3.example/1', 'Civic', NULL, 2018, 'Honda', 'Civic', 50400, 15200, 'TX', '77002', 'Houston', '2026-09-02T00:00:00Z'),
+      ('00000000-0000-4000-8000-0000000000e4', 'independent_dealer', 'https://r4.example/1', 'Civic', NULL, 2018, 'Honda', 'Civic', 50000, 15000, 'TX', '77002', 'Houston', '2026-09-01T00:00:00Z');`);
+    call();
+    expect(row(vinA)).toMatch(new RegExp(`^${noVinB}\\|0\\.(850|950)$`));
+    const snap = () =>
+      psql(`SELECT string_agg(id::text || ':' || xmin::text, ',' ORDER BY id) FROM ${SCHEMA}.deals`);
+    const before = snap();
+    call();
+    expect(snap()).toBe(before);
+    // and no chains: a linked row never points at a row that is itself linked
+    expect(
+      psql(`SELECT count(*) FROM ${SCHEMA}.deals d JOIN ${SCHEMA}.deals c ON c.id = d.duplicate_of_id
+            WHERE c.duplicate_of_id IS NOT NULL`),
+    ).toBe("0");
+  });
+  it("VINs with spaces or hyphens group with the plain VIN (same normalization as the check digit)", () => {
+    const spaced = "00000000-0000-4000-8000-0000000000f1";
+    psql(`INSERT INTO ${SCHEMA}.deals (id, source, source_url, title, vin, year, make, model, mileage, ask_price,
+      location_state, location_zip, location_city, first_seen_at) VALUES
+      ('${spaced}', 'independent_dealer', 'https://s.example/1', 'Camry', '5tfaz5cn9-k123 4567', 2019, 'Toyota', 'Camry', 40000, 20000, 'TX', '77002', 'Houston', '2026-09-08T00:00:00Z')`);
+    call([spaced]);
+    // d1 (same VIN, seen 09-05) is older than the spaced copy (09-08): d1 is the canonical.
+    expect(row(spaced)).toBe("00000000-0000-4000-8000-0000000000d1|1.000");
   });
   it("a deleted canonical promotes the oldest remaining copy", () => {
     psql(`DELETE FROM ${SCHEMA}.deals WHERE id='${ID.original}'`);
