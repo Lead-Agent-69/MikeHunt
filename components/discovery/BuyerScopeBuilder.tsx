@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { titleFilterOptions } from "@/lib/deals/title-filter-options";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -125,12 +126,9 @@ const STATES = [
   "PA",
 ];
 
-const TITLE_TYPES = [
-  { label: "Any title", value: "all" },
-  { label: "Clean", value: "clean" },
-  { label: "Salvage", value: "salvage" },
-  { label: "Rebuilt", value: "rebuilt" },
-];
+// Five title buckets (Amy's title-category helper), sent as titleType and saved as
+// buyerScope.titleType: Clean / Rebuilt / Salvage / Rebuildable / Title unknown.
+const TITLE_TYPES = titleFilterOptions(null, "Any title");
 
 const SELLER_TYPES = [
   { label: "Any seller", value: "all", hint: "All matching sellers" },
