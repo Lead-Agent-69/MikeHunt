@@ -10,6 +10,7 @@ import {
 } from "@/lib/sources/source-meta";
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
+import { NotLiveLabel } from "@/components/shared/NotLiveLabel";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
@@ -475,6 +476,7 @@ export function DealTable({
                   </div>
                   <div className="mt-1 flex justify-end gap-1 text-[9px] uppercase text-[var(--t5)]">
                     <span>{fresh}</span>
+                    <NotLiveLabel deal={r as any} className="normal-case" />
                     <span>·</span>
                     <span>{r.sourceUrl ? "link" : "no link"}</span>
                     <span>·</span>
