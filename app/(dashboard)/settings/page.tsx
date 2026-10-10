@@ -71,6 +71,10 @@ function CarsViewPrefs() {
         <p className="mt-1 text-xs text-[var(--t4)]">
           Separate from title status. Unknown condition still needs inspection.
         </p>
+        <p className="mt-1 text-xs text-[var(--t4)]">
+          On personal and DIY profiles this also shows the Salvage &amp;
+          Rebuildable lane on Discover, for research only.
+        </p>
         <p role="status" className="mt-1 min-h-5 text-xs text-[var(--t3)]">
           {repairStatus}
         </p>
