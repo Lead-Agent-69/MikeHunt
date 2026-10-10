@@ -23,6 +23,8 @@ function supabaseConnectSources() {
     sources.add("http://localhost:54321");
     sources.add("ws://localhost:54321");
   }
+  // OpenFreeMap basemap: MapLibre fetches style JSON, vector tiles, glyphs and sprites from here.
+  sources.add("https://tiles.openfreemap.org");
   return Array.from(sources).join(" ");
 }
 
@@ -135,10 +137,12 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
               "style-src 'self' 'unsafe-inline' https:",
-              "img-src 'self' data: blob: https: http:",
+              "img-src 'self' data: blob: https: http: https://tiles.openfreemap.org",
               "media-src 'self' blob: https:",
               "font-src 'self' data: https:",
               `connect-src ${supabaseConnectSources()}`,
+              // MapLibre GL (OpenFreeMap basemap) runs its tile parser in a blob: web worker.
+              "worker-src 'self' blob:",
               "frame-src 'self' https://*.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",

@@ -44,7 +44,9 @@ function walk(dir: string): string[] {
 function clientFiles(): string[] {
   return ROOTS.flatMap(walk).filter((f) => {
     const head = readFileSync(f, "utf8").slice(0, 400);
-    return /^\s*(\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*["']use client["']/.test(head);
+    return /^\s*(\/\/[^\n]*\n|\/\*[\s\S]*?\*\/\s*)*["']use client["']/.test(
+      head,
+    );
   });
 }
 

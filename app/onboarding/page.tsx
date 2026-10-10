@@ -369,7 +369,9 @@ export default function OnboardingPage() {
                   borderColor:
                     selectedMode === mode ? "var(--accent)" : "var(--b1)",
                   background:
-                    selectedMode === mode ? "var(--accent-surface)" : "var(--s0)",
+                    selectedMode === mode
+                      ? "var(--accent-surface)"
+                      : "var(--s0)",
                 }}
               >
                 <span
