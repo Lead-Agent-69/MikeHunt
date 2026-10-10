@@ -21,20 +21,7 @@ import { useDiscoverySave } from "./DiscoverySaveProvider";
 import { discoveryEvidence, discoveryReason } from "./card-evidence";
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
-
-const TITLE_STYLES: Record<
-  string,
-  { label: string; bg: string; text: string }
-> = {
-  clean: {
-    label: "Clean title reported",
-    bg: "var(--glo)",
-    text: "var(--green)",
-  },
-  rebuilt: { label: "Rebuilt", bg: "var(--amber-lo)", text: "var(--amber-d)" },
-  salvage: { label: "Salvage", bg: "var(--rlo)", text: "var(--red)" },
-  parts: { label: "Parts Only", bg: "var(--rlo)", text: "var(--red)" },
-};
+import { TitleBadge } from "@/components/shared/TitleBadge";
 
 // Short, glanceable lane labels ΓÇö the channel/risk a dealer reads instantly (color from the API).
 const LANE_LABELS: Record<string, string> = {
@@ -91,9 +78,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
-  const titleStyle = deal.titleClass
-    ? TITLE_STYLES[deal.titleClass]
-    : undefined;
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
   const terms = buyTerms(deal.source);
@@ -334,15 +318,12 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             )}
           </div>
 
-          {titleStyle && (
-            <span
-              className="w-fit rounded-[var(--r1)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-              style={{ background: titleStyle.bg, color: titleStyle.text }}
-              title="Listing-reported title status. Verify the actual title before purchase."
-            >
-              {titleStyle.label}
-            </span>
-          )}
+          <TitleBadge
+            className="w-fit"
+            condition={deal.condition}
+            damageType={deal.damageType}
+            titleSource={deal.titleSource}
+          />
 
           {/* Contextual reason (distance, win-pattern) when a rail provides one */}
           {deal.winReason && (

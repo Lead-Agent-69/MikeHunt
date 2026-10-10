@@ -25,6 +25,8 @@ export interface DealCardProps {
   condition?: string;
   damageType?: string;
   titleType?: string;
+  /** options.titleSource (#211): a source-default title renders as a weaker badge. */
+  titleSource?: string | null;
   /** Engine verdict — surfaced as a colored pill */
   dealVerdict?: "go" | "hold" | "pass";
   /** Recommended max bid (secondary line under net profit) */
