@@ -1314,12 +1314,30 @@ export async function GET(request: NextRequest) {
 
     const health = sources.map((source) => {
       const proof = proofBySource[source.id];
+      // Dealer-host sources (salvagezone, recar, ...) have no scraper_runs of their own: the curated
+      // dealer crawl collects them and tags rows independent_dealer. A host WITH rows keeps its own
+      // proof freshness (shared curated runs must not mask stale proof), but says which crawl runs it
+      // (runVia) instead of reading as an unattributed "observed / 0 runs" source.
+      const runVia =
+        !runsBySource[source.id]?.length && source.catalogUrl
+          ? "curated_dealers"
+          : null;
       const runs =
         runsBySource[source.id] ||
         (source.catalogUrl && !proof?.activeRows
           ? runsBySource.curated_dealers
           : []) ||
         [];
+      // independent_dealer's rows are attributed to the dealer that listed them, so its own
+      // activeRows is 0 by design. Report how many rows it collected (not added to totals).
+      const attributedRows =
+        source.id === "independent_dealer"
+          ? (activeDeals || []).filter(
+              (deal: any) =>
+                deal.source === "independent_dealer" &&
+                matchesScope(deal, scope),
+            ).length
+          : null;
       const lastRun = runs[0];
       const totalRuns = runs.length;
       const failedRuns = runs.filter((r) => r.status === "error").length;
@@ -1350,7 +1368,7 @@ export async function GET(request: NextRequest) {
                 : "needs_run"
             : lastRun?.status === "error"
               ? "blocked"
-              : proof?.activeRows
+              : proof?.activeRows || attributedRows
                 ? "ready"
                 : "no_rows";
 
@@ -1377,6 +1395,10 @@ export async function GET(request: NextRequest) {
         estimatedDealsPerRun: source.estimatedDealsPerRun,
         readiness,
         activeRows: proof?.activeRows || 0,
+        ...(runVia ? { runVia } : {}),
+        ...(attributedRows != null
+          ? { attributedRows, rowsAttributedTo: "dealer sources" }
+          : {}),
         rowsWithPhotos: proof?.rowsWithPhotos || 0,
         averageQuality: proof?.activeRows
           ? Math.round(proof.qualityTotal / proof.activeRows)
