@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MISSOURI_SEARCH_ZIPS } from "@/lib/geo/missouri-markets";
 vi.mock("../smart-fetch", () => ({ smartFetch: vi.fn() }));
 vi.mock("../pipeline", () => ({ upsertDeals: vi.fn() }));
 import { smartFetch } from "../smart-fetch";
@@ -20,11 +21,9 @@ describe("TrueCar scoped requests", () => {
       () => scrapeTrueCar(),
     );
     const urls = vi.mocked(smartFetch).mock.calls.map(([url]) => new URL(url));
-    expect(urls.map((url) => url.searchParams.get("zip"))).toEqual([
-      "63101",
-      "64106",
-      "65806",
-    ]);
+    expect(urls.map((url) => url.searchParams.get("zip"))).toEqual(
+      MISSOURI_SEARCH_ZIPS,
+    );
     expect(
       urls.every(
         (url) => url.searchParams.get("searchText") === "Ford Explorer",

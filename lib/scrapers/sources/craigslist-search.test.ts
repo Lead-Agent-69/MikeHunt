@@ -43,6 +43,17 @@ describe("craigslistSearchUrl", () => {
     expect(sites).toContain("stlouis");
     expect(sites).toContain("kansascity");
     expect(sites).not.toContain("dallas");
+    expect(sites).toHaveLength(9);
+    expect(sites).toEqual(
+      expect.arrayContaining([
+        "columbiamo",
+        "joplin",
+        "kirksville",
+        "loz",
+        "semo",
+        "stjoseph",
+      ]),
+    );
     expect(
       craigslistSitesForRun(undefined, "dallas", { states: ["MO", "IL"] }),
     ).toContain("chicago");

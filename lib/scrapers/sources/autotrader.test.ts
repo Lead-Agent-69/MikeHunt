@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MISSOURI_SEARCH_ZIPS } from "@/lib/geo/missouri-markets";
 import {
   listingStateCode,
   parseAutotraderNextData,
@@ -162,7 +163,7 @@ describe("autotraderSearchZips", () => {
   it("prioritizes the buyer market over a default ZIP or a sweep", () => {
     expect(
       autotraderSearchZips("75201", undefined, () => 0, { state: "MO" }),
-    ).toEqual(["63101", "64106", "65806"]);
+    ).toEqual(MISSOURI_SEARCH_ZIPS);
   });
   it("keeps an explicit ZIP", () => {
     expect(autotraderSearchZips("63101")).toEqual(["63101"]);
