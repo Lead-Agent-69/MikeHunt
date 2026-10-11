@@ -4,6 +4,14 @@ import type { OrchestratorType } from "./runner";
 
 export type ScrapeJobStatus = "pending" | "running" | "completed" | "failed";
 
+/** Idle health must distinguish a live process from permission to collect/store more rows. */
+export function scopedWorkerIdleState(
+  manualPaused: boolean,
+  quotaReached: boolean,
+) {
+  return manualPaused ? "paused" : quotaReached ? "quota_paused" : "running";
+}
+
 export interface ScopedScrapeJobInput {
   requestedBy?: string | null;
   sourceIds: string[];

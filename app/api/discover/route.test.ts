@@ -246,8 +246,8 @@ describe("GET /api/discover scoped feed contract", () => {
       thresholds: { minRows: 50, minSources: 2 },
     });
     expect(body.coverage.bySource.map((s: any) => [s.source, s.rows])).toEqual([
-      ["curated_dealers", 1],
-      ["gov_auction", 1],
+      ["dealer.example", 1],
+      ["govdeals", 1],
     ]);
   });
 

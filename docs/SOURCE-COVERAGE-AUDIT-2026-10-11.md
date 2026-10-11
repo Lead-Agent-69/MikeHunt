@@ -18,6 +18,13 @@ proof of permission, recent inventory, photos, accurate condition, or valuation.
   group. This improves reporting, not inventory volume.
 - No source-policy block, restricted feed, price/title gate, location constraint,
   retention rule, or buyer authorization was removed.
+- The local worker reached 1,000 inserts against its configured 1,250/day limit,
+  triggering the existing 80% safety stop. It still reported `running`. Quota
+  exhaustion now reports `quota_paused` and leaves unstarted buyer jobs pending
+  instead of spending requests on searches it cannot store. Limits and quota
+  accounting remain unchanged; collection resumes when the daily quota resets.
+  Increasing safe capacity requires the separately reviewed retention/storage work,
+  not resetting counters or deleting saved history.
 
 ## Live baseline before deployment
 
