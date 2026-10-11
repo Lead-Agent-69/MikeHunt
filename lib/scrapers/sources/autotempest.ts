@@ -13,6 +13,9 @@ import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS } from "@/lib/geo";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
+import { getScrapeRunScope } from "../run-scope-context";
+import { buyerSearchCenters } from "../search-centers";
+import type { BuyerScope } from "../buyer-scope";
 
 const API = "https://www.autotempest.com/api/search";
 const UA =
@@ -203,7 +206,9 @@ const ZIPS_PER_RUN = 12; // rotate a window of state zips so all 50 are covered 
 export function autotempestRegionalZips(
   plan: SweepPlan | undefined = getSweepPlan(),
   random = Math.random,
+  scope: BuyerScope | undefined = getScrapeRunScope(),
 ): string[] {
+  if (scope?.state || scope?.states?.length) return buyerSearchCenters(scope);
   const planned = sweepPlanZips(plan);
   if (planned.length) return planned;
   const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
@@ -214,6 +219,27 @@ export function autotempestRegionalZips(
   );
 }
 
+export function autotempestBuyerQueries(
+  scope: BuyerScope,
+): Array<{ make: string; model?: string }> {
+  const makes = Array.from(
+    new Set(
+      [scope.make, ...(scope.makes || [])].filter((make): make is string =>
+        Boolean(make),
+      ),
+    ),
+  );
+  if (makes.length)
+    return makes.map((make) => ({
+      make: make.toLowerCase(),
+      ...(scope.model ? { model: scope.model } : {}),
+    }));
+  // Category-only searches must not inherit the background sweep's preset truck/sedan models.
+  return Array.from(new Set(QUERIES.map((query) => query.make))).map(
+    (make) => ({ make, ...(scope.model ? { model: scope.model } : {}) }),
+  );
+}
+
 export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
   console.log("[Autotempest] Starting aggregator scrape...");
   const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
@@ -221,6 +247,29 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
     stateZips[Math.floor(Math.random() * stateZips.length)] || "75201";
 
   const byId = new Map<string, Partial<Deal>>();
+  const scope = getScrapeRunScope();
+  if (scope?.state || scope?.states?.length) {
+    for (const zip of autotempestRegionalZips(undefined, Math.random, scope)) {
+      for (const query of autotempestBuyerQueries(scope)) {
+        try {
+          await harvestQuery(
+            query,
+            zip,
+            byId,
+            maxPagesPerQuery,
+            REGIONAL_RADIUS,
+          );
+        } catch (error) {
+          console.warn(
+            `[Autotempest] scoped ${query.make}@${zip} failed:`,
+            (error as Error).message,
+          );
+        }
+      }
+    }
+    const scopedDeals = Array.from(byId.values());
+    return scopedDeals.length ? upsertDeals(scopedDeals) : 0;
+  }
 
   // Pass 1 — NATIONAL: deep-paginated make/model queries for comp volume (mostly Cars.com/eBay).
   for (const q of QUERIES) {
@@ -254,6 +303,5 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
   console.log(
     `[Autotempest] Found ${deals.length} listings (${withState} with state)`,
   );
-  if (deals.length > 0) await upsertDeals(deals);
-  return deals.length;
+  return deals.length > 0 ? upsertDeals(deals) : 0;
 }
