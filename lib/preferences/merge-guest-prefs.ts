@@ -89,7 +89,7 @@ export async function mergeGuestPrefsOnSignup(input: {
       });
       if (kick) {
         merged = { ...merged, ...locationDemandPrefsStamp(kick) };
-        kicked = true;
+        kicked = kick.queued;
       }
     }
 

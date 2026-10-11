@@ -28,6 +28,11 @@ import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
 import { rowMatchesBuyerQuery } from "@/lib/discovery/for-you-rank";
+import {
+  titleCategoryDetail,
+  parseTitleTypes,
+} from "@/lib/deals/title-category";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
@@ -66,15 +71,18 @@ function matchesScopeText(deal: Partial<Deal>, scope: BuyerScope) {
 function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
   const requested = text(titleType).toLowerCase();
   if (!requested || requested === "all") return true;
-  const h =
-    `${deal.title || ""} ${deal.condition || ""} ${(deal as any).title_type || ""}`.toLowerCase();
-  if (requested === "clean") return /clean/.test(h);
-  if (requested === "salvage") return /salvage|repairable|damage/.test(h);
-  if (requested === "rebuilt") return /rebuilt|reconstructed/.test(h);
-  return h.includes(requested);
+  const detail = titleCategoryDetail(deal);
+  if (requested === "parts") return detail.partsOnly;
+  const categories = parseTitleTypes(requested);
+  return categories.length > 0 && categories.includes(detail.category);
 }
 
 export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
+  if (
+    scope.includeRepairable === false &&
+    hasReportedRepairRisk(deal.condition, deal.damage_type)
+  )
+    return false;
   if (
     scope.lane === "clean-retail" &&
     (deal.seller_type === "auction" ||

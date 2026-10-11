@@ -3198,6 +3198,7 @@ function ScanPageInner() {
         makes: make === "all" && makesFilter.length ? makesFilter : undefined,
         model: model !== "all" ? model : undefined,
         titleType: titleType !== "all" ? titleType : undefined,
+        includeRepairable: repairEligibility === "1",
         sellerType: sellerTypeFilter !== "all" ? sellerTypeFilter : undefined,
         maxPrice:
           maxPrice !== "any"
@@ -3222,6 +3223,7 @@ function ScanPageInner() {
       makesFilter,
       model,
       titleType,
+      repairEligibility,
       maxPrice,
       minPrice,
       minYear,
