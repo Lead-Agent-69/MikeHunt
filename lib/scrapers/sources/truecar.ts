@@ -5,6 +5,9 @@ import type { Deal } from "@/types";
 import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
+import { getScrapeRunScope } from "../run-scope-context";
+import { buyerListingSearchText } from "../buyer-scope";
+import { buyerSearchCenters } from "../search-centers";
 
 // TrueCar is a Next.js + Apollo SPA — the DOM selectors rot, but every listing sits in the
 // __NEXT_DATA__ Apollo cache as a `ConsumerSummaryListing:` entry with normalized refs to the vehicle,
@@ -124,32 +127,42 @@ export async function scrapeTrueCar(
   zip = "75201",
   maxPages = TRUECAR_CONFIG.maxPages,
 ) {
-  console.log(`[TrueCar] Starting scrape for "${searchTerm}" near ${zip}...`);
-  const allDeals: Partial<Deal>[] = [];
+  const scope = getScrapeRunScope();
+  const query = buyerListingSearchText(scope, searchTerm);
+  const centers =
+    scope?.state || scope?.states?.length ? buyerSearchCenters(scope) : [zip];
+  console.log(
+    `[TrueCar] Starting scrape for "${query}" near ${centers.join(", ")}...`,
+  );
+  const allDeals = new Map<string, Partial<Deal>>();
+  const pagesPerCenter = centers.length > 1 ? Math.min(maxPages, 3) : maxPages;
 
   // PerimeterX-walled — smartFetch escalates to the headed real-Chrome tier (detects headless).
-  for (let page = 1; page <= maxPages; page++) {
-    const params = new URLSearchParams({
-      zip,
-      searchRadius: "500",
-      ...(searchTerm && { searchText: searchTerm }),
-      page: String(page),
-    });
-    const url = `https://www.truecar.com/used-cars-for-sale/listings?${params.toString()}`;
-    const { html, blocked } = await smartFetch(url, {
-      validate: (h) => parseTrueCarHtml(h).length > 0,
-    });
-    if (blocked) {
-      console.warn(`[TrueCar] blocked near ${zip} (no tier passed)`);
-      break;
+  for (const center of centers) {
+    for (let page = 1; page <= pagesPerCenter; page++) {
+      const params = new URLSearchParams({
+        zip: center,
+        searchRadius: "500",
+        ...(query && { searchText: query }),
+        page: String(page),
+      });
+      const url = `https://www.truecar.com/used-cars-for-sale/listings?${params.toString()}`;
+      const { html, blocked } = await smartFetch(url, {
+        validate: (h) => parseTrueCarHtml(h).length > 0,
+      });
+      if (blocked) {
+        console.warn(`[TrueCar] blocked near ${center} (no tier passed)`);
+        break;
+      }
+      const items = parseTrueCarHtml(html);
+      if (!items.length) break;
+      for (const item of items) {
+        if (item.source_deal_id) allDeals.set(item.source_deal_id, item);
+      }
+      if (items.length < 10) break;
     }
-    const items = parseTrueCarHtml(html);
-    if (!items.length) break;
-    allDeals.push(...items);
-    if (items.length < 10) break;
   }
 
-  console.log(`[TrueCar] Found ${allDeals.length} deals`);
-  if (allDeals.length > 0) await upsertDeals(allDeals);
-  return allDeals.length;
+  console.log(`[TrueCar] Found ${allDeals.size} deals`);
+  return allDeals.size ? await upsertDeals(Array.from(allDeals.values())) : 0;
 }

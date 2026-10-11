@@ -499,7 +499,15 @@ describe("GET /api/scrape/health lane scoping", () => {
 
     expect(res.status).toBe(200);
     expect(body.scope).toMatchObject({ sellerType: "dealer" });
-    expect(body.plan.sourceIds).toEqual(["curated_dealers"]);
+    expect(body.plan.sourceIds).toEqual([
+      "curated_dealers",
+      "cars_com",
+      "cargurus",
+      "autotrader",
+      "truecar",
+      "carvana",
+      "craigslist",
+    ]);
     expect(body.plan.reasons).toContain("dealer seller type");
     expect(body.scopeStatus).toMatchObject({
       status: "empty",
@@ -507,6 +515,12 @@ describe("GET /api/scrape/health lane scoping", () => {
     });
     expect(body.sources.map((source: any) => source.id)).toEqual([
       "curated_dealers",
+      "cars_com",
+      "cargurus",
+      "autotrader",
+      "truecar",
+      "carvana",
+      "craigslist",
       "stjames-auto",
       "dg-auto",
       "recar",
@@ -515,11 +529,13 @@ describe("GET /api/scrape/health lane scoping", () => {
       "cas-miami",
       "salvagezone",
     ]);
-    expect(body.sources.every((source: any) => source.type === "dealer")).toBe(
-      true,
-    );
+    expect(
+      body.sources.every((source: any) =>
+        ["dealer", "marketplace"].includes(source.type),
+      ),
+    ).toBe(true);
     expect(body.summary).toMatchObject({
-      total: 8,
+      total: 14,
       healthy: 0,
       activeRows: 0,
       rowsWithPhotos: 0,

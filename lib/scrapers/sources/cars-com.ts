@@ -5,7 +5,7 @@ import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
 import { getScrapeRunScope } from "../run-scope-context";
 import { getSweepPlan, type SweepPlan } from "../sweep-plan";
-import { metroZipsForState } from "@/lib/geo/metro-zips";
+import { STATE_METRO_ZIPS, metroZipsForState } from "@/lib/geo/metro-zips";
 import { buyerListingSearchText } from "../buyer-scope";
 
 // cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
@@ -115,6 +115,9 @@ export function carsComZipsForState(
 ): string[] {
   const code = listingStateCode(state);
   if (!code) return [];
+  const scope = getScrapeRunScope();
+  if (scope?.state || scope?.states?.length)
+    return metroZipsForState(code, STATE_METRO_ZIPS[code]?.length || perState);
   const planned = plan?.zipsByState?.[code];
   if (planned?.length) return planned;
   const metros = metroZipsForState(code, perState);

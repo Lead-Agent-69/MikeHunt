@@ -4,6 +4,7 @@ import {
   claimNextScopedScrapeJob,
   enqueueScopedScrapeJob,
   isRemoteScrapeQueueEnabled,
+  recoveredClaimError,
 } from "./job-queue";
 
 function chain(terminal: Record<string, unknown>) {
@@ -25,6 +26,14 @@ function chain(terminal: Record<string, unknown>) {
 }
 
 describe("buyer-scoped scrape queue", () => {
+  it("clears a connection error only after a failed claim has recovered", () => {
+    const error = "Could not claim scrape job: TypeError: fetch failed";
+    expect(recoveredClaimError(error, 2)).toBeUndefined();
+    expect(recoveredClaimError(error, 0)).toBe(error);
+    expect(
+      recoveredClaimError("None of the selected sources could be checked.", 2),
+    ).toBe("None of the selected sources could be checked.");
+  });
   it("removes the legacy allow-all job policy", () => {
     const migration = readFileSync(
       "supabase/migrations/20261003060000_lock_scrape_jobs_rls.sql",

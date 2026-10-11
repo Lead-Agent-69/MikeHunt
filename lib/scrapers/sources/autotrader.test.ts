@@ -159,6 +159,11 @@ describe("listingStateCode", () => {
 });
 
 describe("autotraderSearchZips", () => {
+  it("prioritizes the buyer market over a default ZIP or a sweep", () => {
+    expect(
+      autotraderSearchZips("75201", undefined, () => 0, { state: "MO" }),
+    ).toEqual(["63101", "64106", "65806"]);
+  });
   it("keeps an explicit ZIP", () => {
     expect(autotraderSearchZips("63101")).toEqual(["63101"]);
   });

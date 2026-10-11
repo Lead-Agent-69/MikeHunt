@@ -101,3 +101,13 @@ export async function claimNextScopedScrapeJob(
   return ((Array.isArray(data) ? data[0] : data) ||
     null) as ScopedScrapeJob | null;
 }
+
+/** Clear a recovered connection error without hiding a failed collection task. */
+export function recoveredClaimError(
+  lastError: string | undefined,
+  failures: number,
+) {
+  return failures > 0 && lastError?.startsWith("Could not claim scrape job:")
+    ? undefined
+    : lastError;
+}

@@ -154,6 +154,11 @@ describe("resolveCarsComStates", () => {
 });
 
 describe("carsComZipsForState", () => {
+  it("does not omit Springfield from a buyer's Missouri search", async () => {
+    await withScrapeRunScope({ state: "MO" }, async () => {
+      expect(carsComZipsForState("MO")).toEqual(["63101", "64106", "65806"]);
+    });
+  });
   it("falls back to the first metro ZIPs and starts at the original seed", () => {
     expect(carsComZipsForState("TX", undefined, 2)).toEqual(["75201", "77002"]);
     expect(carsComZipsForState("RI", undefined, 3)).toEqual(["02903"]);
