@@ -18,6 +18,9 @@ proof of permission, recent inventory, photos, accurate condition, or valuation.
 - Inventory database source/domain filters also used an independent ten-dealer
   list. They now resolve through the shared registry. Six missing catalog entries
   are marked testing, enabling scoped health checks without claiming fresh rows.
+- Health queries no longer truncate the expanded domain list to twelve entries.
+  All accepted dealer identities and aliases remain included when selecting every
+  featured dealer; input normalization still bounds IDs and custom host inputs.
 - Discover coverage grouped all independent dealers together. It now separates
   known URL-derived dealers and unknown dealer hostnames; multiple vehicle pages
   from the same vendor remain one source. Missing links remain in the generic

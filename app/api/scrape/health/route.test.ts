@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
+import { DEALER_SOURCE_DOMAINS } from "@/lib/sources/source-meta";
 
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: vi.fn(() => false),
@@ -460,6 +461,18 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.sources.map((source: any) => source.id)).toEqual(["autovada"]);
     expect(body.sources[0].activeRows).toBe(0);
     expect(body.sources[0].enabled).toBe(false);
+  });
+
+  it("keeps every accepted dealer domain in all-dealers health queries", async () => {
+    const { scopedDealerUrlNeedles } = await import("./route");
+    const ids = Object.keys(DEALER_SOURCE_DOMAINS);
+    const needles = scopedDealerUrlNeedles({ dealerSourceIds: ids });
+    expect(needles).toEqual(
+      Array.from(new Set(Object.values(DEALER_SOURCE_DOMAINS).flat())),
+    );
+    expect(needles).toContain("replicaautosales.net");
+    expect(needles).toContain("autovada.com");
+    expect(needles).toContain("garysautoia.net");
   });
 
   it("limits dealer proof to selected dealer hosts", async () => {

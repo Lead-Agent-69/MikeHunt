@@ -774,7 +774,7 @@ function supabaseIlikeTerm(value: string) {
     .trim();
 }
 
-function scopedDealerUrlNeedles(scope: HealthScope) {
+export function scopedDealerUrlNeedles(scope: HealthScope) {
   const fromDealerIds = (scope.dealerSourceIds || []).flatMap(
     dealerSourceUrlNeedles,
   );
@@ -784,7 +784,7 @@ function scopedDealerUrlNeedles(scope: HealthScope) {
         .map((value) => supabaseIlikeTerm(value.toLowerCase()))
         .filter(Boolean),
     ),
-  ).slice(0, 12);
+  );
 }
 
 function applyScopedDealQuery(query: any, scope: HealthScope) {
