@@ -1,16 +1,13 @@
 // lib/scrapers/sources/copart.ts
-// Copart — the largest salvage auction in North America — exposes its FULL public runlist via an open
-// JSON API (POST /public/lots/search-results), no login and no FlareSolverr. Salvage/repairable cars
-// are prime flips for dealers who recondition. ~390k cars listed at any time, each with year/make/
-// model, damage type, location, sale date, and Copart's ACV (clean-value) estimate.
-//
-// Honest limitation: the PUBLIC feed does not expose live bids (bidStatus is "NEVER_BID" until a lot
-// goes live — anti-scraping). So acquisition cost is the lot's current bid when present, otherwise we
-// fall back to the ACV estimate as the value reference (never a fabricated bargain). The live hammer
-// price is the one thing still behind a dealer login.
+// Copart search responses may omit prices and condition details. Preserve reported bids,
+// buy-now amounts and pre-loss reference values separately; none establish final purchase cost.
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import {
+  positivePrice,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 
 const COPART_API = "https://www.copart.com/public/lots/search-results";
 const UA =
@@ -27,9 +24,9 @@ function damageToCondition(dd: string): Deal["condition"] {
   if (/FLOOD|WATER/.test(d)) return "flood";
   if (/BURN|FIRE/.test(d)) return "fire";
   if (/HAIL/.test(d)) return "hail";
-  if (/STRIP|PARTS ONLY|MISSING|VANDALISM/.test(d)) return "parts_only";
-  if (/MINOR|NORMAL WEAR|SCRATCH|DENT/.test(d)) return "run_drive";
-  return "repairable"; // default: damaged but fixable — the salvage flip case
+  if (/PARTS ONLY|NON.?REPAIRABLE/.test(d)) return "parts_only";
+  // Damage text alone proves neither operability, title brand nor repairability.
+  return undefined;
 }
 
 const isNonCar = (vt: string): boolean =>
@@ -41,7 +38,9 @@ const isNonCar = (vt: string): boolean =>
 export function copartOdometer(v: any): number | undefined {
   const miles = Math.round(Number(v?.orr));
   if (!Number.isFinite(miles) || miles < 1 || miles > 999_999) return undefined;
-  if (/not actual|exempt|exceeds|tmu|broken|unknown/i.test(String(v?.ord ?? "")))
+  if (
+    /not actual|exempt|exceeds|tmu|broken|unknown/i.test(String(v?.ord ?? ""))
+  )
     return undefined;
   return miles;
 }
@@ -70,16 +69,22 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
     const damage = str(v.dd) || "";
 
     const dyn = v.dynamicLotDetails || {};
-    const bid = Math.max(
-      Number(v.hb) || 0,
-      Number(v.lbd) || 0,
-      Number(dyn.currentBid) || 0,
-      Number(dyn.buyTodayBid) || 0,
-    );
-    const acv = Number(v.la) > 0 ? Math.round(Number(v.la)) : 0;
-    // Acquisition cost: live bid if any, else the ACV value reference. Skip lots with neither.
-    const price = bid > 0 ? Math.round(bid) : acv;
-    if (!price) continue;
+    const bid = positivePrice(dyn.currentBid) || positivePrice(v.hb) || 0;
+    const buyNow = positivePrice(dyn.buyTodayBid);
+    const acv = positivePrice(v.la);
+    const price = bid || buyNow || 0;
+    const priceEvidence: PriceEvidence = {
+      kind: bid
+        ? "current_bid"
+        : buyNow
+          ? "buy_now"
+          : acv
+            ? "reference"
+            : "unknown",
+      currentBid: bid || undefined,
+      buyNow,
+      referenceValue: acv,
+    };
 
     items.push({
       source: "copart",
@@ -94,6 +99,8 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
       make,
       model,
       ask_price: price,
+      buy_now_price: buyNow,
+      options: { priceEvidence },
       // `orr` is the odometer reading in the public lots JSON (checked 2026-10-10: 74308 on a 2017
       // Sentra). Not-actual / exempt readings ("ord") are dropped, never guessed.
       mileage: copartOdometer(v),
@@ -104,7 +111,7 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
       // `tims` is the lot's real photo (cs.copart.com JPG). Was hardcoded [], so every Copart car —
       // our #1 source — showed a placeholder. This single field lifts photo coverage from ~38% to ~70%.
       images: v.tims ? [String(v.tims)] : [],
-      seller_type: "dealer",
+      seller_type: "auction",
       seller: "Copart (salvage auction)",
       location_state: str(v.locState),
       location_city: str(v.locCity) ? titleCase(v.locCity) : undefined,
@@ -115,7 +122,7 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
         secondary_damage: str(v.csc),
         acv_estimate: acv || undefined,
         current_bid: bid,
-        price_is_acv_estimate: bid <= 0 && acv > 0,
+        price_is_acv_estimate: !price && !!acv,
         sale_ts: Number(v.lad) || undefined,
         vehicle_type: vt || undefined,
         partial_vin: str(v.fv),
@@ -151,7 +158,9 @@ async function fetchCopartPage(
   });
   if (!res.ok) {
     console.warn(`[Copart] page ${page} HTTP ${res.status}`);
-    return null;
+    throw new Error(
+      `Copart inventory request unavailable (HTTP ${res.status}).`,
+    );
   }
   return res.json();
 }
@@ -210,6 +219,5 @@ export async function scrapeCopart(
   }
 
   console.log(`[Copart] Found ${all.length} salvage lots`);
-  if (all.length > 0) await upsertDeals(all);
-  return all.length;
+  return all.length > 0 ? await upsertDeals(all) : 0;
 }

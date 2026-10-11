@@ -6,6 +6,22 @@ import { analyzeDeal } from "./deal-analyzer";
 // normal deal scores sanely.
 
 describe("analyzeDeal reality gate", () => {
+  it("never ranks a pre-loss reference as an acquisition bargain", () => {
+    const a = analyzeDeal({
+      year: 2020,
+      make: "Acura",
+      model: "MDX",
+      ask_price: 24000,
+      source: "copart",
+      options: { priceEvidence: { kind: "reference", referenceValue: 24000 } },
+    } as any);
+    expect(a.verdict).toBe("not_enough_data");
+    expect(a.score).toBe(0);
+    expect(a.profit).toBe(0);
+    expect(a.roi).toBe(0);
+    expect(a.recommendedMaxBid).toBe(0);
+    expect(a.warnings.join(" ")).toContain("Purchase price is not reported");
+  });
   it("flags financing/lease bait (fake $999) as implausible → pass", () => {
     const a = analyzeDeal({
       year: 2024,

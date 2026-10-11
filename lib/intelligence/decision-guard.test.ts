@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
 describe("assessDecisionEvidence", () => {
+  it("does not call an unknown amount a current auction price", () => {
+    const result = assessDecisionEvidence({ source: "copart", askPrice: 0 });
+    expect(result.summary).toContain("acquisition price is not reported");
+    expect(result.summary).not.toContain("displayed amount is a current");
+    expect(result.acquisitionReady).toBe(false);
+    expect(
+      assessDecisionEvidence({ source: "copart", askPrice: 3000 }).summary,
+    ).toContain("current auction price");
+  });
   it("keeps auction buy-now evidence distinct from a current bid", () => {
     const result = assessDecisionEvidence({
       source: "copart",

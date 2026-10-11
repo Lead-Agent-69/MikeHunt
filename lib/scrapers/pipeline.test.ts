@@ -7,6 +7,29 @@ import {
 } from "./pipeline";
 
 describe("buyer-scoped intake", () => {
+  it("cannot qualify reference values or unknown prices under a buyer budget", () => {
+    const row = {
+      ask_price: 3000,
+      source: "copart",
+      options: { priceEvidence: { kind: "reference", referenceValue: 3000 } },
+    };
+    expect(matchesBuyerScope(row, { maxPrice: 10000 })).toBe(false);
+    expect(
+      matchesBuyerScope(
+        { ...row, options: { priceEvidence: { kind: "unknown" } } },
+        { minPrice: 1000 },
+      ),
+    ).toBe(false);
+    expect(
+      matchesBuyerScope(
+        {
+          ...row,
+          options: { priceEvidence: { kind: "current_bid", currentBid: 3000 } },
+        },
+        { maxPrice: 10000 },
+      ),
+    ).toBe(true);
+  });
   it("does not infer clean title from marketing text", () => {
     expect(
       matchesBuyerScope(

@@ -33,6 +33,7 @@ import {
   parseTitleTypes,
 } from "@/lib/deals/title-category";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
@@ -104,7 +105,7 @@ export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
   );
   if (allowedStates.size && (!state || !allowedStates.has(state))) return false;
 
-  const price = Number(deal.ask_price || 0);
+  const price = reportedAcquisitionPrice(deal);
   if (scope.minPrice && (!price || price < scope.minPrice)) return false;
   if (scope.maxPrice && (!price || price > scope.maxPrice)) return false;
 
@@ -218,7 +219,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         deal.make &&
         deal.model &&
         typeof deal.ask_price === "number" &&
-        deal.ask_price > 0,
+        (deal.ask_price > 0 ||
+          (deal.source === "copart" && !!deal.options?.priceEvidence)),
     )
     .map((deal) => {
       const analysis = analyzeDeal(deal);
@@ -250,7 +252,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         auction_end_at: normalizeAuctionEndAt(deal.auction_end),
         listed_year: listedYears.get(deal as object) ?? deal.year,
       });
-      const flagged = flags.length > 0;
+      const unpriced = reportedAcquisitionPrice(deal) <= 0;
+      const flagged = flags.length > 0 || unpriced;
       const auctionEndAt = normalizeAuctionEndAt(deal.auction_end);
 
       const scraperOptions =
@@ -313,7 +316,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
               ? { phone, email }
               : ((deal as any).options?.contact ?? undefined),
         },
-        ask_price: deal.ask_price,
+        ask_price: reportedAcquisitionPrice(deal),
+        buy_now_price: deal.buy_now_price ?? null,
         mileage: deal.mileage,
         // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
         // ("Clean Title", "Non-Repairable") that the enum rejects, which silently dropped every row.
@@ -353,7 +357,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mmr_value: (deal as any).mmr_value ?? null,
         sell_estimate: flagged ? null : analysis.sellEstimate,
         recommended_max_bid: flagged ? null : analysis.recommendedMaxBid,
-        deal_verdict: flagged ? "pass" : analysis.verdict,
+        deal_verdict: unpriced
+          ? "not_enough_data"
+          : flagged
+            ? "pass"
+            : analysis.verdict,
         // Needs 20261010210000_deals_quality_flags_completeness.sql. Before it is applied the
         // schema-heal below strips both columns and the upsert proceeds unchanged.
         quality_flags: flagged ? flags : null,
@@ -369,23 +377,28 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         }),
         deal_analysis: {
           ...(flagged ? { qualityFlags: flags } : {}),
-          roi: Math.round(analysis.roi * 10) / 10,
-          profitMargin: Math.round(analysis.profitMargin * 10) / 10,
+          acquisitionPriceMissing: unpriced,
+          roi: unpriced ? null : Math.round(analysis.roi * 10) / 10,
+          profitMargin: unpriced
+            ? null
+            : Math.round(analysis.profitMargin * 10) / 10,
           breakEvenDay: analysis.breakEvenDay,
           sellBasis: analysis.sellBasis,
           transportMiles: analysis.miles,
           costs: {
-            acquisition: analysis.acquisitionCost,
+            acquisition: unpriced ? null : analysis.acquisitionCost,
             repair: analysis.repairCost,
             transport: analysis.transportCost,
             holding: analysis.holdingCost,
             selling: analysis.sellingCost,
-            total: analysis.totalCost,
+            total: unpriced ? null : analysis.totalCost,
           },
           scoreBreakdown: analysis.scoreBreakdown,
           warnings: flagged
             ? [
-                `Not scored: listing values failed sanity checks (${flags.join(", ")}). Verify on the source before relying on it.`,
+                unpriced
+                  ? "Not scored: purchase price is not reported. Verify current auction terms on the source."
+                  : `Not scored: listing values failed sanity checks (${flags.join(", ")}). Verify on the source before relying on it.`,
                 ...analysis.warnings,
               ]
             : analysis.warnings,

@@ -40,6 +40,7 @@ export function discoveryEvidence(deal: DiscoveryDeal) {
     damageType: deal.damageType,
     vin: deal.vin,
     mileage: deal.mileage,
+    askPrice: deal.askPrice,
     dealVerdict: deal.dealVerdict,
     dealAnalysis: {
       priceImplausible: deal.warnings?.some((warning) =>
