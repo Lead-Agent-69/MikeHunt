@@ -117,21 +117,21 @@ describe("resolveCarsComStates", () => {
     expect(resolveCarsComStates(undefined)).toEqual([]);
   });
 
-  it("uses one saved buyer state", async () => {
+  it("uses every explicitly selected buyer state", async () => {
     await withScrapeRunScope(
       { state: "fl", states: ["GA", "AL"] },
       async () => {
-        expect(resolveCarsComStates("")).toEqual(["FL"]);
+        expect(resolveCarsComStates("")).toEqual(["FL", "GA", "AL"]);
       },
     );
     await withScrapeRunScope({ states: ["ok", "tx"] }, async () => {
-      expect(resolveCarsComStates(undefined)).toEqual(["OK"]);
+      expect(resolveCarsComStates(undefined)).toEqual(["OK", "TX"]);
     });
   });
 
-  it("lets CARS_STATES override the saved state", async () => {
+  it("does not let a background operator setting override a buyer's state", async () => {
     await withScrapeRunScope({ state: "FL" }, async () => {
-      expect(resolveCarsComStates("tx, no, ok")).toEqual(["TX", "OK"]);
+      expect(resolveCarsComStates("tx, no, ok")).toEqual(["FL"]);
     });
   });
 

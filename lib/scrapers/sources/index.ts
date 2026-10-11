@@ -27,6 +27,7 @@ import {
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
+import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
@@ -118,7 +119,9 @@ export function mileageFromDealerText(
 }
 
 /** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
-export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+export function craigslistGalleryImages(
+  urls: (string | undefined)[],
+): string[] {
   const byId = new Map<string, string>();
   for (const raw of urls) {
     const url = String(raw || "");
@@ -254,7 +257,16 @@ const CL_CITIES: string[] = (() => {
 export function craigslistSitesForRun(
   plan: SweepPlan | undefined = getSweepPlan(),
   envCities: string | undefined = process.env.CL_CITIES,
+  scope = getScrapeRunScope(),
 ): string[] {
+  const demanded = scopeDemandStates(scope);
+  if (demanded.length) {
+    const wanted = new Set(demanded);
+    // Buyer jobs must not inherit a nationwide shard or an unrelated sweep's metros.
+    return CRAIGSLIST_SITES.filter((site) => wanted.has(site.state)).map(
+      (site) => site.site,
+    );
+  }
   if (envCities?.trim()) return CL_CITIES;
   if (plan?.states?.length) {
     const wanted = new Set(plan.states.map((s) => s.toUpperCase()));
@@ -278,11 +290,17 @@ export function craigslistSearchUrl(
   query = "",
   minPrice = 500,
   maxPrice = 35000,
+  scope = getScrapeRunScope(),
 ): string {
   const params = new URLSearchParams();
-  if (query.trim()) params.set("query", query.trim());
-  params.set("min_price", String(minPrice));
-  params.set("max_price", String(maxPrice));
+  // Body categories are classified at intake: a model need not say "SUV" in its title.
+  const scopedQuery = buyerListingSearchText(scope, query);
+  if (scopedQuery) params.set("query", scopedQuery);
+  params.set("min_price", String(scope?.minPrice ?? minPrice));
+  const ceiling = scope ? scope.maxPrice : maxPrice;
+  if (ceiling && ceiling > 0) params.set("max_price", String(ceiling));
+  if (scope?.minYear) params.set("min_auto_year", String(scope.minYear));
+  if (scope?.maxMileage) params.set("max_auto_miles", String(scope.maxMileage));
   if (page > 1) params.set("s", String((page - 1) * 120));
   return `https://${city}.craigslist.org/search/${channelPath}?${params.toString()}`;
 }
@@ -375,7 +393,14 @@ export async function scrapeCraigslist(
   maxPrice = 35000,
 ) {
   const plan = getSweepPlan();
+  const scope = getScrapeRunScope();
   const cities = craigslistSitesForRun(plan);
+  const channels =
+    scope?.sellerType === "dealer" || scope?.lane === "clean-retail"
+      ? CL_CHANNELS.filter((channel) => channel.path === "ctd")
+      : scope?.sellerType === "private"
+        ? CL_CHANNELS.filter((channel) => channel.path === "cto")
+        : CL_CHANNELS;
   // A sweep covers many sites. Keep each one shallow (CL_SWEEP_PAGES, default 2 x 120 rows).
   const config: ScraperConfig = plan
     ? {
@@ -384,12 +409,12 @@ export async function scrapeCraigslist(
       }
     : CL_CONFIG;
   console.log(
-    `[Craigslist] Scanning ${cities.length} cities × ${CL_CHANNELS.length} channels...`,
+    `[Craigslist] Scanning ${cities.length} cities × ${channels.length} channels...`,
   );
   const allDeals: Partial<Deal>[] = [];
 
   for (const city of cities) {
-    for (const channel of CL_CHANNELS) {
+    for (const channel of channels) {
       const gen = paginate<Partial<Deal>>(
         config,
         (page) =>
@@ -411,8 +436,7 @@ export async function scrapeCraigslist(
   console.log(`[Craigslist] Found ${allDeals.length} deals`);
   // Pull VIN / true mileage / title status from detail pages (bounded, $0).
   await enrichDeals(allDeals);
-  await upsertDeals(allDeals);
-  return allDeals.length;
+  return await upsertDeals(allDeals);
 }
 
 // ════════════════════════════════════════════════════════════

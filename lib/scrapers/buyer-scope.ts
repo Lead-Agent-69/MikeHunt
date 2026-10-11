@@ -80,7 +80,15 @@ const LANE_SOURCES: Record<BuyerLane, string[]> = {
     "ebay_motors",
     "curated_dealers",
   ],
-  "clean-retail": ["cars_com", "cargurus", "autotrader", "truecar", "carvana"],
+  "clean-retail": [
+    "cars_com",
+    "cargurus",
+    "autotrader",
+    "truecar",
+    "carvana",
+    "curated_dealers",
+    "craigslist",
+  ],
   government: [
     "publicsurplus",
     "govdeals",
@@ -93,7 +101,15 @@ const LANE_SOURCES: Record<BuyerLane, string[]> = {
 };
 
 const SELLER_TYPE_SOURCES: Record<string, string[]> = {
-  dealer: ["curated_dealers"],
+  dealer: [
+    "curated_dealers",
+    "cars_com",
+    "cargurus",
+    "autotrader",
+    "truecar",
+    "carvana",
+    "craigslist",
+  ],
   auction: [
     "copart",
     "acv",
@@ -200,6 +216,7 @@ function composeBuyerQuery(...values: Array<string | undefined>) {
   const tokens = new Set<string>();
   const words: string[] = [];
   for (const value of values) {
+    if (/^(any|all|any vehicle)$/i.test(value?.trim() || "")) continue;
     for (const word of (value || "").split(/\s+/)) {
       const key = word.toLowerCase();
       if (!key || tokens.has(key)) continue;
@@ -208,6 +225,21 @@ function composeBuyerQuery(...values: Array<string | undefined>) {
     }
   }
   return words.join(" ").trim() || undefined;
+}
+
+/** Free-text marketplace searches cannot reliably match body categories in listing titles. */
+export function buyerListingSearchText(scope?: BuyerScope, fallback = "") {
+  if (!scope) return fallback.trim();
+  const query = composeBuyerQuery(scope.q, scope.make, scope.model) || "";
+  return query
+    .split(/\s+/)
+    .filter(
+      (term) =>
+        !/^(any|all|vehicle|suvs?|trucks?|sedans?|coupes?|convertibles?|vans?|ev|hybrid|luxury)$/i.test(
+          term,
+        ),
+    )
+    .join(" ");
 }
 
 function normalizeLane(value: unknown): BuyerLane {
