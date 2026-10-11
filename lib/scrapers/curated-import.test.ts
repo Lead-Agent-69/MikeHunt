@@ -47,7 +47,36 @@ describe("curated import receipts", () => {
     mocks.save.mockResolvedValue(0);
     mocks.ai.mockResolvedValue([]);
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+  it("rotates a capped photo batch beyond the first inventory card", async () => {
+    vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
+    vi.spyOn(Date, "now").mockReturnValue(3600_000);
+    const twoCars =
+      html.replace('<a rel="next" href="?page=2">Next</a>', "") +
+      html
+        .replace("/cars/123", "/cars/456")
+        .replace('<a rel="next" href="?page=2">Next</a>', "");
+    const fetcher = vi.fn(async (url: string) =>
+      url.includes("/cars/")
+        ? '<div class="vehicle-gallery"><img src="/one.jpg"><img src="/two.jpg"></div>'
+        : twoCars,
+    );
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      fetcher,
+    );
+    expect(
+      fetcher.mock.calls
+        .filter(([url]) => url.includes("/cars/"))
+        .map(([url]) => url),
+    ).toEqual(["https://dealer.example/cars/456"]);
+    expect(mocks.save.mock.calls[0][0][1].images).toHaveLength(2);
+  });
   it("fills a one-thumbnail listing from its bounded detail gallery", async () => {
     vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
     const fetcher = vi.fn(async (url: string) =>

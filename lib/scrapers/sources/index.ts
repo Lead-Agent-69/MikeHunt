@@ -844,9 +844,17 @@ export async function scrapeIndependentDealer(
   const photoLimit = Number.isFinite(configuredPhotoLimit)
     ? Math.max(0, Math.min(25, Math.floor(configuredPhotoLimit)))
     : 12;
-  const photoTargets = allDeals
-    .filter((deal) => (deal.images?.length || 0) < 2)
-    .slice(0, photoLimit);
+  const photoCandidates = allDeals.filter(
+    (deal) => (deal.images?.length || 0) < 2,
+  );
+  // Advance the bounded batch hourly; stable inventory order must not starve later cars.
+  const photoOffset = photoCandidates.length
+    ? (Math.floor(Date.now() / 3600_000) * photoLimit) % photoCandidates.length
+    : 0;
+  const photoTargets = [
+    ...photoCandidates.slice(photoOffset),
+    ...photoCandidates.slice(0, photoOffset),
+  ].slice(0, photoLimit);
   if (photoTargets.length) {
     const { dealerDetailPhotos } = await import("../dealer-detail-photos");
     for (const deal of photoTargets) {

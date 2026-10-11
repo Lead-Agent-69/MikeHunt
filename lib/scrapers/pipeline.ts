@@ -387,6 +387,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!localContext?.cacheOnly) {
     try {
       await preserveListingPhotos(getSupabase(), rows);
+      for (const row of rows) row.completeness = completenessScore(row);
     } catch (error) {
       console.warn("[upsertDeals] stored-photo lookup failed:", error);
     }

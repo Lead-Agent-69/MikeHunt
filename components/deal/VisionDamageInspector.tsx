@@ -53,7 +53,6 @@ export function VisionDamageInspector({
             <>
               <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--s2)]">
                 {/* Listing hosts vary; retain the existing direct-image delivery path. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 {failedPhoto === photos[activeIndex] ? (
                   <div
                     role="status"
@@ -63,6 +62,7 @@ export function VisionDamageInspector({
                     listing.
                   </div>
                 ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={galleryImageSrc(photos[activeIndex], activeIndex)}
                     alt={`Listing vehicle photo ${activeIndex + 1}`}
