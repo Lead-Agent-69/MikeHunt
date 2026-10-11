@@ -69,7 +69,15 @@ const F = {
   mileage: ["mileage", "odometer", "miles", "mileageFromOdometer"],
   vin: ["vin", "vehicleIdentificationNumber"],
   url: ["url", "vdpUrl", "detailUrl", "link", "href"],
-  image: ["image", "imageUrl", "primaryImage", "photoUrl", "thumbnail"],
+  image: [
+    "images",
+    "photos",
+    "image",
+    "imageUrl",
+    "primaryImage",
+    "photoUrl",
+    "thumbnail",
+  ],
   title: ["title", "name", "heading", "displayName"],
 };
 
@@ -93,6 +101,7 @@ export interface RawVehicle {
   mileage?: number;
   url?: string;
   image?: string;
+  images?: string[];
   title?: string;
 }
 
@@ -118,6 +127,15 @@ export function readVehicle(obj: Record<string, any>): RawVehicle | null {
   if (!obj || typeof obj !== "object") return null;
 
   const mileageRaw = pick(obj, F.mileage);
+  const images = Array.from(
+    new Set(
+      Object.entries(obj)
+        .filter(([key]) =>
+          F.image.some((field) => field.toLowerCase() === key.toLowerCase()),
+        )
+        .flatMap(([, value]) => imagesOf(value)),
+    ),
+  ).slice(0, 20);
   const v: RawVehicle = {
     year: toNum(pick(obj, F.year)) ?? undefined,
     make: str(deref(pick(obj, F.make))),
@@ -132,7 +150,8 @@ export function readVehicle(obj: Record<string, any>): RawVehicle | null {
           : mileageRaw,
       ) ?? undefined,
     url: str(pick(obj, F.url)) || str(obj.offers?.url) || undefined,
-    image: imageOf(pick(obj, F.image)),
+    image: images[0],
+    images,
     title: str(pick(obj, F.title)) || undefined,
   };
 
@@ -169,12 +188,13 @@ function priceOf(v: unknown): number | undefined {
   return n != null && n >= 100 && n <= 500000 ? n : undefined;
 }
 
-function imageOf(v: unknown): string | undefined {
-  if (!v) return undefined;
-  if (Array.isArray(v)) return imageOf(v[0]);
+function imagesOf(v: unknown): string[] {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.slice(0, 100).flatMap(imagesOf);
   if (typeof v === "object")
-    return str((v as any).url) || str((v as any).contentUrl) || undefined;
-  return str(v) || undefined;
+    return imagesOf((v as any).contentUrl || (v as any).url);
+  const url = str(v);
+  return /^(https?:\/\/|\/)/i.test(url) ? [url] : [];
 }
 
 function toDeal(v: RawVehicle, source: string): Partial<Deal> | null {
@@ -192,7 +212,7 @@ function toDeal(v: RawVehicle, source: string): Partial<Deal> | null {
     trim: v.trim,
     ask_price: v.price ?? 0,
     mileage: v.mileage,
-    images: v.image ? [v.image] : [],
+    images: v.images ?? (v.image ? [v.image] : []),
     scraped_at: new Date().toISOString(),
   };
 }

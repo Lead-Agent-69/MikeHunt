@@ -31,6 +31,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("listing photo navigation", () => {
+  it.each([2, 3, 4])(
+    "makes every photo visible to navigation for a %s-photo listing",
+    async (count) => {
+      await act(async () =>
+        root.render(
+          React.createElement(ImageGallery, {
+            title: "Honda Civic",
+            images: Array.from(
+              { length: count },
+              (_, i) => `https://example.com/${i}.jpg`,
+            ),
+          }),
+        ),
+      );
+      const thumbnails = host.querySelectorAll<HTMLButtonElement>(
+        'button[aria-label^="Preview photo"]',
+      );
+      expect(thumbnails).toHaveLength(count);
+      await act(async () => thumbnails[count - 1].click());
+      expect(document.querySelector("dialog")?.textContent).toContain(
+        `${count} / ${count}`,
+      );
+    },
+  );
+  it("explains a single captured photo without implying a complete source gallery", async () => {
+    await act(async () =>
+      root.render(
+        React.createElement(ImageGallery, {
+          images: ["https://example.com/1.jpg", "https://example.com/1.jpg"],
+        }),
+      ),
+    );
+    expect(host.textContent).toContain("1 photo captured from the source");
+    expect(host.textContent).toContain("original listing may have more");
+    expect(
+      host.querySelectorAll('button[aria-label^="Preview photo"]'),
+    ).toHaveLength(0);
+  });
   it("opens a named native modal, navigates by keyboard and restores focus on Escape", async () => {
     await act(async () =>
       root.render(

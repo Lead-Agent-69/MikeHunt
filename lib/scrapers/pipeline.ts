@@ -2,6 +2,7 @@
 // Persistence helpers for scraped deals.
 
 import { createServerComponentClient } from "@/lib/supabase";
+import { preserveListingPhotos } from "./preserve-listing-photos";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
@@ -382,6 +383,14 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     });
 
   if (rows.length === 0) return 0;
+
+  if (!localContext?.cacheOnly) {
+    try {
+      await preserveListingPhotos(getSupabase(), rows);
+    } catch (error) {
+      console.warn("[upsertDeals] stored-photo lookup failed:", error);
+    }
+  }
 
   // Geocode each deal's location (cached + free) so the map and saved-search radius matching work.
   // Best-effort: any failure leaves lat/lng null and the upsert proceeds unchanged. A DB trigger

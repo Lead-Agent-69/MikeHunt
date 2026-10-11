@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { fetchSimilarPrompt, sendDealSignal } from "@/lib/reco/client";
 
@@ -107,14 +106,12 @@ export function SimilarInterestPrompt({
     setPrompt(null);
   };
 
-  // Portal to <body>: the deal page wraps content in a transformed (animated) container, which
-  // would make "fixed" relative to that container instead of the viewport.
-  return createPortal(
+  return (
     <div
       role="region"
       aria-label="Interested in similar listings?"
       data-testid="reco-similar-prompt"
-      className="fixed inset-x-3 bottom-[calc(80px+env(safe-area-inset-bottom))] z-40 rounded-2xl border border-[var(--b2)] bg-[var(--s0)] p-4 shadow-[var(--shadow)] md:inset-x-auto md:bottom-6 md:left-6 md:w-[380px]"
+      className="relative border-y border-[var(--b2)] bg-[var(--s0)] py-4 pl-4 pr-14"
     >
       <button
         onClick={close}
@@ -135,23 +132,22 @@ export function SimilarInterestPrompt({
             Interested in similar?
           </p>
           <p className="mt-1 pr-8 text-sm text-[var(--t2)]">{prompt.message}</p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => answer(true)}
-              className="min-h-11 flex-1 rounded-xl bg-[var(--blue)] px-3 text-sm font-bold text-white"
+              className="min-h-11 rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white"
             >
               Yes, more like these
             </button>
             <button
               onClick={() => answer(false)}
-              className="min-h-11 flex-1 rounded-xl border border-[var(--b2)] px-3 text-sm font-bold text-[var(--t2)]"
+              className="min-h-11 rounded-lg border border-[var(--b2)] px-3 text-sm font-bold text-[var(--t2)]"
             >
               Not interested
             </button>
           </div>
         </>
       )}
-    </div>,
-    document.body,
+    </div>
   );
 }

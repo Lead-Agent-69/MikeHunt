@@ -118,7 +118,9 @@ export function mileageFromDealerText(
 }
 
 /** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
-export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+export function craigslistGalleryImages(
+  urls: (string | undefined)[],
+): string[] {
   const byId = new Map<string, string>();
   for (const raw of urls) {
     const url = String(raw || "");
@@ -671,8 +673,21 @@ export async function scrapeIndependentDealer(
             profile.inventoryUrl,
           );
           if (!sourceUrl) continue;
-          if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin)))
+          if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin))) {
+            // Enrich only the exact listing URL; shared VINs can be different sellers' photos.
+            const existing = items.find(
+              (item) => item.source_url === sourceUrl,
+            );
+            if (existing && g.images?.length) {
+              existing.images = Array.from(
+                new Set([
+                  ...(existing.images || []),
+                  ...g.images.map((image) => normalizeUrl(image, baseUrl)),
+                ]),
+              ).slice(0, 20);
+            }
             continue;
+          }
           listingUrls.add(sourceUrl);
           if (g.vin) listingVins.add(g.vin);
           items.push({
@@ -701,7 +716,9 @@ export async function scrapeIndependentDealer(
             seller_type: profile.sellerDefault as Deal["seller_type"],
             location_city: profile.city,
             location_state: profile.state,
-            images: g.images || [],
+            images: (g.images || []).map((image) =>
+              normalizeUrl(image, baseUrl),
+            ),
           });
           supplemented += 1;
         }
@@ -821,6 +838,41 @@ export async function scrapeIndependentDealer(
   for await (const batch of gen) allDeals.push(...batch);
 
   console.log(`[IndiDealer] ${profile.name}: Found ${allDeals.length} deals`);
+  const configuredPhotoLimit = Number(
+    process.env.DEALER_PHOTO_ENRICH_MAX ?? 12,
+  );
+  const photoLimit = Number.isFinite(configuredPhotoLimit)
+    ? Math.max(0, Math.min(25, Math.floor(configuredPhotoLimit)))
+    : 12;
+  const photoTargets = allDeals
+    .filter((deal) => (deal.images?.length || 0) < 2)
+    .slice(0, photoLimit);
+  if (photoTargets.length) {
+    const { dealerDetailPhotos } = await import("../dealer-detail-photos");
+    for (const deal of photoTargets) {
+      abortSignal?.throwIfAborted();
+      const url = deal.source_url;
+      if (!url || !isSameSiteHref(url, baseUrl) || policyBlockFor(url))
+        continue;
+      try {
+        const response = fetchPageHtml
+          ? { ok: true, url, body: await fetchPageHtml(url) }
+          : await politeFetch(url, {
+              freshForMs: 24 * 3600_000,
+              maxRetries: 0,
+              signal: abortSignal,
+            });
+        if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
+        const photos = dealerDetailPhotos(response.body, url);
+        if (photos.length > (deal.images?.length || 0)) deal.images = photos;
+      } catch (error) {
+        abortSignal?.throwIfAborted();
+        console.warn(
+          `[IndiDealer] ${profile.name}: photo enrichment failed for ${url}: ${String(error)}`,
+        );
+      }
+    }
+  }
   // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
   // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
   abortSignal?.throwIfAborted();

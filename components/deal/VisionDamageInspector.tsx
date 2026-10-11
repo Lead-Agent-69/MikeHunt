@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { galleryImageSrc } from "@/lib/image-url";
 import {
   Camera,
   ChevronLeft,
@@ -20,8 +21,11 @@ export function VisionDamageInspector({
   sourceUrl?: string;
   onUpdateRepairEstimate?: (cost: number) => void;
 }) {
-  const photos = images.length ? images : imageUrl ? [imageUrl] : [];
+  const photos = Array.from(
+    new Set(images.length ? images : imageUrl ? [imageUrl] : []),
+  ).filter(Boolean);
   const [index, setIndex] = useState(0);
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const activeIndex = Math.min(index, Math.max(0, photos.length - 1));
   return (
     <section
@@ -50,36 +54,58 @@ export function VisionDamageInspector({
               <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--s2)]">
                 {/* Listing hosts vary; retain the existing direct-image delivery path. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={photos[activeIndex]}
-                  alt={`Listing vehicle photo ${activeIndex + 1}`}
-                  className="h-full w-full object-contain"
-                  loading="lazy"
-                />
+                {failedPhoto === photos[activeIndex] ? (
+                  <div
+                    role="status"
+                    className="flex h-full items-center justify-center p-4 text-sm text-[var(--t3)]"
+                  >
+                    This source photo could not load. Check the original
+                    listing.
+                  </div>
+                ) : (
+                  <img
+                    src={galleryImageSrc(photos[activeIndex], activeIndex)}
+                    alt={`Listing vehicle photo ${activeIndex + 1}`}
+                    className="h-full w-full object-contain"
+                    loading="lazy"
+                    onError={() => setFailedPhoto(photos[activeIndex])}
+                  />
+                )}
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  aria-label="Previous photo"
-                  disabled={activeIndex === 0}
-                  onClick={() => setIndex(activeIndex - 1)}
-                  className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
-                >
-                  <ChevronLeft aria-hidden="true" size={18} />
-                </button>
+                {photos.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label="Previous photo"
+                    disabled={activeIndex === 0}
+                    onClick={() => setIndex(activeIndex - 1)}
+                    className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
+                  >
+                    <ChevronLeft aria-hidden="true" size={18} />
+                  </button>
+                )}
                 <span className="text-sm text-[var(--t3)]" aria-live="polite">
-                  Photo {activeIndex + 1} of {photos.length}
+                  {photos.length === 1
+                    ? "1 source photo captured"
+                    : `Photo ${activeIndex + 1} of ${photos.length}`}
                 </span>
-                <button
-                  type="button"
-                  aria-label="Next photo"
-                  disabled={activeIndex === photos.length - 1}
-                  onClick={() => setIndex(activeIndex + 1)}
-                  className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
-                >
-                  <ChevronRight aria-hidden="true" size={18} />
-                </button>
+                {photos.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label="Next photo"
+                    disabled={activeIndex === photos.length - 1}
+                    onClick={() => setIndex(activeIndex + 1)}
+                    className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
+                  >
+                    <ChevronRight aria-hidden="true" size={18} />
+                  </button>
+                )}
               </div>
+              {photos.length === 1 && (
+                <p className="mt-2 text-sm text-[var(--t3)]">
+                  The original listing may have more photos.
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm text-[var(--t3)]">

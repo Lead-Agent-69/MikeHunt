@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   browser: vi.fn(),
@@ -42,9 +42,32 @@ const profile = {
 
 describe("curated import receipts", () => {
   beforeEach(() => {
+    vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "0");
     vi.clearAllMocks();
     mocks.save.mockResolvedValue(0);
     mocks.ai.mockResolvedValue([]);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  it("fills a one-thumbnail listing from its bounded detail gallery", async () => {
+    vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
+    const fetcher = vi.fn(async (url: string) =>
+      url.endsWith("/cars/123")
+        ? '<div class="vehicle-gallery"><img src="/one.jpg"><img src="/two.jpg"></div>'
+        : html,
+    );
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      fetcher,
+    );
+    expect(mocks.save.mock.calls[0][0][0].images).toEqual([
+      "https://dealer.example/one.jpg",
+      "https://dealer.example/two.jpg",
+    ]);
+    expect(
+      fetcher.mock.calls.filter(([url]) => url.endsWith("/cars/123")),
+    ).toHaveLength(1);
   });
   it("stops repeated pages and returns accepted rows, not parsed rows", async () => {
     const fetcher = vi.fn(async () => html);
@@ -125,6 +148,33 @@ describe("curated import receipts", () => {
     ).toBe(0);
     expect(mocks.save.mock.calls[0][0]).toEqual([]);
     expect(mocks.ai).not.toHaveBeenCalled();
+  });
+  it("retains structured photos on the matching CSS listing, normalized once", async () => {
+    const card = html.replace("<h2>", '<img src="/photos/1.jpg"><h2>');
+    const page = `${card}<script type="application/ld+json">${JSON.stringify({
+      "@type": "Car",
+      name: "2020 Ford Escape",
+      url: "/cars/123",
+      offers: { price: 12500 },
+      image: [
+        "/photos/1.jpg",
+        "/photos/2.jpg",
+        { contentUrl: "/photos/3.jpg" },
+      ],
+    })}</script><!--${" ".repeat(1600)}-->`;
+    await scrapeIndependentDealer(
+      { ...profile, selectors: { ...profile.selectors, image: "img" } },
+      "https://dealer.example",
+      undefined,
+      async () => page,
+    );
+    const saved = mocks.save.mock.calls[0][0];
+    expect(saved).toHaveLength(1);
+    expect(saved[0].images).toEqual([
+      "https://dealer.example/photos/1.jpg",
+      "https://dealer.example/photos/2.jpg",
+      "https://dealer.example/photos/3.jpg",
+    ]);
   });
   it("follows SalvageZone's real path pagination and excludes held/sold stock", async () => {
     const card = (id: number, price: string, status = "inStock") =>
