@@ -55,7 +55,7 @@ export function ImageGallery({
   // (and only the hero when the host does not block). Never next/image.
   const images = useMemo(
     () =>
-      (rawImages || [])
+      Array.from(new Set(rawImages || []))
         .map((url, index) => galleryImageSrc(url, index))
         .filter(Boolean),
     [rawImages],
@@ -257,7 +257,7 @@ export function ImageGallery({
                 <img
                   src={images[0]}
                   alt={`${title} - View 1`}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-full object-contain bg-[var(--s2)]"
                   loading="eager"
                   onLoad={() =>
                     setImageLoaded((prev) => ({ ...prev, [0]: true }))
@@ -339,6 +339,41 @@ export function ImageGallery({
               No Images Available
             </span>
           </div>
+        )}
+
+        {images.length > 1 && (
+          <div
+            className={cn(
+              "flex gap-2 overflow-x-auto pb-1",
+              images.length >= 5 && "md:hidden",
+            )}
+            aria-label="Listing photo thumbnails"
+          >
+            {images.map((src, index) => (
+              <button
+                key={`${src}-${index}`}
+                type="button"
+                aria-label={`Preview photo ${index + 1} of ${images.length}: ${title}`}
+                onClick={() => openLightbox(index)}
+                className="h-16 w-20 shrink-0 overflow-hidden rounded-lg border border-[var(--b2)] bg-[var(--s2)] focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`Photo ${index + 1}`}
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+        {hasImages && (
+          <p className="text-sm text-[var(--t3)]" role="status">
+            {images.length === 1
+              ? "1 photo captured from the source. The original listing may have more."
+              : `${images.length} listing photos`}
+          </p>
         )}
 
         {/* End of the photos → jump to the original source listing. */}

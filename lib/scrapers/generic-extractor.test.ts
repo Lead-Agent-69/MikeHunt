@@ -7,6 +7,25 @@ import {
 } from "./generic-extractor";
 
 describe("readVehicle — shape-agnostic field reading", () => {
+  it("keeps all supplied photo arrays and ImageObjects without duplicates or executable URLs", () => {
+    const car = readVehicle({
+      year: 2020,
+      make: "Ford",
+      image: [
+        "https://img.example/1.jpg",
+        { contentUrl: "https://img.example/2.jpg" },
+        { url: "https://img.example/1.jpg" },
+        "javascript:alert(1)",
+      ],
+      photos: [{ url: "/photos/3.jpg" }],
+    })!;
+    expect(car.image).toBe("https://img.example/1.jpg");
+    expect(car.images).toEqual([
+      "https://img.example/1.jpg",
+      "https://img.example/2.jpg",
+      "/photos/3.jpg",
+    ]);
+  });
   it("reads a flat listing object", () => {
     const v = readVehicle({
       modelYear: 2018,
@@ -114,6 +133,11 @@ describe("extractFromNextData", () => {
 });
 
 describe("genericExtract — strategy auto-pick → Deals", () => {
+  it("passes the full structured gallery into ingestion", () => {
+    const photos = ["https://img.example/1.jpg", "https://img.example/2.jpg"];
+    const page = `<script type="application/ld+json">${JSON.stringify({ "@type": "Car", name: "2020 Ford Escape", image: photos })}</script>`;
+    expect(genericExtract(page)[0].images).toEqual(photos);
+  });
   it("returns Deals from a JSON-LD page", () => {
     const html = `<html><script type="application/ld+json">${JSON.stringify({
       "@type": "Vehicle",

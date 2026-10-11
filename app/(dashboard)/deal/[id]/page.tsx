@@ -942,11 +942,6 @@ export default function DealPage({
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-40 md:pb-24">
-      {/* Reco: "Interested in similar?" after enough dwell, signed-in only */}
-      <SimilarInterestPrompt
-        dealId={id}
-        enabled={Boolean(dealerId && serverDeal)}
-      />
       {/* Listing identity, reports and primary research action. */}
       <div>
         <div className="min-w-0 flex-1">
@@ -1017,8 +1012,7 @@ export default function DealPage({
             sourceUrl={serverDeal.sourceUrl}
           />
           <p className="mt-2 text-xs text-[var(--t5)]">
-            {serverDeal.images.length} listing photos. Photos are
-            source-provided and are not a mechanic inspection.
+            Photos are source-provided and are not a mechanic inspection.
           </p>
         </section>
       ) : (
@@ -1281,6 +1275,11 @@ export default function DealPage({
           )}
         </div>
       </DetailDisclosure>
+
+      <SimilarInterestPrompt
+        dealId={id}
+        enabled={Boolean(dealerId && serverDeal)}
+      />
 
       <DetailDisclosure
         eyebrow="Market evidence"

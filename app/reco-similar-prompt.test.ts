@@ -95,6 +95,9 @@ describe("SimilarInterestPrompt", () => {
       expect.anything(),
     );
     expect(document.body.textContent).toContain(PROMPT.message);
+    const prompt = el.querySelector('[data-testid="reco-similar-prompt"]')!;
+    expect(prompt).not.toBeNull();
+    expect(prompt.className).not.toContain("fixed");
   });
 
   it("sends interest_yes / interest_no through the client", async () => {

@@ -37,6 +37,7 @@ import {
 } from "@/lib/scrapers/platforms/dealer-cms";
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
+import { dealerDetailPhotos } from "../dealer-detail-photos";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
@@ -118,7 +119,9 @@ export function mileageFromDealerText(
 }
 
 /** Full-size Craigslist photo URLs, deduped by image id, thumbnails dropped, at most 12. */
-export function craigslistGalleryImages(urls: (string | undefined)[]): string[] {
+export function craigslistGalleryImages(
+  urls: (string | undefined)[],
+): string[] {
   const byId = new Map<string, string>();
   for (const raw of urls) {
     const url = String(raw || "");
@@ -671,8 +674,21 @@ export async function scrapeIndependentDealer(
             profile.inventoryUrl,
           );
           if (!sourceUrl) continue;
-          if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin)))
+          if (listingUrls.has(sourceUrl) || (g.vin && listingVins.has(g.vin))) {
+            // Enrich only the exact listing URL; shared VINs can be different sellers' photos.
+            const existing = items.find(
+              (item) => item.source_url === sourceUrl,
+            );
+            if (existing && g.images?.length) {
+              existing.images = Array.from(
+                new Set([
+                  ...(existing.images || []),
+                  ...g.images.map((image) => normalizeUrl(image, baseUrl)),
+                ]),
+              ).slice(0, 20);
+            }
             continue;
+          }
           listingUrls.add(sourceUrl);
           if (g.vin) listingVins.add(g.vin);
           items.push({
@@ -701,7 +717,9 @@ export async function scrapeIndependentDealer(
             seller_type: profile.sellerDefault as Deal["seller_type"],
             location_city: profile.city,
             location_state: profile.state,
-            images: g.images || [],
+            images: (g.images || []).map((image) =>
+              normalizeUrl(image, baseUrl),
+            ),
           });
           supplemented += 1;
         }
@@ -821,6 +839,48 @@ export async function scrapeIndependentDealer(
   for await (const batch of gen) allDeals.push(...batch);
 
   console.log(`[IndiDealer] ${profile.name}: Found ${allDeals.length} deals`);
+  const configuredPhotoLimit = Number(
+    process.env.DEALER_PHOTO_ENRICH_MAX ?? 12,
+  );
+  const photoLimit = Number.isFinite(configuredPhotoLimit)
+    ? Math.max(0, Math.min(25, Math.floor(configuredPhotoLimit)))
+    : 12;
+  const photoCandidates = allDeals.filter(
+    (deal) => (deal.images?.length || 0) < 2,
+  );
+  // Advance the bounded batch hourly; stable inventory order must not starve later cars.
+  const photoOffset = photoCandidates.length
+    ? (Math.floor(Date.now() / 3600_000) * photoLimit) % photoCandidates.length
+    : 0;
+  const photoTargets = [
+    ...photoCandidates.slice(photoOffset),
+    ...photoCandidates.slice(0, photoOffset),
+  ].slice(0, photoLimit);
+  if (photoTargets.length) {
+    for (const deal of photoTargets) {
+      abortSignal?.throwIfAborted();
+      const url = deal.source_url;
+      if (!url || !isSameSiteHref(url, baseUrl) || policyBlockFor(url))
+        continue;
+      try {
+        const response = fetchPageHtml
+          ? { ok: true, url, body: await fetchPageHtml(url) }
+          : await politeFetch(url, {
+              freshForMs: 24 * 3600_000,
+              maxRetries: 0,
+              signal: abortSignal,
+            });
+        if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
+        const photos = dealerDetailPhotos(response.body, url);
+        if (photos.length > (deal.images?.length || 0)) deal.images = photos;
+      } catch (error) {
+        abortSignal?.throwIfAborted();
+        console.warn(
+          `[IndiDealer] ${profile.name}: photo enrichment failed for ${url}: ${String(error)}`,
+        );
+      }
+    }
+  }
   // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
   // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
   abortSignal?.throwIfAborted();
@@ -1504,8 +1564,10 @@ function firstValidVin(...values: Array<string | null | undefined>) {
   return null;
 }
 
-function imagesFromDetail($: any, baseUrl: string) {
-  const images = new Set<string>();
+export function imagesFromDetail($: any, baseUrl: string) {
+  const gallery = dealerDetailPhotos($.html(), baseUrl);
+  if (gallery.length > 1) return gallery;
+  const images = new Set<string>(gallery);
   const add = (value?: string) => {
     if (!value) return;
     if (!/\.(jpe?g|png|webp)(\?|$)/i.test(value)) return;
@@ -1571,7 +1633,7 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
       textClean(car.description) ||
       textClean($("#ActionCard").first().text()) ||
       textClean($("meta[name='description']").attr("content"));
-    const images = imagesFromDetail($, "https://aeofmiami.com");
+    const images = imagesFromDetail($, sourceUrl);
     return {
       ...deal,
       vin: vin || deal.vin,
@@ -1613,7 +1675,7 @@ async function enrichCdgDetail(
       )?.value ||
       detailValueByLabel($, /Title:?/i) ||
       $("title").first().text();
-    const images = imagesFromDetail($, config.baseUrl);
+    const images = imagesFromDetail($, sourceUrl);
     const description =
       textClean(car.description) ||
       textClean($(".vehicle-description, .icon-bx-wraper").first().text());
@@ -1653,15 +1715,34 @@ async function scrapeDealerCms(
   // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
   // a re-sweep only costs requests for cars we haven't seen.
   const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
+  const configuredDetailLimit = Number(
+    process.env.CDG_DETAIL_LIMIT ?? (targeted ? deals.length : 12),
+  );
   const enrichLimit = Math.min(
     deals.length,
-    Number(process.env.CDG_DETAIL_LIMIT || (targeted ? deals.length : 12)),
+    Math.max(
+      0,
+      Math.floor(
+        Number.isFinite(configuredDetailLimit) ? configuredDetailLimit : 12,
+      ),
+    ),
   );
   let enriched = 0;
+  const detailOffset =
+    deals.length && enrichLimit
+      ? (Math.floor(Date.now() / 3600_000) * enrichLimit) % deals.length
+      : 0;
   for (let i = 0; i < enrichLimit; i++) {
-    const next = await enrichCdgDetail(deals[i], site);
-    if (next.vin && next.vin !== deals[i].vin) enriched += 1;
-    deals[i] = next;
+    const index = (detailOffset + i) % deals.length;
+    const next = await enrichCdgDetail(deals[index], site);
+    if (
+      (next.vin && next.vin !== deals[index].vin) ||
+      (next.images?.length || 0) > (deals[index].images?.length || 0) ||
+      next.mileage !== deals[index].mileage ||
+      next.condition !== deals[index].condition
+    )
+      enriched += 1;
+    deals[index] = next;
   }
   if (enrichLimit)
     console.log(
@@ -1705,7 +1786,7 @@ async function enrichCdgDetailLegacy(
       )?.value ||
       detailValueByLabel($, /Title:?/i) ||
       $("title").first().text();
-    const images = imagesFromDetail($, config.baseUrl);
+    const images = imagesFromDetail($, sourceUrl);
     const description =
       textClean(car.description) ||
       textClean($(".vehicle-description, .icon-bx-wraper").first().text());
