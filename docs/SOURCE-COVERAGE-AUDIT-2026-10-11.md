@@ -15,6 +15,9 @@ proof of permission, recent inventory, photos, accurate condition, or valuation.
 - Worker targeting previously searched entire URL strings. Exact/dot-suffix
   hostname matching now prevents unrelated sites matching a dealer name in their
   path, query, or lookalike domain.
+- Inventory database source/domain filters also used an independent ten-dealer
+  list. They now resolve through the shared registry. Six missing catalog entries
+  are marked testing, enabling scoped health checks without claiming fresh rows.
 - Discover coverage grouped all independent dealers together. It now separates
   known URL-derived dealers and unknown dealer hostnames; multiple vehicle pages
   from the same vendor remain one source. Missing links remain in the generic
@@ -49,7 +52,7 @@ establish successful per-vendor collection.
 
 1. Connect a signed-in browser and complete buyer/admin journeys on mobile and
    desktop. No browser surfaces were available to this audit session.
-2. Review card PRs #362 and #363 visually before merging them; preserve independent
+2. PR #362 is merged; review draft card PR #363 visually before merging it; preserve independent
    card controls and confirm badges fit 320px views.
 3. After deploying this fix to web and worker, run bounded, permitted searches
    for representative buyer scopes. Record per-vendor attempted, fetched,

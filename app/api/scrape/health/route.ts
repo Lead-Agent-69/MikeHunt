@@ -195,7 +195,12 @@ function dealerProofSources(scope: HealthScope, sourceIds: string[]) {
   const dealerHosts = scope.dealerHosts || [];
   const dealerSourceIds = scope.dealerSourceIds || [];
   return INDEPENDENT_DEALERS.filter(
-    (source) => source.type === "dealer" && source.priority === "P1",
+    (source) =>
+      source.type === "dealer" &&
+      (source.priority === "P1" ||
+        dealerSourceIds.includes(source.id) ||
+        (dealerHosts.length > 0 &&
+          urlHostMatches(source.url, dealerHosts.map(bareHost)))),
   )
     .filter((source) => {
       if (dealerSourceIds.length) return dealerSourceIds.includes(source.id);

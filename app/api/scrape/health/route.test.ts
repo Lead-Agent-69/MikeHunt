@@ -449,6 +449,19 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.plan.filters.maxPrice).toBe(10000);
   });
 
+  it("preserves selected shared-importer dealers without claiming live inventory", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      req("/api/scrape/health?lane=damaged&state=MO&dealerSourceIds=autovada"),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.scope.dealerSourceIds).toEqual(["autovada"]);
+    expect(body.sources.map((source: any) => source.id)).toEqual(["autovada"]);
+    expect(body.sources[0].activeRows).toBe(0);
+    expect(body.sources[0].enabled).toBe(false);
+  });
+
   it("limits dealer proof to selected dealer hosts", async () => {
     const { GET } = await import("./route");
     const res = await GET(

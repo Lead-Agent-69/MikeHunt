@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  dbSourceValues,
+  sourceUrlNeedles,
+} from "@/lib/search/inventory-filters";
+import { INDEPENDENT_DEALERS } from "./sources-registry";
+import { hasSharedImporter } from "./source-index";
+import {
   normalizeBuyerScope,
   planScrapeForBuyerScope,
   resolveBuyerSourceRequest,
@@ -43,6 +49,12 @@ describe("buyer and worker dealer targeting", () => {
     });
     expect(plan.sourceIds).toEqual(["curated_dealers"]);
     expect(plan.scope.dealerSourceIds).toEqual([id]);
+    expect(dbSourceValues(id)).toEqual(["independent_dealer"]);
+    expect(sourceUrlNeedles(id)).toEqual(DEALER_SOURCE_DOMAINS[id]);
+    const catalog = INDEPENDENT_DEALERS.find((source) => source.id === id);
+    expect(catalog).toBeDefined();
+    expect(catalog?.status).toBe("testing");
+    expect(hasSharedImporter(catalog!)).toBe(true);
     const requested = resolveBuyerSourceRequest([id], ["curated_dealers"]);
     expect(requested.mismatchedSourceIds).toEqual([]);
     expect(requested.dealerSourceIds).toEqual([id]);
