@@ -74,6 +74,8 @@ it("makes the photo, title and primary action link to the same vehicle", () => {
   );
   expect(html.match(/href="\/deal\/listing"/g)).toHaveLength(3);
   expect(html).toContain('aria-label="View 2018 Ford Transit"');
+  expect(html).toContain("after:pointer-events-none");
+  expect(html).toContain("focus-visible:after:ring-4");
   expect(html).toMatch(/<\/a>[\s\S]*<button type="button"/);
   const container = document.createElement("div");
   container.innerHTML = html;
