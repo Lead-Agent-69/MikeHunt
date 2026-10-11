@@ -64,4 +64,16 @@ describe("alternative feedback", () => {
       "Alternatives couldn't be loaded",
     );
   });
+  it("does not show missing prices as free cars", () => {
+    swr.result = {
+      data: {
+        similar: [
+          { id: "other", askPrice: 0, source: "carvana", model: "Civic" },
+        ],
+      },
+    };
+    expect(render()).toContain("Not reported");
+    expect(render()).not.toContain(">$0<");
+    expect(render()).toContain("Location not reported");
+  });
 });

@@ -83,6 +83,18 @@ inspection findings must remain distinguishable.
 
 These are local implementation changes until the release receipts are recorded.
 
+### Follow-Up: Market Evidence Recovery
+
+- PR #362 CI passed at 12c603f. It remains draft pending browser/role acceptance;
+  the prior pass is pushed, not live.
+- Correct the API trend endpoints to actual sample mileage bounds. The first
+  interpolation fix alone was insufficient while the API returned 0/200k points.
+- Market/source query failures become explicit unavailable responses, not empty
+  markets. Partial UI failures retain available evidence with retry controls.
+- Same-VIN rows show their own price type. No claimed cross-source savings from
+  mixing current auction bids with retail asks. Missing or invalid source links
+  are not clickable placeholders; unknown alternative prices are not $0.
+
 ## Current Blockers
 
 - Browser automation exposes no browser in this session: visual and signed-in
