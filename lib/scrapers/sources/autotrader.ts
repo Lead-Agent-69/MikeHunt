@@ -10,6 +10,8 @@ import { upsertDeals } from "../pipeline";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
+import { getScrapeRunScope } from "../run-scope-context";
+import { buyerSearchCenters } from "../search-centers";
 
 const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
 
@@ -156,7 +158,9 @@ export function autotraderSearchZips(
   zip = "",
   plan: SweepPlan | undefined = getSweepPlan(),
   random = Math.random,
+  scope = getScrapeRunScope(),
 ): string[] {
+  if (scope?.state || scope?.states?.length) return buyerSearchCenters(scope);
   if (zip) return [zip];
   const planned = sweepPlanZips(plan, 1);
   if (planned.length) return planned;
@@ -222,8 +226,7 @@ export async function scrapeAutoTrader(
       if (items.length < 20) break;
     }
     // Save per search center so a later block does not lose earlier pages.
-    if (zipDeals.length > 0) await upsertDeals(zipDeals);
-    total += zipDeals.length;
+    if (zipDeals.length > 0) total += await upsertDeals(zipDeals);
   }
 
   console.log(`[AutoTrader] Found ${total} deals`);

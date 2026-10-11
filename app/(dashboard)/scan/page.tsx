@@ -3779,16 +3779,19 @@ function ScanPageInner() {
     setPlanMessage(null);
     setImportRunProof([]);
     try {
-      const res = await fetch("/api/scrape/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scope: smartPlan.scope,
-          sourceIds: selectedSourceIds,
-          concurrency: Math.min(2, Math.max(1, selectedSourceIds.length)),
-        }),
-        signal: controller.signal,
-      });
+      const res = await fetch(
+        isAdmin ? "/api/scrape/run" : "/api/scrape/request",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scope: smartPlan.scope,
+            sourceIds: selectedSourceIds,
+            concurrency: Math.min(2, Math.max(1, selectedSourceIds.length)),
+          }),
+          signal: controller.signal,
+        },
+      );
       const data = await res.json();
       if (runId !== sourceRunId.current) return;
       if (!res.ok) {
@@ -3893,7 +3896,7 @@ function ScanPageInner() {
         setPlanMessage(
           data.deduplicated
             ? "Your source search is already in progress. We'll show new matches when it finishes."
-            : "Your source search is underway. We'll show new matches when it finishes.",
+            : "Your search is queued. Existing cars remain available while we look for new matches.",
         );
         const job = await pollScopedScrapeJob(
           data.job.id,
@@ -3950,7 +3953,7 @@ function ScanPageInner() {
     } finally {
       if (runId === sourceRunId.current) setRunImporting(false);
     }
-  }, [smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
+  }, [isAdmin, smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
 
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
@@ -4625,7 +4628,7 @@ function ScanPageInner() {
         <p role="status" className="text-sm text-[var(--t3)]">
           {runImporting
             ? "Checking your selected sources for matching vehicles."
-            : "Search update finished. Review the matches below, or try again if a source could not be reached."}
+            : displayMessage}
         </p>
       )}
 

@@ -11,7 +11,10 @@ import {
   LocalScraperCache,
 } from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
-import { claimNextScopedScrapeJob } from "../lib/scrapers/job-queue";
+import {
+  claimNextScopedScrapeJob,
+  recoveredClaimError,
+} from "../lib/scrapers/job-queue";
 import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
@@ -653,6 +656,10 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
       job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+      currentStatus.lastError = recoveredClaimError(
+        currentStatus.lastError,
+        claimFailures,
+      );
       claimFailures = 0;
     } catch (error) {
       // A dropped connection to Supabase is transient. Back off and keep polling instead of

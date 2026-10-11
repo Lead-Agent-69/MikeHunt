@@ -117,8 +117,23 @@ describe("buyer scope planning", () => {
     });
 
     expect(plan.scope.sellerType).toBe("dealer");
-    expect(plan.sourceIds).toEqual(["curated_dealers"]);
+    expect(plan.sourceIds).toContain("curated_dealers");
+    expect(plan.sourceIds).toContain("cars_com");
+    expect(plan.sourceIds).toContain("craigslist");
+    expect(plan.sourceIds).not.toContain("copart");
     expect(plan.reasons).toContain("dealer seller type");
+  });
+
+  it("includes local dealers in clean-retail searches without adding salvage auctions", () => {
+    const plan = planScrapeForBuyerScope({
+      lane: "clean-retail",
+      state: "MO",
+      vehicleType: "Any vehicle",
+    });
+    expect(plan.sourceIds).toContain("curated_dealers");
+    expect(plan.sourceIds).toContain("craigslist");
+    expect(plan.sourceIds).not.toContain("copart");
+    expect(plan.scope.q).toBeUndefined();
   });
 
   it("intersects seller type with lane sources instead of widening imports", () => {

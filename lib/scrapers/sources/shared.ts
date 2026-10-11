@@ -29,7 +29,7 @@ async function getMarketValue(
     } catch {}
   }
 
-  if (year && make && model) {
+  if (year && make && model && process.env.MARKETCHECK_API_KEY) {
     try {
       const res = await fetch(
         `https://marketcheck-prod.apigee.net/v2/search/car/active?api_key=${process.env.MARKETCHECK_API_KEY}&year=${year}&make=${make}&model=${model}&rows=10`,
@@ -90,8 +90,9 @@ export async function enrichAndStore(raw: any) {
     };
 
     // Scoring/analysis happens authoritatively in upsertDeals (lib/scoring/deal-analyzer).
-    await upsertDeals([deal]);
+    return await upsertDeals([deal]);
   } catch (e) {
     console.error("[Enrich] Error:", e);
+    return 0;
   }
 }

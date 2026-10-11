@@ -5,7 +5,8 @@ import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
 import { getScrapeRunScope } from "../run-scope-context";
 import { getSweepPlan, type SweepPlan } from "../sweep-plan";
-import { metroZipsForState } from "@/lib/geo/metro-zips";
+import { STATE_METRO_ZIPS, metroZipsForState } from "@/lib/geo/metro-zips";
+import { buyerListingSearchText } from "../buyer-scope";
 
 // cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
 // <fuse-card> carries a `data-vehicle-details="{JSON}"` attribute with clean structured data
@@ -78,7 +79,7 @@ function placeFromVehicle(v: any): { city?: string; state?: string } {
 /**
  * States Cars.com is allowed to search.
  * CARS_STATES (comma-separated) is an operator override.
- * Then one saved buyer state. Then the Docker sweep's planned states (a rotating slice).
+ * Explicit buyer states take priority; operator settings apply only to background runs.
  * Never the full US list in one run.
  */
 export function resolveCarsComStates(
@@ -90,13 +91,12 @@ export function resolveCarsComStates(
     .split(",")
     .map((s) => listingStateCode(s))
     .filter((s): s is string => Boolean(s));
-  if (fromEnv.length) return Array.from(new Set(fromEnv));
-
   const saved = [scope?.state, ...(scope?.states || [])]
     .map((s) => listingStateCode(s))
     .filter((s): s is string => Boolean(s));
   const unique = Array.from(new Set(saved));
-  if (unique.length) return [unique[0]];
+  if (unique.length) return unique;
+  if (fromEnv.length) return Array.from(new Set(fromEnv));
 
   const planned = (plan?.states || [])
     .map((s) => listingStateCode(s))
@@ -115,6 +115,9 @@ export function carsComZipsForState(
 ): string[] {
   const code = listingStateCode(state);
   if (!code) return [];
+  const scope = getScrapeRunScope();
+  if (scope?.state || scope?.states?.length)
+    return metroZipsForState(code, STATE_METRO_ZIPS[code]?.length || perState);
   const planned = plan?.zipsByState?.[code];
   if (planned?.length) return planned;
   const metros = metroZipsForState(code, perState);
@@ -226,8 +229,7 @@ export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
         const key = String(v.external_id || v.vin || "");
         if (key && seen.has(key)) continue;
         if (key) seen.add(key);
-        await enrichAndStore(v);
-        saved++;
+        saved += await enrichAndStore(v);
       }
       if (items.length < 8) break;
     }
@@ -239,9 +241,10 @@ export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
   return saved;
 }
 
-// CARS_STATES, else one saved buyer state, else the sweep plan's rotating slice. Cap pages with
+// Buyer states, else CARS_STATES, else the sweep plan's rotating slice. Cap pages with
 // CARS_MAX_PAGES. Never walks all 50 states in one run.
 export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
+  const query = buyerListingSearchText(getScrapeRunScope(), searchTerm);
   const states = resolveCarsComStates();
   if (!states.length) {
     console.warn(
@@ -253,7 +256,7 @@ export async function scrapeCarsComAllStates(searchTerm = ""): Promise<number> {
   let total = 0;
   for (const state of states) {
     try {
-      total += await scrapeCarsCom(searchTerm, state, maxPages);
+      total += await scrapeCarsCom(query, state, maxPages);
     } catch (e) {
       console.error(`[Cars.com] ${state} failed:`, (e as Error).message);
     }

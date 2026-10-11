@@ -117,21 +117,21 @@ describe("resolveCarsComStates", () => {
     expect(resolveCarsComStates(undefined)).toEqual([]);
   });
 
-  it("uses one saved buyer state", async () => {
+  it("uses every explicitly selected buyer state", async () => {
     await withScrapeRunScope(
       { state: "fl", states: ["GA", "AL"] },
       async () => {
-        expect(resolveCarsComStates("")).toEqual(["FL"]);
+        expect(resolveCarsComStates("")).toEqual(["FL", "GA", "AL"]);
       },
     );
     await withScrapeRunScope({ states: ["ok", "tx"] }, async () => {
-      expect(resolveCarsComStates(undefined)).toEqual(["OK"]);
+      expect(resolveCarsComStates(undefined)).toEqual(["OK", "TX"]);
     });
   });
 
-  it("lets CARS_STATES override the saved state", async () => {
+  it("does not let a background operator setting override a buyer's state", async () => {
     await withScrapeRunScope({ state: "FL" }, async () => {
-      expect(resolveCarsComStates("tx, no, ok")).toEqual(["TX", "OK"]);
+      expect(resolveCarsComStates("tx, no, ok")).toEqual(["FL"]);
     });
   });
 
@@ -154,6 +154,11 @@ describe("resolveCarsComStates", () => {
 });
 
 describe("carsComZipsForState", () => {
+  it("does not omit Springfield from a buyer's Missouri search", async () => {
+    await withScrapeRunScope({ state: "MO" }, async () => {
+      expect(carsComZipsForState("MO")).toEqual(["63101", "64106", "65806"]);
+    });
+  });
   it("falls back to the first metro ZIPs and starts at the original seed", () => {
     expect(carsComZipsForState("TX", undefined, 2)).toEqual(["75201", "77002"]);
     expect(carsComZipsForState("RI", undefined, 3)).toEqual(["02903"]);

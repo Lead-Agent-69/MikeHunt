@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { craigslistSearchUrl, parseCraigslistResults } from "./index";
+import {
+  craigslistSearchUrl,
+  craigslistSitesForRun,
+  parseCraigslistResults,
+} from "./index";
 
 // Current static (no-js) Craigslist layout, trimmed from a real Dallas page on 2026-10-04.
 const PAGE = `
@@ -24,6 +28,46 @@ const PAGE = `
 </ol>`;
 
 describe("craigslistSearchUrl", () => {
+  it("does not impose a hidden price ceiling when the buyer has none", () => {
+    expect(
+      new URL(
+        craigslistSearchUrl("stlouis", "cto", 1, "", 500, 35000, {
+          state: "MO",
+        }),
+      ).searchParams.has("max_price"),
+    ).toBe(false);
+  });
+  it("uses buyer states even when an operator shard or unrelated sweep is configured", () => {
+    const sites = craigslistSitesForRun(undefined, "dallas", { state: "MO" });
+    expect(sites).toContain("stlouis");
+    expect(sites).toContain("kansascity");
+    expect(sites).not.toContain("dallas");
+    expect(
+      craigslistSitesForRun(undefined, "dallas", { states: ["MO", "IL"] }),
+    ).toContain("chicago");
+    expect(craigslistSitesForRun(undefined, "dallas", { state: "ZZ" })).toEqual(
+      [],
+    );
+  });
+
+  it("passes buyer price, year, mileage and model criteria without a literal SUV filter", () => {
+    const url = new URL(
+      craigslistSearchUrl("stlouis", "cto", 2, "unrelated", 500, 35000, {
+        q: "SUVs Ford",
+        model: "Explorer",
+        minPrice: 1000,
+        maxPrice: 50000,
+        minYear: 2018,
+        maxMileage: 90000,
+      }),
+    );
+    expect(url.searchParams.get("query")).toBe("Ford Explorer");
+    expect(url.searchParams.get("min_price")).toBe("1000");
+    expect(url.searchParams.get("max_price")).toBe("50000");
+    expect(url.searchParams.get("min_auto_year")).toBe("2018");
+    expect(url.searchParams.get("max_auto_miles")).toBe("90000");
+    expect(url.searchParams.get("s")).toBe("120");
+  });
   it("sends no full-text query by default, so the whole category comes back", () => {
     const url = new URL(craigslistSearchUrl("dallas", "cto", 1));
     expect(url.searchParams.has("query")).toBe(false);

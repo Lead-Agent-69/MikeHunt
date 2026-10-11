@@ -8,7 +8,7 @@ import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
-import { detectAvailability } from "@/lib/discovery/categorize";
+import { dealLane, detectAvailability } from "@/lib/discovery/categorize";
 import { extractOptions } from "./extract-options";
 import { normalizeCondition } from "./normalize-condition";
 import { extractContactInfo } from "./tools/extract-contact";
@@ -27,6 +27,7 @@ import { getLocalWriteContext } from "./local-write-context";
 import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
+import { rowMatchesBuyerQuery } from "@/lib/discovery/for-you-rank";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
@@ -52,16 +53,14 @@ export function normalizeAuctionEndAt(value: unknown): string | null {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
-function haystack(deal: Partial<Deal>) {
-  return `${deal.title || ""} ${deal.make || ""} ${deal.model || ""}`.toLowerCase();
-}
-
 function matchesScopeText(deal: Partial<Deal>, scope: BuyerScope) {
-  const q = text(scope.q || scope.vehicleType).toLowerCase();
-  if (!q) return true;
-  const tokens = Array.from(new Set(q.split(/\s+/).filter(Boolean)));
-  const h = haystack(deal);
-  return tokens.some((token) => h.includes(token));
+  const vehicle = text(scope.vehicleType);
+  return (
+    (!vehicle ||
+      /^(any|all|any vehicle)$/i.test(vehicle) ||
+      rowMatchesBuyerQuery(deal, vehicle)) &&
+    rowMatchesBuyerQuery(deal, text(scope.q))
+  );
 }
 
 function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
@@ -75,7 +74,20 @@ function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
   return h.includes(requested);
 }
 
-function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
+export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
+  if (
+    scope.lane === "clean-retail" &&
+    (deal.seller_type === "auction" ||
+      deal.seller_type === "private" ||
+      ["auction", "salvage", "repairable"].includes(dealLane(deal)))
+  )
+    return false;
+  if (
+    scope.sellerType &&
+    scope.sellerType !== "all" &&
+    deal.seller_type !== scope.sellerType
+  )
+    return false;
   const state = text(deal.location_state).toUpperCase();
   const allowedStates = new Set(
     [scope.state, ...(scope.states || [])]
@@ -92,7 +104,13 @@ function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
   if (scope.minYear && (!year || year < scope.minYear)) return false;
 
   const mileage = Number(deal.mileage || 0);
-  if (scope.maxMileage && mileage && mileage > scope.maxMileage) return false;
+  if (scope.maxMileage && (!mileage || mileage > scope.maxMileage))
+    return false;
+
+  const makes = new Set(
+    (scope.makes || []).map((make) => text(make).toLowerCase()),
+  );
+  if (makes.size && !makes.has(text(deal.make).toLowerCase())) return false;
 
   if (
     scope.make &&
@@ -145,9 +163,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   const source = deals[0]?.source || "unknown";
   const runScope = getScrapeRunScope();
+  // Normalize listing make/model before applying buyer eligibility, just as search does.
+  const candidates = normalizeDeals(deals);
   const scopedDeals = runScope
-    ? deals.filter((deal) => matchesBuyerScope(deal, runScope))
-    : deals;
+    ? candidates.filter((deal) => matchesBuyerScope(deal, runScope))
+    : candidates;
   if (runScope && scopedDeals.length !== deals.length) {
     console.log(
       `[Pipeline] scoped ${source}: kept ${scopedDeals.length}/${deals.length} rows for buyer intent`,
@@ -155,7 +175,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
   if (scopedDeals.length === 0) return 0;
 
-  const normalized = normalizeDeals(scopedDeals);
+  const normalized = scopedDeals;
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
   // valuation — so deals are QC'd and valued on the correct vehicle and pool with their real comps.
   // The year each listing stated, before a VIN decode overwrites it (year_vin_mismatch flag).
