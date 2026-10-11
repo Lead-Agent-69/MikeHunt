@@ -37,6 +37,7 @@ import {
 } from "@/lib/scrapers/platforms/dealer-cms";
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
+import { dealerDetailPhotos } from "../dealer-detail-photos";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
@@ -856,7 +857,6 @@ export async function scrapeIndependentDealer(
     ...photoCandidates.slice(0, photoOffset),
   ].slice(0, photoLimit);
   if (photoTargets.length) {
-    const { dealerDetailPhotos } = await import("../dealer-detail-photos");
     for (const deal of photoTargets) {
       abortSignal?.throwIfAborted();
       const url = deal.source_url;
@@ -1564,8 +1564,10 @@ function firstValidVin(...values: Array<string | null | undefined>) {
   return null;
 }
 
-function imagesFromDetail($: any, baseUrl: string) {
-  const images = new Set<string>();
+export function imagesFromDetail($: any, baseUrl: string) {
+  const gallery = dealerDetailPhotos($.html(), baseUrl);
+  if (gallery.length > 1) return gallery;
+  const images = new Set<string>(gallery);
   const add = (value?: string) => {
     if (!value) return;
     if (!/\.(jpe?g|png|webp)(\?|$)/i.test(value)) return;
@@ -1631,7 +1633,7 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
       textClean(car.description) ||
       textClean($("#ActionCard").first().text()) ||
       textClean($("meta[name='description']").attr("content"));
-    const images = imagesFromDetail($, "https://aeofmiami.com");
+    const images = imagesFromDetail($, sourceUrl);
     return {
       ...deal,
       vin: vin || deal.vin,
@@ -1673,7 +1675,7 @@ async function enrichCdgDetail(
       )?.value ||
       detailValueByLabel($, /Title:?/i) ||
       $("title").first().text();
-    const images = imagesFromDetail($, config.baseUrl);
+    const images = imagesFromDetail($, sourceUrl);
     const description =
       textClean(car.description) ||
       textClean($(".vehicle-description, .icon-bx-wraper").first().text());
@@ -1713,15 +1715,34 @@ async function scrapeDealerCms(
   // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
   // a re-sweep only costs requests for cars we haven't seen.
   const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
+  const configuredDetailLimit = Number(
+    process.env.CDG_DETAIL_LIMIT ?? (targeted ? deals.length : 12),
+  );
   const enrichLimit = Math.min(
     deals.length,
-    Number(process.env.CDG_DETAIL_LIMIT || (targeted ? deals.length : 12)),
+    Math.max(
+      0,
+      Math.floor(
+        Number.isFinite(configuredDetailLimit) ? configuredDetailLimit : 12,
+      ),
+    ),
   );
   let enriched = 0;
+  const detailOffset =
+    deals.length && enrichLimit
+      ? (Math.floor(Date.now() / 3600_000) * enrichLimit) % deals.length
+      : 0;
   for (let i = 0; i < enrichLimit; i++) {
-    const next = await enrichCdgDetail(deals[i], site);
-    if (next.vin && next.vin !== deals[i].vin) enriched += 1;
-    deals[i] = next;
+    const index = (detailOffset + i) % deals.length;
+    const next = await enrichCdgDetail(deals[index], site);
+    if (
+      (next.vin && next.vin !== deals[index].vin) ||
+      (next.images?.length || 0) > (deals[index].images?.length || 0) ||
+      next.mileage !== deals[index].mileage ||
+      next.condition !== deals[index].condition
+    )
+      enriched += 1;
+    deals[index] = next;
   }
   if (enrichLimit)
     console.log(
@@ -1765,7 +1786,7 @@ async function enrichCdgDetailLegacy(
       )?.value ||
       detailValueByLabel($, /Title:?/i) ||
       $("title").first().text();
-    const images = imagesFromDetail($, config.baseUrl);
+    const images = imagesFromDetail($, sourceUrl);
     const description =
       textClean(car.description) ||
       textClean($(".vehicle-description, .icon-bx-wraper").first().text());

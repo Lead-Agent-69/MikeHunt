@@ -48,7 +48,7 @@ export async function preserveListingPhotos(
           previous.images.length > row.images.length &&
           row.images.every((image) => previous.images.includes(image))
         ) {
-          row.images = [...previous.images].slice(0, 12);
+          row.images = [...previous.images].slice(0, 20);
         }
       }
     }

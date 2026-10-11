@@ -28,7 +28,12 @@ vi.mock("./engine", async (importOriginal) => {
     },
   };
 });
-import { autoDiscoverAndCrawl, scrapeIndependentDealer } from "./sources";
+import {
+  autoDiscoverAndCrawl,
+  scrapeIndependentDealer,
+  imagesFromDetail,
+} from "./sources";
+import { load } from "cheerio";
 
 const html = `<article><h2>2020 Ford Escape</h2><span class="price">$12,500</span><a href="/cars/123">Car</a></article><a rel="next" href="?page=2">Next</a>`;
 const profile = {
@@ -41,6 +46,21 @@ const profile = {
 };
 
 describe("curated import receipts", () => {
+  it("uses the real detail gallery on the CMS ingestion path, not only og:image", () => {
+    const page =
+      '<meta property="og:image" content="/1.jpg"><div class="car-details"><div class="flexslider"><ul>' +
+      Array.from(
+        { length: 12 },
+        (_, i) => `<li><img src="/${i + 1}.jpg"></li>`,
+      ).join("") +
+      '</ul></div></div><div class="featured-cars"><img src="/other-car.jpg"></div>';
+    const photos = imagesFromDetail(
+      load(page),
+      "https://dealer.example/cars/123",
+    );
+    expect(photos).toHaveLength(12);
+    expect(photos).not.toContain("https://dealer.example/other-car.jpg");
+  });
   beforeEach(() => {
     vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "0");
     vi.clearAllMocks();

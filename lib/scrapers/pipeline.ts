@@ -306,7 +306,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         active: isWithinAuctionWindow({ auction_end_at: auctionEndAt }),
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
         // deal showed a placeholder card.
-        images: Array.isArray(deal.images) ? deal.images.slice(0, 12) : [],
+        images: Array.isArray(deal.images) ? deal.images.slice(0, 20) : [],
         auction_end_at: auctionEndAt,
         // Seller name/type and bid count live in options JSON for this deployed schema. Do not write
         // seller, seller_type, or bid_count columns here; this Supabase project does not expose them.
