@@ -222,13 +222,13 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   return (
     <>
       <Card
-        className={`relative border-none bg-[var(--s0)] transition-all overflow-hidden reveal-on-scroll ${
+        className={`relative isolate border-none bg-[var(--s0)] transition-all overflow-hidden reveal-on-scroll ${
           status === "unavailable" ? "opacity-60 grayscale" : ""
         }`}
         style={{ boxShadow: "var(--shadow2)", borderRadius: "var(--r4)" }}
       >
         {onToggleComparison && (
-          <label className="flex min-h-11 items-center gap-2 px-3 text-sm">
+          <label className="relative z-20 flex min-h-11 items-center gap-2 px-3 text-sm">
             <input
               type="checkbox"
               checked={comparisonSelected}
@@ -307,7 +307,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             </a>
           )}
           {/* Main Info */}
-          <div className="space-y-2 flex-1">
+          <div className="min-w-0 space-y-2 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge
                 className={`text-[10px] font-bold ${getSourceBadgeColor(save.source_name)} px-2 py-0.5`}
@@ -329,8 +329,22 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               )}
             </div>
 
-            <h3 className="text-lg font-bold text-[var(--t1)] tracking-tight">
-              {snapshot.year} {snapshot.make} {snapshot.model} {snapshot.trim}
+            <h3 className="break-words text-lg font-bold text-[var(--t1)]">
+              {save.deal_id ? (
+                <Link
+                  href={`/deal/${save.deal_id}`}
+                  data-testid="saved-card-open"
+                  className="after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+                >
+                  {snapshot.year} {snapshot.make} {snapshot.model}{" "}
+                  {snapshot.trim}
+                </Link>
+              ) : (
+                <>
+                  {snapshot.year} {snapshot.make} {snapshot.model}{" "}
+                  {snapshot.trim}
+                </>
+              )}
             </h3>
             <div aria-label="Saved vehicle price">
               <span className="block text-xs text-[var(--t4)]">
@@ -350,10 +364,10 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               </span>
             </div>
 
-            <p className="text-xs text-[var(--t4)]">
-              {snapshot.odometer
+            <p className="break-words text-xs text-[var(--t4)]">
+              {snapshot.odometer != null && Number.isFinite(snapshot.odometer)
                 ? `${snapshot.odometer.toLocaleString()} mi`
-                : ""}
+                : "Mileage not reported"}
               {snapshot.vin ? ` - VIN: ${snapshot.vin}` : ""}
             </p>
             <p className="text-[11px] leading-relaxed text-[var(--t4)]">
@@ -362,7 +376,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               {formatFreshness(snapshot.lastSeenAt)}
             </p>
             {(snapshot.seller || hasSellerContact) && (
-              <div className="flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] text-[var(--t3)]">
+              <div className="relative z-20 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] text-[var(--t3)]">
                 <span className="font-black uppercase tracking-wide text-[var(--t5)]">
                   Seller
                 </span>
@@ -450,8 +464,8 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               </p>
             ) : null}
             {flipDesk && trustSummary ? (
-              <details className="text-[11px] leading-relaxed text-[var(--t3)]">
-                <summary className="cursor-pointer font-semibold">
+              <details className="relative z-20 text-[11px] leading-relaxed text-[var(--t3)]">
+                <summary className="min-h-11 cursor-pointer py-3 font-semibold">
                   Listing notes
                 </summary>
                 {trustSummary}
@@ -530,7 +544,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             </div>
 
             {/* Actions Footer */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="relative z-20 flex flex-wrap items-center gap-2">
               {/* Primary Action */}
               {status === "unavailable" ? (
                 <Button

@@ -52,20 +52,20 @@ function profileFor(make?: string | null, model?: string | null): Profile {
       label: "Truck / SUV",
       buy: [3, 4, 5, 6, 7, 8],
       window: "Mar–Aug",
-      why: "4x4 demand (and prices) peak in winter — acquire in spring/summer when they soften.",
+      why: "This general pattern treats spring and summer as potentially softer-demand months for trucks and SUVs. Regional weather and inventory can change it.",
     };
   if (isWarm)
     return {
       label: "Sports / convertible",
       buy: [10, 11, 12, 1, 2],
       window: "Oct–Feb",
-      why: "Top-down demand peaks in spring/summer — acquire in the cold months when sellers cut prices.",
+      why: "This general pattern treats colder months as potentially softer-demand periods for sports cars and convertibles. It does not measure this vehicle's market.",
     };
   return {
     label: "Sedan / everyday",
     buy: [11, 12, 1],
     window: "Nov–Jan",
-    why: "Mild seasonality — best deals cluster around year-end inventory clearing.",
+    why: "This general pattern uses year-end inventory clearing as a possible shopping window for everyday vehicles. Compare actual local prices first.",
   };
 }
 
@@ -80,10 +80,10 @@ export function BestTimeToBuy({ make, model }: Props) {
       style={{ background: "rgba(20,10,20,0.6)", boxShadow: "var(--shadow)" }}
     >
       <CardContent className="p-6 md:p-7">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
           <Ico name="clock" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            Best time to buy
+            Seasonal context
           </p>
           <span
             className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-black"
@@ -92,13 +92,20 @@ export function BestTimeToBuy({ make, model }: Props) {
               color: goodNow ? "var(--green)" : "var(--amber-d)",
             }}
           >
-            {goodNow ? "Good time now" : `Better in ${p.window}`}
+            {goodNow
+              ? "Typical softer-demand window"
+              : `Typical window: ${p.window}`}
           </span>
         </div>
-        <p className="text-sm text-[var(--t3)] mb-4">{p.why}</p>
+        <p className="text-sm text-[var(--t3)] mb-2">{p.why}</p>
+        <p className="mb-4 text-xs text-[var(--t4)]">
+          General seasonal heuristic, not a forecast from local sales. Compare
+          current listings, title, condition and total purchase costs before
+          acting.
+        </p>
 
         {/* 12-month strip — green = soft (cheaper to acquire) */}
-        <div className="flex gap-1">
+        <div className="grid grid-cols-6 gap-2 sm:grid-cols-12 sm:gap-1">
           {MONTHS.map((m, i) => {
             const mo = i + 1;
             const soft = p.buy.includes(mo);
@@ -111,7 +118,7 @@ export function BestTimeToBuy({ make, model }: Props) {
                     background: soft ? "var(--glo)" : "var(--s2)",
                     border: now ? "1.5px solid var(--amber)" : "none",
                   }}
-                  title={soft ? `${m}: softer prices` : `${m}: firmer prices`}
+                  title={`${m}: ${soft ? "typical softer-demand window" : "outside typical window"}${now ? " (current month)" : ""}`}
                 >
                   {now && (
                     <span
@@ -121,7 +128,7 @@ export function BestTimeToBuy({ make, model }: Props) {
                   )}
                 </div>
                 <span className="text-[8px] text-[var(--t5)] mt-0.5 block">
-                  {m[0]}
+                  {m}
                 </span>
               </div>
             );

@@ -12,11 +12,18 @@ export async function GET(
   const { id } = await params;
   const supabase = createServerComponentClient();
 
-  const { data: base } = await supabase
+  const { data: base, error: baseError } = await supabase
     .from("deals")
     .select("vin, make, model, year, mileage, ask_price, first_seen_at")
     .eq("id", id)
     .maybeSingle();
+  if (baseError)
+    return NextResponse.json(
+      { error: "Listing sources unavailable" },
+      { status: 503 },
+    );
+  if (!base)
+    return NextResponse.json({ error: "Listing not found" }, { status: 404 });
 
   const baseInfo = base
     ? {
@@ -34,13 +41,18 @@ export async function GET(
     return NextResponse.json({ sources: [], vin: null, base: baseInfo });
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("deals")
     .select("id, source, ask_price, source_url, last_seen_at, location_state")
     .eq("vin", vin)
     .eq("active", true)
     .gt("ask_price", 0)
     .order("ask_price", { ascending: true });
+  if (error)
+    return NextResponse.json(
+      { error: "Listing sources unavailable" },
+      { status: 503 },
+    );
 
   const sources = (data || []).map((d: any) => ({
     id: d.id,

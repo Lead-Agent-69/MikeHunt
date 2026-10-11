@@ -122,7 +122,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       style={{ scrollSnapAlign: "start" }}
     >
       <div
-        className="deal-card glass-panel interactive-surface group flex flex-col overflow-hidden premium-focus"
+        className="deal-card glass-panel interactive-surface group relative isolate flex flex-col overflow-hidden premium-focus"
         style={{ padding: 0, height: "100%", borderRadius: 8 }}
       >
         {/* Image */}
@@ -152,7 +152,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </Link>
 
           <span
-            className="pointer-events-none absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+            className="pointer-events-none absolute left-2.5 top-2.5 inline-flex max-w-[calc(100%-4.5rem)] items-center rounded-full px-2.5 py-1 text-[11px] font-black"
             style={{ background: decision.background, color: decision.color }}
           >
             {decision.label}
@@ -161,7 +161,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           {/* Multi-source chip ΓÇö floating top-right (the Kayak signal) */}
           {multi && (
             <span
-              className="pointer-events-none absolute right-2.5 top-12 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
+              className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
               style={{
                 background: "rgba(36,28,43,.72)",
                 backdropFilter: "blur(8px)",
@@ -193,7 +193,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               e.stopPropagation();
               void bookmark.toggle();
             }}
-            className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
+            className="absolute right-2.5 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
@@ -218,7 +218,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
-              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+              data-testid="discovery-card-open"
+              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
             >
               {title}
             </Link>
@@ -251,7 +252,27 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   ${Math.round(deal.recommendedMaxBid).toLocaleString()}
                 </span>
               </div>
-            ) : null}
+            ) : (
+              <div
+                className="min-w-0 text-right"
+                data-testid="discovery-card-market"
+              >
+                <p className="mb-1 text-[10px] font-bold uppercase text-[var(--t4)]">
+                  {deal.soldAnchored ? "Resale estimate" : "Listing estimate"}
+                </p>
+                <span className="font-mono text-[17px] font-black text-[var(--t3)]">
+                  {Number.isFinite(deal.sellEstimate) &&
+                  (deal.sellEstimate || 0) > 0
+                    ? `$${Math.round(deal.sellEstimate!).toLocaleString()}`
+                    : "Needs comps"}
+                </span>
+                {(deal.compCount || 0) > 0 && (
+                  <p className="mt-1 text-[10px] text-[var(--t4)]">
+                    {deal.compCount} listing comps
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* VIN-graph red flag ΓÇö the moat made visible. Loud red for misrepresentation traps (a
@@ -315,14 +336,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               <span className="font-mono text-[var(--t3)]">
                 {deal.mileage.toLocaleString()} mi
               </span>
-            ) : null}
+            ) : (
+              <span>Mileage not reported</span>
+            )}
             {deal.mileage != null && location ? (
               <span className="opacity-30" aria-hidden="true">
                 /
               </span>
             ) : null}
             {location && (
-              <span className="inline-flex items-center gap-1 truncate">
+              <span className="inline-flex min-w-0 items-center gap-1 break-words">
                 <svg
                   width="10"
                   height="10"
@@ -338,7 +361,17 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {location}
               </span>
             )}
+            {!location && <span>Location not reported</span>}
           </div>
+
+          <p
+            className="break-words text-[11px] text-[var(--t4)]"
+            data-testid="discovery-card-seller"
+          >
+            {deal.seller || sellerTypeLabel(deal.sellerType || sourceChannel)}
+            {" / "}
+            {sourceLabel(deal.source)}
+          </p>
 
           <TitleBadge
             className="w-fit"
@@ -358,7 +391,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           )}
 
           {deal.matchReasons && deal.matchReasons.length > 0 && (
-            <details className="text-[11px] text-[var(--t3)]">
+            <details className="relative z-20 text-[11px] text-[var(--t3)]">
               <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
                 Why shown
               </summary>
@@ -383,7 +416,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {evidence.nextCheck}
           </p>
 
-          <details className="border-t border-[var(--b1)] pt-2">
+          <details className="relative z-20 border-t border-[var(--b1)] pt-2">
             <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
               Cost estimates and source details
             </summary>
@@ -560,7 +593,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             href={href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>

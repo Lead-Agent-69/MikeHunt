@@ -1287,6 +1287,7 @@ export default function DealPage({
         summary="Price history, comparable position, and local market timing."
       >
         <div className="space-y-4">
+          <MarketContext dealId={id} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <PriceMilesScatter
               dealId={id}
@@ -1373,7 +1374,7 @@ export default function DealPage({
             serverDeal?.dealAnalysis?.prediction && (
               <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
             )}
-          {store.userType === "dealer" && serverDeal && (
+          {serverDeal && (
             <ContactSeller
               contact={serverDeal.contact}
               sourceUrl={serverDeal.sourceUrl}
@@ -1757,7 +1758,6 @@ export default function DealPage({
           storageKey="deal-dashboard-layout-v1"
           widgets={[
             { id: "deal-iq", content: <DealIQCard dealId={id} /> },
-            { id: "market-context", content: <MarketContext dealId={id} /> },
             {
               id: "vehicle-specs",
               content: <VehicleSpecs vin={store.vin} make={store.make} />,

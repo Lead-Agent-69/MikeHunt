@@ -146,3 +146,46 @@ it("keeps live-preview photo navigation external with safe tab attributes", () =
   expect(html.match(/rel="noopener noreferrer"/g)).toHaveLength(3);
   expect(html).toContain("opens in a new tab");
 });
+
+it("extends the real vehicle link across the card without covering independent controls", () => {
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, { deal: listing }),
+  );
+  const link = container.querySelector('[data-testid="discovery-card-open"]');
+  expect(link?.getAttribute("href")).toBe("/deal/listing");
+  expect(link?.className).toContain("after:inset-0");
+  expect(link?.className).toContain("after:z-10");
+  expect(container.querySelector(".deal-card")?.className).toContain("isolate");
+  expect(container.querySelector("button")?.className).toContain("z-20");
+  for (const details of Array.from(container.querySelectorAll("details"))) {
+    expect(details.className).toContain("relative z-20");
+    expect(details.closest("a")).toBeNull();
+  }
+});
+
+it("shows seller, missing mileage and valuation basis without opening a disclosure", () => {
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: {
+        ...listing,
+        seller: "Local Auto",
+        sellEstimate: 9000,
+        compCount: 4,
+      },
+    }),
+  );
+  expect(
+    container.querySelector('[data-testid="discovery-card-seller"]')
+      ?.textContent,
+  ).toContain("Local Auto");
+  const market = container.querySelector(
+    '[data-testid="discovery-card-market"]',
+  );
+  expect(market?.textContent).toContain("Listing estimate");
+  expect(market?.textContent).toContain("$9,000");
+  expect(market?.closest("details")).toBeNull();
+  expect(container.textContent).toContain("Mileage not reported");
+  expect(container.textContent).toContain("Location not reported");
+});
