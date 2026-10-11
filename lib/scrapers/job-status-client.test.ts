@@ -2,7 +2,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   pollScopedScrapeJob,
   sourceSearchStatusMessage,
+  sourceSearchCompletionMessage,
 } from "./job-status-client";
+
+describe("source completion truth", () => {
+  const summary = { successful: 5, total: 5, totalDeals: 1240 };
+  it("never describes fetched totals as customer matches or successful source verification", () => {
+    const message = sourceSearchCompletionMessage(summary);
+    expect(message).not.toMatch(
+      /1240|5 of 5|checked successfully|listings found/,
+    );
+    expect(message).toContain("follow your filters");
+    expect(message).toContain("sources may be unavailable");
+  });
+  it("keeps labeled operational totals in admin only", () => {
+    const message = sourceSearchCompletionMessage(summary, true);
+    expect(message).toContain("1240 rows reported");
+    expect(message).toContain("not the number of matching vehicles");
+    expect(message).toContain("or proof of source availability");
+  });
+});
 
 describe("scoped search monitoring", () => {
   const id = "search-1";
