@@ -1,14 +1,8 @@
-import React from "react";
-import {
-  sourceMeta,
-  tint,
-  buyTerms,
-  displaySource,
-} from "@/lib/sources/source-meta";
+"use client";
 
-// The dealer's at-a-glance "where is this from?" — a prominent, brand-colored chip with the REAL source
-// name (Carvana, eBay Motors, CarGurus…), not tiny gray "EBAY_MOTORS". One look tells them the source
-// and, optionally, the channel (Auction / Retail / Private) so the numbers read correctly.
+import React, { useState } from "react";
+import { ExternalLink, Store } from "lucide-react";
+import { vendorIdentity } from "@/lib/sources/vendor-identity";
 
 export function SourceBadge({
   source,
@@ -23,36 +17,54 @@ export function SourceBadge({
   showChannel?: boolean;
   className?: string;
 }) {
-  const display = displaySource(source, sourceUrl);
-  const m = sourceMeta(display);
-  const terms = buyTerms(display);
-  const pad =
-    size === "lg"
-      ? "px-2.5 py-1 text-[12px]"
-      : size === "sm"
-        ? "px-1.5 py-0.5 text-[10px]"
-        : "px-2 py-0.5 text-[11px]";
-  const dot = size === "lg" ? 7 : size === "sm" ? 5 : 6;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full font-bold leading-none whitespace-nowrap ${pad} ${className}`}
-      style={{ background: tint(m.color), color: m.color }}
-      title={`${m.label}${showChannel ? ` · ${terms.channelTag}` : ""}`}
-    >
-      <span
-        className="inline-block shrink-0 rounded-full"
-        style={{ width: dot, height: dot, background: m.color }}
-      />
-      {m.label}
-      {showChannel && (
-        <span
-          className="ml-0.5 rounded-sm px-1 py-px text-[9px] font-extrabold uppercase tracking-wide opacity-80"
-          style={{ background: tint(m.color, 0.18) }}
-        >
-          {terms.channelTag}
-        </span>
+  const vendor = vendorIdentity(source, sourceUrl);
+  const [failedMark, setFailedMark] = useState<string>();
+  const textSize =
+    size === "lg" ? "text-xs" : size === "sm" ? "text-[10px]" : "text-[11px]";
+  const classes = `relative z-20 inline-flex min-h-11 max-w-[10rem] items-center gap-1.5 rounded-md border border-[var(--b1)] bg-[var(--s1)] px-2 py-1 leading-tight text-[var(--t1)] ${textSize} ${className}`;
+  const contents = (
+    <>
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white text-neutral-700">
+        {vendor.mark && failedMark !== vendor.mark ? (
+          <img
+            src={vendor.mark}
+            width={18}
+            height={18}
+            alt=""
+            onError={() => setFailedMark(vendor.mark)}
+          />
+        ) : (
+          <Store size={16} aria-hidden="true" />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block break-words font-semibold">{vendor.label}</span>
+        {showChannel && vendor.channelLabel && (
+          <span className="block text-[var(--t3)]">{vendor.channelLabel}</span>
+        )}
+        {vendor.host && vendor.host !== vendor.label && (
+          <span className="block truncate text-[var(--t3)]">{vendor.host}</span>
+        )}
+      </span>
+      {vendor.href && (
+        <ExternalLink size={12} className="shrink-0" aria-hidden="true" />
       )}
-    </span>
+    </>
+  );
+  return vendor.href ? (
+    <a
+      href={vendor.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`View listing at ${vendor.label} (opens in a new tab)`}
+      title={vendor.host}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+      className={`${classes} hover:bg-[var(--s2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--blue)]`}
+    >
+      {contents}
+    </a>
+  ) : (
+    <span className={classes}>{contents}</span>
   );
 }
