@@ -1,4 +1,7 @@
-import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
+import {
+  DEALER_SOURCE_DOMAINS,
+  dealerSourceIdForHost,
+} from "@/lib/sources/source-meta";
 
 export type BuyerLane =
   | "all"
@@ -125,18 +128,7 @@ const SELLER_TYPE_SOURCES: Record<string, string[]> = {
   private: ["craigslist", "facebook_marketplace", "offerup", "ebay_motors"],
 };
 
-export const CURATED_DEALER_SOURCE_IDS = [
-  "stjames-auto",
-  "dg-auto",
-  "recar",
-  "ae-of-miami",
-  "damage-com",
-  "cas-miami",
-  "salvagezone",
-  "rebuilt-auto",
-  "alpine-auto",
-  "replica-auto",
-];
+export const CURATED_DEALER_SOURCE_IDS = Object.keys(DEALER_SOURCE_DOMAINS);
 
 function cleanText(value: unknown, max = 80) {
   if (typeof value !== "string") return undefined;

@@ -28,6 +28,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
+import { matchesRequestedDealer } from "@/lib/sources/source-meta";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
@@ -1168,37 +1169,10 @@ export async function scrapeCuratedSites(
 ): Promise<number> {
   const scope = getScrapeRunScope();
   const requestedDealers = new Set(scope?.dealerSourceIds || []);
-  const dealerNeedles: Record<string, string[]> = {
-    "ae-of-miami": ["aeofmiami.com"],
-    "damage-com": ["damage.com"],
-    "dg-auto": ["dgautollc.com"],
-    recar: ["recar.com"],
-    autovada: ["autovada.com"],
-    polecats: ["polecatsautosales.com"],
-    "elite-sikeston": ["elitesikeston.com"],
-    "riverbend-rebuildables": ["riverbendrebuildables.com"],
-    "premier-salvage": ["premiersalvage.com"],
-    "garys-auto-ia": ["garysautoia.net"],
-    "stjames-auto": ["stjamesautoparts.com", "stjamesauto.com"],
-    "cas-miami": ["casmiami.com"],
-    salvagezone: ["salvagezone.com"],
-    "rebuilt-auto": ["rebuiltauto.com"],
-    "alpine-auto": ["alpinerebuildablecars.com", "alpineautogallery.com"],
-    "replica-auto": ["replicaautosales.net", "replicaauto.com"],
-  };
-  const matchesRequestedDealer = (site: (typeof CURATED_SITES)[number]) => {
-    if (!requestedDealers.size) return true;
-    const haystack = `${site.url} ${site.inventoryUrl || ""}`.toLowerCase();
-    return Array.from(requestedDealers).some((id) =>
-      (dealerNeedles[id] || [id]).some((needle) =>
-        haystack.includes(needle.toLowerCase()),
-      ),
-    );
-  };
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
   // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
   const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
-    matchesRequestedDealer,
+    (site) => matchesRequestedDealer(site, Array.from(requestedDealers)),
   );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
