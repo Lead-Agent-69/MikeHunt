@@ -1,6 +1,10 @@
 // lib/scrapers/pipeline.ts
 // Persistence helpers for scraped deals.
 
+import {
+  capSearchesPerUser,
+  SAVED_SEARCH_ORDER,
+} from "@/lib/alerts/saved-search-limits";
 import { createServerComponentClient } from "@/lib/supabase";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
@@ -606,12 +610,17 @@ export async function insertPriceHistory(
 async function matchUserSearches(deals: any[]): Promise<void> {
   try {
     const supabase = getSupabase();
-    const { data: searches, error } = await supabase
+    const { data: allSearches, error } = await supabase
       .from("user_saved_searches")
       .select("*")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .order(SAVED_SEARCH_ORDER[0])
+      .order(SAVED_SEARCH_ORDER[1])
+      .order(SAVED_SEARCH_ORDER[2]);
 
-    if (error || !searches || searches.length === 0) return;
+    if (error || !allSearches || allSearches.length === 0) return;
+    // At most MAX_SAVED_SEARCHES_PER_USER per user, oldest first (DB trigger enforces the same cap).
+    const searches = capSearchesPerUser(allSearches as any[]);
 
     // Home coordinates per user — needed for any search that uses max_distance_miles. One query.
     const homeByUser = new Map<string, { lat: number; lng: number }>();

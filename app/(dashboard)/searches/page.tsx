@@ -132,9 +132,14 @@ export default function SearchesPage() {
     try {
       const user = await currentUser();
       const payload = {
-        name: formName || `${formMake} ${formModel}`.trim() || "My search",
-        make: formMake || null,
-        model: formModel || null,
+        // Bounded to the DB CHECKs (20261010151000): name 1-120, make/model <= 64.
+        name: (
+          formName.trim() ||
+          `${formMake} ${formModel}`.trim() ||
+          "My search"
+        ).slice(0, 120),
+        make: formMake.trim().slice(0, 64) || null,
+        model: formModel.trim().slice(0, 64) || null,
         state: formState || null,
         lane: formLane !== "all" ? formLane : null,
         seller_type: formSellerType !== "all" ? formSellerType : null,
@@ -146,7 +151,8 @@ export default function SearchesPage() {
           flipDesk && formTargetProfit ? Number(formTargetProfit) : null,
         require_go: flipDesk && formRequireGo,
         notify_email: Boolean(user) && formNotifyEmail,
-        notify_sms: false,
+        // No notify_sms / last_run_at / created_at / id: server-only columns. Authenticated has
+        // column-limited INSERT (20261010151000), so sending any of them fails with 42501.
         is_active: true,
       };
 
