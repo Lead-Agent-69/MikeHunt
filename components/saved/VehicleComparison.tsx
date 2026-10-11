@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { buyTerm } from "@/lib/deal-terms";
+import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 
 type Candidate = {
   id: string;
@@ -96,7 +97,11 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
       </p>
     );
 
-  const rows: { label: string; value: (candidate: Candidate) => string }[] = [
+  const rows: {
+    label: string;
+    value: (candidate: Candidate) => string;
+    visible?: boolean;
+  }[] = [
     { label: "Price type", value: (c) => buyTerm(c.source).priceLabel },
     {
       label: "Listed price / bid",
@@ -127,10 +132,16 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     { label: "VIN", value: (c) => c.vin || "Not reported" },
     {
       label: "Damage reported",
+      visible: data.some(
+        (c) => needsOperabilityFacts(c) || Boolean(c.damageType),
+      ),
       value: (c) => c.damageType?.replace(/_/g, " ") || "Not reported",
     },
     {
       label: "Run and drive",
+      visible: data.some(
+        (c) => needsOperabilityFacts(c) || typeof c.runAndDrive === "boolean",
+      ),
       value: (c) =>
         c.runAndDrive === true
           ? "Reported yes"
@@ -140,6 +151,9 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     },
     {
       label: "Keys",
+      visible: data.some(
+        (c) => needsOperabilityFacts(c) || typeof c.hasKeys === "boolean",
+      ),
       value: (c) =>
         c.hasKeys === true
           ? "Reported yes"
@@ -300,6 +314,7 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
           </thead>
           <tbody>
             {rows
+              .filter((row) => row.visible !== false)
               .filter(
                 (row) =>
                   !differencesOnly ||

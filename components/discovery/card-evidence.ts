@@ -2,12 +2,16 @@ import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 import type { DiscoveryDeal } from "./types";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import type { ConditionRead } from "@/lib/intelligence/condition";
+import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 
-export function discoveryConditionLabel(condition: ConditionRead): string {
-  return condition.runs === "unknown" &&
-    /^(clean title|rebuilt title|salvage)$/i.test(condition.label)
-    ? "Running status not reported"
-    : condition.label;
+export function discoveryConditionLabel(
+  condition: ConditionRead,
+  deal?: DiscoveryDeal,
+): string {
+  return conditionDisplayLabel(condition, {
+    ...deal,
+    titleType: deal?.titleClass,
+  });
 }
 
 export function discoveryEvidence(deal: DiscoveryDeal) {

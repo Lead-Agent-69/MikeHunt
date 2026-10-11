@@ -24,6 +24,7 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
 import { readCondition } from "@/lib/intelligence/condition";
+import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import {
@@ -81,8 +82,9 @@ function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
     .filter(Boolean)
     .join(", ");
   const sourceName = sourceLabel(deal.source, deal.sourceUrl);
-  const conditionLabel = deal.condition
-    ? readCondition(deal.condition, undefined, title)?.label || ""
+  const conditionRead = readCondition(deal.condition, deal.damageType, title);
+  const conditionLabel = conditionRead
+    ? conditionDisplayLabel(conditionRead, deal)
     : "";
   const seller =
     (deal as { sellerType?: string }).sellerType === "dealer"

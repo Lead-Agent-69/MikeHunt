@@ -46,6 +46,21 @@ describe("shortlist comparison", () => {
     swr.result.data.cars = [{ ...car, auctionEndAt: "2020-01-01" }];
     expect(render()).toContain("Auction ended");
   });
+  it("omits empty auction fields when comparing ordinary dealer inventory", () => {
+    const html = render();
+    expect(html).not.toContain("Run and drive");
+    expect(html).not.toContain(">Keys<");
+    expect(html).not.toContain("Damage reported");
+  });
+  it("retains explicit reports and relevant auction fields in mixed comparisons", () => {
+    swr.result.data.cars = [car, { ...car, id: "car2", source: "copart" }];
+    expect(render()).toContain("Run and drive");
+    swr.result.data.cars = [{ ...car, runAndDrive: false }];
+    const html = render();
+    expect(html).toContain("Run and drive");
+    expect(html).toContain("Reported no");
+    expect(html).not.toContain(">Keys<");
+  });
   it("keeps other cars and a retry when one selection fails", async () => {
     render();
     vi.stubGlobal(

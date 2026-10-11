@@ -64,9 +64,25 @@ describe("discovery purchase evidence", () => {
   it.each(["clean_title", "rebuilt_title", "salvage_title"])(
     "separates %s from unknown operability",
     (condition) => {
-      expect(discoveryConditionLabel(readCondition(condition)!)).toBe(
-        "Running status not reported",
-      );
+      expect(
+        discoveryConditionLabel(readCondition(condition)!, {
+          ...listing,
+          source: "copart",
+          condition,
+        }),
+      ).toBe("Running status not reported");
+    },
+  );
+  it.each(["independent_dealer", "carvana", "cars_com", "craigslist"])(
+    "does not label ordinary %s inventory as having missing running status",
+    (source) => {
+      expect(
+        discoveryConditionLabel(readCondition("clean_title")!, {
+          ...listing,
+          source,
+          condition: "clean_title",
+        }),
+      ).toBe("");
     },
   );
   it("keeps explicit operability and damage information", () => {
