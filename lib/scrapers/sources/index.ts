@@ -147,6 +147,14 @@ export async function enrichCraigslistDetail(
     const $ = cheerio.load(fetched.html);
     const out: Partial<Deal> = {};
 
+    const addressState = craigslistListingState(
+      $(".mapaddress").first().text(),
+    );
+    if (addressState) {
+      out.location_state = addressState;
+      out.metadata = { location_state_source: "listing" };
+    }
+
     const attr = (cls: string) =>
       $(`.attr.${cls} .valu, .attr.${cls} a`).first().text().trim();
 
@@ -209,7 +217,9 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
         try {
           const extra = await enrichCraigslistDetail(d.source_url as string);
           if (Object.keys(extra).length) {
-            Object.assign(d, extra);
+            Object.assign(d, extra, {
+              metadata: { ...d.metadata, ...extra.metadata },
+            });
             enriched++;
           }
         } catch (error) {
@@ -234,6 +244,15 @@ export { scrapeCopart, parseCopartLots } from "./copart";
 // Nationwide Craigslist coverage. Defaults to all 50-state metro subdomains (lib/geo.ts).
 // Override with CL_CITIES env (comma-separated subdomains); cap per-run with CL_MAX_CITIES.
 const CL_SITE_STATE = new Map(CRAIGSLIST_SITES.map((s) => [s.site, s.state]));
+
+/** A regional Craigslist site may include inventory across state borders. */
+export function craigslistListingState(location: string): string | undefined {
+  const match = location
+    .trim()
+    .match(/(?:^|[,\s])([A-Z]{2})(?:\s+\d{5}(?:-\d{4})?)?$/i);
+  const state = match?.[1]?.toUpperCase();
+  return state && [...US_STATES, "DC"].includes(state) ? state : undefined;
+}
 const CL_CITIES: string[] = (() => {
   const fromEnv = process.env.CL_CITIES?.split(",")
     .map((c) => c.trim())
@@ -369,7 +388,13 @@ export async function parseCraigslistResults(
         mileage: mileageFromTitle(title),
         condition: "run_drive",
         location_city: hood || city,
-        location_state: CL_SITE_STATE.get(city),
+        location_state: craigslistListingState(hood),
+        metadata: {
+          search_market_state: CL_SITE_STATE.get(city),
+          location_state_source: craigslistListingState(hood)
+            ? "listing"
+            : "unverified",
+        },
         seller_type:
           channel.source === "craigslist_dealer" ? "dealer" : "private",
         images: imgSrc ? [imgSrc] : [],
