@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
+import { mileageCurvePrice } from "@/lib/valuation/mileage-curve";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 const money = (v: any) =>
@@ -71,20 +72,18 @@ export function MarketContext({ dealId }: { dealId: string }) {
     base.mileage &&
     base.askPrice
   ) {
-    const [a, b] = dep.trend;
-    const slope = (b.price - a.price) / (b.mileage - a.mileage);
-    const expected = Math.round(a.price + slope * base.mileage);
-    if (expected > 0) {
+    const expected = mileageCurvePrice(dep.trend, base.mileage);
+    if (expected != null) {
       const diff = base.askPrice - expected;
       const pct = Math.round((Math.abs(diff) / expected) * 100);
       curveNote =
         diff < 0
           ? {
-              text: `${pct}% below the curve for its miles`,
+              text: `${pct}% below the asking-price curve for its miles`,
               color: "var(--green)",
             }
           : {
-              text: `${pct}% above the curve for its miles`,
+              text: `${pct}% above the asking-price curve for its miles`,
               color: "var(--red)",
             };
     }

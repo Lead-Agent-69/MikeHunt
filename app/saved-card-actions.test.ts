@@ -64,5 +64,19 @@ describe("saved-card actions", () => {
     const host = card("");
     expect(host.querySelector('a[href="/deal/"]')).toBeNull();
     expect(host.textContent).toContain("Find similar");
+    expect(host.querySelector('[data-testid="saved-card-open"]')).toBeNull();
+  });
+  it("extends the title deep link across the card, keeping actions independent", () => {
+    const host = card();
+    const link = host.querySelector('[data-testid="saved-card-open"]');
+    expect(link?.getAttribute("href")).toBe("/deal/vehicle-one");
+    expect(link?.className).toContain("after:inset-0");
+    expect(link?.className).toContain("after:z-10");
+    expect(host.querySelector("a button")).toBeNull();
+    expect(
+      host.querySelector('button[aria-label="Remove saved vehicle"]')
+        ?.parentElement?.className,
+    ).toContain("z-20");
+    expect(host.textContent).toContain("Mileage not reported");
   });
 });
