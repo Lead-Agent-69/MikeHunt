@@ -3,7 +3,7 @@ import {
   validateExtendedFilters,
 } from "./extended-inventory-filters";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
-import { sourceMeta } from "@/lib/sources/source-meta";
+import { DEALER_SOURCE_DOMAINS, sourceMeta } from "@/lib/sources/source-meta";
 import type { Database } from "@/types/supabase";
 
 const STORED_SOURCE_IDS = [
@@ -45,6 +45,8 @@ export function applyRepairEligibility(
 
 export function dbSourceValues(sourceId: string) {
   const id = sourceId.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(DEALER_SOURCE_DOMAINS, id))
+    return ["independent_dealer"];
   const mapped: Record<string, string[]> = {
     publicsurplus: ["gov_auction"],
     govdeals: ["gov_auction"],
@@ -53,16 +55,6 @@ export function dbSourceValues(sourceId: string) {
     gsa_auctions: ["gov_auction"],
     gsa: ["gov_auction"],
     curated_dealers: ["independent_dealer"],
-    "ae-of-miami": ["independent_dealer"],
-    "damage-com": ["independent_dealer"],
-    "dg-auto": ["independent_dealer"],
-    recar: ["independent_dealer"],
-    "stjames-auto": ["independent_dealer"],
-    "cas-miami": ["independent_dealer"],
-    salvagezone: ["independent_dealer"],
-    "rebuilt-auto": ["independent_dealer"],
-    "alpine-auto": ["independent_dealer"],
-    "replica-auto": ["independent_dealer"],
     carparts_com: ["independent_dealer"],
   };
   return mapped[id] || [id];
@@ -98,6 +90,8 @@ export function sellerTypeSourceValues(sellerType: string) {
 
 export function sourceUrlNeedles(sourceId: string) {
   const id = sourceId.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(DEALER_SOURCE_DOMAINS, id))
+    return DEALER_SOURCE_DOMAINS[id];
   const mapped: Record<string, string[]> = {
     publicsurplus: ["publicsurplus.com"],
     govdeals: ["govdeals.com"],
@@ -105,16 +99,6 @@ export function sourceUrlNeedles(sourceId: string) {
     municibid: ["municibid.com"],
     gsa_auctions: ["gsaauctions.gov", "gsa.gov"],
     gsa: ["gsaauctions.gov", "gsa.gov"],
-    "ae-of-miami": ["aeofmiami.com"],
-    "damage-com": ["damage.com"],
-    "dg-auto": ["dgautollc.com"],
-    recar: ["recar.com"],
-    "stjames-auto": ["stjamesauto.com", "stjamesautoparts.com"],
-    "cas-miami": ["casmiami.com"],
-    salvagezone: ["salvagezone.com"],
-    "rebuilt-auto": ["rebuiltauto.com"],
-    "alpine-auto": ["alpineautogallery.com"],
-    "replica-auto": ["replicaauto.com"],
   };
   return mapped[id] || [];
 }

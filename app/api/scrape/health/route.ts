@@ -195,7 +195,12 @@ function dealerProofSources(scope: HealthScope, sourceIds: string[]) {
   const dealerHosts = scope.dealerHosts || [];
   const dealerSourceIds = scope.dealerSourceIds || [];
   return INDEPENDENT_DEALERS.filter(
-    (source) => source.type === "dealer" && source.priority === "P1",
+    (source) =>
+      source.type === "dealer" &&
+      (source.priority === "P1" ||
+        dealerSourceIds.includes(source.id) ||
+        (dealerHosts.length > 0 &&
+          urlHostMatches(source.url, dealerHosts.map(bareHost)))),
   )
     .filter((source) => {
       if (dealerSourceIds.length) return dealerSourceIds.includes(source.id);
@@ -769,7 +774,7 @@ function supabaseIlikeTerm(value: string) {
     .trim();
 }
 
-function scopedDealerUrlNeedles(scope: HealthScope) {
+export function scopedDealerUrlNeedles(scope: HealthScope) {
   const fromDealerIds = (scope.dealerSourceIds || []).flatMap(
     dealerSourceUrlNeedles,
   );
@@ -779,7 +784,7 @@ function scopedDealerUrlNeedles(scope: HealthScope) {
         .map((value) => supabaseIlikeTerm(value.toLowerCase()))
         .filter(Boolean),
     ),
-  ).slice(0, 12);
+  );
 }
 
 function applyScopedDealQuery(query: any, scope: HealthScope) {

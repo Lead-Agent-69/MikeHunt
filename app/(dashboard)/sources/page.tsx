@@ -28,6 +28,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
+import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   Activity,
@@ -552,15 +553,7 @@ const SOURCE_PROOF_FILTERS = [
   { id: "needs_run", label: "Needs refresh" },
 ] as const;
 
-const FEATURED_DEALER_OPTIONS = [
-  { id: "ae-of-miami", label: "AE of Miami", host: "aeofmiami.com" },
-  { id: "dg-auto", label: "D&G Auto", host: "dgautollc.com" },
-  { id: "recar", label: "ReCar", host: "recar.com" },
-  { id: "stjames-auto", label: "St. James", host: "stjamesautoparts.com" },
-  { id: "damage-com", label: "Damage.com", host: "damage.com" },
-  { id: "cas-miami", label: "CAS Miami", host: "casmiami.com" },
-  { id: "salvagezone", label: "SalvageZone", host: "salvagezone.com" },
-] as const;
+const FEATURED_DEALER_OPTIONS = dealerSourceOptions();
 
 const FEATURED_DEALER_IDS = new Set<string>(
   FEATURED_DEALER_OPTIONS.map((dealer) => dealer.id),

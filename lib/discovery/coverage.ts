@@ -4,6 +4,9 @@
  * Every number comes from rows the discover_deals RPC returned. Nothing is estimated.
  */
 
+import { hostOf } from "@/lib/net/host-match";
+import { sourceFromUrl } from "@/lib/sources/source-meta";
+
 export const COVERAGE_WINDOW_DAYS = 7;
 /** Below either floor the block reports status "thin". Exposed in the payload so UI copy can cite it. */
 export const COVERAGE_THIN_MIN_ROWS = 50;
@@ -11,6 +14,8 @@ export const COVERAGE_THIN_MIN_SOURCES = 2;
 
 export type CoverageRow = {
   source?: string | null;
+  source_url?: string | null;
+  sourceUrl?: string | null;
   location_state?: string | null;
   last_seen_at?: string | null;
 };
@@ -105,7 +110,14 @@ export function buildDiscoverCoverage(input: {
   const byStateMap = new Map<string, number>(states.map((s) => [s, 0]));
   let newest = NaN;
   for (const row of fresh) {
-    const source = String(row.source || "unknown").toLowerCase();
+    const url = row.source_url || row.sourceUrl;
+    const resolved =
+      sourceFromUrl(url) || String(row.source || "unknown").toLowerCase();
+    // Separate real dealers rather than counting every independent lot as one feed.
+    // Unknown dealer URLs stay in their original group; never infer a vendor from path text.
+    const source = ["independent_dealer", "curated_dealers"].includes(resolved)
+      ? hostOf(url)?.replace(/^www\./, "") || resolved
+      : resolved;
     const t = seenMs(row);
     const entry = bySourceMap.get(source) || { rows: 0, newest: NaN };
     entry.rows += 1;

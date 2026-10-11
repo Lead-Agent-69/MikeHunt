@@ -152,6 +152,63 @@ export const SALVAGE_AUCTIONS: SourceConfig[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const INDEPENDENT_DEALERS: SourceConfig[] = [
+  ...[
+    {
+      id: "autovada",
+      name: "AutoVada",
+      url: "https://www.autovada.com",
+      states: ["MO"],
+      category: "retail" as const,
+    },
+    {
+      id: "elite-sikeston",
+      name: "Elite Auto Sales",
+      url: "https://www.elitesikeston.com",
+      states: ["MO"],
+      category: "retail" as const,
+    },
+    {
+      id: "polecats",
+      name: "Polecats Auto Sales",
+      url: "https://www.polecatsautosales.com",
+      states: ["MO"],
+      category: "salvage" as const,
+    },
+    {
+      id: "riverbend-rebuildables",
+      name: "Riverbend Rebuildables & Auto Sales",
+      url: "https://www.riverbendrebuildables.com",
+      states: ["MO"],
+      category: "salvage" as const,
+    },
+    {
+      id: "premier-salvage",
+      name: "Premier Auto Rebuilders & Truck Salvage",
+      url: "https://www.premiersalvage.com",
+      states: ["MO"],
+      category: "salvage" as const,
+    },
+    {
+      id: "garys-auto-ia",
+      name: "Gary's Auto",
+      url: "https://www.garysautoia.net",
+      states: ["IA"],
+      category: "salvage" as const,
+    },
+  ].map(
+    (dealer): SourceConfig => ({
+      ...dealer,
+      type: "dealer",
+      authRequired: "none",
+      description:
+        "Targeted dealer inventory through the existing shared importer. Verify title and condition on each listing.",
+      priority: "P2",
+      status: "testing",
+      access: "scrape",
+      notes:
+        "Importer supported; fresh inventory and source permission are evaluated at run time. Catalog presence is not live coverage.",
+    }),
+  ),
   {
     id: "erepairables",
     name: "eRepairables",
@@ -610,7 +667,10 @@ export const GOVERNMENT_SOURCES: SourceConfig[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 const openGov = (
-  s: Omit<SourceConfig, "type" | "category" | "authRequired" | "access" | "status"> &
+  s: Omit<
+    SourceConfig,
+    "type" | "category" | "authRequired" | "access" | "status"
+  > &
     Partial<Pick<SourceConfig, "status">>,
 ): SourceConfig => ({
   type: "government",
@@ -629,11 +689,13 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["MD"],
     format: "pdf",
     license: "unclear: public notice",
-    description: "Bi-weekly impound auction list (text PDF): lot, stock #, year, make, body, VIN.",
+    description:
+      "Bi-weekly impound auction list (text PDF): lot, stock #, year, make, body, VIN.",
     inventorySize: "~800 per list",
     updateFrequency: "Every 2 weeks",
     priority: "P1",
-    notes: "Bidding venue is GovDeals/Copart (gated): ingest the city list, link to the city page only.",
+    notes:
+      "Bidding venue is GovDeals/Copart (gated): ingest the city list, link to the city page only.",
   }),
   openGov({
     id: "gov-montgomery-md-police-auction",
@@ -642,7 +704,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["MD"],
     format: "pdf",
     license: "unclear: public notice",
-    description: "Monthly in-person police recovery auction list: year, make, body, VIN, some mileage.",
+    description:
+      "Monthly in-person police recovery auction list: year, make, body, VIN, some mileage.",
     inventorySize: "~300 per list",
     updateFrequency: "Monthly (4th Saturday)",
     priority: "P1",
@@ -654,7 +717,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["HI"],
     format: "pdf",
     license: "unclear: public notice",
-    description: "Monthly list (text PDF): make, VIN, body, total owed; bidding on the city's own VSS site.",
+    description:
+      "Monthly list (text PDF): make, VIN, body, total owed; bidding on the city's own VSS site.",
     inventorySize: "~270 per list",
     updateFrequency: "Monthly",
     priority: "P1",
@@ -667,11 +731,13 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["DE"],
     format: "pdf",
     license: "unclear: public notice",
-    description: "Rolling surplus fleet bulletin: year, model, mileage, VIN (make from VIN decode).",
+    description:
+      "Rolling surplus fleet bulletin: year, model, mileage, VIN (make from VIN decode).",
     inventorySize: "~80",
     updateFrequency: "Rolling",
     priority: "P2",
-    notes: "Pipeline list: sold later on usgovbid.com (not checked). No price in the bulletin.",
+    notes:
+      "Pipeline list: sold later on usgovbid.com (not checked). No price in the bulletin.",
   }),
   openGov({
     id: "gov-memphis-auto-auctions",
@@ -680,7 +746,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["TN"],
     format: "xlsx",
     license: "unclear: public notice",
-    description: "Weekly impound list (scanned PDF, needs OCR) and quarterly surplus fleet XLSX with VINs.",
+    description:
+      "Weekly impound list (scanned PDF, needs OCR) and quarterly surplus fleet XLSX with VINs.",
     updateFrequency: "Weekly (impound) / quarterly (surplus)",
     priority: "P2",
     notes: "robots.txt allows everything with Crawl-delay 10.",
@@ -692,7 +759,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["WA"],
     format: "socrata",
     license: "Public Domain",
-    description: "Socrata feed: year, make, model, VIN, fuel, auction house. ~64 cars/trucks.",
+    description:
+      "Socrata feed: year, make, model, VIN, fuel, auction house. ~64 cars/trucks.",
     updateFrequency: "Monthly",
     priority: "P1",
     notes: "Pipeline: live status at the commercial auctioneer unknown.",
@@ -704,7 +772,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["WV"],
     format: "html",
     license: "unclear: public notice",
-    description: "Weekly HTML table: year, make/model, VIN, mileage, fixed price (buy now).",
+    description:
+      "Weekly HTML table: year, make/model, VIN, mileage, fixed price (buy now).",
     inventorySize: "~28",
     updateFrequency: "Weekly (Wednesdays)",
     priority: "P1",
@@ -716,7 +785,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["MA"],
     format: "pdf",
     license: "unclear: public notice",
-    description: "Impound auction lot list (text PDF): make, color, year. No VIN or model.",
+    description:
+      "Impound auction lot list (text PDF): make, color, year. No VIN or model.",
     inventorySize: "~60 per auction",
     updateFrequency: "Every 1-3 months",
     priority: "P2",
@@ -728,7 +798,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["VA"],
     format: "socrata",
     license: "portal ToU",
-    description: "Daily Socrata feed: VIN, year, make, model, auction date and sold-for price.",
+    description:
+      "Daily Socrata feed: VIN, year, make, model, auction date and sold-for price.",
     inventorySize: "~850 on lot",
     updateFrequency: "Daily",
     priority: "P1",
@@ -741,7 +812,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["WA"],
     format: "socrata",
     license: "Public Domain",
-    description: "Historical sold fleet vehicles with VIN, sale price and date (comps only).",
+    description:
+      "Historical sold fleet vehicles with VIN, sale price and date (comps only).",
     priority: "P3",
   }),
   openGov({
@@ -751,7 +823,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["NY"],
     format: "socrata",
     license: "portal ToU",
-    description: "Weekly feed: auction close date, year, make, model, VIN (rows appear at close).",
+    description:
+      "Weekly feed: auction close date, year, make, model, VIN (rows appear at close).",
     updateFrequency: "Weekly",
     priority: "P3",
   }),
@@ -762,7 +835,8 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     states: ["IL"],
     format: "socrata",
     license: "portal ToU",
-    description: "Daily 90-day tow locator (no VIN). Impound-auction lead only.",
+    description:
+      "Daily 90-day tow locator (no VIN). Impound-auction lead only.",
     updateFrequency: "Daily",
     priority: "P3",
   }),
@@ -1460,7 +1534,8 @@ export const MULTISITE_LINK_SOURCES: SourceConfig[] = [
     name: "Kelley Blue Book (search link)",
     url: "https://www.kbb.com/cars-for-sale/used",
     category: "aggregator",
-    description: "Outbound search link (Cox stack). KBB terms allow hyperlinks under its Linking Policy.",
+    description:
+      "Outbound search link (Cox stack). KBB terms allow hyperlinks under its Linking Policy.",
     status: "testing",
     notes: "Hidden until the URL format is confirmed in a real browser.",
   }),
@@ -1478,7 +1553,8 @@ export const MULTISITE_LINK_SOURCES: SourceConfig[] = [
     name: "IAA (search link)",
     url: "https://www.iaai.com/Search",
     category: "salvage",
-    description: "Outbound keyword search link to public lot search. Never scraped.",
+    description:
+      "Outbound keyword search link to public lot search. Never scraped.",
     status: "testing",
     notes: "Hidden until the URL format is confirmed in a real browser.",
   }),

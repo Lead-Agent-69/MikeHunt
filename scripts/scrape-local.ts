@@ -14,6 +14,7 @@ import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import {
   claimNextScopedScrapeJob,
   recoveredClaimError,
+  scopedWorkerIdleState,
 } from "../lib/scrapers/job-queue";
 import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
@@ -653,6 +654,20 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   let claimFailures = 0;
   let nextAuctionExpiryAt = 0;
   while (!stopRequested) {
+    // Keep unstarted buyer jobs queued when no write capacity remains. Crawling
+    // them cannot add matches and must not report a successful zero-save refresh.
+    if (quotaReached()) {
+      quotaPaused = true;
+      currentStatus.state = scopedWorkerIdleState(manualPaused, true);
+      currentStatus.activeJob = undefined;
+      currentStatus.currentSources = [];
+      const wait = Math.max(QUEUE_POLL_MS, 60_000);
+      currentStatus.nextRunAt = new Date(Date.now() + wait).toISOString();
+      await writeStatus();
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      continue;
+    }
+    quotaPaused = false;
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
       job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
@@ -704,7 +719,7 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       }
     }
     if (!job) {
-      currentStatus.state = manualPaused ? "paused" : "running";
+      currentStatus.state = scopedWorkerIdleState(manualPaused, quotaReached());
       currentStatus.currentSources = [];
       currentStatus.activeJob = undefined;
       currentStatus.nextRunAt = new Date(
