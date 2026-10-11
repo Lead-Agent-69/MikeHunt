@@ -3,6 +3,12 @@
 Updated October 11, 2026. This is the current cars execution ledger, not a claim
 of production acceptance. Preserve earlier release handoffs as historical evidence.
 
+Release update: #362 merged to main as 8821da9 and Vercel production deployment
+7002082978 succeeded. The local/not-live references below describe earlier passes,
+not current deployment state. Signed-in visual acceptance remains unverified.
+See [Production readiness handoff](PRODUCTION-READINESS-HANDOFF.md) for current
+quota constraints, public status evidence and the remaining release queue.
+
 ## Product Contract
 
 Discover -> evaluate -> save/compare -> purchase plan is the shared buying journey.
