@@ -93,68 +93,20 @@ async function enrichGoBacklog(limit: number): Promise<void> {
   if (n) console.log(`🖼️  topped up ${n} GO deals with real photos/VIN`);
 }
 
-// DATA LIFECYCLE — keep Supabase bounded WITHOUT ever touching a dealer's saved data. Two phases:
-//   1) Demote: an active listing not re-seen in 30d is treated as gone → active=false (reversible —
-//      if a later scrape sees it again, the upsert flips it back). It drops out of the live feed but
-//      isn't deleted.
-//   2) Prune: a long-dead listing (inactive, not seen in 90d) is DELETED — EXCEPT any deal a dealer
-//      has touched (watchlist / fleet inventory / saved cars / logged outcomes / alert matches). Those
-//      are their data and are never removed. alert_matches rows for prunable deals are cleared first
-//      (NO ACTION FK), then the deals go (CASCADE handles the rest).
+// The database owns retention: bounded row locks and a delete guard protect concurrent saves.
+// Never fall back to client-side deletes if the migration is missing or a reference lookup fails.
 async function pruneStaleDeals(): Promise<void> {
   const { createClient } = await import("@supabase/supabase-js");
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
-  const days = (n: number) =>
-    new Date(Date.now() - n * 86_400_000).toISOString();
-
-  // 1) Demote stale active listings (reversible).
-  const { count: demoted } = await sb
-    .from("deals")
-    .update({ active: false }, { count: "exact" })
-    .eq("active", true)
-    .lt("last_seen_at", days(30));
-
-  // 2) Collect deals a dealer has touched — these are NEVER deleted.
-  const protectedIds = new Set<string>();
-  for (const t of [
-    "watchlist",
-    "inventory",
-    "saved_cars",
-    "deal_outcomes",
-    "alert_matches",
-  ]) {
-    const { data } = await sb
-      .from(t)
-      .select("deal_id")
-      .not("deal_id", "is", null);
-    for (const r of data || []) if (r.deal_id) protectedIds.add(r.deal_id);
-  }
-
-  // 3) Candidates: long-dead listings. Filter out anything protected, then delete in chunks.
-  const { data: cand } = await sb
-    .from("deals")
-    .select("id")
-    .eq("active", false)
-    .lt("last_seen_at", days(90))
-    .limit(8000);
-  const toDelete = (cand || [])
-    .map((c: any) => c.id)
-    .filter((id: string) => !protectedIds.has(id));
-
-  let deleted = 0;
-  for (let i = 0; i < toDelete.length; i += 200) {
-    const chunk = toDelete.slice(i, i + 200);
-    // Clear notification matches first (NO ACTION FK would otherwise block the delete).
-    await sb.from("alert_matches").delete().in("deal_id", chunk);
-    const { error } = await sb.from("deals").delete().in("id", chunk);
-    if (!error) deleted += chunk.length;
-  }
-  console.log(
-    `🧹 retention: demoted ${demoted ?? 0} stale, pruned ${deleted} dead listings, protected ${protectedIds.size} saved`,
-  );
+  const { data, error } = await sb.rpc("prune_inventory_retention", {
+    p_limit: 1000,
+  });
+  if (error)
+    throw new Error(`Protected inventory retention failed: ${error.message}`);
+  console.log("[retention]", JSON.stringify(data));
 }
 
 // CL listing cards don't carry odometer — the real mileage lives on each detail page. This bounded

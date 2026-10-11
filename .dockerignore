@@ -15,4 +15,5 @@ cache
 profiles
 logs
 artifacts
+.codex-remote-attachments
 .agents

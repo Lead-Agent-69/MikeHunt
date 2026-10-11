@@ -30,6 +30,7 @@ export interface LocalCacheOptions {
   cacheOnly?: boolean;
   onQuota?: (quota: CacheFile["quota"], paused: boolean) => void;
   beforeWrite?: () => Promise<boolean>;
+  allowInsert?: (client: SupabaseClient) => Promise<boolean>;
 }
 
 export interface PersistResult {
@@ -50,6 +51,27 @@ export interface PersistResult {
  */
 export const DEFAULT_MAX_DAILY_INSERTS = 1250;
 export const DEFAULT_MAX_DAILY_UPDATES = 2500;
+
+/** Only disposable previews and already-synced fingerprints expire. Never discard queued data. */
+export function compactCacheEntries(
+  entries: Record<string, CachedListing>,
+  now = Date.now(),
+): number {
+  let removed = 0;
+  for (const [key, entry] of Object.entries(entries)) {
+    const age = now - Date.parse(entry.lastSeenAt);
+    const ttl = key.startsWith("scan-preview|") ? 86_400_000 : 180 * 86_400_000;
+    if (
+      Number.isFinite(age) &&
+      age > ttl &&
+      (entry.synced || key.startsWith("scan-preview|"))
+    ) {
+      delete entries[key];
+      removed++;
+    }
+  }
+  return removed;
+}
 
 /** Columns needed to compare stored rows with incoming ones. Never `*` (embeddings are large). */
 export function classifyColumns(rows: Record<string, any>[]): string {
@@ -185,6 +207,7 @@ export class LocalScraperCache {
   private cacheOnly: boolean;
   private onQuota?: LocalCacheOptions["onQuota"];
   private beforeWrite?: LocalCacheOptions["beforeWrite"];
+  private allowInsert?: LocalCacheOptions["allowInsert"];
   private state: CacheFile = {
     version: 1,
     entries: {},
@@ -224,6 +247,7 @@ export class LocalScraperCache {
       options.cacheOnly ?? process.env.CACHE_ONLY_MODE === "true";
     this.onQuota = options.onQuota;
     this.beforeWrite = options.beforeWrite;
+    this.allowInsert = options.allowInsert;
   }
 
   async load(): Promise<void> {
@@ -310,6 +334,7 @@ export class LocalScraperCache {
   }
 
   private async save(): Promise<void> {
+    compactCacheEntries(this.state.entries);
     const temp = `${this.filePath}.${process.pid}.tmp`;
     await writeFile(temp, JSON.stringify(this.state), { mode: 0o600 });
     await rename(temp, this.filePath);
@@ -507,6 +532,12 @@ export class LocalScraperCache {
           continue;
         }
         const kind = prior ? "update" : "insert";
+        if (
+          kind === "insert" &&
+          this.allowInsert &&
+          !(await this.allowInsert(supabase))
+        )
+          continue;
         if (kind === "insert" ? insertsAvailable <= 0 : updatesAvailable <= 0)
           continue;
         if (kind === "insert") insertsAvailable -= 1;
@@ -589,7 +620,7 @@ export class LocalScraperCache {
 
       for (const row of candidates) {
         const key = `${row.source}|${row.source_deal_id}`;
-        if (!this.state.entries[key])
+        if (!this.state.entries[key] || !this.state.entries[key].synced)
           this.state.entries[key] = {
             hash: listingHash(row),
             synced: false,

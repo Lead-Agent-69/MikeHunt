@@ -1,0 +1,15 @@
+cache/
+.cache/
+profiles/
+logs/
+artifacts/
+.codex-remote-attachments/
+supabase/.temp/
+test-results/
+playwright-report/
+.git/
+node_modules/
+.next/
+.env
+.env.*
+.agents/

@@ -13,6 +13,8 @@
 /.cache/
 /profiles/
 /logs/
+/.codex-remote-attachments/
+/artifacts/
 
 # misc
 .DS_Store

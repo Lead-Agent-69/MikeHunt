@@ -12,6 +12,8 @@
 set -eu
 ROOT="${JANITOR_ROOT:-/cache}"
 INTERVAL_HOURS="${JANITOR_INTERVAL_HOURS:-24}"
+LOG_ROOT="${JANITOR_LOG_ROOT:-/logs}"
+case "$INTERVAL_HOURS" in ''|*[!0-9]*|0) echo '[janitor] invalid interval' >&2; exit 1;; esac
 
 prune() { # dir days pattern
   [ -d "$ROOT/$1" ] || return 0
@@ -24,8 +26,13 @@ run_once() {
   [ -d "$ROOT" ] || { echo "[janitor] $ROOT missing, nothing to do"; return 0; }
   prune arsenal 30 '*.json'
   prune html 14 '*'
+  prune polite 14 '*.json'
   prune photos 30 '*'
   prune logs 30 '*'
+  # Never remove the active scraper.log or status.json. Rotated log files only.
+  if [ -d "$LOG_ROOT" ]; then
+    find "$LOG_ROOT" -maxdepth 1 -type f -name '*.log.*' -mtime +30 -print -delete
+  fi
   find "$ROOT" -maxdepth 1 -type f -name '*.tmp' -mtime +1 -print -delete 2>/dev/null | sed 's/^/[janitor] removed tmp /' || true
   du -sh "$ROOT" 2>/dev/null | sed 's/^/[janitor] cache size: /' || true
 }
