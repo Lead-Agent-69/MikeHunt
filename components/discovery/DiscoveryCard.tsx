@@ -94,6 +94,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         : LANE_LABELS[deal.lane || ""] || deal.lane;
   // Operability read ΓÇö "Runs & drives" vs "Needs work" vs "Non-runner": the first thing a flipper checks.
   const cond = readCondition(deal.condition, deal.damageType, title);
+  const conditionLabel = cond ? discoveryConditionLabel(cond, deal) : "";
   const href =
     deal.id.startsWith("live-") && deal.sourceUrl
       ? deal.sourceUrl
@@ -283,7 +284,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {laneLabel}
               </span>
             )}
-            {cond && (
+            {cond && conditionLabel && (
               <span
                 className="inline-flex items-center gap-1 rounded-[var(--r1)] px-1.5 py-0.5 text-[10px] font-bold"
                 style={{
@@ -298,7 +299,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                       : "Operability unconfirmed"
                 }
               >
-                {discoveryConditionLabel(cond)}
+                {conditionLabel}
                 {cond.detail ? ` / ${cond.detail}` : ""}
               </span>
             )}

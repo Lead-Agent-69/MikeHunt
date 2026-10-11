@@ -1,4 +1,5 @@
 import { buyTerm } from "@/lib/deal-terms";
+import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 
 type ListingFacts = {
   year?: number;
@@ -44,6 +45,7 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
   const title =
     [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
     "Vehicle listing";
+  const auctionFacts = needsOperabilityFacts(deal);
   const facts = [
     [
       "Location",
@@ -62,9 +64,15 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
       "Title / condition",
       (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
     ],
-    ["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"],
-    ["Run and drive", reportedStatus(deal.runAndDrive)],
-    ["Keys", reportedStatus(deal.hasKeys)],
+    ...(auctionFacts || deal.damageType
+      ? [["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"]]
+      : []),
+    ...(auctionFacts || typeof deal.runAndDrive === "boolean"
+      ? [["Run and drive", reportedStatus(deal.runAndDrive)]]
+      : []),
+    ...(auctionFacts || typeof deal.hasKeys === "boolean"
+      ? [["Keys", reportedStatus(deal.hasKeys)]]
+      : []),
     ["VIN", deal.vin || "Not reported"],
     ["Last seen", reportedDate(deal.lastSeenAt)],
     ...(deal.auctionEndAt

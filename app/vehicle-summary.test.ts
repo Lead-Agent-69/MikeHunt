@@ -26,6 +26,38 @@ describe("first-screen listing facts", () => {
     expect(html).toContain("$12,980");
     expect(html).toContain("Miami, FL");
     expect(html).toContain("52,065 mi");
+    expect(html).not.toContain("Run and drive");
+    expect(html).not.toContain("Keys");
+    expect(html).not.toContain(">Damage<");
+  });
+  it("retains explicit condition reports from dealers", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          source: "independent_dealer",
+          runAndDrive: false,
+          hasKeys: false,
+          damageType: "front_end",
+        },
+      }),
+    );
+    expect(html).toContain("Run and drive");
+    expect(html).toContain("Reported no");
+    expect(html).toContain("front end");
+    expect(html).toContain("Keys");
+  });
+  it("retains unreported operability for auction and damaged-dealer inventory", () => {
+    for (const deal of [
+      { source: "copart" },
+      { source: "independent_dealer", condition: "repairable" },
+    ]) {
+      const html = renderToStaticMarkup(
+        React.createElement(VehicleSummary, { deal }),
+      );
+      expect(html).toContain("Run and drive");
+      expect(html).toContain("Keys");
+      expect(html).toContain("Not reported");
+    }
   });
   it("does not turn missing/invalid prices and dates into zeros or false facts", () => {
     for (const askPrice of [undefined, 0, NaN, -10]) {

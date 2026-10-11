@@ -23,6 +23,7 @@ import {
 import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { sellerTypeLabel } from "@/lib/sources/source-meta";
+import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -133,6 +134,14 @@ export const DealCard = memo(function DealCard({
   const location = [locationCity, locationState].filter(Boolean).join(", ");
   // Operability ("Runs & drives" / "Needs work") stays its own chip; title lives in TitleBadge.
   const operability = readCondition(condition, damageType);
+  const operabilityLabel = operability
+    ? conditionDisplayLabel(operability, {
+        source,
+        condition,
+        damageType,
+        titleType,
+      })
+    : "";
   const verdict =
     showFlipEconomics && dealVerdict ? VERDICT_STYLES[dealVerdict] : null;
   const isLivePreview = id.startsWith("live-");
@@ -1014,15 +1023,16 @@ export const DealCard = memo(function DealCard({
                 damageType={damageType}
                 titleSource={titleSource}
               />
-              {operability && (
+              {operability && operabilityLabel && (
                 <span
                   className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-[var(--r1)] leading-tight"
                   style={{
                     background: `${CONDITION_TIER_COLOR[operability.tier]}1f`,
                     color: CONDITION_TIER_COLOR[operability.tier],
                   }}
+                  title="Listing-reported condition. Verify with the seller and an inspection."
                 >
-                  {operability.label}
+                  {operabilityLabel}
                 </span>
               )}
             </span>

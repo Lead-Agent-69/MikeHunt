@@ -47,6 +47,55 @@ it("renders conflicting sale terms honestly and keeps title separate from operab
   expect(html).toContain('title="Dealer channel"');
   expect(html).not.toContain("Private channel");
   expect(html).not.toContain("Auction watch");
+  expect(html).not.toContain("Running status not reported");
+  expect(html).toContain("Clean title");
+});
+
+it("keeps ordinary dealer cards concise without asserting verified operability", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: { ...listing, sellerType: "dealer", lane: "clean-retail" },
+    }),
+  );
+  expect(html).not.toContain("Running status not reported");
+  expect(html).not.toContain("Operability unconfirmed");
+  expect(html).not.toContain("Runs &amp; drives");
+  expect(html).toContain("Clean title");
+});
+
+it.each(["salvage_title", "rebuilt_title"])(
+  "keeps %s dealer title warnings without manufacturing a running-status warning",
+  (condition) => {
+    const html = renderToStaticMarkup(
+      React.createElement(DiscoveryCard, {
+        deal: {
+          ...listing,
+          source: "salvagezone",
+          sellerType: "dealer",
+          lane: "salvage",
+          condition,
+        },
+      }),
+    );
+    expect(html).toContain(
+      condition === "salvage_title" ? "Salvage title" : "Rebuilt title",
+    );
+    expect(html).not.toContain("Running status not reported");
+    expect(html).not.toContain("Runs &amp; drives");
+  },
+);
+
+it("keeps unknown running status relevant on actual auction title-only records", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: {
+        ...listing,
+        source: "copart",
+        sellerType: "auction",
+        lane: "auction",
+      },
+    }),
+  );
   expect(html).toContain("Running status not reported");
   expect(html).toContain("Clean title");
 });
