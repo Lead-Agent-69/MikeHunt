@@ -6,6 +6,16 @@ export interface CustomerScrapeJob {
   result?: Record<string, any> | null;
 }
 
+/** Runner totals can include fetched rows rejected by buyer eligibility. */
+export function sourceSearchCompletionMessage(
+  summary: { successful?: number; total?: number; totalDeals?: number },
+  admin = false,
+) {
+  if (!admin)
+    return "Search finished. Available matches below follow your filters. Some sources may be unavailable; check coverage for gaps.";
+  return `Collection finished: ${summary.successful || 0} of ${summary.total || 0} runners completed; ${summary.totalDeals || 0} rows reported. Runner totals are not the number of matching vehicles or proof of source availability.`;
+}
+
 export function sourceSearchStatusMessage(
   job: CustomerScrapeJob,
   now = Date.now(),

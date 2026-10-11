@@ -3,6 +3,7 @@ import {
   craigslistSearchUrl,
   craigslistSitesForRun,
   parseCraigslistResults,
+  craigslistListingState,
 } from "./index";
 
 // Current static (no-js) Craigslist layout, trimmed from a real Dallas page on 2026-10-04.
@@ -84,7 +85,7 @@ describe("craigslistSearchUrl", () => {
 });
 
 describe("parseCraigslistResults", () => {
-  it("reads the current static layout with the site's state", async () => {
+  it("reads the layout without mistaking the site's region for the listing state", async () => {
     const { items } = await parseCraigslistResults(PAGE, "dallas", {
       path: "cto",
       source: "craigslist",
@@ -96,9 +97,41 @@ describe("parseCraigslistResults", () => {
       year: 2020,
       ask_price: 13998,
       location_city: "North Dallas",
-      location_state: "TX",
       seller_type: "private",
     });
+    expect(items[0].location_state).toBeUndefined();
+    expect(items[0].metadata).toMatchObject({
+      search_market_state: "TX",
+      location_state_source: "unverified",
+    });
     expect(items[1].location_city).toBe("dallas");
+  });
+});
+
+describe("Craigslist listing state evidence", () => {
+  it.each([
+    ["Merriam, KS", "KS"],
+    ["St. Louis MO 63101", "MO"],
+    ["Springfield, IL", "IL"],
+    ["Kansas City", undefined],
+    ["North Dallas", undefined],
+    ["XX", undefined],
+  ])(
+    "reads %s without inferring a state from the search region",
+    (location, state) => {
+      expect(craigslistListingState(location!)).toBe(state);
+    },
+  );
+  it("keeps explicit cross-border listings out of the requested state's intake", async () => {
+    const { items } = await parseCraigslistResults(
+      PAGE.replace("North Dallas", "Merriam, KS"),
+      "kansascity",
+      { path: "ctd", source: "craigslist_dealer" },
+    );
+    expect(items[0].location_state).toBe("KS");
+    expect(items[0].metadata).toMatchObject({
+      search_market_state: "MO",
+      location_state_source: "listing",
+    });
   });
 });

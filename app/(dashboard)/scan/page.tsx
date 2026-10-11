@@ -21,7 +21,10 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
-import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
+import {
+  pollScopedScrapeJob,
+  sourceSearchCompletionMessage,
+} from "@/lib/scrapers/job-status-client";
 import { createLatestRequest } from "@/lib/latest-request";
 import {
   previewFilterMessage,
@@ -3935,9 +3938,7 @@ function ScanPageInner() {
           error: item.error ? String(item.error) : undefined,
         })),
       );
-      setPlanMessage(
-        `Source search finished: ${completedData.successful || 0} of ${completedData.total || 0} sources checked successfully; ${completedData.totalDeals || 0} listings found.`,
-      );
+      setPlanMessage(sourceSearchCompletionMessage(completedData, isAdmin));
       mutate();
       mutateScrapeHealth();
     } catch (error) {
