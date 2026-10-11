@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MISSOURI_SEARCH_ZIPS } from "@/lib/geo/missouri-markets";
 const mocks = vi.hoisted(() => ({ upsert: vi.fn() }));
 vi.mock("../pipeline", () => ({ upsertDeals: mocks.upsert }));
 import {
@@ -16,7 +17,7 @@ describe("buyer-scoped aggregator searches", () => {
   it("covers all Missouri metros, not random nationwide centers", () => {
     expect(
       autotempestRegionalZips(undefined, () => 0, { state: "MO" }),
-    ).toEqual(["63101", "64106", "65806"]);
+    ).toEqual(MISSOURI_SEARCH_ZIPS);
   });
   it("respects explicit makes and models", () => {
     expect(
@@ -47,13 +48,11 @@ describe("buyer-scoped aggregator searches", () => {
         () => scrapeAutotempest(),
       ),
     ).toBe(0);
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher).toHaveBeenCalledTimes(MISSOURI_SEARCH_ZIPS.length);
     const urls = fetcher.mock.calls.map(([url]) => new URL(url));
-    expect(urls.map((url) => url.searchParams.get("zip"))).toEqual([
-      "63101",
-      "64106",
-      "65806",
-    ]);
+    expect(urls.map((url) => url.searchParams.get("zip"))).toEqual(
+      MISSOURI_SEARCH_ZIPS,
+    );
     for (const url of urls) {
       expect(url.searchParams.get("radius")).toBe("250");
       expect(url.searchParams.get("make")).toBe("ford");

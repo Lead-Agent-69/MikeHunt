@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { MISSOURI_SEARCH_ZIPS } from "@/lib/geo/missouri-markets";
 import {
   carsComZipsForState,
   parseCarsComHtml,
@@ -156,7 +157,7 @@ describe("resolveCarsComStates", () => {
 describe("carsComZipsForState", () => {
   it("does not omit Springfield from a buyer's Missouri search", async () => {
     await withScrapeRunScope({ state: "MO" }, async () => {
-      expect(carsComZipsForState("MO")).toEqual(["63101", "64106", "65806"]);
+      expect(carsComZipsForState("MO")).toEqual(MISSOURI_SEARCH_ZIPS);
     });
   });
   it("falls back to the first metro ZIPs and starts at the original seed", () => {
