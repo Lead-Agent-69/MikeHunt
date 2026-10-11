@@ -130,21 +130,29 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           className="relative w-full aspect-[4/3] overflow-hidden"
           style={{ background: "var(--s2)" }}
         >
-          {showImg ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={img}
-              alt={title}
-              loading="lazy"
-              onError={() => setImgFailed(true)}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
-            />
-          ) : (
-            <Placeholder />
-          )}
+          <Link
+            href={href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
+            aria-label={`View ${title}${external ? " at the source (opens in a new tab)" : ""}`}
+            className="absolute inset-0 inline-flex min-h-11 items-center focus-visible:outline-none after:pointer-events-none after:absolute after:inset-0 after:z-10 focus-visible:after:ring-4 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+          >
+            {showImg ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={img}
+                alt={title}
+                loading="lazy"
+                onError={() => setImgFailed(true)}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
+              />
+            ) : (
+              <Placeholder />
+            )}
+          </Link>
 
           <span
-            className="absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+            className="pointer-events-none absolute left-2.5 top-2.5 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
             style={{ background: decision.background, color: decision.color }}
           >
             {decision.label}
@@ -153,7 +161,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           {/* Multi-source chip ΓÇö floating top-right (the Kayak signal) */}
           {multi && (
             <span
-              className="absolute right-2.5 top-12 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
+              className="pointer-events-none absolute right-2.5 top-12 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
               style={{
                 background: "rgba(36,28,43,.72)",
                 backdropFilter: "blur(8px)",
@@ -185,7 +193,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               e.stopPropagation();
               void bookmark.toggle();
             }}
-            className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)]"
+            className="absolute right-2.5 top-2.5 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
               backdropFilter: "blur(8px)",
@@ -210,7 +218,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               href={href}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
-              className="inline-flex min-h-11 min-w-0 items-center break-words text-[17px] font-black leading-tight text-[var(--t1)] transition-colors group-hover:text-[var(--blue)]"
+              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
             >
               {title}
             </Link>
@@ -552,7 +560,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             href={href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+            className="mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>

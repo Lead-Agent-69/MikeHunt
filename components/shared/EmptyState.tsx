@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Ico } from "./Ico";
 
 // IconName is not exported from Ico, so mirror the accepted names here.
@@ -36,7 +37,6 @@ export function EmptyState({
   return (
     <div
       className={`flex flex-col items-center justify-center text-center px-6 py-20 ${className}`}
-      style={{ animation: "fadeUp 260ms cubic-bezier(.16,1,.3,1) both" }}
     >
       {/* Icon — soft, warm chip */}
       <div
@@ -56,27 +56,21 @@ export function EmptyState({
         {message}
       </p>
 
-      {action && (
+      {action && (action.href || action.onClick) && (
         <div className="mt-6">
           {action.href ? (
-            <a
+            <Link
               href={action.href}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-[var(--r3)] text-sm font-bold text-white border-none transition-transform"
+              className="inline-flex min-h-11 items-center gap-2 px-6 py-3 rounded-[var(--r3)] text-sm font-bold text-white border-none motion-safe:transition-transform motion-safe:hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
               style={{ background: "var(--grad)" }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.transform =
-                  "scale(1.03)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.transform = "";
-              }}
             >
               {action.label}
-            </a>
+            </Link>
           ) : (
             <button
+              type="button"
               onClick={action.onClick}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-[var(--r3)] text-sm font-bold text-white border-none transition-transform active:scale-95"
+              className="inline-flex min-h-11 items-center gap-2 px-6 py-3 rounded-[var(--r3)] text-sm font-bold text-white border-none motion-safe:transition-transform motion-safe:active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
               style={{ background: "var(--grad)" }}
             >
               {action.label}
