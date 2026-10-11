@@ -129,6 +129,33 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     expect(deals[0].askPrice).toBe(4500);
   });
 
+  it("suppresses stale acquisition economics when stored provenance marks a reference", async () => {
+    listChain.__result = {
+      data: [
+        {
+          ...sampleRow,
+          source: "copart",
+          ask_price: 24000,
+          true_net_profit: 15000,
+          recommended_max_bid: 18000,
+          deal_verdict: "go",
+          is_arbitrage_opportunity: true,
+          options: {
+            priceEvidence: { kind: "reference", referenceValue: 24000 },
+          },
+        },
+      ],
+      error: null,
+    };
+    const [deal] = await serviceWithListMock().getHotDeals(5);
+    expect(deal.askPrice).toBe(0);
+    expect(deal.true_net_profit).toBeUndefined();
+    expect(deal.recommendedMaxBid).toBeUndefined();
+    expect(deal.profitScore).toBeUndefined();
+    expect(deal.dealVerdict).toBe("not_enough_data");
+    expect(deal.is_arbitrage_opportunity).toBe(false);
+  });
+
   it("getDeals maps rows without losing this", async () => {
     listChain.__result = { data: [sampleRow], error: null, count: 1 };
     const { deals, total, hasMore } = await serviceWithListMock().getDeals({

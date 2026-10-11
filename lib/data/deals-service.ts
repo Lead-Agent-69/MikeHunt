@@ -3,6 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import {
   titleCategory,
   titleCategoryOrFilter,
@@ -202,11 +203,17 @@ export class DealsService {
       condition: row.condition,
       titleCategory: titleCategory(row),
       titleSource: titleSourceOf(row),
-      askPrice: Number(row.ask_price || 0),
+      askPrice: reportedAcquisitionPrice(row),
       buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
       mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
-      profitEstimate: Number(row.profit_estimate || 0),
-      profitScore: row.profit_score ? Number(row.profit_score) : undefined,
+      profitEstimate:
+        reportedAcquisitionPrice(row) > 0
+          ? Number(row.profit_estimate || 0)
+          : 0,
+      profitScore:
+        reportedAcquisitionPrice(row) > 0 && row.profit_score
+          ? Number(row.profit_score)
+          : undefined,
       images: row.images || [],
       locationCity: row.location_city,
       locationState: row.location_state,
@@ -242,16 +249,18 @@ export class DealsService {
       // they have always mapped to undefined here; the stored values are estimated_*_cost below.
       repair_estimate: undefined,
       transport_cost: undefined,
-      is_arbitrage_opportunity: row.is_arbitrage_opportunity,
+      is_arbitrage_opportunity:
+        reportedAcquisitionPrice(row) > 0 && row.is_arbitrage_opportunity,
       estimated_transport_cost: row.estimated_transport_cost
         ? Number(row.estimated_transport_cost)
         : undefined,
       estimated_repair_cost: row.estimated_repair_cost
         ? Number(row.estimated_repair_cost)
         : undefined,
-      true_net_profit: row.true_net_profit
-        ? Number(row.true_net_profit)
-        : undefined,
+      true_net_profit:
+        reportedAcquisitionPrice(row) > 0 && row.true_net_profit
+          ? Number(row.true_net_profit)
+          : undefined,
       ai_wholesale_estimate: row.ai_wholesale_estimate
         ? Number(row.ai_wholesale_estimate)
         : undefined,
@@ -262,10 +271,13 @@ export class DealsService {
       sellEstimate:
         row.sell_estimate != null ? Number(row.sell_estimate) : undefined,
       recommendedMaxBid:
-        row.recommended_max_bid != null
+        reportedAcquisitionPrice(row) > 0 && row.recommended_max_bid != null
           ? Number(row.recommended_max_bid)
           : undefined,
-      dealVerdict: row.deal_verdict || undefined,
+      dealVerdict:
+        reportedAcquisitionPrice(row) > 0
+          ? row.deal_verdict || undefined
+          : "not_enough_data",
       dealAnalysis: row.deal_analysis || undefined,
       priceDropAmount:
         row.price_drop_amount != null

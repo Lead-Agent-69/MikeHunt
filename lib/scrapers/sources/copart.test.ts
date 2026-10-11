@@ -1,11 +1,33 @@
-import { describe, it, expect } from "vitest";
-import { parseCopartLots } from "./copart";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { parseCopartLots, previewCopartLots, scrapeCopart } from "./copart";
+import { upsertDeals } from "../pipeline";
+vi.mock("../pipeline", () => ({ upsertDeals: vi.fn() }));
+afterEach(() => vi.unstubAllGlobals());
 
 // Mirrors the real Copart /public/lots/search-results payload (data.results.content), cryptic codes.
 const resp = (content: any[]) => ({ data: { results: { content } } });
 
 describe("parseCopartLots", () => {
-  it("maps a salvage car lot (ld/lcy/mkn/lm/dd/la + ACV fallback price)", () => {
+  it("reports source failures instead of successful empty inventory", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 403 }),
+    );
+    await expect(previewCopartLots()).rejects.toThrow("HTTP 403");
+    await expect(scrapeCopart(1)).rejects.toThrow("HTTP 403");
+  });
+  it("returns accepted rows rather than attempted rows", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => resp([{ ln: 1, mkn: "FORD", lm: "F-150", hb: 3000 }]),
+      }),
+    );
+    vi.mocked(upsertDeals).mockResolvedValueOnce(0);
+    await expect(scrapeCopart(1)).resolves.toBe(0);
+  });
+  it("retains pre-loss value as reference, never as acquisition price", () => {
     const items = parseCopartLots(
       resp([
         {
@@ -35,8 +57,15 @@ describe("parseCopartLots", () => {
     expect(d.year).toBe(2016);
     expect(d.make).toBe("Chevrolet");
     expect(d.model).toBe("Volt");
-    expect(d.ask_price).toBe(17913); // no bid → ACV reference
-    expect(d.condition).toBe("repairable");
+    expect(d.ask_price).toBe(0);
+    expect(d.condition).toBeUndefined();
+    expect(d.seller_type).toBe("auction");
+    expect(d.options?.priceEvidence).toEqual({
+      kind: "reference",
+      currentBid: undefined,
+      buyNow: undefined,
+      referenceValue: 17913,
+    });
     expect(d.location_state).toBe("CA");
     expect(d.location_city).toBe("San Diego");
     expect(d.metadata?.price_is_acv_estimate).toBe(true);
@@ -67,7 +96,7 @@ describe("parseCopartLots", () => {
     expect(items[0].metadata?.price_is_acv_estimate).toBe(false);
   });
 
-  it("skips non-cars (ATV/equipment) and lots with no price signal", () => {
+  it("skips non-cars but retains unpriced car lots without invented economics", () => {
     const items = parseCopartLots(
       resp([
         {
@@ -88,7 +117,56 @@ describe("parseCopartLots", () => {
         },
       ]),
     );
-    expect(items).toEqual([]);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      ask_price: 0,
+      options: { priceEvidence: { kind: "unknown" } },
+    });
+  });
+
+  it("keeps current bid and buy-now separate without claiming minor damage proves operability", () => {
+    const [row] = parseCopartLots(
+      resp([
+        {
+          ln: 4,
+          mkn: "FORD",
+          lm: "F-150",
+          hb: 3000,
+          lbd: 25000,
+          la: 27000,
+          dd: "MINOR DENT/SCRATCHES",
+          dynamicLotDetails: { currentBid: 3500, buyTodayBid: 14000 },
+        },
+      ]),
+    );
+    expect(row.ask_price).toBe(3500);
+    expect(row.buy_now_price).toBe(14000);
+    expect(row.options?.priceEvidence).toMatchObject({
+      kind: "current_bid",
+      currentBid: 3500,
+      buyNow: 14000,
+      referenceValue: 27000,
+    });
+    expect(row.condition).toBeUndefined();
+  });
+
+  it("uses only a reported buy-now amount when no valid bid is available", () => {
+    const [row] = parseCopartLots(
+      resp([
+        {
+          ln: 5,
+          mkn: "HONDA",
+          lm: "CIVIC",
+          hb: -5,
+          lbd: 12000,
+          dynamicLotDetails: { currentBid: Infinity, buyTodayBid: 6000 },
+          dd: "VANDALISM",
+        },
+      ]),
+    );
+    expect(row.ask_price).toBe(6000);
+    expect(row.options?.priceEvidence.kind).toBe("buy_now");
+    expect(row.condition).toBeUndefined();
   });
 
   it("never throws on junk", () => {
@@ -135,6 +213,10 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
         },
       },
     });
-    expect(row).toMatchObject({ mileage: 74308, trim: "S", location_zip: "33578" });
+    expect(row).toMatchObject({
+      mileage: 74308,
+      trim: "S",
+      location_zip: "33578",
+    });
   });
 });

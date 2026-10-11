@@ -9,6 +9,7 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
 import { internalError } from "@/lib/api/http-error";
 import {
@@ -98,7 +99,7 @@ function mapDeal(
     mileage: d.mileage,
     locationCity: d.location_city,
     locationState: d.location_state,
-    askPrice: d.ask_price,
+    askPrice: reportedAcquisitionPrice(d),
     seller: d.seller || options.seller,
     sellerType: d.seller_type || options.sellerType,
     sellerPhone: contact.sellerPhone,
@@ -131,7 +132,7 @@ function mapDeal(
     damageType: d.damage_type,
     titleCategory: titleCategory(d),
     titleSource: titleSourceOf(d),
-    askPrice: Number(d.ask_price || 0),
+    askPrice: reportedAcquisitionPrice(d),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
     // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
     valueConfidence: valueConfidence(
@@ -146,11 +147,18 @@ function mapDeal(
     sellBasis: d.deal_analysis?.sellBasis,
     soldAnchored: d.deal_analysis?.soldAnchored === true,
     valueAsOf: d.deal_analysis?.valuation?.asOf || d.last_seen_at || null,
-    profitScore: d.profit_score != null ? Number(d.profit_score) : undefined,
+    profitScore:
+      reportedAcquisitionPrice(d) > 0 && d.profit_score != null
+        ? Number(d.profit_score)
+        : undefined,
     trueNetProfit:
-      d.true_net_profit != null ? Number(d.true_net_profit) : undefined,
+      reportedAcquisitionPrice(d) > 0 && d.true_net_profit != null
+        ? Number(d.true_net_profit)
+        : undefined,
     recommendedMaxBid:
-      d.recommended_max_bid != null ? Number(d.recommended_max_bid) : undefined,
+      reportedAcquisitionPrice(d) > 0 && d.recommended_max_bid != null
+        ? Number(d.recommended_max_bid)
+        : undefined,
     repairEstimate:
       d.repair_estimate != null
         ? Number(d.repair_estimate)
@@ -163,7 +171,8 @@ function mapDeal(
         : d.deal_analysis?.costs?.transport != null
           ? Number(d.deal_analysis.costs.transport)
           : undefined,
-    dealVerdict: d.deal_verdict,
+    dealVerdict:
+      reportedAcquisitionPrice(d) > 0 ? d.deal_verdict : "not_enough_data",
     warnings: d.deal_analysis?.warnings || [],
     locationCity: d.location_city,
     locationState: d.location_state,
@@ -436,8 +445,11 @@ async function publicPreviewDeals(
           mileage: row.mileage,
           condition: row.condition,
           damage_type: row.damage_type,
-          ask_price: Number(row.ask_price || 0),
-          mmr_value: row.metadata?.acv_estimate || undefined,
+          ask_price: reportedAcquisitionPrice(row),
+          buy_now_price: row.buy_now_price,
+          options: row.options,
+          metadata: row.metadata,
+          mmr_value: row.mmr_value || undefined,
           source: row.source,
           location_state: row.location_state,
           first_seen_at: row.scraped_at,
@@ -458,7 +470,7 @@ async function publicPreviewDeals(
           mileage: row.mileage,
           condition: row.condition,
           damage_type: row.damage_type,
-          ask_price: row.ask_price,
+          ask_price: reportedAcquisitionPrice(row),
           location_city: row.location_city,
           location_state: row.location_state,
           images: row.images || [],

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { internalError } from "@/lib/api/http-error";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -398,7 +399,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   const make = r.make || "";
   const model = r.model || "";
   const mileage = r.mileage ?? r.miles ?? undefined;
-  const askPrice = toNum(r.ask_price ?? r.askPrice ?? 0);
+  const askPrice = reportedAcquisitionPrice(r);
   const mmrValue = toNum(r.mmr_value ?? r.mmrValue ?? r.market_value ?? 0);
   const profitEstimate = toNum(r.profit_estimate ?? r.profitEstimate ?? 0);
   const profitScore = r.profit_score ?? r.profitScore ?? undefined;
@@ -727,8 +728,11 @@ function publicRowToVehicle(
     mileage: row.mileage,
     condition: row.condition,
     damage_type: row.damage_type,
-    ask_price: toNum(row.ask_price),
-    mmr_value: row.metadata?.acv_estimate || undefined,
+    ask_price: reportedAcquisitionPrice(row),
+    buy_now_price: row.buy_now_price,
+    options: row.options,
+    metadata: row.metadata,
+    mmr_value: row.mmr_value || undefined,
     source: canonicalSource,
     location_state: row.location_state,
     first_seen_at: row.scraped_at,
@@ -750,7 +754,7 @@ function publicRowToVehicle(
     mileage: row.mileage,
     locationCity: row.location_city,
     locationState: row.location_state,
-    askPrice: row.ask_price,
+    askPrice: reportedAcquisitionPrice(row),
     seller: sellerProof.seller,
     sellerType: sellerProof.sellerType,
     sellerPhone: contact.phone,
@@ -770,14 +774,18 @@ function publicRowToVehicle(
     mileage: row.mileage,
     condition: row.condition,
     damageType: row.damage_type,
-    askPrice: toNum(row.ask_price),
+    askPrice: reportedAcquisitionPrice(row),
     mmrValue: analysis.mmrValue || 0,
     profitEstimate: analysis.profit,
     profitScore: analysis.score,
     dealVerdict: analysis.verdict,
-    recommendedMaxBid: analysis.recommendedMaxBid,
+    recommendedMaxBid:
+      reportedAcquisitionPrice(row) > 0
+        ? analysis.recommendedMaxBid
+        : undefined,
     sellEstimate: analysis.sellEstimate,
-    true_net_profit: analysis.profit,
+    true_net_profit:
+      reportedAcquisitionPrice(row) > 0 ? analysis.profit : undefined,
     repair_estimate: analysis.repairCost,
     transport_cost: analysis.transportCost,
     warnings: analysis.warnings,

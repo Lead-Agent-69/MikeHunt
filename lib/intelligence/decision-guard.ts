@@ -38,6 +38,7 @@ type GuardInput = {
   damageType?: string | null;
   vin?: string | null;
   mileage?: number | null;
+  askPrice?: number | null;
   buyNowPrice?: number | null;
   dealVerdict?: string | null;
   dealAnalysis?: any;
@@ -113,7 +114,9 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
       summary:
         Number(input.buyNowPrice) > 0
           ? "A buy-now price is reported, but fees, eligibility and condition still need verification. A buy-now amount does not establish all-in cost."
-          : "The displayed amount is a current auction price, not a final all-in purchase price.",
+          : Number(input.askPrice) > 0
+            ? "The displayed amount is a current auction price, not a final all-in purchase price."
+            : "An acquisition price is not reported. Reference values are not bids or buy-now prices; check the auction for current terms.",
       nextCheck: repairable
         ? "Verify title, damage photos, repair quote, auction fees, and final bid before deciding."
         : "Verify auction fees, final bid, title, condition, and comparable sales before deciding.",
