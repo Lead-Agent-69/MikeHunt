@@ -308,6 +308,14 @@ export function matchesRequestedDealer(
   );
 }
 
+export function dealerSourceOptions() {
+  return Object.entries(DEALER_SOURCE_DOMAINS).map(([id, domains]) => ({
+    id,
+    label: sourceMeta(id).short,
+    host: domains[0],
+  }));
+}
+
 export function dealerSourceIdFromUrl(
   sourceUrl?: string | null,
   allowedSourceIds?: string[],

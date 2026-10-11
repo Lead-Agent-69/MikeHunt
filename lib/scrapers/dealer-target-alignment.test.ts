@@ -10,9 +10,25 @@ import {
   matchesRequestedDealer,
   sourceMeta,
   sourceFromUrl,
+  dealerSourceOptions,
 } from "@/lib/sources/source-meta";
 
 describe("buyer and worker dealer targeting", () => {
+  it("offers every supported target in the Sources picker with readable dealer names", () => {
+    const options = dealerSourceOptions();
+    expect(options.map((option) => option.id).sort()).toEqual(
+      [...CURATED_DEALER_SOURCE_IDS].sort(),
+    );
+    for (const option of options) {
+      expect(option.label).not.toContain("_");
+      expect(
+        normalizeBuyerScope({ dealerSourceIds: [option.id] }).dealerSourceIds,
+      ).toEqual([option.id]);
+      expect(
+        matchesRequestedDealer({ url: `https://${option.host}` }, [option.id]),
+      ).toBe(true);
+    }
+  });
   it.each([
     "autovada",
     "polecats",

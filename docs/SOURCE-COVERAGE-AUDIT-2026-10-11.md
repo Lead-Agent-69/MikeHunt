@@ -9,6 +9,9 @@ proof of permission, recent inventory, photos, accurate condition, or valuation.
   sixteen. Six supported dealers could be rejected or silently dropped from
   watched-dealer scope. Buyer normalization and worker matching now share the
   same domain registry, including Alpine and Replica domain aliases.
+- The Sources picker maintained a separate seven-dealer whitelist, which could
+  also drop supported dealer IDs arriving in URLs. Its choices and URL filter now
+  derive from that same registry instead of a hard-coded subset.
 - Worker targeting previously searched entire URL strings. Exact/dot-suffix
   hostname matching now prevents unrelated sites matching a dealer name in their
   path, query, or lookalike domain.
