@@ -25,6 +25,7 @@ export interface BuyerScope {
   maxPrice?: number;
   minYear?: number;
   maxMileage?: number;
+  includeRepairable?: boolean;
   dealerSourceIds?: string[];
   dealerHosts?: string[];
 }
@@ -270,6 +271,8 @@ function appendScopeParams(params: URLSearchParams, scope: BuyerScope) {
   if (scope.maxPrice) params.set("maxPrice", String(scope.maxPrice));
   if (scope.minYear) params.set("minYear", String(scope.minYear));
   if (scope.maxMileage) params.set("maxMileage", String(scope.maxMileage));
+  if (typeof scope.includeRepairable === "boolean")
+    params.set("includeRepairable", scope.includeRepairable ? "1" : "0");
   if (scope.dealerHosts?.length) {
     params.set("dealers", scope.dealerHosts.join(","));
   }
@@ -376,6 +379,10 @@ export function normalizeBuyerScope(
     maxMileage: Number.isFinite(Number(input.maxMileage))
       ? Number(input.maxMileage)
       : undefined,
+    includeRepairable:
+      typeof input.includeRepairable === "boolean"
+        ? input.includeRepairable
+        : undefined,
     dealerHosts: dealerHosts.length ? dealerHosts : undefined,
     dealerSourceIds: dealerSourceIds.length ? dealerSourceIds : undefined,
   };

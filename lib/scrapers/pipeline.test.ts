@@ -7,6 +7,66 @@ import {
 } from "./pipeline";
 
 describe("buyer-scoped intake", () => {
+  it("does not infer clean title from marketing text", () => {
+    expect(
+      matchesBuyerScope(
+        { title: "Very clean SUV", condition: "run_drive" },
+        { titleType: "clean" },
+      ),
+    ).toBe(false);
+    expect(
+      matchesBuyerScope(
+        { title: "Clean title", condition: "salvage_title" },
+        { titleType: "clean" },
+      ),
+    ).toBe(false);
+    expect(
+      matchesBuyerScope({ condition: "clean_title" }, { titleType: "clean" }),
+    ).toBe(true);
+    expect(
+      matchesBuyerScope(
+        { condition: "rebuilt_title" },
+        { titleType: "clean,rebuilt" },
+      ),
+    ).toBe(true);
+    expect(
+      matchesBuyerScope({ condition: "repairable" }, { titleType: "salvage" }),
+    ).toBe(false);
+    expect(
+      matchesBuyerScope(
+        { condition: "repairable" },
+        { titleType: "repairable" },
+      ),
+    ).toBe(true);
+  });
+
+  it("applies repair eligibility independently of clean title", () => {
+    expect(
+      matchesBuyerScope(
+        { condition: "clean_title", damage_type: "front end" },
+        { includeRepairable: false },
+      ),
+    ).toBe(false);
+    expect(
+      matchesBuyerScope(
+        { condition: "clean_title", damage_type: "front end" },
+        { includeRepairable: true },
+      ),
+    ).toBe(true);
+  });
+
+  it("accepts any selected body category instead of only the first", () => {
+    const scope = { vehicleType: "suv sedan", q: "suv sedan" };
+    expect(matchesBuyerScope({ make: "Ford", model: "Explorer" }, scope)).toBe(
+      true,
+    );
+    expect(matchesBuyerScope({ make: "Toyota", model: "Camry" }, scope)).toBe(
+      true,
+    );
+    expect(matchesBuyerScope({ make: "Ford", model: "F-150" }, scope)).toBe(
+      false,
+    );
+  });
   const explorer = {
     title: "2020 Ford Explorer XLT",
     make: "Ford",

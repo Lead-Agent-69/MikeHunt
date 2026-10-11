@@ -6,6 +6,13 @@ import {
 } from "./buyer-scope";
 
 describe("buyer scope planning", () => {
+  it("carries repair eligibility through the plan and navigation links", () => {
+    const plan = planScrapeForBuyerScope({ includeRepairable: false });
+    expect(plan.scope.includeRepairable).toBe(false);
+    expect(buildBuyerScopeLinks(plan.scope).scanHref).toContain(
+      "includeRepairable=0",
+    );
+  });
   it("limits damaged searches to salvage/dealer sources", () => {
     const plan = planScrapeForBuyerScope({
       vehicleType: "suv",

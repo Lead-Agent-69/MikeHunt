@@ -16,6 +16,8 @@ import {
   type SearchLocation,
 } from "@/lib/preferences/locations";
 import { enqueueScopedScrapeJob } from "@/lib/scrapers/job-queue";
+import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
+import { preferenceCollectionScope } from "./collection-scope";
 import {
   isAutomationAllowedSource,
   resolveSweepSources,
@@ -26,6 +28,7 @@ export const LOCATION_DEMAND_KEYS = [
   "searchLocations",
   "carsState",
   "carsStates",
+  "buyerScope",
 ] as const;
 
 export type LocationDemandKick = {
@@ -43,12 +46,12 @@ type PrefsLike = {
   searchLocations?: unknown;
   carsState?: unknown;
   carsStates?: unknown;
-  buyerScope?: { state?: unknown } | null;
+  buyerScope?: Record<string, unknown> | null;
   locationDemandAt?: unknown;
   locationDemandStates?: unknown;
 };
 
-/** True when the PUT patch touches location keys that feed scrape_demand. */
+/** Location and buying-profile changes both alter matching-source demand. */
 export function locationPatchTouchesDemand(
   patch: Record<string, unknown>,
 ): boolean {
@@ -89,8 +92,8 @@ export function locationDemandSourceIds(): string[] {
 }
 
 /**
- * Stamp + optional queue. Always returns a kick result when states are non-empty so the
- * caller can merge locationDemandAt into prefs for the UI even if the queue is down.
+ * Queue a profile-scoped request. Return an outcome even on failure, so callers can
+ * clear an old warming stamp instead of suggesting a failed request is scanning.
  */
 export async function kickLocationDemand(input: {
   supabase: SupabaseClient;
@@ -102,7 +105,10 @@ export async function kickLocationDemand(input: {
   if (!states.length) return null;
 
   const demandedAt = (input.now ?? new Date()).toISOString();
-  const sourceIds = locationDemandSourceIds();
+  const scope = preferenceCollectionScope(input.prefs, states);
+  const plan = planScrapeForBuyerScope({ ...scope });
+  const allowed = new Set(locationDemandSourceIds());
+  const sourceIds = plan.sourceIds.filter((id) => allowed.has(id));
   const result: LocationDemandKick = {
     states,
     queued: false,
@@ -118,11 +124,7 @@ export async function kickLocationDemand(input: {
     const queued = await enqueueScopedScrapeJob(input.supabase, {
       requestedBy: input.userId,
       sourceIds,
-      scope: {
-        lane: "all",
-        state: states[0],
-        states: states.length > 1 ? states : undefined,
-      },
+      scope: plan.scope,
       orchestrator: "priority",
       concurrency: 1,
       dryRun: false,
@@ -143,11 +145,11 @@ export async function kickLocationDemand(input: {
 
 /** Prefs keys the UI reads for "scanning your state…" honesty. */
 export function locationDemandPrefsStamp(kick: LocationDemandKick): {
-  locationDemandAt: string;
+  locationDemandAt: string | null;
   locationDemandStates: string[];
 } {
   return {
-    locationDemandAt: kick.demandedAt,
+    locationDemandAt: kick.queued ? kick.demandedAt : null,
     locationDemandStates: kick.states,
   };
 }
