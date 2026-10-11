@@ -134,7 +134,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
             aria-label={`View ${title}${external ? " at the source (opens in a new tab)" : ""}`}
-            className="absolute inset-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[var(--blue)]"
+            className="absolute inset-0 inline-flex min-h-11 items-center focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[var(--blue)]"
           >
             {showImg ? (
               // eslint-disable-next-line @next/next/no-img-element
