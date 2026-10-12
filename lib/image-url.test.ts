@@ -50,3 +50,26 @@ describe("image-url free-tier routing", () => {
     ).toBe(false);
   });
 });
+
+describe("access-class fallback (no proxied bytes for non-open sources)", () => {
+  const rb = "https://data.rebuildautos.com/photos/123.jpg";
+
+  it("never emits a proxy URL for an operator_override host; uses the direct link", () => {
+    expect(proxiedImage(rb)).toBe(rb);
+    expect(galleryImageSrc(rb, 0)).toBe(rb);
+    expect(galleryImageSrc(rb, 2)).toBe(rb);
+  });
+
+  it("unwraps an already-proxied URL for a denied host back to the direct link", () => {
+    const wrapped = `/api/image/proxy?url=${encodeURIComponent(rb)}`;
+    expect(proxiedImage(wrapped)).toBe(rb);
+    expect(galleryImageSrc(wrapped, 1)).toBe(rb);
+  });
+
+  it("keeps proxying open hotlink-block hosts", () => {
+    const cl = "https://images.craigslist.org/00a_x.jpg";
+    const wrapped = `/api/image/proxy?url=${encodeURIComponent(cl)}`;
+    expect(proxiedImage(cl)).toBe(wrapped);
+    expect(proxiedImage(wrapped)).toBe(wrapped);
+  });
+});

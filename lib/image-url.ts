@@ -1,6 +1,11 @@
 // Prefer direct source CDN URLs for listing photos (free-tier: no Storage,
 // fewer Vercel proxy invokes). Proxy only hosts known to hotlink-block.
 // Local/already-proxied/data/our Storage URLs pass through untouched.
+// Hosts whose source access class is not "open" (needs_permission / restricted / operator_override,
+// e.g. data.rebuildautos.com) are never proxied: they get their direct source URL, and an already-
+// proxied URL for such a host is unwrapped back to the direct URL (the proxy would refuse it anyway).
+
+import { imageProxyAllowed } from "@/lib/images/proxy-access";
 
 const HOTLINK_BLOCK_DOMAINS = [
   "craigslist.org",
@@ -22,6 +27,19 @@ function hostnameOf(url: string): string | null {
   }
 }
 
+/** If `url` is our proxy URL for a host the proxy must not serve, return the direct source URL. */
+function unwrapDeniedProxy(url: string): string {
+  if (!url.includes("/api/image/proxy")) return url;
+  try {
+    const inner = new URL(url, "http://local.invalid").searchParams.get("url");
+    if (inner && /^https?:\/\//.test(inner) && !imageProxyAllowed(inner))
+      return inner;
+  } catch {
+    /* keep as is */
+  }
+  return url;
+}
+
 /** True when the host typically blocks hotlinks and needs our allowlisted proxy. */
 export function needsImageProxy(url?: string | null): boolean {
   if (!url || !/^https?:\/\//.test(url)) return false;
@@ -39,6 +57,7 @@ export function needsImageProxy(url?: string | null): boolean {
  */
 export function proxiedImage(url?: string | null): string {
   if (!url) return "";
+  url = unwrapDeniedProxy(url);
   if (
     url.startsWith("/") ||
     url.startsWith("data:") ||
@@ -49,6 +68,7 @@ export function proxiedImage(url?: string | null): string {
   }
   if (!/^https?:\/\//.test(url)) return url;
   if (!needsImageProxy(url)) return url;
+  if (!imageProxyAllowed(url)) return url;
   return `/api/image/proxy?url=${encodeURIComponent(url)}`;
 }
 
@@ -62,6 +82,7 @@ export function galleryImageSrc(
   index: number,
 ): string {
   if (!url) return "";
+  url = unwrapDeniedProxy(url);
   if (index === 0) return proxiedImage(url);
   if (needsImageProxy(url)) return proxiedImage(url);
   if (
