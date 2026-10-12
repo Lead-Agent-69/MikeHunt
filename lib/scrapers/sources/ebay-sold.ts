@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
 import { disclosedPriceEvidence } from "@/lib/deals/acquisition-price";
+import { extractLeadingVehicleIdentity } from "../tools/deal-normalizer";
 
 const execFileAsync = promisify(execFile);
 
@@ -187,12 +188,11 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
       if (m >= 500 && m <= 500000 && m !== year) mileage = m;
     }
 
-    const after = title
-      .slice((ym.index || 0) + 4)
-      .trim()
-      .split(/\s+/);
-    const make = after[0] || undefined;
-    const model = after.slice(1, 3).join(" ") || undefined;
+    const vehicleTitle = title.slice((ym.index || 0) + 4).trim();
+    const identity = extractLeadingVehicleIdentity(vehicleTitle, year);
+    // An unidentified observation must not enter a make/model valuation pool.
+    if (!identity) return;
+    const { make, model } = identity;
 
     rows.push({
       year,

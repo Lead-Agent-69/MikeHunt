@@ -169,8 +169,6 @@ export function extractModel(
   year?: number,
 ): string | undefined {
   if (!title || !make) return undefined;
-  const sport = broncoSportIdentity({ title, make, model: "Bronco", year });
-  if (sport) return sport.model;
   // Escape regex-special chars in the make (e.g. nothing today, but multi-word makes have spaces).
   const safeMake = make.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(
@@ -179,6 +177,30 @@ export function extractModel(
   );
   const match = title.match(pattern);
   if (!match) return undefined;
+  if (/^bronco$/i.test(match[1]) && /^sport$/i.test(match[2] || "")) {
+    const sport = broncoSportIdentity({
+      title: match[0],
+      make,
+      model: "Bronco",
+      year: year || extractYear(title),
+    });
+    if (sport) return sport.model;
+  }
+  if (make.toLowerCase() === "land rover") {
+    const variant = title
+      .slice(match.index || 0)
+      .match(
+        /^land\s+rover\s+(range\s+rover\s+(sport|evoque|velar)|discovery\s+sport)\b/i,
+      );
+    if (variant) {
+      return variant[1]
+        .split(/\s+/)
+        .map(
+          (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+        )
+        .join(" ");
+    }
+  }
   const cap = (s: string) =>
     s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
   const first = match[1].toLowerCase();
@@ -187,6 +209,36 @@ export function extractModel(
     return `${cap(first)} ${cap(second)}`;
   }
   return cap(first);
+}
+
+/** Identity at the start of a year-stripped title, never another car mentioned later. */
+export function extractLeadingVehicleIdentity(
+  title: string,
+  year?: number,
+): { make: string; model: string } | undefined {
+  const normalized = title.trim().replace(/\s+/g, " ");
+  const candidates = [
+    ...MAKES.map((make) => ({ token: make, make })),
+    ...Object.entries(MAKE_ALIASES).map(([token, make]) => ({ token, make })),
+  ].sort((a, b) => b.token.length - a.token.length);
+  for (const { token, make } of candidates) {
+    if (!normalized.toLowerCase().startsWith(token.toLowerCase() + " "))
+      continue;
+    const remainder = normalized.slice(token.length).trim();
+    const modelPrefix =
+      token === "range rover"
+        ? "Range Rover "
+        : token === "mini cooper"
+          ? "Cooper "
+          : "";
+    const model = extractModel(
+      `${make} ${modelPrefix}${remainder}`,
+      make,
+      year,
+    );
+    return model ? { make, model } : undefined;
+  }
+  return undefined;
 }
 
 // Body-style / drivetrain / filler tokens that follow a model but are NOT the trim. Kept out of the
