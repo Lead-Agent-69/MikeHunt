@@ -17,6 +17,19 @@ const car = {
   lng: -90.3,
 };
 describe("saved search constraints", () => {
+  it.each(["down_payment", "reference", "current_bid"])(
+    "does not trust stale GO/profit flags for %s price evidence",
+    (kind) => {
+      const stale = {
+        ...car,
+        options: {
+          priceEvidence: { kind, listedAmount: 500, currentBid: 500 },
+        },
+      };
+      expect(matchesSavedSearch(stale, { require_go: true })).toBe(false);
+      expect(matchesSavedSearch(stale, { target_profit: 1000 })).toBe(false);
+    },
+  );
   it("keeps the collector's returned projection wired to matching evidence", () => {
     const pipeline = readFileSync(
       path.resolve("lib/scrapers/pipeline.ts"),

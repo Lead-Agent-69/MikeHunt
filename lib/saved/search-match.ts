@@ -1,4 +1,7 @@
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { titleCategoryDetail } from "@/lib/deals/title-category";
 import { dealLane } from "@/lib/discovery/categorize";
 import { withinMiles } from "@/lib/geo/distance";
@@ -100,6 +103,12 @@ export function matchesSavedSearch(
   )
     return false;
   if (search.require_go && text(deal.deal_verdict) !== "go") return false;
+  if (
+    (search.require_go || search.target_profit != null) &&
+    (!(reportedAcquisitionPrice(deal) > 0) ||
+      listingPriceEvidence(deal)?.kind === "current_bid")
+  )
+    return false;
   const seller = sellerType(deal);
   if (
     search.seller_type &&

@@ -66,6 +66,20 @@ async function evaluate(search: Record<string, unknown>) {
   ).json();
 }
 describe("profit-sniper saved criteria", () => {
+  it.each(["down_payment", "current_bid", "reference"])(
+    "does not promote stale GO rows with %s pricing",
+    async (kind) => {
+      state.deals = [
+        {
+          ...car,
+          options: {
+            priceEvidence: { kind, listedAmount: 10000, currentBid: 500 },
+          },
+        },
+      ];
+      expect((await evaluate({})).candidatesFound).toBe(0);
+    },
+  );
   it("uses the actual stored state field", async () => {
     expect((await evaluate({ state: "FL" })).matchedAlertsCount).toBe(0);
     expect(

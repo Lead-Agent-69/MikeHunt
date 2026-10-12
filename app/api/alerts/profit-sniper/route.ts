@@ -6,7 +6,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { matchesSavedSearch } from "@/lib/saved/search-match";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 
 interface SniperAlertCandidate {
   dealId: string;
@@ -80,6 +83,7 @@ async function handleSniperEvaluation(req: NextRequest) {
 
   // 2. Filter for sniper criteria
   const sniperCandidates: SniperAlertCandidate[] = deals
+    .filter((deal) => listingPriceEvidence(deal)?.kind !== "current_bid")
     .map((d) => {
       const ask = reportedAcquisitionPrice(d);
       const profit = Number(d.true_net_profit) || 0;
@@ -98,7 +102,10 @@ async function handleSniperEvaluation(req: NextRequest) {
         sourceUrl: d.source_url || `https://mikehunt.app/deal/${d.id}`,
       };
     })
-    .filter((d) => d.roiPct >= minRoi || d.trueNetProfit >= minProfit);
+    .filter(
+      (d) =>
+        d.askPrice > 0 && (d.roiPct >= minRoi || d.trueNetProfit >= minProfit),
+    );
 
   // 3. Match against user saved searches or alert subscriptions
   const { data: savedSearches } = await supabase
