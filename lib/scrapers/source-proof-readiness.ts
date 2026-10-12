@@ -1,5 +1,27 @@
 import { COVERAGE_WINDOW_DAYS } from "@/lib/discovery/coverage";
 
+export function sourceOperationLabel(source: {
+  enabled: boolean;
+  lastStatus: string;
+  readiness?: string;
+  successRate: number | null;
+}) {
+  if (source.readiness === "needs_login") return "Sign-in required";
+  if (!source.enabled) return "Paused";
+  if (
+    source.lastStatus === "error" ||
+    ["blocked", "disabled"].includes(source.readiness || "")
+  )
+    return "Unavailable";
+  if (source.lastStatus === "running") return "Checking";
+  if (source.readiness === "ready") return "Working";
+  if (source.readiness === "needs_run") return "Needs refresh";
+  if (source.readiness === "no_rows") return "No matching inventory";
+  if (source.lastStatus === "never_run") return "Awaiting run";
+  if (source.successRate == null) return "Not verified";
+  return source.successRate >= 80 ? "Healthy" : "Needs review";
+}
+
 export function sourceProofReadiness(input: {
   enabled: boolean;
   requiresAuth?: boolean;

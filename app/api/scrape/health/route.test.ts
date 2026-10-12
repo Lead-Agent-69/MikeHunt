@@ -353,7 +353,7 @@ describe("GET /api/scrape/health lane scoping", () => {
           isDue: false,
         });
         expect(row.termsReason).toMatch(/automat|robot/i);
-        expect(row.nextAction).toContain("SCRAPE_SOURCES");
+        expect(row.nextAction).toContain("written source permission");
         expect(row.userStatus).not.toBe("Needs run");
       }
       expect(

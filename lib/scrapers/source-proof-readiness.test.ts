@@ -1,10 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { sourceProofReadiness } from "./source-proof-readiness";
+import {
+  sourceProofReadiness,
+  sourceOperationLabel,
+} from "./source-proof-readiness";
 
 const now = Date.parse("2026-10-12T01:00:00Z");
 const current = "2026-10-11T01:00:00Z";
 const old = "2026-10-01T01:00:00Z";
 describe("source readiness requires real current proof", () => {
+  it("does not show unknown rates as degraded or stale data as healthy", () => {
+    expect(
+      sourceOperationLabel({
+        enabled: true,
+        lastStatus: "running",
+        successRate: null,
+      }),
+    ).toBe("Checking");
+    expect(
+      sourceOperationLabel({
+        enabled: true,
+        lastStatus: "observed",
+        readiness: "ready",
+        successRate: null,
+      }),
+    ).toBe("Working");
+    expect(
+      sourceOperationLabel({
+        enabled: true,
+        lastStatus: "success",
+        readiness: "needs_run",
+        successRate: 100,
+      }),
+    ).toBe("Needs refresh");
+    expect(
+      sourceOperationLabel({
+        enabled: true,
+        lastStatus: "observed",
+        successRate: null,
+      }),
+    ).toBe("Not verified");
+  });
   it("does not imply an untested or zero-row source responded", () => {
     expect(sourceProofReadiness({ enabled: true, now })).toBe("needs_run");
     expect(
