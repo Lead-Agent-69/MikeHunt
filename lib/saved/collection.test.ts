@@ -18,6 +18,7 @@ describe("saved collection receipts and cursors", () => {
   });
   it("rejects untrusted filter syntax and invalid IDs/dates", () => {
     for (const cursor of [
+      { id: [id], savedAt: null },
       { id: "bad", savedAt: null },
       { id, savedAt: "2026-10-12T00:00:00Z),user_id.neq.one" },
       { id, savedAt: "never" },

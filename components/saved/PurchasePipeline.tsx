@@ -31,6 +31,7 @@ export function PurchasePipeline() {
     dealerId,
     loading: accountLoading,
     error: accountError,
+    retry: retryAccount,
   } = useDealerId();
   const {
     data,
@@ -152,7 +153,13 @@ export function PurchasePipeline() {
         <ErrorState
           title="Couldn't load your checklist"
           message="Sign in or retry to access your saved purchase tasks."
-          onRetry={() => void mutate()}
+          onRetry={
+            accountError
+              ? retryAccount
+              : dealerId
+                ? () => void mutate()
+                : undefined
+          }
         />
       ) : !saves.length ? (
         <div className="space-y-3 border-t border-[var(--b1)] py-6">
@@ -321,6 +328,14 @@ export function PurchasePipeline() {
             );
           })}
         </div>
+      )}
+      {!accountLoading && !dealerId && !accountError && (
+        <Link
+          href="/login"
+          className="inline-flex min-h-11 items-center font-semibold text-[var(--blue)]"
+        >
+          Sign in to open your purchase plan
+        </Link>
       )}
       {loadMoreError && (
         <p role="alert" className="text-sm text-[var(--red)]">
