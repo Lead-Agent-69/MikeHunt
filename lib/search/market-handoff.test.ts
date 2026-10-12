@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marketHandoff } from "./market-handoff";
+import { marketHandoff, marketHandoffs } from "./market-handoff";
 
 describe("wider market handoff", () => {
   it("preserves exact model words instead of guessing a slug or merging distinct models", () => {
@@ -75,8 +75,8 @@ describe("wider market handoff", () => {
     expect(url.searchParams.get("transmission")).toBe("man");
     expect(url.searchParams.get("trim_kw")).toBe("A&B");
     expect(url.searchParams.has("maxprice")).toBe(false);
-    expect(result.reapply).toContain("maxPrice: NaN");
-    expect(result.reapply).toContain("state: XX");
+    expect(result.reapply).toContain("Maximum price: NaN");
+    expect(result.reapply).toContain("State: XX");
     expect(result.reapply).toContain("Fuel: Electric");
   });
 
@@ -88,6 +88,110 @@ describe("wider market handoff", () => {
     const result = marketHandoff(params);
     expect(params.toString()).toBe(before);
     expect(new URL(result.href).searchParams.has("token")).toBe(false);
-    expect(result.reapply).toEqual(["token: private"]);
+    expect(result.reapply).toEqual([]);
+  });
+
+  it("preserves ZIP/radius without claiming the state filter also transferred", () => {
+    const result = marketHandoff(
+      new URLSearchParams("make=Honda&zip=63021&radius=50&state=MO"),
+    );
+    const url = new URL(result.href);
+    expect(url.searchParams.get("zip")).toBe("63021");
+    expect(url.searchParams.get("radius")).toBe("50");
+    expect(url.searchParams.has("localization")).toBe(false);
+    expect(result.location).toBe("Within 50 mi of ZIP 63021");
+    expect(result.reapply).toEqual(["State: MO"]);
+  });
+  it("uses the indexed search's default and maximum radius", () => {
+    expect(
+      new URL(
+        marketHandoff(new URLSearchParams("zip=60601")).href,
+      ).searchParams.get("radius"),
+    ).toBe("100");
+    expect(
+      new URL(
+        marketHandoff(new URLSearchParams("zip=60601&radius=999999")).href,
+      ).searchParams.get("radius"),
+    ).toBe("500");
+  });
+  it("does not show unknown or prototype query values", () => {
+    const result = marketHandoff(
+      new URLSearchParams(
+        "constructor=secret&user_id=private&token=secret&states=MO,IL",
+      ),
+    );
+    expect(result.reapply).toEqual(["States: MO,IL"]);
+    expect(result.href).not.toMatch(/secret|private|user_id/);
+  });
+  it("expands supported car searches and reports omitted filters per site", () => {
+    const results = marketHandoffs(
+      new URLSearchParams(
+        "make=Honda&model=Civic&zip=60601&radius=50&maxYear=2022&maxPrice=25000&damage=flood&includeRepairable=0",
+      ),
+    );
+    expect(results.length).toBeGreaterThan(4);
+    expect(results.map((r) => r.id)).toContain("craigslist");
+    expect(results.map((r) => r.id)).not.toContain("copart");
+    expect(results.map((r) => r.id)).not.toContain("visor");
+    const local = results.find((r) => r.id === "craigslist")!;
+    expect(new URL(local.href).searchParams.get("postal")).toBe("60601");
+    expect(local.reapply).toContain("Damage: flood");
+    expect(local.reapply).toContain("Repairable vehicles: excluded");
+    const auction = results.find((r) => r.id === "ebay_motors")!;
+    expect(auction.reapply).toContain("Maximum year: 2022");
+    expect(auction.carried).not.toContain("Maximum year: 2022");
+  });
+  it("does not call invalid or unconfirmed enum parameters transferred", () => {
+    const results = marketHandoffs(
+      new URLSearchParams(
+        "make=Honda&model=Civic&body=Spaceship&fuelType=Electric",
+      ),
+    );
+    const cars = results.find((r) => r.id === "cars_com")!;
+    expect(cars.reapply).toContain("Body style: Spaceship");
+    expect(cars.carried).not.toContain("Body style: Spaceship");
+    expect(cars.unconfirmed).toContain("Fuel: Electric");
+    expect(cars.carried).not.toContain("Fuel: Electric");
+  });
+  it("does not silently broaden private-seller, multi-make or non-car searches", () => {
+    expect(
+      marketHandoffs(
+        new URLSearchParams("make=Honda&zip=60601&sellerType=private"),
+      ).map((r) => r.id),
+    ).toEqual(["autotempest", "craigslist"]);
+    expect(
+      marketHandoffs(new URLSearchParams("make=Honda&makes=Honda,Toyota")),
+    ).toHaveLength(1);
+    expect(
+      marketHandoffs(new URLSearchParams("make=Honda&category=motorcycle")),
+    ).toHaveLength(0);
+    expect(marketHandoffs(new URLSearchParams("q=Camry"))).toHaveLength(1);
+  });
+  it("keeps deal-category chips distinct from vehicle-type scope", () => {
+    const results = marketHandoffs(
+      new URLSearchParams("make=Honda&category=high_margin"),
+    );
+    expect(results.length).toBeGreaterThan(3);
+    expect(results[1].reapply).toContain("Category: high_margin");
+    expect(
+      marketHandoffs(new URLSearchParams("make=Honda&body=Motorcycle")),
+    ).toHaveLength(0);
+  });
+  it("carries the supported seller selector and discloses rounded distance", () => {
+    const primary = new URL(
+      marketHandoff(new URLSearchParams("sellerType=private")).href,
+    );
+    expect(primary.searchParams.get("saleby")).toBe("private");
+    const cars = marketHandoffs(
+      new URLSearchParams("make=Honda&zip=60601&radius=60"),
+    ).find((r) => r.id === "cars_com")!;
+    expect(new URL(cars.href).searchParams.get("maximum_distance")).toBe("75");
+    expect(cars.reapply.join(" ")).toContain("distance options differ");
+    expect(cars.carried).not.toContain("Radius (mi): 60");
+    const cl = marketHandoffs(
+      new URLSearchParams("make=Honda&zip=60601&radius=99999"),
+    ).find((r) => r.id === "craigslist")!;
+    expect(cl.carried).toContain("Radius (mi): 500");
+    expect(cl.carried.join(" ")).not.toContain("99999");
   });
 });

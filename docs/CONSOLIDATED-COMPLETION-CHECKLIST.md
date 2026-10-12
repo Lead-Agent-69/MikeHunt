@@ -21,6 +21,14 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Confirmed Baseline And Current Work
 
+Latest completed consolidation release: #370 merged as `a102e514` and canonical
+Vercel production was verified READY at that SHA. Full local verify passed
+533 files / 3,279 tests; GitHub CI and 20 public smoke checks passed. #318 closed
+as confirmed superseded. Local buyer-mode checks passed 28/28. Hosted scope
+columns already existed; only the local test database needed the existing
+saved-search migration, after which desktop/mobile save checks passed 2/2.
+The older snapshot bullets below remain point-in-time evidence.
+
 - Current observed main: `425b40de093ad86d5f2ec935839c78fb96bf42c4` (#369).
   Vercel commit status reports success; signed-in/device acceptance is separate.
 - #355/#356 already address condition wording, galleries and overlays.
@@ -51,6 +59,40 @@ existing features and evidence; it does not declare the entire app finished.
   denial does not mean CLI access is unavailable.
 
 ## Finish In This Order
+
+### Search-Reach And Workflow Review (Current Implementation)
+
+Official benchmark pages reviewed October 11:
+[market filters](https://visor.vin/search/filters),
+[auction search and watchlists](https://www.copart.com/content/us/en/support/faq-topics/searching-1),
+[outbound filter parameters](https://www.autotempest.com/widget-large).
+These are internal reference material, not customer-facing comparison copy.
+
+- Implemented in the current branch: replace benchmark-product shortcuts with
+  existing supported marketplace search links. Preserve real ZIP/radius using
+  the same parsing contract as indexed search; disclose unsupported location,
+  title, damage, category, profit and other filters per destination.
+- Show three marketplaces initially and keep the rest under one disclosure.
+  Distinguish omitted filters from unconfirmed parameters and rounded distance.
+  Exclude unverified formats, incompatible vehicle types and inappropriate
+  dealer-only links for private-seller searches. Keep actual listing provenance.
+- These links do not fetch pages, activate scrapers, call paid APIs, increase
+  hosted writes, or prove new stored inventory. Productive source expansion still
+  requires the ownership/retention/capacity and permission gates below.
+- Next: save/reopen the complete filter contract, VIN/lot identity search parity,
+  watchlist badge hydration across sessions, population-backed facets and a
+  consistent total-landed-cost comparison. Existing raw-title Save E2E assertions
+  need canonical identity checks; they are not proof that the save failed.
+- Rich specification, local/seasonal and liquidity claims require observed fields,
+  eligible dated comparisons and outcome samples. Do not add empty filters or
+  invented MSRP/repair costs just to match a competitor's controls.
+- Inventory priority: improve measured yield/completeness at already-permitted
+  independent yards and public/API sources first; then permission-based regional
+  dealer intake and authorized marketplace feeds. No new restricted-source bypass
+  or unlimited/free third-party API assumption.
+
+This pass needs its own full verify, browser checks, CI and release receipt.
+It does not close the remaining acceptance items below.
 
 ### 1. Protect Ownership And Release Operations (P0)
 

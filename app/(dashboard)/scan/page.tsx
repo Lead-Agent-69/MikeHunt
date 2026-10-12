@@ -82,7 +82,10 @@ import { scanPageHrefFromApiKey } from "@/lib/search/scan-page-href";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { SearchSourceNotice } from "@/components/search/SearchSourceNotice";
-import { MarketSearchHandoff } from "@/components/search/MarketSearchHandoff";
+import {
+  MarketSearchHandoff,
+  MarketSearchShortcut,
+} from "@/components/search/MarketSearchHandoff";
 import {
   INVENTORY_DETAIL_FIELDS,
   readInventoryDetails,
@@ -4637,6 +4640,7 @@ function ScanPageInner() {
 
       {/* ── Filter bar: primary row + grouped advanced panel ── */}
       <InventoryViewLinks query={swrKey.split("?")[1] || ""} current="/scan" />
+      <MarketSearchShortcut query={swrKey.split("?")[1] || ""} />
       <SearchSourceNotice
         sources={
           Array.isArray(scrapeHealth?.sources)
