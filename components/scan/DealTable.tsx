@@ -11,6 +11,7 @@ import {
 import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
+import { tableHealthCopy } from "@/lib/sources/table-health-copy";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
 // sticky header, GPU-only hover transitions, and content-visibility so 500+ rows stay 60fps).
@@ -307,6 +308,7 @@ export function DealTable({
             const missing = r.dataQuality?.missing || [];
             const warning = r.warnings?.find(Boolean);
             const sourceHealth = sourceHealthForRow(r, sourceHealthById);
+            const sourceCopy = tableHealthCopy(sourceHealth);
             const sourceReadiness = sourceHealth?.readiness || "unknown";
             const sourceTone =
               sourceReadiness === "ready"
@@ -317,14 +319,6 @@ export function DealTable({
                   : sourceReadiness === "unknown"
                     ? "var(--t5)"
                     : "var(--amber-d)";
-            const sourceFreshness =
-              typeof sourceHealth?.freshnessHours === "number"
-                ? sourceHealth.freshnessHours < 1
-                  ? "now"
-                  : sourceHealth.freshnessHours < 24
-                    ? `${sourceHealth.freshnessHours}h`
-                    : `${Math.round(sourceHealth.freshnessHours / 24)}d`
-                : "pending";
             return (
               <tr
                 key={r.id}
@@ -361,17 +355,9 @@ export function DealTable({
                     <span
                       className="rounded-full border border-[var(--b1)] bg-[var(--s1)] px-1.5 py-0.5 text-[9px] font-black uppercase"
                       style={{ color: sourceTone }}
-                      title={
-                        sourceHealth
-                          ? `${sourceHealth.userStatus || sourceReadiness} · ${Number(
-                              sourceHealth.activeRows || 0,
-                            ).toLocaleString()} scoped rows · ${Number(
-                              sourceHealth.photoCoveragePct || 0,
-                            )}% photo coverage · ${sourceFreshness}`
-                          : "No scoped source health returned yet"
-                      }
+                      title={sourceCopy.description}
                     >
-                      {sourceHealth?.userStatus || sourceReadiness}
+                      {sourceCopy.label}
                     </span>
                     <span className="truncate text-[11px] text-[var(--t4)]">
                       {[
