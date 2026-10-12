@@ -138,6 +138,22 @@ describe("GET /api/discover scoped feed contract", () => {
           ...row,
           source: "ebay_motors",
           source_url: "https://www.ebay.com/itm/123",
+          source_deal_id: undefined,
+          options: { seller: "eBay", sellerType: "dealer" },
+        },
+      ],
+      error: null,
+    });
+    expect(
+      (await (await GET(req("/api/discover?sellerType=dealer"))).json())
+        .uniqueVehicles,
+    ).toBe(0);
+    rpc.mockResolvedValue({
+      data: [
+        {
+          ...row,
+          source: "ebay_motors",
+          source_url: "https://www.ebay.com/itm/123",
           options: {
             aggregator: "autotempest",
             priceEvidence: { kind: "current_bid", currentBid: 3000 },

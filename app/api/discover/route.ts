@@ -222,7 +222,9 @@ function rowSellerType(row: any) {
       "facebook_marketplace",
     ].includes(String(row.source || "")) &&
     typeof options.seller === "string" &&
-    options.seller.toLowerCase() === providerLabel
+    (options.seller.trim().toLowerCase() === providerLabel ||
+      (row.source === "ebay_motors" &&
+        /^ebay(?:\s+motors)?$/i.test(options.seller.trim())))
   )
     return "";
   if (
