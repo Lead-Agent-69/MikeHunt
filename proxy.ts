@@ -89,10 +89,17 @@ function isTemplateValue(value: string | undefined): boolean {
 }
 
 function isSupabaseConfigured(): boolean {
-  return (
-    !isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-    !isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  );
+  if (
+    isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+    isTemplateValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  )
+    return false;
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!.trim());
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function guestProfileOnboarded(request: NextRequest): boolean {
@@ -133,6 +140,18 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute = matchesAnyRoute(pathname, ADMIN_ROUTES);
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") {
+      if (isProtectedRoute || isAdminRoute) {
+        return NextResponse.json(
+          {
+            error:
+              "Sign-in is temporarily unavailable. Please try again shortly.",
+          },
+          { status: 503 },
+        );
+      }
+      return supabaseResponse;
+    }
     const demoUser = request.cookies.get("mh_demo_user")?.value;
 
     if (isProtectedRoute && !demoUser) {
@@ -177,8 +196,10 @@ export async function proxy(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json(
-      { error: "Server misconfigured: auth unavailable" },
-      { status: 500 },
+      {
+        error: "Sign-in is temporarily unavailable. Please try again shortly.",
+      },
+      { status: 503 },
     );
   }
 
