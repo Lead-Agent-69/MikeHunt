@@ -37,15 +37,27 @@ limit producers receive errors/backpressure. This does not archive or expire com
 `run_retention()` is called daily by the existing Vercel cron (07:30 UTC, cron-secret protected).
 The protected inventory migration `20261011142210_protected_inventory_retention.sql` adds a
 service-only INVOKER RPC and a BEFORE DELETE guard; removes both conflicting legacy cleanup jobs;
-and reuses `cleanup-expired-deals` for bounded protected retention plus existing URL/VIN cache
+and reuses `cleanup-expired-deals` for bounded protected retention plus disposable URL cache
 cleanup. `scrape-ci` uses the same RPC instead of a truncated client-side saved-reference scan.
 The web cron reports 503 if this protected RPC is missing, rather than silently falling back to
 unsafe deletes. Apply the reviewed migration BEFORE deploying this route.
 
-**Deployment status:** regression-tested locally in BEGIN/ROLLBACK. No hosted apply performed.
-Local inspection found an unguarded `cleanup-dead-deals` job; production job state is unverified
-because the connected Supabase inspection permission was denied. Retention is not production-safe
-merely because this document or migration exists. Require Ren review, hosted apply, and cron proof.
+**Deployment status:** no hosted apply performed. October 12 CLI inspection works: the protected
+RPCs/migration are absent and two legacy deal-deletion jobs are active. The connector's older
+permission denial is not the current access blocker. Require exact-head independent database
+review, approved apply, and cron/Saved-persistence proof before deploying dependent code.
+
+Run `node scripts/test-protected-retention.mjs` against the existing local Supabase Docker stack.
+It rejects remote Docker endpoints/target arguments, verifies the MikeHunt container label, tests
+the actual schema inside BEGIN/ROLLBACK, then creates and removes a uniquely named disposable
+database for real two-session locking tests. A committed save survives both the bounded RPC and
+a direct deletion race. When pruning wins, a late save fails its FK rather than reporting success.
+The isolated scheduler fixture records commands only; no daemon runs its jobs. This is not a
+hosted-apply receipt, proof of arbitrary isolation levels or production-load certification.
+
+The replacement job no longer age-purges `vin_price_history`. Those observations can support saved
+research and are not disposable cache entries. Owner-aware history archival/retention needs its
+own reviewed policy; measure this table's growth rather than silently erase historical evidence.
 
 Saved snapshots, notes, purchases and outcomes have **no age-based deletion** in this policy.
 Users may remove their own records; account deletion is a separate policy. Source-hosted images
@@ -55,8 +67,12 @@ authenticated delivery, backups and restore tests; URL-only saves cannot guarant
 The Zeus local worker also checks the service-only `inventory_storage_bytes()` RPC before new
 inserts: warn at 350 MB, buffer new observations locally at 450 MB, fail closed when measurement
 is unavailable. Existing updates/touches continue. This is not a quota guarantee for all database
-writers or network egress. Buffered records retain the latest observation; they are not a complete
-price/event archive and require renewed capture/replay after capacity becomes available.
+writers or network egress. Changed/new observations are atomically written to local cache before
+remote classification or upsert. Pauses, exhausted update budgets, read/write failures and
+missing/invalid size measurements do not discard the newest payload or reset confirmed daily
+counters. Buffered records retain the latest observation; they are not a complete price/event
+archive and require renewed capture/replay after capacity becomes available. Ambiguous remote
+commit receipts are not a global quota guarantee.
 
 Auction expiry uses the worker's existing serialized daily update budget and 80% pause threshold. It does not delete deals, touch saved records, or rewrite their last-seen timestamp. Cache-only and paused workers do not write. Failed passes retry after five minutes; successful passes wait an hour. A missing end time is not proof of expiry. Ingestion marks known-ended lots inactive, excludes them from new-match notifications, and can restore rescheduled lots with a future closing time. Age-based hard deletion remains exclusive to the separate `scrape-ci` path above.
 

@@ -532,3 +532,21 @@ Related evidence:
 - Current live push status reports `configured=false`. Security advisor returned 11 findings.
   No new login was created when the newer Vercel dry-run CLI lacked existing credentials; upload
   exclusions are tested, but a CLI manifest receipt is not claimed.
+
+## Protected Retention Refresh (October 12)
+
+- #360 refreshed against main #384 without replacing its stronger logger, tests or upload guards.
+- Reproduced four lost-observation regressions before fixing them: already-synced vehicles blocked
+  by pause/update budget, classification failures and failed upserts. New/changed payloads now reach
+  atomic local storage before any remote request. Confirmed quota counters are not reset.
+- Malformed fractional size readings now fail closed. Missing Supabase configuration returns
+  cron 503, not misleading HTTP 200. No raw-delete fallback is added.
+- Removed unconditional VIN-price-history aging from the replacement cron to preserve research.
+  A bounded owner-aware history archive/purge policy remains a separate design and capacity gate.
+- Forty-seven focused regressions passed. The real local schema migration/tests ran inside
+  BEGIN/ROLLBACK. Service-only grants and two-session save/prune/direct-delete races passed on a
+  uniquely named disposable database, which was removed. No hosted migration/pruning performed.
+- All six reference-table lookup indexes already exist on hosted; do not add duplicate indexes.
+- Exact-head independent database review, approved hosted apply before dependent web release,
+  operator worker rollout and real cron/Saved/usage receipts remain mandatory. These local tests
+  do not certify production load, provider limits or every transaction isolation level.

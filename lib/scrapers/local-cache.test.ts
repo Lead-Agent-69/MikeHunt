@@ -227,6 +227,119 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("keeps a newer observation for a synced vehicle when writes are paused", async () => {
+    let writable = true;
+    const { cache, dir } = await makeCache({
+      beforeWrite: async () => writable,
+    });
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    writable = false;
+    expect(
+      (await cache.persistRows([row("existing", 8000)], db.client, "*")).saved,
+    ).toBe(0);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|existing"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 8000 },
+    });
+    expect(cache.getQuota().inserts).toBe(1);
+    expect(cache.getQuota().updates).toBe(0);
+  });
+
+  it("keeps a newer synced-vehicle observation after the update budget is exhausted", async () => {
+    const { cache, dir } = await makeCache({ maxDailyUpdates: 1 });
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    await cache.persistRows([row("existing", 9000)], db.client, "*");
+    expect(
+      (await cache.persistRows([row("existing", 8000)], db.client, "*")).saved,
+    ).toBe(0);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|existing"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 8000 },
+    });
+    const reloaded = new LocalScraperCache({ path: dir, maxDailyUpdates: 1 });
+    await reloaded.load();
+    expect(reloaded.getQuota().updates).toBe(1);
+    expect((await reloaded.records("test"))[0].ask_price).toBe(8000);
+  });
+
+  it("durably buffers new and changed rows before a failed classification request", async () => {
+    const { cache, dir } = await makeCache();
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    const offline = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            in: async () => ({ data: null, error: { message: "offline" } }),
+          }),
+        }),
+      }),
+    } as any;
+    await expect(
+      cache.persistRows(
+        [row("existing", 8000), row("new", 7000)],
+        offline,
+        "*",
+      ),
+    ).rejects.toThrow("Could not classify");
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|existing"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 8000 },
+    });
+    expect(disk.entries["test|new"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 7000 },
+    });
+    expect(cache.getQuota().inserts).toBe(1);
+  });
+
+  it("durably buffers observations before a failed upsert without claiming success", async () => {
+    const { cache, dir } = await makeCache();
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    const failing = {
+      from: () => ({
+        ...db.client.from(),
+        upsert: () => ({
+          select: async () => ({
+            data: null,
+            error: { message: "write failed" },
+          }),
+        }),
+      }),
+    } as any;
+    await expect(
+      cache.persistRows(
+        [row("existing", 8000), row("new", 7000)],
+        failing,
+        "*",
+      ),
+    ).rejects.toThrow("Local deal batch failed");
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|existing"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 8000 },
+    });
+    expect(disk.entries["test|new"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 7000 },
+    });
+    expect(cache.getQuota().updates).toBe(0);
+  });
+
   it("buffers size-blocked inserts without losing newer observations, while existing updates continue", async () => {
     let allow = false;
     const { cache, dir } = await makeCache({ allowInsert: async () => allow });

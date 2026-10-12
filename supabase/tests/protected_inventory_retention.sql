@@ -48,6 +48,9 @@ BEGIN
     RAISE EXCEPTION 'Saved snapshot/reference changed';
   END IF;
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname='cleanup-dead-deals') THEN RAISE EXCEPTION 'Unsafe legacy cron survived'; END IF;
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals' AND command ILIKE '%DELETE%vin_price_history%') THEN
+    RAISE EXCEPTION 'Unprotected VIN history purge survived';
+  END IF;
   BEGIN
     PERFORM public.prune_inventory_retention(2001);
     RAISE EXCEPTION 'Invalid limit accepted';

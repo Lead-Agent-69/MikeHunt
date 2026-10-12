@@ -2,8 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const rpc = vi.hoisted(() => vi.fn());
+const configured = vi.hoisted(() => ({ value: true }));
 vi.mock("@/lib/supabase", () => ({
-  isSupabaseConfigured: () => true,
+  isSupabaseConfigured: () => configured.value,
   createServerComponentClient: () => ({ rpc }),
 }));
 
@@ -17,9 +18,16 @@ const req = (auth?: string) =>
 afterEach(() => {
   delete process.env.CRON_SECRET;
   rpc.mockReset();
+  configured.value = true;
 });
 
 describe("GET /api/cron/retention", () => {
+  it("reports unavailable configuration as a failure, without running any cleanup", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    configured.value = false;
+    expect((await GET(req("Bearer s3cret"))).status).toBe(503);
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("is locked without the cron secret", async () => {
     process.env.CRON_SECRET = "s3cret";
     expect((await GET(req())).status).toBe(401);

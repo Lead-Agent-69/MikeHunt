@@ -13,8 +13,9 @@ bottom monthly.
 
 ## 2026-10-11 clarification
 
-The measurements below are historical, NOT today's hosted usage. Connected hosted SQL inspection
-was denied on Oct 11. Check both provider Usage dashboards before deciding more sources fit.
+The measurements below are historical, NOT today's hosted usage. The connector inspection was
+denied on Oct 11, but CLI reads work on Oct 12. Check both provider Usage dashboards before deciding
+more sources fit; successful SQL access does not measure all monthly usage.
 The 2 TB F: scraper disk does not expand Supabase's 500 MB database or Vercel quotas.
 
 Current official limits checked Oct 11:

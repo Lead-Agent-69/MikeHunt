@@ -1,5 +1,16 @@
 -- Replaces conflicting legacy cleanup jobs. Saved user records have no age TTL.
 -- INVOKER: only service_role may call maintenance; no privileged public RPC.
+DO $$
+DECLARE ref_table text;
+BEGIN
+  FOREACH ref_table IN ARRAY ARRAY['deals','saved_cars','watchlist','inventory',
+    'deal_outcomes','dealer_deals','alert_matches','source_url_cache'] LOOP
+    IF to_regclass('public.' || ref_table) IS NULL THEN
+      RAISE EXCEPTION 'Protected retention prerequisite missing: %', ref_table;
+    END IF;
+  END LOOP;
+END $$;
+
 CREATE OR REPLACE FUNCTION public.protect_referenced_deal_delete()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
 BEGIN
@@ -67,6 +78,28 @@ GRANT EXECUTE ON FUNCTION public.inventory_storage_bytes() TO service_role;
 CREATE INDEX IF NOT EXISTS idx_deals_inactive_retention
   ON public.deals(last_seen_at, id) WHERE active = false;
 
+DO $$
+DECLARE caller_role text;
+BEGIN
+  FOREACH caller_role IN ARRAY ARRAY['anon','authenticated'] LOOP
+    IF has_function_privilege(caller_role,'public.prune_inventory_retention(integer)','EXECUTE')
+      OR has_function_privilege(caller_role,'public.inventory_storage_bytes()','EXECUTE')
+      OR has_function_privilege(caller_role,'public.protect_referenced_deal_delete()','EXECUTE') THEN
+      RAISE EXCEPTION 'Public retention privilege survived for %', caller_role;
+    END IF;
+  END LOOP;
+  IF NOT has_function_privilege('service_role','public.prune_inventory_retention(integer)','EXECUTE')
+    OR NOT has_function_privilege('service_role','public.inventory_storage_bytes()','EXECUTE') THEN
+    RAISE EXCEPTION 'Service-only retention grants missing';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_proc WHERE prosecdef AND oid IN (
+    'public.prune_inventory_retention(integer)'::regprocedure,
+    'public.inventory_storage_bytes()'::regprocedure,
+    'public.protect_referenced_deal_delete()'::regprocedure)) THEN
+    RAISE EXCEPTION 'Retention functions must remain SECURITY INVOKER';
+  END IF;
+END $$;
+
 -- These older jobs bypassed user-reference checks, or used a conflicting 30/60-day hard delete.
 DO $$ BEGIN
   IF to_regclass('cron.job') IS NOT NULL THEN
@@ -74,10 +107,12 @@ DO $$ BEGIN
     WHERE jobname IN ('cleanup-expired-deals', 'cleanup-dead-deals');
   END IF;
 END $$;
--- Keep auxiliary cleanup, without any raw DELETE FROM deals in a cron command.
+-- Keep disposable URL-cache cleanup, without raw listing/history deletes.
+-- VIN price observations can back saved research; do not age-purge them until
+-- an owner-aware archival policy is reviewed and tested independently.
 DO $$ BEGIN
   IF to_regclass('cron.job') IS NOT NULL THEN
     PERFORM cron.schedule('cleanup-expired-deals', '0 2 * * *',
-      'SELECT public.prune_inventory_retention(1000); DELETE FROM public.source_url_cache WHERE expires_at < now(); DELETE FROM public.vin_price_history WHERE recorded_at < now() - interval ''180 days'';');
+      'SELECT public.prune_inventory_retention(1000); DELETE FROM public.source_url_cache WHERE expires_at < now();');
   END IF;
 END $$;

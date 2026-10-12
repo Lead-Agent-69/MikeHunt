@@ -20,7 +20,7 @@ export function createStorageBudgetChecker(now = () => Date.now()) {
         typeof data === "number" || typeof data === "string"
           ? Number(data)
           : NaN;
-      if (error || !Number.isFinite(bytes) || bytes <= 0)
+      if (error || !Number.isSafeInteger(bytes) || bytes <= 0)
         throw new Error("Unverified database size");
       cached = {
         bytes,

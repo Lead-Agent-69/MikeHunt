@@ -424,17 +424,22 @@ export class LocalScraperCache {
         return true;
       });
 
+      // Persist observations before any remote read/write or budget gate. Only
+      // a confirmed remote match/write may remove the unsynced payload again.
+      for (const row of candidates) {
+        const key = `${row.source}|${row.source_deal_id}`;
+        this.state.entries[key] = {
+          hash: listingHash(row),
+          synced: false,
+          lastSeenAt: new Date().toISOString(),
+          dbSeenAt: this.state.entries[key]?.dbSeenAt,
+          data: row,
+        };
+      }
+      if (candidates.length) await this.save();
+
       if (this.cacheOnly) {
-        for (const row of candidates) {
-          const key = `${row.source}|${row.source_deal_id}`;
-          this.state.entries[key] = {
-            hash: listingHash(row),
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
-        }
-        await this.save();
+        if (!candidates.length) await this.save();
         return {
           rows: [],
           saved: 0,
@@ -549,14 +554,6 @@ export class LocalScraperCache {
             ? Number(prior.ask_price) !== Number(row.ask_price)
             : true,
         });
-        // Preserve the previous entry until Supabase confirms this write.
-        if (!oldEntry)
-          this.state.entries[key] = {
-            hash,
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
       }
 
       let saved = 0;
@@ -618,16 +615,6 @@ export class LocalScraperCache {
 
       const touches = await this.touchRows(toTouch, supabase);
 
-      for (const row of candidates) {
-        const key = `${row.source}|${row.source_deal_id}`;
-        if (!this.state.entries[key] || !this.state.entries[key].synced)
-          this.state.entries[key] = {
-            hash: listingHash(row),
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
-      }
       await this.save();
       const quota = this.getQuota();
       const paused =

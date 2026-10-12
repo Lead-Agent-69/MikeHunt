@@ -21,6 +21,8 @@ describe("database size budget", () => {
     for (const response of [
       { data: null, error: null },
       { data: {}, error: null },
+      { data: 0.5, error: null },
+      { data: "12.5", error: null },
       { data: 64, error: { message: "denied" } },
     ]) {
       expect(
