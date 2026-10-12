@@ -9,7 +9,10 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
 import { internalError } from "@/lib/api/http-error";
 import {
@@ -85,7 +88,11 @@ function mapDeal(
 ) {
   const options = rowOptions(d);
   const contact = sellerContactFields(d);
-  const tags = categorize({ ...d, sellBasis: d.deal_analysis?.sellBasis });
+  const tags = categorize({
+    ...d,
+    ask_price: reportedAcquisitionPrice(d),
+    sellBasis: d.deal_analysis?.sellBasis,
+  });
   const { heat, hoursLeft } = auctionHeat(d.auction_end_at);
   // Channel/risk lane (auction/salvage/repairable/clean-retail/private) + its color, so the card can
   // show a lane chip and the per-lane rails below can group the same way the scan table does.
@@ -133,6 +140,7 @@ function mapDeal(
     titleCategory: titleCategory(d),
     titleSource: titleSourceOf(d),
     askPrice: reportedAcquisitionPrice(d),
+    priceEvidence: listingPriceEvidence(d),
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
     // Honest confidence for the resale number, so the card shows whether it's comp-backed or a guess.
     valueConfidence: valueConfidence(
@@ -703,13 +711,17 @@ export async function GET(request: NextRequest) {
 
         const m: any[] = [];
         byVin.forEach((group) => {
-          group.sort((a, b) => Number(a.ask_price) - Number(b.ask_price));
+          group.sort(
+            (a, b) =>
+              (reportedAcquisitionPrice(a) || Infinity) -
+              (reportedAcquisitionPrice(b) || Infinity),
+          );
           const [primary, ...rest] = group;
           const deal = mapDeal(
             primary,
             rest.map((r) => ({
               source: r.source,
-              askPrice: Number(r.ask_price || 0),
+              askPrice: reportedAcquisitionPrice(r),
               url: r.source_url,
             })),
           );

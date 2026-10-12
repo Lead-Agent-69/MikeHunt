@@ -808,7 +808,7 @@ export function analyzeDeal(
     verdict = "not_enough_data";
     score = 0;
     warnings = [
-      "Purchase price is not reported. Reference values are not bids or buy-now prices; profit and ROI cannot be calculated.",
+      "Full purchase price is unconfirmed. Payment amounts and reference values are not purchase prices; profit and ROI cannot be calculated.",
       ...warnings,
     ];
   }

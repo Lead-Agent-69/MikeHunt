@@ -20,7 +20,9 @@ describe("analyzeDeal reality gate", () => {
     expect(a.profit).toBe(0);
     expect(a.roi).toBe(0);
     expect(a.recommendedMaxBid).toBe(0);
-    expect(a.warnings.join(" ")).toContain("Purchase price is not reported");
+    expect(a.warnings.join(" ")).toContain(
+      "Full purchase price is unconfirmed",
+    );
   });
   it("flags financing/lease bait (fake $999) as implausible → pass", () => {
     const a = analyzeDeal({

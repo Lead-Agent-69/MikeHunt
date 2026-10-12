@@ -1,4 +1,5 @@
 import type { DealGrade } from "./DealGradeBadge";
+import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
 
 export interface AlsoOn {
@@ -21,6 +22,7 @@ export interface DiscoveryDeal {
   condition?: string;
   damageType?: string;
   askPrice: number;
+  priceEvidence?: PriceEvidence;
   sellEstimate?: number;
   /** Honest confidence for the resale estimate (comp-backed vs baseline guess). */
   valueConfidence?: "high" | "good" | "fair" | "estimate";

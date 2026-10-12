@@ -256,7 +256,11 @@ export function categorize(deal: {
   // an opening bid never fakes a "Great Deal", and an overheated lot (bid above max) grades down honestly.
   const isAuction = isAuctionChannel(deal.source);
   const gradeAgainst =
-    isAuction && deal.recommended_max_bid && deal.recommended_max_bid > 0
+    deal.ask_price &&
+    deal.ask_price > 0 &&
+    isAuction &&
+    deal.recommended_max_bid &&
+    deal.recommended_max_bid > 0
       ? Math.max(deal.ask_price || 0, deal.recommended_max_bid)
       : deal.ask_price;
   const g = dealGrade(gradeAgainst, market);

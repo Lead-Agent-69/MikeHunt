@@ -1,4 +1,7 @@
 type PriceRow = {
+  source?: string;
+  title?: string | null;
+  description?: string | null;
   ask_price?: unknown;
   askPrice?: unknown;
   buy_now_price?: unknown;
@@ -8,11 +11,146 @@ type PriceRow = {
 };
 
 export type PriceEvidence = {
-  kind: "current_bid" | "buy_now" | "reference" | "unknown";
+  kind:
+    | "asking"
+    | "down_payment"
+    | "monthly_payment"
+    | "finance_teaser"
+    | "current_bid"
+    | "buy_now"
+    | "reference"
+    | "unknown";
+  askingPrice?: number;
+  listedAmount?: number;
+  evidenceText?: string;
+  checkedAt?: string;
   currentBid?: number;
   buyNow?: number;
   referenceValue?: number;
 };
+
+/** Classify seller-stated price terms, never replace an unknown price with a market estimate. */
+export function disclosedPriceEvidence(
+  text: string,
+  listedAmount?: unknown,
+): PriceEvidence | undefined {
+  const amount = positivePrice(listedAmount);
+  const cash =
+    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/i.exec(
+      text,
+    );
+  if (
+    cash &&
+    !/\b(?:not|isn't|is not|estimated|estimate of)\s*$/i.test(
+      text.slice(Math.max(0, cash.index - 24), cash.index),
+    ) &&
+    positivePrice(cash[1].replace(/,/g, ""))
+  ) {
+    return {
+      kind: "asking",
+      askingPrice: positivePrice(cash[1].replace(/,/g, "")),
+      listedAmount: amount,
+      evidenceText: cash[0].slice(0, 180),
+    };
+  }
+  const disclaimer =
+    /(?:price|amount)\s+(?:listed|shown|advertised)\s+(?:may\s+be|is|represents)\s+(?:a\s+|the\s+)?down[\s-]*payment(?:\s+and\s+not\s+(?:the\s+)?full\s+price)?|not\s+(?:the\s+)?full\s+(?:cash\s+)?(?:purchase\s+)?price/i.exec(
+      text,
+    );
+  if (disclaimer)
+    return {
+      kind: "down_payment",
+      listedAmount: amount,
+      evidenceText: disclaimer[0].slice(0, 180),
+    };
+  const labels =
+    /\b(down[\s-]*payment|monthly\s+payment|deposit)\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
+  let labelled: RegExpExecArray | null;
+  while ((labelled = labels.exec(text))) {
+    if (amount && positivePrice(labelled[2].replace(/,/g, "")) !== amount)
+      continue;
+    return {
+      kind: /monthly/i.test(labelled[1]) ? "monthly_payment" : "down_payment",
+      listedAmount: amount || positivePrice(labelled[2].replace(/,/g, "")),
+      evidenceText: labelled[0].slice(0, 180),
+    };
+  }
+  const moneyTerms =
+    /\$\s*([\d,]+(?:\.\d{2})?)\s*(down\b|(?:per\s*)?month\b|a\s+month\b|\/\s*mo(?:nth)?\b)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = moneyTerms.exec(text))) {
+    const number = positivePrice(match[1].replace(/,/g, ""));
+    if (amount && number !== amount) continue;
+    return {
+      kind: /down/i.test(match[2]) ? "down_payment" : "monthly_payment",
+      listedAmount: amount ?? number,
+      evidenceText: match[0].slice(0, 180),
+    };
+  }
+  if (/\blease\s+(?:takeover|take\s+over|transfer|assumption)\b/i.test(text))
+    return {
+      kind: "finance_teaser",
+      listedAmount: amount,
+      evidenceText: "Lease transfer; total purchase price not established.",
+    };
+  return undefined;
+}
+
+export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
+  const amount = row.ask_price ?? row.askPrice;
+  const disclosed = disclosedPriceEvidence(
+    `${row.title || ""} ${row.description || ""}`,
+    amount,
+  );
+  if (disclosed) return disclosed;
+  const stored = row.options?.priceEvidence;
+  if (
+    stored &&
+    [
+      "asking",
+      "down_payment",
+      "monthly_payment",
+      "finance_teaser",
+      "current_bid",
+      "buy_now",
+      "reference",
+      "unknown",
+    ].includes(stored.kind)
+  ) {
+    return {
+      kind: stored.kind,
+      askingPrice: positivePrice(stored.askingPrice),
+      listedAmount: positivePrice(stored.listedAmount),
+      currentBid: positivePrice(stored.currentBid),
+      buyNow: positivePrice(stored.buyNow),
+      referenceValue: positivePrice(stored.referenceValue),
+      evidenceText:
+        typeof stored.evidenceText === "string"
+          ? stored.evidenceText.slice(0, 180)
+          : undefined,
+      checkedAt:
+        typeof stored.checkedAt === "string" ? stored.checkedAt : undefined,
+    };
+  }
+  // Old dealer rows have not had their pricing disclaimer inspected. Fail closed on cash math.
+  if (row.source === "craigslist_dealer")
+    return {
+      kind: "unknown",
+      listedAmount: positivePrice(amount),
+      evidenceText:
+        "Full cash price has not been checked on the source listing.",
+    };
+  return undefined;
+}
+
+export function nonCashPriceLabel(evidence?: PriceEvidence) {
+  if (evidence?.kind === "down_payment") return "Possible down payment";
+  if (evidence?.kind === "monthly_payment") return "Monthly payment";
+  if (evidence?.kind === "finance_teaser") return "Payment amount";
+  if (evidence?.kind === "unknown" && evidence.listedAmount)
+    return "Unverified advertised amount";
+  return undefined;
+}
 
 export function positivePrice(value: unknown): number | undefined {
   const n =
@@ -24,15 +162,20 @@ export function positivePrice(value: unknown): number | undefined {
 
 /** A pre-loss value is not an acquisition price; retain it only as reference evidence. */
 export function reportedAcquisitionPrice(row: PriceRow): number {
-  const evidence = row.options?.priceEvidence;
+  const evidence = listingPriceEvidence(row);
   if (
     evidence?.kind === "reference" ||
     evidence?.kind === "unknown" ||
+    evidence?.kind === "down_payment" ||
+    evidence?.kind === "monthly_payment" ||
+    evidence?.kind === "finance_teaser" ||
     row.metadata?.price_is_acv_estimate === true
   )
     return 0;
   if (evidence?.kind === "current_bid")
     return positivePrice(evidence.currentBid) || 0;
   if (evidence?.kind === "buy_now") return positivePrice(evidence.buyNow) || 0;
+  if (evidence?.kind === "asking")
+    return positivePrice(evidence.askingPrice) || 0;
   return positivePrice(row.ask_price ?? row.askPrice) || 0;
 }

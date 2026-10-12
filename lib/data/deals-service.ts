@@ -3,7 +3,11 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 import {
   titleCategory,
   titleCategoryOrFilter,
@@ -81,6 +85,7 @@ export type Deal = {
   /** options.titleSource only (other options keys stay server-side). */
   titleSource?: TitleSource | null;
   askPrice: number;
+  priceEvidence?: PriceEvidence;
   buyNowPrice?: number;
   buy_now_price?: number;
   mmrValue?: number;
@@ -204,6 +209,7 @@ export class DealsService {
       titleCategory: titleCategory(row),
       titleSource: titleSourceOf(row),
       askPrice: reportedAcquisitionPrice(row),
+      priceEvidence: listingPriceEvidence(row),
       buyNowPrice: row.buy_now_price ? Number(row.buy_now_price) : undefined,
       mmrValue: row.mmr_value ? Number(row.mmr_value) : undefined,
       profitEstimate:
@@ -267,7 +273,8 @@ export class DealsService {
       ai_retail_estimate: row.ai_retail_estimate
         ? Number(row.ai_retail_estimate)
         : undefined,
-      ai_rationale: row.ai_rationale,
+      ai_rationale:
+        reportedAcquisitionPrice(row) > 0 ? row.ai_rationale : undefined,
       sellEstimate:
         row.sell_estimate != null ? Number(row.sell_estimate) : undefined,
       recommendedMaxBid:
@@ -278,9 +285,12 @@ export class DealsService {
         reportedAcquisitionPrice(row) > 0
           ? row.deal_verdict || undefined
           : "not_enough_data",
-      dealAnalysis: row.deal_analysis || undefined,
+      dealAnalysis:
+        reportedAcquisitionPrice(row) > 0
+          ? row.deal_analysis || undefined
+          : undefined,
       priceDropAmount:
-        row.price_drop_amount != null
+        reportedAcquisitionPrice(row) > 0 && row.price_drop_amount != null
           ? Number(row.price_drop_amount)
           : undefined,
       priceDropDays:

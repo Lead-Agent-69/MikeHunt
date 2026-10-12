@@ -698,19 +698,24 @@ export default function DealPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, store.year, store.make, store.model, serverDeal]);
   const hasEngine = !!serverDeal?.dealVerdict;
+  const acquisitionPriceMissing = !!serverDeal && !(serverDeal.askPrice > 0);
+  const adjustedNetProfit = acquisitionPriceMissing ? 0 : store.netProfit;
   const engineVerdict = (
     hasEngine ? String(serverDeal.dealVerdict).toUpperCase() : store.verdict
   ) as EngineVerdict;
-  const engineNetProfit =
-    hasEngine && serverDeal.true_net_profit != null
+  const engineNetProfit = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal.true_net_profit != null
       ? Number(serverDeal.true_net_profit)
       : store.netProfit;
-  const engineScore =
-    hasEngine && serverDeal.profitScore != null
+  const engineScore = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal.profitScore != null
       ? Number(serverDeal.profitScore)
       : store.profitScore;
-  const engineRoi =
-    hasEngine && serverDeal?.dealAnalysis?.roi != null
+  const engineRoi = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal?.dealAnalysis?.roi != null
       ? Number(serverDeal.dealAnalysis.roi)
       : store.roi;
   // The client store recompute is reframed as a "what-if" adjusted estimate (see ledger).
@@ -819,7 +824,7 @@ export default function DealPage({
       estimatedProfit: Number(
         serverDeal?.true_net_profit ??
           serverDeal?.trueNetProfit ??
-          store.netProfit ??
+          adjustedNetProfit ??
           0,
       ),
       source: serverDeal?.source ?? dealData?.deal?.source ?? "unknown",
@@ -846,7 +851,7 @@ export default function DealPage({
     store.make,
     store.miles,
     store.model,
-    store.netProfit,
+    adjustedNetProfit,
     store.vin,
     store.year,
   ]);
@@ -1053,7 +1058,7 @@ export default function DealPage({
                   serverDeal?.askPrice ||
                   store.askPrice,
                 vin: serverDeal?.vin || store.vin,
-                trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+                trueNetProfit: serverDeal?.true_net_profit ?? adjustedNetProfit,
               }}
               engineVerdict={engineVerdict}
               engineNetProfit={engineNetProfit}
@@ -1069,8 +1074,7 @@ export default function DealPage({
           <PersonalListingLead
             deal={{
               ...serverDeal,
-              askPrice:
-                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price ?? 0,
               sourceUrl: serverDeal?.sourceUrl || serverDeal?.source_url,
             }}
           />
@@ -1437,14 +1441,15 @@ export default function DealPage({
                     </div>
                     {/* The interactive ledger below is a what-if sandbox; show its result only as
                     a secondary "adjusted" figure so it never competes with the engine verdict. */}
-                    {store.netProfit !== engineNetProfit && (
-                      <p className="text-[11px] text-[var(--t4)] mt-1.5">
-                        Your adjusted estimate:{" "}
-                        <span className="font-bold text-[var(--t3)]">
-                          {formatMoney(store.netProfit)}
-                        </span>
-                      </p>
-                    )}
+                    {!acquisitionPriceMissing &&
+                      adjustedNetProfit !== engineNetProfit && (
+                        <p className="text-[11px] text-[var(--t4)] mt-1.5">
+                          Your adjusted estimate:{" "}
+                          <span className="font-bold text-[var(--t3)]">
+                            {formatMoney(adjustedNetProfit)}
+                          </span>
+                        </p>
+                      )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
@@ -1471,13 +1476,13 @@ export default function DealPage({
                         className="text-[var(--t4)]"
                       />
                       Break-even: Day{" "}
-                      {Math.floor(store.netProfit / store.floorRate)} of{" "}
+                      {Math.floor(adjustedNetProfit / store.floorRate)} of{" "}
                       {store.estimatedDaysToSell}-day target
                     </div>
                   )}
                   {/* Geo-Arbitrage */}
                   {store.transportCost < 1000 &&
-                    store.netProfit > 2500 &&
+                    adjustedNetProfit > 2500 &&
                     store.userType === "dealer" && (
                       <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
                         <Ico name="trending-up" size={14} />
@@ -1749,7 +1754,7 @@ export default function DealPage({
         {store.userType === "dealer" && serverDeal && (
           <FloorPlanCalculator
             purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
-            expectedProfit={serverDeal.trueNetProfit ?? store.netProfit ?? 0}
+            expectedProfit={serverDeal.trueNetProfit ?? adjustedNetProfit ?? 0}
           />
         )}
 
@@ -1799,7 +1804,7 @@ export default function DealPage({
                           store.askPrice
                         }
                         predictedProfit={
-                          serverDeal?.trueNetProfit ?? store.netProfit
+                          serverDeal?.trueNetProfit ?? adjustedNetProfit
                         }
                         predictedSell={
                           serverDeal?.sellEstimate ?? store.marketValue
@@ -1915,7 +1920,7 @@ export default function DealPage({
                 estimatedProfit:
                   serverDeal?.trueNetProfit ??
                   serverDeal?.true_net_profit ??
-                  store.netProfit ??
+                  adjustedNetProfit ??
                   undefined,
               }
             : {}),

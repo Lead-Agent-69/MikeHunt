@@ -1,7 +1,85 @@
 import { describe, expect, it } from "vitest";
-import { positivePrice, reportedAcquisitionPrice } from "./acquisition-price";
+import {
+  disclosedPriceEvidence,
+  listingPriceEvidence,
+  positivePrice,
+  reportedAcquisitionPrice,
+} from "./acquisition-price";
 
 describe("reported acquisition price", () => {
+  it("retains the photographed dealer disclaimer without treating $2600 as cash", () => {
+    const description =
+      "*** PRICE LISTED MAY BE DOWN PAYMENT AND NOT FULL PRICE CALL DEALER FOR DETAILS ***";
+    const row = { source: "craigslist_dealer", ask_price: 2600, description };
+    expect(listingPriceEvidence(row)).toMatchObject({
+      kind: "down_payment",
+      listedAmount: 2600,
+    });
+    expect(reportedAcquisitionPrice(row)).toBe(0);
+  });
+  it.each([
+    "Down payment: $2,600",
+    "Monthly payment: $2,600",
+    "Deposit: $2,600",
+    "Not full price: $2,600",
+    "$2,600 down",
+    "$2600/month",
+    "$2600 per month",
+    "$2600 a month",
+  ])("excludes a payment: %s", (description) => {
+    expect(reportedAcquisitionPrice({ ask_price: 2600, description })).toBe(0);
+  });
+  it("does not invalidate a cash price just because financing is offered", () => {
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 2600,
+        description: "Monthly payment: $299. Down payment: $2,600.",
+      }),
+    ).toBe(0);
+    expect(
+      disclosedPriceEvidence(
+        "Financing available. $299/month with approved credit",
+        15995,
+      ),
+    ).toBeUndefined();
+    expect(
+      disclosedPriceEvidence(
+        "Buy here pay here. No down payment required",
+        15995,
+      ),
+    ).toBeUndefined();
+  });
+  it("uses only an explicitly stated full cash price, not a guessed market value", () => {
+    expect(
+      reportedAcquisitionPrice({
+        source: "craigslist_dealer",
+        ask_price: 2600,
+        description: "$2600 down. Cash price: $15,995",
+      }),
+    ).toBe(15995);
+  });
+  it("fails closed for old dealer rows until price terms have been inspected", () => {
+    expect(
+      reportedAcquisitionPrice({
+        source: "craigslist_dealer",
+        ask_price: 2600,
+      }),
+    ).toBe(0);
+    expect(
+      reportedAcquisitionPrice({
+        source: "craigslist_dealer",
+        ask_price: 2600,
+        options: { priceEvidence: { kind: "asking", askingPrice: 15995 } },
+      }),
+    ).toBe(15995);
+  });
+  it("does not leak arbitrary stored evidence fields", () => {
+    expect(
+      listingPriceEvidence({
+        options: { priceEvidence: { kind: "unknown", secret: "private" } },
+      }),
+    ).not.toHaveProperty("secret");
+  });
   it.each([undefined, null, NaN, Infinity, -10, 0, "not a price"])(
     "rejects invalid price %s",
     (value) => {
