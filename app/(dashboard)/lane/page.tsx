@@ -10,6 +10,7 @@ import { scanVINFromCamera } from "@/lib/api/vin";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 async function fetchLaneDeals(vins: string[] | null): Promise<any[] | null> {
   const qs =
@@ -200,6 +201,9 @@ export default function LaneModePage() {
     setScanLoading(false);
   }
 
+  const scanPanelRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(isScanning, stopScan, scanPanelRef);
+
   // Format currency
   const fmt = (val: number) =>
     new Intl.NumberFormat("en-US", {
@@ -247,11 +251,13 @@ export default function LaneModePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search Make, Model, VIN..."
+                aria-label="Search lane vehicles by make, model or VIN"
                 className="w-full bg-[var(--s0)] border border-[var(--b2)] rounded-[var(--r2)] pl-9 pr-3 py-1.5 text-xs text-[var(--t1)] outline-none focus:border-[var(--amber)]"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--t4)] hover:text-[var(--t2)]"
                 >
                   <Ico name="x" size={14} />
@@ -260,7 +266,7 @@ export default function LaneModePage() {
             </div>
             <button
               onClick={startScan}
-              className="p-2 rounded-[var(--r2)] text-white hover:scale-105 active:scale-95 transition-transform flex items-center justify-center shrink-0"
+              className="p-2 rounded-[var(--r2)] text-[var(--on-accent)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center shrink-0"
               style={{ background: "var(--amber)" }}
               title="Scan VIN Barcode"
             >
@@ -533,16 +539,26 @@ export default function LaneModePage() {
       {/* Camera Scan Overlay Modal */}
       {isScanning && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[var(--s1)] rounded-[var(--r3)] border border-[var(--b2)] overflow-hidden shadow-2xl relative">
+          <div
+            ref={scanPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lane-scan-title"
+            className="w-full max-w-md bg-[var(--s1)] rounded-[var(--r3)] border border-[var(--b2)] overflow-hidden shadow-2xl relative"
+          >
             <button
               onClick={stopScan}
+              aria-label="Close VIN scanner"
               className="absolute right-4 top-4 p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors z-10"
             >
               <Ico name="x" size={20} />
             </button>
 
             <div className="p-6">
-              <h3 className="text-lg font-black text-white mb-2 flex items-center gap-2">
+              <h3
+                id="lane-scan-title"
+                className="text-lg font-black text-white mb-2 flex items-center gap-2"
+              >
                 <Ico name="camera" className="text-[var(--amber)]" />
                 Scan VIN Barcode
               </h3>

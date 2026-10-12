@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mono } from "../shared/Mono";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 interface LaneModeHUDProps {
   isOpen: boolean;
@@ -13,6 +14,8 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
   const [vin, setVin] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [message, setMessage] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(isOpen, onClose, panelRef);
 
   // Focus input automatically when opened
   useEffect(() => {
@@ -58,6 +61,10 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Lane Mode VIN lookup"
           className="fixed inset-0 z-[100] flex flex-col bg-black text-white overflow-hidden"
           initial={{ opacity: 0, scaleY: 0.01 }}
           animate={{ opacity: 1, scaleY: 1 }}
@@ -77,6 +84,7 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
             </div>
             <button
               onClick={onClose}
+              aria-label="Close Lane Mode"
               className="p-2 rounded-full bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-colors"
             >
               <svg
@@ -87,6 +95,7 @@ export function LaneModeHUD({ isOpen, onClose }: LaneModeHUDProps) {
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
+                aria-hidden="true"
               >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />

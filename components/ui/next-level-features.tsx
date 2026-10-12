@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useId, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LiquidGlassButton } from "@/components/ui/framer-components";
 import { ArrowRight, Bot, Calculator, Send, X } from "lucide-react";
+import { useDialogA11y } from "@/hooks/useDialogA11y";
 
 type LiveCoverage = {
   liveRows?: number;
@@ -69,6 +70,9 @@ export function MikeHuntCopilotDrawer() {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerTitleId = useId();
+  useDialogA11y(isOpen, () => setIsOpen(false), drawerRef);
 
   useEffect(() => {
     const openCopilot = () => setIsOpen(true);
@@ -265,10 +269,15 @@ export function MikeHuntCopilotDrawer() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
+              aria-hidden="true"
               className="absolute inset-0 bg-black/60 backdrop-blur-md"
             />
 
             <motion.div
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby={drawerTitleId}
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -285,7 +294,10 @@ export function MikeHuntCopilotDrawer() {
                     <Bot className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-[var(--t1)]">
+                    <h3
+                      id={drawerTitleId}
+                      className="text-base font-black text-[var(--t1)]"
+                    >
                       Decision guide
                     </h3>
                     <p className="text-xs text-[var(--t4)]">{headerStatus}</p>
@@ -325,7 +337,7 @@ export function MikeHuntCopilotDrawer() {
                             <span className="text-xs font-bold text-[var(--amber-d)] font-mono">
                               IQ {m.dealSuggestion.score}
                             </span>
-                            <span className="text-xs font-black text-[#00ff66]">
+                            <span className="text-xs font-black text-[var(--green)]">
                               {m.dealSuggestion.profit}
                             </span>
                           </div>
@@ -380,6 +392,7 @@ export function MikeHuntCopilotDrawer() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
+                    aria-label="Ask the decision guide"
                     placeholder="Ask about a market, title, or next step..."
                     className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
                   />
@@ -428,6 +441,9 @@ export function ProfitSimulatorDrawer({
   const netProfit = targetRetail - totalCost;
   const roi = ((netProfit / totalCost) * 100).toFixed(1);
   const marginPct = ((netProfit / targetRetail) * 100).toFixed(1);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogA11y(isOpen, onClose, panelRef);
 
   if (!isOpen) return null;
 
@@ -438,10 +454,15 @@ export function ProfitSimulatorDrawer({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
+        aria-hidden="true"
         className="absolute inset-0 bg-black/70 backdrop-blur-md"
       />
 
       <motion.div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -453,7 +474,7 @@ export function ProfitSimulatorDrawer({
               <Calculator className="h-[18px] w-[18px]" aria-hidden="true" />
             </span>
             <div>
-              <h3 className="text-xl font-black text-[var(--t1)]">
+              <h3 id={titleId} className="text-xl font-black text-[var(--t1)]">
                 Profit Simulator Lab
               </h3>
               <p className="text-xs text-[var(--t4)]">
@@ -463,6 +484,7 @@ export function ProfitSimulatorDrawer({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close profit simulator"
             className="w-8 h-8 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)]"
           >
             <X className="h-4 w-4" aria-hidden="true" />
@@ -485,7 +507,7 @@ export function ProfitSimulatorDrawer({
             </span>
             <div
               className={`text-4xl font-black font-mono mt-1 ${
-                netProfit >= 0 ? "text-[#00ff66]" : "text-red-400"
+                netProfit >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"
               }`}
             >
               {netProfit >= 0
@@ -521,6 +543,7 @@ export function ProfitSimulatorDrawer({
               step={500}
               value={purchasePrice}
               onChange={(e) => setPurchasePrice(Number(e.target.value))}
+              aria-label="Auction or buy price"
               className="w-full accent-[var(--amber)]"
             />
           </div>
@@ -539,6 +562,7 @@ export function ProfitSimulatorDrawer({
               step={500}
               value={targetRetail}
               onChange={(e) => setTargetRetail(Number(e.target.value))}
+              aria-label="Target retail price"
               className="w-full accent-[var(--purple)]"
             />
           </div>
@@ -552,6 +576,7 @@ export function ProfitSimulatorDrawer({
                 type="number"
                 value={buyerFee}
                 onChange={(e) => setBuyerFee(Number(e.target.value))}
+                aria-label="Buyer or auction fee in dollars"
                 className="w-full p-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-sm font-mono text-[var(--t1)]"
               />
             </div>
@@ -564,6 +589,7 @@ export function ProfitSimulatorDrawer({
                 type="number"
                 value={transportCost}
                 onChange={(e) => setTransportCost(Number(e.target.value))}
+                aria-label="Transport or shipping in dollars"
                 className="w-full p-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-sm font-mono text-[var(--t1)]"
               />
             </div>
@@ -576,6 +602,7 @@ export function ProfitSimulatorDrawer({
                 type="number"
                 value={reconBudget}
                 onChange={(e) => setReconBudget(Number(e.target.value))}
+                aria-label="Recon or repair budget in dollars"
                 className="w-full p-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-sm font-mono text-[var(--t1)]"
               />
             </div>
@@ -588,6 +615,7 @@ export function ProfitSimulatorDrawer({
                 type="number"
                 value={holdDays}
                 onChange={(e) => setHoldDays(Number(e.target.value))}
+                aria-label="Estimated hold time in days"
                 className="w-full p-2.5 rounded-xl border border-[var(--b2)] bg-[var(--s1)] text-sm font-mono text-[var(--t1)]"
               />
             </div>

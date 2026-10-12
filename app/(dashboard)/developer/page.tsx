@@ -65,7 +65,7 @@ export default function DeveloperPage() {
           <button
             onClick={create}
             disabled={creating}
-            className="px-4 py-2 rounded-[var(--r3)] font-bold text-sm text-white disabled:opacity-50"
+            className="px-4 py-2 rounded-[var(--r3)] font-bold text-sm text-[var(--on-accent)] disabled:opacity-50"
             style={{ background: "var(--amber)" }}
           >
             {creating ? "Creating…" : "Create key"}

@@ -161,6 +161,7 @@ export default function DealerNetworkPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search dealer, site, state…"
+          aria-label="Search dealers by name, site or state"
           className="flex-1 min-w-[180px] px-3 py-2 rounded-xl bg-[var(--s0)] border border-[var(--b1)] text-sm outline-none focus:border-[var(--b3)]"
         />
         <select
@@ -169,6 +170,7 @@ export default function DealerNetworkPage() {
             setStateTouched(true);
             setState(e.target.value);
           }}
+          aria-label="Filter dealers by state"
           className="px-3 py-2 rounded-xl bg-[var(--s0)] border border-[var(--b1)] text-sm outline-none"
         >
           <option value="">All states</option>

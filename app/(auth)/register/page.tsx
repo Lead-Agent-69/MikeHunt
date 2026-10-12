@@ -218,14 +218,14 @@ export default function RegisterPage() {
                 By creating an account, you agree to our{" "}
                 <Link
                   href="/tos"
-                  className="text-[var(--amber-d)] hover:underline"
+                  className="text-[var(--amber-d)] underline underline-offset-2"
                 >
                   Terms of Service
                 </Link>{" "}
                 and{" "}
                 <Link
                   href="/privacy"
-                  className="text-[var(--amber-d)] hover:underline"
+                  className="text-[var(--amber-d)] underline underline-offset-2"
                 >
                   Privacy Policy
                 </Link>

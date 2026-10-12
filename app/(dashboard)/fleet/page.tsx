@@ -423,13 +423,18 @@ function ExpenseModal({
         </div>
 
         <div className="space-y-1.5">
-          <label
+          <p
+            id="expense-category-label"
             className="block text-xs font-medium"
             style={{ color: "var(--t2)" }}
           >
             Category
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
+          </p>
+          <div
+            role="group"
+            aria-labelledby="expense-category-label"
+            className="grid grid-cols-3 gap-1.5"
+          >
             {EXPENSE_CATS.map((c) => (
               <button
                 key={c.value}

@@ -107,7 +107,7 @@ export function MarketPicker({
         value={val}
         disabled={saving}
         onChange={(e) => choose(e.target.value)}
-        className="rounded-xl border border-[var(--b2)] bg-[var(--s0)] text-[var(--t1)] text-sm font-semibold px-3 py-2.5 min-w-[160px] focus:outline-none"
+        className="rounded-xl border border-[var(--b2)] bg-[var(--s0)] text-[var(--t1)] text-sm font-semibold px-3 py-2.5 min-w-[160px]"
         aria-label="Choose your state"
       >
         <option value="">{saving ? "Saving…" : "Choose your state…"}</option>

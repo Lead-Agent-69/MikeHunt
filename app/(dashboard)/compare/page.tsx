@@ -195,7 +195,7 @@ function CompareContent() {
               </button>
               <button
                 onClick={compare}
-                className="px-5 py-2 rounded-[var(--r3)] font-bold text-sm text-white"
+                className="px-5 py-2 rounded-[var(--r3)] font-bold text-sm text-[var(--on-accent)]"
                 style={{ background: "var(--amber)" }}
               >
                 Compare

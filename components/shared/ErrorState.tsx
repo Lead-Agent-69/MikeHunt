@@ -27,6 +27,7 @@ export function ErrorState({
 }: ErrorStateProps) {
   return (
     <div
+      role="alert"
       className={`flex flex-col items-center gap-4 ${compact ? "py-8" : "py-14"} px-6 rounded-[var(--r4)] text-center`}
       style={{ background: "var(--rlo)", animation: "fadeUp 200ms ease-out" }}
     >
@@ -77,6 +78,7 @@ export function ErrorBanner({
 }) {
   return (
     <div
+      role="alert"
       className="flex items-center gap-3 px-4 py-3 rounded-[var(--r2)] text-sm"
       style={{ background: "var(--rlo)", color: "var(--red)" }}
     >
@@ -87,6 +89,7 @@ export function ErrorBanner({
       {onDismiss && (
         <button
           onClick={onDismiss}
+          aria-label="Dismiss message"
           className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
         >
           <Ico name="close" size={14} />

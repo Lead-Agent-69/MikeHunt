@@ -108,8 +108,9 @@
   --t1: #0b1220;
   --t2: #172033;
   --t3: #3f4b5f;
-  --t4: #667085;
-  --t5: #98a2b3;
+  /* t4/t5 tuned to WCAG AA (>=4.5:1) on --s0, --s1 and --s2. */
+  --t4: #535e72;
+  --t5: #5f6b7f;
 
   --b1: rgba(15, 23, 42, 0.1);
   --b2: rgba(15, 23, 42, 0.16);
@@ -136,6 +137,10 @@
   --bbd: rgba(7, 91, 232, 0.25);
   --accent: #075be8;
   --accent-surface: #edf3ff;
+  /* Text on solid --accent/--amber/--t1/--t3 fills (white here, ink in dark). */
+  --on-accent: #ffffff;
+  /* Text-safe purple for labels on --s0/--s1 (>=4.5:1). */
+  --purple-fg: #4f46e5;
   --orange: #b45309;
   --olo: rgba(180, 83, 9, 0.1);
   --purple: #4f46e5;
@@ -206,6 +211,8 @@
   --bbd: rgba(59, 130, 246, 0.5);
   --accent: #8eb6ff;
   --accent-surface: #21354d;
+  --on-accent: #0b1220;
+  --purple-fg: #a5a0ff;
   --olo: rgba(249, 115, 22, 0.2);
   --plo: rgba(139, 92, 246, 0.2);
 
@@ -280,8 +287,10 @@ html {
   border-radius: 99px;
 }
 
+/* Solid ring so keyboard focus clears WCAG 1.4.11 (3:1) on light and dark
+   surfaces; the translucent ring it replaces measured under 3:1 on white. */
 *:focus-visible {
-  outline: 2px solid rgba(7, 91, 232, 0.58);
+  outline: 2px solid var(--amber-d, #075be8);
   outline-offset: 2px;
 }
 
@@ -536,7 +545,7 @@ html {
 }
 
 .premium-focus:focus-visible {
-  outline: 2px solid rgba(7, 91, 232, 0.58);
+  outline: 2px solid var(--amber-d, #075be8);
   outline-offset: 3px;
   box-shadow: 0 0 0 5px rgba(7, 91, 232, 0.1);
 }

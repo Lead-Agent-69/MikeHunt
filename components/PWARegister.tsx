@@ -84,7 +84,7 @@ export function PWARegister() {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="rounded-[var(--r1)] bg-[var(--accent)] px-3 py-1.5 text-xs font-black text-white"
+        className="rounded-[var(--r1)] bg-[var(--accent)] px-3 py-1.5 text-xs font-black text-[var(--on-accent)]"
       >
         Refresh
       </button>
