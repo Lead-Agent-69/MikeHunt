@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { createWriteStream } from "node:fs";
+import { RotatingLog } from "../lib/scrapers/rotating-log";
 import { format } from "node:util";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
@@ -151,7 +151,7 @@ let quotaPaused = false;
 let shuttingDown = false;
 let currentStatus!: Status;
 let cache!: LocalScraperCache;
-let logStream!: ReturnType<typeof createWriteStream>;
+let logStream!: RotatingLog;
 const startedAt = new Date().toISOString();
 const statusDir = path.dirname(STATUS_PATH);
 
@@ -286,7 +286,7 @@ const server = createServer(async (request, response) => {
 async function initializeRuntime(): Promise<void> {
   await mkdir(statusDir, { recursive: true });
   await mkdir(path.dirname(LOG_PATH), { recursive: true });
-  logStream = createWriteStream(LOG_PATH, { flags: "a" });
+  logStream = new RotatingLog(LOG_PATH);
   for (const level of ["log", "warn", "error"] as const) {
     const original = console[level].bind(console);
     console[level] = (...args: unknown[]) => {
@@ -932,5 +932,5 @@ void initializeRuntime()
       await writeStatus().catch(() => {});
     }
     server.close();
-    logStream?.end();
+    await logStream?.end();
   });

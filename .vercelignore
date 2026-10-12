@@ -1,0 +1,15 @@
+cache/
+.cache/
+logs/
+profiles/
+artifacts/
+.codex-remote-attachments/
+test-results/
+playwright-report/
+e2e/.auth/
+.env
+.env.*
+!.env.example
+.agents/
+.codex/
+.git/
