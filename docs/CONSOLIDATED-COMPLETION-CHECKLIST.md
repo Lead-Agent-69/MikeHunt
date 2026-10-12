@@ -77,7 +77,16 @@ The older snapshot bullets below remain point-in-time evidence.
 - Scope: no schema, hosted SQL, scraper activation, paid service or retention
   change. Full account saved-search filter persistence and real alert delivery
   remain separate acceptance items; Scan's complete-filter save is device-local.
-- Release and browser receipts must be recorded before declaring this accepted.
+- Acceptance: full local verify passed 534 files / 3,297 tests and the production
+  build; 60 signed-in desktop/mobile browser checks passed across personal,
+  parts, reseller and dealer accounts. Saved labels survive deleting device
+  backups and reload. Width checks at 320/390/768/1440 had zero horizontal
+  overflow; screenshots remain local in artifacts/qa-account-saved-2026-10-11.
+- Limits: the existing checklist endpoint returns at most 500 saved records;
+  pagination/exact membership for larger accounts remains follow-up work. The
+  local source-photo fixture did not render its external image, so this receipt
+  does not certify photo loading, additional-photo ingestion or live galleries.
+- Main/production release receipts must be recorded after CI and deployment.
 
 ### Search-Reach And Workflow Review (Current Implementation)
 
