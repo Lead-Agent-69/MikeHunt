@@ -404,7 +404,7 @@ export default function SearchesPage() {
                   <option value="all">All lanes</option>
                   <option value="damaged">Salvage & repairable</option>
                   <option value="auction">Wholesale auctions</option>
-                  <option value="government">Government / repo</option>
+                  <option value="government">Government auctions</option>
                   <option value="clean-retail">Clean retail</option>
                   <option value="private">Private listings</option>
                 </select>

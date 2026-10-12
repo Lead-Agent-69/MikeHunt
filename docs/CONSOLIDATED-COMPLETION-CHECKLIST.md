@@ -70,6 +70,9 @@ The older snapshot bullets below remain point-in-time evidence.
   Save alert. They retain all current parameters; storage errors are actionable,
   identities are unique, and the 40-search limit no longer silently evicts older
   searches. Device bookmarks no longer have misleading Pause/Resume controls.
+- Browser QA also found Save/Copy hidden inside collapsed filters. Both now sit
+  in the visible scope-summary row, including when indexed matches are empty.
+  The Government option is labelled Government auctions, matching its scope.
 - New account searches do not automatically opt into email. Delivery remains
   requested, not certified; no credentials/provider or SMS activation is included.
 - No schema or hosted SQL change. Complete Scan filters cannot yet synchronize

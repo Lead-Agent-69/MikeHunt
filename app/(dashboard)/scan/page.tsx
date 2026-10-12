@@ -4583,8 +4583,41 @@ function ScanPageInner() {
         hasData={swrData !== undefined}
       />
 
-      <div className="text-xs leading-relaxed text-[var(--t3)]">
-        {searchSummary}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="min-w-0 flex-1 text-xs leading-relaxed text-[var(--t3)]">
+          {searchSummary}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={saveCurrentScanAsSearch}
+            className="flex min-h-11 items-center gap-1.5 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs font-bold text-[var(--t2)]"
+            title="Save this search on this device; no automatic alerts"
+          >
+            <Bookmark size={12} />
+            Save search
+          </button>
+          <button
+            type="button"
+            aria-label="Copy search link"
+            title="Copy search link"
+            onClick={async () => {
+              try {
+                const params = new URLSearchParams(swrKey.split("?")[1]);
+                params.set("reset", "1");
+                await navigator.clipboard.writeText(
+                  `${window.location.origin}/scan?${params.toString()}`,
+                );
+                addToast("Search link copied", "success");
+              } catch {
+                addToast("Could not copy the search link", "error");
+              }
+            }}
+            className="grid h-11 w-11 place-items-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)]"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {isAdmin && isFreshImportReview && (
@@ -4810,40 +4843,6 @@ function ScanPageInner() {
               Profit Simulator
             </button>
           )}
-          <button
-            type="button"
-            onClick={saveCurrentScanAsSearch}
-            className="flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
-            style={{
-              background: "var(--s0)",
-              color: "var(--t2)",
-              borderColor: "var(--b2)",
-            }}
-            title="Save this search on this device; no automatic alerts"
-          >
-            <Bookmark size={12} />
-            Save search
-          </button>
-          <button
-            type="button"
-            aria-label="Copy search link"
-            title="Copy search link"
-            onClick={async () => {
-              try {
-                const params = new URLSearchParams(swrKey.split("?")[1]);
-                params.set("reset", "1");
-                await navigator.clipboard.writeText(
-                  `${window.location.origin}/scan?${params.toString()}`,
-                );
-                addToast("Search link copied", "success");
-              } catch {
-                addToast("Could not copy the search link", "error");
-              }
-            }}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)]"
-          >
-            <Copy className="h-4 w-4" aria-hidden="true" />
-          </button>
 
           {/* Results count + density */}
           {!loading && (
