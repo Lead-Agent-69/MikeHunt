@@ -3,6 +3,11 @@
 Updated October 11, 2026. This is the current cars execution ledger, not a claim
 of production acceptance. Preserve earlier release handoffs as historical evidence.
 
+Use [Consolidated completion checklist](CONSOLIDATED-COMPLETION-CHECKLIST.md)
+for the latest merged baseline, agent dependencies and acceptance gates. Supabase
+and Vercel CLI access now works; the connector-only denial below is historical.
+The local collector rollout reported in #367 is not a remote Zeus receipt.
+
 Release update: #362 merged to main as 8821da9 and Vercel production deployment
 7002082978 succeeded. The local/not-live references below describe earlier passes,
 not current deployment state. Signed-in visual acceptance remains unverified.
