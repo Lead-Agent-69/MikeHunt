@@ -473,7 +473,7 @@ type SourceHealthRow = {
   lastError?: string | null;
   totalRuns?: number;
   failedRuns?: number;
-  successRate?: number;
+  successRate?: number | null;
   estimatedDealsPerRun?: number;
   readiness?: string;
   activeRows?: number;

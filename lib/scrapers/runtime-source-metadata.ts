@@ -4,6 +4,8 @@ import {
 } from "@/lib/scrapers/source-index";
 
 const DISABLED = new Set([
+  "independent_dealer",
+  "cargurus",
   "iaa",
   "acv",
   "adesa",

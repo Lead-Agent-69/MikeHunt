@@ -10,6 +10,8 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
 import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
+import { sourceProofReadiness } from "@/lib/scrapers/source-proof-readiness";
+import { dbSourceValues as inventoryDbSourceValues } from "@/lib/search/inventory-filters";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
@@ -125,28 +127,10 @@ function normalizeDealerSourceIds(value: string | null) {
     .slice(0, 25);
 }
 
-function dbSourceValues(sourceId: string) {
+export function dbSourceValues(sourceId: string) {
   const id = sourceId.toLowerCase();
-  const mapped: Record<string, string[]> = {
-    publicsurplus: ["gov_auction"],
-    govdeals: ["gov_auction"],
-    allsurplus: ["gov_auction"],
-    municibid: ["gov_auction"],
-    gsa_auctions: ["gov_auction"],
-    curated_dealers: ["independent_dealer"],
-    "ae-of-miami": ["independent_dealer"],
-    "damage-com": ["independent_dealer"],
-    "dg-auto": ["independent_dealer"],
-    recar: ["independent_dealer"],
-    "stjames-auto": ["independent_dealer"],
-    "cas-miami": ["independent_dealer"],
-    salvagezone: ["independent_dealer"],
-    "rebuilt-auto": ["independent_dealer"],
-    "alpine-auto": ["independent_dealer"],
-    "replica-auto": ["independent_dealer"],
-    carparts_com: ["independent_dealer"],
-  };
-  return mapped[id] || [id];
+  if (id === "craigslist") return ["craigslist", "craigslist_dealer"];
+  return inventoryDbSourceValues(id);
 }
 
 function uniqueDbSources(sourceIds: string[]) {
@@ -159,8 +143,10 @@ function dealerSourceUrlNeedles(sourceId: string) {
   return DEALER_SOURCE_DOMAINS[sourceId.toLowerCase()] || [];
 }
 
-function healthSourceIdForDeal(row: any, sourceIds: string[]) {
+export function healthSourceIdForDeal(row: any, sourceIds: string[]) {
   const source = String(row.source || "");
+  if (source === "craigslist_dealer" && sourceIds.includes("craigslist"))
+    return "craigslist";
   const url = String(row.source_url || "").toLowerCase();
   if (source === "gov_auction") {
     const govSource = sourceFromUrl(url);
@@ -594,7 +580,7 @@ function explainSource(
         ? "This site's terms ban automated access, so MikeHunt does not import from it. Rows already on file are older imports and are not refreshed."
         : "This site's terms ban automated access, so MikeHunt does not import from it.",
       nextAction:
-        "Stays off unless the operator opts in through SCRAPE_SOURCES. Prefer a licensed feed or written permission.",
+        "Use a permitted official feed or obtain written source permission before enabling automated collection.",
     };
   }
   if (readiness === "ready") {
@@ -609,16 +595,16 @@ function explainSource(
   }
   if (readiness === "no_rows") {
     return {
-      userStatus: "No matching rows",
-      proofLevel: "ran_empty",
+      userStatus: "No matching inventory",
+      proofLevel: "no_stored_matches",
       userImpact:
-        "The source responded, but there are no active rows to show for the current proof window.",
+        "No matching inventory is currently stored for this search. Refresh to check for new listings.",
       nextAction: broadenScopeAction(scope),
     };
   }
   if (readiness === "needs_login") {
     return {
-      userStatus: "Needs login",
+      userStatus: "Sign-in required",
       proofLevel: "gated",
       userImpact:
         "Users should not expect inventory until this source has account, license, or session access.",
@@ -629,13 +615,12 @@ function explainSource(
   }
   if (readiness === "blocked") {
     return {
-      userStatus: "Blocked",
+      userStatus: "Unavailable",
       proofLevel: "failed",
       userImpact:
         "The app cannot trust this source until the latest failure is resolved.",
-      nextAction: source.stealthRequired
-        ? "Check browser/proxy/anti-bot handling, then rerun this source."
-        : "Inspect the latest scraper error, fix the parser or endpoint, then rerun.",
+      nextAction:
+        "Check the source connection and required access, or use its official site. Retry only through a permitted connection.",
     };
   }
   if (readiness === "disabled") {
@@ -659,7 +644,7 @@ function explainSource(
     };
   }
   return {
-    userStatus: "Needs run",
+    userStatus: "Needs refresh",
     proofLevel: "runner_ready",
     userImpact:
       "This source is available to the runner but has not produced current proof yet.",
@@ -1224,7 +1209,7 @@ export async function GET(request: NextRequest) {
             : null,
           totalRuns: 0,
           failedRuns: proof?.readiness === "blocked" ? 1 : 0,
-          successRate: proof?.readiness === "blocked" ? 0 : 100,
+          successRate: null,
           estimatedDealsPerRun: source.estimatedDealsPerRun,
           readiness: termsOffForSource(source.id)
             ? "disabled"
@@ -1417,10 +1402,16 @@ export async function GET(request: NextRequest) {
       const lastRun = runs[0];
       const totalRuns = runs.length;
       const failedRuns = runs.filter((r) => r.status === "error").length;
-      const successRate =
-        totalRuns > 0
-          ? Math.round(((totalRuns - failedRuns) / totalRuns) * 100)
-          : 100;
+      const successRate = runs.some((run) =>
+        ["success", "error"].includes(run.status),
+      )
+        ? Math.round(
+            (runs.filter((run) => run.status === "success").length /
+              runs.filter((run) => ["success", "error"].includes(run.status))
+                .length) *
+              100,
+          )
+        : null;
       const lastRunTime =
         lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt;
       const lastRunAt = lastRunTime
@@ -1430,23 +1421,16 @@ export async function GET(request: NextRequest) {
         ? Math.round((Date.now() - new Date(lastRunAt).getTime()) / 1000 / 60)
         : null;
       const termsOff = termsOffForSource(source.id);
-      const readiness = termsOff
-        ? "disabled"
-        : !source.enabled
-          ? source.requiresAuth
-            ? "needs_login"
-            : "disabled"
-          : !lastRun && !proof?.activeRows
-            ? source.requiresAuth
-              ? "needs_login"
-              : source.catalogUrl
-                ? "no_rows"
-                : "needs_run"
-            : lastRun?.status === "error"
-              ? "blocked"
-              : proof?.activeRows || attributedRows
-                ? "ready"
-                : "no_rows";
+      const readiness = sourceProofReadiness({
+        enabled: source.enabled,
+        requiresAuth: source.requiresAuth,
+        termsOff,
+        sharedImporter: Boolean(source.catalogUrl),
+        activeRows: proof?.activeRows,
+        lastSeenAt: proof?.lastSeenAt,
+        lastRunStatus: lastRun?.status,
+        lastRunAt,
+      });
 
       const row = {
         id: source.id,
