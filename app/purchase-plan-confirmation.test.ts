@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   retryAccount: vi.fn(),
   owner: "owner" as string | null,
   accountError: null as string | null,
+  refreshError: null as Error | null,
+  loadMore: vi.fn(),
 }));
 vi.mock("@/hooks/useDealerId", () => ({
   useDealerId: () => ({
@@ -27,6 +29,9 @@ vi.mock("@/hooks/useSavedCollection", () => ({
       },
     ],
     mutate: mocks.mutate,
+    hasMore: false,
+    loadMoreError: mocks.refreshError,
+    loadMore: mocks.loadMore,
   }),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
@@ -40,6 +45,8 @@ beforeEach(async () => {
   mocks.retryAccount.mockClear();
   mocks.owner = "owner";
   mocks.accountError = null;
+  mocks.refreshError = null;
+  mocks.loadMore.mockClear();
   request = vi.fn();
   vi.stubGlobal("fetch", request);
   host = document.createElement("div");
@@ -56,6 +63,16 @@ async function completeTask() {
   );
 }
 describe("purchase planning", () => {
+  it("offers refresh recovery even with no more pages to load", async () => {
+    mocks.refreshError = new Error("Refresh failed");
+    await act(async () => root.render(React.createElement(PurchasePipeline)));
+    const retry = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent === "Retry saved vehicles")!;
+    expect(retry).toBeTruthy();
+    await act(async () => retry.click());
+    expect(mocks.loadMore).toHaveBeenCalledOnce();
+  });
   it("retries account lookup when the account check failed", async () => {
     mocks.owner = null;
     mocks.accountError = "Account check unavailable";

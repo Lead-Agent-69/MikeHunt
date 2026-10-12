@@ -39,13 +39,13 @@ export function useSavedCollection<Row extends { id: string } = any>(
     Boolean(!result.error && result.data && result.size > result.data.length);
   return {
     data,
-    error: data === undefined ? result.error : undefined,
-    loadMoreError: data === undefined ? undefined : result.error,
+    error: data?.length ? undefined : result.error,
+    loadMoreError: data?.length ? result.error : undefined,
     isLoading: Boolean(ownerId && result.isLoading),
     hasMore,
     loadingMore,
     loadMore: () =>
-      !loadingMore && hasMore
+      !loadingMore && (hasMore || result.error)
         ? result.error
           ? result.mutate()
           : result.setSize(result.size + 1)

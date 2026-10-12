@@ -28,6 +28,7 @@ import {
   Phone,
   Mail,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import {
@@ -153,7 +154,7 @@ export default function SavedCarsPage() {
           userId: dealerId,
           fetchLoading: isLoading,
           hasData: saves !== undefined,
-          error,
+          error: error || loadMoreError,
         });
   const cloudSyncReady = supabaseStatus === "ready";
   const loading = supabaseStatus === "checking";
@@ -722,22 +723,26 @@ export default function SavedCarsPage() {
               )}
               {loadMoreError && (
                 <p role="alert" className="text-sm text-[var(--red)]">
-                  Older saves could not be loaded. Your loaded vehicles remain
-                  available.
+                  Saved vehicles could not be refreshed. Your loaded vehicles
+                  remain available.
                 </p>
               )}
-              {hasMore && (
+              {(hasMore || loadMoreError) && (
                 <Button
                   onClick={() => loadMore()}
                   disabled={loadingMore}
                   className="min-h-11"
                   variant="outline"
                 >
-                  <ChevronDown className="mr-2 h-4 w-4" />
+                  {loadMoreError ? (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                  )}
                   {loadingMore
                     ? "Loading..."
                     : loadMoreError
-                      ? "Retry loading more"
+                      ? "Retry saved vehicles"
                       : "Load more saved vehicles"}
                 </Button>
               )}

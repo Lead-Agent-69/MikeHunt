@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RefreshCw } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { toast } from "sonner";
@@ -339,22 +339,26 @@ export function PurchasePipeline() {
       )}
       {loadMoreError && (
         <p role="alert" className="text-sm text-[var(--red)]">
-          Older saves could not be loaded. Your loaded checklist remains
+          Saved vehicles could not be refreshed. Your loaded checklist remains
           available.
         </p>
       )}
-      {hasMore && (
+      {(hasMore || loadMoreError) && (
         <button
           type="button"
           onClick={() => loadMore()}
           disabled={loadingMore}
           className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--blue)]"
         >
-          <ChevronDown className="h-4 w-4" />
+          {loadMoreError ? (
+            <RefreshCw className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
           {loadingMore
             ? "Loading..."
             : loadMoreError
-              ? "Retry loading more"
+              ? "Retry saved vehicles"
               : "Load more saved vehicles"}
         </button>
       )}

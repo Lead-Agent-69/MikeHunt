@@ -62,6 +62,13 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ### Exact Saved Membership (October 12 Follow-Up)
 
+- Release follow-through found and reproduced two refresh-recovery gaps: cached
+  empty results hid a failed refresh, and complete collections had no retry after
+  refresh failure. Those now surface a real error or retain loaded records with
+  a working retry regardless of whether older pages remain. Connection copy no
+  longer claims ready while a collection refresh is failing. New regressions
+  preserve both empty and nonempty recovery expectations.
+
 - Follow-up implementation adds owned 50-row cursor pages for Saved and the
   personal/parts Purchase plan. Date plus ID provides stable tie-breaking; legacy
   null dates have an explicit continuation. Read-time desk redaction is retained.

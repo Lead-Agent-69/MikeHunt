@@ -9,6 +9,89 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
     localOnly();
     // PWA network fetches must not bypass the controlled outage fixtures.
     test.use({ storageState: storagePath(desk), serviceWorkers: "block" });
+    if (desk === "personal") {
+      for (const cachedEmpty of [false, true]) {
+        test(`failed refresh is recoverable with ${cachedEmpty ? "empty" : "complete"} cached collection`, async ({
+          page,
+        }) => {
+          const identity = await (
+            await page.request.get("/api/auth/whoami")
+          ).json();
+          expect(identity.id).toBeTruthy();
+          await page.clock.install();
+          const row = (n: number) => ({
+            id: uuid(n),
+            deal_id: uuid(n),
+            status: "watching",
+            saved_at: "2026-10-12T00:00:00Z",
+            source_name: "web-share",
+            source_url: "",
+            snapshot: {
+              year: 2020,
+              make: "Honda",
+              model: n === 1 ? "RefreshOld" : "RefreshNew",
+              askingPrice: 10000,
+              images: [],
+            },
+          });
+          let requests = 0;
+          await page.route("**/api/saved-cars?view=page&**", async (route) => {
+            expect(route.request().headers()["x-save-owner"]).toBe(identity.id);
+            requests += 1;
+            await route.fulfill({
+              status: requests === 2 ? 503 : 200,
+              contentType: "application/json",
+              body: JSON.stringify(
+                requests === 2
+                  ? { error: "fixture outage" }
+                  : {
+                      ownerId: identity.id,
+                      rows:
+                        requests === 1
+                          ? cachedEmpty
+                            ? []
+                            : [row(1)]
+                          : [row(1), row(2)],
+                      nextCursor: null,
+                    },
+              ),
+            });
+          });
+          await page.goto("/saved");
+          if (cachedEmpty)
+            await expect(
+              page.getByText("Nothing saved yet", { exact: true }),
+            ).toBeVisible();
+          else
+            await expect(
+              page.getByText("2020 Honda RefreshOld", { exact: true }).first(),
+            ).toBeVisible();
+          await page.clock.fastForward(31_000);
+          await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+          if (cachedEmpty) {
+            await expect(
+              page.getByText("Nothing saved yet", { exact: true }),
+            ).toHaveCount(0);
+            await expect(
+              page.getByRole("heading", { name: "Couldn't load saved cars" }),
+            ).toBeVisible();
+            await page
+              .getByRole("button", { name: "Try again", exact: true })
+              .click();
+          } else {
+            await expect(
+              page.getByText("2020 Honda RefreshOld", { exact: true }).first(),
+            ).toBeAttached();
+            await page
+              .getByRole("button", { name: "Retry saved vehicles" })
+              .click();
+          }
+          await expect(
+            page.getByText("2020 Honda RefreshNew", { exact: true }).first(),
+          ).toBeAttached();
+        });
+      }
+    }
     test("all statuses stay visible and older-page failure is recoverable", async ({
       page,
     }) => {
@@ -84,13 +167,13 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
         .click();
       await expect(
         page.getByText(
-          "Older saves could not be loaded. Your loaded vehicles remain available.",
+          "Saved vehicles could not be refreshed. Your loaded vehicles remain available.",
         ),
       ).toBeVisible();
       await expect(
         page.getByText("2020 Honda PagingFixture1", { exact: true }).first(),
       ).toBeAttached();
-      await page.getByRole("button", { name: "Retry loading more" }).click();
+      await page.getByRole("button", { name: "Retry saved vehicles" }).click();
       await expect(
         page.getByText("2020 Honda OlderFixture", { exact: true }).first(),
       ).toBeAttached();

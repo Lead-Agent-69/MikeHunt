@@ -45,6 +45,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("account-safe saved paging", () => {
+  it("does not treat a cached empty collection as confirmed after refresh fails", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response("one", [], null))
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }));
+    await render("one");
+    await vi.waitFor(() => expect(control.data).toEqual([]));
+    await act(async () => {
+      await control.mutate().catch(() => {});
+    });
+    await vi.waitFor(() => expect(control.error).toBeTruthy());
+  });
+  it("retries a failed refresh when all pages were already loaded", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(response("one", [{ id: "first" }], null))
+      .mockResolvedValueOnce(new Response("{}", { status: 503 }))
+      .mockResolvedValueOnce(
+        response("one", [{ id: "first" }, { id: "new" }], null),
+      );
+    await render("one");
+    await vi.waitFor(() => expect(host.textContent).toBe("first"));
+    expect(control.hasMore).toBe(false);
+    await act(async () => {
+      await control.mutate().catch(() => {});
+    });
+    await vi.waitFor(() => expect(control.loadMoreError).toBeTruthy());
+    await act(async () => {
+      await control.loadMore();
+    });
+    await vi.waitFor(() => expect(host.textContent).toBe("first,new"));
+  });
   it("keeps loaded rows usable when older-page fetching fails and retries without skipping", async () => {
     let olderRequests = 0;
     vi.mocked(fetch).mockImplementation(async (input) => {
