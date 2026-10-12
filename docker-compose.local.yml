@@ -1,5 +1,12 @@
+x-bounded-logs: &bounded-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   scraper:
+    logging: *bounded-logs
     build:
       context: .
       dockerfile: Dockerfile.scraper
@@ -56,6 +63,7 @@ services:
       start_period: 20s
 
   flaresolverr:
+    logging: *bounded-logs
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
     cpus: 1.5
@@ -79,6 +87,7 @@ services:
   # Disk janitor for ./cache on Zeus: age-based deletes in named subfolders only; the scraper's
   # state files are never touched. See scripts/zeus-janitor.sh and docs/RETENTION.md.
   janitor:
+    logging: *bounded-logs
     # Prefer an image already cached on Zeus (Docker Desktop credential-store breaks
     # `docker pull alpine:3.20` over SSH). redis:7-alpine is pulled with the stack and has /bin/sh.
     image: redis:7-alpine
@@ -93,6 +102,7 @@ services:
       - scraper-local
 
   redis:
+    logging: *bounded-logs
     image: redis:7-alpine
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]

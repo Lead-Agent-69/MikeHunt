@@ -60,6 +60,23 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Bounded Worker Logs (October 12 Follow-Up)
+
+- Integrated the independently deployable log protection from #360 without merging its gated
+  hosted migration or database-dependent routes. Worker file logs and Compose Docker logs are
+  bounded; listing caches, quota state, status and browser profiles are preserved.
+- Regression coverage includes restart accounting, concurrent queued writes, oversized UTF-8
+  messages, oversized legacy generations, shutdown, unavailable log directories and invalid limits.
+- `node scripts/storage-audit.mjs` is read-only, distinguishes unavailable checks from measured
+  evidence and reports unbounded Docker logs/missing persistent mounts/tracked runtime data.
+- Actual local audit at 21:34 UTC found persistent mounts and substantial disk headroom, but the
+  running scraper's Docker logs are still unbounded. The operator must deploy the worker and Compose
+  changes. This work does not apply #360, clean hosted data, reset quotas or prove remote Zeus health.
+- Removed unsafe blanket inactive-embedding/shorter-retention recommendations from the historical
+  budget guide. Owner-protected retention review/apply and actual provider usage remain next gates.
+- Focused verification: 14 tests passed; Compose configuration validation passed. Full release
+  checks and merge receipt must be recorded separately before calling this shipped.
+
 ### Curated Source Outcomes (October 12 Follow-Up)
 
 - #377 is merged at `b2e572fc23aacf2ee935fdb93381c23f25837054` with successful
