@@ -38,20 +38,26 @@ export async function GET() {
   const supabase = createServerComponentClient();
   const flipDesk = await resolveCallerFlipDesk();
 
-  const { data, error } = await supabase
-    .from("user_feed_inbox")
-    .select(
-      `
+  const inboxQuery = (extra: string) =>
+    supabase
+      .from("user_feed_inbox")
+      .select(
+        `
       id,
       status,
       created_at,
-      deal_id,
+      deal_id,${extra}
       deals ( ${DEAL_COLS} )
     `,
-    )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+  // search_id/feedback: feedback comes from the saved-search tuning migration; fall back without it.
+  let { data, error }: { data: any[] | null; error: any } = await inboxQuery(
+    " search_id, feedback,",
+  );
+  if (error) ({ data, error } = await inboxQuery(""));
 
   if (error) {
     console.error("[alerts]", error.message);
@@ -65,6 +71,8 @@ export async function GET() {
       status: row.status,
       created_at: row.created_at,
       deal_id: row.deal_id,
+      search_id: row.search_id ?? null,
+      feedback: typeof row.feedback === "number" ? row.feedback : null,
       deals:
         deal && typeof deal === "object"
           ? flipDesk

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ScraperAlertService } from "@/lib/scrapers/tools/alerts";
 import { isAuthorizedCron } from "@/lib/cron-auth";
+import { createServerComponentClient } from "@/lib/supabase";
+import { sendSavedSearchDigests } from "@/lib/alerts/saved-search-digest";
 
 export const dynamic = "force-dynamic";
 // Daily cron: ScraperAlertService.processAlerts sends email, then push, then a mark-sent update per
@@ -18,10 +20,13 @@ export async function GET(request: NextRequest) {
     });
 
     const result = await service.processAlerts();
+    // Saved searches set to "Daily digest": one email per user with the day's matches.
+    const digest = await sendSavedSearchDigests(createServerComponentClient());
 
     return NextResponse.json({
-      message: `Processed ${result.processed} pending alerts, sent ${result.emailsSent} emails`,
+      message: `Processed ${result.processed} pending alerts, sent ${result.emailsSent} emails, ${digest.emailsSent} digests`,
       ...result,
+      digest,
     });
   } catch (error) {
     console.error("Alert processing error:", error);

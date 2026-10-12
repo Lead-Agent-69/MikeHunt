@@ -153,8 +153,11 @@ describe("saved-search recovery", () => {
       user_id: "user-one",
       target_profit: null,
       require_go: false,
-      notify_sms: false,
     });
+    // notify_sms is server-managed; the client never sends it.
+    expect(state.calls.find((c) => c[0] === "insert")?.[1]).not.toHaveProperty(
+      "notify_sms",
+    );
   });
   it("keeps failed pause/delete actions visible and scopes each write to the authenticated owner", async () => {
     state.rows = [{ id: "search-one", name: "Honda", is_active: true }];
