@@ -551,9 +551,7 @@ Related evidence:
   No new login was created when the newer Vercel dry-run CLI lacked existing credentials; upload
   exclusions are tested, but a CLI manifest receipt is not claimed.
 
-## Reported Pickup-Series Matching (October 12 Follow-Up)
-
-### Local Collector Rollout Receipt
+## Local Collector Rollout Receipt (October 12)
 
 - The already-merged #384 worker logging code is now running locally in image
   `mikehunt-scraper-release:bebb6b8`, built from exact main
@@ -566,6 +564,8 @@ Related evidence:
   no active job/error and unchanged 1,000 inserts / 535 updates / zero touches.
   Cache, profiles and logs retain their original mounts; quotas and scope are
   unchanged. This is a local rollout, not remote Zeus or hosted retention proof.
+
+## Reported Pickup-Series Matching (October 12 Follow-Up)
 
 - Reproduced through read-only production APIs: the known Silverado 3500 listing
   `869fde80-0d5e-4298-a396-00d45009e6c3` returned six same-model alternatives:
