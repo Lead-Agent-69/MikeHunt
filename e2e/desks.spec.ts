@@ -46,6 +46,35 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       await expectHealthy(page, h);
     });
 
+    test(`account Saved survives a fresh device for the ${desk} desk`, async ({
+      page,
+    }) => {
+      const h = watchHealth(page);
+      const deal = await pickDeal(page.request);
+      await page.goto(`/deal/${deal.id}`);
+      const save = page
+        .getByRole("button", { name: /^(Save vehicle|Saved|Saved on device)$/ })
+        .first();
+      await expect(save).toBeVisible({ timeout: 30_000 });
+      if ((await save.innerText()).trim() !== "Saved") await save.click();
+      await expect(
+        page.getByRole("button", { name: /^Saved$/ }).first(),
+      ).toBeVisible({ timeout: 20_000 });
+      const saved = await page.request.get("/api/saved-cars?view=checklist");
+      expect(saved.ok()).toBeTruthy();
+      expect(await saved.json()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ deal_id: deal.id })]),
+      );
+      await page.evaluate(() =>
+        localStorage.removeItem("mh-local-saved-vehicles-v1"),
+      );
+      await page.reload();
+      await expect(
+        page.getByRole("button", { name: /^Saved$/ }).first(),
+      ).toBeVisible({ timeout: 20_000 });
+      await expectHealthy(page, h);
+    });
+
     if (desk === "parts") {
       test("parts desk tool (/parts) renders", async ({ page }) => {
         const h = watchHealth(page);

@@ -60,6 +60,25 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Account Saved-State Follow-Up
+
+- Reproduced: a saved vehicle remained in the owned API and Saved page, but
+  its detail button lost the Saved label on a fresh device. This was a label
+  hydration defect, not lost saved data.
+- Current change: detail reads the existing bounded, snapshot-free checklist
+  endpoint with an owner-scoped SWR key. Logout/account changes cannot inherit
+  another account's cached badge. Device backups are labelled "Saved on device".
+  Confirmed saves update membership without making a failed refresh look like
+  a failed save; requests preserve the existing X-Save-Owner guard.
+- Tests cover fresh-device hydration, account switch/logout, late responses,
+  unavailable/malformed reads and confirmed saves. The browser test now checks
+  canonical deal links, owned API persistence, reload and no device backup,
+  instead of relying on the source's unnormalized vehicle title.
+- Scope: no schema, hosted SQL, scraper activation, paid service or retention
+  change. Full account saved-search filter persistence and real alert delivery
+  remain separate acceptance items; Scan's complete-filter save is device-local.
+- Release and browser receipts must be recorded before declaring this accepted.
+
 ### Search-Reach And Workflow Review (Current Implementation)
 
 Official benchmark pages reviewed October 11:

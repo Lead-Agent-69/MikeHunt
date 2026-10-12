@@ -106,12 +106,10 @@ test.describe("signed-in app, personal desk (local only)", () => {
         { timeout: 20_000 },
       );
     else
-      test
-        .info()
-        .annotations.push({
-          type: "note",
-          description: "no deal with >=2 price points",
-        });
+      test.info().annotations.push({
+        type: "note",
+        description: "no deal with >=2 price points",
+      });
     await expectHealthy(page, h);
   });
 
@@ -120,10 +118,10 @@ test.describe("signed-in app, personal desk (local only)", () => {
     const deal = await pickDeal(page.request);
     await page.goto(`/deal/${deal.id}`);
     const save = page
-      .getByRole("button", { name: /^(Save vehicle|Saved)$/ })
+      .getByRole("button", { name: /^(Save vehicle|Saved|Saved on device)$/ })
       .first();
     await expect(save).toBeVisible({ timeout: 30_000 });
-    if ((await save.innerText()).trim() === "Save vehicle") await save.click();
+    if ((await save.innerText()).trim() !== "Saved") await save.click();
     await expect(
       page.getByRole("button", { name: /^Saved$/ }).first(),
     ).toBeVisible({ timeout: 20_000 });
@@ -131,8 +129,24 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expect(
       page.getByRole("heading", { name: "Saved Vehicles" }),
     ).toBeVisible();
+    const savedLink = page.locator(`a[href="/deal/${deal.id}"]`).first();
+    await expect(savedLink).toBeVisible({ timeout: 20_000 });
+    const savedResponse = await page.request.get(
+      "/api/saved-cars?view=checklist",
+    );
+    expect(savedResponse.ok()).toBeTruthy();
+    expect(await savedResponse.json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ deal_id: deal.id })]),
+    );
+    await page.reload();
+    await expect(savedLink).toBeVisible({ timeout: 20_000 });
+    // Account membership must survive without the device-only backup.
+    await page.evaluate(() =>
+      localStorage.removeItem("mh-local-saved-vehicles-v1"),
+    );
+    await page.goto(`/deal/${deal.id}`);
     await expect(
-      page.getByText(deal.title, { exact: false }).first(),
+      page.getByRole("button", { name: /^Saved$/ }).first(),
     ).toBeVisible({ timeout: 20_000 });
     await expectHealthy(page, h);
   });
