@@ -7,7 +7,8 @@ const uuid = (n: number) =>
 for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
   test.describe(`${desk} saved paging (local only)`, () => {
     localOnly();
-    test.use({ storageState: storagePath(desk) });
+    // PWA network fetches must not bypass the controlled outage fixtures.
+    test.use({ storageState: storagePath(desk), serviceWorkers: "block" });
     test("all statuses stay visible and older-page failure is recoverable", async ({
       page,
     }) => {
