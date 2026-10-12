@@ -26,6 +26,90 @@ const candidate = (
 });
 
 describe("alternative relevance", () => {
+  it("does not confuse 1500, 2500 or unknown Silverado listings with a known 3500", () => {
+    const truck = {
+      ...base,
+      make: "Chevrolet",
+      model: "Silverado",
+      title: "2020 Chevrolet SILVERADO3500HDWT",
+    };
+    const ranked = rankAlternatives(
+      truck,
+      [
+        candidate({
+          make: "Chevrolet",
+          model: "Silverado",
+          id: "light",
+          vin: "LIGHTVIN",
+          title: "Silverado 1500",
+        }),
+        candidate({
+          make: "Chevrolet",
+          model: "Silverado",
+          id: "medium",
+          vin: "MEDVIN",
+          title: "Silverado 2500HD",
+        }),
+        candidate({
+          make: "Chevrolet",
+          model: "Silverado",
+          id: "unknown",
+          vin: "UNKNOWNVIN",
+        }),
+        candidate({
+          make: "Chevrolet",
+          model: "Silverado",
+          id: "heavy",
+          vin: "HEAVYVIN",
+          title: "Silverado 3500 HD",
+        }),
+      ],
+      now,
+    );
+    expect(ranked.map(({ row }) => row.id)).toEqual(["heavy"]);
+    expect(ranked[0].matchReasons).toContain(
+      "Same reported truck series (3500)",
+    );
+  });
+  it("does not promote a known series when the base truck's series is missing", () => {
+    const truck = { ...base, make: "GMC", model: "Sierra" };
+    expect(
+      rankAlternatives(
+        truck,
+        [candidate({ make: "GMC", model: "Sierra", title: "Sierra 3500HD" })],
+        now,
+      ),
+    ).toEqual([]);
+    const ranked = rankAlternatives(
+      truck,
+      [candidate({ make: "GMC", model: "Sierra" })],
+      now,
+    );
+    expect(ranked[0].matchReasons).toContain("Truck series not reported");
+    expect(ranked[0].matchReasons).not.toContain("Same make and model");
+  });
+  it("rejects conflicting truck identity without changing auction and availability gates", () => {
+    const truck = {
+      ...base,
+      make: "Chevrolet",
+      model: "Silverado",
+      title: "Silverado 3500 HD",
+      trim: "1500",
+    };
+    expect(
+      rankAlternatives(
+        truck,
+        [
+          candidate({
+            make: "Chevrolet",
+            model: "Silverado",
+            title: "Silverado 3500 HD",
+          }),
+        ],
+        now,
+      ),
+    ).toEqual([]);
+  });
   it("never groups Bronco and Bronco Sport as the same-model alternative", () => {
     const sport = { ...base, make: "Ford", model: "Bronco Sport", year: 2024 };
     const ranked = rankAlternatives(

@@ -69,7 +69,7 @@ export async function GET(
   };
 
   const columns =
-    "id, year, make, model, ask_price, mileage, condition, damage_type, deal_verdict, true_net_profit, sell_estimate, profit_score, location_state, location_city, images, source, active, last_seen_at, auction_end_at, vin";
+    "id, year, make, model, title, trim, ask_price, mileage, condition, damage_type, deal_verdict, true_net_profit, sell_estimate, profit_score, location_state, location_city, images, source, active, last_seen_at, auction_end_at, vin";
   const { data: base, error: baseError } = await supabase
     .from("deals")
     .select(columns)

@@ -1,11 +1,14 @@
 import { isAuctionSource } from "@/lib/deal-terms";
 import { isWithinAuctionWindow } from "@/lib/search/live-auction-window";
 import { dealLane } from "@/lib/discovery/categorize";
+import { pickupSeriesIdentity } from "@/lib/vehicle/pickup-series-identity";
 
 export type AlternativeRow = {
   id: string;
   make?: string | null;
   model?: string | null;
+  title?: string | null;
+  trim?: string | null;
   year?: number | null;
   ask_price?: number | null;
   mileage?: number | null;
@@ -36,12 +39,22 @@ export function rankAlternatives<T extends AlternativeRow>(
   now = Date.now(),
 ) {
   const auction = isAuctionSource(base.source);
+  const baseTruck = pickupSeriesIdentity(base);
   const seenIds = new Set<string>();
   const seenVins = new Set<string>();
   return candidates
     .filter((row) => {
       const seen = Date.parse(row.last_seen_at || "");
+      const truck = pickupSeriesIdentity(row);
+      const matchingSeries =
+        !baseTruck ||
+        (!baseTruck.conflicting &&
+          truck &&
+          !truck.conflicting &&
+          truck.family === baseTruck.family &&
+          truck.series === baseTruck.series);
       return (
+        matchingSeries &&
         row.id !== base.id &&
         row.active === true &&
         Number.isFinite(seen) &&
@@ -63,7 +76,14 @@ export function rankAlternatives<T extends AlternativeRow>(
       );
     })
     .map((row) => {
-      const matchReasons = ["Same make and model"];
+      const matchReasons = baseTruck
+        ? [
+            "Same make and model family",
+            baseTruck.series
+              ? `Same reported truck series (${baseTruck.series})`
+              : "Truck series not reported",
+          ]
+        : ["Same make and model"];
       let score = 0;
       if (base.year && row.year) {
         score += Math.abs(row.year - base.year) * 4;
