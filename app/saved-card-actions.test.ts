@@ -45,6 +45,18 @@ function card(
   return host;
 }
 describe("saved-card actions", () => {
+  it("uses the snapshot's actual vendor without a nested link or invented branding", () => {
+    const host = card();
+    const vendor = host.querySelector(
+      'a[aria-label="View listing at example.com (opens in a new tab)"]',
+    );
+    expect(vendor?.getAttribute("href")).toBe("https://example.com/listing");
+    expect(vendor?.className).toContain("z-20");
+    expect(vendor?.className).toContain("min-h-11");
+    expect(vendor?.parentElement?.closest("a")).toBeNull();
+    expect(vendor?.querySelector("img")).toBeNull();
+    expect(host.querySelector("a a")).toBeNull();
+  });
   it("retains historical saves with missing source names and shows archived/passed status", () => {
     for (const status of ["archived", "passed"] as const) {
       const host = card("vehicle-one", null as unknown as string, status);

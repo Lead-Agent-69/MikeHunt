@@ -26,6 +26,7 @@ import {
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
+import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
   nonCashPriceLabel,
   priceEvidenceLabel,
@@ -372,14 +373,19 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {!location && <span>Location not reported</span>}
           </div>
 
-          <p
-            className="break-words text-[11px] text-[var(--t4)]"
-            data-testid="discovery-card-seller"
-          >
-            {deal.seller || sellerTypeLabel(deal.sellerType || sourceChannel)}
-            {" / "}
-            {sourceLabel(deal.source)}
-          </p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <SourceBadge
+              source={deal.source}
+              sourceUrl={deal.sourceUrl}
+              size="sm"
+            />
+            <p
+              className="min-w-0 break-words text-[11px] text-[var(--t4)]"
+              data-testid="discovery-card-seller"
+            >
+              {deal.seller || sellerTypeLabel(deal.sellerType || sourceChannel)}
+            </p>
+          </div>
 
           <TitleBadge
             className="w-fit"
