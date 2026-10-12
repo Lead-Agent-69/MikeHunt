@@ -278,7 +278,7 @@ export function StatePicker({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search states"
             aria-label="Search states"
-            className="min-w-0 flex-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 py-2 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--brand)]"
+            className="min-h-11 min-w-0 flex-1 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 py-2 text-sm text-[var(--t1)] outline-none transition-colors focus:border-[var(--brand)]"
           />
         </div>
 
