@@ -3,7 +3,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import useSWR from "swr";
+import { useSavedCollection } from "@/hooks/useSavedCollection";
+import { savedGroup } from "@/lib/saved/collection";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
@@ -26,6 +27,8 @@ import {
   Trash2,
   Phone,
   Mail,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import {
@@ -46,13 +49,6 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import { sellerTypeLabel, sourceMeta } from "@/lib/sources/source-meta";
 import { urlHostMatches } from "@/lib/net/host-match";
-
-// Fetcher function for SWR
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to fetch");
-    return res.json();
-  });
 
 function titleFromUrl(url: string) {
   try {
@@ -121,17 +117,14 @@ export default function SavedCarsPage() {
     error,
     isLoading,
     mutate,
-  } = useSWR<any[]>(
-    dealerId && !dealerLoading
-      ? `/api/saved-cars?filter=${filter}&dealerId=${dealerId}`
-      : null,
-    fetcher,
-    {
-      revalidateOnFocus: true, // Refresh when user returns to tab
-      revalidateOnReconnect: true,
-      dedupingInterval: 30000, // 30 seconds
-    },
-  );
+    hasMore,
+    loadingMore,
+    loadMore,
+    loadMoreError,
+  } = useSavedCollection(dealerLoading ? null : dealerId, "page", filter);
+  const currentOwner = React.useRef(dealerId);
+  currentOwner.current = dealerId;
+  React.useEffect(() => setComparisonIds([]), [dealerId]);
 
   const authError =
     accountError ||
@@ -161,7 +154,7 @@ export default function SavedCarsPage() {
           userId: dealerId,
           fetchLoading: isLoading,
           hasData: saves !== undefined,
-          error,
+          error: error || loadMoreError,
         });
   const cloudSyncReady = supabaseStatus === "ready";
   const loading = supabaseStatus === "checking";
@@ -172,8 +165,14 @@ export default function SavedCarsPage() {
 
     const dealId = saves?.find((item: any) => item.id === id)?.deal_id;
     try {
-      const res = await fetch(`/api/saved-cars/${id}`, { method: "DELETE" });
+      if (!dealerId) return;
+      const res = await fetch(`/api/saved-cars/${id}`, {
+        method: "DELETE",
+        headers: { "X-Save-Owner": dealerId },
+        signal: AbortSignal.timeout(15_000),
+      });
       const result = await res.json();
+      if (currentOwner.current !== dealerId) return;
       if (res.ok && result.success === true && result.id === id) {
         await mutate(
           (current) => current?.filter((item: any) => item.id !== id),
@@ -199,10 +198,15 @@ export default function SavedCarsPage() {
     try {
       const res = await fetch(`/api/saved-cars/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Save-Owner": dealerId || "",
+        },
+        signal: AbortSignal.timeout(15_000),
         body: JSON.stringify({ status: newStatus }),
       });
       const result = await res.json();
+      if (currentOwner.current !== dealerId) return false;
       if (res.ok && result.id === id && result.status === newStatus) {
         // Revalidate from server
         mutate();
@@ -326,9 +330,12 @@ export default function SavedCarsPage() {
     saves?.filter((s) =>
       ["price_drop", "price_increase", "ending_soon"].includes(s.status),
     ) || [];
-  const activeSaves = saves?.filter((s) => s.status === "active") || [];
+  const activeSaves =
+    saves?.filter((s) => savedGroup(s.status) === "active") || [];
   const goneSaves = saves?.filter((s) => s.status === "unavailable") || [];
   const acquiredSaves = saves?.filter((s) => s.status === "acquired") || [];
+  const otherSaves =
+    saves?.filter((s) => savedGroup(s.status) === "other") || [];
 
   return (
     <div className="space-y-8 pb-20">
@@ -438,7 +445,7 @@ export default function SavedCarsPage() {
                 ? "Account sync needs attention"
                 : "Saved on this device"}
           {unsyncedLocalItems.length > 0 &&
-            ` · ${unsyncedLocalItems.length} local only`}
+            ` · ${unsyncedLocalItems.length} device backups`}
         </summary>
         <div className="pb-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -465,7 +472,7 @@ export default function SavedCarsPage() {
                   {unsyncedLocalItems.length}
                 </p>
                 <p className="text-[10px] font-black uppercase text-[var(--t5)]">
-                  local only
+                  device backups
                 </p>
               </div>
               <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
@@ -690,6 +697,55 @@ export default function SavedCarsPage() {
                   </div>
                 </div>
               )}
+              {otherSaves.length > 0 && (
+                <section className="space-y-3">
+                  <h3 className="text-sm font-semibold">
+                    Other saved vehicles ({otherSaves.length})
+                  </h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {otherSaves.map((save) => (
+                      <SavedCarCard
+                        key={save.id}
+                        save={save}
+                        flipDesk={flipDesk}
+                        comparisonSelected={comparisonIds.includes(
+                          save.deal_id,
+                        )}
+                        onToggleComparison={() =>
+                          toggleComparison(save.deal_id)
+                        }
+                        onDelete={handleDelete}
+                        onUpdateStatus={handleUpdateStatus}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {loadMoreError && (
+                <p role="alert" className="text-sm text-[var(--red)]">
+                  Saved vehicles could not be refreshed. Your loaded vehicles
+                  remain available.
+                </p>
+              )}
+              {(hasMore || loadMoreError) && (
+                <Button
+                  onClick={() => loadMore()}
+                  disabled={loadingMore}
+                  className="min-h-11"
+                  variant="outline"
+                >
+                  {loadMoreError ? (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                  )}
+                  {loadingMore
+                    ? "Loading..."
+                    : loadMoreError
+                      ? "Retry saved vehicles"
+                      : "Load more saved vehicles"}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -760,7 +816,7 @@ function LocalSavedSection({
           </h3>
           <p className="text-xs text-[var(--t4)]">
             {syncUnavailableMessage ||
-              "These vehicles are saved only in this browser. Account saves are shown separately."}
+              "These are backups saved in this browser. Account saves are shown separately."}
           </p>
         </div>
         <Badge

@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import useSWR from "swr";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, RefreshCw } from "lucide-react";
+import { useDealerId } from "@/hooks/useDealerId";
+import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
-import {
-  PURCHASE_CHECKLIST_KEY,
-  fetchPurchaseChecklist,
-} from "@/lib/saved/purchase-checklist";
 
 type PurchaseSave = {
   id: string;
@@ -29,17 +27,37 @@ const tasks = [
 ];
 
 export function PurchasePipeline() {
-  // Same key FlipDeskGate preloads while preferences resolve (lib/saved/purchase-checklist).
-  const { data, error, isLoading, mutate } = useSWR<PurchaseSave[]>(
-    PURCHASE_CHECKLIST_KEY,
-    fetchPurchaseChecklist,
+  const {
+    dealerId,
+    loading: accountLoading,
+    error: accountError,
+    retry: retryAccount,
+  } = useDealerId();
+  const {
+    data,
+    error,
+    isLoading,
+    mutate,
+    hasMore,
+    loadingMore,
+    loadMore,
+    loadMoreError,
+  } = useSavedCollection<PurchaseSave>(
+    accountLoading ? null : dealerId,
+    "checklist-page",
   );
+  const currentOwner = useRef(dealerId);
+  currentOwner.current = dealerId;
   const [saving, setSaving] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState("All stages");
   const [writeError, setWriteError] = useState<{
     id: string;
     message: string;
   } | null>(null);
+  useEffect(() => {
+    setWriteError(null);
+    setSaving(null);
+  }, [dealerId]);
   const stageOf = (save: PurchaseSave) => {
     if (save.status === "acquired") return "Purchased";
     const stored = save.tags
@@ -53,7 +71,7 @@ export function PurchasePipeline() {
     tags: string[],
     status = save.status,
   ) {
-    if (saving) return;
+    if (saving || !dealerId) return;
     setSaving(save.id);
     setWriteError(null);
     try {
@@ -62,13 +80,17 @@ export function PurchasePipeline() {
         {
           method: "PUT",
           signal: AbortSignal.timeout(20000),
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Save-Owner": dealerId,
+          },
           body: JSON.stringify({ tags, status }),
         },
       );
       if (!response.ok)
         throw new Error("Your changes could not be saved. Please try again.");
       const confirmed = await response.json();
+      if (currentOwner.current !== dealerId) return;
       if (
         confirmed.id !== save.id ||
         confirmed.status !== status ||
@@ -81,6 +103,7 @@ export function PurchasePipeline() {
         );
       await mutate();
     } catch (error) {
+      if (currentOwner.current !== dealerId) return;
       const message = userFacingErrorMessage(
         error,
         "Your changes were not confirmed. Reload the plan before retrying.",
@@ -88,7 +111,7 @@ export function PurchasePipeline() {
       setWriteError({ id: save.id, message });
       toast.error(message);
     } finally {
-      setSaving(null);
+      if (currentOwner.current === dealerId) setSaving(null);
     }
   }
 
@@ -124,18 +147,26 @@ export function PurchasePipeline() {
           Saved vehicles
         </Link>
       </div>
-      {isLoading ? (
+      {isLoading || accountLoading ? (
         <p role="status">Loading your checklist...</p>
-      ) : error ? (
+      ) : error || accountError || !dealerId ? (
         <ErrorState
           title="Couldn't load your checklist"
           message="Sign in or retry to access your saved purchase tasks."
-          onRetry={() => void mutate()}
+          onRetry={
+            accountError
+              ? retryAccount
+              : dealerId
+                ? () => void mutate()
+                : undefined
+          }
         />
       ) : !saves.length ? (
         <div className="space-y-3 border-t border-[var(--b1)] py-6">
           <p className="text-[var(--t3)]">
-            Save a vehicle to start planning its inspection and purchase.
+            {hasMore
+              ? "No purchase-plan vehicles in the loaded saves. More saved vehicles are available below."
+              : "Save a vehicle to start planning its inspection and purchase."}
           </p>
           <Link
             href="/discover"
@@ -149,7 +180,11 @@ export function PurchasePipeline() {
           role="status"
           className="space-y-3 border-t border-[var(--b1)] py-6"
         >
-          <p>No vehicles in {stageFilter.toLowerCase()}.</p>
+          <p>
+            {hasMore
+              ? "No vehicles in this stage among the loaded saves."
+              : `No vehicles in ${stageFilter.toLowerCase()}.`}
+          </p>
           <button
             type="button"
             className="min-h-11 font-semibold text-[var(--blue)]"
@@ -293,6 +328,39 @@ export function PurchasePipeline() {
             );
           })}
         </div>
+      )}
+      {!accountLoading && !dealerId && !accountError && (
+        <Link
+          href="/login"
+          className="inline-flex min-h-11 items-center font-semibold text-[var(--blue)]"
+        >
+          Sign in to open your purchase plan
+        </Link>
+      )}
+      {loadMoreError && (
+        <p role="alert" className="text-sm text-[var(--red)]">
+          Saved vehicles could not be refreshed. Your loaded checklist remains
+          available.
+        </p>
+      )}
+      {(hasMore || loadMoreError) && (
+        <button
+          type="button"
+          onClick={() => loadMore()}
+          disabled={loadingMore}
+          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--blue)]"
+        >
+          {loadMoreError ? (
+            <RefreshCw className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+          {loadingMore
+            ? "Loading..."
+            : loadMoreError
+              ? "Retry saved vehicles"
+              : "Load more saved vehicles"}
+        </button>
       )}
     </div>
   );

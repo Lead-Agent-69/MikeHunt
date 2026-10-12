@@ -60,6 +60,41 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Exact Saved Membership (October 12 Follow-Up)
+
+- Release follow-through found and reproduced two refresh-recovery gaps: cached
+  empty results hid a failed refresh, and complete collections had no retry after
+  refresh failure. Those now surface a real error or retain loaded records with
+  a working retry regardless of whether older pages remain. Connection copy no
+  longer claims ready while a collection refresh is failing. New regressions
+  preserve both empty and nonempty recovery expectations.
+
+- Follow-up implementation adds owned 50-row cursor pages for Saved and the
+  personal/parts Purchase plan. Date plus ID provides stable tie-breaking; legacy
+  null dates have an explicit continuation. Read-time desk redaction is retained.
+- Watching, passed and archived saves are no longer omitted from Saved's groups.
+  Device copies are described as backups, not assumed local-only while only part
+  of the account collection is loaded. Older-page errors retain loaded vehicles
+  and offer a retry. No records are deleted or migrated.
+- Fleet preloading uses the same owner-scoped page key; edits/deletes include
+  X-Save-Owner and pending responses cannot update a newly switched account.
+  Tests cover a 603-record tied-date fixture, null dates, redaction, invalid cursors,
+  wrong-account empty receipts and retry recovery. Hosted large-account acceptance
+  remains separate; no bulk hosted fixtures or SQL writes were performed.
+
+- Detail membership now queries the viewed vehicle inside the verified account,
+  before a one-row limit. Saves older than the newest 500 remain recognizable
+  without transferring a whole collection or snapshot JSON.
+- The read checks X-Save-Owner against the verified session, and returns an
+  owner/vehicle receipt even for an empty result. The browser rejects mismatched
+  receipts and caches by account plus vehicle. An unavailable database is an
+  error, not a false "not saved" result; requests have a 15-second deadline.
+- No schema, hosted SQL, retention, Docker or provider configuration changes.
+  Legacy array API responses remain compatible; the buyer collection workflows
+  now use verified envelopes rather than the older global checklist cache.
+- Account-handling changes require exact-head Ren review before merge/live.
+  Record verification and PR receipts separately; implementation is not release.
+
 ### Saved-Search Matching And Bookmark Follow-Up
 
 - Reproduced in code: collector matches ignored stored state, seller, title and

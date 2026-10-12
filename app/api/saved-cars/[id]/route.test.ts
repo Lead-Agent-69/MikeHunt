@@ -73,6 +73,15 @@ beforeEach(() => {
   });
 });
 describe("saved vehicle mutations", () => {
+  it("rejects a stale account before updating any rows", async () => {
+    const request = new NextRequest("http://localhost/api/saved-cars/save", {
+      method: "PUT",
+      headers: { "X-Save-Owner": "previous-account" },
+      body: JSON.stringify({ status: "active" }),
+    });
+    expect((await PUT(request, params)).status).toBe(409);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
   it("requires sign-in for deletion", async () => {
     mocks.user = null;
     expect((await DELETE(req(), params)).status).toBe(401);

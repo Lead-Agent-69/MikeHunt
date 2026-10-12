@@ -203,7 +203,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   };
 
   const getSourceBadgeColor = (src: string) => {
-    const s = src.toLowerCase();
+    const s = (src || "").toLowerCase();
     if (s.includes("copart") || s.includes("iaa")) {
       return "text-[var(--orange)] border-none";
     }
@@ -238,6 +238,11 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           </label>
         )}
         {/* Banner for price_drop, ending_soon, unavailable */}
+        {(status === "archived" || status === "passed") && (
+          <p className="px-3 py-2 text-sm text-[var(--t3)]">
+            {status === "archived" ? "Archived" : "Passed"}
+          </p>
+        )}
         {status === "price_drop" && (
           <div
             className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
