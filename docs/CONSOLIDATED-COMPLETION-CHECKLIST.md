@@ -74,6 +74,10 @@ The older snapshot bullets below remain point-in-time evidence.
   changes. This work does not apply #360, clean hosted data, reset quotas or prove remote Zeus health.
 - Removed unsafe blanket inactive-embedding/shorter-retention recommendations from the historical
   budget guide. Owner-protected retention review/apply and actual provider usage remain next gates.
+- Fresh read-only hosted check on October 12: database size 101,510,291 bytes;
+  `prune_inventory_retention(integer)` and `inventory_storage_bytes()` absent, migration
+  `20261011142210` absent, and two active legacy deal-deletion jobs still present. #360's exact head
+  `19b483de841023001bfa99adc7f384018b0a61cb` has no recorded PR review. No hosted writes were made.
 - Focused verification: 14 tests passed; Compose configuration validation passed. Full release
   checks and merge receipt must be recorded separately before calling this shipped.
 
