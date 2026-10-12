@@ -553,6 +553,20 @@ Related evidence:
 
 ## Reported Pickup-Series Matching (October 12 Follow-Up)
 
+### Local Collector Rollout Receipt
+
+- The already-merged #384 worker logging code is now running locally in image
+  `mikehunt-scraper-release:bebb6b8`, built from exact main
+  `bebb6b85af0c2c0d04d48942b3b6b07d445532a5`. Eleven rotating-log tests passed
+  in the Linux image with networking disabled before deployment.
+- The operator's existing Compose override now sets Docker logging to three
+  10 MB generations. Original Docker log history was saved locally before the
+  collector was recreated. Other services were not recreated or upgraded.
+- Health is healthy; a fresh status update at 23:42 UTC reported quota_paused,
+  no active job/error and unchanged 1,000 inserts / 535 updates / zero touches.
+  Cache, profiles and logs retain their original mounts; quotas and scope are
+  unchanged. This is a local rollout, not remote Zeus or hosted retention proof.
+
 - Reproduced through read-only production APIs: the known Silverado 3500 listing
   `869fde80-0d5e-4298-a396-00d45009e6c3` returned six same-model alternatives:
   three reported 1500, one reported 2500 and two did not report a series. None
