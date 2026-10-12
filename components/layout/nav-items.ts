@@ -441,7 +441,12 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
     return "Discover";
   }
   if (normalized.startsWith("/deal-check")) return "Deal Check";
-  if (normalized.startsWith("/lane") || normalized.startsWith("/auctions")) {
+  // /arbitrage is a wholesale flip tool like the lane (FLIP_ONLY_HREFS), not Discover.
+  if (
+    normalized.startsWith("/lane") ||
+    normalized.startsWith("/auctions") ||
+    normalized.startsWith("/arbitrage")
+  ) {
     return "Auction Lane";
   }
   if (
@@ -453,7 +458,6 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   }
   if (
     normalized.startsWith("/market") ||
-    normalized.startsWith("/arbitrage") ||
     normalized.startsWith("/overview") ||
     normalized.startsWith("/compare") ||
     normalized.startsWith("/insights") ||
