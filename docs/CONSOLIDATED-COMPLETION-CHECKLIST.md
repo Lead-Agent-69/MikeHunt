@@ -41,6 +41,11 @@ existing features and evidence; it does not declare the entire app finished.
   actual React interaction tests, suppresses it on buying/auth screens, preserves
   dismissal, and records installation only after appinstalled. Full release
   receipts must be added after verification; do not close #318 before merge.
+- Local browser evidence: anonymous Scan with a simulated install event at
+  320/390/768/1440 light preference and 320/390 dark preference; banner height
+  70 px, no document overflow, 44 px dismiss target and Escape passed. Six
+  screenshots remain local under artifacts/qa-consolidated-install-2026-10-11.
+  This is not signed-in QA, proof of all themes or real-device installation.
 - CLI access to MikeHunt already works. Supabase project
   `qupzqpezslsbobhugswp`; Vercel project `mikehunt`. The Codex Supabase connector
   denial does not mean CLI access is unavailable.

@@ -195,29 +195,27 @@ export function InstallPrompt() {
       <div
         role="region"
         aria-label="Install MikeHunt"
-        className="pointer-events-auto flex items-center gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] p-3 shadow-[var(--shadow)]"
+        className="pointer-events-auto flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] p-3 shadow-[var(--shadow)]"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/icon-192x192.png"
           alt=""
-          className="h-11 w-11 shrink-0 rounded-xl"
+          className="h-8 w-8 shrink-0 rounded"
         />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black text-[var(--t1)]">
-            Install MikeHunt
-          </div>
-          <div className="text-xs text-[var(--t2)]">
-            {isIOS
-              ? "Tap Share, then “Add to Home Screen”."
-              : "Open it from your home screen like an app."}
-          </div>
+          <div className="text-sm font-black text-[var(--t1)]">MikeHunt</div>
+          {isIOS && (
+            <div className="text-xs text-[var(--t2)]">
+              Tap Share, then “Add to Home Screen”.
+            </div>
+          )}
         </div>
         {!isIOS && deferred && (
           <button
             type="button"
             onClick={install}
-            className="min-h-11 shrink-0 rounded-full bg-[var(--accent)] px-4 text-sm font-black text-[color:var(--on-accent,#fff)]"
+            className="min-h-11 shrink-0 rounded-full bg-[var(--accent)] px-3 text-sm font-black text-[color:var(--on-accent,#fff)]"
           >
             Install
           </button>
