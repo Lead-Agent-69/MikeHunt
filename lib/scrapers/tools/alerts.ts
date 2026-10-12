@@ -66,7 +66,7 @@ export class ScraperAlertService {
         "[AlertService] Failed to load pending alerts:",
         error.message,
       );
-      return [];
+      throw new Error("Could not load pending alerts");
     }
 
     return (data || []).map((row: any) => ({
@@ -182,10 +182,12 @@ export class ScraperAlertService {
     );
     const optedOut = new Set<string>();
     if (userIds.length) {
-      const { data } = await this.supabase
+      const { data, error: prefsError } = await this.supabase
         .from("user_profiles")
         .select("user_id, notify_price_drops")
         .in("user_id", userIds);
+      if (prefsError)
+        throw new Error("Could not verify notification preferences");
       for (const p of (data || []) as {
         user_id: string;
         notify_price_drops: boolean | null;
@@ -195,11 +197,12 @@ export class ScraperAlertService {
     }
 
     for (const alert of alerts) {
+      let accepted = optedOut.has(alert.userId);
       if (!optedOut.has(alert.userId)) {
         const sent = await this.sendPriceDropEmail(alert);
         if (sent) emailsSent += 1;
         // Web push rides the same opt-out as email; no-ops cleanly when VAPID isn't configured.
-        pushesSent += await sendPushToUser(
+        const pushCount = await sendPushToUser(
           this.supabase,
           alert.userId,
           {
@@ -210,8 +213,11 @@ export class ScraperAlertService {
           },
           { kind: "price_drop", dealId: alert.dealId },
         );
+        pushesSent += pushCount;
+        accepted = sent || pushCount > 0;
       }
-      await this.markAlertSent(alert.id);
+      // Missing credentials or provider failures must not consume a queued alert.
+      if (accepted) await this.markAlertSent(alert.id);
     }
 
     return { processed: alerts.length, emailsSent, pushesSent };

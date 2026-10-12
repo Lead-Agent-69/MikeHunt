@@ -11,6 +11,66 @@ It reconciles the agent queue, #367 local collector receipt and #369 payment-pri
 release with the outstanding hosted/device/permission gates. Older snapshots
 below remain historical evidence, not current access or deployment claims.
 
+## Latest CLI Verification
+
+October 11 evening update: the user explicitly authorized checking the existing
+CLI credentials. Supabase CLI and Vercel CLI both work for MikeHunt; the separate
+Codex Supabase connector remains denied. Earlier access-blocked statements below
+describe the prior connector-only inspection, not current CLI availability.
+
+- Linked Supabase project: `qupzqpezslsbobhugswp`. Measured database size about
+  90.6 MB; `deals` occupies 59.7 MB including indexes. Object metadata totals
+  zero stored file bytes. This does not measure egress or certify every quota.
+- Vercel team `mikehunt` is on an active Hobby plan. The authenticated usage
+  command returned billing data unavailable, explicitly not zero consumption.
+  Commercial-use eligibility and resource counters remain acceptance gates.
+- Both legacy deletion jobs are active: `cleanup-expired-deals` at 02:00 UTC
+  (60-day delete protects only Saved), and `cleanup-dead-deals` at 04:00 UTC
+  (30-day delete with no owner-reference predicate). Watchlist cascade and
+  saved/purchase/outcome SET NULL FKs mean references/history can be lost.
+  The current 30-day candidate check found zero referenced Saved/watchlist rows;
+  this is not protection against future loss. No job was paused or prune run.
+- #360's protected retention and storage-size RPCs are absent. All six reference
+  tables use `deal_id`, matching that migration despite legacy constraint names.
+  Ren review remains missing; no hosted migration was applied.
+- Hosted performance advisor found no warn/error notices. Security advisor found
+  one spatial reference-table RLS error, three public-extension warnings, six
+  PostGIS definer-execution warnings, and disabled leaked-password protection.
+  Do not blindly move extension objects or claim the advisor is clean.
+- Production environment names contain GSA_API_KEY, but no VAPID private key or
+  Resend API/webhook secret. The database VAPID fallback is absent too; there
+  are zero push subscriptions. No notification delivery has been proved.
+- A production push-key setup attempt was blocked before execution by the
+  permission policy. No keys were generated, stored or set in Vercel. Requested
+  specific approval for that setup, Ren task messaging and a temporary pause of
+  only the two destructive cleanup jobs; no unanswered choice is approval.
+- Direct database sample: 7,164 active rows, 3,731 with embeddings. This is
+  coverage, not evidence of recommendation accuracy or freshness under load.
+
+### Implementation Follow-Up
+
+- Shared requests preserve HTTP status and Retry-After without exposing error
+  bodies. Permanent 4xx failures are not auto-retried; transient failures stay
+  bounded, and rate-limit cooldowns are respected. No background job is added.
+- Integrate #351's push deep-link/status/test work without reverting existing
+  delivery tracking. Remove unverified email claims, keep opt-out reachable
+  during sender outages, and make status failures explicitly recoverable.
+- Validate standard Google/Mozilla/Apple/Microsoft push destinations and bounded
+  encryption keys at registration and again before sending stored subscriptions.
+  Reject arbitrary/internal URLs, credentials and unusual ports; bound sockets.
+- Confirm public/private VAPID keys actually match and periodically recover
+  configuration checks. In-app notification paths are URL-normalized and reject
+  embedded controls/protocol-relative escapes.
+- Malformed unsubscribe requests cannot become delete-all, and database failures
+  cannot report success. Test sends report provider acceptance, not receipt by a
+  particular device. Failed/unconfigured price-drop delivery remains queued;
+  preference-read failure must never ignore opt-out.
+
+These implementation changes need their own full verify, CI, merge and production
+receipt. They do not apply #360, enable providers, rebuild Zeus, fix advisor
+findings, or prove signed-in visual/device delivery acceptance. No paid plan,
+new source permission, or relaxed GO threshold is authorized by this update.
+
 ## Confirmed Release
 
 - PR #362 merged as `8821da9c8298cb778d513d08d57fc7a9b35c3f6a`.

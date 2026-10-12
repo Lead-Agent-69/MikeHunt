@@ -11,19 +11,28 @@ export async function GET() {
   try {
     const {
       data: { user },
+      error,
     } = await getServerUser();
-    return NextResponse.json({
-      id: user?.id ?? null,
-      email: user?.email ?? null,
-      isAdmin: isAdminEmail(user?.email),
-      demo: !isSupabaseConfigured() && Boolean(user),
-    });
+    return NextResponse.json(
+      {
+        id: user?.id ?? null,
+        email: user?.email ?? null,
+        isAdmin: isAdminEmail(user?.email),
+        demo: !isSupabaseConfigured() && Boolean(user),
+        verified: isSupabaseConfigured() && !error && Boolean(user?.id),
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch {
-    return NextResponse.json({
-      id: null,
-      email: null,
-      isAdmin: false,
-      demo: false,
-    });
+    return NextResponse.json(
+      {
+        id: null,
+        email: null,
+        isAdmin: false,
+        demo: false,
+        verified: false,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   }
 }
