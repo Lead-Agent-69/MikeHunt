@@ -26,6 +26,7 @@ export function SourceBadge({
     <>
       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white text-neutral-700">
         {vendor.mark && failedMark !== vendor.mark ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={vendor.mark}
             width={18}
