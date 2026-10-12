@@ -1,4 +1,8 @@
 import { buyTerm } from "@/lib/deal-terms";
+import {
+  nonCashPriceLabel,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 
 type ListingFacts = {
@@ -6,6 +10,7 @@ type ListingFacts = {
   make?: string;
   model?: string;
   askPrice?: number | null;
+  priceEvidence?: PriceEvidence;
   source?: string;
   mileage?: number | null;
   locationCity?: string;
@@ -87,13 +92,25 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
-            {buyTerm(deal.source).priceLabel}
+            {nonCashPriceLabel(deal.priceEvidence) ||
+              buyTerm(deal.source).priceLabel}
           </p>
           <p className="text-xl font-bold text-[var(--t1)]">
-            {reportedMoney(deal.askPrice)}
+            {reportedMoney(
+              nonCashPriceLabel(deal.priceEvidence)
+                ? deal.priceEvidence?.listedAmount
+                : deal.askPrice,
+            )}
           </p>
         </div>
       </div>
+      {nonCashPriceLabel(deal.priceEvidence) && (
+        <p className="text-sm text-[var(--amber-d)]">
+          Full cash price unconfirmed. {deal.priceEvidence?.evidenceText} Ask
+          the seller for the total price and required fees; value and profit
+          cannot be assessed from this amount.
+        </p>
+      )}
       {deal.decisionEvidence?.acquisitionReady === false && (
         <p className="text-sm font-semibold text-[var(--amber-d)]">
           {deal.decisionEvidence.label || "Evidence incomplete"}: research

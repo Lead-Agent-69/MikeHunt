@@ -55,6 +55,10 @@ import {
 } from "../curated-rotation";
 import { createPoliteHtmlFetcher } from "../polite-html";
 import { hostMatches, hostOf, urlHostMatches } from "@/lib/net/host-match";
+import {
+  disclosedPriceEvidence,
+  positivePrice,
+} from "@/lib/deals/acquisition-price";
 
 // ── Detail-page enrichment ───────────────────────────────────────────────────
 // Listing CARDS lack VIN / true mileage / title status — those live on each detail page.
@@ -147,6 +151,24 @@ export async function enrichCraigslistDetail(
     const cheerio = await import("cheerio");
     const $ = cheerio.load(fetched.html);
     const out: Partial<Deal> = {};
+    const listedAmount = positivePrice(
+      $(".postingtitletext .price")
+        .first()
+        .text()
+        .replace(/[^\d.]/g, ""),
+    );
+    const body = $("#postingbody").text();
+    const priceEvidence = disclosedPriceEvidence(body, listedAmount) || {
+      kind:
+        listedAmount && body.trim()
+          ? ("asking" as const)
+          : ("unknown" as const),
+      askingPrice: body.trim() ? listedAmount : undefined,
+      listedAmount,
+    };
+    out.options = {
+      priceEvidence: { ...priceEvidence, checkedAt: new Date().toISOString() },
+    };
 
     const addressState = craigslistListingState(
       $(".mapaddress").first().text(),
@@ -203,7 +225,14 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
   // ranking is also outcome-aware: makes the dealer has profited on get boosted (closed loop).
   const profitableMakes = await loadProfitableMakes();
   const targets = deals
-    .filter((d) => d.source_url && (!d.vin || d.vin.length !== 17))
+    .filter(
+      (d) =>
+        d.source_url &&
+        (!d.vin ||
+          d.vin.length !== 17 ||
+          (d.source === "craigslist_dealer" &&
+            !d.options?.priceEvidence?.checkedAt)),
+    )
     .sort(
       (a, b) =>
         enrichPriority(b, profitableMakes) - enrichPriority(a, profitableMakes),
@@ -220,6 +249,7 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
           if (Object.keys(extra).length) {
             Object.assign(d, extra, {
               metadata: { ...d.metadata, ...extra.metadata },
+              options: { ...d.options, ...extra.options },
             });
             enriched++;
           }

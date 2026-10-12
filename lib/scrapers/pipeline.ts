@@ -33,7 +33,10 @@ import {
   parseTitleTypes,
 } from "@/lib/deals/title-category";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
@@ -219,10 +222,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         deal.make &&
         deal.model &&
         typeof deal.ask_price === "number" &&
-        (deal.ask_price > 0 ||
-          (deal.source === "copart" && !!deal.options?.priceEvidence)),
+        (deal.ask_price > 0 || !!deal.options?.priceEvidence),
     )
     .map((deal) => {
+      const priceEvidence = listingPriceEvidence(deal);
+      if (priceEvidence)
+        deal = { ...deal, options: { ...deal.options, priceEvidence } };
       const analysis = analyzeDeal(deal);
       const source_deal_id = localContext
         ? stableListingId(deal as Record<string, unknown>)

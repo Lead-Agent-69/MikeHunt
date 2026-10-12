@@ -26,6 +26,7 @@ import {
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
+import { nonCashPriceLabel } from "@/lib/deals/acquisition-price";
 
 // Short, glanceable lane labels ΓÇö the channel/risk a dealer reads instantly (color from the API).
 const LANE_LABELS: Record<string, string> = {
@@ -103,7 +104,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
   const priceLabel =
-    "saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel;
+    nonCashPriceLabel(deal.priceEvidence) ||
+    ("saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel);
+  const displayAmount = nonCashPriceLabel(deal.priceEvidence)
+    ? deal.priceEvidence?.listedAmount || 0
+    : deal.askPrice;
   const decision = {
     label: evidence.label,
     background: "rgba(35, 43, 55, .88)",
@@ -238,8 +243,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {priceLabel}
               </p>
               <span className="font-mono text-xl font-black text-[var(--t1)]">
-                {Number.isFinite(deal.askPrice) && deal.askPrice > 0
-                  ? `$${deal.askPrice.toLocaleString()}`
+                {Number.isFinite(displayAmount) && displayAmount > 0
+                  ? `$${displayAmount.toLocaleString()}`
                   : "Not reported"}
               </span>
             </div>
@@ -421,8 +426,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               Cost estimates and source details
             </summary>
             <p className="text-[11px] leading-relaxed text-[var(--t3)]">
-              {deal.askPrice > 0
-                ? `${priceLabel} $${deal.askPrice.toLocaleString()}`
+              {displayAmount > 0
+                ? `${priceLabel} $${displayAmount.toLocaleString()}`
                 : "Price not reported"}
               {" · "}
               {deal.soldAnchored &&
