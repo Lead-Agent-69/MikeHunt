@@ -353,7 +353,7 @@ describe("GET /api/scrape/health lane scoping", () => {
           isDue: false,
         });
         expect(row.termsReason).toMatch(/automat|robot/i);
-        expect(row.nextAction).toContain("SCRAPE_SOURCES");
+        expect(row.nextAction).toContain("written source permission");
         expect(row.userStatus).not.toBe("Needs run");
       }
       expect(
@@ -499,6 +499,20 @@ describe("GET /api/scrape/health lane scoping", () => {
     );
   });
 
+  it("counts Craigslist dealer-channel inventory under the runner that collected it", async () => {
+    const { dbSourceValues, healthSourceIdForDeal } = await import("./route");
+    expect(dbSourceValues("craigslist")).toEqual([
+      "craigslist",
+      "craigslist_dealer",
+    ]);
+    expect(
+      healthSourceIdForDeal({ source: "craigslist_dealer" }, ["craigslist"]),
+    ).toBe("craigslist");
+    for (const id of Object.keys(DEALER_SOURCE_DOMAINS)) {
+      expect(dbSourceValues(id)).toEqual(["independent_dealer"]);
+    }
+  });
+
   it("limits dealer proof to selected dealer source ids", async () => {
     const { GET } = await import("./route");
     const res = await GET(
@@ -618,7 +632,8 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(source).toContain(
       "lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt",
     );
-    expect(source).toContain('lastRun?.status === "error"');
+    expect(source).toContain("sourceProofReadiness({");
+    expect(source).toContain("lastRunStatus: lastRun?.status");
     expect(source).toContain("minutesSinceLastRun == null");
     expect(source).toContain(
       'lastRun?.status || (proof?.activeRows ? "observed" : "never_run")',
