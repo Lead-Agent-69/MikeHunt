@@ -60,31 +60,6 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
-### Bounded Worker Logs (October 12 Follow-Up)
-
-- Integrated the independently deployable log protection from #360 without merging its gated
-  hosted migration or database-dependent routes. Worker file logs and Compose Docker logs are
-  bounded; listing caches, quota state, status and browser profiles are preserved.
-- Regression coverage includes restart accounting, concurrent queued writes, oversized UTF-8
-  messages, oversized legacy generations, shutdown, unavailable log directories and invalid limits.
-- `node scripts/storage-audit.mjs` is read-only, distinguishes unavailable checks from measured
-  evidence and reports unbounded Docker logs/missing persistent mounts/tracked runtime data.
-- Local attachments and QA artifacts are excluded from Git, Docker and Vercel upload payloads;
-  the Vercel ignore also excludes runtime caches, profiles, logs and local authentication fixtures.
-  No existing files are removed. Regression coverage checks all three exclusion boundaries.
-- Actual local audit at 21:34 UTC found persistent mounts and substantial disk headroom, but the
-  running scraper's Docker logs are still unbounded. The operator must deploy the worker and Compose
-  changes. This work does not apply #360, clean hosted data, reset quotas or prove remote Zeus health.
-- Removed unsafe blanket inactive-embedding/shorter-retention recommendations from the historical
-  budget guide. Owner-protected retention review/apply and actual provider usage remain next gates.
-- Fresh read-only hosted check on October 12: database size 101,510,291 bytes;
-  `prune_inventory_retention(integer)` and `inventory_storage_bytes()` absent, migration
-  `20261011142210` absent, and two active legacy deal-deletion jobs still present. #360's exact head
-  `19b483de841023001bfa99adc7f384018b0a61cb` has no recorded PR review. No hosted writes were made.
-- Initial focused verification: 14 tests passed; Compose configuration validation passed. Final
-  focused and full checks must include the added upload-exclusion regression. Full release
-  checks and merge receipt must be recorded separately before calling this shipped.
-
 ### Release Reconciliation (October 12, Afternoon Chicago)
 
 - #380 source-outcome receipts merged at `e57bb5e`; #381 detail hierarchy and
@@ -529,3 +504,31 @@ Related evidence:
 [29-item foundation register](FOUNDATION-RELEASE-REMAINING-HANDOFF-2026-10-09.md),
 [release integration audit](RELEASE-INTEGRATION-AUDIT-2026-10-10.md),
 [Zeus operator checklist](zeus-deploy-checklist.md).
+
+## Bounded Worker Logs (October 12 Follow-Up)
+
+- Integrated the independently deployable log protection from #360 without merging its gated
+  hosted migration or database-dependent routes. Worker file logs and Compose Docker logs are
+  bounded; listing caches, quota state, status and browser profiles are preserved.
+- Regression coverage includes restart accounting, concurrent queued writes, oversized UTF-8
+  messages, oversized legacy generations, shutdown, unavailable log directories and invalid limits.
+- `node scripts/storage-audit.mjs` is read-only, distinguishes unavailable checks from measured
+  evidence and reports unbounded Docker logs/missing persistent mounts/tracked runtime data.
+- Local attachments and QA artifacts are excluded from Git, Docker and Vercel upload payloads;
+  the Vercel ignore also excludes runtime caches, profiles, logs and local authentication fixtures.
+  No existing files are removed. Regression coverage checks all three exclusion boundaries.
+- Actual local audit at 21:34 UTC found persistent mounts and substantial disk headroom, but the
+  running scraper's Docker logs are still unbounded. The operator must deploy the worker and Compose
+  changes. This work does not apply #360, clean hosted data, reset quotas or prove remote Zeus health.
+- Removed unsafe blanket inactive-embedding/shorter-retention recommendations from the historical
+  budget guide. Owner-protected retention review/apply and actual provider usage remain next gates.
+- Fresh read-only hosted check on October 12: database size 101,510,291 bytes;
+  `prune_inventory_retention(integer)` and `inventory_storage_bytes()` absent, migration
+  `20261011142210` absent, and two active legacy deal-deletion jobs still present. #360's exact head
+  `19b483de841023001bfa99adc7f384018b0a61cb` has no recorded PR review. No hosted writes were made.
+- Fifteen focused tests and Compose configuration validation passed. Pre-integration head
+  `7516aeb` passed 559 files / 3,567 tests, full build and 48 local desktop/mobile checks.
+  Current-main integration, final CI and merge/deployment receipts remain separate requirements.
+- Current live push status reports `configured=false`. Security advisor returned 11 findings.
+  No new login was created when the newer Vercel dry-run CLI lacked existing credentials; upload
+  exclusions are tested, but a CLI manifest receipt is not claimed.
