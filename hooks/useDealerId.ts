@@ -5,6 +5,7 @@ import {
   createClientComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { detachPushForLogout } from "@/lib/notifications/device-logout";
 
 /**
  * Returns the current authenticated user's id to be used as dealerId.
@@ -20,6 +21,7 @@ export function useDealerId() {
   useEffect(() => {
     let mounted = true;
     let revision = 0;
+    let knownUser: string | null = null;
     const controller = new AbortController();
     setLoading(true);
     setError(null);
@@ -58,6 +60,14 @@ export function useDealerId() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
+        const nextUser = session?.user?.id ?? null;
+        if (
+          _event === "SIGNED_OUT" ||
+          (knownUser && nextUser && knownUser !== nextUser)
+        ) {
+          void detachPushForLogout().catch(() => undefined);
+        }
+        knownUser = nextUser;
         revision += 1;
         setDealerId(session?.user?.id ?? null);
         setError(null);
@@ -72,6 +82,7 @@ export function useDealerId() {
       .then(({ data: { session }, error }) => {
         if (!mounted || revision !== initialRevision) return;
         if (error) return fail();
+        knownUser = session?.user?.id ?? null;
         setDealerId(session?.user?.id ?? null);
         setLoading(false);
       })

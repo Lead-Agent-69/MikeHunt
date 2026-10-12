@@ -43,6 +43,7 @@ import {
   navItemForViewer,
 } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { detachPushForLogout } from "@/lib/notifications/device-logout";
 
 const MENU_ICONS: Record<string, LucideIcon> = {
   "/saved": Bookmark,
@@ -147,6 +148,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     setLoggingOut(true);
     setLogoutError(null);
     try {
+      await detachPushForLogout();
       if (isSupabaseConfigured()) {
         const { error } = await createClientComponentClient().auth.signOut();
         if (error) throw error;
