@@ -1,9 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { boundingBox, haversineMiles } from "@/lib/geo/distance";
 import { geocodeZip } from "@/lib/geo/geocode";
-
-export const DEFAULT_RADIUS_MI = 100;
-export const MAX_RADIUS_MI = 500;
+import { parseZipRadius } from "./zip-radius-scope";
+export {
+  parseZipRadius,
+  DEFAULT_RADIUS_MI,
+  MAX_RADIUS_MI,
+} from "./zip-radius-scope";
 
 export interface ZipRadius {
   zip: string;
@@ -11,20 +14,6 @@ export interface ZipRadius {
   lat: number;
   lng: number;
   box: ReturnType<typeof boundingBox>;
-}
-
-/** Parse ?zip=&radius= (radius clamped 5..500, default 100 when only a ZIP is given). */
-export function parseZipRadius(
-  params: URLSearchParams,
-): { zip: string; radius: number } | null {
-  const zip = (params.get("zip") || "").trim();
-  if (!/^\d{5}$/.test(zip)) return null;
-  const r = Number(params.get("radius"));
-  const radius =
-    Number.isFinite(r) && r > 0
-      ? Math.min(MAX_RADIUS_MI, Math.max(5, Math.round(r)))
-      : DEFAULT_RADIUS_MI;
-  return { zip, radius };
 }
 
 /** Geocode the ZIP (cache-first, one lookup at most) and build the SQL pre-filter box. */
