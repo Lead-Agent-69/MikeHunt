@@ -8,18 +8,14 @@ import { Mono } from "@/components/shared/Mono";
 import { buyTerm } from "@/lib/deal-terms";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { reportedPrice } from "@/lib/deals/reported-price";
+import { ChevronDown } from "lucide-react";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
   if (!response.ok) throw new Error("Alternatives couldn't be loaded.");
   return response.json();
 };
-const money = (v: any) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Number(v) || 0);
 
 /** Current alternatives ranked by buying-channel, model and price fit. */
 export function SimilarDeals({ dealId }: { dealId: string }) {
@@ -54,14 +50,16 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
     );
 
   return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 mb-2 px-1">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-          Current alternatives
-        </p>
-      </div>
+    <details className="group/alternatives mt-3 border-y border-[var(--b1)]">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm font-semibold text-[var(--t2)] [&::-webkit-details-marker]:hidden">
+        Current alternatives ({similar.length})
+        <ChevronDown
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 transition-transform group-open/alternatives:rotate-180 motion-reduce:transition-none"
+        />
+      </summary>
       <div
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
+        className="scrollbar-hide flex gap-3 overflow-x-auto pb-3"
         style={{ scrollSnapType: "x mandatory" }}
       >
         {similar.map((d) => (
@@ -94,15 +92,16 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
                   className="text-sm font-black text-[var(--t1)]"
                   style={{ fontFamily: "var(--fm)" }}
                 >
-                  {money(d.askPrice)}
+                  {reportedPrice(d.askPrice)}
                 </Mono>
               </div>
               <p className="text-[11px] text-[var(--t3)]">
                 {buyTerm(d.source).priceLabel} ·{" "}
                 {sourceMeta(d.source || "").label}
               </p>
-              <p className="text-[11px] text-[var(--t4)] mt-0.5 truncate">
-                {[d.locationCity, d.locationState].filter(Boolean).join(", ")}
+              <p className="text-[11px] text-[var(--t4)] mt-0.5 break-words">
+                {[d.locationCity, d.locationState].filter(Boolean).join(", ") ||
+                  "Location not reported"}
               </p>
               <ul className="mt-2 space-y-1 text-xs text-[var(--t2)]">
                 {(d.matchReasons || []).slice(0, 4).map((reason: string) => (
@@ -129,6 +128,6 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
           </Link>
         ))}
       </div>
-    </div>
+    </details>
   );
 }

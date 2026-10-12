@@ -123,10 +123,18 @@ export function dealLane(deal: {
   source?: string | null;
   condition?: string | null;
   damage_type?: string | null;
+  options?: { priceEvidence?: { kind?: string } } | null;
+  priceEvidence?: { kind?: string };
 }): DealLane {
   const src = (deal.source || "").toLowerCase().trim();
   const cond = (deal.condition || "").toLowerCase();
-  if (LANE_AUCTION.has(src) || isAuctionChannel(src)) return "auction";
+  if (
+    deal.options?.priceEvidence?.kind === "current_bid" ||
+    deal.priceEvidence?.kind === "current_bid" ||
+    LANE_AUCTION.has(src) ||
+    isAuctionChannel(src)
+  )
+    return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
     return "salvage";
   const damaged = hasReportedRepairRisk(deal.condition, deal.damage_type);
@@ -256,7 +264,11 @@ export function categorize(deal: {
   // an opening bid never fakes a "Great Deal", and an overheated lot (bid above max) grades down honestly.
   const isAuction = isAuctionChannel(deal.source);
   const gradeAgainst =
-    isAuction && deal.recommended_max_bid && deal.recommended_max_bid > 0
+    deal.ask_price &&
+    deal.ask_price > 0 &&
+    isAuction &&
+    deal.recommended_max_bid &&
+    deal.recommended_max_bid > 0
       ? Math.max(deal.ask_price || 0, deal.recommended_max_bid)
       : deal.ask_price;
   const g = dealGrade(gradeAgainst, market);

@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import { createScraperRegistry } from "./runner";
+import { runtimeSourceMetadata } from "./runtime-source-metadata";
 import { ALL_SOURCES, SOURCE_STATS } from "./sources-registry";
 import {
   IMPLEMENTED_SCRAPER_IDS,
@@ -44,6 +45,16 @@ function runnerIds(): string[] {
 }
 
 describe("source index / registry consistency", () => {
+  it("reports the same default enablement as the real runner", () => {
+    const actual = new Map(
+      createScraperRegistry()
+        .getAll()
+        .map((source) => [source.id, source.enabled]),
+    );
+    for (const source of runtimeSourceMetadata()) {
+      expect(source.enabled, source.id).toBe(actual.get(source.id));
+    }
+  });
   it("enumerates the runner registry", () => {
     const ids = runnerIds();
     expect(ids.length).toBeGreaterThan(0);

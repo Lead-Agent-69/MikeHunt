@@ -1,5 +1,12 @@
 # Free-tier budget: Vercel Hobby + Supabase Free
 
+> Historical measurement below, not current quota certification. See
+> [Production readiness handoff](PRODUCTION-READINESS-HANDOFF.md) for the October 11
+> release receipt, blocked access, full open PR queue and read-only usage check.
+> Do not execute the older retention/embedding suggestions below without reviewed
+> owner-data protection and migration verification. Hobby eligibility depends on
+> non-commercial personal use, not simply whether users pay.
+
 Measured on 2026-10-09 (America/Chicago) against the production project. Plan limits are from
 vercel.com/docs/plans/hobby and supabase.com/pricing, read the same day. Re-run the queries at the
 bottom monthly.
@@ -58,11 +65,13 @@ clause, but it has no backups. Turn on Pro before storing anything customers pai
 
 ## Supabase: what to do before the 500 MB wall
 
-1. **Drop embeddings on inactive rows.** The `embedding` column is about 3 KB of each row. Nulling it when a
-   deal goes inactive cuts ~40% of the table, with no product loss because similarity search only uses
-   active rows.
-2. **Shorten the inactive hard delete from 90 to 45 days** (`pruneStaleDeals()` on Zeus), keeping the
-   watchlist/saved/outcome exemptions. The 30-day demotion stays.
+1. **Review inactive embeddings before changing them.** Saved research and replay may still rely on
+   historical intelligence. Measure the actual benefit and preserve owner-referenced records;
+   inactivity alone is not permission to discard their data.
+2. **Land reviewed owner-protected retention, not a shorter deletion window.** #360 protects Saved,
+   watchlist, inventory, outcomes, dealer purchases and alert matches. Its migration must be reviewed,
+   applied and verified before the dependent web rollout. Do not run blanket cleanup or shorten the
+   retention period to meet a quota. Buffer new inventory on the worker rather than sacrifice history.
 3. **`spatial_ref_sys` (7 MB)** is PostGIS's reference table. It can't be dropped while PostGIS is
    installed. Leave it, but don't count it as growth.
 4. **Cap the explore pull:** select only the columns explore facets need. `deal_analysis` is ~1.2 KB per row,
@@ -95,3 +104,23 @@ from deals;
 
 Vercel usage: Dashboard → mikehunt team → Usage (Active CPU, Invocations, Fast Data Transfer, Image
 Transformations). Supabase egress: Dashboard → Organization → Usage.
+
+## Worker Disk And Logs
+
+Run `node scripts/storage-audit.mjs` for a read-only audit of the connected Docker host and this
+checkout. Exit 1 means a warning; exit 2 means some evidence is unavailable. It checks persistent
+mounts, disk use, tracked runtime data and Docker log limits without reading environment variables,
+customer rows or credentials. It does not certify remote Zeus, hosted quotas or backup restoration.
+
+The collector now bounds its disposable `scraper.log` to 10 MiB plus three generations, with bounded
+queued writes and graceful shutdown flushing. Oversize pre-existing log generations are discarded
+on rotation; listing caches, status, quota files and browser profiles are not rotated or deleted.
+The local Compose stack also specifies three 10 MB Docker log files per service. These safeguards
+only take effect when the operator rebuilds/recreates the relevant containers; editing Compose does
+not change running containers. Do not reset quotas or remove persistent volumes during rollout.
+
+Read-only local receipt, October 12 at 21:34 UTC: persistent cache/log/profile mounts were present on
+F:, about 1.73 billion KiB were available, and none of the audited runtime folders were tracked in
+Git. The running scraper's Docker `json-file` logger had no size/file limits. This is an outstanding
+operator rollout, not a claim that the running container is already protected. Supabase/Vercel
+monthly usage and cold-archive/restore proof remain separate acceptance gates.

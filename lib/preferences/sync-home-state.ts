@@ -79,7 +79,7 @@ export async function syncProfileHomeStateToPrefs(input: {
     });
     if (kick) {
       merged = { ...merged, ...locationDemandPrefsStamp(kick) };
-      kicked = Boolean(kick.queued || kick.demandedAt);
+      kicked = kick.queued;
     }
 
     const { error } = await input.supabase.from("user_preferences").upsert(

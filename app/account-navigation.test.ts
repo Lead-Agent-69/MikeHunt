@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   refresh: vi.fn(),
   signOut: vi.fn(),
+  detach: vi.fn(),
   errorToast: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks }));
@@ -27,6 +28,9 @@ vi.mock("@/lib/supabase", () => ({
   createClientComponentClient: () => ({ auth: { signOut: mocks.signOut } }),
 }));
 vi.mock("sonner", () => ({ toast: { error: mocks.errorToast } }));
+vi.mock("@/lib/notifications/device-logout", () => ({
+  detachPushForLogout: mocks.detach,
+}));
 import { AccountMenu } from "@/components/home/AccountMenu";
 
 let root: Root;
@@ -38,6 +42,7 @@ beforeEach(() => {
   mocks.dealerId = "user-one";
   mocks.loading = false;
   mocks.signOut.mockResolvedValue({ error: null });
+  mocks.detach.mockResolvedValue(undefined);
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -57,6 +62,20 @@ async function open() {
 }
 
 describe("Account navigation", () => {
+  it("keeps the session when device alert revocation fails", async () => {
+    mocks.detach.mockRejectedValue(new Error("revocation failed"));
+    await open();
+    await act(async () =>
+      Array.from(host.querySelectorAll("button"))
+        .find((b) => b.textContent?.includes("Log out"))!
+        .click(),
+    );
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      "Could not log out",
+    );
+  });
   it("keeps account actions compact and focuses native links, with Escape returning to its trigger", async () => {
     mocks.mode = "dealer";
     await open();

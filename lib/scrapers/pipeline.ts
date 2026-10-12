@@ -21,13 +21,22 @@ import {
 } from "@/lib/alerts/delivery-tracking";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
 import { resolvePlaces } from "@/lib/geo/geocode";
-import { withinMiles } from "@/lib/geo/distance";
+import { matchesSavedSearch } from "@/lib/saved/search-match";
 import { cleanCity } from "@/lib/data/clean-location";
 import { getLocalWriteContext } from "./local-write-context";
 import { stableListingId } from "./local-cache";
 import { getScrapeRunScope } from "./run-scope-context";
 import type { BuyerScope } from "./buyer-scope";
 import { rowMatchesBuyerQuery } from "@/lib/discovery/for-you-rank";
+import {
+  titleCategoryDetail,
+  parseTitleTypes,
+} from "@/lib/deals/title-category";
+import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { partitionVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
@@ -66,15 +75,18 @@ function matchesScopeText(deal: Partial<Deal>, scope: BuyerScope) {
 function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
   const requested = text(titleType).toLowerCase();
   if (!requested || requested === "all") return true;
-  const h =
-    `${deal.title || ""} ${deal.condition || ""} ${(deal as any).title_type || ""}`.toLowerCase();
-  if (requested === "clean") return /clean/.test(h);
-  if (requested === "salvage") return /salvage|repairable|damage/.test(h);
-  if (requested === "rebuilt") return /rebuilt|reconstructed/.test(h);
-  return h.includes(requested);
+  const detail = titleCategoryDetail(deal);
+  if (requested === "parts") return detail.partsOnly;
+  const categories = parseTitleTypes(requested);
+  return categories.length > 0 && categories.includes(detail.category);
 }
 
 export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
+  if (
+    scope.includeRepairable === false &&
+    hasReportedRepairRisk(deal.condition, deal.damage_type)
+  )
+    return false;
   if (
     scope.lane === "clean-retail" &&
     (deal.seller_type === "auction" ||
@@ -96,7 +108,7 @@ export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
   );
   if (allowedStates.size && (!state || !allowedStates.has(state))) return false;
 
-  const price = Number(deal.ask_price || 0);
+  const price = reportedAcquisitionPrice(deal);
   if (scope.minPrice && (!price || price < scope.minPrice)) return false;
   if (scope.maxPrice && (!price || price > scope.maxPrice)) return false;
 
@@ -210,9 +222,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         deal.make &&
         deal.model &&
         typeof deal.ask_price === "number" &&
-        deal.ask_price > 0,
+        (deal.ask_price > 0 || !!deal.options?.priceEvidence),
     )
     .map((deal) => {
+      const priceEvidence = listingPriceEvidence(deal);
+      if (priceEvidence)
+        deal = { ...deal, options: { ...deal.options, priceEvidence } };
       const analysis = analyzeDeal(deal);
       const source_deal_id = localContext
         ? stableListingId(deal as Record<string, unknown>)
@@ -242,7 +257,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         auction_end_at: normalizeAuctionEndAt(deal.auction_end),
         listed_year: listedYears.get(deal as object) ?? deal.year,
       });
-      const flagged = flags.length > 0;
+      const unpriced = reportedAcquisitionPrice(deal) <= 0;
+      const flagged = flags.length > 0 || unpriced;
       const auctionEndAt = normalizeAuctionEndAt(deal.auction_end);
 
       const scraperOptions =
@@ -305,7 +321,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
               ? { phone, email }
               : ((deal as any).options?.contact ?? undefined),
         },
-        ask_price: deal.ask_price,
+        ask_price: reportedAcquisitionPrice(deal),
+        buy_now_price: deal.buy_now_price ?? null,
         mileage: deal.mileage,
         // Coerce to the listing_condition enum — AI-rescue / bespoke salvage sites emit free text
         // ("Clean Title", "Non-Repairable") that the enum rejects, which silently dropped every row.
@@ -345,7 +362,11 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         mmr_value: (deal as any).mmr_value ?? null,
         sell_estimate: flagged ? null : analysis.sellEstimate,
         recommended_max_bid: flagged ? null : analysis.recommendedMaxBid,
-        deal_verdict: flagged ? "pass" : analysis.verdict,
+        deal_verdict: unpriced
+          ? "not_enough_data"
+          : flagged
+            ? "pass"
+            : analysis.verdict,
         // Needs 20261010210000_deals_quality_flags_completeness.sql. Before it is applied the
         // schema-heal below strips both columns and the upsert proceeds unchanged.
         quality_flags: flagged ? flags : null,
@@ -361,23 +382,28 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         }),
         deal_analysis: {
           ...(flagged ? { qualityFlags: flags } : {}),
-          roi: Math.round(analysis.roi * 10) / 10,
-          profitMargin: Math.round(analysis.profitMargin * 10) / 10,
+          acquisitionPriceMissing: unpriced,
+          roi: unpriced ? null : Math.round(analysis.roi * 10) / 10,
+          profitMargin: unpriced
+            ? null
+            : Math.round(analysis.profitMargin * 10) / 10,
           breakEvenDay: analysis.breakEvenDay,
           sellBasis: analysis.sellBasis,
           transportMiles: analysis.miles,
           costs: {
-            acquisition: analysis.acquisitionCost,
+            acquisition: unpriced ? null : analysis.acquisitionCost,
             repair: analysis.repairCost,
             transport: analysis.transportCost,
             holding: analysis.holdingCost,
             selling: analysis.sellingCost,
-            total: analysis.totalCost,
+            total: unpriced ? null : analysis.totalCost,
           },
           scoreBreakdown: analysis.scoreBreakdown,
           warnings: flagged
             ? [
-                `Not scored: listing values failed sanity checks (${flags.join(", ")}). Verify on the source before relying on it.`,
+                unpriced
+                  ? "Not scored: purchase price is not reported. Verify current auction terms on the source."
+                  : `Not scored: listing values failed sanity checks (${flags.join(", ")}). Verify on the source before relying on it.`,
                 ...analysis.warnings,
               ]
             : analysis.warnings,
@@ -454,7 +480,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     rowsToWrite = stripColumns(rows as any[], QUALITY_COLUMNS) as typeof rows;
 
   const SELECT_COLS =
-    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at";
+    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at, location_state, condition, damage_type, options";
   const sb = getSupabase();
   // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
   // salvage below still run; this only adds throttle beside them.
@@ -677,53 +703,7 @@ async function matchUserSearches(deals: any[]): Promise<void> {
 
     for (const deal of deals) {
       for (const search of searches) {
-        let matched = true;
-
-        if (
-          search.make &&
-          search.make.toLowerCase() !== deal.make?.toLowerCase()
-        )
-          matched = false;
-        if (
-          search.model &&
-          search.model.toLowerCase() !== deal.model?.toLowerCase()
-        )
-          matched = false;
-        if (search.min_year && deal.year < search.min_year) matched = false;
-        if (search.max_year && deal.year > search.max_year) matched = false;
-        if (search.max_price && deal.ask_price > search.max_price)
-          matched = false;
-
-        // Profit gate (Saved Search Alerts): require the engine's net profit to clear the target.
-        if (
-          search.target_profit &&
-          Number(deal.true_net_profit ?? 0) < Number(search.target_profit)
-        ) {
-          matched = false;
-        }
-
-        // Verdict gate: only notify on engine-verdict GO deals when the search opts in.
-        if (search.require_go && deal.deal_verdict !== "go") matched = false;
-
-        // Radius gate: if the search sets a max distance and we know the dealer's home + the deal's
-        // coords, require the deal to fall within range. If either side lacks coordinates we DON'T
-        // gate on distance (avoid silently hiding deals we just couldn't place).
-        if (search.max_distance_miles && search.max_distance_miles > 0) {
-          const home = homeByUser.get(search.user_id);
-          if (home && deal.lat != null && deal.lng != null) {
-            if (
-              !withinMiles(
-                home,
-                { lat: deal.lat, lng: deal.lng },
-                Number(search.max_distance_miles),
-              )
-            ) {
-              matched = false;
-            }
-          }
-        }
-
-        if (matched) {
+        if (matchesSavedSearch(deal, search, homeByUser.get(search.user_id))) {
           matches.push({
             user_id: search.user_id,
             search_id: search.id,
@@ -788,6 +768,7 @@ async function matchUserSearches(deals: any[]): Promise<void> {
         "[pipeline] Error inserting into user_feed_inbox:",
         insertError.message,
       );
+      return;
     } else {
       console.log(
         `[pipeline] Matched ${inboxItems.length} inbox candidates (${newMatches.length} new).`,

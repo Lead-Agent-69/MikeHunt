@@ -436,13 +436,28 @@ export const DealCard = memo(function DealCard({
 
   return (
     <motion.div
-      onClick={onClick}
+      onClick={
+        onClick
+          ? (e) => {
+              if (
+                e.target instanceof Element &&
+                e.target.closest("a, button, input, select, textarea, details")
+              )
+                return;
+              onClick();
+            }
+          : undefined
+      }
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={
         onClick
           ? (e) => {
-              if (e.key === "Enter" || e.key === " ") onClick();
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
             }
           : undefined
       }

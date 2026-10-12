@@ -18,8 +18,13 @@ import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import {
   claimNextScopedScrapeJob,
   recoveredClaimError,
+  scopedWorkerIdleState,
 } from "../lib/scrapers/job-queue";
 import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
+import {
+  loadCuratedOutcomes,
+  type CuratedOutcome,
+} from "../lib/scrapers/curated-outcomes";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import {
@@ -112,6 +117,7 @@ interface Status {
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
   databaseStorage?: StorageBudget;
+  curatedOutcomes: CuratedOutcome[];
   sweep?: {
     startedAt?: string;
     source?: string;
@@ -157,6 +163,7 @@ const statusDir = path.dirname(STATUS_PATH);
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
+  currentStatus.curatedOutcomes = (await loadCuratedOutcomes()).rows;
   await mkdir(statusDir, { recursive: true });
   const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
     .toString(36)
@@ -335,6 +342,7 @@ async function initializeRuntime(): Promise<void> {
     totalSources: 0,
     progress: 0,
     quota: cache.getQuota(),
+    curatedOutcomes: [],
     accessBarriers: [],
     results: [],
   };
@@ -672,6 +680,20 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   let claimFailures = 0;
   let nextAuctionExpiryAt = 0;
   while (!stopRequested) {
+    // Keep unstarted buyer jobs queued when no write capacity remains. Crawling
+    // them cannot add matches and must not report a successful zero-save refresh.
+    if (quotaReached()) {
+      quotaPaused = true;
+      currentStatus.state = scopedWorkerIdleState(manualPaused, true);
+      currentStatus.activeJob = undefined;
+      currentStatus.currentSources = [];
+      const wait = Math.max(QUEUE_POLL_MS, 60_000);
+      currentStatus.nextRunAt = new Date(Date.now() + wait).toISOString();
+      await writeStatus();
+      await new Promise((resolve) => setTimeout(resolve, wait));
+      continue;
+    }
+    quotaPaused = false;
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
       job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
@@ -723,7 +745,7 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       }
     }
     if (!job) {
-      currentStatus.state = manualPaused ? "paused" : "running";
+      currentStatus.state = scopedWorkerIdleState(manualPaused, quotaReached());
       currentStatus.currentSources = [];
       currentStatus.activeJob = undefined;
       currentStatus.nextRunAt = new Date(

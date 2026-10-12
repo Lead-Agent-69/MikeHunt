@@ -21,6 +21,38 @@ async function run(path: string, cookie?: string) {
 }
 
 describe("proxy: signed-out API calls get JSON, not a login redirect", () => {
+  describe("production configuration failure", () => {
+    beforeEach(() => {
+      vi.stubEnv("NODE_ENV", "production");
+      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    });
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      process.env = { ...ENV };
+    });
+    it("does not accept demo cookies for protected pages or APIs", async () => {
+      for (const path of ["/saved", "/admin", "/api/saved-cars"]) {
+        const response = await run(path, "mh_demo_user=forged-cookie");
+        expect(response.status).toBe(503);
+        expect(response.headers.get("location")).toBeNull();
+        expect(await response.text()).not.toMatch(
+          /supabase|misconfigured|service_role/i,
+        );
+      }
+    });
+    it("keeps sign-in and public information reachable", async () => {
+      for (const path of ["/login", "/register", "/privacy"])
+        expect((await run(path)).status).toBe(200);
+    });
+    it("treats malformed provider URLs as unavailable rather than throwing", async () => {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = "not-a-url";
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-key";
+      expect((await run("/saved", "mh_demo_user=forged-cookie")).status).toBe(
+        503,
+      );
+    });
+  });
   describe("with Supabase configured", () => {
     beforeEach(() => {
       process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcd.supabase.co";

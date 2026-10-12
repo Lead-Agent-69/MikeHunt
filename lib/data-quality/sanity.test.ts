@@ -165,7 +165,9 @@ describe("pipeline wiring", () => {
   it("flags instead of dropping and keeps flagged rows out of scoring", () => {
     expect(src).toContain("quality_flags: flagged ? flags : null");
     expect(src).toContain("profit_score: flagged ? null : analysis.score");
-    expect(src).toContain('deal_verdict: flagged ? "pass" : analysis.verdict');
+    expect(src.replace(/\s+/g, "")).toContain(
+      'deal_verdict:unpriced?"not_enough_data":flagged?"pass":analysis.verdict',
+    );
     expect(src).toContain(
       'columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)',
     );

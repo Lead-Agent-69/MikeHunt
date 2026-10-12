@@ -9,6 +9,12 @@ const result = vi.hoisted(() => ({
   isLoading: false,
 }));
 vi.mock("swr", () => ({ default: () => ({ ...result, mutate: vi.fn() }) }));
+vi.mock("@/hooks/useSavedCollection", () => ({
+  useSavedCollection: () => ({ ...result, mutate: vi.fn() }),
+}));
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({ dealerId: "owner", loading: false }),
+}));
 import { VehicleComparison } from "@/components/saved/VehicleComparison";
 import { PurchasePipeline } from "@/components/saved/PurchasePipeline";
 

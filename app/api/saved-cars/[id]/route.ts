@@ -59,6 +59,12 @@ export async function PUT(
     }
 
     const updates: any = {};
+    const expectedOwner = request.headers.get("X-Save-Owner");
+    if (expectedOwner && expectedOwner !== userId)
+      return NextResponse.json(
+        { error: "Account changed. Reload and retry." },
+        { status: 409 },
+      );
     if (status) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
     if (tags !== undefined) updates.tags = tags;

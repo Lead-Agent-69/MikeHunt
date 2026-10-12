@@ -43,7 +43,7 @@ export default function SearchesPage() {
   const [formMaxPrice, setFormMaxPrice] = useState("");
   const [formTargetProfit, setFormTargetProfit] = useState("");
   const [formRequireGo, setFormRequireGo] = useState(false);
-  const [formNotifyEmail, setFormNotifyEmail] = useState(true);
+  const [formNotifyEmail, setFormNotifyEmail] = useState(false);
   const [nlQuery, setNlQuery] = useState("");
 
   // Parse a plain-English query into the form fields.
@@ -113,7 +113,7 @@ export default function SearchesPage() {
     setFormMaxPrice("");
     setFormTargetProfit("");
     setFormRequireGo(false);
-    setFormNotifyEmail(true);
+    setFormNotifyEmail(false);
   }
 
   async function handleSaveSearch(e: React.FormEvent) {
@@ -404,9 +404,9 @@ export default function SearchesPage() {
                   <option value="all">All lanes</option>
                   <option value="damaged">Salvage & repairable</option>
                   <option value="auction">Wholesale auctions</option>
-                  <option value="government">Government / repo</option>
+                  <option value="government">Government auctions</option>
                   <option value="clean-retail">Clean retail</option>
-                  <option value="private">Private / dealer</option>
+                  <option value="private">Private listings</option>
                 </select>
               </div>
               <div>
@@ -527,7 +527,7 @@ export default function SearchesPage() {
                   onChange={(e) => setFormNotifyEmail(e.target.checked)}
                   className="accent-[var(--amber)]"
                 />
-                {hasAccount ? "Email me" : "Email requires sign-in"}
+                {hasAccount ? "Request email alerts" : "Email requires sign-in"}
               </label>
               <label
                 className="flex items-center gap-2 text-sm text-[var(--t4)] cursor-not-allowed"
@@ -560,7 +560,7 @@ export default function SearchesPage() {
       )}
 
       {loading ? (
-        <LoadingState label="Loading your alerts…" />
+        <LoadingState label="Loading your saved searches…" />
       ) : searches.length === 0 && !loadError ? (
         <div className="text-center py-12 glass-panel">
           <Ico
@@ -584,9 +584,11 @@ export default function SearchesPage() {
             >
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={`w-2 h-2 rounded-full ${search.is_active ? "bg-[var(--green)] shadow-[0_0_8px_var(--green)]" : "bg-[var(--t4)]"}`}
-                  />
+                  {!search.local && (
+                    <span
+                      className={`w-2 h-2 rounded-full ${search.is_active ? "bg-[var(--green)] shadow-[0_0_8px_var(--green)]" : "bg-[var(--t4)]"}`}
+                    />
+                  )}
                   <h3 className="font-bold text-[var(--t1)]">{search.name}</h3>
                   {search.require_go && (
                     <span
@@ -673,13 +675,15 @@ export default function SearchesPage() {
                 >
                   Source proof
                 </Link>
-                <button
-                  disabled={Boolean(busy)}
-                  onClick={() => toggleActive(search.id, search.is_active)}
-                  className="inline-flex min-h-11 items-center px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
-                >
-                  {search.is_active ? "Pause" : "Resume"}
-                </button>
+                {!search.local && (
+                  <button
+                    disabled={Boolean(busy)}
+                    onClick={() => toggleActive(search.id, search.is_active)}
+                    className="inline-flex min-h-11 items-center px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
+                  >
+                    {search.is_active ? "Pause" : "Resume"}
+                  </button>
+                )}
                 <button
                   disabled={Boolean(busy)}
                   onClick={() => handleDelete(search.id)}

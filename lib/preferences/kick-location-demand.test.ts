@@ -27,6 +27,9 @@ describe("locationPatchTouchesDemand", () => {
     );
     expect(locationPatchTouchesDemand({ searchLocations: [] })).toBe(true);
     expect(locationPatchTouchesDemand({ carsState: "TX" })).toBe(true);
+    expect(
+      locationPatchTouchesDemand({ buyerScope: { maxPrice: 15000 } }),
+    ).toBe(true);
   });
 });
 
@@ -93,7 +96,7 @@ describe("kickLocationDemand", () => {
         queued: true,
         deduplicated: false,
         jobId: "job-1",
-        sourceIds: ["curated_dealers", "gsa_auctions"],
+        sourceIds: ["gsa_auctions", "curated_dealers"],
         demandedAt: "2026-10-07T12:00:00.000Z",
       }),
     );
@@ -101,8 +104,12 @@ describe("kickLocationDemand", () => {
       {},
       expect.objectContaining({
         requestedBy: "u1",
-        sourceIds: ["curated_dealers", "gsa_auctions"],
-        scope: { lane: "all", state: "IA", states: undefined },
+        sourceIds: ["gsa_auctions", "curated_dealers"],
+        scope: expect.objectContaining({
+          lane: "all",
+          state: "IA",
+          states: undefined,
+        }),
         orchestrator: "priority",
       }),
     );
@@ -112,7 +119,7 @@ describe("kickLocationDemand", () => {
     });
   });
 
-  it("still returns a stamp when enqueue fails", async () => {
+  it("clears the scanning stamp when enqueue fails", async () => {
     enqueue.mockRejectedValue(new Error("queue down"));
     const kick = await kickLocationDemand({
       supabase: {} as any,
@@ -124,6 +131,40 @@ describe("kickLocationDemand", () => {
     expect(kick?.jobId).toBeNull();
     expect(kick?.states).toEqual(["KY"]);
     expect(kick?.demandedAt).toBe("2026-10-07T12:00:00.000Z");
+    expect(locationDemandPrefsStamp(kick!)).toEqual({
+      locationDemandAt: null,
+      locationDemandStates: ["KY"],
+    });
+  });
+
+  it("only requests compatible sources for a personal retail profile", async () => {
+    const kick = await kickLocationDemand({
+      supabase: {} as any,
+      userId: "u1",
+      prefs: {
+        homeLocation: { state: "MO" },
+        buyerScope: {
+          buyerMode: "personal",
+          vehicles: ["SUVs", "Sedans"],
+          maxPrice: 18000,
+          titleType: "clean",
+          includeRepairable: false,
+        },
+      },
+    });
+    expect(kick?.sourceIds).toEqual(["curated_dealers"]);
+    expect(enqueue).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        scope: expect.objectContaining({
+          lane: "clean-retail",
+          q: "suv sedan",
+          maxPrice: 18000,
+          titleType: "clean",
+          includeRepairable: false,
+        }),
+      }),
+    );
   });
 });
 

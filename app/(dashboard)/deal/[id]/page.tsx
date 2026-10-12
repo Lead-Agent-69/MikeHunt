@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { recordRecent } from "@/hooks/useRecentlyViewed";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import { useAccountSavedVehicles } from "@/hooks/useAccountSavedVehicles";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -533,6 +534,13 @@ export default function DealPage({
   const loadedDealIdRef = React.useRef<string | null>(null);
   const localSaved = useLocalSavedVehicles();
   const isLocallyWatched = localSaved.has(id);
+  const accountSaved = useAccountSavedVehicles(
+    dealerLoading ? null : dealerId,
+    id,
+  );
+  const isAccountSaved = accountSaved.has(id);
+  const currentSaveOwner = React.useRef(dealerId);
+  currentSaveOwner.current = dealerId;
 
   // Use SWR for data fetching
   const {
@@ -558,21 +566,28 @@ export default function DealPage({
     !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
 
   const handleWatchPrice = async () => {
-    if (watching) return;
+    if (watching || dealerLoading) return;
     const syncSavedCar = async () => {
       try {
+        if (!dealerId || currentSaveOwner.current !== dealerId) return false;
         const savedRes = await fetch("/api/saved-cars", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Save-Owner": dealerId,
+          },
           body: JSON.stringify({ dealId: id }),
         });
         const result = await savedRes.json();
         if (
           (savedRes.ok || savedRes.status === 409) &&
           typeof result.id === "string" &&
-          !result.demo
-        )
+          !result.demo &&
+          currentSaveOwner.current === dealerId
+        ) {
+          await accountSaved.confirm(id, result.id);
           return true;
+        }
         return false;
       } catch {
         return false;
@@ -586,6 +601,7 @@ export default function DealPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deal_id: id }),
       });
+      if (currentSaveOwner.current !== dealerId) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
@@ -637,6 +653,7 @@ export default function DealPage({
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
     } catch {
+      if (currentSaveOwner.current !== dealerId) return;
       if (!saveDealLocally()) {
         toast.error(
           "Device storage is unavailable. The vehicle was not saved.",
@@ -698,19 +715,24 @@ export default function DealPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, store.year, store.make, store.model, serverDeal]);
   const hasEngine = !!serverDeal?.dealVerdict;
+  const acquisitionPriceMissing = !!serverDeal && !(serverDeal.askPrice > 0);
+  const adjustedNetProfit = acquisitionPriceMissing ? 0 : store.netProfit;
   const engineVerdict = (
     hasEngine ? String(serverDeal.dealVerdict).toUpperCase() : store.verdict
   ) as EngineVerdict;
-  const engineNetProfit =
-    hasEngine && serverDeal.true_net_profit != null
+  const engineNetProfit = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal.true_net_profit != null
       ? Number(serverDeal.true_net_profit)
       : store.netProfit;
-  const engineScore =
-    hasEngine && serverDeal.profitScore != null
+  const engineScore = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal.profitScore != null
       ? Number(serverDeal.profitScore)
       : store.profitScore;
-  const engineRoi =
-    hasEngine && serverDeal?.dealAnalysis?.roi != null
+  const engineRoi = acquisitionPriceMissing
+    ? 0
+    : hasEngine && serverDeal?.dealAnalysis?.roi != null
       ? Number(serverDeal.dealAnalysis.roi)
       : store.roi;
   // The client store recompute is reframed as a "what-if" adjusted estimate (see ledger).
@@ -819,7 +841,7 @@ export default function DealPage({
       estimatedProfit: Number(
         serverDeal?.true_net_profit ??
           serverDeal?.trueNetProfit ??
-          store.netProfit ??
+          adjustedNetProfit ??
           0,
       ),
       source: serverDeal?.source ?? dealData?.deal?.source ?? "unknown",
@@ -846,7 +868,7 @@ export default function DealPage({
     store.make,
     store.miles,
     store.model,
-    store.netProfit,
+    adjustedNetProfit,
     store.vin,
     store.year,
   ]);
@@ -1053,7 +1075,7 @@ export default function DealPage({
                   serverDeal?.askPrice ||
                   store.askPrice,
                 vin: serverDeal?.vin || store.vin,
-                trueNetProfit: serverDeal?.true_net_profit || store.netProfit,
+                trueNetProfit: serverDeal?.true_net_profit ?? adjustedNetProfit,
               }}
               engineVerdict={engineVerdict}
               engineNetProfit={engineNetProfit}
@@ -1069,8 +1091,7 @@ export default function DealPage({
           <PersonalListingLead
             deal={{
               ...serverDeal,
-              askPrice:
-                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price ?? 0,
               sourceUrl: serverDeal?.sourceUrl || serverDeal?.source_url,
             }}
           />
@@ -1287,6 +1308,7 @@ export default function DealPage({
         summary="Price history, comparable position, and local market timing."
       >
         <div className="space-y-4">
+          <MarketContext dealId={id} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <PriceMilesScatter
               dealId={id}
@@ -1373,7 +1395,7 @@ export default function DealPage({
             serverDeal?.dealAnalysis?.prediction && (
               <ForecastPanel prediction={serverDeal.dealAnalysis.prediction} />
             )}
-          {store.userType === "dealer" && serverDeal && (
+          {serverDeal && (
             <ContactSeller
               contact={serverDeal.contact}
               sourceUrl={serverDeal.sourceUrl}
@@ -1436,14 +1458,15 @@ export default function DealPage({
                     </div>
                     {/* The interactive ledger below is a what-if sandbox; show its result only as
                     a secondary "adjusted" figure so it never competes with the engine verdict. */}
-                    {store.netProfit !== engineNetProfit && (
-                      <p className="text-[11px] text-[var(--t4)] mt-1.5">
-                        Your adjusted estimate:{" "}
-                        <span className="font-bold text-[var(--t3)]">
-                          {formatMoney(store.netProfit)}
-                        </span>
-                      </p>
-                    )}
+                    {!acquisitionPriceMissing &&
+                      adjustedNetProfit !== engineNetProfit && (
+                        <p className="text-[11px] text-[var(--t4)] mt-1.5">
+                          Your adjusted estimate:{" "}
+                          <span className="font-bold text-[var(--t3)]">
+                            {formatMoney(adjustedNetProfit)}
+                          </span>
+                        </p>
+                      )}
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
@@ -1470,13 +1493,13 @@ export default function DealPage({
                         className="text-[var(--t4)]"
                       />
                       Break-even: Day{" "}
-                      {Math.floor(store.netProfit / store.floorRate)} of{" "}
+                      {Math.floor(adjustedNetProfit / store.floorRate)} of{" "}
                       {store.estimatedDaysToSell}-day target
                     </div>
                   )}
                   {/* Geo-Arbitrage */}
                   {store.transportCost < 1000 &&
-                    store.netProfit > 2500 &&
+                    adjustedNetProfit > 2500 &&
                     store.userType === "dealer" && (
                       <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
                         <Ico name="trending-up" size={14} />
@@ -1748,7 +1771,7 @@ export default function DealPage({
         {store.userType === "dealer" && serverDeal && (
           <FloorPlanCalculator
             purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
-            expectedProfit={serverDeal.trueNetProfit ?? store.netProfit ?? 0}
+            expectedProfit={serverDeal.trueNetProfit ?? adjustedNetProfit ?? 0}
           />
         )}
 
@@ -1757,7 +1780,6 @@ export default function DealPage({
           storageKey="deal-dashboard-layout-v1"
           widgets={[
             { id: "deal-iq", content: <DealIQCard dealId={id} /> },
-            { id: "market-context", content: <MarketContext dealId={id} /> },
             {
               id: "vehicle-specs",
               content: <VehicleSpecs vin={store.vin} make={store.make} />,
@@ -1799,7 +1821,7 @@ export default function DealPage({
                           store.askPrice
                         }
                         predictedProfit={
-                          serverDeal?.trueNetProfit ?? store.netProfit
+                          serverDeal?.trueNetProfit ?? adjustedNetProfit
                         }
                         predictedSell={
                           serverDeal?.sellEstimate ?? store.marketValue
@@ -1845,14 +1867,27 @@ export default function DealPage({
             <Button
               variant="outline"
               onClick={handleWatchPrice}
-              disabled={watching}
+              disabled={watching || accountSaved.isLoading}
+              title={
+                isAccountSaved
+                  ? "Saved to your account"
+                  : isLocallyWatched
+                    ? "Saved on this device only; click to sync to your account"
+                    : accountSaved.error
+                      ? "Account saved status is unavailable; saving can be retried"
+                      : undefined
+              }
               className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
             >
               {watching
                 ? "Adding…"
-                : isLocallyWatched
-                  ? "Saved"
-                  : "Save vehicle"}
+                : accountSaved.isLoading
+                  ? "Checking saved…"
+                  : isAccountSaved
+                    ? "Saved"
+                    : isLocallyWatched
+                      ? "Saved on device"
+                      : "Save vehicle"}
             </Button>
           </motion.div>
 
@@ -1915,7 +1950,7 @@ export default function DealPage({
                 estimatedProfit:
                   serverDeal?.trueNetProfit ??
                   serverDeal?.true_net_profit ??
-                  store.netProfit ??
+                  adjustedNetProfit ??
                   undefined,
               }
             : {}),

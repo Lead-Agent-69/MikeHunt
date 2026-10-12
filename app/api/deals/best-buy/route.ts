@@ -3,6 +3,10 @@ import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   createServerComponentClient,
@@ -99,6 +103,15 @@ export async function GET(req: NextRequest) {
       .gte("ask_price", 3000)
       .gt("sell_estimate", 0)
       .not("true_net_profit", "is", null)
+      .or(
+        "options->priceEvidence->>kind.is.null,options->priceEvidence->>kind.in.(asking,buy_now)",
+      )
+      .or(
+        "source.neq.craigslist_dealer,options->priceEvidence->>kind.in.(asking,buy_now)",
+      )
+      .or(
+        "source.neq.craigslist,options->>sellerType.is.null,options->>sellerType.neq.dealer,options->priceEvidence->>kind.in.(asking,buy_now)",
+      )
       .limit(hasTightScope ? 80 : 300);
 
     if (!hasTightScope) {
@@ -211,6 +224,12 @@ export async function GET(req: NextRequest) {
     })
   )
     rows = rows.filter((row: any) => !isAuctionChannel(row.source));
+  // Unpriced/payment-only records remain browsable, but cannot be a ranked purchase opportunity.
+  rows = rows.filter(
+    (row: any) =>
+      reportedAcquisitionPrice(row) > 0 &&
+      listingPriceEvidence(row)?.kind !== "current_bid",
+  );
   if (!rows || rows.length === 0) {
     return NextResponse.json({
       bestBuy: null,
@@ -230,6 +249,8 @@ export async function GET(req: NextRequest) {
       vin: deal.vin,
       mileage: deal.mileage,
       buyNowPrice: deal.buy_now_price,
+      askPrice: reportedAcquisitionPrice(deal),
+      priceEvidence: listingPriceEvidence(deal),
       dealVerdict: deal.deal_verdict,
       dealAnalysis: deal.deal_analysis,
     });
@@ -249,12 +270,12 @@ export async function GET(req: NextRequest) {
   // Score and rank deals
   const scoredDeals = rows
     .map((deal) => {
-      const ask = Number(deal.ask_price) || 0;
-      const profit = Number(deal.true_net_profit) || 0;
+      const ask = reportedAcquisitionPrice(deal);
+      const profit = ask > 0 ? Number(deal.true_net_profit) || 0 : 0;
       const sellEst =
         deal.sell_estimate != null ? Number(deal.sell_estimate) : null;
       const maxBid =
-        deal.recommended_max_bid != null
+        ask > 0 && deal.recommended_max_bid != null
           ? Number(deal.recommended_max_bid)
           : null;
       const roi = ask > 0 ? (profit / ask) * 100 : 0;
@@ -267,12 +288,13 @@ export async function GET(req: NextRequest) {
       } else if (strategy === "max_roi") {
         rankScore = roi;
       } else {
-        rankScore = Number(deal.profit_score || 0);
+        rankScore = ask > 0 ? Number(deal.profit_score || 0) : 0;
       }
 
       // Safety buffer: how much can market drop before breaking even
       const downsideBuffer = profit;
-      const discountToComps = sellEst != null ? Math.max(0, sellEst - ask) : 0;
+      const discountToComps =
+        ask > 0 && sellEst != null ? Math.max(0, sellEst - ask) : 0;
 
       return {
         id: deal.id,

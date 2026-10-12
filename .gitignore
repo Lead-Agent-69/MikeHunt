@@ -83,6 +83,8 @@ Thumbs.db
 
 # Local visual QA captures and unpacked design assets. These are useful while
 # validating a release, but are not application source or deployable assets.
+/artifacts/
+/.codex-remote-attachments/
 /tmp-*.png
 /tmp-*.jpg
 /tmp-mh-logo-video/

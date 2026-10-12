@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { sourceOperationLabel } from "@/lib/scrapers/source-proof-readiness";
 
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -22,7 +23,8 @@ interface SourceHealth {
   lastError: string | null;
   totalRuns: number;
   failedRuns: number;
-  successRate: number;
+  successRate: number | null;
+  readiness?: string;
   estimatedDealsPerRun?: number;
 }
 
@@ -34,30 +36,23 @@ interface HealthResponse {
   sources: SourceHealth[];
 }
 
-function statusStyle(status: string, successRate: number) {
-  if (status === "never_run")
-    return {
-      dot: "bg-[var(--t5)]",
-      text: "text-[var(--t4)]",
-      label: "Never run",
-    };
-  if (status === "error")
-    return {
-      dot: "bg-[var(--red)]",
-      text: "text-[var(--red)]",
-      label: "Failed",
-    };
-  if (successRate >= 80)
-    return {
-      dot: "bg-[var(--green)]",
-      text: "text-[var(--green)]",
-      label: "Healthy",
-    };
-  return {
-    dot: "bg-[var(--amber)]",
-    text: "text-[var(--amber)]",
-    label: "Degraded",
+function statusStyle(source: SourceHealth) {
+  const label = sourceOperationLabel(source);
+  const color =
+    label === "Unavailable"
+      ? "red"
+      : ["Working", "Healthy"].includes(label)
+        ? "green"
+        : ["Paused", "Not verified"].includes(label)
+          ? "t4"
+          : "amber";
+  const tones = {
+    red: { dot: "bg-[var(--red)]", text: "text-[var(--red)]" },
+    green: { dot: "bg-[var(--green)]", text: "text-[var(--green)]" },
+    t4: { dot: "bg-[var(--t4)]", text: "text-[var(--t4)]" },
+    amber: { dot: "bg-[var(--amber)]", text: "text-[var(--amber)]" },
   };
+  return { ...tones[color], label };
 }
 
 function timeAgo(iso: string | null) {
@@ -208,10 +203,7 @@ export default function OrchestratorDashboard() {
                 </thead>
                 <tbody className="text-sm" style={{ borderColor: "var(--b1)" }}>
                   {data.sources.map((source) => {
-                    const style = statusStyle(
-                      source.lastStatus,
-                      source.successRate,
-                    );
+                    const style = statusStyle(source);
                     return (
                       <tr
                         key={source.id}
@@ -257,7 +249,7 @@ export default function OrchestratorDashboard() {
                           {timeAgo(source.lastRunAt)}
                         </td>
                         <td className="p-4 font-mono text-[var(--t3)]">
-                          {source.totalRuns > 0
+                          {source.totalRuns > 0 && source.successRate != null
                             ? `${source.successRate}% (${source.totalRuns} runs)`
                             : "—"}
                         </td>

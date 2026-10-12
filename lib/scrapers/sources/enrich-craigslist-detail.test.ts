@@ -10,6 +10,34 @@ import { UrlNotAllowedError } from "@/lib/net/public-url";
 import { enrichCraigslistDetail } from "./index";
 
 describe("enrichCraigslistDetail", () => {
+  it.each([
+    ["", "unknown", undefined],
+    ["Down payment: $2,600", "down_payment", undefined],
+    [
+      "PRICE LISTED MAY BE DOWN PAYMENT AND NOT FULL PRICE CALL DEALER FOR DETAILS",
+      "down_payment",
+      undefined,
+    ],
+    [
+      "Financing available. $299 per month with approved credit",
+      "asking",
+      2600,
+    ],
+    ["$2,600 down. Full cash price: $15,995", "asking", 15995],
+  ])("captures source pricing terms: %s", async (body, kind, askingPrice) => {
+    fetchPublicHtml.mockResolvedValueOnce({
+      html: `<span class="postingtitletext"><span class="price">$2,600</span></span><section id="postingbody">${body}</section>`,
+    });
+    const result = await enrichCraigslistDetail(
+      "https://kansascity.craigslist.org/ctd/d/x/123.html",
+    );
+    expect(result.options?.priceEvidence).toMatchObject({
+      kind,
+      listedAmount: 2600,
+      checkedAt: expect.any(String),
+    });
+    expect(result.options?.priceEvidence.askingPrice).toBe(askingPrice);
+  });
   beforeEach(() => {
     fetchPublicHtml.mockReset();
   });

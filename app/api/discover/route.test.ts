@@ -109,6 +109,63 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("preserves unknown aggregator seller types and keeps explicit bids out of ordinary feeds", async () => {
+    const row = {
+      ...baseRow,
+      source: "cars_com",
+      source_url: "https://www.cars.com/example",
+      source_deal_id: "at-example",
+      condition: null,
+      damage_type: null,
+      seller: null,
+      seller_type: null,
+      auction_end_at: null,
+      last_seen_at: new Date().toISOString(),
+      options: { aggregator: "autotempest" },
+    };
+    rpc.mockResolvedValue({ data: [row], error: null });
+    const { GET } = await import("./route");
+    const all = await (await GET(req("/api/discover?sellerType=all"))).json();
+    expect(all.uniqueVehicles).toBe(1);
+    expect(all.rails.flatMap((rail: any) => rail.deals)[0].sellerType).toBe("");
+    expect(
+      (await (await GET(req("/api/discover?sellerType=dealer"))).json())
+        .uniqueVehicles,
+    ).toBe(0);
+    rpc.mockResolvedValue({
+      data: [
+        {
+          ...row,
+          source: "ebay_motors",
+          source_url: "https://www.ebay.com/itm/123",
+          source_deal_id: undefined,
+          options: { seller: "eBay", sellerType: "dealer" },
+        },
+      ],
+      error: null,
+    });
+    expect(
+      (await (await GET(req("/api/discover?sellerType=dealer"))).json())
+        .uniqueVehicles,
+    ).toBe(0);
+    rpc.mockResolvedValue({
+      data: [
+        {
+          ...row,
+          source: "ebay_motors",
+          source_url: "https://www.ebay.com/itm/123",
+          options: {
+            aggregator: "autotempest",
+            priceEvidence: { kind: "current_bid", currentBid: 3000 },
+          },
+        },
+      ],
+      error: null,
+    });
+    expect(
+      (await (await GET(req("/api/discover"))).json()).uniqueVehicles,
+    ).toBe(0);
+  });
   it("excludes ended auctions from rails and coverage while keeping unknown closing times", async () => {
     rpc.mockResolvedValueOnce({
       data: [
@@ -246,8 +303,8 @@ describe("GET /api/discover scoped feed contract", () => {
       thresholds: { minRows: 50, minSources: 2 },
     });
     expect(body.coverage.bySource.map((s: any) => [s.source, s.rows])).toEqual([
-      ["curated_dealers", 1],
-      ["gov_auction", 1],
+      ["dealer.example", 1],
+      ["govdeals", 1],
     ]);
   });
 

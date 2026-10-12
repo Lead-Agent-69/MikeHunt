@@ -1,5 +1,6 @@
 import { isAdminEmail } from "@/lib/auth/admin";
 import { getServerUser } from "@/lib/server-supabase";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 /**
  * Route-handler-only authorization for bounded owner maintenance tasks.
@@ -11,11 +12,14 @@ export async function canManageOperations(request: Request): Promise<boolean> {
     return true;
   }
 
+  if (!isSupabaseConfigured()) return false;
+
   try {
     const {
       data: { user },
+      error,
     } = await getServerUser();
-    return isAdminEmail(user?.email);
+    return !error && isAdminEmail(user?.email);
   } catch {
     return false;
   }

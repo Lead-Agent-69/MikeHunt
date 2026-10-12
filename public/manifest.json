@@ -1,6 +1,7 @@
 {
   "name": "MikeHunt — Vehicle Intelligence",
   "short_name": "MikeHunt",
+  "id": "/",
   "description": "Compare vehicle listings, review available evidence, and plan purchase costs. Source availability and verification vary.",
   "start_url": "/discover",
   "display": "standalone",
@@ -71,7 +72,7 @@
     {
       "name": "Discover",
       "short_name": "Discover",
-      "description": "Underpriced vehicles, valued BUY / HOLD / PASS",
+      "description": "Underpriced vehicles with a Buy / Hold / Pass read",
       "url": "/discover",
       "icons": [
         {
@@ -83,7 +84,7 @@
     {
       "name": "Scan the market",
       "short_name": "Scan",
-      "description": "Search auctions and marketplaces in real time",
+      "description": "Search the listings MikeHunt has collected",
       "url": "/scan",
       "icons": [
         {
@@ -95,7 +96,7 @@
     {
       "name": "Deal Check",
       "short_name": "Deal Check",
-      "description": "Check a deal's profit potential instantly",
+      "description": "Check a listing against comparable prices",
       "url": "/deal-check",
       "icons": [
         {
@@ -107,7 +108,7 @@
     {
       "name": "Next Best Buy",
       "short_name": "Best Buy",
-      "description": "AI-powered highest profit deal recommendation",
+      "description": "The top-ranked deal for your saved criteria",
       "url": "/best-buy",
       "icons": [
         {

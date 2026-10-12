@@ -147,15 +147,47 @@ self.addEventListener('sync', (event) => {
   }
 })
 
+// Only ever open an in-app path from a notification ("/deal/123"); anything else falls back to the alerts inbox.
+function safeAppPath(url) {
+  if (typeof url !== 'string') return '/alerts'
+  const u = url.trim()
+  if (!u.startsWith('/') || u.startsWith('//') || u.startsWith('/\\') || /[\u0000-\u001f\u007f]/.test(u)) return '/alerts'
+  try {
+    const target = new URL(u, 'https://push-path.invalid')
+    return target.origin === 'https://push-path.invalid' ? target.pathname + target.search + target.hash : '/alerts'
+  } catch { return '/alerts' }
+}
+
 // Push notification handling
 self.addEventListener('push', (event) => {
-  let payload = { title: 'MikeHunt', body: 'New deal matches found', url: '/discover' }
+  let payload = { title: 'MikeHunt', body: 'An alert matched a new listing.', url: '/alerts' }
   try {
     if (event.data) payload = Object.assign(payload, event.data.json())
   } catch (e) {
     if (event.data) payload.body = event.data.text()
   }
 
+  event.waitUntil((async () => {
+    let verified = false
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 5000)
+    try {
+      if (typeof payload.recipientUserId === 'string') {
+        const response = await fetch('/api/auth/whoami', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+        if (response.ok) {
+          const viewer = await response.json()
+          verified = viewer.verified === true && viewer.id === payload.recipientUserId
+        }
+      }
+    } catch (_) {
+      // Never display another account's private alert when identity cannot be verified.
+    } finally {
+      clearTimeout(timer)
+    }
+    if (!verified) {
+      await self.registration.showNotification('MikeHunt', { body: 'Open MikeHunt to check your alerts.', icon: '/icon-192x192.png', tag: 'account-check', data: { url: '/alerts' } })
+      return
+    }
   const options = {
     body: payload.body,
     icon: '/icon-192x192.png',
@@ -163,7 +195,7 @@ self.addEventListener('push', (event) => {
     vibrate: [100, 50, 100],
     tag: payload.tag,
     renotify: !!payload.tag,
-    data: { url: payload.url || '/discover' },
+    data: { url: safeAppPath(payload.url) },
     actions: [
       { action: 'explore', title: 'View' },
       { action: 'close', title: 'Dismiss' }
@@ -176,24 +208,59 @@ self.addEventListener('push', (event) => {
       ? fetch('/api/t/d/' + payload.deliveryId, { method: 'POST', keepalive: true }).catch(() => {})
       : Promise.resolve()
 
-  event.waitUntil(Promise.all([self.registration.showNotification(payload.title, options), receipt]))
+  await Promise.all([self.registration.showNotification(payload.title, options), receipt])
+  })())
 })
 
-// Notification click → focus an existing tab (navigating it to the target) or open a new one.
+// Notification tap: open the deal or alert it is about. Reuse a tab already on that page, else steer an open
+// MikeHunt tab there, else open a new window (also how an installed app is launched from a cold start).
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   if (event.action === 'close') return
-  const url = (event.notification.data && event.notification.data.url) || '/discover'
+  const path = safeAppPath(event.notification.data && event.notification.data.url)
+  const target = new URL(path, self.location.origin).href
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (wins) => {
+      const same = wins.find((w) => w.url === target)
+      if (same && 'focus' in same) return same.focus()
       for (const w of wins) {
-        if ('focus' in w) {
-          if ('navigate' in w) w.navigate(url)
-          return w.focus()
+        if (!w.url.startsWith(self.location.origin)) continue
+        if ('navigate' in w) {
+          try {
+            const moved = await w.navigate(target)
+            if (moved) return moved.focus()
+          } catch (_) {
+            /* uncontrolled tab: fall through to a new window */
+          }
         }
       }
-      return clients.openWindow(url)
+      return clients.openWindow(target)
     })
+  )
+})
+
+// The browser rotated or expired this device's push subscription: subscribe again with the same server key
+// and re-save it, so alerts keep arriving without the user having to turn them off and on.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const old = event.oldSubscription
+  const key = old && old.options && old.options.applicationServerKey
+  event.waitUntil(
+    (event.newSubscription
+      ? Promise.resolve(event.newSubscription)
+      : key
+        ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+        : Promise.resolve(null)
+    )
+      .then((sub) => {
+        if (!sub) return
+        return fetch('/api/push/subscribe', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub)
+        })
+      })
+      .catch(() => undefined)
   )
 })
 

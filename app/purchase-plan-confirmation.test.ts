@@ -1,9 +1,24 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
-vi.mock("swr", () => ({
-  default: () => ({
+const mocks = vi.hoisted(() => ({
+  mutate: vi.fn(),
+  retryAccount: vi.fn(),
+  owner: "owner" as string | null,
+  accountError: null as string | null,
+  refreshError: null as Error | null,
+  loadMore: vi.fn(),
+}));
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({
+    dealerId: mocks.owner,
+    loading: false,
+    error: mocks.accountError,
+    retry: mocks.retryAccount,
+  }),
+}));
+vi.mock("@/hooks/useSavedCollection", () => ({
+  useSavedCollection: () => ({
     data: [
       {
         id: "save",
@@ -14,6 +29,9 @@ vi.mock("swr", () => ({
       },
     ],
     mutate: mocks.mutate,
+    hasMore: false,
+    loadMoreError: mocks.refreshError,
+    loadMore: mocks.loadMore,
   }),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
@@ -24,6 +42,11 @@ let request: ReturnType<typeof vi.fn>;
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   mocks.mutate.mockClear();
+  mocks.retryAccount.mockClear();
+  mocks.owner = "owner";
+  mocks.accountError = null;
+  mocks.refreshError = null;
+  mocks.loadMore.mockClear();
   request = vi.fn();
   vi.stubGlobal("fetch", request);
   host = document.createElement("div");
@@ -40,6 +63,31 @@ async function completeTask() {
   );
 }
 describe("purchase planning", () => {
+  it("offers refresh recovery even with no more pages to load", async () => {
+    mocks.refreshError = new Error("Refresh failed");
+    await act(async () => root.render(React.createElement(PurchasePipeline)));
+    const retry = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent === "Retry saved vehicles")!;
+    expect(retry).toBeTruthy();
+    await act(async () => retry.click());
+    expect(mocks.loadMore).toHaveBeenCalledOnce();
+  });
+  it("retries account lookup when the account check failed", async () => {
+    mocks.owner = null;
+    mocks.accountError = "Account check unavailable";
+    await act(async () => root.render(React.createElement(PurchasePipeline)));
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("button")!.click(),
+    );
+    expect(mocks.retryAccount).toHaveBeenCalledOnce();
+    expect(mocks.mutate).not.toHaveBeenCalled();
+  });
+  it("provides a real sign-in handoff instead of a no-op guest retry", async () => {
+    mocks.owner = null;
+    await act(async () => root.render(React.createElement(PurchasePipeline)));
+    expect(host.querySelector('a[href="/login"]')).not.toBeNull();
+  });
   it("exposes next task, progress and useful handoffs without a dead detail URL", () => {
     expect(host.textContent).toContain("Next: Ask seller about condition");
     expect(host.textContent).toContain("0 of 5 tasks");

@@ -11,11 +11,17 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
-import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 import { getScrapeRunScope } from "../run-scope-context";
 import { buyerSearchCenters } from "../search-centers";
 import type { BuyerScope } from "../buyer-scope";
+import { normalizeCondition } from "../normalize-condition";
+import {
+  disclosedPriceEvidence,
+  positivePrice,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 
 const API = "https://www.autotempest.com/api/search";
 const UA =
@@ -50,6 +56,16 @@ const num = (v: unknown): number =>
 const s = (v: unknown): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
 
+function usdAmount(value: unknown): number | undefined {
+  if (typeof value === "number") return positivePrice(value);
+  if (typeof value !== "string") return undefined;
+  const match =
+    /^(?:(?:US|USD)\s*)?\$?\s*(\d[\d,]*(?:\.\d{1,2})?)(?:\s*(?:down|\/\s*mo(?:nth)?|per\s+month|a\s+month))?\s*$/i.exec(
+      value.trim(),
+    );
+  return match ? positivePrice(match[1].replace(/,/g, "")) : undefined;
+}
+
 // Map an Autotempest origin (sourceName) to our deal_source enum. Substring match so "Cars.com",
 // "eBay Motors", etc. all resolve. Origins without a direct enum (CarMax, Hemmings, AutoByTel) fall to
 // 'independent_dealer' (they're dealer/retail) — the true name is still kept in metadata + seller.
@@ -63,15 +79,17 @@ export function mapOriginToSource(sourceName: string): Deal["source"] {
   if (n.includes("ebay")) return "ebay_motors";
   if (n.includes("truecar")) return "truecar";
   if (n.includes("facebook")) return "facebook_marketplace";
+  if (n.includes("craigslist")) return "craigslist";
   return "independent_dealer";
 }
 
 function titleToCondition(t?: string): Deal["condition"] {
-  const x = (t || "").toLowerCase();
-  if (x.includes("salvage")) return "salvage_title";
-  if (x.includes("rebuilt")) return "rebuilt_title";
-  if (x.includes("flood")) return "flood";
-  return "clean";
+  if (
+    /\b(clean|clear)\b/i.test(t || "") &&
+    !/^(clean|clear)(?:[\s_-]+title)?$/i.test((t || "").trim())
+  )
+    return undefined;
+  return normalizeCondition(t) as Deal["condition"];
 }
 
 /** Parse an Autotempest results payload (json.results[]) into deal rows. */
@@ -81,7 +99,9 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
   const items: Partial<Deal>[] = [];
   for (const r of results) {
     if (!r || typeof r !== "object") continue;
-    const price = num(r.price);
+    const currency = s(r.currencyCode) || s(r.currency);
+    if (currency && !/^(USD|US dollar(?:s)?)$/i.test(currency)) continue;
+    const price = usdAmount(r.price);
     const id = s(r.id) || s(r.externalId);
     if (!price || !id) continue;
 
@@ -94,32 +114,84 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
       .map((p) => p.trim());
     const origin = s(r.sourceName) || "Autotempest";
     const url = s(r.url);
+    const title =
+      s(r.title) ||
+      `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
+        .replace(/\s+/g, " ")
+        .trim();
+    const sellerType = /^private(?:\s+seller)?$/i.test(s(r.sellerType) || "")
+      ? "private"
+      : /^dealer$/i.test(s(r.sellerType) || "")
+        ? "dealer"
+        : undefined;
+    const originSource = mapOriginToSource(origin);
+    let dealerChannel = false;
+    if (originSource === "craigslist" && url) {
+      try {
+        const listingUrl = new URL(url);
+        dealerChannel =
+          /(^|\.)craigslist\.org$/i.test(listingUrl.hostname) &&
+          /^\/ctd\//i.test(listingUrl.pathname);
+      } catch {
+        /* Invalid URLs do not establish a seller channel. */
+      }
+    }
+    const source =
+      originSource === "craigslist" &&
+      (sellerType === "dealer" || dealerChannel)
+        ? "craigslist_dealer"
+        : originSource;
+    const condition = titleToCondition(s(r.vehicleTitle));
+    const currentBid = usdAmount(r.currentBid);
+    const buyNow = usdAmount(r.buyNowPrice);
+    const disclosed = disclosedPriceEvidence(
+      `${title} ${String(r.price || "")} ${s(r.description) || ""}`,
+      price,
+    );
+    const priceEvidence: PriceEvidence | undefined =
+      disclosed ||
+      (currentBid
+        ? { kind: "current_bid", currentBid, buyNow, listedAmount: price }
+        : buyNow
+          ? { kind: "buy_now", buyNow, listedAmount: price }
+          : source === "craigslist_dealer"
+            ? {
+                kind: "unknown",
+                listedAmount: price,
+                evidenceText:
+                  "Full cash price has not been checked on the source listing.",
+              }
+            : undefined);
 
     items.push({
-      source: mapOriginToSource(origin),
+      source,
       source_deal_id: `at-${id}`, // aggregator-prefixed so it never collides with direct scrapers
 
       source_url: url || "",
-      title:
-        s(r.title) ||
-        `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
-          .replace(/\s+/g, " ")
-          .trim(),
+      title,
       year,
       make,
       model,
       trim,
       vin: s(r.vin),
       ask_price: price,
+      buy_now_price: buyNow,
       mileage: num(r.mileage),
-      condition: titleToCondition(s(r.vehicleTitle)),
+      condition,
+      title_source: condition ? "listing" : undefined,
+      options: {
+        aggregator: "autotempest",
+        originSite: origin,
+        ...(priceEvidence ? { priceEvidence } : {}),
+      },
       images: s(r.img) ? [String(r.img).replace(/^\/\//, "https://")] : [],
-      seller_type: /private/i.test(String(r.sellerType || ""))
-        ? "private"
-        : "dealer",
-      seller: origin,
+      seller_type: sellerType,
+      seller: s(r.sellerName) || s(r.dealerName),
       location_city: city || undefined,
-      location_state: state && state.length === 2 ? state : undefined,
+      location_state:
+        state && [...US_STATES, "DC"].includes(state.toUpperCase())
+          ? state.toUpperCase()
+          : undefined,
       metadata: {
         aggregator: "autotempest",
         origin_site: origin,

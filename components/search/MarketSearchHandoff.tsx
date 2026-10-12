@@ -1,42 +1,45 @@
 "use client";
 
-import { ArrowUpRight } from "lucide-react";
-import { marketHandoff } from "@/lib/search/market-handoff";
+import { ArrowDown, ArrowUpRight } from "lucide-react";
+import { marketHandoffs } from "@/lib/search/market-handoff";
 
-export function MarketSearchHandoff({ query }: { query: string }) {
-  const handoff = marketHandoff(new URLSearchParams(query));
+type Handoff = ReturnType<typeof marketHandoffs>[number];
+
+export function MarketSearchShortcut({ query }: { query: string }) {
+  if (!marketHandoffs(new URLSearchParams(query)).length) return null;
   return (
-    <section
-      aria-label="Wider market search"
-      className="space-y-2 border-y border-[var(--b2)] py-3"
+    <a
+      href="#wider-market-search"
+      className="inline-flex min-h-11 w-fit items-center gap-2 text-xs font-semibold text-[var(--blue)]"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-[var(--t1)]">
-          Check the wider market
-        </h2>
-        <a
-          href={handoff.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--blue)]"
-          aria-label="Search AutoTempest (opens in a new tab)"
-        >
-          Search AutoTempest{" "}
-          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-        </a>
-      </div>
-      <p className="text-xs text-[var(--t3)]">
-        External results are separate from our indexed inventory. Confirm
-        availability and details with the seller.
-      </p>
+      More marketplaces <ArrowDown className="h-4 w-4" aria-hidden="true" />
+    </a>
+  );
+}
+
+function MarketLink({ handoff }: { handoff: Handoff }) {
+  const reviewCount = handoff.reapply.length + handoff.unconfirmed.length;
+  return (
+    <li className="min-w-0 border-b border-[var(--b1)] py-2 last:border-b-0">
+      <a
+        href={handoff.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-11 max-w-full items-center gap-2 break-words text-sm font-semibold text-[var(--blue)]"
+        aria-label={`Search ${handoff.label} (opens in a new tab)`}
+      >
+        {handoff.label}
+        <ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+      </a>
+      <p className="break-words text-xs text-[var(--t3)]">{handoff.location}</p>
       <details className="break-words text-xs text-[var(--t3)]">
-        <summary className="min-h-9 cursor-pointer py-2 font-semibold text-[var(--t2)]">
-          {handoff.location} ·{" "}
-          {handoff.reapply.length
-            ? `${handoff.reapply.length} ${handoff.reapply.length === 1 ? "filter" : "filters"} not transferred`
-            : "Search criteria carried over"}
+        <summary className="min-h-11 cursor-pointer py-3 font-semibold text-[var(--t2)]">
+          {reviewCount
+            ? `${reviewCount} ${reviewCount === 1 ? "filter" : "filters"} to confirm`
+            : "Search criteria"}
         </summary>
         <p className="py-1">
+          Transferred:{" "}
           {handoff.carried.length
             ? handoff.carried.join(" · ")
             : "No vehicle or range filters selected."}
@@ -44,37 +47,55 @@ export function MarketSearchHandoff({ query }: { query: string }) {
         {handoff.reapply.length > 0 && (
           <p className="py-1">Not transferred: {handoff.reapply.join(" · ")}</p>
         )}
+        {handoff.unconfirmed.length > 0 && (
+          <p className="py-1">
+            Confirm at destination: {handoff.unconfirmed.join(" · ")}
+          </p>
+        )}
         <p className="py-1">
-          Make, model and trim use word matching. Review the destination
-          filters; matching rules and source coverage differ. A reference ZIP
-          sets the selected state or US search, not your personal location.
+          Matching rules and distance options vary. Confirm vehicle details with
+          the seller.
         </p>
       </details>
-      <div className="flex flex-wrap gap-x-5 text-xs font-semibold text-[var(--t2)]">
-        <a
-          href="https://www.copart.com/vehicleFinder"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-11 items-center gap-1"
-          aria-label="Copart auction filters (opens in a new tab)"
-        >
-          Copart auction filters{" "}
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-        <a
-          href="https://visor.vin/search/filters"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex min-h-11 items-center gap-1"
-          aria-label="Visor market filters (opens in a new tab)"
-        >
-          Visor market filters{" "}
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
-        <span className="self-center font-normal text-[var(--t4)]">
-          Copart and Visor open without transferred filters.
-        </span>
-      </div>
+    </li>
+  );
+}
+
+export function MarketSearchHandoff({ query }: { query: string }) {
+  const handoffs = marketHandoffs(new URLSearchParams(query));
+  const visible = handoffs.slice(0, 3);
+  const more = handoffs.slice(3);
+  if (!handoffs.length) return null;
+  return (
+    <section
+      id="wider-market-search"
+      tabIndex={-1}
+      aria-label="Wider market search"
+      className="scroll-mt-24 space-y-2 border-y border-[var(--b2)] py-3"
+    >
+      <h2 className="text-sm font-bold text-[var(--t1)]">
+        Search more marketplaces
+      </h2>
+      <p className="text-xs text-[var(--t3)]">
+        External results are separate from our indexed inventory.
+      </p>
+      <ul className="grid min-w-0 grid-cols-1 gap-x-6 sm:grid-cols-3">
+        {visible.map((handoff) => (
+          <MarketLink key={handoff.id} handoff={handoff} />
+        ))}
+      </ul>
+      {more.length > 0 && (
+        <details>
+          <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)]">
+            {more.length} more marketplaces
+          </summary>
+          <ul className="grid min-w-0 grid-cols-1 gap-x-6 sm:grid-cols-3">
+            {more.map((handoff) => (
+              <MarketLink key={handoff.id} handoff={handoff} />
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

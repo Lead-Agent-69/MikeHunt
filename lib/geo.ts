@@ -261,6 +261,12 @@ export const CRAIGSLIST_SITES: { site: string; state: string }[] = [
   { site: "stlouis", state: "MO" },
   { site: "kansascity", state: "MO" },
   { site: "springfield", state: "MO" },
+  { site: "columbiamo", state: "MO" },
+  { site: "joplin", state: "MO" },
+  { site: "kirksville", state: "MO" },
+  { site: "loz", state: "MO" },
+  { site: "semo", state: "MO" },
+  { site: "stjoseph", state: "MO" },
   // MT
   { site: "billings", state: "MT" },
   { site: "missoula", state: "MT" },

@@ -8,7 +8,8 @@ function readDemoUser(cookieValue: string | undefined) {
   try {
     const raw = Buffer.from(cookieValue, "base64url").toString("utf8");
     const parsed = JSON.parse(raw);
-    if (!parsed?.id || !parsed?.email) return null;
+    if (!parsed?.id || !parsed?.email || !String(parsed.id).startsWith("demo-"))
+      return null;
     return {
       id: String(parsed.id),
       email: String(parsed.email),
@@ -23,6 +24,12 @@ export async function getServerUser() {
   const store = await cookies();
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") {
+      return {
+        data: { user: null },
+        error: new Error("Sign-in is temporarily unavailable."),
+      };
+    }
     const user = readDemoUser(store.get("mh_demo_user")?.value);
     return { data: { user }, error: null };
   }
@@ -47,7 +54,9 @@ export async function getServerUser() {
       },
     },
   });
-  return supabase.auth.getUser();
+  const result = await supabase.auth.getUser();
+  if (result.error) return { ...result, data: { user: null } };
+  return result;
 }
 
 /** Supabase SSR session cookie: sb-<project-ref>-auth-token, optionally chunked as .0, .1, ... */
@@ -62,7 +71,11 @@ export function isSupabaseAuthCookieName(name: string): boolean {
  */
 export async function hasAuthSessionCookie(): Promise<boolean> {
   const store = await cookies();
-  if (!isSupabaseConfigured()) return Boolean(store.get("mh_demo_user")?.value);
+  if (!isSupabaseConfigured())
+    return (
+      process.env.NODE_ENV !== "production" &&
+      Boolean(store.get("mh_demo_user")?.value)
+    );
   return store
     .getAll()
     .some((c) => isSupabaseAuthCookieName(c.name) && Boolean(c.value));

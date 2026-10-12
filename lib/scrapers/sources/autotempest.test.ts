@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseAutotempest, mapOriginToSource } from "./autotempest";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 const resp = (results: any[]) => ({ status: 0, results });
 
@@ -19,6 +20,119 @@ describe("mapOriginToSource", () => {
 });
 
 describe("parseAutotempest", () => {
+  const base = {
+    id: "sample",
+    year: "2018",
+    make: "Ford",
+    model: "Edge",
+    price: "$2,600",
+    sourceName: "Cars.com",
+  };
+  it.each([-2600, "-$2,600", "C $2,600", "$2,600 to $3,000"])(
+    "does not turn invalid or ambiguous prices into cash: %s",
+    (price) => {
+      expect(parseAutotempest(resp([{ ...base, price }]))).toEqual([]);
+    },
+  );
+  it("retains USD monthly labels and formatted auction terms", () => {
+    const [payment] = parseAutotempest(resp([{ ...base, price: "299/mo" }]));
+    expect(payment.options?.priceEvidence.kind).toBe("monthly_payment");
+    expect(reportedAcquisitionPrice(payment)).toBe(0);
+    const [auction] = parseAutotempest(
+      resp([{ ...base, currentBid: "$800", buyNowPrice: "$15,995" }]),
+    );
+    expect(auction.options?.priceEvidence).toMatchObject({
+      kind: "current_bid",
+      currentBid: 800,
+      buyNow: 15995,
+    });
+  });
+  it("normalizes reported states without inventing geography", () => {
+    expect(
+      parseAutotempest(resp([{ ...base, location: "St. Louis, mo" }]))[0]
+        .location_state,
+    ).toBe("MO");
+    expect(
+      parseAutotempest(resp([{ ...base, location: "Unknown, ZZ" }]))[0]
+        .location_state,
+    ).toBeUndefined();
+  });
+  it("does not infer title brand, seller type, or seller name from a marketplace", () => {
+    const [row] = parseAutotempest(
+      resp([{ ...base, title: "Very clean Ford Edge" }]),
+    );
+    expect(row.condition).toBeUndefined();
+    expect(row.title_source).toBeUndefined();
+    expect(row.seller_type).toBeUndefined();
+    expect(row.seller).toBeUndefined();
+    expect(
+      parseAutotempest(resp([{ ...base, vehicleTitle: "Clean interior" }]))[0]
+        .condition,
+    ).toBeUndefined();
+    expect(parseAutotempest(resp([{ ...base, currencyCode: "CAD" }]))).toEqual(
+      [],
+    );
+    expect(row.options).toMatchObject({
+      aggregator: "autotempest",
+      originSite: "Cars.com",
+    });
+  });
+  it("preserves reported seller facts instead of using the provider as the seller", () => {
+    const [row] = parseAutotempest(
+      resp([
+        {
+          ...base,
+          sellerType: "Dealer",
+          sellerName: "Example Motors",
+          vehicleTitle: "Clean",
+        },
+      ]),
+    );
+    expect(row.seller_type).toBe("dealer");
+    expect(row.seller).toBe("Example Motors");
+    expect(row.condition).toBe("clean_title");
+  });
+  it("keeps Craigslist dealer prices unconfirmed when only a summary is available", () => {
+    const [row] = parseAutotempest(
+      resp([{ ...base, sourceName: "Craigslist", sellerType: "Dealer" }]),
+    );
+    expect(row.source).toBe("craigslist_dealer");
+    expect(reportedAcquisitionPrice(row)).toBe(0);
+    expect(row.options?.priceEvidence).toMatchObject({
+      kind: "unknown",
+      listedAmount: 2600,
+    });
+  });
+  it("uses an explicit Craigslist dealer channel even without a seller-type field", () => {
+    const [row] = parseAutotempest(
+      resp([
+        {
+          ...base,
+          sourceName: "Craigslist",
+          url: "https://kansascity.craigslist.org/ctd/d/example/123.html",
+        },
+      ]),
+    );
+    expect(row.source).toBe("craigslist_dealer");
+    expect(reportedAcquisitionPrice(row)).toBe(0);
+  });
+  it("preserves payment disclosures and explicit current bids", () => {
+    const [payment] = parseAutotempest(
+      resp([
+        {
+          ...base,
+          description: "PRICE LISTED MAY BE DOWN PAYMENT AND NOT FULL PRICE",
+        },
+      ]),
+    );
+    expect(reportedAcquisitionPrice(payment)).toBe(0);
+    expect(payment.options?.priceEvidence.kind).toBe("down_payment");
+    const [auction] = parseAutotempest(
+      resp([{ ...base, sourceName: "eBay", currentBid: 800 }]),
+    );
+    expect(reportedAcquisitionPrice(auction)).toBe(800);
+    expect(auction.options?.priceEvidence.kind).toBe("current_bid");
+  });
   it("parses a real aggregator item (string price/mileage, location split, origin)", () => {
     const items = parseAutotempest(
       resp([
@@ -50,7 +164,8 @@ describe("parseAutotempest", () => {
     expect(d.make).toBe("Ford");
     expect(d.ask_price).toBe(2299);
     expect(d.mileage).toBe(200000);
-    expect(d.condition).toBe("clean");
+    expect(d.condition).toBe("clean_title");
+    expect(d.title_source).toBe("listing");
     expect(d.location_city).toBe("Quitman");
     expect(d.location_state).toBe("AR");
     expect(d.metadata?.origin_site).toBe("eBay");

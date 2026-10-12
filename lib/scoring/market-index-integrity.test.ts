@@ -38,6 +38,57 @@ function client(read: (table: string, from: number) => any) {
 }
 beforeEach(__resetMarketIndexForTest);
 describe("market index completeness", () => {
+  it("keeps explicit eBay current bids out of the cash asking-price pool", async () => {
+    await loadMarketIndex(
+      client((table) => ({
+        data:
+          table === "deals"
+            ? [
+                ...Array(6).fill(ask),
+                ...Array(20).fill({
+                  ...ask,
+                  source: "ebay_motors",
+                  ask_price: 3000,
+                  priceEvidence: { kind: "current_bid", currentBid: 3000 },
+                }),
+              ]
+            : [],
+        error: null,
+      })),
+    );
+    expect(lookupMarketValue("Honda", "Accord", 2018)?.retail).toBe(14250);
+  });
+  it("excludes payment and unchecked dealer amounts from asking comps", async () => {
+    await loadMarketIndex(
+      client((table) => ({
+        data:
+          table === "deals"
+            ? [
+                ...Array(6).fill(ask),
+                ...Array(20).fill({
+                  ...ask,
+                  source: "craigslist_dealer",
+                  ask_price: 2600,
+                }),
+                ...Array(20).fill({
+                  ...ask,
+                  source: "craigslist",
+                  sellerType: "dealer",
+                  ask_price: 2600,
+                }),
+                ...Array(20).fill({
+                  ...ask,
+                  source: "cars_com",
+                  ask_price: 2600,
+                  priceEvidence: { kind: "down_payment", listedAmount: 2600 },
+                }),
+              ]
+            : [],
+        error: null,
+      })),
+    );
+    expect(lookupMarketValue("Honda", "Accord", 2018)?.retail).toBe(14250);
+  });
   it("invalidates prior asking values after a rejected refresh", async () => {
     await loadMarketIndex(
       client(() => ({ data: Array(6).fill(ask), error: null })),

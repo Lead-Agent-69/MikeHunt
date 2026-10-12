@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
 describe("assessDecisionEvidence", () => {
+  it("does not call an unknown amount a current auction price", () => {
+    const result = assessDecisionEvidence({ source: "copart", askPrice: 0 });
+    expect(result.summary).toContain("acquisition price is not reported");
+    expect(result.summary).not.toContain("displayed amount is a current");
+    expect(result.acquisitionReady).toBe(false);
+    expect(
+      assessDecisionEvidence({ source: "copart", askPrice: 3000 }).summary,
+    ).toContain("current auction price");
+  });
   it("keeps auction buy-now evidence distinct from a current bid", () => {
     const result = assessDecisionEvidence({
       source: "copart",
@@ -62,6 +71,7 @@ describe("assessDecisionEvidence", () => {
 
   it("requires explicit evidence gates and recent clean completed sales for a purchase candidate", () => {
     const result = assessDecisionEvidence({
+      askPrice: 15000,
       source: "dealer",
       vin: "1HGCM82633A000000",
       mileage: 40000,
@@ -86,6 +96,16 @@ describe("assessDecisionEvidence", () => {
     });
     expect(result.state).toBe("verified");
     expect(result.acquisitionReady).toBe(true);
+  });
+  it("recognizes a current bid on a mixed retail/auction marketplace", () => {
+    const result = assessDecisionEvidence({
+      source: "ebay_motors",
+      askPrice: 3000,
+      priceEvidence: { kind: "current_bid" },
+      dealVerdict: "go",
+    });
+    expect(result.state).toBe("auction_watch");
+    expect(result.acquisitionReady).toBe(false);
   });
 
   it.each([undefined, "none", "low"])(

@@ -5,16 +5,26 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
+import { mileageCurvePrice } from "@/lib/valuation/mileage-curve";
+import { reportedPrice } from "@/lib/deals/reported-price";
+import { buyTerm } from "@/lib/deal-terms";
+import { ErrorState } from "@/components/shared/ErrorState";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Market evidence unavailable");
+  return response.json();
+};
 const money = (v: any) =>
   v == null
     ? "—"
-    : new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 0,
-      }).format(Number(v) || 0);
+    : !Number.isFinite(Number(v))
+      ? "—"
+      : new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0,
+        }).format(Number(v));
 
 const SRC_LABEL: Record<string, string> = {
   facebook_marketplace: "Facebook",
@@ -32,7 +42,12 @@ const srcName = (s: string) => SRC_LABEL[s] || (s || "").replace(/_/g, " ");
  * Each block self-hides when its data isn't available.
  */
 export function MarketContext({ dealId }: { dealId: string }) {
-  const { data: src } = useSWR(`/api/deals/${dealId}/sources`, fetcher, {
+  const {
+    data: src,
+    error: sourceError,
+    isLoading,
+    mutate: retrySources,
+  } = useSWR(`/api/deals/${dealId}/sources`, fetcher, {
     revalidateOnFocus: false,
   });
   const base = src?.base;
@@ -44,21 +59,50 @@ export function MarketContext({ dealId }: { dealId: string }) {
     make && model
       ? `make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${year ? `&year=${year}` : ""}`
       : null;
-  const { data: dep } = useSWR(
-    qs ? `/api/market/depreciation?${qs}` : null,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const { data: snap } = useSWR(
-    qs ? `/api/market/snapshot?${qs}&daysAgo=30` : null,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const { data: sold } = useSWR(qs ? `/api/market/sold?${qs}` : null, fetcher, {
+  const {
+    data: dep,
+    error: depError,
+    mutate: retryDep,
+  } = useSWR(qs ? `/api/market/depreciation?${qs}` : null, fetcher, {
+    revalidateOnFocus: false,
+  });
+  const {
+    data: snap,
+    error: snapError,
+    mutate: retrySnap,
+  } = useSWR(qs ? `/api/market/snapshot?${qs}&daysAgo=30` : null, fetcher, {
+    revalidateOnFocus: false,
+  });
+  const {
+    data: sold,
+    error: soldError,
+    mutate: retrySold,
+  } = useSWR(qs ? `/api/market/sold?${qs}` : null, fetcher, {
     revalidateOnFocus: false,
   });
 
-  if (!base) return null;
+  if (sourceError)
+    return (
+      <ErrorState
+        compact
+        title="Market evidence unavailable"
+        message="We couldn't check listing sources. Try again shortly."
+        onRetry={() => void retrySources()}
+      />
+    );
+  if (isLoading)
+    return (
+      <p role="status" className="text-sm text-[var(--t3)]">
+        Loading market evidence...
+      </p>
+    );
+  if (!base)
+    return (
+      <p className="text-sm text-[var(--t3)]">
+        Market evidence is not available for this listing yet.
+      </p>
+    );
+  const partialFailure = depError || snapError || soldError;
 
   const dom = daysOnMarket(base.firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
@@ -71,20 +115,18 @@ export function MarketContext({ dealId }: { dealId: string }) {
     base.mileage &&
     base.askPrice
   ) {
-    const [a, b] = dep.trend;
-    const slope = (b.price - a.price) / (b.mileage - a.mileage);
-    const expected = Math.round(a.price + slope * base.mileage);
-    if (expected > 0) {
+    const expected = mileageCurvePrice(dep.trend, base.mileage);
+    if (expected != null) {
       const diff = base.askPrice - expected;
       const pct = Math.round((Math.abs(diff) / expected) * 100);
       curveNote =
         diff < 0
           ? {
-              text: `${pct}% below the curve for its miles`,
+              text: `${pct}% below the asking-price curve for its miles`,
               color: "var(--green)",
             }
           : {
-              text: `${pct}% above the curve for its miles`,
+              text: `${pct}% above the asking-price curve for its miles`,
               color: "var(--red)",
             };
     }
@@ -99,15 +141,32 @@ export function MarketContext({ dealId }: { dealId: string }) {
     !dep?.depreciationPer1000Miles &&
     snap?.change == null &&
     !showTable &&
-    !(sold?.count > 0)
+    !(sold?.count > 0) &&
+    !partialFailure
   )
-    return null;
+    return (
+      <p className="text-sm text-[var(--t3)]">
+        Not enough market observations for this vehicle yet.
+      </p>
+    );
 
   return (
-    <div className="glass-panel p-5 mt-4 space-y-4">
+    <div className="min-w-0 space-y-4">
       <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
         Market context
       </p>
+      {partialFailure && (
+        <ErrorState
+          compact
+          title="Some market evidence unavailable"
+          message="Available evidence remains below. Retry to check the missing observations."
+          onRetry={() => {
+            if (depError) void retryDep();
+            if (snapError) void retrySnap();
+            if (soldError) void retrySold();
+          }}
+        />
+      )}
 
       {/* Top row: days on market + depreciation + time travel */}
       <div className="flex flex-wrap gap-2">
@@ -186,38 +245,56 @@ export function MarketContext({ dealId }: { dealId: string }) {
       {showTable && (
         <div>
           <p className="text-xs text-[var(--t3)] mb-1.5">
-            This VIN appears on {src.count} sources · spread {money(src.spread)}
+            This VIN appears in {sources.length} reported listings. Price types
+            and availability may differ.
           </p>
           <div className="rounded-[var(--r2)] overflow-hidden border border-[var(--b1)] divide-y divide-[var(--b1)]">
-            {sources.map((s) => (
-              <a
-                key={s.id}
-                href={s.url || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between px-3 py-2 text-sm hover:bg-[var(--s1)] transition-colors"
-                style={s.isThis ? { background: "var(--amber-lo)" } : undefined}
-              >
-                <span className="text-[var(--t2)] capitalize">
-                  {srcName(s.source)}
-                  {s.isThis && (
-                    <span className="text-[10px] text-[var(--amber-d)] font-bold">
-                      {" "}
-                      · this listing
-                    </span>
-                  )}
-                  {s.state && (
-                    <span className="text-[var(--t4)]"> · {s.state}</span>
-                  )}
-                </span>
-                <Mono
-                  className="font-bold text-[var(--t1)]"
-                  style={{ fontFamily: "var(--fm)" }}
+            {sources.map((s) => {
+              const href =
+                typeof s.url === "string" && /^https?:\/\//i.test(s.url)
+                  ? s.url
+                  : null;
+              const Row = href ? "a" : "div";
+              return (
+                <Row
+                  key={s.id}
+                  href={href || undefined}
+                  target={href ? "_blank" : undefined}
+                  rel={href ? "noopener noreferrer" : undefined}
+                  className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm transition-colors"
+                  style={
+                    s.isThis ? { background: "var(--amber-lo)" } : undefined
+                  }
                 >
-                  {money(s.askPrice)}
-                </Mono>
-              </a>
-            ))}
+                  <span className="min-w-0 break-words text-[var(--t2)] capitalize">
+                    {srcName(s.source)}
+                    {s.isThis && (
+                      <span className="text-[10px] text-[var(--amber-d)] font-bold">
+                        {" "}
+                        · this listing
+                      </span>
+                    )}
+                    {s.state && (
+                      <span className="text-[var(--t4)]"> · {s.state}</span>
+                    )}
+                    {!href && (
+                      <span className="block text-xs text-[var(--t4)]">
+                        Source link unavailable
+                      </span>
+                    )}
+                  </span>
+                  <Mono
+                    className="font-bold text-[var(--t1)]"
+                    style={{ fontFamily: "var(--fm)" }}
+                  >
+                    <span className="block text-right text-[10px] font-normal">
+                      {buyTerm(s.source).priceLabel}
+                    </span>
+                    {reportedPrice(s.askPrice)}
+                  </Mono>
+                </Row>
+              );
+            })}
           </div>
         </div>
       )}

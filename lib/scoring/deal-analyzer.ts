@@ -38,6 +38,7 @@ import {
 import { checkPriceSanity } from "./price-sanity";
 import { predict, type Prediction } from "@/lib/intelligence/predict";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 // Home base for transport. A caller's profile home_state wins. HOME_BASE_STATE is an
 // explicit operator override. There is no Texas default — a missing state keeps the
@@ -396,7 +397,7 @@ export function analyzeDeal(
     comps?: readonly CompObservation[] | null;
   },
 ): DealAnalysis {
-  const askPrice = deal.ask_price || 0;
+  const askPrice = reportedAcquisitionPrice(deal);
   const fm = feeModel(deal.source);
 
   // SELL side, in order of trust:
@@ -789,8 +790,9 @@ export function analyzeDeal(
   // research and disciplined max-bid planning, but do not turn an in-progress bid into a BUY promise.
   // A true buy-now listing is the exception because its purchase price is known.
   const activeAuctionBid =
-    AUCTION_SOURCES.has((deal.source || "").toLowerCase()) &&
-    !(Number(deal.buy_now_price) > 0);
+    deal.options?.priceEvidence?.kind === "current_bid" ||
+    (AUCTION_SOURCES.has((deal.source || "").toLowerCase()) &&
+      !(Number(deal.buy_now_price) > 0));
   if (activeAuctionBid) {
     if (verdict === "go") {
       verdict = "hold";
@@ -798,6 +800,15 @@ export function analyzeDeal(
     }
     warnings = [
       "Current auction bid is not a final purchase price. Verify the final bid, buyer fees, title, condition, and repair scope before treating this as a buy.",
+      ...warnings,
+    ];
+  }
+
+  if (!askPrice) {
+    verdict = "not_enough_data";
+    score = 0;
+    warnings = [
+      "Full purchase price is unconfirmed. Payment amounts and reference values are not purchase prices; profit and ROI cannot be calculated.",
       ...warnings,
     ];
   }
@@ -813,13 +824,14 @@ export function analyzeDeal(
       comps?.retail && askPrice > 0 ? askPrice / comps.retail : null,
     marketSupply: lookupSupply(deal.make ?? "", deal.model ?? ""),
     priceDrops: (deal as { price_drops?: number }).price_drops ?? null,
-    netProfit: result.profit ?? null,
-    cost: recommendedMaxBid || (askPrice > 0 ? askPrice : null),
+    netProfit: askPrice > 0 ? result.profit : null,
+    cost: askPrice > 0 ? recommendedMaxBid || askPrice : null,
     isBuy: verdict === "go",
   });
 
   return {
     ...result,
+    ...(!askPrice ? { profit: 0, roi: 0, profitMargin: 0 } : {}),
     score,
     verdict,
     warnings,
@@ -827,7 +839,7 @@ export function analyzeDeal(
     sellEstimate,
     mmrValue: deal.mmr_value,
     sellBasis,
-    recommendedMaxBid,
+    recommendedMaxBid: askPrice > 0 ? recommendedMaxBid : 0,
     miles,
     distanceBasis: distance.basis,
     priceImplausible,

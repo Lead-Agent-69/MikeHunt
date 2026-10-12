@@ -5,6 +5,43 @@ import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import { readFileSync } from "node:fs";
 
 describe("first-screen listing facts", () => {
+  it("preserves the source title's known variant rather than collapsing truck families", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          title: " 2015 Chevrolet SILVERADO 3500HD WT ",
+          year: 2015,
+          make: "Chevrolet",
+          model: "Silverado",
+          trim: "WT",
+        },
+      }),
+    );
+    expect(html).toContain("2015 Chevrolet SILVERADO 3500HD WT");
+  });
+  it("includes known trim when the source title is absent or blank", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          title: " \n ",
+          year: 2020,
+          make: "Ford",
+          model: "F-150",
+          trim: "XLT",
+        },
+      }),
+    );
+    expect(html).toContain("2020 Ford F-150 XLT");
+  });
+  it("renders source title as escaped text, never markup", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: { title: '<img src=x onerror="alert(1)"> Silverado 3500HD' },
+      }),
+    );
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
   it("shows the actual vehicle and asking price as a page heading, with location and mileage", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {

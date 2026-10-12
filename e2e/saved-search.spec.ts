@@ -24,4 +24,46 @@ test.describe("saved searches (local only)", () => {
     await expect(page.getByText(/not confirmed saved/i)).toHaveCount(0);
     await expectHealthy(page, h);
   });
+
+  test("Scan bookmarks preserve the complete scope without claiming alerts", async ({
+    page,
+  }) => {
+    const h = watchHealth(page);
+    await page.goto(
+      "/scan?make=Honda&model=Civic&state=MO&maxPrice=20000&maxMileage=85000&fuelType=Hybrid&sort=price-desc&reset=1",
+    );
+    const save = page.getByRole("button", { name: "Save search", exact: true });
+    await expect(save).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save alert", exact: true }),
+    ).toHaveCount(0);
+    await save.click();
+    await expect(page.getByText(/Saved search on this device:/)).toBeVisible();
+    await page.goto("/searches");
+    const row = page
+      .locator(".glass-panel")
+      .filter({ has: page.getByRole("heading", { name: /Honda.*Civic/ }) })
+      .first();
+    await expect(row).toContainText("Device only. No automatic alerts.");
+    await expect(row.getByRole("button", { name: /Pause|Resume/ })).toHaveCount(
+      0,
+    );
+    const href = await row
+      .getByRole("link", { name: "Open Scan" })
+      .getAttribute("href");
+    const scope = new URL(href!, "http://localhost").searchParams;
+    for (const [key, value] of Object.entries({
+      make: "Honda",
+      model: "Civic",
+      state: "MO",
+      maxPrice: "20000",
+      maxMileage: "85000",
+      fuelType: "Hybrid",
+      sort: "price-desc",
+    }))
+      expect(scope.get(key)).toBe(value);
+    await page.reload();
+    await expect(row).toContainText("Device only. No automatic alerts.");
+    await expectHealthy(page, h);
+  });
 });

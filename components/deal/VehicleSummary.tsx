@@ -1,11 +1,19 @@
 import { buyTerm } from "@/lib/deal-terms";
+import {
+  nonCashPriceLabel,
+  priceEvidenceLabel,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 
 type ListingFacts = {
+  title?: string;
   year?: number;
   make?: string;
   model?: string;
+  trim?: string;
   askPrice?: number | null;
+  priceEvidence?: PriceEvidence;
   source?: string;
   mileage?: number | null;
   locationCity?: string;
@@ -42,8 +50,13 @@ const reportedStatus = (value?: boolean | null) =>
       : "Not reported";
 
 export function VehicleSummary({ deal }: { deal: ListingFacts }) {
+  const reportedTitle =
+    typeof deal.title === "string"
+      ? deal.title.replace(/\s+/g, " ").trim()
+      : "";
   const title =
-    [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
+    reportedTitle ||
+    [deal.year, deal.make, deal.model, deal.trim].filter(Boolean).join(" ") ||
     "Vehicle listing";
   const auctionFacts = needsOperabilityFacts(deal);
   const facts = [
@@ -87,13 +100,25 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
-            {buyTerm(deal.source).priceLabel}
+            {priceEvidenceLabel(deal.priceEvidence) ||
+              buyTerm(deal.source).priceLabel}
           </p>
           <p className="text-xl font-bold text-[var(--t1)]">
-            {reportedMoney(deal.askPrice)}
+            {reportedMoney(
+              nonCashPriceLabel(deal.priceEvidence)
+                ? deal.priceEvidence?.listedAmount
+                : deal.askPrice,
+            )}
           </p>
         </div>
       </div>
+      {nonCashPriceLabel(deal.priceEvidence) && (
+        <p className="text-sm text-[var(--amber-d)]">
+          Full cash price unconfirmed. {deal.priceEvidence?.evidenceText} Ask
+          the seller for the total price and required fees; value and profit
+          cannot be assessed from this amount.
+        </p>
+      )}
       {deal.decisionEvidence?.acquisitionReady === false && (
         <p className="text-sm font-semibold text-[var(--amber-d)]">
           {deal.decisionEvidence.label || "Evidence incomplete"}: research

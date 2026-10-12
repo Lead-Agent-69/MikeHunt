@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
+import { DEALER_SOURCE_DOMAINS } from "@/lib/sources/source-meta";
 
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: vi.fn(() => false),
@@ -352,7 +353,7 @@ describe("GET /api/scrape/health lane scoping", () => {
           isDue: false,
         });
         expect(row.termsReason).toMatch(/automat|robot/i);
-        expect(row.nextAction).toContain("SCRAPE_SOURCES");
+        expect(row.nextAction).toContain("written source permission");
         expect(row.userStatus).not.toBe("Needs run");
       }
       expect(
@@ -449,6 +450,31 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.plan.filters.maxPrice).toBe(10000);
   });
 
+  it("preserves selected shared-importer dealers without claiming live inventory", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      req("/api/scrape/health?lane=damaged&state=MO&dealerSourceIds=autovada"),
+    );
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.scope.dealerSourceIds).toEqual(["autovada"]);
+    expect(body.sources.map((source: any) => source.id)).toEqual(["autovada"]);
+    expect(body.sources[0].activeRows).toBe(0);
+    expect(body.sources[0].enabled).toBe(false);
+  });
+
+  it("keeps every accepted dealer domain in all-dealers health queries", async () => {
+    const { scopedDealerUrlNeedles } = await import("./route");
+    const ids = Object.keys(DEALER_SOURCE_DOMAINS);
+    const needles = scopedDealerUrlNeedles({ dealerSourceIds: ids });
+    expect(needles).toEqual(
+      Array.from(new Set(Object.values(DEALER_SOURCE_DOMAINS).flat())),
+    );
+    expect(needles).toContain("replicaautosales.net");
+    expect(needles).toContain("autovada.com");
+    expect(needles).toContain("garysautoia.net");
+  });
+
   it("limits dealer proof to selected dealer hosts", async () => {
     const { GET } = await import("./route");
     const res = await GET(
@@ -471,6 +497,20 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.sources[0].proofBadges).toEqual(
       expect.arrayContaining(["0 rows", "0 photos"]),
     );
+  });
+
+  it("counts Craigslist dealer-channel inventory under the runner that collected it", async () => {
+    const { dbSourceValues, healthSourceIdForDeal } = await import("./route");
+    expect(dbSourceValues("craigslist")).toEqual([
+      "craigslist",
+      "craigslist_dealer",
+    ]);
+    expect(
+      healthSourceIdForDeal({ source: "craigslist_dealer" }, ["craigslist"]),
+    ).toBe("craigslist");
+    for (const id of Object.keys(DEALER_SOURCE_DOMAINS)) {
+      expect(dbSourceValues(id)).toEqual(["independent_dealer"]);
+    }
   });
 
   it("limits dealer proof to selected dealer source ids", async () => {
@@ -592,7 +632,8 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(source).toContain(
       "lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt",
     );
-    expect(source).toContain('lastRun?.status === "error"');
+    expect(source).toContain("sourceProofReadiness({");
+    expect(source).toContain("lastRunStatus: lastRun?.status");
     expect(source).toContain("minutesSinceLastRun == null");
     expect(source).toContain(
       'lastRun?.status || (proof?.activeRows ? "observed" : "never_run")',

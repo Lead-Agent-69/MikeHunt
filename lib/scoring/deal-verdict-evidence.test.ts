@@ -118,7 +118,7 @@ describe("evidence gate", () => {
     expect(a.verdict).not.toBe("not_enough_data");
   });
 
-  it("an implausible / bait price keeps PASS even without comps", () => {
+  it("a payment teaser cannot receive a purchase verdict even without comps", () => {
     const a = analyzeDeal({
       ...truck,
       ask_price: 999,
@@ -126,7 +126,8 @@ describe("evidence gate", () => {
       source: "craigslist",
     } as any);
     expect(a.priceImplausible).toBe(true);
-    expect(a.verdict).toBe("pass");
+    expect(a.verdict).toBe("not_enough_data");
+    expect(a.roi).toBe(0);
   });
 
   it("a current gov-auction bid is never GO (bid is not the final price)", () => {

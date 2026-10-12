@@ -1,4 +1,5 @@
 "use client";
+import { sourceOperationLabel } from "@/lib/scrapers/source-proof-readiness";
 
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
@@ -46,7 +47,8 @@ type SourceHealth = {
     enabled: boolean;
     lastRunAt: string | null;
     lastStatus: string;
-    successRate: number;
+    successRate: number | null;
+    readiness?: string;
     failedRuns: number;
   }>;
 };
@@ -70,24 +72,16 @@ function relativeTime(value: string | null) {
 }
 
 function sourceState(source: SourceHealth["sources"][number]) {
-  if (!source.enabled)
-    return { label: "Paused", tone: "text-[var(--t4)] bg-[var(--s2)]" };
-  if (source.lastStatus === "error")
-    return { label: "Attention", tone: "text-[var(--red)] bg-[var(--rlo)]" };
-  if (!source.lastRunAt)
-    return {
-      label: "Awaiting run",
-      tone: "text-[var(--amber)] bg-[var(--alo)]",
-    };
-  if (source.successRate >= 80)
-    return {
-      label: "Healthy",
-      tone: "text-[var(--green)] bg-[var(--glo)]",
-    };
-  return {
-    label: "Needs review",
-    tone: "text-[var(--amber)] bg-[var(--alo)]",
-  };
+  const label = sourceOperationLabel(source);
+  const tone =
+    label === "Unavailable"
+      ? "text-[var(--red)] bg-[var(--rlo)]"
+      : ["Working", "Healthy"].includes(label)
+        ? "text-[var(--green)] bg-[var(--glo)]"
+        : ["Paused", "Not verified"].includes(label)
+          ? "text-[var(--t4)] bg-[var(--s2)]"
+          : "text-[var(--amber)] bg-[var(--alo)]";
+  return { label, tone };
 }
 
 function Metric({
@@ -211,7 +205,9 @@ export default function AdminDashboard() {
           (source) =>
             source.lastStatus === "error" ||
             (!source.lastRunAt && source.enabled) ||
-            (source.successRate > 0 && source.successRate < 80),
+            (source.successRate != null &&
+              source.successRate > 0 &&
+              source.successRate < 80),
         )
         .slice(0, 6),
     [health],

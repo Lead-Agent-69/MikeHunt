@@ -154,6 +154,7 @@ describe("saved-search recovery", () => {
       target_profit: null,
       require_go: false,
       notify_sms: false,
+      notify_email: false,
     });
   });
   it("keeps failed pause/delete actions visible and scopes each write to the authenticated owner", async () => {
@@ -192,6 +193,22 @@ describe("saved-search recovery", () => {
     expect(host.textContent).toContain("Min Net Profit");
     await click("Save search");
     expect(host.textContent).toContain("Device only. No automatic alerts.");
+    expect(host.textContent).not.toContain("Pause");
     expect(host.textContent).not.toContain("Sign in later to sync alerts");
+  });
+  it("preserves the form when a device bookmark cannot be written", async () => {
+    state.user = null;
+    await render();
+    await click("New search");
+    await fill("Search name", "Keep my criteria");
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    await click("Save search");
+    expect(host.textContent).toContain("not confirmed saved");
+    expect(
+      host.querySelector<HTMLInputElement>('input[aria-label="Search name"]')
+        ?.value,
+    ).toBe("Keep my criteria");
   });
 });

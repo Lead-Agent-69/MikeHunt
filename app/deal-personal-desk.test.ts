@@ -17,9 +17,8 @@ describe("deal page personal desk", () => {
     expect(page).toContain("What to verify");
     expect(page).toContain("<VehicleSummary");
     expect(page).toContain("sourceLinkLabel(deal.sourceUrl)");
-    expect(page).toMatch(
-      /store\.userType === "dealer" && serverDeal && \(\s*<ContactSeller/,
-    );
+    // Seller contact is a buying action for every desk, not a dealer-only calculator.
+    expect(page).toMatch(/\{serverDeal && \(\s*<ContactSeller/);
     expect(page).toMatch(
       /store\.userType === "dealer" &&[\s\S]{0,350}<DealEconomics/,
     );

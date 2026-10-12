@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { internalError } from "@/lib/api/http-error";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -65,7 +69,7 @@ import {
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
 const SCAN_SELECT =
-  "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options,lat,lng";
+  "id,source,source_deal_id,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options,lat,lng";
 
 const SCAN_CACHE_HEADERS = {
   // Response is desk-scoped (flip economics redacted for non-flip / signed-out). A public
@@ -106,6 +110,21 @@ function inferredSeller(row: any) {
   ).trim();
   const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
   const meta = sourceMeta(sourceKey);
+  if (
+    options.aggregator === "autotempest" ||
+    String(row.source_deal_id || "").startsWith("at-")
+  ) {
+    return {
+      seller:
+        options.aggregator === "autotempest"
+          ? directSeller || undefined
+          : undefined,
+      sellerType:
+        options.aggregator === "autotempest"
+          ? directSellerType || undefined
+          : undefined,
+    };
+  }
   return {
     seller:
       directSeller ||
@@ -398,7 +417,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   const make = r.make || "";
   const model = r.model || "";
   const mileage = r.mileage ?? r.miles ?? undefined;
-  const askPrice = toNum(r.ask_price ?? r.askPrice ?? 0);
+  const askPrice = reportedAcquisitionPrice(r);
   const mmrValue = toNum(r.mmr_value ?? r.mmrValue ?? r.market_value ?? 0);
   const profitEstimate = toNum(r.profit_estimate ?? r.profitEstimate ?? 0);
   const profitScore = r.profit_score ?? r.profitScore ?? undefined;
@@ -454,18 +473,25 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
+    priceEvidence: listingPriceEvidence(r),
     mmrValue,
-    profitEstimate,
-    profitScore: profitScore != null ? Number(profitScore) : undefined,
+    profitEstimate: askPrice > 0 ? profitEstimate : 0,
+    profitScore:
+      askPrice > 0 && profitScore != null ? Number(profitScore) : undefined,
     // Decision-engine fields — must be carried through so verdict pills / max-bid /
     // resale render on the Scan grid (mapDealToResult reads these camelCase keys).
-    dealVerdict: r.deal_verdict || undefined,
+    dealVerdict: askPrice > 0 ? r.deal_verdict || undefined : "not_enough_data",
     recommendedMaxBid:
-      r.recommended_max_bid != null ? Number(r.recommended_max_bid) : undefined,
+      askPrice > 0 && r.recommended_max_bid != null
+        ? Number(r.recommended_max_bid)
+        : undefined,
     sellEstimate: r.sell_estimate != null ? Number(r.sell_estimate) : undefined,
     true_net_profit:
-      r.true_net_profit != null ? Number(r.true_net_profit) : undefined,
-    dealAnalysis: r.deal_analysis || r.dealAnalysis || undefined,
+      askPrice > 0 && r.true_net_profit != null
+        ? Number(r.true_net_profit)
+        : undefined,
+    dealAnalysis:
+      askPrice > 0 ? r.deal_analysis || r.dealAnalysis || undefined : undefined,
     sellBasis:
       r.sell_basis ||
       r.sellBasis ||
@@ -727,8 +753,11 @@ function publicRowToVehicle(
     mileage: row.mileage,
     condition: row.condition,
     damage_type: row.damage_type,
-    ask_price: toNum(row.ask_price),
-    mmr_value: row.metadata?.acv_estimate || undefined,
+    ask_price: reportedAcquisitionPrice(row),
+    buy_now_price: row.buy_now_price,
+    options: row.options,
+    metadata: row.metadata,
+    mmr_value: row.mmr_value || undefined,
     source: canonicalSource,
     location_state: row.location_state,
     first_seen_at: row.scraped_at,
@@ -750,7 +779,7 @@ function publicRowToVehicle(
     mileage: row.mileage,
     locationCity: row.location_city,
     locationState: row.location_state,
-    askPrice: row.ask_price,
+    askPrice: reportedAcquisitionPrice(row),
     seller: sellerProof.seller,
     sellerType: sellerProof.sellerType,
     sellerPhone: contact.phone,
@@ -770,14 +799,18 @@ function publicRowToVehicle(
     mileage: row.mileage,
     condition: row.condition,
     damageType: row.damage_type,
-    askPrice: toNum(row.ask_price),
+    askPrice: reportedAcquisitionPrice(row),
     mmrValue: analysis.mmrValue || 0,
     profitEstimate: analysis.profit,
     profitScore: analysis.score,
     dealVerdict: analysis.verdict,
-    recommendedMaxBid: analysis.recommendedMaxBid,
+    recommendedMaxBid:
+      reportedAcquisitionPrice(row) > 0
+        ? analysis.recommendedMaxBid
+        : undefined,
     sellEstimate: analysis.sellEstimate,
-    true_net_profit: analysis.profit,
+    true_net_profit:
+      reportedAcquisitionPrice(row) > 0 ? analysis.profit : undefined,
     repair_estimate: analysis.repairCost,
     transport_cost: analysis.transportCost,
     warnings: analysis.warnings,
@@ -1125,6 +1158,10 @@ export async function GET(req: NextRequest) {
     })
   ) {
     query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
+    // Apply before pagination/counting; mixed marketplaces can contain auction bids too.
+    query = query.or(
+      "options->priceEvidence->>kind.is.null,options->priceEvidence->>kind.neq.current_bid",
+    );
   }
 
   if (make) {

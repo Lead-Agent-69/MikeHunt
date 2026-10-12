@@ -1,4 +1,5 @@
 import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { MISSOURI_SEARCH_ZIPS } from "./missouri-markets";
 
 /**
  * Metro ZIPs per state for radius searches (cars.com, AutoTrader, AutoTempest).
@@ -34,7 +35,7 @@ export const STATE_METRO_ZIPS: Record<string, readonly string[]> = {
   MI: ["48226", "49503", "49684", "49855"],
   MN: ["55401", "55802", "56601"],
   MS: ["39201", "38801", "39501"],
-  MO: ["63101", "64106", "65806"],
+  MO: MISSOURI_SEARCH_ZIPS,
   MT: ["59601", "59101", "59801"],
   NE: ["68102", "68801", "69101"],
   NV: ["89101", "89501"],

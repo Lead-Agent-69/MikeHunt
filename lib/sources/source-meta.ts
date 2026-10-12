@@ -31,6 +31,42 @@ export interface SourceMeta {
 // Brand-appropriate accents. Mid-saturation hues so the same value reads on light AND dark surfaces
 // (badges render as solid `color` text on a low-alpha tint of the same color).
 const META: Record<string, SourceMeta> = {
+  autovada: {
+    label: "AutoVada",
+    short: "AutoVada",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  polecats: {
+    label: "Polecats Auto Sales",
+    short: "Polecats",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  elite_sikeston: {
+    label: "Elite Auto Sales",
+    short: "Elite",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  riverbend_rebuildables: {
+    label: "Riverbend Rebuildables",
+    short: "Riverbend",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  premier_salvage: {
+    label: "Premier Auto Rebuilders",
+    short: "Premier",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  garys_auto_ia: {
+    label: "Gary's Auto",
+    short: "Gary's Auto",
+    color: "#64748b",
+    channel: "dealer",
+  },
   // ── Auctions (BID) ─────────────────────────────────────────────
   copart: {
     label: "Copart",
@@ -249,9 +285,36 @@ export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
   "cas-miami": ["casmiami.com"],
   salvagezone: ["salvagezone.com"],
   "rebuilt-auto": ["rebuiltauto.com"],
-  "alpine-auto": ["alpineautogallery.com"],
-  "replica-auto": ["replicaauto.com"],
+  "alpine-auto": ["alpineautogallery.com", "alpinerebuildablecars.com"],
+  "replica-auto": ["replicaauto.com", "replicaautosales.net"],
+  autovada: ["autovada.com"],
+  polecats: ["polecatsautosales.com"],
+  "elite-sikeston": ["elitesikeston.com"],
+  "riverbend-rebuildables": ["riverbendrebuildables.com"],
+  "premier-salvage": ["premiersalvage.com"],
+  "garys-auto-ia": ["garysautoia.net"],
 };
+
+/** Buyer targeting and the worker must use the same supported dealer identities. */
+export function matchesRequestedDealer(
+  site: { url: string; inventoryUrl?: string },
+  requestedIds: readonly string[],
+): boolean {
+  if (!requestedIds.length) return true;
+  const allowed = [...requestedIds];
+  return Boolean(
+    dealerSourceIdFromUrl(site.url, allowed) ||
+    dealerSourceIdFromUrl(site.inventoryUrl, allowed),
+  );
+}
+
+export function dealerSourceOptions() {
+  return Object.entries(DEALER_SOURCE_DOMAINS).map(([id, domains]) => ({
+    id,
+    label: sourceMeta(id).short,
+    host: domains[0],
+  }));
+}
 
 export function dealerSourceIdFromUrl(
   sourceUrl?: string | null,

@@ -46,6 +46,7 @@ export interface Deal {
   created_at?: string;
   updated_at?: string;
   metadata?: Record<string, unknown>;
+  options?: Record<string, any>;
 }
 
 export interface ScrapeResult {

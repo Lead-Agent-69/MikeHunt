@@ -1,4 +1,7 @@
-import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
+import {
+  DEALER_SOURCE_DOMAINS,
+  dealerSourceIdForHost,
+} from "@/lib/sources/source-meta";
 
 export type BuyerLane =
   | "all"
@@ -25,6 +28,7 @@ export interface BuyerScope {
   maxPrice?: number;
   minYear?: number;
   maxMileage?: number;
+  includeRepairable?: boolean;
   dealerSourceIds?: string[];
   dealerHosts?: string[];
 }
@@ -81,6 +85,7 @@ const LANE_SOURCES: Record<BuyerLane, string[]> = {
     "curated_dealers",
   ],
   "clean-retail": [
+    "autotempest",
     "cars_com",
     "cargurus",
     "autotrader",
@@ -124,18 +129,7 @@ const SELLER_TYPE_SOURCES: Record<string, string[]> = {
   private: ["craigslist", "facebook_marketplace", "offerup", "ebay_motors"],
 };
 
-export const CURATED_DEALER_SOURCE_IDS = [
-  "stjames-auto",
-  "dg-auto",
-  "recar",
-  "ae-of-miami",
-  "damage-com",
-  "cas-miami",
-  "salvagezone",
-  "rebuilt-auto",
-  "alpine-auto",
-  "replica-auto",
-];
+export const CURATED_DEALER_SOURCE_IDS = Object.keys(DEALER_SOURCE_DOMAINS);
 
 function cleanText(value: unknown, max = 80) {
   if (typeof value !== "string") return undefined;
@@ -270,6 +264,8 @@ function appendScopeParams(params: URLSearchParams, scope: BuyerScope) {
   if (scope.maxPrice) params.set("maxPrice", String(scope.maxPrice));
   if (scope.minYear) params.set("minYear", String(scope.minYear));
   if (scope.maxMileage) params.set("maxMileage", String(scope.maxMileage));
+  if (typeof scope.includeRepairable === "boolean")
+    params.set("includeRepairable", scope.includeRepairable ? "1" : "0");
   if (scope.dealerHosts?.length) {
     params.set("dealers", scope.dealerHosts.join(","));
   }
@@ -376,6 +372,10 @@ export function normalizeBuyerScope(
     maxMileage: Number.isFinite(Number(input.maxMileage))
       ? Number(input.maxMileage)
       : undefined,
+    includeRepairable:
+      typeof input.includeRepairable === "boolean"
+        ? input.includeRepairable
+        : undefined,
     dealerHosts: dealerHosts.length ? dealerHosts : undefined,
     dealerSourceIds: dealerSourceIds.length ? dealerSourceIds : undefined,
   };

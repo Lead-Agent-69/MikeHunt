@@ -33,24 +33,45 @@ export async function GET(req: NextRequest) {
     .limit(500);
   if (year) q = q.gte("year", year - 1).lte("year", year + 1);
 
-  const { data } = await q;
+  const { data, error } = await q;
+  if (error)
+    return NextResponse.json(
+      { error: "Market samples unavailable" },
+      { status: 503 },
+    );
   const points = (data || [])
     .map((d: any) => ({
       mileage: Number(d.mileage),
       price: Number(d.ask_price),
     }))
-    .filter((p) => p.mileage > 0 && p.price > 0);
+    .filter(
+      (p) =>
+        Number.isFinite(p.mileage) &&
+        Number.isFinite(p.price) &&
+        p.mileage > 0 &&
+        p.price > 0,
+    );
 
   const fit = fitDepreciationCurve(points);
   return NextResponse.json({
     points,
     n: points.length,
     depreciationPer1000Miles: fit?.depreciationPer1000Miles ?? null,
-    // A 2-point segment for drawing the trend line on a chart.
+    // Draw only across observed samples, not a fictional 0-200k-mile domain.
     trend: fit
       ? [
-          { mileage: 0, price: Math.round(fit.intercept) },
-          { mileage: 200000, price: fit.predictPriceAtMileage(200000) },
+          {
+            mileage: Math.min(...points.map((p) => p.mileage)),
+            price: fit.predictPriceAtMileage(
+              Math.min(...points.map((p) => p.mileage)),
+            ),
+          },
+          {
+            mileage: Math.max(...points.map((p) => p.mileage)),
+            price: fit.predictPriceAtMileage(
+              Math.max(...points.map((p) => p.mileage)),
+            ),
+          },
         ]
       : null,
   });

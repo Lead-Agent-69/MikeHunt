@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
-  if (isSupabaseConfigured()) {
+  if (isSupabaseConfigured() || process.env.NODE_ENV === "production") {
     return NextResponse.json(
       { error: "Demo auth is disabled" },
       { status: 404 },

@@ -59,6 +59,72 @@ describe("organized inventory detail controls", () => {
     ).toBe(true);
   });
 
+  it("collapses unused groups on desktop while exposing selected evidence", () => {
+    act(() =>
+      root.render(
+        React.createElement(InventoryDetailFilters, {
+          values: { runDrive: "unknown", hasPhotos: "yes" },
+          onChange: () => {},
+        }),
+      ),
+    );
+    const groups = Array.from(host.querySelectorAll("details"));
+    expect(groups.map((group) => group.open)).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(groups[2].querySelector("summary")?.textContent).toContain(
+      "Run & drive reported: Not reported",
+    );
+    expect(groups[3].querySelector("summary")?.textContent).toContain(
+      "Photos: Available",
+    );
+  });
+
+  it("clears only selected visible fields, preserving hidden filters", () => {
+    const change = vi.fn();
+    act(() =>
+      root.render(
+        React.createElement(InventoryDetailFilters, {
+          keys: ["runDrive", "minBuyNow", "maxBuyNow"],
+          values: {
+            runDrive: "unknown",
+            minBuyNow: "0",
+            maxBuyNow: "5000",
+            damage: "front",
+            city: "St. Louis",
+          },
+          onChange: change,
+        }),
+      ),
+    );
+    const reset = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Clear condition & auction filters"]',
+    )!;
+    expect(reset.title).toBe("Clear condition & auction filters");
+    act(() => reset.click());
+    expect(change.mock.calls).toEqual([
+      ["runDrive", ""],
+      ["minBuyNow", ""],
+      ["maxBuyNow", ""],
+    ]);
+  });
+
+  it("does not count the all sentinel as an active filter", () => {
+    act(() =>
+      root.render(
+        React.createElement(InventoryDetailFilters, {
+          values: { city: "all" },
+          onChange: () => {},
+        }),
+      ),
+    );
+    expect(host.querySelectorAll("button")).toHaveLength(0);
+    expect(host.textContent).not.toContain("selected");
+  });
+
   it("renders only Scan's additional fields without duplicating legacy filters", () => {
     const change = vi.fn();
     act(() =>

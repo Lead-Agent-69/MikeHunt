@@ -4,6 +4,18 @@ import { categorize, dealGrade } from "./categorize";
 // A $20k-market car with a $4k OPENING bid must not be badged "75% off — Great Deal": the bid will rise.
 // Grading an auction against the realistic acquisition cost (recommended max bid) keeps it honest.
 describe("auction-aware grading", () => {
+  it("cannot grade an unreported price using a stale maximum bid", () => {
+    const tags = categorize({
+      source: "copart",
+      ask_price: 0,
+      recommended_max_bid: 8000,
+      sell_estimate: 20000,
+      sellBasis: "comps",
+    });
+    expect(tags.grade).not.toBe("great");
+    expect(tags.grade).not.toBe("good");
+    expect(tags.discountPct).toBe(0);
+  });
   const market = 20000;
 
   it("retail listing grades off its (fixed) ask price", () => {

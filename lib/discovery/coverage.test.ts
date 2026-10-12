@@ -15,6 +15,63 @@ const row = (source: string, state: string, h: number) => ({
 });
 
 describe("buildDiscoverCoverage", () => {
+  it("counts actual dealer identities, preserving aliases and missing-link groups", () => {
+    const rows = [
+      {
+        ...row("independent_dealer", "MO", 1),
+        source_url: "https://www.autovada.com/car/1",
+      },
+      {
+        ...row("independent_dealer", "MO", 2),
+        source_url: "https://autovada.com/car/2",
+      },
+      {
+        ...row("independent_dealer", "MO", 1),
+        source_url: "https://recar.com/car/3",
+      },
+      {
+        ...row("independent_dealer", "MO", 1),
+        source_url: "https://another-dealer.example/car/4",
+      },
+      row("independent_dealer", "MO", 1),
+    ];
+    const result = buildDiscoverCoverage({
+      marketRows: rows,
+      feedRows: rows,
+      states: ["MO"],
+      rowCap: 10000,
+      now,
+    });
+    expect(result.sourceCount).toBe(4);
+    expect(result.freshRows).toBe(5);
+    expect(
+      result.bySource.find((source) => source.source === "autovada")?.rows,
+    ).toBe(2);
+    expect(result.bySource.map((source) => source.source)).toContain("recar");
+    expect(result.bySource.map((source) => source.source)).toContain(
+      "another-dealer.example",
+    );
+    expect(result.bySource.map((source) => source.source)).toContain(
+      "independent_dealer",
+    );
+  });
+
+  it("does not mistake dealer domains mentioned in paths for the listing source", () => {
+    const rows = [
+      {
+        ...row("independent_dealer", "MO", 1),
+        source_url: "https://example.org/autovada.com",
+      },
+    ];
+    const result = buildDiscoverCoverage({
+      marketRows: rows,
+      feedRows: rows,
+      states: [],
+      rowCap: 10000,
+      now,
+    });
+    expect(result.bySource[0].source).toBe("example.org");
+  });
   it("reports none when nothing was seen in the window", () => {
     const c = buildDiscoverCoverage({
       marketRows: [row("govdeals", "MO", 24 * 9)],

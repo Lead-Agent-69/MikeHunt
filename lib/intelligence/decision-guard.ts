@@ -38,7 +38,9 @@ type GuardInput = {
   damageType?: string | null;
   vin?: string | null;
   mileage?: number | null;
+  askPrice?: number | null;
   buyNowPrice?: number | null;
+  priceEvidence?: { kind?: string };
   dealVerdict?: string | null;
   dealAnalysis?: any;
   valuation?: any;
@@ -60,7 +62,10 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   const analysis = input.dealAnalysis || {};
   const valuation = input.valuation || analysis.valuation || {};
   const source = String(input.source || "").toLowerCase();
-  const isAuction = AUCTION_SOURCES.has(source) || isAuctionChannel(source);
+  const isAuction =
+    input.priceEvidence?.kind === "current_bid" ||
+    AUCTION_SOURCES.has(source) ||
+    isAuctionChannel(source);
   const repairable = hasReportedRepairRisk(input.condition, input.damageType);
   const priceAnomaly =
     Boolean(analysis.priceImplausible) ||
@@ -80,7 +85,16 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   // Legacy scores and seller claims cannot establish completed purchase checks.
   const gates: PurchaseEvidenceGates = analysis.evidenceGates || {};
   const missingChecks = [
-    gates.priceMeaningConfirmed !== true
+    gates.priceMeaningConfirmed !== true ||
+    !Number.isFinite(Number(input.askPrice)) ||
+    !(Number(input.askPrice) > 0) ||
+    [
+      "reference",
+      "unknown",
+      "down_payment",
+      "monthly_payment",
+      "finance_teaser",
+    ].includes(input.priceEvidence?.kind || "")
       ? "Confirm the purchase price and terms."
       : null,
     gates.titleReviewed !== true
@@ -113,7 +127,9 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
       summary:
         Number(input.buyNowPrice) > 0
           ? "A buy-now price is reported, but fees, eligibility and condition still need verification. A buy-now amount does not establish all-in cost."
-          : "The displayed amount is a current auction price, not a final all-in purchase price.",
+          : Number(input.askPrice) > 0
+            ? "The displayed amount is a current auction price, not a final all-in purchase price."
+            : "An acquisition price is not reported. Reference values are not bids or buy-now prices; check the auction for current terms.",
       nextCheck: repairable
         ? "Verify title, damage photos, repair quote, auction fees, and final bid before deciding."
         : "Verify auction fees, final bid, title, condition, and comparable sales before deciding.",

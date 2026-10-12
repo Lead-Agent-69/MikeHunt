@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
@@ -144,7 +145,7 @@ function rowToVehicle(row: any, sourceId?: string) {
     mileage: row.mileage,
     locationCity: row.location_city,
     locationState: row.location_state,
-    askPrice: row.ask_price,
+    askPrice: reportedAcquisitionPrice(row),
     seller: row.seller,
     sellerType: row.seller_type,
     sellerPhone: contact.phone,
@@ -165,8 +166,8 @@ function rowToVehicle(row: any, sourceId?: string) {
     mileage: row.mileage,
     condition: row.condition,
     damageType: row.damage_type,
-    askPrice: row.ask_price,
-    mmrValue: row.metadata?.acv_estimate || 0,
+    askPrice: reportedAcquisitionPrice(row),
+    mmrValue: row.mmr_value || 0,
     // No profit model runs on preview rows. Leave profit unset instead of a fake $0 / score 50.
     images: row.images || [],
     locationCity: row.location_city,
