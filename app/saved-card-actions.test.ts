@@ -4,15 +4,22 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/components/saved/FindSimilarModal", () => ({
   FindSimilarModal: () => null,
 }));
-import { SavedCarCard } from "@/components/saved/SavedCarCard";
+import {
+  SavedCarCard,
+  type SavedCarStatus,
+} from "@/components/saved/SavedCarCard";
 
-function card(dealId = "vehicle-one") {
+function card(
+  dealId = "vehicle-one",
+  sourceName = "independent_dealer",
+  status: SavedCarStatus = "active",
+) {
   const html = renderToStaticMarkup(
     React.createElement(SavedCarCard, {
       save: {
         id: "save-one",
         deal_id: dealId,
-        status: "active",
+        status,
         snapshot: {
           year: 2022,
           make: "Honda",
@@ -21,7 +28,7 @@ function card(dealId = "vehicle-one") {
           sourceUrl: "https://example.com/listing",
           images: ["https://example.com/photo.jpg"],
         },
-        source_name: "independent_dealer",
+        source_name: sourceName,
         source_url: "",
         price_at_save: 12000,
         last_price_seen: 12000,
@@ -38,6 +45,15 @@ function card(dealId = "vehicle-one") {
   return host;
 }
 describe("saved-card actions", () => {
+  it("retains historical saves with missing source names and shows archived/passed status", () => {
+    for (const status of ["archived", "passed"] as const) {
+      const host = card("vehicle-one", null as unknown as string, status);
+      expect(host.textContent).toContain(
+        status === "archived" ? "Archived" : "Passed",
+      );
+      expect(host.textContent).toContain("Honda");
+    }
+  });
   it("uses native review links, labeled touch-sized actions and snapshot source fallback", () => {
     const host = card();
     expect(host.querySelector("a button")).toBeNull();

@@ -21,6 +21,10 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
         deal_id: uuid(n + 1),
         saved_at: "2026-10-12T00:00:00Z",
         status: n === 0 ? "watching" : n === 1 ? "archived" : "active",
+        source_name: "web-share",
+        source_url: "",
+        price_at_save: 10000,
+        last_price_seen: 10000,
         snapshot: {
           year: 2020,
           make: "Honda",
