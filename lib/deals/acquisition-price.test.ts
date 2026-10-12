@@ -7,6 +7,29 @@ import {
 } from "./acquisition-price";
 
 describe("reported acquisition price", () => {
+  it.each([
+    { seller_type: "dealer" },
+    { sellerType: "Dealer" },
+    { options: { sellerType: "dealer" } },
+  ])(
+    "recognizes dealer listings collected under a shared Craigslist source",
+    (seller) => {
+      expect(
+        reportedAcquisitionPrice({
+          source: "craigslist",
+          ask_price: 2600,
+          ...seller,
+        }),
+      ).toBe(0);
+      expect(
+        reportedAcquisitionPrice({
+          source: "craigslist",
+          seller_type: "private",
+          ask_price: 2600,
+        }),
+      ).toBe(2600);
+    },
+  );
   it("retains the photographed dealer disclaimer without treating $2600 as cash", () => {
     const description =
       "*** PRICE LISTED MAY BE DOWN PAYMENT AND NOT FULL PRICE CALL DEALER FOR DETAILS ***";
@@ -18,6 +41,8 @@ describe("reported acquisition price", () => {
     expect(reportedAcquisitionPrice(row)).toBe(0);
   });
   it.each([
+    "2600/mo",
+    "Down payment: 2,600",
     "Down payment: $2,600",
     "Monthly payment: $2,600",
     "Deposit: $2,600",

@@ -1,5 +1,7 @@
 type PriceRow = {
   source?: string;
+  seller_type?: string | null;
+  sellerType?: string | null;
   title?: string | null;
   description?: string | null;
   ask_price?: unknown;
@@ -64,7 +66,7 @@ export function disclosedPriceEvidence(
       evidenceText: disclaimer[0].slice(0, 180),
     };
   const labels =
-    /\b(down[\s-]*payment|monthly\s+payment|deposit)\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
+    /\b(down[\s-]*payment|monthly\s+payment|deposit)\s*(?:is|of|:|-)?\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi;
   let labelled: RegExpExecArray | null;
   while ((labelled = labels.exec(text))) {
     if (amount && positivePrice(labelled[2].replace(/,/g, "")) !== amount)
@@ -76,7 +78,7 @@ export function disclosedPriceEvidence(
     };
   }
   const moneyTerms =
-    /\$\s*([\d,]+(?:\.\d{2})?)\s*(down\b|(?:per\s*)?month\b|a\s+month\b|\/\s*mo(?:nth)?\b)/gi;
+    /(?:\$\s*|\b)([\d,]+(?:\.\d{2})?)\s*(down\b|(?:per\s*)?month\b|a\s+month\b|\/\s*mo(?:nth)?\b)/gi;
   let match: RegExpExecArray | null;
   while ((match = moneyTerms.exec(text))) {
     const number = positivePrice(match[1].replace(/,/g, ""));
@@ -133,7 +135,13 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
     };
   }
   // Old dealer rows have not had their pricing disclaimer inspected. Fail closed on cash math.
-  if (row.source === "craigslist_dealer")
+  if (
+    row.source === "craigslist_dealer" ||
+    (row.source === "craigslist" &&
+      String(row.seller_type || row.sellerType || row.options?.sellerType || "")
+        .trim()
+        .toLowerCase() === "dealer")
+  )
     return {
       kind: "unknown",
       listedAmount: positivePrice(amount),
@@ -150,6 +158,12 @@ export function nonCashPriceLabel(evidence?: PriceEvidence) {
   if (evidence?.kind === "unknown" && evidence.listedAmount)
     return "Unverified advertised amount";
   return undefined;
+}
+
+export function priceEvidenceLabel(evidence?: PriceEvidence) {
+  if (evidence?.kind === "current_bid") return "Current bid";
+  if (evidence?.kind === "buy_now") return "Buy-now price";
+  return nonCashPriceLabel(evidence);
 }
 
 export function positivePrice(value: unknown): number | undefined {

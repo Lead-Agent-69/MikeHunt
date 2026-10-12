@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEbaySoldHtml } from "./ebay-sold";
+import { parseEbaySoldHtml, soldInventoryQuery } from "./ebay-sold";
 
 const card = (
   title: string,
@@ -17,6 +17,28 @@ const card = (
 </div>`;
 
 describe("parseEbaySoldHtml", () => {
+  it("keeps full model names in inventory-driven sold searches", () => {
+    expect(soldInventoryQuery("Tesla", "Model 3")).toBe("tesla model 3");
+    expect(soldInventoryQuery("Land Rover", "Range Rover Sport")).toBe(
+      "land rover range rover sport",
+    );
+    expect(soldInventoryQuery("", "Model 3")).toBeUndefined();
+  });
+  it("retains manual cars but still excludes accessory manuals", () => {
+    const rows = parseEbaySoldHtml(
+      card("2018 Honda Civic manual", "$18,000", "901") +
+        card("2018 Honda Civic owners manual", "$1,500", "902"),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].title).toBe("2018 Honda Civic manual");
+  });
+  it("does not use completed-listing payment teasers as sold-price observations", () => {
+    expect(
+      parseEbaySoldHtml(
+        card("2018 Honda Accord down payment: $2,600", "$2,600", "99"),
+      ),
+    ).toEqual([]);
+  });
   it("rejects unsold, hidden-offer, ambiguous and non-USD prices", () => {
     expect(
       parseEbaySoldHtml(

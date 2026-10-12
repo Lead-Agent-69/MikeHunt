@@ -123,10 +123,18 @@ export function dealLane(deal: {
   source?: string | null;
   condition?: string | null;
   damage_type?: string | null;
+  options?: { priceEvidence?: { kind?: string } } | null;
+  priceEvidence?: { kind?: string };
 }): DealLane {
   const src = (deal.source || "").toLowerCase().trim();
   const cond = (deal.condition || "").toLowerCase();
-  if (LANE_AUCTION.has(src) || isAuctionChannel(src)) return "auction";
+  if (
+    deal.options?.priceEvidence?.kind === "current_bid" ||
+    deal.priceEvidence?.kind === "current_bid" ||
+    LANE_AUCTION.has(src) ||
+    isAuctionChannel(src)
+  )
+    return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
     return "salvage";
   const damaged = hasReportedRepairRisk(deal.condition, deal.damage_type);

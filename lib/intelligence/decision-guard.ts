@@ -40,6 +40,7 @@ type GuardInput = {
   mileage?: number | null;
   askPrice?: number | null;
   buyNowPrice?: number | null;
+  priceEvidence?: { kind?: string };
   dealVerdict?: string | null;
   dealAnalysis?: any;
   valuation?: any;
@@ -61,7 +62,10 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   const analysis = input.dealAnalysis || {};
   const valuation = input.valuation || analysis.valuation || {};
   const source = String(input.source || "").toLowerCase();
-  const isAuction = AUCTION_SOURCES.has(source) || isAuctionChannel(source);
+  const isAuction =
+    input.priceEvidence?.kind === "current_bid" ||
+    AUCTION_SOURCES.has(source) ||
+    isAuctionChannel(source);
   const repairable = hasReportedRepairRisk(input.condition, input.damageType);
   const priceAnomaly =
     Boolean(analysis.priceImplausible) ||
@@ -81,7 +85,16 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
   // Legacy scores and seller claims cannot establish completed purchase checks.
   const gates: PurchaseEvidenceGates = analysis.evidenceGates || {};
   const missingChecks = [
-    gates.priceMeaningConfirmed !== true
+    gates.priceMeaningConfirmed !== true ||
+    !Number.isFinite(Number(input.askPrice)) ||
+    !(Number(input.askPrice) > 0) ||
+    [
+      "reference",
+      "unknown",
+      "down_payment",
+      "monthly_payment",
+      "finance_teaser",
+    ].includes(input.priceEvidence?.kind || "")
       ? "Confirm the purchase price and terms."
       : null,
     gates.titleReviewed !== true

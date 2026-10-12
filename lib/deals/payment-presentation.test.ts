@@ -5,6 +5,27 @@ import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import { discoveryEvidence } from "@/components/discovery/card-evidence";
 
 describe("payment disclosure presentation", () => {
+  it("labels an eBay bid as an auction bid rather than an asking price", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          source: "ebay_motors",
+          askPrice: 3000,
+          priceEvidence: { kind: "current_bid", currentBid: 3000 },
+        },
+      }),
+    );
+    expect(html).toContain("Current bid");
+    expect(html).not.toContain("Asking price");
+    expect(
+      discoveryEvidence({
+        source: "ebay_motors",
+        lane: "auction",
+        askPrice: 3000,
+        priceEvidence: { kind: "current_bid", currentBid: 3000 },
+      } as any).state,
+    ).toBe("auction_watch");
+  });
   it("labels an advertised deposit without calling it an asking price", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {

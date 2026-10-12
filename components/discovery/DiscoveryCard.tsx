@@ -26,7 +26,10 @@ import {
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
-import { nonCashPriceLabel } from "@/lib/deals/acquisition-price";
+import {
+  nonCashPriceLabel,
+  priceEvidenceLabel,
+} from "@/lib/deals/acquisition-price";
 
 // Short, glanceable lane labels ΓÇö the channel/risk a dealer reads instantly (color from the API).
 const LANE_LABELS: Record<string, string> = {
@@ -104,7 +107,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
   const priceLabel =
-    nonCashPriceLabel(deal.priceEvidence) ||
+    priceEvidenceLabel(deal.priceEvidence) ||
     ("saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel);
   const displayAmount = nonCashPriceLabel(deal.priceEvidence)
     ? deal.priceEvidence?.listedAmount || 0

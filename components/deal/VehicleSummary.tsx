@@ -1,6 +1,7 @@
 import { buyTerm } from "@/lib/deal-terms";
 import {
   nonCashPriceLabel,
+  priceEvidenceLabel,
   type PriceEvidence,
 } from "@/lib/deals/acquisition-price";
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
@@ -92,7 +93,7 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
-            {nonCashPriceLabel(deal.priceEvidence) ||
+            {priceEvidenceLabel(deal.priceEvidence) ||
               buyTerm(deal.source).priceLabel}
           </p>
           <p className="text-xl font-bold text-[var(--t1)]">

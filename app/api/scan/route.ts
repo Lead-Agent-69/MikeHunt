@@ -69,7 +69,7 @@ import {
 // Keep list responses lean. Cards do not need every stored scraper field, and selecting only
 // the fields used below reduces database serialization and transfer time on every search.
 const SCAN_SELECT =
-  "id,source,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options,lat,lng";
+  "id,source,source_deal_id,title,year,make,model,trim,body_class,recalls_count,assembly_country,vin,mileage,condition,damage_type,location_city,location_state,location_zip,ask_price,buy_now_price,mmr_value,profit_estimate,profit_score,deal_verdict,recommended_max_bid,sell_estimate,true_net_profit,deal_analysis,images,source_url,first_seen_at,last_seen_at,auction_end_at,estimated_repair_cost,estimated_transport_cost,is_arbitrage_opportunity,active,options,lat,lng";
 
 const SCAN_CACHE_HEADERS = {
   // Response is desk-scoped (flip economics redacted for non-flip / signed-out). A public
@@ -110,6 +110,21 @@ function inferredSeller(row: any) {
   ).trim();
   const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
   const meta = sourceMeta(sourceKey);
+  if (
+    options.aggregator === "autotempest" ||
+    String(row.source_deal_id || "").startsWith("at-")
+  ) {
+    return {
+      seller:
+        options.aggregator === "autotempest"
+          ? directSeller || undefined
+          : undefined,
+      sellerType:
+        options.aggregator === "autotempest"
+          ? directSellerType || undefined
+          : undefined,
+    };
+  }
   return {
     seller:
       directSeller ||
@@ -1143,6 +1158,10 @@ export async function GET(req: NextRequest) {
     })
   ) {
     query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
+    // Apply before pagination/counting; mixed marketplaces can contain auction bids too.
+    query = query.or(
+      "options->priceEvidence->>kind.is.null,options->priceEvidence->>kind.neq.current_bid",
+    );
   }
 
   if (make) {
