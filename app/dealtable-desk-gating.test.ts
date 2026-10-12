@@ -45,6 +45,44 @@ const render = (flipDesk?: boolean) =>
   );
 
 describe("Scan table flip columns by buyer desk", () => {
+  it("renders a friendly unverified source without invented missing metrics", () => {
+    const host = document.createElement("div");
+    host.innerHTML = render(false);
+    const source = host.querySelector(
+      '[title="Not verified · Listing freshness not verified"]',
+    );
+    expect(source?.textContent).toBe("Not verified");
+    expect(source?.getAttribute("title")).not.toMatch(/0%|0 saved|scoped rows/);
+  });
+
+  it("renders known source evidence without showing runner or database messages", () => {
+    const host = document.createElement("div");
+    host.innerHTML = renderToStaticMarkup(
+      createElement(DealTable, {
+        rows,
+        sourceHealthById: new Map([
+          [
+            "craigslist",
+            {
+              readiness: "needs_login",
+              userStatus: "runner_failed: postgres offline",
+              activeRows: 4,
+              photoCoveragePct: 75,
+              freshnessHours: 3,
+            },
+          ],
+        ]),
+      }),
+    );
+    const source = host.querySelector(
+      '[title="Sign-in required · 4 saved listings · 75% with photos · Latest listing seen 3h ago"]',
+    );
+    expect(source?.textContent).toBe("Sign-in required");
+    expect(host.innerHTML).not.toMatch(
+      /runner_failed|postgres offline|scoped rows/,
+    );
+  });
+
   it("shows Max buy and Net profit to flip desks, sorted by net profit", () => {
     const html = render(true);
     expect(html).toContain("Net profit");

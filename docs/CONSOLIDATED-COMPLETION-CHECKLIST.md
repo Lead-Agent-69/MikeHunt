@@ -60,6 +60,31 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Release Reconciliation (October 12, Afternoon Chicago)
+
+- #380 source-outcome receipts merged at `e57bb5e`; #381 detail hierarchy and
+  original vehicle-title preservation merged at `46a07a0`. The heading and long
+  alternatives findings recorded below are now closed by that implementation,
+  not missing features. Heavy-duty truck alternative matching remains open.
+- #382 filter disclosure/reset polish merged at
+  `b6bd0c42339cbfdcab1dcde27d8e0cf1612a94ae`. Canonical production resolves to
+  READY deployment `dpl_5qtEuKZFGwaF5tqBmvWdiqKzxyMC`; all 20 public smoke checks
+  passed. Local verification passed twice: 557 files / 3,552 tests, typecheck,
+  lint (zero errors / 228 existing warnings), and production build. CI run
+  `38310207160` passed. All existing filter fields and buyer-mode contracts remain.
+- Browser inventory returned no apps or browsers during this follow-through.
+  Fresh signed-in, touch/keyboard and theme screenshots are still unverified;
+  earlier October 12 browser receipts are historical, not repeated acceptance.
+- Current follow-up removes raw source-readiness fallbacks from the Scan/Market
+  table. Customer copy reports saved listings, photo evidence and latest listing
+  observation; missing evidence is not fabricated as zero or a successful scrape.
+  Twenty-six focused tests passed. This entry is implementation evidence, not
+  a deployment receipt; record the exact merge and deployment in its PR.
+- #363 vendor identity remains draft pending current-main integration and visual
+  checks. #360 retention still needs review of hosted migration prerequisites and
+  rollback; do not blanket-merge the queue or push every local migration. Admin
+  positive-login, real alert delivery and validated sold comparables remain gates.
+
 ### Curated Source Outcomes (October 12 Follow-Up)
 
 - #377 is merged at `b2e572fc23aacf2ee935fdb93381c23f25837054` with successful
