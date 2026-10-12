@@ -17,6 +17,10 @@ import {
   scopedWorkerIdleState,
 } from "../lib/scrapers/job-queue";
 import { summarizeScopedScrapeResults } from "../lib/scrapers/job-result";
+import {
+  loadCuratedOutcomes,
+  type CuratedOutcome,
+} from "../lib/scrapers/curated-outcomes";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import {
@@ -108,6 +112,7 @@ interface Status {
     requestedAt: string;
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
+  curatedOutcomes: CuratedOutcome[];
   sweep?: {
     startedAt?: string;
     source?: string;
@@ -153,6 +158,7 @@ const statusDir = path.dirname(STATUS_PATH);
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
+  currentStatus.curatedOutcomes = (await loadCuratedOutcomes()).rows;
   await mkdir(statusDir, { recursive: true });
   const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
     .toString(36)
@@ -317,6 +323,7 @@ async function initializeRuntime(): Promise<void> {
     totalSources: 0,
     progress: 0,
     quota: cache.getQuota(),
+    curatedOutcomes: [],
     accessBarriers: [],
     results: [],
   };

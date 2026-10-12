@@ -54,6 +54,12 @@ import {
   selectCuratedSitesForDemand,
 } from "../curated-rotation";
 import { createPoliteHtmlFetcher } from "../polite-html";
+import {
+  startCuratedOutcome,
+  finishCuratedOutcome,
+  recordCuratedOutcome,
+  type CuratedOutcome,
+} from "../curated-outcomes";
 import { hostMatches, hostOf, urlHostMatches } from "@/lib/net/host-match";
 import {
   disclosedPriceEvidence,
@@ -1190,9 +1196,7 @@ export {
   type CuratedSiteType,
 } from "@/lib/scrapers/curated-sites";
 
-/** Crawl the curated salvage/dealer network — bounded + polite. Each site ingested from its URL.
- *  Per-site yield is logged so silently-dead/walled sites are visible (not assumed-covered); dead
- *  sites produce 0 cars and are pruned by the normal stale/dead retention. */
+/** Crawl permitted curated sites. Counts are accepted records, not inventory coverage. */
 export async function scrapeCuratedSites(
   maxSites = CURATED_SITES.length,
   execution?: { abortSignal?: AbortSignal; deadlineAt?: number },
@@ -1217,6 +1221,25 @@ export async function scrapeCuratedSites(
   const plannedStates = demandStates.length
     ? curatedRingStates(demandStates)
     : getSweepPlan()?.states || [];
+  const persistOutcome = async (outcome: CuratedOutcome) => {
+    try {
+      await recordCuratedOutcome(outcome);
+    } catch {
+      console.warn("[CuratedSites] outcome persistence unavailable");
+    }
+  };
+  for (const site of blocked.filter(
+    (site) => !demandStates.length || plannedStates.includes(site.state || ""),
+  )) {
+    execution?.abortSignal?.throwIfAborted();
+    await persistOutcome(
+      finishCuratedOutcome(
+        startCuratedOutcome(site.url, demandStates),
+        "blocked",
+        "site_policy",
+      ),
+    );
+  }
   const rotation = await loadCuratedRotation();
   const eligible = candidates.filter((site) => !policyBlockFor(site.url));
   const sites = (
@@ -1238,8 +1261,13 @@ export async function scrapeCuratedSites(
     }...`,
   );
   let total = 0;
-  const yields: { name: string; state?: string; type: string; n: number }[] =
-    [];
+  const yields: {
+    name: string;
+    state?: string;
+    type: string;
+    n: number;
+    outcome: CuratedOutcome["state"];
+  }[] = [];
   // Inside a Zeus sweep the curated crawl is one idle tick; cap it so buyer jobs never wait behind
   // a 180-site walk. Persistent attempt history rotates deferred dealers into later runs.
   // Outside a sweep (CI, smoke) there is no cap unless an executor deadline was supplied.
@@ -1264,6 +1292,8 @@ export async function scrapeCuratedSites(
       continue;
     }
     const d = SITE_TYPE_DEFAULTS[site.type];
+    const attempt = startCuratedOutcome(site.url, demandStates);
+    await persistOutcome(attempt);
     attempted += 1;
     rotation.lastAttempted[curatedSiteKey(site)] = Date.now();
     // Persist before browser work so a killed or timed-out dealer does not monopolize restarts.
@@ -1289,6 +1319,9 @@ export async function scrapeCuratedSites(
       for (const page of firstPages)
         if (!(await robotsAllowed(page))) disallowed.push(page);
       if (disallowed.length) {
+        await persistOutcome(
+          finishCuratedOutcome(attempt, "blocked", "robots"),
+        );
         console.log(
           `[CuratedSites] ${site.name}: robots.txt disallows ${disallowed.join(", ")} (skipped)`,
         );
@@ -1297,6 +1330,7 @@ export async function scrapeCuratedSites(
           state: site.state,
           type: site.type,
           n: 0,
+          outcome: "blocked",
         });
         continue;
       }
@@ -1321,12 +1355,29 @@ export async function scrapeCuratedSites(
                 fetchPageHtml,
               );
       execution?.abortSignal?.throwIfAborted();
+      const outcome = finishCuratedOutcome(attempt, n);
+      await persistOutcome(outcome);
       console.log(
-        `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} listings`,
+        `[CuratedSites] ${site.name} (${site.type}${site.state ? `/${site.state}` : ""}): ${n} accepted records; inventory coverage unverified`,
       );
-      yields.push({ name: site.name, state: site.state, type: site.type, n });
+      yields.push({
+        name: site.name,
+        state: site.state,
+        type: site.type,
+        n,
+        outcome: outcome.state,
+      });
       total += n;
     } catch (e) {
+      const cancelled = execution?.abortSignal?.aborted;
+      const timedOut = (e as Error)?.name === "TimeoutError";
+      await persistOutcome(
+        finishCuratedOutcome(
+          attempt,
+          cancelled ? "cancelled" : "failed",
+          cancelled ? "aborted" : timedOut ? "timeout" : "request_failed",
+        ),
+      );
       execution?.abortSignal?.throwIfAborted();
       console.warn(`[CuratedSites] ${site.name} failed:`, (e as Error).message);
       yields.push({
@@ -1334,19 +1385,34 @@ export async function scrapeCuratedSites(
         state: site.state,
         type: site.type,
         n: 0,
+        outcome: "failed",
       });
     }
     await new Promise((r) => setTimeout(r, 2000)); // be polite between sites
   }
-  // Coverage summary: how many sites yielded, and how many distinct states are now covered.
+  // Zero accepted writes can mean duplicates or adapter limitations, not empty inventory.
   const live = yields.filter((y) => y.n > 0);
   const states = new Set(live.map((y) => y.state).filter(Boolean));
-  const dead = yields.filter((y) => y.n === 0).map((y) => y.name);
+  const noAccepted = yields
+    .filter((y) => y.outcome === "no_accepted_records")
+    .map((y) => y.name);
+  const failed = yields
+    .filter((y) => y.outcome === "failed")
+    .map((y) => y.name);
+  const robotsBlocked = yields
+    .filter((y) => y.outcome === "blocked")
+    .map((y) => y.name);
   console.log(
-    `[CuratedSites] ${total} listings · ${live.length}/${attempted} attempted sites yielded · ${sites.length} eligible in this run · ${states.size} known dealer states yielded`,
+    `[CuratedSites] ${total} accepted records · ${live.length}/${attempted} attempted sites accepted records · ${sites.length} eligible in this run · ${states.size} registry-tagged states with accepted records; coverage unverified`,
   );
-  if (dead.length)
-    console.log(`[CuratedSites] no yield (check/prune): ${dead.join(", ")}`);
+  if (noAccepted.length)
+    console.log(
+      `[CuratedSites] no accepted records (not proof of empty inventory): ${noAccepted.join(", ")}`,
+    );
+  if (failed.length)
+    console.log(`[CuratedSites] failed attempts: ${failed.join(", ")}`);
+  if (robotsBlocked.length)
+    console.log(`[CuratedSites] robots blocked: ${robotsBlocked.join(", ")}`);
   if (skippedForBudget)
     console.log(
       `[CuratedSites] sweep budget reached; ${skippedForBudget} lower-priority sites wait for a later sweep`,
@@ -1753,7 +1819,7 @@ async function enrichCdgDetail(
  * Small-dealer CMS family (4cdg vehiclesDetail.php sites + SalvageZone): one shared parser
  * (lib/scrapers/platforms/dealer-cms.ts), every page walked, fetched politely.
  */
-async function scrapeDealerCms(
+export async function scrapeDealerCms(
   site: DealerCmsSite,
   scope = getScrapeRunScope(),
 ) {
@@ -1799,8 +1865,7 @@ async function scrapeDealerCms(
     console.log(
       `[CuratedSites] ${site.name} detail enriched ${enriched}/${enrichLimit}`,
     );
-  if (deals.length) await upsertDeals(deals);
-  return deals.length;
+  return deals.length ? await upsertDeals(deals) : 0;
 }
 
 async function enrichCdgDetailLegacy(
