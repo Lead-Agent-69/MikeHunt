@@ -8,6 +8,7 @@
 // them is the real arbitrage signal — and it sharpens automatically as coverage grows.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
@@ -401,7 +402,7 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at",
+        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at, priceEvidence:options->priceEvidence",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gte(
@@ -459,6 +460,12 @@ async function loadMarketIndexUnlocked(
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
+    const cashPrice = reportedAcquisitionPrice({
+      ...r,
+      options: { priceEvidence: r.priceEvidence },
+    });
+    if (!cashPrice) continue;
+    r.ask_price = cashPrice;
     if (!isFreshAskComp(r)) continue;
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.

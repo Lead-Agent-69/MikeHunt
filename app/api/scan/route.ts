@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  listingPriceEvidence,
+  reportedAcquisitionPrice,
+} from "@/lib/deals/acquisition-price";
 import { internalError } from "@/lib/api/http-error";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -455,18 +458,25 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     titleSource: titleSourceOf(r),
     askPrice,
     buyNowPrice: r.buy_now_price ?? undefined,
+    priceEvidence: listingPriceEvidence(r),
     mmrValue,
-    profitEstimate,
-    profitScore: profitScore != null ? Number(profitScore) : undefined,
+    profitEstimate: askPrice > 0 ? profitEstimate : 0,
+    profitScore:
+      askPrice > 0 && profitScore != null ? Number(profitScore) : undefined,
     // Decision-engine fields — must be carried through so verdict pills / max-bid /
     // resale render on the Scan grid (mapDealToResult reads these camelCase keys).
-    dealVerdict: r.deal_verdict || undefined,
+    dealVerdict: askPrice > 0 ? r.deal_verdict || undefined : "not_enough_data",
     recommendedMaxBid:
-      r.recommended_max_bid != null ? Number(r.recommended_max_bid) : undefined,
+      askPrice > 0 && r.recommended_max_bid != null
+        ? Number(r.recommended_max_bid)
+        : undefined,
     sellEstimate: r.sell_estimate != null ? Number(r.sell_estimate) : undefined,
     true_net_profit:
-      r.true_net_profit != null ? Number(r.true_net_profit) : undefined,
-    dealAnalysis: r.deal_analysis || r.dealAnalysis || undefined,
+      askPrice > 0 && r.true_net_profit != null
+        ? Number(r.true_net_profit)
+        : undefined,
+    dealAnalysis:
+      askPrice > 0 ? r.deal_analysis || r.dealAnalysis || undefined : undefined,
     sellBasis:
       r.sell_basis ||
       r.sellBasis ||

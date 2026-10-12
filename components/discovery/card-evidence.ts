@@ -3,6 +3,7 @@ import type { DiscoveryDeal } from "./types";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import type { ConditionRead } from "@/lib/intelligence/condition";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
+import { nonCashPriceLabel } from "@/lib/deals/acquisition-price";
 
 export function discoveryConditionLabel(
   condition: ConditionRead,
@@ -15,6 +16,17 @@ export function discoveryConditionLabel(
 }
 
 export function discoveryEvidence(deal: DiscoveryDeal) {
+  if (nonCashPriceLabel(deal.priceEvidence)) {
+    return {
+      state: "needs_evidence" as const,
+      label: "Full price unconfirmed",
+      summary: `${nonCashPriceLabel(deal.priceEvidence)}; this is not a confirmed purchase price.`,
+      nextCheck:
+        "Ask the seller for the full cash price and any required fees before comparing value.",
+      acquisitionReady: false,
+      saleTermsUnclear: true,
+    };
+  }
   const channel = sourceMeta(deal.source).channel;
   if (
     (channel === "dealer" || channel === "retail") &&

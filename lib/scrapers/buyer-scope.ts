@@ -85,6 +85,7 @@ const LANE_SOURCES: Record<BuyerLane, string[]> = {
     "curated_dealers",
   ],
   "clean-retail": [
+    "autotempest",
     "cars_com",
     "cargurus",
     "autotrader",

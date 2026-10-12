@@ -137,6 +137,10 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
           source: "copart",
           ask_price: 24000,
           true_net_profit: 15000,
+          deal_analysis: {
+            roi: 496,
+            costs: { acquisition: 24000, total: 26000 },
+          },
           recommended_max_bid: 18000,
           deal_verdict: "go",
           is_arbitrage_opportunity: true,
@@ -152,6 +156,7 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     expect(deal.true_net_profit).toBeUndefined();
     expect(deal.recommendedMaxBid).toBeUndefined();
     expect(deal.profitScore).toBeUndefined();
+    expect(deal.dealAnalysis).toBeUndefined();
     expect(deal.dealVerdict).toBe("not_enough_data");
     expect(deal.is_arbitrage_opportunity).toBe(false);
   });
