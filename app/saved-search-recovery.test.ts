@@ -149,12 +149,16 @@ describe("saved-search recovery", () => {
     expect(host.textContent).not.toContain("BUY deals only");
     await click("Save search");
     expect(host.querySelector("form")).toBeNull();
-    expect(state.calls.find((c) => c[0] === "insert")?.[1]).toMatchObject({
+    const inserted = state.calls.find((c) => c[0] === "insert")?.[1];
+    expect(inserted).toMatchObject({
       user_id: "user-one",
       target_profit: null,
       require_go: false,
-      notify_sms: false,
     });
+    // Server-only columns must never be sent: authenticated INSERT is column-limited (42501).
+    for (const key of ["notify_sms", "last_run_at", "created_at", "id"]) {
+      expect(inserted).not.toHaveProperty(key);
+    }
   });
   it("keeps failed pause/delete actions visible and scopes each write to the authenticated owner", async () => {
     state.rows = [{ id: "search-one", name: "Honda", is_active: true }];
