@@ -1,11 +1,46 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   scanHrefForSavedSearch,
   searchParamsForSavedSearch,
   sourceProofHrefForSavedSearch,
+  saveLocalSavedSearch,
+  readLocalSavedSearches,
+  writeLocalSavedSearches,
+  LOCAL_SAVED_SEARCH_KEY,
 } from "@/hooks/useLocalSavedSearches";
 
 describe("local saved searches", () => {
+  afterEach(() => {
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+  it("does not report successful saves when device storage is unavailable", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("quota");
+    });
+    expect(() => saveLocalSavedSearch({ name: "Honda" })).toThrow(
+      "Device storage is unavailable",
+    );
+    expect(readLocalSavedSearches()).toEqual([]);
+  });
+  it("keeps existing searches instead of silently evicting them at the device limit", () => {
+    const existing = Array.from({ length: 40 }, (_, index) => ({
+      id: `local-${index}`,
+      name: `Search ${index}`,
+    }));
+    writeLocalSavedSearches(existing);
+    expect(() => saveLocalSavedSearch({ name: "New search" })).toThrow(
+      "storage is full",
+    );
+    expect(readLocalSavedSearches()).toEqual(existing);
+  });
+  it("uses unique identities for searches saved in the same millisecond", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1000);
+    saveLocalSavedSearch({ name: "First" });
+    saveLocalSavedSearch({ name: "Second" });
+    expect(readLocalSavedSearches()).toHaveLength(2);
+    expect(localStorage.getItem(LOCAL_SAVED_SEARCH_KEY)).toContain("First");
+  });
   it("preserves the exact specification, mileage and sort scope", () => {
     const saved = {
       scan_params:

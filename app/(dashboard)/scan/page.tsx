@@ -33,6 +33,7 @@ import {
 
 import {
   ArrowUpRight,
+  Bookmark,
   Camera,
   LayoutGrid,
   Rows3,
@@ -4127,7 +4128,7 @@ function ScanPageInner() {
     [],
   );
 
-  const saveCurrentScanAsAlert = useCallback(() => {
+  const saveCurrentScanAsSearch = useCallback(() => {
     const nameParts = [
       search || null,
       make !== "all"
@@ -4143,35 +4144,47 @@ function ScanPageInner() {
         : null,
       maxPrice !== "any" ? `under ${formatMaxPriceFilter(maxPrice)}` : null,
     ].filter(Boolean);
-    const saved = saveLocalSavedSearch({
-      name: nameParts.length ? nameParts.join(" · ") : "Scan alert",
-      scan_params: swrKey.split("?")[1],
-      q: search || null,
-      make: make !== "all" ? make : null,
-      makes: make === "all" && makesFilter.length ? makesFilter : null,
-      model: model !== "all" ? model : null,
-      state: state !== "all" ? state : null,
-      lane: lane !== "all" ? lane : null,
-      seller_type: sellerTypeFilter !== "all" ? sellerTypeFilter : null,
-      title_type: titleType !== "all" ? titleType : null,
-      dealer_hosts: dealerHostsFilter.length ? dealerHostsFilter : null,
-      dealer_source_ids: dealerSourceIdsFilter.length
-        ? dealerSourceIdsFilter
-        : null,
-      min_year: minYear !== "any" ? Number(minYear) : null,
-      max_year: maxYear !== "any" ? Number(maxYear) : null,
-      min_price:
-        minPrice !== "any" ? Number(minPrice.replace("k", "000")) : null,
-      max_price:
-        maxPrice !== "any" ? Number(normalizeMaxPriceFilter(maxPrice)) : null,
-      target_profit:
-        minProfit !== "any" ? Number(minProfit.replace("k", "000")) : null,
-      require_go: verdict === "go",
-      notify_email: false,
-      notify_sms: false,
-      is_active: true,
-    });
-    addToast(`Saved alert scope: ${saved.name}`, "success");
+    try {
+      const saved = saveLocalSavedSearch({
+        name: nameParts.length ? nameParts.join(" · ") : "Scan search",
+        scan_params: swrKey.split("?")[1],
+        q: search || null,
+        make: make !== "all" ? make : null,
+        makes: make === "all" && makesFilter.length ? makesFilter : null,
+        model: model !== "all" ? model : null,
+        state: state !== "all" ? state : null,
+        lane: lane !== "all" ? lane : null,
+        seller_type: sellerTypeFilter !== "all" ? sellerTypeFilter : null,
+        title_type: titleType !== "all" ? titleType : null,
+        dealer_hosts: dealerHostsFilter.length ? dealerHostsFilter : null,
+        dealer_source_ids: dealerSourceIdsFilter.length
+          ? dealerSourceIdsFilter
+          : null,
+        min_year: minYear !== "any" ? Number(minYear) : null,
+        max_year: maxYear !== "any" ? Number(maxYear) : null,
+        min_price:
+          minPrice !== "any" ? Number(minPrice.replace("k", "000")) : null,
+        max_price:
+          maxPrice !== "any" ? Number(normalizeMaxPriceFilter(maxPrice)) : null,
+        target_profit:
+          minProfit !== "any" ? Number(minProfit.replace("k", "000")) : null,
+        require_go: verdict === "go",
+        notify_email: false,
+        notify_sms: false,
+        is_active: true,
+      });
+      addToast(
+        `Saved search on this device: ${saved.name}. No automatic alerts.`,
+        "success",
+      );
+    } catch (error) {
+      addToast(
+        error instanceof Error
+          ? error.message
+          : "Search was not saved. Copy the search link instead.",
+        "error",
+      );
+    }
   }, [
     search,
     make,
@@ -4570,8 +4583,41 @@ function ScanPageInner() {
         hasData={swrData !== undefined}
       />
 
-      <div className="text-xs leading-relaxed text-[var(--t3)]">
-        {searchSummary}
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="w-full min-w-0 text-xs leading-relaxed text-[var(--t3)] sm:w-auto sm:flex-1">
+          {searchSummary}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={saveCurrentScanAsSearch}
+            className="flex min-h-11 items-center gap-1.5 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs font-bold text-[var(--t2)]"
+            title="Save this search on this device; no automatic alerts"
+          >
+            <Bookmark size={12} />
+            Save search
+          </button>
+          <button
+            type="button"
+            aria-label="Copy search link"
+            title="Copy search link"
+            onClick={async () => {
+              try {
+                const params = new URLSearchParams(swrKey.split("?")[1]);
+                params.set("reset", "1");
+                await navigator.clipboard.writeText(
+                  `${window.location.origin}/scan?${params.toString()}`,
+                );
+                addToast("Search link copied", "success");
+              } catch {
+                addToast("Could not copy the search link", "error");
+              }
+            }}
+            className="grid h-11 w-11 place-items-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)]"
+          >
+            <Copy className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {isAdmin && isFreshImportReview && (
@@ -4797,40 +4843,6 @@ function ScanPageInner() {
               Profit Simulator
             </button>
           )}
-          <button
-            type="button"
-            onClick={saveCurrentScanAsAlert}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-all shrink-0 shadow-sm hover:-translate-y-0.5"
-            style={{
-              background: "var(--s0)",
-              color: "var(--t2)",
-              borderColor: "var(--b2)",
-            }}
-            title="Save this exact Scan scope as a local alert"
-          >
-            <Ico name="bell" size={12} />
-            Save alert
-          </button>
-          <button
-            type="button"
-            aria-label="Copy search link"
-            title="Copy search link"
-            onClick={async () => {
-              try {
-                const params = new URLSearchParams(swrKey.split("?")[1]);
-                params.set("reset", "1");
-                await navigator.clipboard.writeText(
-                  `${window.location.origin}/scan?${params.toString()}`,
-                );
-                addToast("Search link copied", "success");
-              } catch {
-                addToast("Could not copy the search link", "error");
-              }
-            }}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)]"
-          >
-            <Copy className="h-4 w-4" aria-hidden="true" />
-          </button>
 
           {/* Results count + density */}
           {!loading && (

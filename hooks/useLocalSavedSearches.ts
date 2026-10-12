@@ -48,10 +48,17 @@ export function readLocalSavedSearches(): LocalSavedSearch[] {
 
 export function writeLocalSavedSearches(list: LocalSavedSearch[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(
-    LOCAL_SAVED_SEARCH_KEY,
-    JSON.stringify(list.slice(0, CAP)),
-  );
+  if (list.length > CAP)
+    throw new Error(
+      "Device search storage is full. Remove a saved search or copy the search link.",
+    );
+  try {
+    localStorage.setItem(LOCAL_SAVED_SEARCH_KEY, JSON.stringify(list));
+  } catch {
+    throw new Error(
+      "Device storage is unavailable. The saved search was not changed.",
+    );
+  }
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -61,7 +68,7 @@ export function saveLocalSavedSearch(
 ) {
   const item: LocalSavedSearch = {
     ...search,
-    id: search.id || `local-${Date.now()}`,
+    id: search.id || `local-${crypto.randomUUID()}`,
     local: true,
     created_at: search.created_at || new Date().toISOString(),
     is_active: search.is_active ?? true,
