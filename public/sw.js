@@ -151,8 +151,11 @@ self.addEventListener('sync', (event) => {
 function safeAppPath(url) {
   if (typeof url !== 'string') return '/alerts'
   const u = url.trim()
-  if (!u.startsWith('/') || u.startsWith('//') || u.startsWith('/\\')) return '/alerts'
-  return u
+  if (!u.startsWith('/') || u.startsWith('//') || u.startsWith('/\\') || /[\u0000-\u001f\u007f]/.test(u)) return '/alerts'
+  try {
+    const target = new URL(u, 'https://push-path.invalid')
+    return target.origin === 'https://push-path.invalid' ? target.pathname + target.search + target.hash : '/alerts'
+  } catch { return '/alerts' }
 }
 
 // Push notification handling

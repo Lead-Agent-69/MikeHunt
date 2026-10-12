@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { VAPID_PUBLIC_KEY } from "@/lib/notifications/vapid";
+import { fetcher } from "@/lib/swr-config";
 
 // "Enable deal alerts" for this device: asks for notification permission, subscribes to Web Push and saves
 // the subscription. Honest by construction:
@@ -39,9 +42,19 @@ const noteClass = "max-w-xs text-[12px] text-[var(--t3)]";
 
 export function EnablePush({ className }: { className?: string }) {
   const [support, setSupport] = useState<PushSupport | null>(null);
-  const [serverReady, setServerReady] = useState<boolean | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const {
+    data: readiness,
+    error: readinessError,
+    isLoading: checking,
+    isValidating,
+    mutate: retryStatus,
+  } = useSWR<{ configured: boolean }>(
+    support === "supported" ? "/api/push/status" : null,
+    fetcher,
+    { revalidateOnFocus: false, errorRetryCount: 1, dedupingInterval: 60_000 },
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -61,14 +74,6 @@ export function EnablePush({ className }: { className?: string }) {
     if (s !== "supported") return;
 
     let cancelled = false;
-    fetch("/api/push/status", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { configured: false }))
-      .then((j: { configured?: boolean }) => {
-        if (!cancelled) setServerReady(j.configured === true);
-      })
-      .catch(() => {
-        if (!cancelled) setServerReady(false);
-      });
     navigator.serviceWorker.ready
       .then(async (reg) => {
         const sub = await reg.pushManager.getSubscription();
@@ -125,17 +130,18 @@ export function EnablePush({ className }: { className?: string }) {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch("/api/push/subscribe", {
+        const res = await fetch("/api/push/subscribe", {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         });
+        if (!res.ok) throw new Error();
         await sub.unsubscribe();
       }
       setEnabled(false);
       toast.success("Alerts are off for this device.");
     } catch {
-      /* non-fatal */
+      toast.error("Could not turn off alerts. Try again.");
     } finally {
       setBusy(false);
     }
@@ -147,13 +153,10 @@ export function EnablePush({ className }: { className?: string }) {
       const res = await fetch("/api/push/test", { method: "POST" });
       const j = (await res.json().catch(() => ({}))) as { sent?: number };
       if (res.ok && (j.sent ?? 0) > 0)
-        toast.success("Test sent. It should arrive in a few seconds.");
+        toast.success("Test sent to your subscribed devices.");
       else if (res.status === 429)
         toast.error("Too many tests. Try again in a minute.");
-      else
-        toast.error(
-          "The test didn’t reach this device. Try turning alerts off and on.",
-        );
+      else toast.error("No test was sent. Try turning alerts off and on.");
     } catch {
       toast.error("Couldn’t send a test right now.");
     } finally {
@@ -171,15 +174,33 @@ export function EnablePush({ className }: { className?: string }) {
       </p>
     );
 
-  if (serverReady === null) return null;
+  if (checking && !readiness && !enabled)
+    return <p className={noteClass}>Checking push alerts...</p>;
 
-  if (!serverReady)
-    return (
+  const statusNotice =
+    readinessError || typeof readiness?.configured !== "boolean" ? (
+      <div className="flex max-w-xs items-center gap-2">
+        <p className={noteClass}>Could not check push alerts.</p>
+        <button
+          type="button"
+          aria-label="Retry push status"
+          title="Retry push status"
+          disabled={isValidating}
+          onClick={() => {
+            void retryStatus();
+          }}
+          className="flex h-11 w-11 shrink-0 items-center justify-center disabled:opacity-60"
+        >
+          <RotateCw size={18} aria-hidden="true" />
+        </button>
+      </div>
+    ) : !readiness.configured ? (
       <p className={noteClass}>
-        Push alerts aren’t switched on for MikeHunt yet. Email alerts still
-        work.
+        Push alerts aren’t switched on for MikeHunt yet.
       </p>
-    );
+    ) : null;
+  if (statusNotice && !enabled) return statusNotice;
+  const canSend = readiness?.configured === true && !readinessError;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -203,7 +224,7 @@ export function EnablePush({ className }: { className?: string }) {
       >
         {busy ? "…" : enabled ? "Alerts on (turn off)" : "Enable deal alerts"}
       </button>
-      {enabled && (
+      {enabled && canSend && (
         <button
           type="button"
           onClick={sendTest}
@@ -213,6 +234,7 @@ export function EnablePush({ className }: { className?: string }) {
           Send test
         </button>
       )}
+      {statusNotice}
     </div>
   );
 }

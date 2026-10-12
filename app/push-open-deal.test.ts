@@ -21,6 +21,8 @@ describe("push notifications open the right page", () => {
     expect(fn("https://evil.example/x")).toBe("/alerts");
     expect(fn("//evil.example/x")).toBe("/alerts");
     expect(fn("/\\evil.example")).toBe("/alerts");
+    expect(fn("/\t/evil.example")).toBe("/alerts");
+    expect(fn("/\n/evil.example")).toBe("/alerts");
     expect(fn(undefined)).toBe("/alerts");
   });
 
@@ -63,12 +65,13 @@ describe("enable alerts never over-promises", () => {
   });
 
   it("checks the server can send before offering the button, and offers a real test", () => {
-    expect(enablePush).toContain('fetch("/api/push/status"');
+    expect(enablePush).toContain('"/api/push/status"');
     expect(enablePush).toContain(
       "Push alerts aren’t switched on for MikeHunt yet",
     );
     expect(enablePush).toContain('fetch("/api/push/test"');
     expect(enablePush).not.toContain("we’ll ping you");
+    expect(enablePush).not.toContain("Email alerts still");
   });
 
   it("status exposes a boolean only, never key material", () => {

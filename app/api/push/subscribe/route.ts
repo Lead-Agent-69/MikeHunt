@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { parsePushSubscription } from "@/lib/notifications/subscription";
+import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 // POST /api/push/subscribe — register this device's push subscription for the signed-in user.
 // DELETE — remove it (turn notifications off on this device).
@@ -14,20 +16,30 @@ export async function POST(req: NextRequest) {
   if (!user?.id)
     return NextResponse.json({ error: "sign in" }, { status: 401 });
 
+  const rl = rateLimit(req, {
+    key: "push-subscribe",
+    identity: `user:${user.id}`,
+    limit: 10,
+    windowMs: 60_000,
+  });
+  if (!rl.allowed) return tooManyRequests(rl);
+
   let sub: any;
   try {
     sub = await req.json();
   } catch {
     return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
-  const endpoint = sub?.endpoint;
-  const p256dh = sub?.keys?.p256dh;
-  const auth = sub?.keys?.auth;
-  if (!endpoint || !p256dh || !auth)
+  const parsed = parsePushSubscription(sub);
+  if (!parsed)
     return NextResponse.json(
       { error: "invalid subscription" },
       { status: 400 },
     );
+  const {
+    endpoint,
+    keys: { p256dh, auth },
+  } = parsed;
 
   const supabase = createServerComponentClient();
   const { error } = await supabase.from("push_subscriptions").upsert(
@@ -51,15 +63,20 @@ export async function DELETE(req: NextRequest) {
   if (!user?.id)
     return NextResponse.json({ error: "sign in" }, { status: 401 });
 
-  let endpoint: string | undefined;
+  let endpoint: unknown;
   try {
     endpoint = (await req.json())?.endpoint;
   } catch {
-    /* delete all for the user if no endpoint */
+    return NextResponse.json({ error: "bad body" }, { status: 400 });
   }
+  if (typeof endpoint !== "string" || !endpoint || endpoint.length > 4096)
+    return NextResponse.json({ error: "invalid endpoint" }, { status: 400 });
   const supabase = createServerComponentClient();
-  let q = supabase.from("push_subscriptions").delete().eq("user_id", user.id);
-  if (endpoint) q = q.eq("endpoint", endpoint);
-  await q;
+  const { error } = await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("endpoint", endpoint);
+  if (error) return internalError("push:unsubscribe", error);
   return NextResponse.json({ ok: true });
 }
