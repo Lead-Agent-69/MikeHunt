@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
-import { sourceMeta } from "@/lib/sources/source-meta";
+import { sourceMeta, sellerTypeLabel } from "@/lib/sources/source-meta";
+import { SourceBadge } from "@/components/shared/SourceBadge";
 import { buyTerm } from "@/lib/deal-terms";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
@@ -202,23 +203,6 @@ export const SavedCarCard = React.memo(function SavedCarCard({
     return `seen ${Math.round(hours / 24)}d ago`;
   };
 
-  const getSourceBadgeColor = (src: string) => {
-    const s = (src || "").toLowerCase();
-    if (s.includes("copart") || s.includes("iaa")) {
-      return "text-[var(--orange)] border-none";
-    }
-    if (s.includes("craigslist") || s.includes("ebay")) {
-      return "text-[var(--t4)] border-none";
-    }
-    if (s.includes("facebook")) {
-      return "text-[var(--blue)] border-none";
-    }
-    if (s.includes("manual") || s.includes("camera") || s.includes("scan")) {
-      return "text-[var(--green)] border-none";
-    }
-    return "text-[var(--purple)] border-none";
-  };
-
   return (
     <>
       <Card
@@ -314,16 +298,22 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           {/* Main Info */}
           <div className="min-w-0 space-y-2 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                className={`text-[10px] font-bold ${getSourceBadgeColor(save.source_name)} px-2 py-0.5`}
-                style={{ background: "var(--s1)" }}
-              >
-                {sourceMeta(save.source_name).label}{" "}
-                {snapshot.locationCity
-                  ? ` - ${snapshot.locationCity} ${snapshot.locationState || ""}`
-                  : ""}
-                {snapshot.sellerType ? ` · ${snapshot.sellerType}` : ""}
-              </Badge>
+              <SourceBadge
+                source={save.source_name}
+                sourceUrl={sourceHref}
+                size="sm"
+              />
+              <span className="min-w-0 break-words text-xs text-[var(--t3)]">
+                {[
+                  snapshot.locationCity,
+                  snapshot.locationState,
+                  snapshot.sellerType
+                    ? sellerTypeLabel(snapshot.sellerType)
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
               {flipDesk && snapshot.profitScore && (
                 <Badge
                   className="text-white text-[10px] px-2 py-0.5 border-none font-bold"

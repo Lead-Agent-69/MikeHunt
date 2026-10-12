@@ -60,6 +60,24 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Vendor Badge Integration (October 12 Follow-Up)
+
+- #363's six-file vendor identity change is integrated on current main in a
+  fresh branch rather than merging its older dependency tree. Discover and Saved
+  now use the shared badge alongside the existing detail/shared card/table users.
+- Badge links are native, touch-sized, separately named original-listing actions
+  above the card navigation overlay, not nested links. Known source hosts select
+  the vendor name; lookalike hosts never receive official artwork. The original
+  local Craigslist favicon is retained; other vendors use a neutral store icon.
+- Review found that hostname-only Craigslist classification could turn dealer
+  ads into Private badges. Dealer/owner listing sections now determine that
+  channel; an unclassified Craigslist hostname alone does not prove private sale.
+- Forty-three focused tests passed, including actual Discover/Saved markup,
+  channel attribution, unsafe URL rejection, event separation and image fallback.
+  Full verification, CI, exact deployment and public smoke receipts belong to
+  the integration PR. Browser inventory remains empty, so visual acceptance is
+  still separate; no source collection, pricing or database changes are included.
+
 ### Release Reconciliation (October 12, Afternoon Chicago)
 
 - #380 source-outcome receipts merged at `e57bb5e`; #381 detail hierarchy and

@@ -142,8 +142,21 @@ it("keeps live-preview photo navigation external with safe tab attributes", () =
       },
     }),
   );
-  expect(html.match(/href="https:\/\/example.com\/car"/g)).toHaveLength(3);
-  expect(html.match(/rel="noopener noreferrer"/g)).toHaveLength(3);
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const links = Array.from(
+    host.querySelectorAll('a[href="https://example.com/car"]'),
+  );
+  expect(links).toHaveLength(4);
+  expect(
+    links.every((link) => link.getAttribute("rel") === "noopener noreferrer"),
+  ).toBe(true);
+  expect(
+    host.querySelector(
+      'a[aria-label="View listing at example.com (opens in a new tab)"]',
+    ),
+  ).not.toBeNull();
+  expect(host.querySelector("a a")).toBeNull();
   expect(html).toContain("opens in a new tab");
 });
 
@@ -162,6 +175,28 @@ it("extends the real vehicle link across the card without covering independent c
     expect(details.className).toContain("relative z-20");
     expect(details.closest("a")).toBeNull();
   }
+});
+
+it("gives the original vendor a separate accessible link above the card overlay", () => {
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: {
+        ...listing,
+        source: "independent_dealer",
+        sourceUrl: "https://stlouis.craigslist.org/ctd/d/vehicle/123.html",
+      },
+    }),
+  );
+  const vendor = host.querySelector(
+    'a[aria-label="View listing at Craigslist (opens in a new tab)"]',
+  );
+  expect(vendor?.getAttribute("href")).toContain("craigslist.org/ctd/");
+  expect(vendor?.className).toContain("z-20");
+  expect(vendor?.className).toContain("min-h-11");
+  expect(vendor?.parentElement?.closest("a")).toBeNull();
+  expect(vendor?.closest("details")).toBeNull();
+  expect(host.querySelector("a a")).toBeNull();
 });
 
 it("shows seller, missing mileage and valuation basis without opening a disclosure", () => {

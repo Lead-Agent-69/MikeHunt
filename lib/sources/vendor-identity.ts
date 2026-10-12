@@ -41,11 +41,26 @@ export function vendorIdentity(
     : undefined;
   const key = knownSource || canonicalSource(source);
   const meta = sourceMeta(key);
+  let channelLabel =
+    host && !knownSource ? undefined : buyTerms(key).channelTag;
+  if (knownSource === "craigslist") {
+    const section = url?.pathname.match(
+      /^\/(?:[a-z]{3}\/)?(cto|ctd)(?:\/|$)/,
+    )?.[1];
+    channelLabel =
+      section === "ctd"
+        ? "Dealer"
+        : section === "cto"
+          ? "Private"
+          : canonicalSource(source) === "craigslist_dealer"
+            ? "Dealer"
+            : undefined;
+  }
   return {
     label: host && !knownSource ? host : meta.label,
     host,
     href: url?.href,
-    channelLabel: host && !knownSource ? undefined : buyTerms(key).channelTag,
+    channelLabel,
     mark:
       host && hostMatches(host, "craigslist.org")
         ? "/brand/vendors/craigslist.ico"

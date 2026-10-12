@@ -30,6 +30,27 @@ describe("listing vendor identity", () => {
       vendorIdentity("retail", "https://www.copart.com/lot/123").channelLabel,
     ).toBe("Auction");
   });
+  it.each(["/ctd/d/vehicle/123.html", "/nco/ctd/d/vehicle/123.html"])(
+    "identifies Craigslist dealer sections without assuming private sellers: %s",
+    (path) => {
+      const vendor = vendorIdentity(
+        "craigslist",
+        `https://stlouis.craigslist.org${path}`,
+      );
+      expect(vendor.label).toBe("Craigslist");
+      expect(vendor.channelLabel).toBe("Dealer");
+    },
+  );
+  it("does not infer a seller channel from a Craigslist hostname alone", () => {
+    expect(
+      vendorIdentity("craigslist", "https://stlouis.craigslist.org/")
+        .channelLabel,
+    ).toBeUndefined();
+    expect(
+      vendorIdentity("craigslist_dealer", "https://stlouis.craigslist.org/")
+        .channelLabel,
+    ).toBe("Dealer");
+  });
   it.each([
     "javascript:alert(1)",
     "data:text/html,test",
