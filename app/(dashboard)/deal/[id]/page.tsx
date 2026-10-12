@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import { recordRecent } from "@/hooks/useRecentlyViewed";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
+import { useAccountSavedVehicles } from "@/hooks/useAccountSavedVehicles";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -533,6 +534,10 @@ export default function DealPage({
   const loadedDealIdRef = React.useRef<string | null>(null);
   const localSaved = useLocalSavedVehicles();
   const isLocallyWatched = localSaved.has(id);
+  const accountSaved = useAccountSavedVehicles(dealerLoading ? null : dealerId);
+  const isAccountSaved = accountSaved.has(id);
+  const currentSaveOwner = React.useRef(dealerId);
+  currentSaveOwner.current = dealerId;
 
   // Use SWR for data fetching
   const {
@@ -558,21 +563,28 @@ export default function DealPage({
     !dealerLoading && !dealerId ? "Please sign in to view deal details." : null;
 
   const handleWatchPrice = async () => {
-    if (watching) return;
+    if (watching || dealerLoading) return;
     const syncSavedCar = async () => {
       try {
+        if (!dealerId || currentSaveOwner.current !== dealerId) return false;
         const savedRes = await fetch("/api/saved-cars", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Save-Owner": dealerId,
+          },
           body: JSON.stringify({ dealId: id }),
         });
         const result = await savedRes.json();
         if (
           (savedRes.ok || savedRes.status === 409) &&
           typeof result.id === "string" &&
-          !result.demo
-        )
+          !result.demo &&
+          currentSaveOwner.current === dealerId
+        ) {
+          await accountSaved.confirm(id, result.id);
           return true;
+        }
         return false;
       } catch {
         return false;
@@ -586,6 +598,7 @@ export default function DealPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deal_id: id }),
       });
+      if (currentSaveOwner.current !== dealerId) return;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 401 || res.status === 403) {
@@ -637,6 +650,7 @@ export default function DealPage({
         action: { label: "View Saved", onClick: () => router.push("/saved") },
       });
     } catch {
+      if (currentSaveOwner.current !== dealerId) return;
       if (!saveDealLocally()) {
         toast.error(
           "Device storage is unavailable. The vehicle was not saved.",
@@ -1850,14 +1864,27 @@ export default function DealPage({
             <Button
               variant="outline"
               onClick={handleWatchPrice}
-              disabled={watching}
+              disabled={watching || accountSaved.isLoading}
+              title={
+                isAccountSaved
+                  ? "Saved to your account"
+                  : isLocallyWatched
+                    ? "Saved on this device only; click to sync to your account"
+                    : accountSaved.error
+                      ? "Account saved status is unavailable; saving can be retried"
+                      : undefined
+              }
               className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
             >
               {watching
                 ? "Adding…"
-                : isLocallyWatched
-                  ? "Saved"
-                  : "Save vehicle"}
+                : accountSaved.isLoading
+                  ? "Checking saved…"
+                  : isAccountSaved
+                    ? "Saved"
+                    : isLocallyWatched
+                      ? "Saved on device"
+                      : "Save vehicle"}
             </Button>
           </motion.div>
 

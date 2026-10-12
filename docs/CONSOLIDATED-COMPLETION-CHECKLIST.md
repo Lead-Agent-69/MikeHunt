@@ -60,6 +60,34 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Account Saved-State Follow-Up
+
+- Reproduced: a saved vehicle remained in the owned API and Saved page, but
+  its detail button lost the Saved label on a fresh device. This was a label
+  hydration defect, not lost saved data.
+- Current change: detail reads the existing bounded, snapshot-free checklist
+  endpoint with an owner-scoped SWR key. Logout/account changes cannot inherit
+  another account's cached badge. Device backups are labelled "Saved on device".
+  Confirmed saves update membership without making a failed refresh look like
+  a failed save; requests preserve the existing X-Save-Owner guard.
+- Tests cover fresh-device hydration, account switch/logout, late responses,
+  unavailable/malformed reads and confirmed saves. The browser test now checks
+  canonical deal links, owned API persistence, reload and no device backup,
+  instead of relying on the source's unnormalized vehicle title.
+- Scope: no schema, hosted SQL, scraper activation, paid service or retention
+  change. Full account saved-search filter persistence and real alert delivery
+  remain separate acceptance items; Scan's complete-filter save is device-local.
+- Acceptance: full local verify passed 534 files / 3,297 tests and the production
+  build; 60 signed-in desktop/mobile browser checks passed across personal,
+  parts, reseller and dealer accounts. Saved labels survive deleting device
+  backups and reload. Width checks at 320/390/768/1440 had zero horizontal
+  overflow; screenshots remain local in artifacts/qa-account-saved-2026-10-11.
+- Limits: the existing checklist endpoint returns at most 500 saved records;
+  pagination/exact membership for larger accounts remains follow-up work. The
+  local source-photo fixture did not render its external image, so this receipt
+  does not certify photo loading, additional-photo ingestion or live galleries.
+- Main/production release receipts must be recorded after CI and deployment.
+
 ### Search-Reach And Workflow Review (Current Implementation)
 
 Official benchmark pages reviewed October 11:
