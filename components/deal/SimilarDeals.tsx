@@ -9,6 +9,7 @@ import { buyTerm } from "@/lib/deal-terms";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { reportedPrice } from "@/lib/deals/reported-price";
+import { ChevronDown } from "lucide-react";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -49,14 +50,16 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
     );
 
   return (
-    <div className="mt-4">
-      <div className="flex items-center gap-2 mb-2 px-1">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-          Current alternatives
-        </p>
-      </div>
+    <details className="group/alternatives mt-3 border-y border-[var(--b1)]">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 text-sm font-semibold text-[var(--t2)] [&::-webkit-details-marker]:hidden">
+        Current alternatives ({similar.length})
+        <ChevronDown
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 transition-transform group-open/alternatives:rotate-180 motion-reduce:transition-none"
+        />
+      </summary>
       <div
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
+        className="scrollbar-hide flex gap-3 overflow-x-auto pb-3"
         style={{ scrollSnapType: "x mandatory" }}
       >
         {similar.map((d) => (
@@ -125,6 +128,6 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
           </Link>
         ))}
       </div>
-    </div>
+    </details>
   );
 }

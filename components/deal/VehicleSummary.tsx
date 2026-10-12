@@ -7,9 +7,11 @@ import {
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 
 type ListingFacts = {
+  title?: string;
   year?: number;
   make?: string;
   model?: string;
+  trim?: string;
   askPrice?: number | null;
   priceEvidence?: PriceEvidence;
   source?: string;
@@ -48,8 +50,13 @@ const reportedStatus = (value?: boolean | null) =>
       : "Not reported";
 
 export function VehicleSummary({ deal }: { deal: ListingFacts }) {
+  const reportedTitle =
+    typeof deal.title === "string"
+      ? deal.title.replace(/\s+/g, " ").trim()
+      : "";
   const title =
-    [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
+    reportedTitle ||
+    [deal.year, deal.make, deal.model, deal.trim].filter(Boolean).join(" ") ||
     "Vehicle listing";
   const auctionFacts = needsOperabilityFacts(deal);
   const facts = [

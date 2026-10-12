@@ -76,4 +76,34 @@ describe("alternative feedback", () => {
     expect(render()).not.toContain(">$0<");
     expect(render()).toContain("Location not reported");
   });
+  it("keeps every alternative's evidence in a keyboard-accessible native disclosure", () => {
+    swr.result = {
+      data: {
+        similar: [
+          {
+            id: "one",
+            source: "copart",
+            askPrice: 500,
+            model: "Camry",
+            matchReasons: ["Same year"],
+            condition: "salvage",
+            damageType: "front_end",
+            lastSeenAt: "2026-10-12T00:00:00Z",
+          },
+          { id: "two", source: "carvana", askPrice: 14000, model: "Accord" },
+        ],
+      },
+    };
+    const html = render();
+    expect(html).toContain("<details");
+    expect(html).not.toContain("<details open");
+    expect(html).toContain("<summary");
+    expect(html).toContain("Current alternatives (2)");
+    expect(html).toContain("/deal/one");
+    expect(html).toContain("/deal/two");
+    expect(html).toContain("Same year");
+    expect(html).toContain("Damage reported: ");
+    expect(html).toContain("front end");
+    expect(html).toContain("Verify availability");
+  });
 });
