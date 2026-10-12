@@ -58,7 +58,7 @@ async function handleSniperEvaluation(req: NextRequest) {
     .from("deals")
     .select(
       `
-      id, year, make, model, trim, ask_price, sell_estimate,
+      id, title, year, make, model, trim, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, location_state,
       source, source_url, created_at, condition, damage_type, options, lat, lng
     `,

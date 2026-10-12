@@ -480,7 +480,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     rowsToWrite = stripColumns(rows as any[], QUALITY_COLUMNS) as typeof rows;
 
   const SELECT_COLS =
-    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at";
+    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at, location_state, condition, damage_type, options";
   const sb = getSupabase();
   // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
   // salvage below still run; this only adds throttle beside them.

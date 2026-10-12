@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { matchesSavedSearch } from "./search-match";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const car = {
   make: "Honda",
@@ -15,6 +17,30 @@ const car = {
   lng: -90.3,
 };
 describe("saved search constraints", () => {
+  it("keeps the collector's returned projection wired to matching evidence", () => {
+    const pipeline = readFileSync(
+      path.resolve("lib/scrapers/pipeline.ts"),
+      "utf8",
+    );
+    const projection = pipeline
+      .match(/const SELECT_COLS\s*=\s*"([^"]+)"/)?.[1]
+      .split(",")
+      .map((column) => column.trim());
+    for (const column of [
+      "location_state",
+      "condition",
+      "damage_type",
+      "options",
+      "lat",
+      "lng",
+      "true_net_profit",
+      "deal_verdict",
+    ])
+      expect(projection).toContain(column);
+    expect(pipeline).toContain(
+      "matchesSavedSearch(deal, search, homeByUser.get(search.user_id))",
+    );
+  });
   it.each([
     { max_price: NaN },
     { target_profit: Infinity },
