@@ -60,6 +60,62 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Curated Source Outcomes (October 12 Follow-Up)
+
+- #377 is merged at `b2e572fc23aacf2ee935fdb93381c23f25837054` with successful
+  CI. Signed-in and deployed acceptance receipts remain separate from that fact.
+- This follow-up records bounded, restart-persistent per-host outcomes in the
+  collector's operator-only status: running, accepted records, no accepted
+  records, policy/robots blocked, failed/timeout, and cancelled. Requested state
+  context is retained without user identity, search text, credentials or URLs.
+- Zero adapter writes are not proof of no matching inventory. Matching inventory
+  stays unknown; adapters can deduplicate, cache or internally recover failures.
+  Running attempts remain unfinished after interruption. Older completions cannot
+  replace newer attempts. Budget-deferred sites retain their previous outcome.
+- Outcomes are local operator evidence, not a public vendor-health claim or
+  independently verified city coverage. Persistence is bounded to 500 hosts and
+  atomic within the single collector process. Multi-process writers to the same
+  journal are unsupported. Existing permissions, robots gates, scope, rotation,
+  quotas and database retention remain unchanged.
+- Rollout requires full checks and exact-head review. Preserve all mounted cache
+  and quota files when updating the idle collector; never launch a scrape or reset
+  its daily quota just to populate the new status. No hosted migration required.
+- Independent review caught a dealer-CMS receipt bug: parsed rows were returned
+  instead of the pipeline's accepted count. The adapter now returns the actual
+  upsert receipt; regressions cover zero/partial acceptance, empty parses and
+  failed writes. Full verification passed 557 files / 3,545 tests, typecheck,
+  lint (zero errors, 228 existing warnings), and production build.
+
+### Fresh Hosted And Browser Evidence (October 12)
+
+- Supported CLI `supabase migration list --linked` successfully read hosted
+  history. The primary checkout and hosted history differ; reconcile approved
+  migration chains before rollout, not with a blanket push/repair. The #360
+  retention migration is not in the returned hosted history, and #360 still has
+  no recorded PR review. CLI access is not a successful security-advisor receipt.
+- #377's main SHA has a successful Vercel deployment status. Canonical production
+  passed all 20 public smoke checks. A gentle five-request-per-endpoint guest
+  sample returned 200 for UI-sized deals, default deals and map; observed medians
+  were 316, 294 and 319 ms respectively. This small sample is not a buyer p95/SLO.
+- The connected in-app browser now has a working personal session. Discover
+  showed 784 Missouri listings before filters and 276 matches. Saved connected
+  and retained its device backup; Purchase plan showed a truthful empty state.
+  Admin redirected the personal session to Discover. No admin session or role
+  elevation was fabricated; populated account mutations remain to be accepted.
+- Real PWA update refreshed without losing the session. Dark/System/Light
+  controls changed state; the original Dark preference was restored. Mobile
+  location search and Escape dismissal worked without changing markets or
+  starting a collection run. A real detail rendered without horizontal document
+  overflow at 320/390/430/768/1440; browser warnings/errors were empty in this pass.
+  Local screenshots and guest latency evidence are under
+  `C:/MikeHunt/artifacts/qa-foundation-2026-10-12` (not committed).
+- Remaining detail QA: Discover's `2015 Chevrolet SILVERADO 3500HD WT` becomes
+  `2015 Chevrolet Silverado` in the detail heading; preserve the known variant
+  and examine whether alternative matching distinguishes truck families. The
+  390px detail is still about 3,224px tall with six alternatives before examination
+  sections; compact the alternatives without removing evidence. These are open
+  findings, not claims that the entire UI audit has passed.
+
 ### Exact Saved Membership (October 12 Follow-Up)
 
 - Release follow-through found and reproduced two refresh-recovery gaps: cached
