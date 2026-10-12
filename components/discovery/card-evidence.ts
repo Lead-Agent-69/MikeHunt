@@ -30,7 +30,8 @@ export function discoveryEvidence(deal: DiscoveryDeal) {
   const channel = sourceMeta(deal.source).channel;
   if (
     (channel === "dealer" || channel === "retail") &&
-    (deal.lane === "auction" || deal.sellerType === "auction")
+    (deal.lane === "auction" || deal.sellerType === "auction") &&
+    deal.priceEvidence?.kind !== "current_bid"
   ) {
     return {
       state: "needs_evidence" as const,
@@ -53,6 +54,7 @@ export function discoveryEvidence(deal: DiscoveryDeal) {
     vin: deal.vin,
     mileage: deal.mileage,
     askPrice: deal.askPrice,
+    priceEvidence: deal.priceEvidence,
     dealVerdict: deal.dealVerdict,
     dealAnalysis: {
       priceImplausible: deal.warnings?.some((warning) =>

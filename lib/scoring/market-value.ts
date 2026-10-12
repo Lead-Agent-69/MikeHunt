@@ -402,7 +402,7 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at, priceEvidence:options->priceEvidence",
+        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at, priceEvidence:options->priceEvidence, sellerType:options->>sellerType",
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gte(
@@ -460,6 +460,7 @@ async function loadMarketIndexUnlocked(
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
+    if (r.priceEvidence?.kind === "current_bid") continue;
     const cashPrice = reportedAcquisitionPrice({
       ...r,
       options: { priceEvidence: r.priceEvidence },

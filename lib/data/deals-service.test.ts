@@ -126,7 +126,29 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     expect(deals[0].id).toBe("d1");
     expect(deals[0].seller).toBe("Bob's Yard");
     expect(deals[0].sellerType).toBe("dealer");
-    expect(deals[0].askPrice).toBe(4500);
+    expect(deals[0].askPrice).toBe(0);
+    expect(deals[0].priceEvidence).toMatchObject({
+      kind: "unknown",
+      listedAmount: 4500,
+    });
+  });
+
+  it("retains an explicitly reported cash price for a shared-source dealer listing", async () => {
+    listChain.__result = {
+      data: [
+        {
+          ...sampleRow,
+          options: {
+            ...sampleRow.options,
+            priceEvidence: { kind: "asking", askingPrice: 4500 },
+          },
+        },
+      ],
+      error: null,
+    };
+    const [deal] = await serviceWithListMock().getHotDeals(5);
+    expect(deal.askPrice).toBe(4500);
+    expect(deal.seller).toBe("Bob's Yard");
   });
 
   it("suppresses stale acquisition economics when stored provenance marks a reference", async () => {

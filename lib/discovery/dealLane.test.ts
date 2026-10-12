@@ -7,6 +7,18 @@ import { dealLane, titleClass } from "./categorize";
 // hardcoded to "run_drive". If dealLane stops honoring these, the whole curated network mislabels again.
 describe("dealLane — curated-site type defaults map to the right channel", () => {
   it("running condition is not proof of a clean title", () => {
+    expect(
+      dealLane({
+        source: "ebay_motors",
+        options: { priceEvidence: { kind: "current_bid" } },
+      }),
+    ).toBe("auction");
+    expect(
+      dealLane({
+        source: "ebay_motors",
+        priceEvidence: { kind: "current_bid" },
+      }),
+    ).toBe("auction");
     expect(titleClass("run_drive")).toBe("unknown");
     expect(titleClass("clean_title")).toBe("clean");
   });

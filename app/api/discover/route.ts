@@ -207,10 +207,40 @@ function mapDeal(
 
 function rowSellerType(row: any) {
   const options = rowOptions(row);
+  const providerLabel = sourceMeta(
+    String(row.source || ""),
+  ).label.toLowerCase();
+  if (
+    options.aggregator !== "autotempest" &&
+    [
+      "cars_com",
+      "cargurus",
+      "autotrader",
+      "truecar",
+      "ebay_motors",
+      "craigslist",
+      "facebook_marketplace",
+    ].includes(String(row.source || "")) &&
+    typeof options.seller === "string" &&
+    (options.seller.trim().toLowerCase() === providerLabel ||
+      (row.source === "ebay_motors" &&
+        /^ebay(?:\s+motors)?$/i.test(options.seller.trim())))
+  )
+    return "";
+  if (
+    options.aggregator !== "autotempest" &&
+    String(row.source_deal_id || "").startsWith("at-")
+  )
+    return "";
   const explicit = String(
     row.seller_type || row.sellerType || options.sellerType || "",
   ).toLowerCase();
   if (["dealer", "auction", "private"].includes(explicit)) return explicit;
+  if (
+    options.aggregator === "autotempest" ||
+    String(row.source_deal_id || "").startsWith("at-")
+  )
+    return "";
   const sourceKey =
     sourceFromUrl(String(row.source_url || row.sourceUrl || "")) ||
     String(row.source || "");

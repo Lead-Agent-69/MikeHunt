@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
+import { disclosedPriceEvidence } from "@/lib/deals/acquisition-price";
 
 const execFileAsync = promisify(execFile);
 
@@ -39,8 +40,8 @@ const QUERIES = [
 // covers the popular flips, but the live inventory spans ~hundreds of models (Acura MDX, Corvette, …) that
 // had ZERO sold coverage → their valuations fell back to inflated asking-price comps. So we additionally
 // derive the top make/model pairs actually present in the active `deals` table and scrape sold prices for
-// those too, so coverage tracks real inventory. Returns "make model" search strings (model = first token,
-// which matches eBay best for the common single-word models).
+// those too, so coverage tracks real inventory. Preserve full model names so "Model 3" or
+// "Range Rover Sport" does not become a broader, different vehicle search.
 async function dynamicQueries(
   sb: SupabaseClient,
   limit = 60,
@@ -58,13 +59,8 @@ async function dynamicQueries(
         .range(off, off + PAGE - 1);
       if (error || !data?.length) break;
       for (const d of data as { make: string; model: string }[]) {
-        const mk = (d.make || "").trim().toLowerCase();
-        const md = (d.model || "")
-          .trim()
-          .toLowerCase()
-          .split(/[\s,/]+/)[0]; // first token of the model
-        if (mk.length > 1 && md.length > 1)
-          counts.set(`${mk} ${md}`, (counts.get(`${mk} ${md}`) || 0) + 1);
+        const query = soldInventoryQuery(d.make, d.model);
+        if (query) counts.set(query, (counts.get(query) || 0) + 1);
       }
       if (data.length < PAGE) break;
     }
@@ -79,7 +75,16 @@ async function dynamicQueries(
 
 // Titles that are clearly NOT a whole sellable car — parts, project shells, etc.
 const PARTS_RX =
-  /\b(parts?|engine|transmission|motor only|hood|doors?|bumpers?|fenders?|seats?|wheels?|rims?|tires?|tyres?|axle|differential|ecu|ecm|module|mirrors?|headlights?|taillights?|grille|core support|parting out|for parts|no engine|shell only|gauge|cluster|harness|manual|brochure|hub ?cap|emblem|key fob)\b/i;
+  /\b(parts?|engine|transmission|motor only|hood|doors?|bumpers?|fenders?|seats?|wheels?|rims?|tires?|tyres?|axle|differential|ecu|ecm|module|mirrors?|headlights?|taillights?|grille|core support|parting out|for parts|no engine|shell only|gauge|cluster|harness|(?:owners?|service|repair|shop|workshop)\s+manual|brochure|hub ?cap|emblem|key fob)\b/i;
+
+export function soldInventoryQuery(
+  make?: string,
+  model?: string,
+): string | undefined {
+  const mk = (make || "").trim().toLowerCase();
+  const md = (model || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return mk.length > 1 && md.length > 1 ? `${mk} ${md}` : undefined;
+}
 
 const num = (t: unknown): number =>
   Number(String(t ?? "").replace(/[^0-9.]/g, "")) || 0;
@@ -134,6 +139,13 @@ export function parseEbaySoldHtml(html: string): SoldRow[] {
     if (!/^(?:US\s*)?\$\s*\d[\d,]*(?:\.\d{2})?$/.test(priceText)) return;
     const sold_price = num(priceText);
     if (!sold_price || sold_price < 1000 || sold_price > 300000) return;
+    const priceEvidence = disclosedPriceEvidence(card.text(), sold_price);
+    if (
+      priceEvidence &&
+      (priceEvidence.kind !== "asking" ||
+        priceEvidence.askingPrice !== sold_price)
+    )
+      return;
 
     const link =
       card.find("a.s-card__link").attr("href") ||
@@ -369,7 +381,7 @@ export async function scrapeEbaySold(): Promise<number> {
     for (const row of fresh) seen.add(row.item_id);
     await saveSoldItemCache(seen);
     console.log(
-      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted?.length ?? 0} new sales`,
+      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted?.length ?? 0} new price observations`,
     );
     return inserted?.length ?? 0;
   }

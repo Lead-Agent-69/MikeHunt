@@ -790,8 +790,8 @@ export function analyzeDeal(
   // research and disciplined max-bid planning, but do not turn an in-progress bid into a BUY promise.
   // A true buy-now listing is the exception because its purchase price is known.
   const activeAuctionBid =
-    AUCTION_SOURCES.has((deal.source || "").toLowerCase()) &&
-    (deal.options?.priceEvidence?.kind === "current_bid" ||
+    deal.options?.priceEvidence?.kind === "current_bid" ||
+    (AUCTION_SOURCES.has((deal.source || "").toLowerCase()) &&
       !(Number(deal.buy_now_price) > 0));
   if (activeAuctionBid) {
     if (verdict === "go") {
