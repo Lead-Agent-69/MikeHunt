@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerUser } from "@/lib/server-supabase";
 import { isAdminEmail, isAdminConfigured } from "@/lib/auth/admin";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 // /api/admin/system — health endpoint.
 //
@@ -20,12 +21,14 @@ async function isAuthorized(req: NextRequest): Promise<boolean> {
   const secret = process.env.INGEST_SECRET;
   const header = req.headers.get("authorization");
   if (secret && header === `Bearer ${secret}`) return true;
+  if (!isSupabaseConfigured()) return false;
 
   try {
     const {
       data: { user },
+      error,
     } = await getServerUser();
-    return isAdminEmail(user?.email);
+    return !error && isAdminEmail(user?.email);
   } catch {
     return false;
   }
@@ -47,12 +50,17 @@ export async function GET(req: NextRequest) {
       body.adminConfigured = isAdminConfigured();
     }
 
-    return NextResponse.json(body);
+    return NextResponse.json(body, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[admin:system] health read failed", error);
     return NextResponse.json(
-      { status: "error", error: message },
-      { status: 500 },
+      {
+        status: "error",
+        error: "Health information is temporarily unavailable.",
+      },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } },
     );
   }
 }
