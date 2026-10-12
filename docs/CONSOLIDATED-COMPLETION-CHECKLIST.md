@@ -60,6 +60,26 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Saved-Search Matching And Bookmark Follow-Up
+
+- Reproduced in code: collector matches ignored stored state, seller, title and
+  lane criteria; missing years/prices/coordinates could bypass constraints.
+  The profit-sniper route read location_state instead of the saved state field
+  and considered paused searches. Both now use one evidence-based matcher.
+- Exact Scan scopes remain device bookmarks and are labelled Save search, not
+  Save alert. They retain all current parameters; storage errors are actionable,
+  identities are unique, and the 40-search limit no longer silently evicts older
+  searches. Device bookmarks no longer have misleading Pause/Resume controls.
+- New account searches do not automatically opt into email. Delivery remains
+  requested, not certified; no credentials/provider or SMS activation is included.
+- No schema or hosted SQL change. Complete Scan filters cannot yet synchronize
+  to the account without reviewed storage/matcher migration work. Do not silently
+  reduce a full bookmark to the account table's limited criteria.
+- Collector matching changes require the operator's reviewed image rebuild;
+  merging/deploying the web app alone does not make remote Zeus use this code.
+  The collection quota state and existing Docker deployment remain untouched.
+- Regression/browser/CI and production receipts must be recorded for this lane.
+
 ### Account Saved-State Follow-Up
 
 - Reproduced: a saved vehicle remained in the owned API and Saved page, but

@@ -5,6 +5,8 @@ export const maxDuration = 60;
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { isAuthorizedCron } from "@/lib/cron-auth";
+import { matchesSavedSearch } from "@/lib/saved/search-match";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 interface SniperAlertCandidate {
   dealId: string;
@@ -22,7 +24,7 @@ interface SniperAlertCandidate {
 
 // GET & POST /api/alerts/profit-sniper
 // Evaluates active deals for ultra-high margin profit anomalies (>35% ROI or >$4,000 profit)
-// and prepares/dispatches high-priority alerts to subscribed dealers.
+// and prepares candidate matches. Delivery is handled separately by the collector.
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -58,7 +60,7 @@ async function handleSniperEvaluation(req: NextRequest) {
       `
       id, year, make, model, trim, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, location_state,
-      source, source_url, created_at
+      source, source_url, created_at, condition, damage_type, options, lat, lng
     `,
     )
     .eq("active", true)
@@ -79,7 +81,7 @@ async function handleSniperEvaluation(req: NextRequest) {
   // 2. Filter for sniper criteria
   const sniperCandidates: SniperAlertCandidate[] = deals
     .map((d) => {
-      const ask = Number(d.ask_price) || 0;
+      const ask = reportedAcquisitionPrice(d);
       const profit = Number(d.true_net_profit) || 0;
       const roi = ask > 0 ? (profit / ask) * 100 : 0;
       return {
@@ -102,7 +104,27 @@ async function handleSniperEvaluation(req: NextRequest) {
   const { data: savedSearches } = await supabase
     .from("user_saved_searches")
     .select("*")
-    .eq("notify_email", true);
+    .eq("notify_email", true)
+    .eq("is_active", true);
+
+  const dealById = new Map(deals.map((deal) => [deal.id, deal]));
+  const homes = new Map<string, { lat: number; lng: number }>();
+  const radiusOwners = Array.from(
+    new Set(
+      (savedSearches || [])
+        .filter((search) => Number(search.max_distance_miles) > 0)
+        .map((search) => search.user_id),
+    ),
+  );
+  if (radiusOwners.length) {
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("id,home_lat,home_lng")
+      .in("id", radiusOwners);
+    for (const profile of profiles || [])
+      if (profile.home_lat != null && profile.home_lng != null)
+        homes.set(profile.id, { lat: profile.home_lat, lng: profile.home_lng });
+  }
 
   const matchedAlerts: Array<{
     userId: string;
@@ -116,17 +138,11 @@ async function handleSniperEvaluation(req: NextRequest) {
   for (const candidate of sniperCandidates) {
     // Check specific searches
     for (const search of savedSearches || []) {
-      const matchesMake =
-        !search.make ||
-        search.make.toLowerCase() === candidate.make.toLowerCase();
-      const matchesState =
-        !search.location_state ||
-        search.location_state === candidate.locationState;
-      const meetsTarget =
-        !search.target_profit ||
-        candidate.trueNetProfit >= Number(search.target_profit);
-
-      if (matchesMake && matchesState && meetsTarget) {
+      const listing = dealById.get(candidate.dealId);
+      if (
+        listing &&
+        matchesSavedSearch(listing, search, homes.get(search.user_id))
+      ) {
         matchedAlerts.push({
           userId: search.user_id,
           dealId: candidate.dealId,
