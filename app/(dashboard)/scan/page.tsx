@@ -4583,8 +4583,8 @@ function ScanPageInner() {
         hasData={swrData !== undefined}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="min-w-0 flex-1 text-xs leading-relaxed text-[var(--t3)]">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="w-full min-w-0 text-xs leading-relaxed text-[var(--t3)] sm:w-auto sm:flex-1">
           {searchSummary}
         </p>
         <div className="flex shrink-0 items-center gap-2">
