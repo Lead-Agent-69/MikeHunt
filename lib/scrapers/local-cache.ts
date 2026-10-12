@@ -399,17 +399,22 @@ export class LocalScraperCache {
         return true;
       });
 
+      // Persist observations before any remote read/write or budget gate. Only
+      // a confirmed remote match/write may remove the unsynced payload again.
+      for (const row of candidates) {
+        const key = `${row.source}|${row.source_deal_id}`;
+        this.state.entries[key] = {
+          hash: listingHash(row),
+          synced: false,
+          lastSeenAt: new Date().toISOString(),
+          dbSeenAt: this.state.entries[key]?.dbSeenAt,
+          data: row,
+        };
+      }
+      if (candidates.length) await this.save();
+
       if (this.cacheOnly) {
-        for (const row of candidates) {
-          const key = `${row.source}|${row.source_deal_id}`;
-          this.state.entries[key] = {
-            hash: listingHash(row),
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
-        }
-        await this.save();
+        if (!candidates.length) await this.save();
         return {
           rows: [],
           saved: 0,
@@ -423,7 +428,7 @@ export class LocalScraperCache {
       }
 
       if (!candidates.length) {
-        const touches = await this.touchRows(toTouch, supabase);
+        const touches = await this.touchRows(toTouch, supabase, rows);
         await this.save();
         return {
           rows: [],
@@ -518,14 +523,6 @@ export class LocalScraperCache {
             ? Number(prior.ask_price) !== Number(row.ask_price)
             : true,
         });
-        // Preserve the previous entry until Supabase confirms this write.
-        if (!oldEntry)
-          this.state.entries[key] = {
-            hash,
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
       }
 
       let saved = 0;
@@ -585,18 +582,8 @@ export class LocalScraperCache {
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      const touches = await this.touchRows(toTouch, supabase);
+      const touches = await this.touchRows(toTouch, supabase, rows);
 
-      for (const row of candidates) {
-        const key = `${row.source}|${row.source_deal_id}`;
-        if (!this.state.entries[key])
-          this.state.entries[key] = {
-            hash: listingHash(row),
-            synced: false,
-            lastSeenAt: new Date().toISOString(),
-            data: row,
-          };
-      }
       await this.save();
       const quota = this.getQuota();
       const paused =
@@ -622,6 +609,7 @@ export class LocalScraperCache {
   private async touchRows(
     rows: Record<string, any>[],
     supabase: SupabaseClient,
+    observations = rows,
   ): Promise<number> {
     if (!rows.length || this.cacheOnly) return 0;
     let available = Math.max(
@@ -629,6 +617,9 @@ export class LocalScraperCache {
       this.maxDailyTouches - (this.state.quota.touches || 0),
     );
     let touched = 0;
+    const latest = new Map(
+      observations.map((row) => [`${row.source}|${row.source_deal_id}`, row]),
+    );
     const bySource = new Map<string, string[]>();
     for (const row of rows) {
       const list = bySource.get(String(row.source)) || [];
@@ -641,23 +632,51 @@ export class LocalScraperCache {
         if (this.beforeWrite && !(await this.beforeWrite())) return touched;
         const chunk = batch.slice(0, available);
         const seenAt = new Date().toISOString();
-        const { error } = await supabase
-          .from("deals")
-          .update({ last_seen_at: seenAt })
-          .eq("source", source)
-          .in("source_deal_id", chunk);
-        if (error) {
-          // Freshness is best effort. A failed bump must not lose the batch's real writes.
+        let confirmed: number | undefined;
+        try {
+          const { error, count } = await supabase
+            .from("deals")
+            .update({ last_seen_at: seenAt }, { count: "exact" })
+            .eq("source", source)
+            .in("source_deal_id", chunk);
+          if (error) throw new Error(error.message);
+          if (
+            typeof count === "number" &&
+            Number.isSafeInteger(count) &&
+            count >= 0 &&
+            count <= chunk.length
+          )
+            confirmed = count;
+        } catch (error) {
           console.warn(
-            `[LocalCache] last_seen_at bump failed for ${source}: ${error.message}`,
+            `[LocalCache] last_seen_at bump failed for ${source}: ${error instanceof Error ? error.message : "unverified outcome"}`,
           );
-          return touched;
         }
-        for (const id of chunk) {
-          const entry = this.state.entries[`${source}|${id}`];
-          if (entry) entry.dbSeenAt = seenAt;
+        if (confirmed === chunk.length) {
+          for (const id of chunk) {
+            const entry = this.state.entries[`${source}|${id}`];
+            if (entry) entry.dbSeenAt = seenAt;
+          }
+        } else {
+          // A count without row IDs cannot identify partial matches. Reclassify
+          // the whole batch next time, preserving its newest received payloads.
+          for (const id of chunk) {
+            const key = `${source}|${id}`;
+            const row = latest.get(key);
+            if (!row) continue;
+            const entry = this.state.entries[key];
+            this.state.entries[key] = {
+              hash: listingHash(row),
+              synced: false,
+              data: row,
+              lastSeenAt: entry?.lastSeenAt || seenAt,
+              dbSeenAt: entry?.dbSeenAt,
+            };
+          }
         }
-        touched += chunk.length;
+        touched += confirmed ?? 0;
+        // Reserve attempted row capacity even when the outcome is uncertain.
+        // The returned touches count reports only confirmed matching rows.
         available -= chunk.length;
         this.state.quota.touches =
           (this.state.quota.touches || 0) + chunk.length;
