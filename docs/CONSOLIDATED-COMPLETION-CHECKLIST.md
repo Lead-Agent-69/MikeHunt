@@ -60,6 +60,21 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Exact Saved Membership (October 12 Follow-Up)
+
+- Detail membership now queries the viewed vehicle inside the verified account,
+  before a one-row limit. Saves older than the newest 500 remain recognizable
+  without transferring a whole collection or snapshot JSON.
+- The read checks X-Save-Owner against the verified session, and returns an
+  owner/vehicle receipt even for an empty result. The browser rejects mismatched
+  receipts and caches by account plus vehicle. An unavailable database is an
+  error, not a false "not saved" result; requests have a 15-second deadline.
+- No schema, hosted SQL, retention, Docker or provider configuration changes.
+  This is not Saved-page pagination or owner-proof for the older fleet checklist;
+  those collection workflows remain explicit follow-ups.
+- Account-handling changes require exact-head Ren review before merge/live.
+  Record verification and PR receipts separately; implementation is not release.
+
 ### Saved-Search Matching And Bookmark Follow-Up
 
 - Reproduced in code: collector matches ignored stored state, seller, title and

@@ -161,6 +161,42 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const filter = searchParams.get("filter") || "all";
 
+    const expectedOwner = request.headers.get("X-Save-Owner");
+    if (expectedOwner && expectedOwner !== userId)
+      return NextResponse.json(
+        { error: "Account changed. Reload and retry." },
+        { status: 409 },
+      );
+
+    if (searchParams.get("view") === "membership") {
+      const dealId = searchParams.get("dealId");
+      if (
+        !dealId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          dealId,
+        )
+      )
+        return NextResponse.json({ error: "Invalid vehicle" }, { status: 400 });
+      if (!isSupabaseConfigured())
+        return NextResponse.json(
+          { error: "Saved vehicles unavailable" },
+          { status: 503 },
+        );
+      // Filter before limiting: an older save remains recognizable in collections larger than 500.
+      const { data, error } = await supabase
+        .from("saved_cars")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("deal_id", dealId)
+        .limit(1);
+      if (error) throw error;
+      return NextResponse.json({
+        ownerId: userId,
+        dealId,
+        savedId: data?.[0]?.id ?? null,
+      });
+    }
+
     if (!isSupabaseConfigured()) {
       return NextResponse.json([]);
     }

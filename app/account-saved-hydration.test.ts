@@ -9,7 +9,7 @@ let host: HTMLDivElement;
 let control: ReturnType<typeof useAccountSavedVehicles>;
 let cache: Cache;
 function State({ owner }: { owner: string | null }) {
-  control = useAccountSavedVehicles(owner);
+  control = useAccountSavedVehicles(owner, "car");
   return React.createElement(
     "span",
     null,
@@ -39,26 +39,27 @@ afterEach(() => {
   act(() => root.unmount());
   vi.unstubAllGlobals();
 });
-const rows = [
-  { id: "saved", deal_id: "car", status: "watching", snapshot: {} },
-];
-const response = (data: unknown = rows) =>
+const membership = { ownerId: "one", dealId: "car", savedId: "saved" };
+const response = (data: unknown = membership) =>
   new Response(JSON.stringify(data), { status: 200 });
 
 describe("account saved status on a fresh device", () => {
-  it("hydrates membership without a local snapshot using the slim endpoint", async () => {
+  it("hydrates exact membership without loading a collection or local snapshot", async () => {
     vi.mocked(fetch).mockResolvedValue(response());
     await render("one");
     await vi.waitFor(() => expect(host.textContent).toBe("Saved"));
     expect(fetch).toHaveBeenCalledWith(
-      "/api/saved-cars?filter=all&view=checklist",
+      "/api/saved-cars?view=membership&dealId=car",
+      expect.objectContaining({ headers: { "X-Save-Owner": "one" } }),
     );
     expect(localStorage.length).toBe(0);
   });
   it("does not carry membership across an account switch or logout", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(response())
-      .mockResolvedValueOnce(response([]));
+      .mockResolvedValueOnce(
+        response({ ownerId: "two", dealId: "car", savedId: null }),
+      );
     await render("one");
     await vi.waitFor(() => expect(host.textContent).toBe("Saved"));
     await render("two");
@@ -103,12 +104,48 @@ describe("account saved status on a fresh device", () => {
           resolve = done;
         }),
       )
-      .mockResolvedValueOnce(response([]));
+      .mockResolvedValueOnce(
+        response({ ownerId: "two", dealId: "car", savedId: null }),
+      );
     await render("one");
     await render("two");
     await act(async () => {
       resolve(response());
     });
     expect(host.textContent).toBe("Not saved");
+  });
+  it("rejects another account's successful response under the old cache key", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      response({ ...membership, ownerId: "two" }),
+    );
+    await render("one");
+    await vi.waitFor(() => expect(control.error).toBeTruthy());
+    expect(control.has("car")).toBe(false);
+  });
+  it("rejects an empty response from a different account", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      response({ ownerId: "two", dealId: "car", savedId: null }),
+    );
+    await render("one");
+    await vi.waitFor(() => expect(control.error).toBeTruthy());
+  });
+  it("rejects a receipt for a different vehicle", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      response({ ...membership, dealId: "other" }),
+    );
+    await render("one");
+    await vi.waitFor(() => expect(control.error).toBeTruthy());
+    expect(control.has("car")).toBe(false);
+  });
+  it("does not confirm a different vehicle into this vehicle's cache", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      response({ ...membership, savedId: null }),
+    );
+    await render("one");
+    await vi.waitFor(() => expect(control.isLoading).toBe(false));
+    await act(async () => {
+      await control.confirm("other", "confirmed");
+    });
+    expect(control.has("car")).toBe(false);
   });
 });

@@ -534,7 +534,10 @@ export default function DealPage({
   const loadedDealIdRef = React.useRef<string | null>(null);
   const localSaved = useLocalSavedVehicles();
   const isLocallyWatched = localSaved.has(id);
-  const accountSaved = useAccountSavedVehicles(dealerLoading ? null : dealerId);
+  const accountSaved = useAccountSavedVehicles(
+    dealerLoading ? null : dealerId,
+    id,
+  );
   const isAccountSaved = accountSaved.has(id);
   const currentSaveOwner = React.useRef(dealerId);
   currentSaveOwner.current = dealerId;
