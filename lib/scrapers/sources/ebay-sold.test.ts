@@ -85,6 +85,7 @@ describe("parseEbaySoldHtml", () => {
     expect(r.source).toBe("ebay_motors");
     expect(r.year).toBe(2018);
     expect(r.make).toBe("Honda");
+    expect(r.model).toBe("Accord");
     expect(r.sold_price).toBe(18600);
     expect(r.mileage).toBe(98000);
     expect(r.item_id).toBe("123");
@@ -111,5 +112,45 @@ describe("parseEbaySoldHtml", () => {
     expect(parseEbaySoldHtml(dup)).toHaveLength(1);
     expect(parseEbaySoldHtml("<html>nope</html>")).toEqual([]);
     expect(parseEbaySoldHtml("")).toEqual([]);
+  });
+
+  it.each([
+    ["2018 Honda Accord EX-L", "Honda", "Accord"],
+    ["2020 Tesla Model 3 Long Range", "Tesla", "Model 3"],
+    [
+      "2021 Land Rover Range Rover Sport HSE",
+      "Land Rover",
+      "Range Rover Sport",
+    ],
+    ["2021 Land Rover Discovery HSE", "Land Rover", "Discovery"],
+    ["2020 Alfa Romeo Giulia Ti", "Alfa Romeo", "Giulia"],
+    ["2019 Jeep Grand Cherokee Limited", "Jeep", "Grand Cherokee"],
+    ["2018 Honda Accord similar to Toyota Camry", "Honda", "Accord"],
+    ["2022 Ford F-150 similar to Ford Bronco Sport", "Ford", "F-150"],
+    ["2022 Ford Bronco Sport Big Bend", "Ford", "Bronco Sport"],
+    ["2020 Chevy Camaro SS", "Chevrolet", "Camaro"],
+    ["2020 Mercedes Benz C300", "Mercedes-Benz", "C300"],
+    ["2020 Range Rover Sport HSE", "Land Rover", "Range Rover Sport"],
+    [
+      "2020 Land Rover Range Rover Velar R-Dynamic",
+      "Land Rover",
+      "Range Rover Velar",
+    ],
+    [
+      "2020 Land Rover Range Rover Evoque SE",
+      "Land Rover",
+      "Range Rover Evoque",
+    ],
+    ["2020 Land Rover Discovery Sport HSE", "Land Rover", "Discovery Sport"],
+  ])("preserves comparable identity for %s", (title, make, model) => {
+    const rows = parseEbaySoldHtml(card(title, "$22,000", "700"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ make, model });
+  });
+
+  it("does not invent a make/model from an unidentified title", () => {
+    expect(
+      parseEbaySoldHtml(card("2020 Unknown vehicle", "$22,000", "701")),
+    ).toEqual([]);
   });
 });
