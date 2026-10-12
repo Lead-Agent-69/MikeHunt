@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 
 // The "Install app" nudge. Android/desktop Chromium fire `beforeinstallprompt` (we capture it and offer a
 // one-tap Install); iOS/iPadOS Safari never does, so we show the "Share → Add to Home Screen" text instead
@@ -178,9 +179,8 @@ export function InstallPrompt() {
       await deferred.prompt();
       const choice = await deferred.userChoice;
       // A "not now" in the browser's own dialog counts as a dismissal.
-      if (choice.outcome === "accepted")
-        write(INSTALL_DONE_KEY, String(Date.now()));
-      else write(INSTALL_DISMISSED_KEY, String(Date.now()));
+      if (choice.outcome === "dismissed")
+        write(INSTALL_DISMISSED_KEY, String(Date.now()));
     } catch {
       /* prompt() can only be used once; fall through and hide */
     }
@@ -217,7 +217,7 @@ export function InstallPrompt() {
           <button
             type="button"
             onClick={install}
-            className="min-h-11 shrink-0 rounded-full bg-[var(--accent)] px-4 text-sm font-black text-white"
+            className="min-h-11 shrink-0 rounded-full bg-[var(--accent)] px-4 text-sm font-black text-[color:var(--on-accent,#fff)]"
           >
             Install
           </button>
@@ -226,9 +226,10 @@ export function InstallPrompt() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss"
+          title="Dismiss install prompt"
           className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-full text-[var(--t3)] hover:text-[var(--t1)]"
         >
-          <span aria-hidden="true">✕</span>
+          <X size={18} aria-hidden="true" />
         </button>
       </div>
     </div>

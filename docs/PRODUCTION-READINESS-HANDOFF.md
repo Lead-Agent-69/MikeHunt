@@ -5,6 +5,12 @@ all features work or that usage fits a free plan. Never interpret an open PR as
 proof that its entire feature is absent: stacked and superseded changes need a
 diff against current main before landing.
 
+Latest integrated execution index:
+[Consolidated completion checklist](CONSOLIDATED-COMPLETION-CHECKLIST.md).
+It reconciles the agent queue, #367 local collector receipt and #369 payment-price
+release with the outstanding hosted/device/permission gates. Older snapshots
+below remain historical evidence, not current access or deployment claims.
+
 ## Confirmed Release
 
 - PR #362 merged as `8821da9c8298cb778d513d08d57fc7a9b35c3f6a`.
