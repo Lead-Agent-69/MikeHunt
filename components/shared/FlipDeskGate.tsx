@@ -12,10 +12,8 @@ import {
   flipToolAccess,
   type FlipToolRoute,
 } from "@/lib/buyer/flip-tool-access";
-import {
-  PURCHASE_CHECKLIST_KEY,
-  fetchPurchaseChecklist,
-} from "@/lib/saved/purchase-checklist";
+import { fetchSavedPage, savedCollectionKey } from "@/lib/saved/collection";
+import { useDealerId } from "@/hooks/useDealerId";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 /**
@@ -32,6 +30,7 @@ export function FlipDeskGate({
 }) {
   const { intent } = useBuyerIntent();
   const { prefs, isLoading } = usePreferences();
+  const { dealerId, loading: accountLoading } = useDealerId();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -49,9 +48,12 @@ export function FlipDeskGate({
     access !== "allow" &&
     !isFlipBuyerMode(intent?.buyerMode);
   useEffect(() => {
-    if (preloadChecklist)
-      preload(PURCHASE_CHECKLIST_KEY, fetchPurchaseChecklist);
-  }, [preloadChecklist]);
+    if (preloadChecklist && dealerId && !accountLoading)
+      preload(
+        savedCollectionKey(dealerId, "checklist-page", "all"),
+        fetchSavedPage,
+      );
+  }, [preloadChecklist, dealerId, accountLoading]);
 
   if (access === "allow") return <>{children}</>;
   if (access === "pending") {

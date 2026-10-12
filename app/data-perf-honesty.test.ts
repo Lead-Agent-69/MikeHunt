@@ -26,9 +26,10 @@ describe("May's MO pass: data/perf honesty wiring", () => {
     const gate = read("components/shared/FlipDeskGate.tsx");
     const pipeline = read("components/saved/PurchasePipeline.tsx");
     expect(gate).toContain(
-      "preload(PURCHASE_CHECKLIST_KEY, fetchPurchaseChecklist)",
+      'savedCollectionKey(dealerId, "checklist-page", "all")',
     );
-    expect(pipeline).toContain("PURCHASE_CHECKLIST_KEY");
+    expect(pipeline).toContain("useSavedCollection<PurchaseSave>(");
+    expect(gate).toContain("!accountLoading");
   });
 
   it("consolidates Today into scoped Discover and keeps inventory count semantics", () => {

@@ -2,8 +2,11 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({ dealerId: "owner", loading: false }),
+}));
+vi.mock("@/hooks/useSavedCollection", () => ({
+  useSavedCollection: () => ({
     data: [
       {
         id: "save",

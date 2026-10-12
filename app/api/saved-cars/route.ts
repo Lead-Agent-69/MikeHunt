@@ -10,6 +10,7 @@ import { recordDealSignal } from "@/lib/reco/signals";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { savedCarsForDesk } from "@/lib/saved/saved-car-desk-redact";
+import { parseSavedCursor, SAVED_PAGE_SIZE } from "@/lib/saved/collection";
 import {
   CHECKLIST_SELECT,
   SAVED_CARS_LIMIT,
@@ -198,7 +199,76 @@ export async function GET(request: NextRequest) {
     }
 
     if (!isSupabaseConfigured()) {
+      if (["page", "checklist-page"].includes(searchParams.get("view") || ""))
+        return NextResponse.json(
+          { error: "Saved vehicles unavailable" },
+          { status: 503 },
+        );
       return NextResponse.json([]);
+    }
+
+    const pagedView = searchParams.get("view");
+    if (pagedView === "page" || pagedView === "checklist-page") {
+      let cursor;
+      try {
+        cursor = searchParams.has("cursor")
+          ? parseSavedCursor(searchParams.get("cursor")!)
+          : null;
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid saved cursor" },
+          { status: 400 },
+        );
+      }
+      let query = supabase
+        .from("saved_cars")
+        .select(pagedView === "checklist-page" ? CHECKLIST_SELECT : "*")
+        .eq("user_id", userId);
+      if (filter === "active")
+        query = query.in("status", [
+          "active",
+          "watching",
+          "price_drop",
+          "price_increase",
+        ]);
+      else if (filter === "price_drops")
+        query = query.eq("status", "price_drop");
+      else if (filter === "gone") query = query.eq("status", "unavailable");
+      else if (filter !== "all")
+        return NextResponse.json(
+          { error: "Invalid saved filter" },
+          { status: 400 },
+        );
+      if (cursor) {
+        if (cursor.savedAt === null)
+          query = query.is("saved_at", null).lt("id", cursor.id);
+        else
+          query = query.or(
+            `saved_at.lt.${cursor.savedAt},and(saved_at.eq.${cursor.savedAt},id.lt.${cursor.id}),saved_at.is.null`,
+          );
+      }
+      const { data, error } = await query
+        .order("saved_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false })
+        .limit(SAVED_PAGE_SIZE + 1);
+      if (error) throw error;
+      const rows = ((data || []) as Record<string, any>[]).slice(
+        0,
+        SAVED_PAGE_SIZE,
+      );
+      const last = rows.at(-1);
+      const nextCursor =
+        data && data.length > SAVED_PAGE_SIZE && last
+          ? JSON.stringify({ savedAt: last.saved_at ?? null, id: last.id })
+          : null;
+      return NextResponse.json({
+        ownerId: userId,
+        rows:
+          pagedView === "checklist-page"
+            ? rows.map(toChecklistRow)
+            : savedCarsForDesk(rows, await resolveCallerFlipDesk()),
+        nextCursor,
+      });
     }
 
     // view=checklist (/fleet Purchase plan) needs no snapshot JSON — slim projection.
