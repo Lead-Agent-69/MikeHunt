@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { auditStorage } from "../scripts/storage-audit.mjs";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 function execute(_command: string, args: string[]) {
   if (args[0] === "count-objects") return "size-pack: 10 MiB";
@@ -20,6 +22,15 @@ function execute(_command: string, args: string[]) {
 }
 
 describe("read-only storage audit", () => {
+  it("keeps local attachments and QA captures out of Git, Docker and Vercel payloads", () => {
+    for (const file of [".gitignore", ".dockerignore", ".vercelignore"]) {
+      const entries = readFileSync(path.join(process.cwd(), file), "utf8")
+        .split(/\r?\n/)
+        .map((entry) => entry.replace(/^\//, "").replace(/\/$/, ""));
+      expect(entries).toContain("artifacts");
+      expect(entries).toContain(".codex-remote-attachments");
+    }
+  });
   it("checks only scoped read commands and never certifies hosted capacity", () => {
     const commands: string[][] = [];
     const report = auditStorage((command: string, args: string[]) => {
