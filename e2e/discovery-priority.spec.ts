@@ -46,11 +46,9 @@ for (const desk of [
         .first()
         .locator("span")
         .first();
-      const mobile = (page.viewportSize()?.width ?? 0) < 640;
-      const amount = mobile ? preview : bodyAmount;
+      const amount = preview;
       await expect(amount).toBeVisible();
-      if (mobile)
-        await expect(preview).toContainText(await bodyAmount.innerText());
+      await expect(preview).toContainText(await bodyAmount.innerText());
       const nav = await page
         .locator('nav[aria-label="Primary mobile navigation"]')
         .boundingBox();

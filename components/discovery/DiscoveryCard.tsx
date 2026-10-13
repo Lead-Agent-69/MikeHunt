@@ -168,9 +168,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             <span
               aria-hidden="true"
               data-testid="discovery-card-price-preview"
-              className="mt-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)] sm:hidden"
+              className="mt-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)]"
             >
-              <span className="mb-1 block break-words text-xs font-bold">
+              <span className="mb-1 block break-words text-xs font-bold sm:hidden">
                 {title}
               </span>
               <span className="block text-[10px] font-semibold">

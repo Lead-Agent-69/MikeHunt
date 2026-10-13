@@ -887,6 +887,14 @@ unchanged. The final ten tablet/WebKit core cases passed across light/dark loade
 Discover, inventory, Saved and Settings, including guide focus handling. These
 functional receipts do not close the physical-device performance gate above.
 
+The broader final Chromium matrix passed 95/100: all five landscape-tablet price
+checks exposed a remaining first-viewport gap at 1024x768. The same existing price
+preview now remains visible at every breakpoint, with duplicate vehicle identity
+limited to phones; the original accessible body facts remain intact. The corrected
+price/card-navigation matrix passed all 35 cases across the five Chromium sizes,
+WebKit phone and Firefox desktop, covering every ordinary desk. This closes all
+five diagnostic visibility failures, not a claim of a single 100/100 rerun.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.
