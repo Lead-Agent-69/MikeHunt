@@ -1,9 +1,9 @@
 import { test } from "@playwright/test";
+import { isLocalE2ETarget } from "./is-local-target";
 
 /** Where the suite points. Anything that is not localhost is treated as production. */
 export const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:3000";
-export const IS_LOCAL =
-  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(BASE_URL);
+export const IS_LOCAL = isLocalE2ETarget(BASE_URL);
 export const IS_PROD = !IS_LOCAL;
 
 export const LOCAL_ONLY_REASON =

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Bot,
   Bookmark,
   CircleHelp,
   Flame,
@@ -225,7 +226,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         <nav
           id={panelId}
           aria-label="Account navigation"
-          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-100px)] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
+          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-128px-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
         >
           <div className="px-3 py-2 text-xs font-bold text-[var(--t3)]">
             Account
@@ -278,6 +279,17 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
             entry={{ name: "All tools", href: "/tools" }}
             icon={Grid3X3}
           />
+          <button
+            type="button"
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              window.dispatchEvent(new Event("open-mikehunt-copilot"));
+            }}
+          >
+            <Bot size={16} aria-hidden="true" />
+            Decision guide
+          </button>
           {!signedOut && !authLoading && (
             <>
               <div className="my-1 border-t border-[var(--b1)]" />

@@ -68,6 +68,7 @@ export function InventoryViewLinks({
           <Link
             key={path}
             href={`${path}?${params.toString()}`}
+            prefetch={false}
             title={label}
             aria-current={path === current ? "page" : undefined}
             className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold sm:flex-row sm:gap-2 sm:px-3 ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}

@@ -10,6 +10,33 @@ export function MarketSearchShortcut({ query }: { query: string }) {
   return (
     <a
       href="#wider-market-search"
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
+        const disclosure = document.querySelector<HTMLDetailsElement>(
+          "#wider-market-search > details",
+        );
+        if (!disclosure) return;
+        event.preventDefault();
+        disclosure.open = true;
+        window.history.replaceState(
+          window.history.state,
+          "",
+          "#wider-market-search",
+        );
+        // A smooth fragment jump can move the summary beneath fixed navigation mid-tap.
+        disclosure.parentElement?.scrollIntoView({
+          block: "start",
+          behavior: "instant",
+        });
+        disclosure.querySelector("summary")?.focus({ preventScroll: true });
+      }}
       className="inline-flex min-h-11 w-fit items-center gap-2 text-xs font-semibold text-[var(--blue)]"
     >
       More marketplaces <ArrowDown className="h-4 w-4" aria-hidden="true" />
@@ -73,29 +100,33 @@ export function MarketSearchHandoff({ query }: { query: string }) {
       aria-label="Wider market search"
       className="scroll-mt-24 space-y-2 border-y border-[var(--b2)] py-3"
     >
-      <h2 className="text-sm font-bold text-[var(--t1)]">
-        Search more marketplaces
-      </h2>
-      <p className="text-xs text-[var(--t3)]">
-        External results are separate from our indexed inventory.
-      </p>
-      <ul className="grid min-w-0 grid-cols-1 gap-x-6 sm:grid-cols-3">
-        {visible.map((handoff) => (
-          <MarketLink key={handoff.id} handoff={handoff} />
-        ))}
-      </ul>
-      {more.length > 0 && (
-        <details>
-          <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)]">
-            {more.length} more marketplaces
-          </summary>
+      <details>
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-bold text-[var(--t1)]">
+          Search more marketplaces
+        </summary>
+        <div className="space-y-2">
+          <p className="text-xs text-[var(--t3)]">
+            External results are separate from our indexed inventory.
+          </p>
           <ul className="grid min-w-0 grid-cols-1 gap-x-6 sm:grid-cols-3">
-            {more.map((handoff) => (
+            {visible.map((handoff) => (
               <MarketLink key={handoff.id} handoff={handoff} />
             ))}
           </ul>
-        </details>
-      )}
+          {more.length > 0 && (
+            <details>
+              <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)]">
+                {more.length} more marketplaces
+              </summary>
+              <ul className="grid min-w-0 grid-cols-1 gap-x-6 sm:grid-cols-3">
+                {more.map((handoff) => (
+                  <MarketLink key={handoff.id} handoff={handoff} />
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

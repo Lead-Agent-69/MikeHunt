@@ -7,12 +7,19 @@ import { localOnly } from "./support/target";
 // Each desk is a real account onboarded through the UI in auth.setup.ts.
 const FLIP: Record<Desk, boolean> = {
   personal: false,
+  diy: false,
   parts: false,
   reseller: true,
   dealer: true,
 };
 
-for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
+for (const desk of [
+  "personal",
+  "diy",
+  "reseller",
+  "dealer",
+  "parts",
+] as Desk[]) {
   test.describe(`${desk} desk (local only)`, () => {
     localOnly();
     test.use({ storageState: storagePath(desk) });
@@ -35,6 +42,14 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       // Personal/parts desks must not receive resale-profit fields.
       if (!FLIP[desk])
         for (const d of body.deals) expect(d.trueNetProfit ?? null).toBeNull();
+    });
+
+    test(`ordinary ${desk} desk cannot read admin aggregates`, async ({
+      page,
+    }) => {
+      const response = await page.request.get("/api/admin/stats");
+      expect(response.status()).toBe(401);
+      expect(await response.json()).toEqual({ error: "Unauthorized" });
     });
 
     test(`deal page renders for the ${desk} desk`, async ({ page }) => {

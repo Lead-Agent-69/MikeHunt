@@ -191,7 +191,7 @@ export function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[60] px-3 pb-2 pt-2 md:left-auto md:right-4 md:bottom-4 md:max-w-sm md:px-0 md:pb-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 px-3 pb-2 pt-2 md:left-auto md:right-4 md:bottom-4 md:max-w-sm md:px-0 md:pb-4">
       <div
         role="region"
         aria-label="Install MikeHunt"
