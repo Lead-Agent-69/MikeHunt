@@ -875,6 +875,18 @@ Related evidence:
 
 ### Product Promise Gates Still Open
 
+Final integration receipts: refreshed against main #395/#396, keeping the new
+body-style filter and pending-scope safeguards. The integrated view bar initially
+hid phone prices; compact native disclosure and tighter spacing corrected it.
+All 20 first-viewport/card-navigation cases then passed (five desks across desktop,
+tablet, 320px Chromium and WebKit phone). Five forced iOS install-overlay cases
+passed. Saved-card speculative prefetch was also disabled after the core pass
+exposed aborted detail requests. Initial theme setup now happens before page load
+instead of abandoning an initial Discover request; browser-error assertions remain
+unchanged. The final ten tablet/WebKit core cases passed across light/dark loaded
+Discover, inventory, Saved and Settings, including guide focus handling. These
+functional receipts do not close the physical-device performance gate above.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.
