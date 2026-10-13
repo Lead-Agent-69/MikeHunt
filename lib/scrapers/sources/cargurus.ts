@@ -8,7 +8,13 @@
 import type { Deal } from "@/types";
 import { paginate, type ScraperConfig } from "../engine";
 import { upsertDeals } from "../pipeline";
-import { STATE_SEED_ZIPS } from "@/lib/geo";
+import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
+import { getScrapeRunScope } from "../run-scope-context";
+import { buyerListingSearchText } from "../buyer-scope";
+import { buyerSearchCenters } from "../search-centers";
+import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
+
+const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
 
 export const CARGURUS_CONFIG: ScraperConfig = {
   name: "CarGurus",
@@ -73,6 +79,9 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
         ? [l.originalPictureUrl]
         : [];
     const rating = String(l.dealRating || l.priceRating || "").toLowerCase();
+    const reportedState =
+      str(l.sellerState) || str(l.state) || str(l.location?.state);
+    const state = reportedState?.toUpperCase();
 
     items.push({
       source: "cargurus",
@@ -91,6 +100,9 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
       ask_price: price,
       mileage,
       condition: "clean",
+      title_source: "source_default",
+      location_city: str(l.sellerCity) || str(l.city) || str(l.location?.city),
+      location_state: state && LISTING_STATES.has(state) ? state : undefined,
       images,
       seller_type: "dealer",
       seller: str(l.sellerName) || "CarGurus",
@@ -101,49 +113,71 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
   return items;
 }
 
+export function cargurusSearchZips(
+  zip = "",
+  scope = getScrapeRunScope(),
+  plan: SweepPlan | undefined = getSweepPlan(),
+  random = Math.random,
+): string[] {
+  if (scope?.state || scope?.states?.length) return buyerSearchCenters(scope);
+  if (zip) return [zip];
+  const planned = sweepPlanZips(plan);
+  if (planned.length) return planned;
+  const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
+  return [zips[Math.floor(random() * zips.length)] || "75201"];
+}
+
 export async function scrapeCarGurus(
   searchTerm = "",
   zip = "",
   maxPages = CARGURUS_CONFIG.maxPages,
 ) {
-  if (!zip) {
-    const zips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
-    zip = zips[Math.floor(Math.random() * zips.length)] || "75201";
+  const centers = cargurusSearchZips(zip);
+  const query = buyerListingSearchText(getScrapeRunScope(), searchTerm);
+  const pagesPerCenter = centers.length > 1 ? Math.min(maxPages, 3) : maxPages;
+  console.log(`[CarGurus] Starting scrape near ${centers.join(", ")}...`);
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (const center of centers) {
+    const allDeals: Partial<Deal>[] = [];
+    const config = { ...CARGURUS_CONFIG, maxPages: pagesPerCenter };
+    const gen = paginate<Partial<Deal>>(
+      config,
+      (page) => {
+        const params = new URLSearchParams({
+          zip: center,
+          distance: "100",
+          ...(query && { searchTerm: query }),
+          startYear: "2010",
+          maxResults: "25",
+          offset: String((page - 1) * 25),
+          inventorySearchWidgetType: "AUTO",
+          sortType: "DEAL_SCORE",
+        });
+        return `https://www.cargurus.com/Cars/inventorylisting/ajaxFetchSubsetInventoryListing.action?${params.toString()}`;
+      },
+      async (input) => {
+        const raw =
+          typeof input === "string"
+            ? input
+            : ((input as any)?.html?.() ?? String(input));
+        const items = parseCargurusListings(raw);
+        return { items, hasMore: items.length >= 20 };
+      },
+    );
+
+    for await (const batch of gen) {
+      for (const deal of batch) {
+        const id = String(deal.source_deal_id || "");
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        allDeals.push(deal);
+      }
+    }
+    if (allDeals.length > 0) await upsertDeals(allDeals);
+    total += allDeals.length;
   }
-  console.log(`[CarGurus] Starting scrape near ${zip}...`);
-  const allDeals: Partial<Deal>[] = [];
-
-  const config = { ...CARGURUS_CONFIG, maxPages };
-  const gen = paginate<Partial<Deal>>(
-    config,
-    (page) => {
-      const params = new URLSearchParams({
-        zip,
-        distance: "100",
-        ...(searchTerm && { searchTerm }),
-        startYear: "2010",
-        maxResults: "25",
-        offset: String((page - 1) * 25),
-        inventorySearchWidgetType: "AUTO",
-        sortType: "DEAL_SCORE",
-      });
-      return `https://www.cargurus.com/Cars/inventorylisting/ajaxFetchSubsetInventoryListing.action?${params.toString()}`;
-    },
-    async (input) => {
-      const raw =
-        typeof input === "string"
-          ? input
-          : ((input as any)?.html?.() ?? String(input));
-      const items = parseCargurusListings(raw);
-      return { items, hasMore: items.length >= 20 };
-    },
-  );
-
-  for await (const batch of gen) {
-    allDeals.push(...batch);
-  }
-
-  console.log(`[CarGurus] Found ${allDeals.length} deals`);
-  if (allDeals.length > 0) await upsertDeals(allDeals);
-  return allDeals.length;
+  console.log(`[CarGurus] Found ${total} source listings`);
+  return total;
 }
