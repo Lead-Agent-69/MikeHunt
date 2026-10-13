@@ -45,9 +45,9 @@ export interface PersistResult {
 }
 
 /**
- * Daily write budgets for the thin free-tier Supabase project. Writes pause at 80% of each.
- * ~1,000 effective new rows/day at ~4 KB/row on disk (row + indexes) keeps the 60-day retention
- * window near 60k rows / ~240 MB, under the 500 MB free database.
+ * Daily write budgets; writes pause at 80% of each. These counts do not bound
+ * database size: row/index sizes, embeddings and owner-protected history vary.
+ * Source expansion also needs the measured storage guard and provider usage checks.
  */
 export const DEFAULT_MAX_DAILY_INSERTS = 1250;
 export const DEFAULT_MAX_DAILY_UPDATES = 2500;
