@@ -95,7 +95,7 @@ No new Supabase migration is required by the scraper PRs below (they write throu
   (`sold-item-ids.<project>.json`).
 - **Visor:** new runner id `visor` (primary tier, operator-restored). `VISOR_MAX_PER_RUN` (default 100
   listing pages per run, after skipping VINs we already hold). Expect `challenged: visor.vin bot
-  challenge page` if Cloudflare challenges Zeus's client the way it challenged the box; the sitemap
+challenge page` if Cloudflare challenges Zeus's client the way it challenged the box; the sitemap
   itself is open.
 - **AutoTempest:** expect `challenged: autotempest.com refused: You are not authorized...` while its API
   requires a signed token. Not bypassed.
@@ -104,3 +104,18 @@ No new Supabase migration is required by the scraper PRs below (they write throu
 - **Verify:** `scraper_runs` shows rows for `ebay_sold`, `visor` and `autotempest` after a full sweep
   (success or an honest `challenged` error), and `deals.options->>'discoveredVia'` is set on any
   Visor/AutoTempest row.
+
+## 7. Durable observation buffer (2026-10-12)
+
+- New and changed observations are saved to the local cache before remote
+  classification, write-budget checks, or upserts. Paused, quota-limited and
+  failed writes retain their latest payload for a later permitted attempt.
+- Freshness updates request exact affected-row counts. Missing, partial or
+  unverified matches stay buffered for reclassification rather than being
+  reported as fully stored. Reported touches are confirmed matches; the daily
+  touch budget conservatively reserves attempted rows, including failures.
+- Deploy this worker code from reviewed `main` using the operator procedure
+  above. Preserve the existing cache volume and quota state. Do not reset quotas
+  or force a scrape to test recovery. A web deployment does not rebuild Zeus.
+- This change does not apply protected-retention SQL, delete saved research,
+  enable restricted sources, or establish a cold archive/restore guarantee.
