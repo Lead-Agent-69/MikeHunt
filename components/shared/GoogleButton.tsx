@@ -31,7 +31,7 @@ export function GoogleButton({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/system/status")
+    fetch("/api/system/status?scope=auth")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return;

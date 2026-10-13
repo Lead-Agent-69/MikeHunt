@@ -47,6 +47,24 @@ describe("/api/system/status authz", () => {
     expect(body).toHaveProperty("recentRuns");
     expect(body).toHaveProperty("readiness.missingEnv");
   });
+
+  it("returns only auth readiness without an admin lookup or inventory queries", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/system/status?scope=auth") as any,
+    );
+    const body = await res.json();
+    expect(body).toEqual({
+      scope: "auth",
+      authProviders: {
+        reachable: false,
+        google: null,
+        email: null,
+        checkedAt: expect.any(String),
+      },
+    });
+    expect(canManage).not.toHaveBeenCalled();
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+  });
 });
 
 describe("toPublicStatus", () => {
