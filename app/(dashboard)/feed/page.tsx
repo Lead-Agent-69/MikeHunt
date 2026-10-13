@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
+import { usePreferences } from "@/hooks/usePreferences";
+import { savedScopeStates } from "@/lib/preferences/location-form";
+import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 import { ErrorState } from "@/components/shared/PageStates";
 import { DataSetupState } from "@/components/shared/DataSetupState";
@@ -12,7 +15,19 @@ import {
 } from "@/components/feed/FeedVehicleCard";
 
 export default function FeedPage() {
-  const { query, ready } = useInventoryViewScope();
+  const { query: sharedQuery, ready: viewReady } = useInventoryViewScope();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
+  const savedScopeKey = JSON.stringify(savedScopeStates(prefs) || []);
+  const query = useMemo(() => {
+    const params = new URLSearchParams(sharedQuery);
+    const states =
+      inventoryScopeStates(params) ??
+      (params.get("scope") === "explicit" ? [] : JSON.parse(savedScopeKey));
+    params.delete("state");
+    params.set("states", states.join(","));
+    return params.toString();
+  }, [sharedQuery, savedScopeKey]);
+  const ready = viewReady && !prefsLoading;
   const [items, setItems] = useState<FeedVehicle[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -149,11 +164,12 @@ export default function FeedPage() {
           title="Feed temporarily unavailable"
           message="Your existing cars are still here. Try again when your connection is ready."
           onRetry={() => void loadMore()}
+          retryLabel="Try again"
         />
       )}
       {done && !items.length && !failed && (
         <DataSetupState
-          title="No photo-ready matches yet"
+          title="No photo-ready feed items yet"
           message="Some matching cars may still be waiting for photos. View all results or adjust your search."
           primaryHref={`/scan?${query}`}
           primaryLabel="View all results"

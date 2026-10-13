@@ -11,7 +11,9 @@ const SURFACES = [
   "components/shared/DealCard.tsx",
   "components/saved/SavedCarCard.tsx",
   "app/(dashboard)/deal/[id]/page.tsx",
-  "app/(dashboard)/swipe/page.tsx",
+  "components/search/SwipeVehicleFace.tsx",
+  "components/feed/FeedVehicleCard.tsx",
+  "components/search/QuickVehicleReview.tsx",
 ];
 
 describe("TitleBadge everywhere", () => {
@@ -59,7 +61,7 @@ describe("titleSource reaches the badge", () => {
     );
     for (const path of [
       "components/discovery/DiscoveryCard.tsx",
-      "app/(dashboard)/swipe/page.tsx",
+      "components/search/SwipeVehicleFace.tsx",
     ])
       expect(read(path)).toContain("titleSource={deal.titleSource}");
   });

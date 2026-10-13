@@ -51,15 +51,13 @@ describe("Feed scope request isolation", () => {
     vi.stubGlobal("fetch", fetchMock);
     root = createRoot(document.createElement("div"));
     await act(async () => root.render(React.createElement(FeedPage)));
-    expect(scopeState.displayedStates).toEqual(["TX"]);
+    expect(fetchMock.mock.calls[0][0]).toContain("states=TX");
     scopeState.query = "scope=explicit&state=CA";
     await act(async () => root.render(React.createElement(FeedPage)));
     expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=CA");
-    expect(scopeState.displayedStates).toEqual(["CA"]);
     scopeState.query = "scope=explicit";
     await act(async () => root.render(React.createElement(FeedPage)));
     expect(fetchMock.mock.calls.at(-1)![0]).toContain("states=&");
-    expect(scopeState.displayedStates).toEqual([]);
   });
   it("ignores an older state's response after the user selects a new market", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -72,16 +70,17 @@ describe("Feed scope request isolation", () => {
     );
     const pending: Array<(value: any) => void> = [];
     const fetchMock = vi.fn(
-      (_url: string) => new Promise((resolve) => pending.push(resolve)),
+      (_url: string, _init?: RequestInit) =>
+        new Promise((resolve) => pending.push(resolve)),
     );
     vi.stubGlobal("fetch", fetchMock);
     const host = document.createElement("div");
     root = createRoot(host);
     await act(async () => root.render(React.createElement(FeedPage)));
     expect(fetchMock.mock.calls[0][0]).toContain("states=TX");
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>("button")!.click(),
-    );
+    scopeState.query = "scope=explicit&state=CA";
+    await act(async () => root.render(React.createElement(FeedPage)));
+    expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
     expect(fetchMock.mock.calls[1][0]).toContain("states=CA");
     await act(async () =>
       pending[0]({
@@ -99,7 +98,7 @@ describe("Feed scope request isolation", () => {
         }),
       }),
     );
-    expect(host.textContent).not.toContain("OLD");
+    expect(host.textContent).not.toContain("Old scope");
     await act(async () =>
       pending[1]({
         ok: true,

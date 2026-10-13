@@ -6,8 +6,12 @@ import { InventoryViewLinks } from "./InventoryViewLinks";
 
 export function DiscoveryViewAccess() {
   const path = usePathname();
-  const { query, ready } = useInventoryViewScope();
   if (path !== "/discover") return null;
+  return <DiscoveryViews />;
+}
+
+function DiscoveryViews() {
+  const { query, ready } = useInventoryViewScope();
   if (!ready)
     return (
       <div
