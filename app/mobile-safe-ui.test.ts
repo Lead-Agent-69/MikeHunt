@@ -67,6 +67,13 @@ describe("mobile fixed UI surfaces", () => {
     expect(accountMenu).not.toContain("⎋ Log out");
   });
 
+  it("loads saved-card destinations on selection instead of speculative requests", () => {
+    const savedCard = readFileSync("components/saved/SavedCarCard.tsx", "utf8");
+    const links = Array.from(savedCard.matchAll(/<Link\b[\s\S]*?>/g));
+    expect(links).toHaveLength(3);
+    for (const [link] of links) expect(link).toContain("prefetch={false}");
+  });
+
   it("verifies the app connection and renders only one offline surface", () => {
     const mobileUx = readFileSync("components/ui/mobile-ux.tsx", "utf8");
     const layout = readFileSync("app/layout.tsx", "utf8");

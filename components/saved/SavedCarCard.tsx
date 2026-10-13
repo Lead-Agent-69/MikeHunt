@@ -328,6 +328,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               {save.deal_id ? (
                 <Link
                   href={`/deal/${save.deal_id}`}
+                  prefetch={false}
                   data-testid="saved-card-open"
                   className="after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
                 >
@@ -554,6 +555,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               ) : status === "acquired" ? (
                 <Link
                   href="/fleet"
+                  prefetch={false}
                   className="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-bold text-[var(--blue)]"
                 >
                   {flipDesk ? "View pipeline" : "View purchase plan"}
@@ -563,6 +565,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                   {save.deal_id ? (
                     <Link
                       href={`/deal/${save.deal_id}`}
+                      prefetch={false}
                       className="inline-flex min-h-11 items-center rounded-lg bg-[var(--s1)] px-3 text-xs font-bold text-[var(--t2)]"
                     >
                       Review vehicle
