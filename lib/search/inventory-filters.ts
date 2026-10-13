@@ -27,7 +27,10 @@ const STORED_SOURCE_IDS = [
   "offerup",
   "acv",
 ] satisfies Database["public"]["Enums"]["deal_source"][];
-import { NO_DAMAGE_VALUES } from "@/lib/intelligence/repair-risk";
+import {
+  NO_DAMAGE_VALUES,
+  REPORTED_REPAIR_TITLE_PATTERN,
+} from "@/lib/intelligence/repair-risk";
 
 export function applyRepairEligibility(
   query: any,
@@ -38,9 +41,15 @@ export function applyRepairEligibility(
   const damage = NO_DAMAGE_VALUES.map(
     (value) => `damage_type.ilike.${value === "" ? '""' : value}`,
   ).join(",");
-  return query
-    .or("condition.is.null,condition.in.(clean_title,run_drive)")
-    .or(`damage_type.is.null,${damage}`);
+  return (
+    query
+      .or("condition.is.null,condition.in.(clean_title,run_drive)")
+      .or(`damage_type.is.null,${damage}`)
+      // PostgreSQL ARE uses \y for word boundaries. Quote the static pattern for PostgREST grammar.
+      .or(
+        `title.is.null,title.not.imatch.${JSON.stringify(`\\y(?:${REPORTED_REPAIR_TITLE_PATTERN})\\y`)}`,
+      )
+  );
 }
 
 export function dbSourceValues(sourceId: string) {
