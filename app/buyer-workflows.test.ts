@@ -116,7 +116,7 @@ describe("personal buyer workflows", () => {
       React.createElement(VehicleComparison, { ids: ["one", "two"] }),
     );
     expect(html).toContain("Current bid");
-    expect(html).toContain("Asking price");
+    expect(html).toContain("Unverified advertised amount");
     expect(html).toContain("Dallas, TX");
     expect(html).toContain("Reported no");
     expect(html).toContain("Reported yes");

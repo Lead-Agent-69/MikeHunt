@@ -82,6 +82,20 @@ it("rejects failed HTTP responses", async () => {
     "Price comparison unavailable",
   );
 });
+it("distinguishes loading from insufficient evidence", () => {
+  state.similar = { isLoading: true };
+  expect(render()).toContain("Loading price comparisons");
+  expect(render()).not.toContain("Not enough comparable");
+});
+it("excludes the current vehicle if it is repeated in the response", () => {
+  state.similar.data.similar = comps().map((c, i) => ({
+    ...c,
+    id: i === 0 ? "one" : `other-${i}`,
+  }));
+  expect(render()).not.toContain(
+    'aria-label="Comparable asking prices by mileage"',
+  );
+});
 it("keeps legacy advertised amounts usable without a cash-price or buy claim", () => {
   state.similar.data.similar = comps().map((c) => ({
     ...c,
