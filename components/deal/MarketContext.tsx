@@ -3,7 +3,7 @@
 import React from "react";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
-import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
+import { daysOnMarket } from "@/lib/intelligence/days-on-market";
 import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
 import { mileageCurvePrice } from "@/lib/valuation/mileage-curve";
 import { reportedPrice } from "@/lib/deals/reported-price";
@@ -105,7 +105,6 @@ export function MarketContext({ dealId }: { dealId: string }) {
   const partialFailure = depError || snapError || soldError;
 
   const dom = daysOnMarket(base.firstSeenAt);
-  const tier = dom != null ? domTier(dom) : null;
 
   // Is this car priced below the depreciation curve for its mileage? (a strengthening GO signal)
   let curveNote: { text: string; color: string } | null = null;
@@ -170,15 +169,14 @@ export function MarketContext({ dealId }: { dealId: string }) {
 
       {/* Top row: days on market + depreciation + time travel */}
       <div className="flex flex-wrap gap-2">
-        {tier && dom != null && (
+        {dom != null && (
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--r2)]"
             style={{ background: "var(--s2)" }}
           >
-            <span className="text-xs font-bold" style={{ color: tier.color }}>
-              {dom}d on market
+            <span className="text-xs font-bold text-[var(--t2)]">
+              {dom}d since first observed
             </span>
-            <span className="text-[10px] text-[var(--t4)]">· {tier.label}</span>
           </div>
         )}
         {dep?.depreciationPer1000Miles != null && (

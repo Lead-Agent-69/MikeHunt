@@ -1097,7 +1097,7 @@ export async function GET(request: NextRequest) {
       {
         key: "auctionLots",
         title: "🟡 Auction Lots",
-        subtitle: "Live auction inventory (Copart/IAA/ADESA & gov)",
+        subtitle: "Auction inventory from vehicle and government sales",
         deals: auctionLots,
       },
       {

@@ -70,3 +70,18 @@ it("rejects failed HTTP responses instead of treating them as empty data", async
     "Market evidence unavailable",
   );
 });
+
+it("does not turn observation age into listing duration or seller motivation", () => {
+  swr.sources = {
+    data: {
+      base: {
+        make: "Honda",
+        model: "Civic",
+        firstSeenAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+      },
+    },
+  };
+  const html = render();
+  expect(html).toContain("60d since first observed");
+  expect(html).not.toMatch(/on market|motivated seller|stale/i);
+});
