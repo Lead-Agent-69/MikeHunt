@@ -8,6 +8,7 @@ import {
 } from "@/lib/discovery/auction-scope";
 import {
   applyInventoryLane,
+  applyRepairEligibility,
   applySelectedSources,
   applyVehicleDetails,
   sellerTypeSourceValues,
@@ -36,6 +37,7 @@ export const INVENTORY_SEARCH_KEYS = Array.from(
     "dealerSourceIds",
     "dealers",
     "availability",
+    "includeRepairable",
     "madeInUsa",
     ...INVENTORY_DETAIL_FIELDS.map((field) => field.key),
   ]),
@@ -67,6 +69,7 @@ export function inventoryScopeStates(
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   let q = applyVehicleDetails(applyLiveAuctionWindow(query), params);
   q = applyInventoryLane(q, params.get("lane") || "all");
+  q = applyRepairEligibility(q, params.get("includeRepairable"));
   const csv = (key: string) =>
     (params.get(key) || "")
       .split(",")
