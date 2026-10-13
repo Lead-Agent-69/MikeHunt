@@ -68,9 +68,16 @@ describe("market search handoff", () => {
     );
     const disclosure =
       host.querySelector<HTMLDetailsElement>("section > details")!;
+    const scroll = vi.fn();
+    host.querySelector("section")!.scrollIntoView = scroll;
     expect(disclosure.open).toBe(false);
     act(() => host.querySelector("a")!.click());
     expect(disclosure.open).toBe(true);
+    expect(scroll).toHaveBeenCalledWith({
+      block: "start",
+      behavior: "instant",
+    });
+    expect(document.activeElement).toBe(disclosure.querySelector("summary"));
     expect(disclosure.querySelectorAll("a").length).toBeGreaterThan(3);
   });
   it("keeps the shortcut reachable without pointing to an absent section", () => {

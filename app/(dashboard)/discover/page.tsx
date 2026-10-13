@@ -30,7 +30,7 @@ import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
 import { CoverageNotice } from "@/components/discovery/CoverageNotice";
 import { ForYouRail } from "@/components/reco/ForYouRail";
-import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, ScanSearch } from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
@@ -400,8 +400,8 @@ export default function DiscoverPage() {
   return (
     <div className="space-y-6 pb-24 md:pb-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative">
+      <div className="flex items-start justify-between gap-3">
+        <div className="relative min-w-0">
           <h1 className="relative flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
             <span
               className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg"
@@ -423,6 +423,16 @@ export default function DiscoverPage() {
                 : (statLine ?? "Find vehicles for your budget and buying goal")}
           </p>
         </div>
+        <button
+          type="button"
+          disabled={!discoverReady}
+          onClick={() => router.push(`/scan${scopeQuery}`)}
+          aria-label="Browse inventory"
+          title="Browse inventory"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--b2)] bg-[var(--s0)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+        >
+          <ScanSearch size={20} aria-hidden="true" />
+        </button>
       </div>
 
       <CoverageNotice
@@ -432,107 +442,113 @@ export default function DiscoverPage() {
       />
 
       <section className="border-y border-[var(--b1)] py-3">
-        <form
-          className="flex flex-col gap-3"
-          aria-label="Buying for"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!discoverReady) return;
-            const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
-            const next = applyBuyingForIntent(buyerScope, {
-              make: makeDraft,
-              maxPrice: Number.isFinite(budget) ? budget : 0,
-              laneValue: laneValueDraft,
-              state: state || "NATIONWIDE",
-            });
-            if (next) {
-              writeLocalBuyerIntent(next);
-              setBuyerScope(next);
-            }
-            const params = discoverQueryForBuyingFor(
-              next,
-              state || "NATIONWIDE",
-              selectedStates,
-            );
-            const qs = params.toString();
-            router.replace(qs ? `${pathname}?${qs}` : pathname, {
-              scroll: false,
-            });
-          }}
-        >
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-              Buying for
-            </p>
-            <p className="mt-1 text-sm font-bold text-[var(--t1)]">
-              {activeScopeLabel}
-            </p>
-            <p className="mt-1 text-xs text-[var(--t4)]">
-              {marketContext ||
-                "Refine makes and budgets without leaving your matching results."}
-            </p>
-          </div>
-          <fieldset
-            disabled={!discoverReady}
-            className="grid min-w-0 gap-2 sm:grid-cols-3"
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+          Buying for
+        </p>
+        <p className="mt-1 text-sm font-bold text-[var(--t1)]">
+          {activeScopeLabel}
+        </p>
+        <details className="mt-2">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)]">
+            Search filters
+          </summary>
+          <form
+            className="flex flex-col gap-3"
+            aria-label="Buying for"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!discoverReady) return;
+              const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
+              const next = applyBuyingForIntent(buyerScope, {
+                make: makeDraft,
+                maxPrice: Number.isFinite(budget) ? budget : 0,
+                laneValue: laneValueDraft,
+                state: state || "NATIONWIDE",
+              });
+              if (next) {
+                writeLocalBuyerIntent(next);
+                setBuyerScope(next);
+              }
+              const params = discoverQueryForBuyingFor(
+                next,
+                state || "NATIONWIDE",
+                selectedStates,
+              );
+              const qs = params.toString();
+              router.replace(qs ? `${pathname}?${qs}` : pathname, {
+                scroll: false,
+              });
+            }}
           >
-            <label className="block text-xs font-semibold text-[var(--t3)]">
-              Make
-              <input
-                value={makeDraft}
-                onChange={(event) => setMakeDraft(event.target.value)}
-                placeholder="Any make"
-                aria-label="Make"
-                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-              />
-            </label>
-            <label className="block text-xs font-semibold text-[var(--t3)]">
-              Budget
-              <input
-                inputMode="numeric"
-                value={budgetDraft}
-                onChange={(event) =>
-                  setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
-                }
-                placeholder="Max price"
-                aria-label="Budget"
-                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-              />
-            </label>
-            <label className="block text-xs font-semibold text-[var(--t3)]">
-              Lane
-              <select
-                value={laneValueDraft}
-                onChange={(event) => setLaneDraft(event.target.value)}
-                aria-label="Lane"
-                className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-              >
-                {laneOptions.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </fieldset>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
+            <div>
+              <p className="mt-1 text-xs text-[var(--t4)]">
+                {marketContext ||
+                  "Refine makes and budgets without leaving your matching results."}
+              </p>
+            </div>
+            <fieldset
               disabled={!discoverReady}
-              className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+              className="grid min-w-0 gap-2 sm:grid-cols-3"
             >
-              Apply filters
-            </button>
-            {discoverReady && (
-              <Link
-                href={`/scan${scopeQuery}`}
-                className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+              <label className="block text-xs font-semibold text-[var(--t3)]">
+                Make
+                <input
+                  value={makeDraft}
+                  onChange={(event) => setMakeDraft(event.target.value)}
+                  placeholder="Any make"
+                  aria-label="Make"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-[var(--t3)]">
+                Budget
+                <input
+                  inputMode="numeric"
+                  value={budgetDraft}
+                  onChange={(event) =>
+                    setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  placeholder="Max price"
+                  aria-label="Budget"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-[var(--t3)]">
+                Lane
+                <select
+                  value={laneValueDraft}
+                  onChange={(event) => setLaneDraft(event.target.value)}
+                  aria-label="Lane"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                >
+                  {laneOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </fieldset>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={!discoverReady}
+                className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
               >
-                Browse inventory
-              </Link>
-            )}
-          </div>
-        </form>
+                Apply filters
+              </button>
+              {discoverReady && (
+                <Link
+                  href={`/scan${scopeQuery}`}
+                  prefetch={false}
+                  className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+                >
+                  Browse inventory
+                </Link>
+              )}
+            </div>
+          </form>
+        </details>
       </section>
 
       <details

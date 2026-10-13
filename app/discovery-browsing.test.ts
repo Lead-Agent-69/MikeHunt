@@ -20,6 +20,8 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
     expect(page).toContain("Browse inventory");
+    expect(page).toContain("Search filters");
+    expect(page).toContain('aria-label="Browse inventory"');
     expect(page).toContain("href={`/scan${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
   });
@@ -47,6 +49,8 @@ describe("discovery browsing presentation safeguards", () => {
 
   it("retains estimates in disclosure, allows long names and avoids hover motion when reduced", () => {
     expect(card).toContain("initial={false}");
+    expect(card).toContain('data-testid="discovery-card-price-preview"');
+    expect(card).toContain("{displayPrice}");
     expect(card).not.toContain("whileInView");
     expect(card).not.toMatch(/<motion.div\s+layout/);
     expect(page).not.toContain("motion.section");

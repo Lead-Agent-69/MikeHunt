@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { isLocalE2ETarget } from "./e2e/support/is-local-target";
 
 /**
  * E2E config. Not wired into CI: run with `npm run e2e` (local build) or `npm run e2e:prod`.
@@ -12,9 +13,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   E2E_CROSS_BROWSER=1 adds local-only WebKit phone and Firefox desktop projects.
  */
 const baseURL = process.env.E2E_BASE_URL || "http://localhost:3000";
-const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(
-  baseURL,
-);
+const isLocal = isLocalE2ETarget(baseURL);
 const launchOptions = process.env.E2E_CHROME
   ? { executablePath: process.env.E2E_CHROME }
   : {};

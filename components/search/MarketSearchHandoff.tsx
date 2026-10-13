@@ -10,11 +10,32 @@ export function MarketSearchShortcut({ query }: { query: string }) {
   return (
     <a
       href="#wider-market-search"
-      onClick={() => {
+      onClick={(event) => {
+        if (
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        )
+          return;
         const disclosure = document.querySelector<HTMLDetailsElement>(
           "#wider-market-search > details",
         );
-        if (disclosure) disclosure.open = true;
+        if (!disclosure) return;
+        event.preventDefault();
+        disclosure.open = true;
+        window.history.replaceState(
+          window.history.state,
+          "",
+          "#wider-market-search",
+        );
+        // A smooth fragment jump can move the summary beneath fixed navigation mid-tap.
+        disclosure.parentElement?.scrollIntoView({
+          block: "start",
+          behavior: "instant",
+        });
+        disclosure.querySelector("summary")?.focus({ preventScroll: true });
       }}
       className="inline-flex min-h-11 w-fit items-center gap-2 text-xs font-semibold text-[var(--blue)]"
     >

@@ -33,6 +33,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain('aria-label="Message for decision guide"');
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
+    expect(bottomNav).toContain("prefetch={false}");
     expect(bottomNav).toContain(
       'layoutId={reducedMotion ? undefined : "bottom-nav-active-pill"}',
     );
@@ -54,6 +55,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("flex items-center justify-end gap-2 lg:hidden");
     expect(topNav).toContain("max-w-[88px]");
     expect(topNav).toContain("navItemIsActive(item, pathname)");
+    expect(topNav).toContain("prefetch={false}");
     expect(topNav).not.toContain("More dropdown");
     expect(accountMenu).toContain("LogOut");
     expect(accountMenu).not.toContain('router.push("/sources")');

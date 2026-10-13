@@ -113,6 +113,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const displayAmount = nonCashPriceLabel(deal.priceEvidence)
     ? deal.priceEvidence?.listedAmount || 0
     : deal.askPrice;
+  const displayPrice =
+    Number.isFinite(displayAmount) && displayAmount > 0
+      ? `$${displayAmount.toLocaleString()}`
+      : "Not reported";
   const decision = {
     label: evidence.label,
     background: "rgba(35, 43, 55, .88)",
@@ -138,6 +142,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         >
           <Link
             href={href}
+            prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
             aria-label={`View ${title}${external ? " at the source (opens in a new tab)" : ""}`}
@@ -157,12 +162,29 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             )}
           </Link>
 
-          <span
-            className="pointer-events-none absolute left-2.5 top-2.5 inline-flex max-w-[calc(100%-4.5rem)] items-center rounded-full px-2.5 py-1 text-[11px] font-black"
-            style={{ background: decision.background, color: decision.color }}
-          >
-            {decision.label}
-          </span>
+          <div className="pointer-events-none absolute left-2.5 top-2.5 max-w-[calc(100%-4.5rem)]">
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+              style={{ background: decision.background, color: decision.color }}
+            >
+              {decision.label}
+            </span>
+            <span
+              aria-hidden="true"
+              data-testid="discovery-card-price-preview"
+              className="mt-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)] sm:hidden"
+            >
+              <span className="mb-1 block break-words text-xs font-bold">
+                {title}
+              </span>
+              <span className="block text-[10px] font-semibold">
+                {priceLabel}
+              </span>
+              <span className="font-mono text-base font-black">
+                {displayPrice}
+              </span>
+            </span>
+          </div>
 
           {/* Multi-source chip ΓÇö floating top-right (the Kayak signal) */}
           {multi && (
@@ -222,6 +244,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           <div className="flex justify-between items-start gap-2">
             <Link
               href={href}
+              prefetch={false}
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
               data-testid="discovery-card-open"
@@ -244,9 +267,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 {priceLabel}
               </p>
               <span className="font-mono text-xl font-black text-[var(--t1)]">
-                {Number.isFinite(displayAmount) && displayAmount > 0
-                  ? `$${displayAmount.toLocaleString()}`
-                  : "Not reported"}
+                {displayPrice}
               </span>
             </div>
             {evidence.acquisitionReady && deal.recommendedMaxBid ? (
@@ -602,6 +623,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </details>
           <Link
             href={href}
+            prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
             className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"

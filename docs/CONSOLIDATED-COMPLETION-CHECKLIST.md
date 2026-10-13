@@ -792,6 +792,18 @@ Related evidence:
   do not displace indexed inventory. The existing shortcut opens the native
   disclosure directly; preserve every destination and transferred/untransferred
   filter detail. This change does not create a new backend request.
+- Discovery quick filters are also collapsed initially, with the active buying
+  scope kept visible and a dedicated inventory button. Narrow cards repeat their
+  existing vehicle identity, price label and amount at the top of the photo;
+  screen readers retain the original facts without duplicate announcements.
+  This is a visual preview of the same evidence, never a new cash-price inference.
+- Disable speculative route prefetching in primary navigation, inventory view
+  links and discovery cards. Links still perform normal client navigation on
+  selection. The cross-engine diagnostic run exposed abandoned-prefetch errors
+  in WebKit; errors are not filtered out of the acceptance check. Marketplace
+  shortcuts now land immediately and focus the disclosure, retaining the URL
+  fragment and modified-click behavior, so smooth scrolling cannot move controls
+  behind fixed navigation during the next tap.
 - Acceptance matrix: Chromium at 320x740, 390x844, 768x1024, 1024x768 and 1440x900;
   light/dark Discover, inventory, saved and settings; role-scoped APIs and detail
   routes; touch/keyboard/reduced-motion scrolling and guide focus restoration.
@@ -801,6 +813,10 @@ Related evidence:
   Include account-save persistence after clearing the device backup and reloading,
   plus reachable dealer pipeline and parts screens. These are local integration
   receipts, not proof of production provider login or hosted storage retention.
+- Harden the write-test target check using parsed URL hosts shared by the runner
+  and write helpers. Reject remote lookalikes, credential-bearing URLs and invalid
+  protocols. Before this run, verify the test build's Supabase endpoint is also
+  loopback (`127.0.0.1:54321`); a local web origin alone does not prove local data.
 - Read-only hosted check confirmed the password minimum is already 12. At this
   snapshot, Supabase reports Free/Nano, CPU 6%, disk 21%, RAM 66% and 24/60
   connections; no scheduled backup shown. Advisor still flags the extension-owned
