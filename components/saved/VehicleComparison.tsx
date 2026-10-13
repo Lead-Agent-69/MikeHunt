@@ -53,7 +53,22 @@ const money = (value?: number) =>
         maximumFractionDigits: 0,
       }).format(value);
 
-export function VehicleComparison({ ids }: { ids: string[] }) {
+export function VehicleComparison({
+  ids,
+  origin,
+}: {
+  ids: string[];
+  origin?: string | null;
+}) {
+  const returnLink =
+    origin === "saved"
+      ? { href: "/saved", label: "Back to Saved" }
+      : origin &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            origin,
+          )
+        ? { href: `/deal/${origin}`, label: "Back to vehicle" }
+        : { href: "/discover", label: "Back to Discover" };
   const [differencesOnly, setDifferencesOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [overflows, setOverflows] = useState(false);
@@ -110,7 +125,7 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     return (
       <ErrorState
         title="Couldn't compare these vehicles"
-        message="One of the selected vehicles could not be loaded. Your saves are unchanged."
+        message="The selected vehicles could not be loaded. Your selections are unchanged."
         onRetry={() => void mutate()}
       />
     );
@@ -304,10 +319,11 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href="/saved"
+          href={returnLink.href}
+          prefetch={false}
           className="inline-flex min-h-11 items-center text-sm text-[var(--blue)]"
         >
-          Back to Saved
+          {returnLink.label}
         </Link>
         <label className="inline-flex min-h-11 items-center gap-2 text-sm">
           <input
@@ -325,7 +341,7 @@ export function VehicleComparison({ ids }: { ids: string[] }) {
         >
           {result.failed} selected{" "}
           {result.failed === 1 ? "vehicle couldn't" : "vehicles couldn't"} load.
-          Your saves are unchanged.
+          Your selections are unchanged.
           <button
             type="button"
             onClick={() => void mutate()}

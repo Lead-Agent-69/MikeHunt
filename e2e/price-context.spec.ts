@@ -201,7 +201,7 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       );
       await expect(compare).toHaveAttribute(
         "href",
-        `/compare?ids=${fixture.dealId},${fixture.comparisonIds[0]}`,
+        `/compare?ids=${fixture.dealId},${fixture.comparisonIds[0]}&from=${fixture.dealId}`,
       );
       for (const control of [selector, view, compare])
         expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(
@@ -225,6 +225,12 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
         page.getByRole("heading", { name: "Compare Vehicles", exact: true }),
       ).toBeVisible();
       await expect(page.getByRole("table").first()).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: "Back to vehicle", exact: true }),
+      ).toHaveAttribute("href", `/deal/${fixture.dealId}`);
+      await expect(
+        page.getByRole("link", { name: "Back to Saved", exact: true }),
+      ).toHaveCount(0);
       if (info.project.name === "mobile-390") {
         const region = page.getByRole("region", {
           name: "Selected vehicle comparison",

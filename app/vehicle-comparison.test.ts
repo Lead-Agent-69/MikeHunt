@@ -32,6 +32,27 @@ describe("shortlist comparison", () => {
     swr.result = { data: { cars: [car], failed: 0 } };
     vi.unstubAllGlobals();
   });
+  it.each([
+    ["saved", "/saved", "Back to Saved"],
+    [
+      "00000000-0000-4000-8000-000000000001",
+      "/deal/00000000-0000-4000-8000-000000000001",
+      "Back to vehicle",
+    ],
+    [undefined, "/discover", "Back to Discover"],
+    ["javascript:alert(1)", "/discover", "Back to Discover"],
+    ["//example.com", "/discover", "Back to Discover"],
+    ["../admin", "/discover", "Back to Discover"],
+  ])(
+    "returns to the validated comparison origin: %s",
+    (origin, href, label) => {
+      const html = renderToStaticMarkup(
+        createElement(VehicleComparison, { ids: ["car1", "car2"], origin }),
+      );
+      expect(html).toContain(`href="${href}"`);
+      expect(html).toContain(label);
+    },
+  );
   it("puts price and photo state in the vehicle header, before the detail rows", () => {
     const html = render();
     expect(
