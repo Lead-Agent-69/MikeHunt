@@ -2,9 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
+const insightsStart = page.indexOf("Market insights and saved interests");
 const insights = page.slice(
-  page.indexOf("Market insights and saved interests"),
-  page.indexOf("</details>"),
+  insightsStart,
+  page.indexOf("</details>", insightsStart),
 );
 
 describe("Discover market insights by buyer desk", () => {
