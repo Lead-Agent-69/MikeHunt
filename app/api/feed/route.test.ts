@@ -128,6 +128,11 @@ describe("GET /api/feed desk redaction", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(db.calls).toContainEqual(["range", 300, 311]);
+    expect(db.calls).toContainEqual([
+      "order",
+      "images",
+      { ascending: false, nullsFirst: false },
+    ]);
     expect(
       db.calls.some((call) => call[0] === "not" && call[1] === "images"),
     ).toBe(false);

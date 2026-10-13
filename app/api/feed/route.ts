@@ -136,6 +136,8 @@ async function getFeed(req: NextRequest) {
       .from("deals")
       .select(COLS)
       .eq("active", true)
+      // Nonempty image arrays sort before empty arrays; keep photo-less rows in the stream.
+      .order("images", { ascending: false, nullsFirst: false })
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })
       .range(offset, offset + pageLimit - 1);

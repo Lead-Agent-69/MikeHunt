@@ -84,9 +84,9 @@ export function FeedVehicleCard({
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : (
-          <div className="absolute inset-0 grid place-items-center text-[var(--t3)]">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[var(--t3)]">
             <CarFront size={40} aria-hidden="true" />
-            <span className="sr-only">Photo unavailable</span>
+            <span className="text-xs">Photo unavailable</span>
           </div>
         )}
         <div className="absolute inset-x-0 bottom-0 bg-black/80 px-4 py-3 text-white">
