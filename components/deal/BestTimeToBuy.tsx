@@ -77,7 +77,7 @@ export function BestTimeToBuy({ make, model }: Props) {
   return (
     <Card
       className="border-none overflow-hidden glass-panel"
-      style={{ background: "rgba(20,10,20,0.6)", boxShadow: "var(--shadow)" }}
+      style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
     >
       <CardContent className="p-6 md:p-7">
         <div className="flex flex-wrap items-center gap-2 mb-1">

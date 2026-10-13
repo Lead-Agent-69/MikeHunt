@@ -631,3 +631,44 @@ Related evidence:
 6. Permission-backed source expansion with per-source field/photo completeness,
    deduplication and successful fresh-row receipts. Never count catalog entries,
    blocked endpoints or speculative API routes as working coverage.
+
+## Price Meaning And Comparable Research (October 12 Follow-Up)
+
+- Cross-source observations now distinguish reported asking and buy-now prices
+  from bids, payment amounts, reference values and unverified advertisements.
+  Only recent, traceable full cash amounts enter a range; single observations or
+  a truncated source sample do not establish a complete range. Missing values
+  remain missing. Safe original links and factual source attribution remain.
+- Sources are bounded to the latest 50 exact reported VIN observations, with an
+  explicit incomplete-sample notice. VIN syntax is not identity verification.
+  Service-role projections classify existing private JSON evidence server-side;
+  raw seller text, descriptions and evidence are not exposed. No schema, grants,
+  source activation, hosted cleanup or quota resets are part of this change.
+- Comparable charts separate qualified cash asking prices from an explicitly
+  labeled advertised-amount research mode. Known bids/payments/reference values
+  are excluded from both. Research mode has no cash-price trend or deal grade.
+  Current vehicles do not count toward the comparison sample, and a cash-price
+  curve cannot grade a vehicle outside the actual observed mileage domain.
+- The mileage API matches the complete model literally, checks price meaning,
+  freshness and retail suitability, and bounds work to 500 observations. A
+  truncated sample cannot generate a cash-price trend. Existing alternatives
+  ranking, desk-based profit redaction and source permission boundaries remain.
+- The adjacent seasonal panel uses theme surfaces instead of a dark-only fill.
+  Seasonal copy remains a general heuristic, not measured local-sale forecasting.
+- Read-only hosted audit: 6,693 active rows had no price-kind record, 900 were
+  reference values, 488 unknown and nine current bids; no asking/buy-now kinds
+  were recorded. These are point-in-time observations, not verified cars or
+  evidence of cash-price coverage. Ingestion/enrichment must capture price
+  meaning before cash intelligence can be broadly populated. Research views are
+  intentionally preserved without inferring full prices from seller identity.
+- Hosted database size was 102,583,443 bytes; protected retention remains absent.
+  This measurement alone does not certify free-tier CPU, storage or egress.
+- Global market snapshots, geographic comparisons and recommendation price
+  differences still need a consistent versioned price-evidence audit. This
+  phase does not certify repair costs, embeddings, resale accuracy, source photo
+  completeness, alert delivery or real hosted account mutations.
+- Verification before integration: 81 focused tests across seven files and the
+  production build passed. Twenty-eight controlled local browser checks passed
+  across all four ordinary desks on desktop/mobile, plus light/dark panel checks.
+  Screenshots were inspected. Real local detail routes used mocked comparison
+  evidence; this is not proof of hosted cash-price coverage or source extraction.

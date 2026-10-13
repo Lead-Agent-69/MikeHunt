@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { fitDepreciationCurve } from "@/lib/scoring/depreciation";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  sourcePriceContext,
+  SOURCE_PRICE_FIELDS,
+} from "@/lib/deals/source-price-context";
 
 // GET /api/market/depreciation?make=Honda&model=Accord&year=2018
 // Returns the price-vs-mileage scatter points + a fitted depreciation line ($/1k miles).
@@ -24,13 +28,14 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   let q = supabase
     .from("deals")
-    .select("mileage, ask_price")
+    .select(SOURCE_PRICE_FIELDS)
     .eq("active", true)
-    .ilike("make", make)
-    .ilike("model", `%${model.split(" ")[0]}%`)
-    .gt("ask_price", 0)
+    .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
+    .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
     .not("mileage", "is", null)
-    .limit(500);
+    .order("last_seen_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(501);
   if (year) q = q.gte("year", year - 1).lte("year", year + 1);
 
   const { data, error } = await q;
@@ -39,23 +44,43 @@ export async function GET(req: NextRequest) {
       { error: "Market samples unavailable" },
       { status: 503 },
     );
-  const points = (data || [])
-    .map((d: any) => ({
-      mileage: Number(d.mileage),
-      price: Number(d.ask_price),
-    }))
-    .filter(
-      (p) =>
-        Number.isFinite(p.mileage) &&
-        Number.isFinite(p.price) &&
-        p.mileage > 0 &&
-        p.price > 0,
-    );
+  const hasMore = (data?.length ?? 0) > 500;
+  const observations = (data || []).slice(0, 500).map((d: any) => ({
+    mileage: Number(d.mileage),
+    context: sourcePriceContext(d),
+  }));
+  const cashPoints = observations
+    .filter((d) => d.context.canCompareToAskingCurve)
+    .map((d) => ({ mileage: d.mileage, price: d.context.cashPrice! }))
+    .filter((p) => Number.isFinite(p.mileage) && p.mileage > 0);
+  const qualified = cashPoints.length >= 6 && !hasMore;
+  const points = qualified
+    ? cashPoints
+    : observations
+        .filter(
+          (d) =>
+            d.context.observationCurrent &&
+            ["asking", "buy_now", "unknown"].includes(d.context.kind),
+        )
+        .map((d) => ({
+          mileage: d.mileage,
+          price: d.context.advertisedAmount ?? d.context.amount ?? 0,
+        }))
+        .filter(
+          (p) =>
+            Number.isFinite(p.mileage) &&
+            Number.isFinite(p.price) &&
+            p.mileage > 0 &&
+            p.price > 0,
+        );
 
-  const fit = fitDepreciationCurve(points);
+  const fit = qualified ? fitDepreciationCurve(points) : null;
   return NextResponse.json({
     points,
     n: points.length,
+    priceBasis: qualified ? "reported_cash_asking" : "advertised_amounts",
+    cashSampleCount: cashPoints.length,
+    hasMore,
     depreciationPer1000Miles: fit?.depreciationPer1000Miles ?? null,
     // Draw only across observed samples, not a fictional 0-200k-mile domain.
     trend: fit

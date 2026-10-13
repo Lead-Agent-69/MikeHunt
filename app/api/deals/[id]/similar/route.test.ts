@@ -166,7 +166,13 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     expect(
       queryRows.filters.some(
         ({ method, args }) =>
-          method === "select" && String(args[0]).includes("title, trim"),
+          method === "select" &&
+          ["title", "trim"].every((column) =>
+            String(args[0])
+              .split(",")
+              .map((value) => value.trim())
+              .includes(column),
+          ),
       ),
     ).toBe(true);
   });

@@ -12,6 +12,10 @@ import {
 import { fetchSemanticSimilar } from "@/lib/deals/similar-deals";
 import { similarSegment } from "@/lib/deals/similar-prefilters";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import {
+  sourcePriceContext,
+  SOURCE_PRICE_FIELDS,
+} from "@/lib/deals/source-price-context";
 
 // Output depends on the caller's desk (profit redaction) — never cache it in a shared layer.
 const NO_STORE = { "Cache-Control": "private, no-store" };
@@ -28,6 +32,7 @@ function mapRow(d: any) {
     make: d.make,
     model: d.model,
     askPrice: Number(d.ask_price || 0),
+    priceContext: sourcePriceContext(d),
     mileage: d.mileage,
     condition: d.condition,
     damageType: d.damage_type,
@@ -68,8 +73,7 @@ export async function GET(
     return flipDesk ? card : redactListingForNonFlipDesk(card);
   };
 
-  const columns =
-    "id, year, make, model, title, trim, ask_price, mileage, condition, damage_type, deal_verdict, true_net_profit, sell_estimate, profit_score, location_state, location_city, images, source, active, last_seen_at, auction_end_at, vin";
+  const columns = `id,year,make,model,trim,deal_verdict,true_net_profit,sell_estimate,profit_score,location_state,location_city,images,active,vin,${SOURCE_PRICE_FIELDS}`;
   const { data: base, error: baseError } = await supabase
     .from("deals")
     .select(columns)
