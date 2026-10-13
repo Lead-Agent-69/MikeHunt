@@ -758,7 +758,7 @@ export function SwipeCardStack({
 
       {/* Drag is the fast path; these give keyboard and assistive-tech users the same two
           decisions without needing a pointer. */}
-      <div className="flex items-center justify-center gap-3">
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center gap-3 border-t border-[var(--b1)] bg-[var(--s0)] py-2 sm:static sm:border-0">
         <button
           type="button"
           onClick={() => top && decide(top.id, "pass")}

@@ -71,6 +71,7 @@ export default function FeedPage() {
         setFailed(false);
         const next: FeedVehicle[] = data.items || [];
         setItems((previous) => {
+          if (reset) return next;
           const seen = new Set(previous.map((item) => item.id));
           return [...previous, ...next.filter((item) => !seen.has(item.id))];
         });
@@ -128,7 +129,6 @@ export default function FeedPage() {
             type="button"
             disabled={!ready || loading}
             onClick={() => {
-              setItems([]);
               void loadMore(true);
             }}
             title="Refresh feed"

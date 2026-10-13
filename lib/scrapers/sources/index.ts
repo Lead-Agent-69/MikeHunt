@@ -234,13 +234,15 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
     .filter(
       (d) =>
         d.source_url &&
-        (!d.vin ||
+        (!d.images?.length ||
+          !d.vin ||
           d.vin.length !== 17 ||
           (d.source === "craigslist_dealer" &&
             !d.options?.priceEvidence?.checkedAt)),
     )
     .sort(
       (a, b) =>
+        Number(!b.images?.length) - Number(!a.images?.length) ||
         enrichPriority(b, profitableMakes) - enrichPriority(a, profitableMakes),
     )
     .slice(0, max);

@@ -23,6 +23,7 @@ function query() {
     gte: vi.fn(),
     lte: vi.fn(),
     not: vi.fn(),
+    neq: vi.fn(),
   };
   for (const method of Object.values(builder)) method.mockReturnValue(builder);
   return builder;
@@ -42,7 +43,8 @@ describe("inventory filter contract", () => {
     expect(q.or).toHaveBeenCalledWith(
       "ask_price.is.null,ask_price.lte.0,and(ask_price.gt.0,ask_price.lte.10000)",
     );
-    expect(q.lte).not.toHaveBeenCalled();
+    expect(q.lte).not.toHaveBeenCalledWith("ask_price", expect.anything());
+    expect(q.lte).not.toHaveBeenCalledWith("mileage", expect.anything());
     expect(q.gt).not.toHaveBeenCalled();
   });
   it("treats empty range values in navigation links as unset, not invalid or zero", () => {

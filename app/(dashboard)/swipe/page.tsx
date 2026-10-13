@@ -220,26 +220,23 @@ export default function SwipePage() {
           Swipe
         </h1>
       </motion.div>
-      <InventoryViewLinks
-        query={query}
-        current="/swipe"
-        disabled={!swipeReady}
-      />
-      <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
-        Title
-        <select
-          aria-label="Title filter"
-          value={titleTypeFromQuery(query)}
-          onChange={(event) => setTitleFilter(event.target.value)}
-          className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
-        >
-          {SWIPE_TITLE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <InventoryViewLinks query={query} current="/swipe" disabled={!swipeReady}>
+        <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
+          <span className="sr-only">Title</span>
+          <select
+            aria-label="Title filter"
+            value={titleTypeFromQuery(query)}
+            onChange={(event) => setTitleFilter(event.target.value)}
+            className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
+          >
+            {SWIPE_TITLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </InventoryViewLinks>
       {failedSaves.length > 0 && (
         <div
           role="status"
@@ -344,7 +341,7 @@ export default function SwipePage() {
           cards={cards}
           onSave={onSave}
           onPass={onPass}
-          height="clamp(500px, 65svh, 560px)"
+          height="clamp(430px, calc(100svh - 330px), 560px)"
         />
       )}
     </div>

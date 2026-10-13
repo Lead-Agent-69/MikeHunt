@@ -60,6 +60,11 @@ import {
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
 import {
+  applyCustomerInventory,
+  isCustomerInventory,
+  listingPhotos,
+} from "@/lib/search/customer-inventory";
+import {
   parseTitleTypes,
   titleCategory,
   titleCategoryOrFilter,
@@ -990,12 +995,15 @@ async function publicPreviewFallback(args: {
         );
   const effectiveRows = (unique.length > 0 ? unique : cachedRows).filter(
     (row) =>
-      args.includeRepairable !== "0" ||
-      !hasReportedRepairRisk(
-        row.condition,
-        row.damageType ?? row.damage_type,
-        row.title,
-      ),
+      listingPhotos(row.images).length > 0 &&
+      (unique.length > 0 ||
+        isCustomerInventory({ ...row, last_seen_at: row.lastSeenAt })) &&
+      (args.includeRepairable !== "0" ||
+        !hasReportedRepairRisk(
+          row.condition,
+          row.damageType ?? row.damage_type,
+          row.title,
+        )),
   );
   const start = args.page * args.pageSize;
   const pageRows = effectiveRows.slice(start, start + args.pageSize);
@@ -1153,7 +1161,7 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
-  query = applyLiveAuctionWindow(query);
+  query = applyLiveAuctionWindow(applyCustomerInventory(query));
 
   if (
     !hasAuctionDetailFilters(searchParams) &&

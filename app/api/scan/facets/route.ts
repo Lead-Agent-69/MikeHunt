@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
+import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -177,7 +178,7 @@ export async function GET(req: NextRequest) {
           : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
       )
       .eq("active", true);
-    query = applyLiveAuctionWindow(query);
+    query = applyLiveAuctionWindow(applyCustomerInventory(query));
     if (
       !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({

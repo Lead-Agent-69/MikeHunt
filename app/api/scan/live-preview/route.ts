@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { listingPhotos } from "@/lib/search/customer-inventory";
 import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { cached } from "@/lib/cache";
@@ -361,6 +362,7 @@ export async function GET(req: NextRequest) {
           source: candidate.id,
         }));
         const filtered = tagged.filter((row: any) => {
+          if (!listingPhotos(row.images).length) return false;
           if (
             excludeRepairable &&
             hasReportedRepairRisk(
