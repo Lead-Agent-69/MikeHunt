@@ -1,10 +1,11 @@
-import { buyTerm } from "@/lib/deal-terms";
 import {
   nonCashPriceLabel,
   priceEvidenceLabel,
   type PriceEvidence,
 } from "@/lib/deals/acquisition-price";
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
+import { vehicleLocation } from "@/lib/search/vehicle-location";
 
 type ListingFacts = {
   title?: string;
@@ -59,12 +60,14 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
     [deal.year, deal.make, deal.model, deal.trim].filter(Boolean).join(" ") ||
     "Vehicle listing";
   const auctionFacts = needsOperabilityFacts(deal);
+  const price = sourcePriceContext({
+    source: deal.source,
+    title,
+    ask_price: deal.askPrice,
+    price_evidence: deal.priceEvidence,
+  });
   const facts = [
-    [
-      "Location",
-      [deal.locationCity, deal.locationState].filter(Boolean).join(", ") ||
-        "Not reported",
-    ],
+    ["Location", vehicleLocation(deal.locationCity, deal.locationState)],
     [
       "Mileage",
       typeof deal.mileage === "number" &&
@@ -100,8 +103,7 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
-            {priceEvidenceLabel(deal.priceEvidence) ||
-              buyTerm(deal.source).priceLabel}
+            {priceEvidenceLabel(deal.priceEvidence) || price.label}
           </p>
           <p className="text-xl font-bold text-[var(--t1)]">
             {reportedMoney(

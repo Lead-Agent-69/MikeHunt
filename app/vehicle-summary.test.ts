@@ -5,6 +5,21 @@ import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import { readFileSync } from "node:fs";
 
 describe("first-screen listing facts", () => {
+  it("never labels an unverified dealer amount as a confirmed asking price", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          source: "independent_dealer",
+          askPrice: 2600,
+          locationCity: "MO",
+          locationState: "MO",
+        },
+      }),
+    );
+    expect(html).toContain("Unverified advertised amount");
+    expect(html).toContain("$2,600");
+    expect(html).not.toContain("MO, MO");
+  });
   it("preserves the source title's known variant rather than collapsing truck families", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {
@@ -51,6 +66,7 @@ describe("first-screen listing facts", () => {
           model: "Atlas Cross Sport",
           source: "independent_dealer",
           askPrice: 12980,
+          priceEvidence: { kind: "asking", askingPrice: 12980 },
           locationCity: "Miami",
           locationState: "FL",
           mileage: 52065,

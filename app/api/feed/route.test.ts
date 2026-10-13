@@ -116,6 +116,40 @@ describe("GET /api/feed desk redaction", () => {
     db.cacheKeys = [];
   });
 
+  it("pages signed-in full browsing beyond the 250-car pool and includes missing photos", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    savedMode.value = "personal";
+    db.rows = [{ ...ROW, images: [] }];
+    const response = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?browse=all&states=MO&offset=300&limit=12",
+      ),
+    );
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(db.calls).toContainEqual(["range", 300, 311]);
+    expect(
+      db.calls.some((call) => call[0] === "not" && call[1] === "images"),
+    ).toBe(false);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].netProfit).toBeUndefined();
+    expect(body.boundedPool).toBe(false);
+    expect(body.nextOffset).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("bounds full browsing without querying an unbounded offset", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    const body = await (
+      await GET(
+        new NextRequest("https://app.test/api/feed?browse=all&offset=10000"),
+      )
+    ).json();
+    expect(body.capped).toBe(true);
+    expect(body.items).toEqual([]);
+    expect(db.calls.some((call) => call[0] === "range")).toBe(false);
+  });
+
   it("carries payment meaning, photo sequence and reported title source into quick reviews", async () => {
     db.rows = [
       {

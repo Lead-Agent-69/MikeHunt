@@ -31,12 +31,15 @@ vi.mock("@/lib/supabase", () => ({
         calls.select = c;
         const q: any = {
           in: (_k: string, v: any) => {
-            calls.inArgs = v;
-            return Promise.resolve({ data: [row], error: null });
+            if (_k === "vin") calls.inArgs = v;
+            return q;
           },
+          or: () => q,
           eq: () => q,
           order: () => q,
           limit: () => Promise.resolve({ data: [row], error: null }),
+          then: (resolve: (value: unknown) => unknown) =>
+            resolve({ data: [row], error: null }),
         };
         return q;
       },

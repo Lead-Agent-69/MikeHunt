@@ -12,6 +12,8 @@ import {
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 import { normalizeVin } from "@/lib/vehicle/vin";
+import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
+import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 
 // GET /api/deals/lane?vins=VIN1,VIN2 — deals for the auction lane / run-list offline cache.
 // Replaces the browser's direct anon-key select("*") on deals (column privileges now block that).
@@ -44,6 +46,8 @@ const LANE_COLUMNS = [
   "deal_analysis",
   "estimated_transport_cost",
   "estimated_repair_cost",
+  "price_evidence:options->priceEvidence",
+  "listing_description:options->>description",
 ].join(", ");
 
 const MAX_VINS = 200;
@@ -76,6 +80,11 @@ export async function GET(req: NextRequest) {
   }
 
   const raw = new URL(req.url).searchParams.get("vins");
+  const scope = new URL(req.url).searchParams;
+  scope.set("lane", "auction");
+  const invalid = validateInventoryRanges(scope);
+  if (invalid)
+    return withNoStore(NextResponse.json({ error: invalid }, { status: 400 }));
   const vins = raw
     ? Array.from(
         new Set(
@@ -92,7 +101,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createServerComponentClient();
-    let q = supabase.from("deals").select(LANE_COLUMNS);
+    let q = applyInventoryViewScope(
+      supabase.from("deals").select(LANE_COLUMNS),
+      scope,
+    );
     q = vins
       ? q.in("vin", vins)
       : q

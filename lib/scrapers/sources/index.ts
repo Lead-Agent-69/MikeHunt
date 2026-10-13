@@ -440,15 +440,16 @@ export async function parseCraigslistResults(
     },
   );
 
-  const totalText = $(".totalcount").text();
-  const total = parseInt(totalText) || 0;
-  const offset = parseInt(
-    new URL(
-      $('link[rel="next"]').attr("href") || "",
-      "https://craigslist.org",
-    ).searchParams.get("s") || "0",
-  );
-  return { items, hasMore: offset < total && items.length > 0 };
+  const nextHref = $('link[rel="next"], a[rel="next"]').first().attr("href");
+  // Current static pages can omit the legacy total count. A next link or a full
+  // 120-result page must not be mistaken for the end; paginate still enforces maxPages.
+  const total = Number($(".totalcount").first().text().replace(/,/g, ""));
+  const rangeTo = Number($(".rangeTo").first().text().replace(/,/g, ""));
+  const hasMore =
+    Boolean(nextHref) ||
+    (rangeTo > 0 && total > rangeTo) ||
+    items.length >= 120;
+  return { items, hasMore: items.length > 0 && hasMore };
 }
 
 export async function scrapeCraigslist(

@@ -33,6 +33,7 @@ export default function FeedPage() {
   const [failed, setFailed] = useState(false);
   const [done, setDone] = useState(false);
   const [boundedPool, setBoundedPool] = useState(false);
+  const [capped, setCapped] = useState(false);
   const offset = useRef(0);
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -60,7 +61,7 @@ export default function FeedPage() {
       try {
         const cursor = offset.current;
         const response = await fetch(
-          `/api/feed?${query}&offset=${cursor}&limit=12`,
+          `/api/feed?${query}&browse=all&offset=${cursor}&limit=12`,
           { signal: controller.signal },
         );
         const data = await response.json();
@@ -80,6 +81,7 @@ export default function FeedPage() {
             data.nextOffset === null,
         );
         setBoundedPool(Boolean(data.boundedPool));
+        setCapped(Boolean(data.capped));
       } catch {
         if (token === generation.current && !controller.signal.aborted)
           setFailed(true);
@@ -143,6 +145,12 @@ export default function FeedPage() {
         {boundedPool && (
           <p role="status" className="text-xs text-[var(--t3)]">
             Up to 250 photo-backed matches for your search.
+          </p>
+        )}
+        {capped && (
+          <p role="status" className="text-xs text-[var(--t3)]">
+            You reached this feed's browsing limit. Narrow your search to see
+            more matches.
           </p>
         )}
       </header>

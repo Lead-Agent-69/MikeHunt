@@ -24,6 +24,8 @@ import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { sellerTypeLabel } from "@/lib/sources/source-meta";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
+import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -129,9 +131,15 @@ export const DealCard = memo(function DealCard({
     flipDesk &&
     !id.startsWith("live-") &&
     typeof profitEstimate === "number" &&
-    Number.isFinite(profitEstimate);
+    Number.isFinite(profitEstimate) &&
+    askPrice > 0 &&
+    (sellEstimate || mmrValue || 0) > 0 &&
+    hasRecentSoldEvidence({
+      ...valuation,
+      soldAnchored: soldAnchored === true,
+    });
   const isPositive = profitEstimate >= 0;
-  const location = [locationCity, locationState].filter(Boolean).join(", ");
+  const location = vehicleLocation(locationCity, locationState);
   // Operability ("Runs & drives" / "Needs work") stays its own chip; title lives in TitleBadge.
   const operability = readCondition(condition, damageType);
   const operabilityLabel = operability
@@ -375,7 +383,9 @@ export const DealCard = memo(function DealCard({
         : "freshness pending";
   const sourceWeakDetails = weakSourceDetails(sourceHealth?.completeness);
   const weakAssumption = mathGaps[0] || "source freshness";
-  const visibleWarnings = warnings.filter(Boolean).slice(0, 2);
+  const visibleWarnings = showFlipEconomics
+    ? warnings.filter(Boolean).slice(0, 2)
+    : [];
   const mathDecisionLabel =
     showFlipEconomics && dealVerdict === "pass"
       ? "Pass for now"
@@ -420,11 +430,15 @@ export const DealCard = memo(function DealCard({
       ? "listing fields are present; verify with the seller"
       : "listing details are incomplete",
   ];
-  const explainedWhyShown = trustExplanation?.reasons?.length
-    ? trustExplanation.reasons
-    : whyShown;
+  const explainedWhyShown =
+    showFlipEconomics && trustExplanation?.reasons?.length
+      ? trustExplanation.reasons
+      : whyShown;
   const explanationNextChecks =
-    trustExplanation?.nextChecks?.filter(Boolean) || [];
+    trustExplanation?.nextChecks
+      ?.filter(Boolean)
+      .filter((check) => isAuctionChannel(source) || !/auction/i.test(check)) ||
+    [];
   const explainedConfidenceSummary =
     trustExplanation?.summary ||
     (confidenceScore >= 82
