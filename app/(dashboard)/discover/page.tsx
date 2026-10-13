@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { observeScrollEdges } from "@/lib/ui/observe-scroll-edges";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -30,7 +31,7 @@ import useSWR from "swr";
 import { CoverageNotice } from "@/components/discovery/CoverageNotice";
 import { ForYouRail } from "@/components/reco/ForYouRail";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
-import { motion, useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
 import { DiscoveryCard } from "@/components/discovery/DiscoveryCard";
@@ -89,20 +90,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
   useEffect(() => {
     const element = strip.current;
     if (!element) return;
-    const update = () =>
-      setEdges({
-        start: element.scrollLeft <= 2,
-        end:
-          element.scrollLeft + element.clientWidth >= element.scrollWidth - 2,
-      });
-    update();
-    element.addEventListener("scroll", update, { passive: true });
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => {
-      element.removeEventListener("scroll", update);
-      observer.disconnect();
-    };
+    return observeScrollEdges(element, setEdges);
   }, [rail.deals.length]);
   const browse = (direction: number) => {
     const element = strip.current;
@@ -113,13 +101,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
     });
   };
   return (
-    <motion.section
-      initial={reducedMotion ? false : { opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      className="space-y-3"
-    >
+    <section className="space-y-3">
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
@@ -137,7 +119,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             aria-controls={railId}
             disabled={edges.start}
             onClick={() => browse(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+            className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
@@ -148,13 +130,13 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             aria-controls={railId}
             disabled={edges.end}
             onClick={() => browse(1)}
-            className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+            className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
           >
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
-      <motion.div
+      <div
         ref={strip}
         id={railId}
         role="region"
@@ -167,7 +149,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             browse(event.key === "ArrowRight" ? 1 : -1);
           }
         }}
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
+        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 md:-mx-6 md:scroll-px-6 md:px-6"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
@@ -176,8 +158,8 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
         {rail.deals.map((deal) => (
           <DiscoveryCard key={`${rail.key}-${deal.id}`} deal={deal} />
         ))}
-      </motion.div>
-    </motion.section>
+      </div>
+    </section>
   );
 }
 

@@ -13,18 +13,24 @@ describe("mobile fixed UI surfaces", () => {
     expect(scanPage).not.toContain("items-center sticky top-4 z-20");
   });
 
-  it("keeps the AI launcher out of mobile content and away from the tab bar", () => {
+  it("keeps the decision guide accessible without covering vehicle content", () => {
     const aiFeatures = readFileSync(
       "components/ui/next-level-features.tsx",
       "utf8",
     );
     const bottomNav = readFileSync("components/BottomNav.tsx", "utf8");
 
-    expect(aiFeatures).toContain("hidden max-w-[calc(100vw-24px)]");
-    expect(aiFeatures).toContain("md:flex");
-    expect(aiFeatures).toContain("right-4 top-20");
-    expect(aiFeatures).toContain("lg:top-auto lg:bottom-24");
-    expect(aiFeatures).not.toContain("lg:bottom-6");
+    const accountMenu = readFileSync("components/home/AccountMenu.tsx", "utf8");
+    const overlays = readFileSync(
+      "components/layout/DashboardOverlays.tsx",
+      "utf8",
+    );
+    expect(accountMenu).toContain("Decision guide");
+    expect(accountMenu).toContain('new Event("open-mikehunt-copilot")');
+    expect(overlays).toContain("initialOpen={guideRequested}");
+    expect(aiFeatures).not.toContain("Floating Launcher Button");
+    expect(aiFeatures).toContain("<Dialog.Content");
+    expect(aiFeatures).toContain('aria-label="Message for decision guide"');
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain(

@@ -39,11 +39,20 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).toContain("Next vehicles in");
     expect(page).toContain('event.key === "ArrowRight"');
     expect(page).toContain("disabled={edges.end}");
-    expect(page).toContain("observer.disconnect()");
+    expect(page).toContain("return observeScrollEdges(element, setEdges)");
+    expect(page).toContain("scroll-px-4");
+    expect(page).toContain("md:scroll-px-6");
     expect(page).toContain('behavior: reducedMotion ? "instant" : "smooth"');
   });
 
   it("retains estimates in disclosure, allows long names and avoids hover motion when reduced", () => {
+    expect(card).toContain("initial={false}");
+    expect(card).not.toContain("whileInView");
+    expect(card).not.toMatch(/<motion.div\s+layout/);
+    expect(page).not.toContain("motion.section");
+    const inventory = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
+    expect(inventory).toContain("<div className={gridClass}>");
+    expect(inventory).not.toContain("staggerChildren: 0.06");
     expect(card).toContain("Cost estimates and source details");
     expect(card.replace(/\s+/g, " ")).toContain(
       "not inspection findings or guaranteed sale prices",

@@ -765,3 +765,94 @@ Related evidence:
   browser run passed all 44 controlled cases, including real local detail and
   comparison destinations; screenshots were inspected. Release CI and exact
   production-commit receipts are tracked on the integration PR.
+
+## Responsive And Scroll Acceptance (October 13)
+
+- Discovery rails publish edge-control state only when an edge changes, with
+  passive scrolling, one geometry read per animation frame and complete cleanup.
+  Matching scroll padding fixes keyboard navigation leaving the first card 24px
+  away from the start. Previous/next controls have 44px CSS-pixel targets.
+- Vehicle cards and rail sections no longer wait for viewport entrance animations
+  to reveal prices and facts. Remove unnecessary per-card layout measurement;
+  retain optional hover feedback, native scrolling and reduced-motion behavior.
+- Move the decision guide from a floating launcher that covered inventory into
+  account navigation on every viewport. Preserve its existing opening event and
+  requests made before the idle-loaded drawer mounts. Use the existing Radix
+  modal dependency for focus containment, Escape, background locking and focus
+  return. The guide remains rule-based buying help, not an AI photo inspection.
+- Give inventory its missing semantic heading. Extend controlled local account
+  coverage to DIY alongside personal, reseller, dealer and parts. Test ordinary
+  accounts cannot read admin aggregates; dealers still receive dealer tools,
+  not admin privileges.
+- Inventory results also render without staggered hidden-card entrance states.
+  Page acceptance waits for loaded settings fields, inventory links and saved
+  content rather than treating a loading heading as a finished screen; verify
+  the actual HTML theme, not only the requested storage preference.
+- Secondary marketplace handoffs are collapsed by default, so external links
+  do not displace indexed inventory. The existing shortcut opens the native
+  disclosure directly; preserve every destination and transferred/untransferred
+  filter detail. This change does not create a new backend request.
+- Acceptance matrix: Chromium at 320x740, 390x844, 768x1024, 1024x768 and 1440x900;
+  light/dark Discover, inventory, saved and settings; role-scoped APIs and detail
+  routes; touch/keyboard/reduced-motion scrolling and guide focus restoration.
+  This uses local authentication/data, not hosted provider or delivery receipts.
+- Optional local-only WebKit phone and Firefox desktop projects are enabled with
+  `E2E_CROSS_BROWSER=1`; do not expand production smoke traffic automatically.
+  Include account-save persistence after clearing the device backup and reloading,
+  plus reachable dealer pipeline and parts screens. These are local integration
+  receipts, not proof of production provider login or hosted storage retention.
+- Read-only hosted check confirmed the password minimum is already 12. At this
+  snapshot, Supabase reports Free/Nano, CPU 6%, disk 21%, RAM 66% and 24/60
+  connections; no scheduled backup shown. Advisor still flags the extension-owned
+  `public.spatial_ref_sys`. Review effective exposure before changing a managed
+  PostGIS table. The platform also shows an active incident banner. These signals
+  do not certify sustained capacity or a completed recovery plan.
+- Benchmark principles: prioritize immediately inspectable cards, predictable
+  search/filter and saved workflows, reachable research and source attribution.
+  Reference [Copart search](https://www.copart.com/content/us/en/support/faq-topics/searching-1)
+  and [Visor filters](https://visor.vin/search/filters) externally only; no
+  competitor branding belongs in the product. Use
+  [Apple interaction guidance](https://developer.apple.com/design/human-interface-guidelines/buttons)
+  as a design reference, not native-platform certification. Web targets here are
+  CSS pixels, not a claim of physical iOS points.
+- Synthetic requestAnimationFrame intervals establish an exercised scrolling
+  path, not physical-device presented FPS, battery/thermal performance or field
+  interaction latency. Field acceptance still needs representative iOS Safari,
+  Android and installed-PWA devices, plus cold/warm and constrained-network runs.
+  [Google Web Vitals](https://web.dev/articles/vitals) targets are LCP <=2.5s,
+  INP <=200ms and CLS <=0.1 at the 75th percentile, separated by mobile/desktop.
+- Chromium acceptance before the final handoff disclosure change: all 185 cases
+  passed. Across 25 scrolling samples, median intervals were 16.7ms, the largest
+  per-sample p95 was 33.4ms and there were no gaps above 50ms. Phone cases used 4x
+  simulated CPU throttling. These observations are not a 60fps device guarantee
+  or a controlled causal comparison with earlier diagnostic runs.
+
+### Product Promise Gates Still Open
+
+1. Inventory: permission-backed successful fresh-row receipts, validated price
+   meaning, deduplication and authorized multi-photo completeness for each source.
+   A configured adapter or a stored row count is not verified unique-car coverage.
+2. Intelligence: versioned evidence shared across cards, comparisons, saved,
+   alerts and pipeline; qualified local comps, measured repair costs and held-out
+   outcomes. Keep unavailable estimates unavailable rather than inventing values.
+3. Retention: independent review and targeted apply of #360, reference-survival
+   tests, archive restore/replay and hosted capacity receipts. Unsafe cleanup stays
+   paused; a 1TB worker disk does not expand Supabase/Vercel free-tier quotas.
+4. Delivery and hosted workflows: missing VAPID/Resend setup, delivered/bounced
+   receipts, real notification deep links, authenticated save/settings/onboarding
+   persistence and populated pipeline tests. Empty screens are not end-to-end proof.
+5. Performance: cold public status/API cost, field Web Vitals, real-device scroll
+   and gallery rendering, offline/reconnect and installed-PWA lifecycle checks.
+   This frontend release changes no database grants, source permissions, worker
+   quotas or provider plans and requires no scraper rebuild by itself.
+6. Unfinished performance integration: #343 virtual inventory and #344 list Back
+   restoration remain drafts. Refresh against current main, prove 384+ loaded
+   cards, retained focused items and Back restoration within 100px together.
+   #345 map batching remains draft with failed CI; reconcile current DealerMap
+   behavior, rerun the exact-head gate and verify 3,000+ pins. Old branch-local
+   successes are not evidence these features are integrated or live.
+7. Hosting eligibility: [Vercel's Hobby policy](https://vercel.com/docs/plans/hobby)
+   limits that plan to personal/non-commercial use. Remaining below resource
+   quotas is not permission for a commercial launch. Confirm the intended launch
+   qualifies or choose compliant hosting before business rollout; do not silently
+   upgrade a paid plan or describe free-tier headroom as commercial readiness.

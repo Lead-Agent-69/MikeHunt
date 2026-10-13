@@ -121,10 +121,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
   return (
     <motion.div
-      layout
-      initial={reducedMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-20px" }}
+      initial={false}
       whileHover={reducedMotion ? undefined : { y: -2 }}
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
       className="w-[calc(100vw-2.5rem)] max-w-[358px] shrink-0 sm:w-[300px]"

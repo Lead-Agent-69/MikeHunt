@@ -9,6 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   E2E_CHROME     optional Chrome/Chromium binary (e.g. /usr/bin/google-chrome) when Playwright's
  *                  bundled browser is not installed.
  *   E2E_ADMIN_EMAIL  local admin account (must equal the local server's ADMIN_EMAIL) for /status.
+ *   E2E_CROSS_BROWSER=1 adds local-only WebKit phone and Firefox desktop projects.
  */
 const baseURL = process.env.E2E_BASE_URL || "http://localhost:3000";
 const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?/i.test(
@@ -39,7 +40,7 @@ export default defineConfig({
     launchOptions,
   },
   projects: [
-    // Creates the local desk accounts (personal/reseller/dealer/parts + admin) once; skipped on prod.
+    // Creates the local desk accounts (personal/diy/reseller/dealer/parts + admin) once; skipped on prod.
     {
       name: "setup",
       testMatch: /auth\.setup\.ts/,
@@ -55,6 +56,38 @@ export default defineConfig({
       },
     },
     {
+      name: "tablet-768",
+      testIgnore: /auth\.setup\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 768, height: 1024 },
+        hasTouch: true,
+      },
+    },
+    {
+      name: "tablet-1024",
+      testIgnore: /auth\.setup\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1024, height: 768 },
+        hasTouch: true,
+      },
+    },
+    {
+      name: "mobile-320",
+      testIgnore: /auth\.setup\.ts/,
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 320, height: 740 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    {
       name: "mobile-390",
       testIgnore: /auth\.setup\.ts/,
       dependencies: ["setup"],
@@ -66,5 +99,25 @@ export default defineConfig({
         hasTouch: true,
       },
     },
+    ...(isLocal && process.env.E2E_CROSS_BROWSER === "1"
+      ? [
+          {
+            name: "webkit-390",
+            testIgnore: /auth\.setup\.ts/,
+            dependencies: ["setup"],
+            use: { ...devices["iPhone 13"], launchOptions: {} },
+          },
+          {
+            name: "firefox-desktop",
+            testIgnore: /auth\.setup\.ts/,
+            dependencies: ["setup"],
+            use: {
+              ...devices["Desktop Firefox"],
+              viewport: { width: 1440, height: 900 },
+              launchOptions: {},
+            },
+          },
+        ]
+      : []),
   ],
 });

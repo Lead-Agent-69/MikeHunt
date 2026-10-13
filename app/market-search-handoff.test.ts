@@ -29,7 +29,7 @@ describe("market search handoff", () => {
       "External results are separate from our indexed inventory",
     );
     expect(host.textContent).toContain("Statewide: TX");
-    expect(host.querySelector("summary")?.textContent).toContain(
+    expect(host.querySelector("li summary")?.textContent).toContain(
       "1 filter to confirm",
     );
     expect(host.textContent).toContain("Not transferred: Damage: flood");
@@ -51,6 +51,27 @@ describe("market search handoff", () => {
       expect(link.rel).toContain("noopener");
       expect(link.getAttribute("aria-label")).toContain("opens in a new tab");
     }
+  });
+  it("keeps secondary marketplaces collapsed until the shortcut is used", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() =>
+      root?.render(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(MarketSearchShortcut, { query: "make=Honda" }),
+          React.createElement(MarketSearchHandoff, { query: "make=Honda" }),
+        ),
+      ),
+    );
+    const disclosure =
+      host.querySelector<HTMLDetailsElement>("section > details")!;
+    expect(disclosure.open).toBe(false);
+    act(() => host.querySelector("a")!.click());
+    expect(disclosure.open).toBe(true);
+    expect(disclosure.querySelectorAll("a").length).toBeGreaterThan(3);
   });
   it("keeps the shortcut reachable without pointing to an absent section", () => {
     const host = document.createElement("div");

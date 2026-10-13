@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  Bot,
   Bookmark,
   CircleHelp,
   Flame,
@@ -278,6 +279,17 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
             entry={{ name: "All tools", href: "/tools" }}
             icon={Grid3X3}
           />
+          <button
+            type="button"
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              window.dispatchEvent(new Event("open-mikehunt-copilot"));
+            }}
+          >
+            <Bot size={16} aria-hidden="true" />
+            Decision guide
+          </button>
           {!signedOut && !authLoading && (
             <>
               <div className="my-1 border-t border-[var(--b1)]" />

@@ -4389,6 +4389,7 @@ function ScanPageInner() {
       className="max-w-7xl mx-auto px-4 space-y-5 pb-24"
       style={{ animation: "fadeUp 200ms cubic-bezier(.16,1,.3,1)" }}
     >
+      <h1 className="sr-only">Vehicle inventory</h1>
       {/* ── Search bar ── */}
       <div className="flex flex-wrap items-center gap-2 md:sticky md:top-4 md:z-20">
         {newCount > 0 && (
@@ -5253,34 +5254,9 @@ function ScanPageInner() {
       )}
 
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
-        <motion.div
-          className={gridClass}
-          variants={{
-            hidden: {},
-            show: {
-              transition: { staggerChildren: 0.06, delayChildren: 0.05 },
-            },
-          }}
-          initial="hidden"
-          animate="show"
-        >
+        <div className={gridClass}>
           {filteredResults.map((car: ScanResult) => (
-            <motion.div
-              key={car.id}
-              variants={{
-                hidden: { opacity: 0, y: 20, scale: 0.97 },
-                show: {
-                  opacity: 1,
-                  y: 0,
-                  scale: 1,
-                  transition: {
-                    type: "spring" as const,
-                    stiffness: 120,
-                    damping: 18,
-                  },
-                },
-              }}
-            >
+            <div key={car.id}>
               <DealCard
                 flipDesk={flipEconomics}
                 id={car.id}
@@ -5417,9 +5393,9 @@ function ScanPageInner() {
                   );
                 }}
               />
-            </motion.div>
+            </div>
           ))}
-        </motion.div>
+        </div>
       )}
 
       {/* Infinite scroll — auto-append more inventory as you near the bottom (grid + table views). */}

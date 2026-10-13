@@ -25,6 +25,17 @@ const MikeHuntCopilotDrawer = dynamic(
  */
 export function DashboardOverlays() {
   const [ready, setReady] = useState(false);
+  const [guideRequested, setGuideRequested] = useState(false);
+
+  useEffect(() => {
+    // Preserve requests made before the idle-loaded drawer has mounted.
+    const openGuide = () => {
+      setGuideRequested(true);
+      setReady(true);
+    };
+    window.addEventListener("open-mikehunt-copilot", openGuide);
+    return () => window.removeEventListener("open-mikehunt-copilot", openGuide);
+  }, []);
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -42,7 +53,7 @@ export function DashboardOverlays() {
   return (
     <>
       <CommandPalette />
-      <MikeHuntCopilotDrawer />
+      <MikeHuntCopilotDrawer initialOpen={guideRequested} />
     </>
   );
 }
