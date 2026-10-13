@@ -146,7 +146,7 @@ export function FeedVehicleCard({
           <button
             type="button"
             onClick={() => setReview(true)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 text-sm font-semibold text-[var(--on-accent)]"
           >
             Quick review <ChevronRight size={16} aria-hidden="true" />
           </button>

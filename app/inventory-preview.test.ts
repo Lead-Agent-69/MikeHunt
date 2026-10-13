@@ -3,8 +3,29 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SwipeVehicleFace } from "@/components/search/SwipeVehicleFace";
 import { FeedVehicleCard } from "@/components/feed/FeedVehicleCard";
+import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 
 describe("photo-first inventory previews", () => {
+  it("keeps pending view links and body-style controls unavailable until scope is ready", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query: "states=MO",
+        current: "/feed",
+        disabled: true,
+      }),
+    );
+    expect(html).toContain('aria-busy="true"');
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("<select");
+    const ready = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query: "states=MO",
+        current: "/feed",
+      }),
+    );
+    expect(ready).not.toContain('aria-busy="true"');
+    expect(ready).toContain("states=MO");
+  });
   it("swipe shows photo paging and payment meaning without a made-up buy recommendation", () => {
     const html = renderToStaticMarkup(
       createElement(SwipeVehicleFace, {

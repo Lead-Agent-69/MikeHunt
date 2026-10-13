@@ -139,7 +139,7 @@ export default function FeedPage() {
             />
           </button>
         </div>
-        <InventoryViewLinks query={query} current="/feed" />
+        <InventoryViewLinks query={query} current="/feed" disabled={!ready} />
         {boundedPool && (
           <p role="status" className="text-xs text-[var(--t3)]">
             Up to 250 photo-backed matches for your search.

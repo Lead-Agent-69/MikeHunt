@@ -129,7 +129,7 @@ export function QuickVehicleReview({
         </section>
         <Link
           href={`/deal/${vehicle.id}`}
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[var(--blue)] px-4 text-sm font-semibold text-white"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)]"
         >
           Open full analysis
         </Link>
