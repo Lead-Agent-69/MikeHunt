@@ -85,3 +85,80 @@ it("does not turn observation age into listing duration or seller motivation", (
   expect(html).toContain("60d since first observed");
   expect(html).not.toMatch(/on market|motivated seller|stale/i);
 });
+
+it.each([false, undefined])(
+  "does not plot ineligible or legacy amounts: %s",
+  (canCompareToAskingCurve) => {
+    swr.sources = {
+      data: {
+        base: {
+          make: "Honda",
+          model: "Accord",
+          mileage: 50000,
+          askPrice: 500,
+          cashPrice: 500,
+          canCompareToAskingCurve,
+        },
+      },
+    };
+    swr.auxiliary = {
+      data: {
+        depreciationPer1000Miles: 100,
+        trend: [
+          { mileage: 0, price: 20000 },
+          { mileage: 100000, price: 10000 },
+        ],
+      },
+    };
+    expect(render()).not.toMatch(/% (below|above) the asking-price curve/);
+  },
+);
+it("uses eligible cash price instead of a payment on the curve", () => {
+  swr.sources = {
+    data: {
+      base: {
+        make: "Honda",
+        model: "Accord",
+        mileage: 50000,
+        askPrice: 500,
+        cashPrice: 12000,
+        canCompareToAskingCurve: true,
+      },
+    },
+  };
+  swr.auxiliary = {
+    data: {
+      depreciationPer1000Miles: 100,
+      priceBasis: "reported_cash_asking",
+      trend: [
+        { mileage: 0, price: 20000 },
+        { mileage: 100000, price: 10000 },
+      ],
+    },
+  };
+  expect(render()).toContain("20% below the asking-price curve");
+});
+it("labels payment terms for a single reported listing", () => {
+  swr.sources = {
+    data: {
+      base: { make: "Honda", model: "Accord" },
+      sources: [
+        {
+          id: "payment",
+          source: "independent_dealer",
+          askPrice: 500,
+          priceContext: {
+            kind: "down_payment",
+            label: "Possible down payment",
+            advertisedAmount: 500,
+          },
+          url: null,
+        },
+      ],
+    },
+  };
+  const html = render();
+  expect(html).toContain("Possible down payment");
+  expect(html).toContain("1 reported listing");
+  expect(html).not.toContain("Reported asking / buy-now range");
+});

@@ -8,6 +8,7 @@ import { PriceMilesChart } from "@/components/deal/PriceMilesChart";
 import { mileageCurvePrice } from "@/lib/valuation/mileage-curve";
 import { reportedPrice } from "@/lib/deals/reported-price";
 import { buyTerm } from "@/lib/deal-terms";
+import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { ErrorState } from "@/components/shared/ErrorState";
 
 const fetcher = async (url: string) => {
@@ -26,18 +27,8 @@ const money = (v: any) =>
           maximumFractionDigits: 0,
         }).format(Number(v));
 
-const SRC_LABEL: Record<string, string> = {
-  facebook_marketplace: "Facebook",
-  craigslist: "Craigslist",
-  ebay_motors: "eBay",
-  cars_com: "Cars.com",
-  autotrader: "AutoTrader",
-  cargurus: "CarGurus",
-};
-const srcName = (s: string) => SRC_LABEL[s] || (s || "").replace(/_/g, " ");
-
 /**
- * Market Context — Visor-style intelligence on the deal page: days-on-market, the depreciation
+ * Market context on the deal page: observation age, the depreciation
  * curve ($/1k mi + above/below), a time-travel price snapshot, and the cross-source price table.
  * Each block self-hides when its data isn't available.
  */
@@ -106,17 +97,20 @@ export function MarketContext({ dealId }: { dealId: string }) {
 
   const dom = daysOnMarket(base.firstSeenAt);
 
-  // Is this car priced below the depreciation curve for its mileage? (a strengthening GO signal)
+  // A retail asking-price curve is not a reference for a bid, payment or repairable vehicle.
   let curveNote: { text: string; color: string } | null = null;
   if (
     dep?.depreciationPer1000Miles != null &&
+    dep.priceBasis === "reported_cash_asking" &&
     dep.trend &&
     base.mileage &&
-    base.askPrice
+    base.canCompareToAskingCurve === true &&
+    typeof base.cashPrice === "number" &&
+    base.cashPrice > 0
   ) {
     const expected = mileageCurvePrice(dep.trend, base.mileage);
     if (expected != null) {
-      const diff = base.askPrice - expected;
+      const diff = base.cashPrice - expected;
       const pct = Math.round((Math.abs(diff) / expected) * 100);
       curveNote =
         diff < 0
@@ -132,12 +126,13 @@ export function MarketContext({ dealId }: { dealId: string }) {
   }
 
   const sources: any[] = src?.sources ?? [];
-  const showTable = sources.length > 1;
+  const showTable = sources.length > 0;
 
   // Nothing meaningful to show.
   if (
     dom == null &&
     !dep?.depreciationPer1000Miles &&
+    !(dep?.points?.length >= 6) &&
     snap?.change == null &&
     !showTable &&
     !(sold?.count > 0) &&
@@ -179,17 +174,18 @@ export function MarketContext({ dealId }: { dealId: string }) {
             </span>
           </div>
         )}
-        {dep?.depreciationPer1000Miles != null && (
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--r2)]"
-            style={{ background: "var(--s2)" }}
-          >
-            <span className="text-xs font-bold text-[var(--t2)]">
-              {money(dep.depreciationPer1000Miles)}/1k mi
-            </span>
-            <span className="text-[10px] text-[var(--t4)]">depreciation</span>
-          </div>
-        )}
+        {dep?.priceBasis === "reported_cash_asking" &&
+          dep.depreciationPer1000Miles != null && (
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--r2)]"
+              style={{ background: "var(--s2)" }}
+            >
+              <span className="text-xs font-bold text-[var(--t2)]">
+                {money(dep.depreciationPer1000Miles)}/1k mi
+              </span>
+              <span className="text-[10px] text-[var(--t4)]">depreciation</span>
+            </div>
+          )}
         {snap?.change != null && (
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-[var(--r2)]"
@@ -219,10 +215,23 @@ export function MarketContext({ dealId }: { dealId: string }) {
       {dep?.points && dep.points.length >= 6 && (
         <PriceMilesChart
           points={dep.points}
-          trend={dep.trend}
-          here={{ mileage: base.mileage, price: base.askPrice }}
+          trend={dep.priceBasis === "reported_cash_asking" ? dep.trend : null}
+          here={
+            dep.priceBasis === "reported_cash_asking" &&
+            base.canCompareToAskingCurve === true
+              ? { mileage: base.mileage, price: base.cashPrice }
+              : undefined
+          }
         />
       )}
+
+      {dep?.points?.length >= 6 &&
+        dep.priceBasis !== "reported_cash_asking" && (
+          <p className="text-xs text-[var(--t3)]">
+            Advertised amounts only. Price terms may be unverified; no
+            cash-price trend is inferred.
+          </p>
+        )}
 
       {/* Recent SOLD comps — actual transaction prices (hides until sold data exists) */}
       {sold?.count > 0 && (
@@ -243,15 +252,29 @@ export function MarketContext({ dealId }: { dealId: string }) {
       {showTable && (
         <div>
           <p className="text-xs text-[var(--t3)] mb-1.5">
-            This VIN appears in {sources.length} reported listings. Price types
-            and availability may differ.
+            This reported VIN appears in {sources.length}
+            {src.hasMore ? "+" : ""} reported{" "}
+            {sources.length === 1 ? "listing" : "listings"}. Price types and
+            availability may differ.
           </p>
+          {src.hasMore && (
+            <p className="text-xs text-[var(--t3)] mb-2">
+              Showing the 50 latest observations; no complete price range is
+              established.
+            </p>
+          )}
+          {typeof src.cheapest === "number" &&
+            typeof src.dearest === "number" && (
+              <p className="text-xs text-[var(--t2)] mb-2">
+                Reported asking / buy-now range: {money(src.cheapest)}–
+                {money(src.dearest)} ({src.comparableCount} recently observed
+                prices). Fees and transport are not included.
+              </p>
+            )}
           <div className="rounded-[var(--r2)] overflow-hidden border border-[var(--b1)] divide-y divide-[var(--b1)]">
             {sources.map((s) => {
-              const href =
-                typeof s.url === "string" && /^https?:\/\//i.test(s.url)
-                  ? s.url
-                  : null;
+              const vendor = vendorIdentity(s.source, s.url);
+              const href = vendor.href || null;
               const Row = href ? "a" : "div";
               return (
                 <Row
@@ -265,7 +288,7 @@ export function MarketContext({ dealId }: { dealId: string }) {
                   }
                 >
                   <span className="min-w-0 break-words text-[var(--t2)] capitalize">
-                    {srcName(s.source)}
+                    {vendor.label}
                     {s.isThis && (
                       <span className="text-[10px] text-[var(--amber-d)] font-bold">
                         {" "}
@@ -286,9 +309,23 @@ export function MarketContext({ dealId }: { dealId: string }) {
                     style={{ fontFamily: "var(--fm)" }}
                   >
                     <span className="block text-right text-[10px] font-normal">
-                      {buyTerm(s.source).priceLabel}
+                      {s.priceContext?.label || buyTerm(s.source).priceLabel}
                     </span>
                     {reportedPrice(s.askPrice)}
+                    {s.priceContext?.buyNowPrice > 0 &&
+                      s.priceContext.kind !== "buy_now" && (
+                        <span className="block text-right text-xs font-normal">
+                          Buy-now price{" "}
+                          {reportedPrice(s.priceContext.buyNowPrice)}
+                        </span>
+                      )}
+                    {s.priceContext?.advertisedAmount > 0 &&
+                      s.priceContext.advertisedAmount !== s.askPrice && (
+                        <span className="block text-right text-xs font-normal">
+                          Advertised amount{" "}
+                          {reportedPrice(s.priceContext.advertisedAmount)}
+                        </span>
+                      )}
                   </Mono>
                 </Row>
               );
