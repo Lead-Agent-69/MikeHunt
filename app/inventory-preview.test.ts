@@ -6,6 +6,55 @@ import { FeedVehicleCard } from "@/components/feed/FeedVehicleCard";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 
 describe("photo-first inventory previews", () => {
+  it("discloses missing body-style coverage and clears only the style filter", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query: "states=MO%2CTX&body=Pickup&includeRepairable=0&q=Ford",
+        current: "/feed",
+      }),
+    );
+    expect(html).toContain("Body style is not reported for every listing.");
+    expect(html).toContain('name="body" value=""');
+    expect(html).toContain('name="states" value="MO,TX"');
+    expect(html).toContain('name="includeRepairable" value="0"');
+    expect(html).toContain('name="q" value="Ford"');
+  });
+  it("does not silently discard swipe photos after the eighth image", () => {
+    const html = renderToStaticMarkup(
+      createElement(SwipeVehicleFace, {
+        deal: {
+          id: "gallery",
+          title: "Ford",
+          images: Array.from(
+            { length: 12 },
+            (_, i) => `https://example.com/${i}.jpg`,
+          ),
+        },
+      }),
+    );
+    expect(html).toContain("1/12 photos");
+    expect(html).not.toContain("1/8 photos");
+    expect(html).toContain("Next photo");
+  });
+  it("shows source last-seen dates without calling them verified availability", () => {
+    const item = {
+      id: "seen",
+      title: "Ford",
+      source: "craigslist",
+      lastSeenAt: "2026-10-12T23:00:00Z",
+    };
+    const html = renderToStaticMarkup(createElement(FeedVehicleCard, { item }));
+    expect(html.toLowerCase()).toContain('datetime="2026-10-12t23:00:00z"');
+    expect(html).toContain("Oct 12, 2026");
+    expect(html).not.toContain("Verified available");
+    const unknown = renderToStaticMarkup(
+      createElement(FeedVehicleCard, {
+        item: { ...item, lastSeenAt: "invalid" },
+      }),
+    );
+    expect(unknown).toContain("Last seen date not reported");
+    expect(unknown).not.toContain("Invalid Date");
+  });
   it("keeps pending view links and body-style controls unavailable until scope is ready", () => {
     const html = renderToStaticMarkup(
       createElement(InventoryViewLinks, {

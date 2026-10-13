@@ -31,7 +31,7 @@ export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
   const [photo, setPhoto] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
   const [review, setReview] = useState(false);
-  const images = (deal.images || []).slice(0, 8);
+  const images = deal.images || [];
   const title =
     deal.title ||
     [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
@@ -65,7 +65,7 @@ export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
             <CarFront size={32} aria-hidden="true" />
           </div>
         )}
-        {images.length > 1 && (
+        {images.length > 1 && images.length <= 8 && (
           <div
             className="absolute inset-x-3 top-3 flex gap-1"
             aria-label={`Photo ${photo + 1} of ${images.length}`}

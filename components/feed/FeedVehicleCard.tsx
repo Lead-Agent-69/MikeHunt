@@ -142,6 +142,21 @@ export function FeedVehicleCard({
         <p className="text-sm text-[var(--t3)]">
           Condition and total cost need checking before buying.
         </p>
+        <p className="text-xs text-[var(--t3)]">
+          {item.lastSeenAt && Number.isFinite(Date.parse(item.lastSeenAt)) ? (
+            <>
+              Last seen{" "}
+              <time dateTime={item.lastSeenAt}>
+                {new Intl.DateTimeFormat("en-US", {
+                  dateStyle: "medium",
+                  timeZone: "UTC",
+                }).format(new Date(item.lastSeenAt))}
+              </time>
+            </>
+          ) : (
+            "Last seen date not reported"
+          )}
+        </p>
         <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--b1)] pt-3">
           <button
             type="button"

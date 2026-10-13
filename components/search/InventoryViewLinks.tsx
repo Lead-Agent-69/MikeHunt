@@ -111,6 +111,28 @@ export function InventoryViewLinks({
           <ArrowRight size={18} aria-hidden="true" />
         </button>
       </form>
+      {params.get("body") && params.get("body") !== "all" && (
+        <div className="flex w-full flex-wrap items-center gap-2 text-xs text-[var(--t2)]">
+          <p>Body style is not reported for every listing.</p>
+          <form
+            action={current === "/discover" ? "/scan" : current}
+            method="get"
+          >
+            {Array.from(params.entries())
+              .filter(([key]) => key !== "body")
+              .map(([key, value]) => (
+                <input key={key} type="hidden" name={key} value={value} />
+              ))}
+            <input type="hidden" name="body" value="" />
+            <button
+              type="submit"
+              className="min-h-11 px-2 font-semibold text-[var(--blue)]"
+            >
+              All body styles
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

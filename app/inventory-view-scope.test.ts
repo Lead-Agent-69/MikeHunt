@@ -2,11 +2,13 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+const saved = vi.hoisted(() => ({ states: undefined as string[] | undefined }));
 
 vi.mock("@/hooks/useBuyerIntent", () => ({
   useBuyerIntent: () => ({
     intent: { buyerMode: "personal", maxPrice: 10000 },
     isLoading: false,
+    savedStates: saved.states,
   }),
   buildBuyerIntentQuery: () =>
     new URLSearchParams("state=TX&maxPrice=10000&q=truck"),
@@ -24,6 +26,7 @@ function Surface() {
 }
 let root: Root, host: HTMLDivElement;
 beforeEach(() => {
+  saved.states = undefined;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
   root = createRoot(host);
@@ -35,6 +38,41 @@ afterEach(() => {
 });
 
 describe("cross-view scope preservation", () => {
+  it("preserves every selected market rather than just the onboarding state", async () => {
+    saved.states = ["MO", "TX", "IL", "FL"];
+    await act(async () => root.render(React.createElement(Surface)));
+    const params = new URLSearchParams(
+      host.querySelector("output")!.textContent!,
+    );
+    expect(params.get("states")).toBe("MO,TX,IL,FL");
+    expect(params.has("state")).toBe(false);
+    expect(params.get("maxPrice")).toBe("10000");
+    const href = host
+      .querySelector<HTMLAnchorElement>('a[href^="/feed"]')!
+      .getAttribute("href")!;
+    expect(
+      new URL(href, "https://example.com").searchParams.get("states"),
+    ).toBe("MO,TX,IL,FL");
+  });
+  it("respects a saved nationwide selection without resurrecting the onboarding state", async () => {
+    saved.states = [];
+    await act(async () => root.render(React.createElement(Surface)));
+    const params = new URLSearchParams(
+      host.querySelector("output")!.textContent!,
+    );
+    expect(params.has("state")).toBe(false);
+    expect(params.has("states")).toBe(false);
+  });
+  it("lets an explicit single state override all saved markets", async () => {
+    saved.states = ["MO", "TX", "IL", "FL"];
+    window.history.replaceState(null, "", "/map?state=CA");
+    await act(async () => root.render(React.createElement(Surface)));
+    const params = new URLSearchParams(
+      host.querySelector("output")!.textContent!,
+    );
+    expect(params.get("state")).toBe("CA");
+    expect(params.has("states")).toBe(false);
+  });
   it("uses saved buyer scope when a view has no explicit search", async () => {
     await act(async () => root.render(React.createElement(Surface)));
     const params = new URLSearchParams(
