@@ -423,7 +423,8 @@ export async function parseCraigslistResults(
         model: title.split(" ").slice(2, 4).join(" ") || "",
         ask_price: extractPrice(priceText) || 0,
         mileage: mileageFromTitle(title),
-        condition: "run_drive",
+        // Search cards do not establish title or operability; detail evidence may enrich them.
+        condition: undefined,
         location_city: hood || city,
         location_state: craigslistListingState(hood),
         metadata: {

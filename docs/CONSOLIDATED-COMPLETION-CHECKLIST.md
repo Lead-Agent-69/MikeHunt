@@ -615,6 +615,44 @@ Related evidence:
 
 ## Remaining Acceptance Order
 
+### October 13 Hosted Acceptance Snapshot
+
+- Read-only hosted audit at 06:28 UTC: database size 102,960,275 bytes;
+  protected retention and storage meter functions absent. Both legacy jobs
+  (`cleanup-expired-deals`, `cleanup-dead-deals`) remain active. #360 remains
+  open without a recorded review. No cleanup or hosted migration was applied.
+- Dashboard billing counters: database 118/500 MB, egress 1.07/5 GB, log
+  ingestion 0.49/1 GB. Billing counters and SQL relation size are different
+  measurements. This snapshot does not certify monthly capacity.
+- Active inventory snapshot: 8,266 stored rows across 11 source types. Only
+  396 rows have multiple captured photos. Fresh observations within 24 hours:
+  independent dealers 177/2,544, Copart 1,195/1,779, government 102/1,537,
+  Craigslist dealer 202/855 and private 126/428. The other six source types
+  have zero fresh observations in this window. These are not unique vehicle
+  counts or proof that every source works. Recent runs include errors and
+  an Autotrader success with zero rows; discovery is not persistence proof.
+- Connected Docker host, not remote Zeus: image
+  `mikehunt-scraper-release:b495d4e`, healthy status endpoint but
+  `quota_paused`, 1,000 inserts and 550 updates. Persistent cache/log/profile
+  binds use F:, disk 12% used, Docker logs bounded to 3 x 10 MB. No quota
+  reset, container recreation, restricted-source activation or Zeus SSH.
+- Live signed-in dealer account: unchanged profile/cost save confirmed,
+  unchanged home-state save confirmed, reload preserved cost fields, account
+  watchlist loaded and its detail link opened. Desktop and 390px photo preview
+  loaded with an accessible close control; mobile dialog filled the viewport
+  without page horizontal overflow. Existing saved research was not removed.
+- Discover initially failed and recovered on retry. Push settings explicitly
+  report that push is not switched on. These remain acceptance gaps. Other
+  hosted buyer roles, admin authorization, purchase mutations, saved-search
+  writes and real-device alert delivery are not certified by this dealer pass.
+- Craigslist search-card ingestion no longer invents `run_drive` when no
+  listing evidence is available. Detail-page title evidence is preserved.
+  Existing stored assumptions require a separately reviewed remediation;
+  a web deployment alone does not update worker code or rewrite old records.
+- Repeat the aggregate-only SQL snapshot with
+  `supabase/tests/inventory-readiness-audit.sql`; read-only transaction and
+  10-second statement limit, no customer rows or cleanup operations.
+
 1. Protected retention #360: refresh against current main, independent database
    review, targeted hosted apply and grants/cron/reference-survival proof before
    dependent cleanup rollout. CI passing alone does not clear this gate.
