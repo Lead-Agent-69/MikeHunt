@@ -71,6 +71,35 @@ function req(path: string) {
   return new NextRequest(`http://localhost:3000${path}`);
 }
 
+it("excludes title-reported repair projects across all Discover rails", async () => {
+  rpc.mockResolvedValue({
+    data: [
+      {
+        ...baseRow,
+        title: "2003 Ford Escape $800 OBO *Mechanic's Special",
+        source: "independent_dealer",
+        source_url: "https://dealer.example/car",
+        auction_end_at: null,
+        condition: "run_drive",
+        damage_type: "none",
+      },
+    ],
+    error: null,
+  });
+  const { GET } = await import("./route");
+  const excluded = await (
+    await GET(req("/api/discover?includeRepairable=0"))
+  ).json();
+  expect(excluded.uniqueVehicles).toBe(0);
+  expect(excluded.rails.every((rail: any) => rail.deals.length === 0)).toBe(
+    true,
+  );
+  const included = await (
+    await GET(req("/api/discover?includeRepairable=1"))
+  ).json();
+  expect(included.uniqueVehicles).toBe(1);
+});
+
 const baseRow = {
   id: "deal-1",
   source: "gov_auction",
