@@ -185,7 +185,7 @@ export default function AuctionsPage() {
                 required
                 value={auctionName}
                 onChange={(e) => setAuctionName(e.target.value)}
-                placeholder="e.g. Copart Dallas Lane C"
+                placeholder="e.g. Dallas auction, Lane C"
                 className="w-full bg-[var(--s0)] border border-[var(--b2)] rounded-[var(--r2)] px-3 py-2 text-[var(--t1)]"
               />
             </div>

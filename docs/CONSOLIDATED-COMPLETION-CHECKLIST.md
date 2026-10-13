@@ -583,3 +583,39 @@ Related evidence:
   freshness, auction-window, condition, VIN and price-band guards are retained.
   Full integration/deployment and post-release query receipts remain separate;
   this does not validate every truck platform, physical specifications or resale.
+
+## Share-To-Save And Neutral Guidance (October 12 Follow-Up)
+
+- Remove branded comparisons/examples from buyer scope, auction scheduling,
+  Discover auction guidance and shared-listing instructions. Factual source labels
+  and original links are not promotional comparisons; their visibility is a
+  separate product choice, not a reason to falsify provenance.
+- Shared links embedded in prose are extracted before posting. Unsupported
+  protocols, incomplete URLs and embedded credentials do not start a request.
+  Server-side public-URL/permission checks remain authoritative and unchanged.
+- Require a confirmed vehicle identifier before navigation. Failed or malformed
+  responses offer a retry; anonymous sign-in preserves the shared listing;
+  superseded/account-changed requests cannot navigate. Do not claim a valuation
+  or profit calculation merely because listing details were saved.
+- Local controlled tests cover all four ordinary desks on desktop/mobile.
+  These do not prove a remote site's extraction permission or real hosted saves.
+  Final test, merge and deployment receipts belong to the integration PR.
+
+## Remaining Acceptance Order
+
+1. Protected retention #360: refresh against current main, independent database
+   review, targeted hosted apply and grants/cron/reference-survival proof before
+   dependent cleanup rollout. CI passing alone does not clear this gate.
+2. Worker cache fix #387: code merged as `43c889e` and Vercel READY at that SHA;
+   worker rebuild/observation recovery receipt remains separate. Preserve cache,
+   profiles and quota state. Local log rollout at `bebb6b8` is not this code.
+3. Actual hosted storage/egress/CPU headroom and cold-archive restore/replay proof.
+   The connected F: disk and bounded logs do not expand hosted free-tier quotas.
+4. Provider delivery configuration, delivered/bounced receipts and real device
+   notification opening; hosted login/onboarding/saves and authorized admin QA.
+5. Consistent versioned intelligence across cards, comparison, saved vehicles,
+   alerts and pipeline; verified local comps and costs, held-out outcomes and
+   real-traffic freshness before purchase-confidence or accuracy claims.
+6. Permission-backed source expansion with per-source field/photo completeness,
+   deduplication and successful fresh-row receipts. Never count catalog entries,
+   blocked endpoints or speculative API routes as working coverage.

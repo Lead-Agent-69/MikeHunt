@@ -1,12 +1,14 @@
 // app/(dashboard)/save/page.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RotateCw } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
+import { sharedListingUrl } from "@/lib/save-from-url/shared-listing-url";
 
 export default function SavePage({
   searchParams,
@@ -25,78 +27,72 @@ export default function SavePage({
   const requestId = useRef(0);
   const controller = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (dealerLoading) return;
-    if (!dealerId) {
-      setStatus("error");
-      setErrorMessage("Please sign in to save vehicles.");
-      return;
-    }
+  const handleSaveUrl = useCallback(
+    async (urlToSave: string, id: number) => {
+      const abortController = new AbortController();
+      controller.current = abortController;
+      try {
+        const response = await fetch("/api/save-from-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: urlToSave }),
+          signal: abortController.signal,
+        });
 
-    // A shared URL might be in the 'url' parameter or embedded in 'text' parameter
-    const urlParam = resolvedSearchParams.url || "";
-    const textParam = resolvedSearchParams.text || "";
-    const titleParam = resolvedSearchParams.title || "";
+        const data = await response.json();
 
-    // Regex to extract URL from text if needed
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    let targetUrl = "";
+        if (!response.ok || data.error) {
+          throw new Error(
+            data.error || "Could not save this listing. Try again.",
+          );
+        }
 
-    if (urlParam && urlParam.startsWith("http")) {
-      targetUrl = urlParam;
-    } else if (textParam && textParam.startsWith("http")) {
-      targetUrl = textParam;
-    } else {
-      const match = textParam.match(urlRegex) || titleParam.match(urlRegex);
-      if (match) {
-        targetUrl = match[0];
+        if (id !== requestId.current || abortController.signal.aborted) return;
+        if (
+          typeof data.dealId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            data.dealId,
+          )
+        )
+          throw new Error("We couldn't confirm the saved vehicle. Try again.");
+        setStatus("success");
+        router.replace(`/deal/${data.dealId}`);
+      } catch (err: any) {
+        if (abortController.signal.aborted || id !== requestId.current) return;
+        console.error("[SAVE-PAGE] Error:", err);
+        setStatus("error");
+        setErrorMessage(
+          err.message || "Could not save this listing. Try again.",
+        );
       }
-    }
+    },
+    [router],
+  );
 
-    if (!targetUrl) {
-      setStatus("error");
-      setErrorMessage(
-        "No valid vehicle URL detected. Please share a valid Copart, Craigslist, or IAA URL.",
-      );
-      return;
-    }
-
-    setSharedUrl(targetUrl);
+  useEffect(() => {
     const id = ++requestId.current;
     controller.current?.abort();
-    handleSaveUrl(targetUrl, id);
-    return () => controller.current?.abort();
-  }, [resolvedSearchParams, dealerId, dealerLoading]);
-
-  const handleSaveUrl = async (urlToSave: string, id: number) => {
-    const abortController = new AbortController();
-    controller.current = abortController;
-    try {
-      const response = await fetch("/api/save-from-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToSave }),
-        signal: abortController.signal,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || data.error) {
-        throw new Error(data.error || "Failed to analyze this listing.");
-      }
-
-      if (id !== requestId.current) return;
-      setStatus("success");
-      router.replace(`/deal/${data.dealId}`);
-    } catch (err: any) {
-      if (err.name === "AbortError" || id !== requestId.current) return;
-      console.error("[SAVE-PAGE] Error:", err);
+    if (dealerLoading) return;
+    const targetUrl = sharedListingUrl(
+      resolvedSearchParams.url,
+      resolvedSearchParams.text,
+      resolvedSearchParams.title,
+    );
+    setSharedUrl(targetUrl || "");
+    if (!dealerId || !targetUrl) {
       setStatus("error");
       setErrorMessage(
-        err.message || "An unexpected error occurred during analysis.",
+        !dealerId
+          ? "Please sign in to save vehicles."
+          : "No valid vehicle link detected. Share the original vehicle listing link.",
       );
+      return;
     }
-  };
+    setStatus("analyzing");
+    setErrorMessage("");
+    void handleSaveUrl(targetUrl, id);
+    return () => controller.current?.abort();
+  }, [resolvedSearchParams, dealerId, dealerLoading, handleSaveUrl]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
@@ -107,15 +103,15 @@ export default function SavePage({
               <MikeHuntLoader
                 state="loading"
                 size={72}
-                label="Analyzing shared vehicle"
+                label="Saving shared vehicle"
               />
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)]">
-                  Analyzing shared vehicle...
+                  Saving vehicle...
                 </h2>
                 <p className="text-sm text-[var(--t3)] leading-relaxed">
-                  Checking vehicle details and estimating market value profit
-                  scores.
+                  Reading the original listing and saving available vehicle
+                  details.
                 </p>
               </div>
               {sharedUrl && (
@@ -131,14 +127,14 @@ export default function SavePage({
               <MikeHuntLoader
                 state="complete"
                 size={72}
-                label="Shared vehicle analysis"
+                label="Vehicle saved"
               />
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)]">
-                  Deal Analyzed!
+                  Vehicle saved
                 </h2>
                 <p className="text-sm text-[var(--t3)]">
-                  Successfully stored and scored. Redirecting to analyzer...
+                  Opening vehicle details...
                 </p>
               </div>
             </>
@@ -150,24 +146,47 @@ export default function SavePage({
                 <MikeHuntLoader
                   state="error"
                   size={48}
-                  label="Shared vehicle analysis"
+                  label="Vehicle not saved"
                 />
                 <AlertCircle className="w-7 h-7 text-[var(--red)]" />
               </div>
               <div className="space-y-2">
                 <h2 className="text-xl font-black text-[var(--t1)] font-bold">
-                  Analysis Failed
+                  {dealerId ? "Could not save vehicle" : "Sign in to save"}
                 </h2>
                 <p className="text-sm text-[var(--red)] font-medium leading-relaxed">
                   {errorMessage}
                 </p>
               </div>
+              {!dealerId && sharedUrl && (
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/save?url=${encodeURIComponent(sharedUrl)}`)}`}
+                  className="w-full py-3 px-4 rounded-lg bg-[var(--blue)] text-[var(--on-accent)] font-bold text-sm"
+                >
+                  Sign in
+                </Link>
+              )}
+              {dealerId && sharedUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    controller.current?.abort();
+                    const id = ++requestId.current;
+                    setStatus("analyzing");
+                    setErrorMessage("");
+                    void handleSaveUrl(sharedUrl, id);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-[var(--blue)] text-[var(--on-accent)] font-bold text-sm"
+                >
+                  <RotateCw className="w-4 h-4" aria-hidden="true" /> Try again
+                </button>
+              )}
               <button
                 onClick={() => router.push("/scan")}
-                className="w-full py-2.5 px-4 rounded-lg text-white font-bold text-sm transition-all border-none"
+                className="w-full py-3 px-4 rounded-lg text-white font-bold text-sm transition-all border-none"
                 style={{ background: "var(--grad)" }}
               >
-                Go to Scan Stream
+                Find vehicles
               </button>
             </>
           )}

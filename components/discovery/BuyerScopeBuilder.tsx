@@ -70,7 +70,7 @@ const LANES = [
     lane: "damaged",
     titleType: "salvage",
     icon: Wrench,
-    hint: "Copart/IAA-style rebuild candidates",
+    hint: "Damaged vehicles and rebuild candidates",
   },
   {
     label: "Wholesale auctions",
