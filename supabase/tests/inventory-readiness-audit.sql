@@ -20,5 +20,7 @@ group by source order by active_rows desc;
 select source, status, started_at, completed_at, deals_found, deals_new, deals_updated
 from public.scraper_runs order by started_at desc limit 15;
 
-select jobname, schedule from cron.job where active order by jobname;
+select jobname, active, schedule from cron.job
+where active or jobname in ('cleanup-expired-deals', 'cleanup-dead-deals')
+order by jobname;
 commit;

@@ -1,5 +1,21 @@
 # Retention: Vercel Free + Supabase Free + Zeus disk
 
+## Hosted Rollout Gate (October 13)
+
+The following tables describe intended retention behavior, not a certified
+hosted rollout. The hosted protected inventory function is still absent and
+#360 needs independent database review before apply. Both legacy deletion
+jobs (`cleanup-expired-deals`, `cleanup-dead-deals`) were paused after inspection
+found incomplete owner-reference protection. The market aggregation job stays
+active. This change deleted no records, changed no grants, and did not stop
+worker collection. Watch hosted growth while replacement cleanup is pending;
+local F: headroom does not expand hosted storage or egress quotas.
+
+Do not re-enable the legacy hard-delete jobs. Apply the independently reviewed
+replacement, prove saved/watchlist/inventory/outcome/alert reference survival,
+verify grants and cron targets, and test archive restoration first. The pause
+is a temporary safety measure, not an archive or permanent retention guarantee.
+
 Supabase holds thin URL / index rows only. Heavy artifacts live on Zeus (Docker volume `./cache`,
 ~1.8 TB free on F:). Vercel crons stay light (one RPC each).
 

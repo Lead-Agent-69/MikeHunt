@@ -621,6 +621,14 @@ Related evidence:
   protected retention and storage meter functions absent. Both legacy jobs
   (`cleanup-expired-deals`, `cleanup-dead-deals`) remain active. #360 remains
   open without a recorded review. No cleanup or hosted migration was applied.
+- Containment after inspecting the job commands: paused only
+  `cleanup-expired-deals` and `cleanup-dead-deals` with `cron.alter_job`.
+  Verified both inactive; `aggregate-market-data` remains active. The dead-deal
+  job had no owner exclusion; the expired-deal hard-delete excluded saves but
+  not all research references. No data was deleted and no schema/grants were
+  changed. This is temporary containment, not protected-retention completion.
+  Review/apply #360 and verify reference survival before enabling replacement
+  cleanup. Review actual hosted growth while legacy cleanup is paused.
 - Dashboard billing counters: database 118/500 MB, egress 1.07/5 GB, log
   ingestion 0.49/1 GB. Billing counters and SQL relation size are different
   measurements. This snapshot does not certify monthly capacity.
@@ -645,6 +653,12 @@ Related evidence:
   report that push is not switched on. These remain acceptance gaps. Other
   hosted buyer roles, admin authorization, purchase mutations, saved-search
   writes and real-device alert delivery are not certified by this dealer pass.
+- Pipeline loaded its empty state and its saved-candidate link returned to the
+  account watchlist. Saved searches rendered their empty account state. These
+  checks do not prove populated purchase workflows or saved-search delivery.
+- Alerts loaded the existing watched vehicle without inventing a price-drop
+  event. Edit-onboarding loaded the dealer goal as selected; no role changes
+  were made. The temporary QA tab was closed and viewport override reset.
 - Craigslist search-card ingestion no longer invents `run_drive` when no
   listing evidence is available. Detail-page title evidence is preserved.
   Existing stored assumptions require a separately reviewed remediation;
