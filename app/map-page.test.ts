@@ -39,13 +39,11 @@ beforeEach(() => {
 });
 
 describe("Map inventory states", () => {
-  it("starts with Go and Hold candidates and exposes an all-inventory recovery", () => {
+  it("starts with all matching inventory instead of hiding most cars behind a shortlist", () => {
     const html = renderToStaticMarkup(React.createElement(MapPage));
-    expect(state.fetcher.mock.calls[0][0]).toBe(
-      "/api/deals/map?&verdict=actionable",
-    );
+    expect(state.fetcher.mock.calls[0][0]).toBe("/api/deals/map?&verdict=all");
     expect(html).toContain("No listings in this view");
-    expect(html).toContain("Show all listings");
+    expect(html).not.toContain("Review includes Go and Hold listings.");
   });
 
   it("shows retry on soft failure instead of calling it empty inventory", () => {
