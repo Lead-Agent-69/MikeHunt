@@ -68,6 +68,20 @@ describe("mobile fixed UI surfaces", () => {
     expect(layout).not.toContain("<OfflineBanner />");
   });
 
+  it("reserves document space for connection status instead of covering navigation", () => {
+    const css = readFileSync("app/mobile.css", "utf8");
+    const rule = css.match(/\.connection-status-mobile \{([^}]+)\}/)![1];
+    expect(rule).toContain("position: relative");
+    expect(rule).toContain("env(safe-area-inset-top)");
+    expect(rule).not.toMatch(/fixed|absolute|transform|z-index/);
+    const page = readFileSync("app/(dashboard)/save/page.tsx", "utf8");
+    expect(page).not.toContain("text-[var(--on-accent)]");
+    const mobileUx = readFileSync("components/ui/mobile-ux.tsx", "utf8");
+    expect(mobileUx).toContain(
+      "Connection unavailable. Some features may be limited.",
+    );
+  });
+
   it("keeps feed chrome and the install nudge above the mobile tab bar", () => {
     const feedPage = readFileSync("app/(dashboard)/feed/page.tsx", "utf8");
     const installPrompt = readFileSync("components/InstallPrompt.tsx", "utf8");

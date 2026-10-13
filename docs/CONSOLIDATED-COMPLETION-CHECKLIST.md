@@ -604,6 +604,11 @@ Related evidence:
 - Local controlled tests cover all four ordinary desks on desktop/mobile.
   These do not prove a remote site's extraction permission or real hosted saves.
   Final test, merge and deployment receipts belong to the integration PR.
+- Screenshot review caught the connection banner covering navigation globally.
+  It now reserves document space including the safe-area inset. A failed app
+  connectivity probe is labeled connection unavailable, not proof that the device
+  is offline. Retry/sign-in buttons use a defined high-contrast text color;
+  controlled browser tests check banner/header separation and 44px targets.
 
 ## Remaining Acceptance Order
 

@@ -25,6 +25,7 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
     test("missing confirmation remains recoverable without a false redirect", async ({
       page,
     }, testInfo) => {
+      await page.route("**/favicon.ico", (route) => route.abort());
       await page.route("**/api/save-from-url", async (route) => {
         await route.fulfill({ json: {} });
       });
@@ -35,6 +36,16 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible();
       expect((await retry.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect(
+        await retry.evaluate((button) => getComputedStyle(button).color),
+      ).toBe("rgb(255, 255, 255)");
+      const connection = page.locator(".connection-status-mobile");
+      await expect(connection).toBeVisible();
+      const noticeBox = (await connection.boundingBox())!;
+      const headerBox = (await page.getByRole("banner").boundingBox())!;
+      expect(headerBox.y).toBeGreaterThanOrEqual(
+        noticeBox.y + noticeBox.height,
+      );
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,
