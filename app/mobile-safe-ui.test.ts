@@ -28,6 +28,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(accountMenu).toContain("Decision guide");
     expect(accountMenu).toContain('new Event("open-mikehunt-copilot")');
     expect(overlays).toContain("initialOpen={guideRequested}");
+    expect(overlays).toContain("guideRequested &&");
     expect(aiFeatures).not.toContain("Floating Launcher Button");
     expect(aiFeatures).toContain("<Dialog.Content");
     expect(aiFeatures).toContain('aria-label="Message for decision guide"');
@@ -58,6 +59,9 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("prefetch={false}");
     expect(topNav).not.toContain("More dropdown");
     expect(accountMenu).toContain("LogOut");
+    expect(accountMenu).toContain(
+      "max-h-[calc(100dvh-128px-env(safe-area-inset-bottom))]",
+    );
     expect(accountMenu).not.toContain('router.push("/sources")');
     expect(accountMenu).not.toContain("⚙ Settings");
     expect(accountMenu).not.toContain("⎋ Log out");
@@ -107,5 +111,7 @@ describe("mobile fixed UI surfaces", () => {
       "bottom-[calc(72px+env(safe-area-inset-bottom))]",
     );
     expect(installPrompt).not.toContain("fixed inset-x-0 bottom-0 z-50");
+    expect(installPrompt).toContain("z-20");
+    expect(installPrompt).not.toContain("z-[60]");
   });
 });

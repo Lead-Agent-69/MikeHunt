@@ -20,8 +20,7 @@ const MikeHuntCopilotDrawer = dynamic(
 );
 
 /**
- * Command and assistant tools are useful after the workspace is interactive, but should not
- * compete with the first render of every dashboard route. Load them at idle instead.
+ * Warm keyboard commands at idle; load buying guidance only when requested.
  */
 export function DashboardOverlays() {
   const [ready, setReady] = useState(false);
@@ -53,7 +52,7 @@ export function DashboardOverlays() {
   return (
     <>
       <CommandPalette />
-      <MikeHuntCopilotDrawer initialOpen={guideRequested} />
+      {guideRequested && <MikeHuntCopilotDrawer initialOpen={guideRequested} />}
     </>
   );
 }

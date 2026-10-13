@@ -2,7 +2,6 @@
 
 import React, { memo, useState } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
 import {
@@ -77,7 +76,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   deal: DiscoveryDeal;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
-  const reducedMotion = useReducedMotion();
   const bookmark = useDiscoverySave(deal);
   const img = proxiedImage(deal.images?.[0]);
   const showImg = img && !imgFailed;
@@ -124,11 +122,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   };
 
   return (
-    <motion.div
-      initial={false}
-      whileHover={reducedMotion ? undefined : { y: -2 }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-      className="w-[calc(100vw-2.5rem)] max-w-[358px] shrink-0 sm:w-[300px]"
+    <div
+      className="discovery-card w-[calc(100vw-2.5rem)] max-w-[358px] shrink-0 sm:w-[300px]"
       style={{ scrollSnapAlign: "start" }}
     >
       <div
@@ -154,6 +149,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 src={img}
                 alt={title}
                 loading="lazy"
+                decoding="async"
                 onError={() => setImgFailed(true)}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
               />
@@ -191,8 +187,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             <span
               className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
               style={{
-                background: "rgba(36,28,43,.72)",
-                backdropFilter: "blur(8px)",
+                background: "rgba(36,28,43,.88)",
               }}
             >
               <svg
@@ -223,8 +218,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             }}
             className="absolute right-2.5 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
             style={{
-              background: isSaved ? "var(--amber)" : "rgba(20,10,20,.72)",
-              backdropFilter: "blur(8px)",
+              background: isSaved ? "var(--amber)" : "rgba(20,10,20,.88)",
             }}
             title={bookmark.label}
             aria-label={bookmark.label}
@@ -632,6 +626,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </Link>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 });

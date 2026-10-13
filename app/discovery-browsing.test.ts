@@ -48,9 +48,12 @@ describe("discovery browsing presentation safeguards", () => {
   });
 
   it("retains estimates in disclosure, allows long names and avoids hover motion when reduced", () => {
-    expect(card).toContain("initial={false}");
+    expect(card).not.toContain("framer-motion");
+    expect(card).toContain("discovery-card w-");
     expect(card).toContain('data-testid="discovery-card-price-preview"');
     expect(card).toContain("{displayPrice}");
+    expect(card).toContain('decoding="async"');
+    expect(card).not.toContain("backdropFilter");
     expect(card).not.toContain("whileInView");
     expect(card).not.toMatch(/<motion.div\s+layout/);
     expect(page).not.toContain("motion.section");
@@ -62,7 +65,8 @@ describe("discovery browsing presentation safeguards", () => {
       "not inspection findings or guaranteed sale prices",
     );
     expect(card).toContain("break-words");
-    expect(card).toContain("whileHover={reducedMotion ? undefined");
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toContain(".discovery-card .interactive-surface:hover");
     expect(card).toContain(
       'external ? "View source listing" : "Review vehicle"',
     );

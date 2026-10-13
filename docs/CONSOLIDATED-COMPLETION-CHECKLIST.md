@@ -780,6 +780,18 @@ Related evidence:
   requests made before the idle-loaded drawer mounts. Use the existing Radix
   modal dependency for focus containment, Escape, background locking and focus
   return. The guide remains rule-based buying help, not an AI photo inspection.
+- Load the guide on user request, not merely idle. Its availability response
+  distinguishes pending/unavailable from an empty index and labels index-wide
+  totals instead of claiming they match selected filters. Profile and buying
+  guidance does not infer source coverage from a failed request.
+- Native discovery cards retain CSS interaction feedback without per-card motion
+  subscriptions; reduced-motion CSS suppresses card transforms. Decode photos
+  asynchronously and remove blur from scrolling image controls. Keep the same
+  labels, prices, save behavior, deep links and source evidence.
+- Install hints sit below navigation, and account-menu scrolling reserves footer
+  and safe-area space. Intentional iOS-hint fixtures verify guide and All tools
+  remain reachable for every ordinary user type, including unavailable-health
+  recovery. This does not prove native installation or notification delivery.
 - Give inventory its missing semantic heading. Extend controlled local account
   coverage to DIY alongside personal, reseller, dealer and parts. Test ordinary
   accounts cannot read admin aggregates; dealers still receive dealer tools,
@@ -842,6 +854,24 @@ Related evidence:
   per-sample p95 was 33.4ms and there were no gaps above 50ms. Phone cases used 4x
   simulated CPU throttling. These observations are not a 60fps device guarantee
   or a controlled causal comparison with earlier diagnostic runs.
+- The subsequent seven-project run passed 172 of 175 cases. One real iOS install
+  overlap was fixed; two test assumptions were corrected (fitting rails need no
+  scrolling, and Firefox geometry must settle). All three follow-up cases plus
+  five forced-install-overlay regressions passed. The complete run remains a
+  diagnostic receipt, not a claimed single all-green run. Further WebKit and
+  final optimization receipts belong with the integration PR.
+- Windows WebKit diagnostics showed stalls despite fast median intervals; the
+  bare native-scroll control had 17-18ms p95 without stalls. Do not attribute app
+  stalls solely to the engine or certify device FPS from functional passes.
+  Cold versus settled sampling, profiling and physical Safari/Android remain
+  performance gates even after these focused reductions in startup work.
+- Final focused optimization run: 21/22 passed; the remaining abandoned `/alerts`
+  prefetch was traced to workspace peer navigation and disabled there too. The
+  native-card WebKit samples still reached 117ms p95 with 32 gaps above 50ms
+  across five samples. Functional interaction checks are not a smoothness gate.
+  Do not describe this phase as proven high-FPS Safari readiness; trace loading,
+  decode/layout and steady-state work next, alongside the existing large-list
+  and map integration queue. No package updates or paid infrastructure required.
 
 ### Product Promise Gates Still Open
 

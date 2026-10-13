@@ -37,13 +37,15 @@ for (const desk of [
       await expect(amount).toBeVisible();
       if (mobile)
         await expect(preview).toContainText(await bodyAmount.innerText());
-      const box = await amount.boundingBox();
       const nav = await page
         .locator('nav[aria-label="Primary mobile navigation"]')
         .boundingBox();
-      expect(box!.y + box!.height).toBeLessThanOrEqual(
-        nav?.y ?? page.viewportSize()!.height,
-      );
+      await expect
+        .poll(async () => {
+          const box = await amount.boundingBox();
+          return box ? box.y + box.height : Infinity;
+        })
+        .toBeLessThanOrEqual(nav?.y ?? page.viewportSize()!.height);
       await page.screenshot({
         path: info.outputPath(`${desk}-first-vehicle-price.png`),
       });

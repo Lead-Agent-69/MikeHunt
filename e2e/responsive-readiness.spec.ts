@@ -133,10 +133,33 @@ for (const desk of [
         const session = await page.context().newCDPSession(page);
         await session.send("Emulation.setCPUThrottlingRate", { rate: 4 });
       }
-      const next = page
-        .getByRole("button", { name: /^Next vehicles in/ })
-        .and(page.locator(":enabled"))
-        .first();
+      const controls = page.getByRole("button", { name: /^Next vehicles in/ });
+      await expect(controls.first()).toBeVisible({ timeout: 30_000 });
+      const enabled = controls.and(page.locator(":enabled"));
+      // Sizing and personalized data can settle after the first rail appears.
+      await enabled
+        .first()
+        .waitFor({ state: "visible", timeout: 5000 })
+        .catch(() => undefined);
+      if ((await enabled.count()) === 0) {
+        expect(await controls.count()).toBeGreaterThan(0);
+        for (const control of await controls.all()) {
+          await expect(control).toBeDisabled();
+          const id = await control.getAttribute("aria-controls");
+          const overflow = await page
+            .locator(`[id="${id}"]`)
+            .evaluate((el) => el.scrollWidth - el.clientWidth);
+          expect(overflow).toBeLessThanOrEqual(2);
+        }
+        info.annotations.push({
+          type: "note",
+          description:
+            "All controlled rails fit this viewport; disabled controls verified, no scrolling/FPS sample claimed.",
+        });
+        await expectHealthy(page, health);
+        return;
+      }
+      const next = enabled.first();
       await expect(next).toBeEnabled({ timeout: 30_000 });
       const box = await next.boundingBox();
       expect(Math.round((box?.width ?? 0) * 100) / 100).toBeGreaterThanOrEqual(
@@ -145,8 +168,8 @@ for (const desk of [
       expect(Math.round((box?.height ?? 0) * 100) / 100).toBeGreaterThanOrEqual(
         44,
       );
-      const controls = next.getAttribute("aria-controls");
-      const strip = page.locator(`[id="${await controls}"]`);
+      const controlsId = await next.getAttribute("aria-controls");
+      const strip = page.locator(`[id="${controlsId}"]`);
       await page.emulateMedia({ reducedMotion: "reduce" });
       if (info.project.use.hasTouch) await next.tap();
       else await next.click();

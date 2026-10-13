@@ -58,6 +58,7 @@ export function MikeHuntCopilotDrawer({
 }) {
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [input, setInput] = useState("");
+  const [availabilityPending, setAvailabilityPending] = useState(true);
   const [sourceHealth, setSourceHealth] = useState<SourceHealthSummary | null>(
     null,
   );
@@ -88,17 +89,20 @@ export function MikeHuntCopilotDrawer({
 
     const controller = new AbortController();
     async function loadAvailability() {
+      setAvailabilityPending(true);
       try {
         const healthRes = await fetch("/api/scrape/health", {
           signal: controller.signal,
         });
         const healthJson = healthRes.ok ? await healthRes.json() : null;
         if (!alive) return;
-        setSourceHealth(healthJson);
+        setSourceHealth(healthJson?.configured === false ? null : healthJson);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         if (!alive) return;
         setSourceHealth(null);
+      } finally {
+        if (alive) setAvailabilityPending(false);
       }
     }
     loadAvailability();
@@ -137,10 +141,13 @@ export function MikeHuntCopilotDrawer({
   const marketCount = coverage?.workingMarkets ?? readySourceCount;
   const stateCount = coverage?.liveStates || 0;
   const listingCount = coverage?.liveRows ?? visibleRows;
-  const headerStatus =
-    listingCount > 0
-      ? `${listingCount.toLocaleString()} current listings from ${marketCount} working market${marketCount === 1 ? "" : "s"}${stateCount ? ` in ${stateCount} state${stateCount === 1 ? "" : "s"}` : ""}`
-      : "Checking current market availability";
+  const headerStatus = availabilityPending
+    ? "Checking indexed availability"
+    : !sourceHealth
+      ? "Market availability unavailable"
+      : listingCount > 0
+        ? `${listingCount.toLocaleString()} indexed listings across ${marketCount} market${marketCount === 1 ? "" : "s"}${stateCount ? ` in ${stateCount} state${stateCount === 1 ? "" : "s"}` : ""}`
+        : "No indexed availability reported";
 
   const handleSend = (userText: string) => {
     if (!userText.trim()) return;
@@ -176,6 +183,13 @@ export function MikeHuntCopilotDrawer({
       "Start with your budget, location, title tolerance, and vehicle type. MIKEHUNT will keep the search focused and show what still needs checking.";
 
     if (
+      !sourceHealth &&
+      /source|market|working|empty|inventory|match/.test(lower)
+    ) {
+      responseText = availabilityPending
+        ? "Indexed availability is still loading. Missing counts do not mean there are no cars for sale."
+        : "Indexed availability is unavailable right now. Missing counts do not mean there are no cars for sale.";
+    } else if (
       lower.includes("source") ||
       lower.includes("market") ||
       lower.includes("working")
@@ -197,15 +211,15 @@ export function MikeHuntCopilotDrawer({
               .join(
                 "; ",
               )}. ${authSources.length} market${authSources.length === 1 ? " needs" : "s need"} sign-in, and ${noRowSources.length} ${noRowSources.length === 1 ? "has" : "have"} no match for the current search.`
-          : "No market has current matches for this search yet. Try a broader location, vehicle type, title preference, or budget.";
+          : "No indexed availability was reported. Missing coverage is not proof that no cars are for sale.";
     } else if (
       lower.includes("empty") ||
       lower.includes("inventory") ||
       lower.includes("match")
     ) {
       responseText = totalRows
-        ? `${totalRows.toLocaleString()} current listings are available from ${marketCount} working markets${stateCount ? ` in ${stateCount} states` : ""}, including ${totalPhotos.toLocaleString()} with photos. Broaden one filter at a time to find more matches.`
-        : "No current listings match this search yet. Broaden the location or budget first, then consider more vehicle types or title conditions.";
+        ? `${totalRows.toLocaleString()} indexed listings across ${marketCount} markets${stateCount ? ` in ${stateCount} states` : ""}, including ${totalPhotos.toLocaleString()} with photos. These are index-wide totals, not the match count for your selected filters.`
+        : "No indexed availability was reported. Missing coverage is not proof that no cars are for sale.";
     } else if (
       lower.includes("next") ||
       lower.includes("fix") ||
