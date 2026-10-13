@@ -550,3 +550,36 @@ Related evidence:
 - Current live push status reports `configured=false`. Security advisor returned 11 findings.
   No new login was created when the newer Vercel dry-run CLI lacked existing credentials; upload
   exclusions are tested, but a CLI manifest receipt is not claimed.
+
+## Local Collector Rollout Receipt (October 12)
+
+- The already-merged #384 worker logging code is now running locally in image
+  `mikehunt-scraper-release:bebb6b8`, built from exact main
+  `bebb6b85af0c2c0d04d48942b3b6b07d445532a5`. Eleven rotating-log tests passed
+  in the Linux image with networking disabled before deployment.
+- The operator's existing Compose override now sets Docker logging to three
+  10 MB generations. Original Docker log history was saved locally before the
+  collector was recreated. Other services were not recreated or upgraded.
+- Health is healthy; a fresh status update at 23:42 UTC reported quota_paused,
+  no active job/error and unchanged 1,000 inserts / 535 updates / zero touches.
+  Cache, profiles and logs retain their original mounts; quotas and scope are
+  unchanged. This is a local rollout, not remote Zeus or hosted retention proof.
+
+## Reported Pickup-Series Matching (October 12 Follow-Up)
+
+- Reproduced through read-only production APIs: the known Silverado 3500 listing
+  `869fde80-0d5e-4298-a396-00d45009e6c3` returned six same-model alternatives:
+  three reported 1500, one reported 2500 and two did not report a series. None
+  was a confirmed 3500 match. Generic stored model names hid these distinctions.
+- The alternatives query now reads existing title/trim fields for server-side
+  matching; no schema, grants or source permissions change. Those raw fields
+  are not added to the response. Existing buyer-mode redaction stays intact.
+- Silverado/Sierra matching compares only explicitly reported 1500/2500/3500
+  series. Conflicting reports or unknown-vs-known series do not match. Two
+  unknown-series records retain a family-level suggestion with an explicit
+  missing-series reason, not an exact-model claim. Unrelated prices, down payments
+  and odometer amounts do not substitute for a reported series.
+- Forty-six focused matcher, identity and API-contract tests passed. Source,
+  freshness, auction-window, condition, VIN and price-band guards are retained.
+  Full integration/deployment and post-release query receipts remain separate;
+  this does not validate every truck platform, physical specifications or resale.
