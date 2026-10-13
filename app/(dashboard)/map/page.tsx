@@ -96,8 +96,8 @@ export default function MapPage() {
                 className="min-h-12 min-w-12 px-3 rounded-[var(--r2)] text-xs font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
                 style={{
                   background:
-                    verdict === f.key ? "var(--amber)" : "transparent",
-                  color: verdict === f.key ? "#fff" : "var(--t3)",
+                    verdict === f.key ? "var(--accent)" : "transparent",
+                  color: verdict === f.key ? "var(--on-accent)" : "var(--t3)",
                 }}
               >
                 {f.label}

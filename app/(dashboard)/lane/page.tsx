@@ -10,17 +10,32 @@ import { scanVINFromCamera } from "@/lib/api/vin";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 import { toast } from "sonner";
 import Link from "next/link";
+import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
+import { reportedPrice } from "@/lib/deals/reported-price";
+import { TitleBadge } from "@/components/shared/TitleBadge";
+import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 
-async function fetchLaneDeals(vins: string[] | null): Promise<any[] | null> {
-  const qs =
-    vins && vins.length ? `?vins=${encodeURIComponent(vins.join(","))}` : "";
-  const res = await fetch(`/api/deals/lane${qs}`, { cache: "no-store" });
+async function fetchLaneDeals(
+  vins: string[] | null,
+  scope: string,
+  signal: AbortSignal,
+): Promise<any[] | null> {
+  const params = new URLSearchParams(scope);
+  params.set("lane", "auction");
+  if (vins?.length) params.set("vins", vins.join(","));
+  const res = await fetch(`/api/deals/lane?${params}`, {
+    cache: "no-store",
+    signal,
+  });
   if (!res.ok) return null;
   const body = await res.json();
   return Array.isArray(body?.deals) ? body.deals : null;
 }
 
 export default function LaneModePage() {
+  const { query: scope, ready: scopeReady } = useInventoryViewScope();
+  const loadRequest = useRef<AbortController | null>(null);
   const supabase = createClientComponentClient();
   // Without Supabase env the client points at a placeholder host that never resolves, so every
   // query would fail with ERR_NAME_NOT_RESOLVED. Skip the queries and say why the lane is empty.
@@ -69,21 +84,28 @@ export default function LaneModePage() {
 
   // Load data based on listId and online/offline status
   useEffect(() => {
-    loadData();
-  }, [listId, offlineMode]);
+    if (!scopeReady) return;
+    const controller = new AbortController();
+    loadRequest.current?.abort();
+    loadRequest.current = controller;
+    void loadData(controller.signal);
+    return () => controller.abort();
+  }, [listId, offlineMode, scope, scopeReady]);
 
-  async function loadData() {
+  async function loadData(signal: AbortSignal) {
     if (offlineMode) {
       // Load from local storage
       const cacheKey = listId
         ? `offline-runlist-${listId}`
-        : "offline-runlist-all";
+        : `offline-runlist-all:${scope}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached);
         setDeals(parsed);
-        if (parsed.length > 0) setActiveDeal(parsed[0]);
+        setActiveDeal(parsed[0] || null);
       } else {
+        setDeals([]);
+        setActiveDeal(null);
         toast.error("Offline: No cached data found for this run list.");
       }
       return;
@@ -99,15 +121,17 @@ export default function LaneModePage() {
           .eq("id", listId)
           .single();
 
+        if (signal.aborted) return;
         if (runList) {
           setRunListName(runList.auction_name);
           // Through the API (desk-gated, explicit columns): the browser's anon/auth role can no
           // longer select("*") on deals (column grants).
-          const listDeals = await fetchLaneDeals(runList.vins);
+          const listDeals = await fetchLaneDeals(runList.vins, scope, signal);
+          if (signal.aborted) return;
 
           if (listDeals) {
             setDeals(listDeals);
-            if (listDeals.length > 0) setActiveDeal(listDeals[0]);
+            setActiveDeal(listDeals[0] || null);
             // Update cache
             localStorage.setItem(
               `offline-runlist-${listId}`,
@@ -117,15 +141,21 @@ export default function LaneModePage() {
         }
       } else {
         // Load all active deals that might be from run lists
-        const allDeals = await fetchLaneDeals(null);
+        const allDeals = await fetchLaneDeals(null, scope, signal);
+        if (signal.aborted) return;
 
         if (allDeals) {
           setDeals(allDeals);
-          if (allDeals.length > 0) setActiveDeal(allDeals[0]);
-          localStorage.setItem("offline-runlist-all", JSON.stringify(allDeals));
+          setActiveDeal(allDeals[0] || null);
+          localStorage.setItem(
+            `offline-runlist-all:${scope}`,
+            JSON.stringify(allDeals),
+          );
         }
       }
     } catch (err) {
+      if (signal.aborted) return;
+      toast.error("Could not load auction listings. Please try again.");
       console.error("Error loading lane data:", err);
     }
   }
@@ -202,16 +232,18 @@ export default function LaneModePage() {
 
   // Format currency
   const fmt = (val: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(val || 0);
+    typeof val === "number" && Number.isFinite(val)
+      ? new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: 0,
+        }).format(val)
+      : "Not reported";
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] md:flex-row overflow-hidden bg-[var(--s0)]">
       {/* Sidebar: Vehicles List */}
-      <div className="w-full md:w-80 flex flex-col border-r border-[var(--b2)] bg-[var(--s1)] shrink-0 h-1/2 md:h-full">
+      <div className="w-full md:w-80 flex flex-col border-r border-[var(--b2)] bg-[var(--s1)] shrink-0 h-1/3 md:h-full">
         {/* Header Area */}
         <div className="p-4 border-b border-[var(--b2)] space-y-3">
           <div className="flex items-center justify-between">
@@ -233,7 +265,7 @@ export default function LaneModePage() {
                   background: offlineMode ? "var(--red)" : "var(--green)",
                 }}
               />
-              {offlineMode ? "Offline" : "Lane Sync"}
+              {offlineMode ? "Offline copy" : "Stored listings"}
             </span>
           </div>
 
@@ -280,13 +312,15 @@ export default function LaneModePage() {
           ) : (
             filteredDeals.map((deal) => {
               const isActive = activeDeal?.id === deal.id;
-              const isGo = deal.deal_verdict === "go";
+              const ready = economicsEvidenceReady(deal.deal_analysis);
+              const isGo = ready && deal.deal_verdict === "go";
 
               return (
-                <div
+                <button
+                  type="button"
                   key={deal.id}
                   onClick={() => setActiveDeal(deal)}
-                  className={`p-3.5 cursor-pointer transition-colors relative flex items-center justify-between gap-3 ${
+                  className={`w-full text-left p-3.5 cursor-pointer transition-colors relative flex items-center justify-between gap-3 ${
                     isActive
                       ? "bg-[var(--s2)] border-l-2 border-[var(--amber)]"
                       : "hover:bg-[var(--s2)]"
@@ -304,16 +338,16 @@ export default function LaneModePage() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-xs font-black text-[var(--t1)]">
-                      {fmt(deal.recommended_max_bid)}
+                      {reportedPrice(sourcePriceContext(deal).amount)}
                     </div>
                     <div
                       className="text-[9px] font-bold uppercase tracking-wider mt-0.5"
                       style={{ color: isGo ? "var(--green)" : "var(--t3)" }}
                     >
-                      {isGo ? "GO" : "HOLD"}
+                      {ready ? (isGo ? "Review" : "Hold") : "Needs evidence"}
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })
           )}
@@ -321,7 +355,7 @@ export default function LaneModePage() {
       </div>
 
       {/* Main Panel: Vehicle Inspection */}
-      <div className="flex-1 overflow-y-auto p-6 bg-[var(--s0)] h-1/2 md:h-full">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--s0)] h-2/3 md:h-full">
         {activeDeal ? (
           <div className="max-w-3xl mx-auto space-y-6">
             {/* Header / Verdict Card */}
@@ -343,10 +377,12 @@ export default function LaneModePage() {
                 className="px-5 py-3 rounded-[var(--r3)] text-center w-full md:w-auto"
                 style={{
                   background:
+                    economicsEvidenceReady(activeDeal.deal_analysis) &&
                     activeDeal.deal_verdict === "go"
                       ? "rgba(46,204,113,0.12)"
                       : "rgba(255,255,255,0.05)",
                   border: `1px solid ${
+                    economicsEvidenceReady(activeDeal.deal_analysis) &&
                     activeDeal.deal_verdict === "go"
                       ? "rgba(46,204,113,0.25)"
                       : "var(--b2)"
@@ -360,162 +396,223 @@ export default function LaneModePage() {
                   className="text-xl font-black uppercase tracking-wider"
                   style={{
                     color:
+                      economicsEvidenceReady(activeDeal.deal_analysis) &&
                       activeDeal.deal_verdict === "go"
                         ? "var(--green)"
                         : "var(--t3)",
                   }}
                 >
-                  {activeDeal.deal_verdict === "go" ? "GO VERDICT" : "HOLD"}
+                  {economicsEvidenceReady(activeDeal.deal_analysis)
+                    ? "Review scenario"
+                    : "Needs evidence"}
                 </div>
               </div>
             </div>
 
-            {/* Lane Valuation Matrix */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Max Bid Card */}
-              <div className="glass-panel p-6 flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 rounded-full bg-[rgba(241,196,15,0.03)] border border-[rgba(241,196,15,0.05)]" />
-                <div>
-                  <div className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <TitleBadge
+              condition={activeDeal.condition}
+              damageType={activeDeal.damage_type}
+            />
+            {economicsEvidenceReady(activeDeal.deal_analysis) ? (
+              <>
+                {/* Lane Valuation Matrix */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Max Bid Card */}
+                  <div className="glass-panel p-6 flex flex-col justify-between relative overflow-hidden">
+                    <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-24 h-24 rounded-full bg-[rgba(241,196,15,0.03)] border border-[rgba(241,196,15,0.05)]" />
+                    <div>
+                      <div className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                        <Ico
+                          name="calculator"
+                          size={14}
+                          className="text-[var(--amber)]"
+                        />
+                        Evidence-backed bid scenario
+                      </div>
+                      <div className="text-4xl font-black text-[var(--amber)] tracking-tight">
+                        {fmt(activeDeal.recommended_max_bid)}
+                      </div>
+                      <p className="text-xs text-[var(--t3)] mt-2 leading-relaxed">
+                        Reconfirm sale evidence, condition, auction fees and
+                        your budget before bidding. This is not a guaranteed
+                        outcome.
+                      </p>
+                    </div>
+                    <div className="border-t border-[var(--b3)] pt-3 mt-4 grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-[9px] text-[var(--t3)] uppercase tracking-wider">
+                          Resale Target
+                        </div>
+                        <div className="text-sm font-bold text-[var(--t1)]">
+                          {fmt(activeDeal.sell_estimate)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] text-[var(--t3)] uppercase tracking-wider">
+                          Est. Profit
+                        </div>
+                        <div
+                          className="text-sm font-bold"
+                          style={{
+                            color:
+                              Number(activeDeal.true_net_profit) < 0
+                                ? "var(--red)"
+                                : "var(--green)",
+                          }}
+                        >
+                          {fmt(activeDeal.true_net_profit)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estimate Cost Breakdown */}
+                  <div className="glass-panel p-6">
+                    <h3 className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                      <Ico
+                        name="wrench"
+                        size={14}
+                        className="text-[var(--t3)]"
+                      />
+                      Cost Adjustments
+                    </h3>
+                    <div className="space-y-2.5 text-sm">
+                      <div className="flex justify-between items-center text-[var(--t2)]">
+                        <span>Acquisition Fees</span>
+                        <span className="font-mono text-xs">
+                          {fmt(
+                            (activeDeal.deal_analysis?.costs?.acquisition ||
+                              0) - activeDeal.ask_price,
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[var(--t2)]">
+                        <span>Recon & Repairs</span>
+                        <span className="font-mono text-xs">
+                          {fmt(activeDeal.estimated_repair_cost)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[var(--t2)]">
+                        <span>Transport Cost</span>
+                        <span className="font-mono text-xs">
+                          {fmt(activeDeal.estimated_transport_cost)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[var(--t2)]">
+                        <span>Holding & Carrying</span>
+                        <span className="font-mono text-xs">
+                          {fmt(activeDeal.deal_analysis?.costs?.holding)}
+                        </span>
+                      </div>
+                      <div className="border-t border-[var(--b3)] pt-2.5 flex justify-between items-center font-bold text-[var(--t1)]">
+                        <span>Total Adjustments</span>
+                        <span className="font-mono">
+                          {fmt(
+                            activeDeal.deal_analysis?.costs?.total -
+                              activeDeal.ask_price,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comparable Units (Comps) */}
+                <div className="glass-panel p-6">
+                  <h3 className="text-sm font-black text-[var(--t1)] mb-4 flex items-center gap-2">
                     <Ico
-                      name="calculator"
-                      size={14}
+                      name="trending-up"
+                      size={18}
                       className="text-[var(--amber)]"
                     />
-                    Recommended Max Bid
-                  </div>
-                  <div className="text-4xl font-black text-[var(--amber)] tracking-tight">
-                    {fmt(activeDeal.recommended_max_bid)}
-                  </div>
-                  <p className="text-xs text-[var(--t3)] mt-2 leading-relaxed">
-                    This is your absolute ceiling bid at the block to maintain
-                    your target ROI. Overbidding reduces profit.
+                    Source-reported sale evidence
+                  </h3>
+
+                  {activeDeal.deal_analysis?.valuation?.comparableSales &&
+                  activeDeal.deal_analysis.valuation.comparableSales.length >
+                    0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-[var(--b2)] text-[var(--t3)] uppercase font-semibold">
+                            <th className="pb-2">Year Make Model</th>
+                            <th className="pb-2">Price</th>
+                            <th className="pb-2">Mileage</th>
+                            <th className="pb-2">Source</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--b3)] text-[var(--t2)]">
+                          {activeDeal.deal_analysis.valuation.comparableSales.map(
+                            (comp: any, idx: number) => (
+                              <tr
+                                key={idx}
+                                className="hover:bg-[rgba(255,255,255,0.02)]"
+                              >
+                                <td className="py-2.5">
+                                  {comp.year} {comp.make} {comp.model}
+                                </td>
+                                <td className="py-2.5 font-bold text-[var(--t1)]">
+                                  {reportedPrice(comp.price)}
+                                </td>
+                                <td className="py-2.5">
+                                  {comp.mileage
+                                    ? `${comp.mileage.toLocaleString()} mi`
+                                    : "—"}
+                                </td>
+                                <td className="py-2.5 uppercase text-[10px] tracking-wider text-[var(--t3)]">
+                                  {comp.source}
+                                </td>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-[var(--t3)] text-xs border border-dashed border-[var(--b2)] rounded-[var(--r2)]">
+                      No comps found for {activeDeal.year} {activeDeal.make}{" "}
+                      {activeDeal.model} in this region.
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <section
+                className="space-y-4 border-t border-[var(--b1)] pt-4"
+                aria-label="Auction evidence needed"
+              >
+                <div>
+                  <p className="text-xs text-[var(--t3)]">
+                    {sourcePriceContext(activeDeal).label}
+                  </p>
+                  <p className="text-2xl font-bold">
+                    {reportedPrice(sourcePriceContext(activeDeal).amount)}
                   </p>
                 </div>
-                <div className="border-t border-[var(--b3)] pt-3 mt-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-[9px] text-[var(--t3)] uppercase tracking-wider">
-                      Resale Target
-                    </div>
-                    <div className="text-sm font-bold text-[var(--t1)]">
-                      {fmt(activeDeal.sell_estimate)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[9px] text-[var(--t3)] uppercase tracking-wider">
-                      Est. Profit
-                    </div>
-                    <div className="text-sm font-bold text-[var(--green)]">
-                      {fmt(activeDeal.true_net_profit)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Estimate Cost Breakdown */}
-              <div className="glass-panel p-6">
-                <h3 className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                  <Ico name="wrench" size={14} className="text-[var(--t3)]" />
-                  Cost Adjustments
-                </h3>
-                <div className="space-y-2.5 text-sm">
-                  <div className="flex justify-between items-center text-[var(--t2)]">
-                    <span>Acquisition Fees</span>
-                    <span className="font-mono text-xs">
-                      {fmt(
-                        (activeDeal.deal_analysis?.costs?.acquisition || 0) -
-                          activeDeal.recommended_max_bid,
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[var(--t2)]">
-                    <span>Recon & Repairs</span>
-                    <span className="font-mono text-xs">
-                      {fmt(activeDeal.estimated_repair_cost)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[var(--t2)]">
-                    <span>Transport Cost</span>
-                    <span className="font-mono text-xs">
-                      {fmt(activeDeal.estimated_transport_cost)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[var(--t2)]">
-                    <span>Holding & Carrying</span>
-                    <span className="font-mono text-xs">
-                      {fmt(activeDeal.deal_analysis?.costs?.holding)}
-                    </span>
-                  </div>
-                  <div className="border-t border-[var(--b3)] pt-2.5 flex justify-between items-center font-bold text-[var(--t1)]">
-                    <span>Total Adjustments</span>
-                    <span className="font-mono">
-                      {fmt(
-                        activeDeal.deal_analysis?.costs?.total -
-                          activeDeal.recommended_max_bid,
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Comparable Units (Comps) */}
-            <div className="glass-panel p-6">
-              <h3 className="text-sm font-black text-[var(--t1)] mb-4 flex items-center gap-2">
-                <Ico
-                  name="trending-up"
-                  size={18}
-                  className="text-[var(--amber)]"
-                />
-                Live Sold Comps / MMR Basis
-              </h3>
-
-              {activeDeal.deal_analysis?.valuation?.comparableSales &&
-              activeDeal.deal_analysis.valuation.comparableSales.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-[var(--b2)] text-[var(--t3)] uppercase font-semibold">
-                        <th className="pb-2">Year Make Model</th>
-                        <th className="pb-2">Price</th>
-                        <th className="pb-2">Mileage</th>
-                        <th className="pb-2">Source</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--b3)] text-[var(--t2)]">
-                      {activeDeal.deal_analysis.valuation.comparableSales.map(
-                        (comp: any, idx: number) => (
-                          <tr
-                            key={idx}
-                            className="hover:bg-[rgba(255,255,255,0.02)]"
-                          >
-                            <td className="py-2.5">
-                              {comp.year} {comp.make} {comp.model}
-                            </td>
-                            <td className="py-2.5 font-bold text-[var(--t1)]">
-                              {fmt(comp.price || comp.ask_price)}
-                            </td>
-                            <td className="py-2.5">
-                              {comp.mileage
-                                ? `${comp.mileage.toLocaleString()} mi`
-                                : "—"}
-                            </td>
-                            <td className="py-2.5 uppercase text-[10px] tracking-wider text-[var(--t3)]">
-                              {comp.source}
-                            </td>
-                          </tr>
-                        ),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-[var(--t3)] text-xs border border-dashed border-[var(--b2)] rounded-[var(--r2)]">
-                  No comps found for {activeDeal.year} {activeDeal.make}{" "}
-                  {activeDeal.model} in this region.
-                </div>
-              )}
-            </div>
+                <h3 className="font-bold">Verify before bidding</h3>
+                <p className="text-sm text-[var(--t2)]">
+                  A bid ceiling and profit cannot be confirmed without recent
+                  comparable sales, title and condition checks, and complete
+                  fees and repair costs.
+                </p>
+                <Link
+                  href={`/deal/${activeDeal.id}`}
+                  className="inline-flex min-h-11 items-center rounded-lg bg-[var(--accent)] px-4 font-semibold text-[var(--on-accent)]"
+                >
+                  Review vehicle evidence
+                </Link>
+                {activeDeal.source_url && (
+                  <a
+                    href={activeDeal.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-3 inline-flex min-h-11 items-center text-[var(--blue)]"
+                  >
+                    View original listing
+                  </a>
+                )}
+              </section>
+            )}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-center text-[var(--t3)]">

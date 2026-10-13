@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { gradeDataQuality } from "./data-quality";
 
 describe("gradeDataQuality", () => {
+  it("does not ask private retail buyers to confirm an auction deadline", () => {
+    expect(
+      gradeDataQuality({ source: "craigslist", sellerType: "private" }).missing,
+    ).not.toContain("auction");
+    expect(gradeDataQuality({ source: "copart" }).missing).toContain("auction");
+  });
   it("counts a seller contact URL as seller contact proof", () => {
     const quality = gradeDataQuality({
       seller: "AE of Miami",

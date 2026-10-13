@@ -308,6 +308,7 @@ function mapDealToResult(deal: Deal): ScanResult {
   const quality =
     existingQuality ||
     gradeDataQuality({
+      source: deal.source,
       images,
       imageUrl: images[0],
       vin: deal.vin,
@@ -2501,7 +2502,9 @@ let _toastId = 0;
 function ScanPageInner() {
   const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
-  const { intent: savedBuyerIntent } = useBuyerIntent();
+  const { intent: savedBuyerIntent, isLoading: prefsLoading } =
+    useBuyerIntent();
+  const [urlHydrated, setUrlHydrated] = useState(false);
   const repairEligibility =
     urlParams.get("includeRepairable") ??
     (savedBuyerIntent?.includeRepairable === true
@@ -2706,6 +2709,7 @@ function ScanPageInner() {
 
   useEffect(() => {
     const q = urlParams.get("q");
+    setUrlHydrated(true);
     const source = urlParams.get("source");
     const sellerTypeParam = urlParams.get("sellerType");
     const title = urlParams.get("titleType");
@@ -2721,6 +2725,9 @@ function ScanPageInner() {
     const dealersParam = urlParams.get("dealers");
     const dealerSourceIdsParam = urlParams.get("dealerSourceIds");
     const hasExplicitScanParams = [
+      sortParam,
+      urlParams.get("scope"),
+      urlParams.get("includeRepairable"),
       q,
       source,
       sellerTypeParam,
@@ -3626,6 +3633,18 @@ function ScanPageInner() {
     keys,
     buyNow,
   ]);
+
+  // Preserve the exact active filters before a vehicle link unmounts this page.
+  useEffect(() => {
+    if (!swrKey || prefsLoading || !urlHydrated) return;
+    const href = scanPageHrefFromApiKey(swrKey);
+    if (
+      window.location.pathname === "/scan" &&
+      window.location.pathname + window.location.search !== href
+    ) {
+      window.history.replaceState(window.history.state, "", href);
+    }
+  }, [swrKey, prefsLoading, urlHydrated]);
 
   // Use SWR for data fetching
   const {

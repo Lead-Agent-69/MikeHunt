@@ -96,6 +96,34 @@ describe("craigslistSearchUrl", () => {
 });
 
 describe("parseCraigslistResults", () => {
+  it("continues current static pages with a next link but no legacy total", async () => {
+    const result = await parseCraigslistResults(
+      PAGE + '<link rel="next" href="?s=120">',
+      "stlouis",
+      { path: "cto", source: "craigslist" },
+    );
+    expect(result.items).toHaveLength(2);
+    expect(result.hasMore).toBe(true);
+  });
+  it("continues a full static page without pagination markup and stops a short final page", async () => {
+    const row = PAGE.match(/<li[\s\S]*?<\/li>/)?.[0] || "";
+    expect(
+      (
+        await parseCraigslistResults(row.repeat(120), "stlouis", {
+          path: "cto",
+          source: "craigslist",
+        })
+      ).hasMore,
+    ).toBe(true);
+    expect(
+      (
+        await parseCraigslistResults(PAGE, "stlouis", {
+          path: "cto",
+          source: "craigslist",
+        })
+      ).hasMore,
+    ).toBe(false);
+  });
   it.each([
     ["cto", "craigslist"],
     ["ctd", "craigslist_dealer"],

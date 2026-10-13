@@ -436,6 +436,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   );
   const images = Array.isArray(r.images) ? r.images : r.images || [];
   const quality = gradeDataQuality({
+    source: r.source,
     images,
     imageUrl: images[0],
     vin: r.vin,
@@ -763,6 +764,7 @@ function publicRowToVehicle(
     first_seen_at: row.scraped_at,
   } as any);
   const quality = gradeDataQuality({
+    source: canonicalSource,
     images: row.images,
     vin: row.vin,
     titleType:
