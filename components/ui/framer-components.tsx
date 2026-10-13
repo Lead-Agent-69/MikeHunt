@@ -6,6 +6,7 @@ import {
   useScroll,
   useTransform,
   useMotionValue,
+  useReducedMotion,
   useAnimationFrame,
   animate,
   AnimatePresence,
@@ -591,22 +592,31 @@ function SwipeCardFace({
   onDecide: (id: string, dir: "save" | "pass") => void;
 }) {
   const x = useMotionValue(0);
+  const reducedMotion = useReducedMotion();
   const rotate = useTransform(x, [-220, 220], [-9, 9]);
   const saveOpacity = useTransform(x, [24, 130], [0, 1]);
   const passOpacity = useTransform(x, [-24, -130], [0, 1]);
 
   return (
     <motion.div
-      className="absolute inset-0 z-20 touch-none cursor-grab active:cursor-grabbing"
-      style={{ x, rotate }}
+      className="absolute inset-0 z-20 touch-pan-y cursor-grab active:cursor-grabbing"
+      style={{ x, rotate: reducedMotion ? 0 : rotate }}
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.9}
       onDragEnd={(_, info) => {
-        if (info.offset.x > 120) onDecide(card.id, "save");
-        else if (info.offset.x < -120) onDecide(card.id, "pass");
+        if (
+          info.offset.x > 100 ||
+          (info.offset.x > 40 && info.velocity.x > 600)
+        )
+          onDecide(card.id, "save");
+        else if (
+          info.offset.x < -100 ||
+          (info.offset.x < -40 && info.velocity.x < -600)
+        )
+          onDecide(card.id, "pass");
       }}
-      whileDrag={{ scale: 1.03 }}
+      whileDrag={reducedMotion ? undefined : { scale: 1.01 }}
       transition={{ type: "spring", stiffness: 300, damping: 26 }}
     >
       <div className="absolute inset-0 overflow-hidden rounded-[var(--r4)] border border-[var(--b2)] bg-[var(--s0)] shadow-[var(--shadow)]">
@@ -649,8 +659,9 @@ export function SwipeCardStack({
   cards: { id: string; content: React.ReactNode }[];
   onSave: (id: string) => void;
   onPass: (id: string) => void;
-  height?: number;
+  height?: number | string;
 }) {
+  const reducedMotion = useReducedMotion();
   const [stack, setStack] = useState(cards);
   // A newly-fetched batch has to replace the queue — seeding state once would freeze the
   // stack on whatever cards existed at first mount.
@@ -680,7 +691,19 @@ export function SwipeCardStack({
   const top = stack[0];
 
   return (
-    <div className="flex flex-col gap-5">
+    <div
+      className="flex flex-col gap-5 outline-offset-4 focus-visible:outline focus-visible:outline-[var(--blue)]"
+      tabIndex={0}
+      role="group"
+      aria-label="Vehicle swipe deck"
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || !top || leaving) return;
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          event.preventDefault();
+          decide(top.id, event.key === "ArrowRight" ? "save" : "pass");
+        }
+      }}
+    >
       <div className="relative select-none" style={{ height }}>
         {/* Queue waiting behind the top card */}
         {stack.slice(1, 4).map((card, i) => (
@@ -705,11 +728,14 @@ export function SwipeCardStack({
             className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-[var(--r4)] border border-[var(--b2)] bg-[var(--s0)]"
             initial={{ x: 0, opacity: 1, rotate: 0 }}
             animate={{
-              x: leaving.dir === "save" ? 620 : -620,
+              x: reducedMotion ? 0 : leaving.dir === "save" ? 620 : -620,
               opacity: 0,
-              rotate: leaving.dir === "save" ? 16 : -16,
+              rotate: reducedMotion ? 0 : leaving.dir === "save" ? 16 : -16,
             }}
-            transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+            transition={{
+              duration: reducedMotion ? 0 : 0.22,
+              ease: [0.22, 1, 0.36, 1],
+            }}
             onAnimationComplete={() => setLeaving(null)}
           >
             {leaving.card.content}
@@ -736,26 +762,26 @@ export function SwipeCardStack({
         <button
           type="button"
           onClick={() => top && decide(top.id, "pass")}
-          disabled={!top}
+          disabled={!top || !!leaving}
           aria-label="Pass on this deal"
-          className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b2)] bg-[var(--s0)] px-5 py-2.5 text-[13px] font-bold text-[var(--t3)] transition-all hover:border-[var(--rbd)] hover:text-[var(--red)] active:scale-95 disabled:opacity-40"
+          title="Pass on this vehicle"
+          className="grid h-14 w-14 place-items-center rounded-full border border-[var(--b2)] bg-[var(--s0)] text-[var(--red)] transition-colors disabled:opacity-40"
         >
-          <X className="h-4 w-4" strokeWidth={2.5} />
-          Pass
+          <X className="h-6 w-6" strokeWidth={2.5} />
         </button>
-        <span className="font-mono text-[11px] text-[var(--t5)]">
+        <span role="status" className="font-mono text-[11px] text-[var(--t3)]">
           {stack.length} left
         </span>
         <button
           type="button"
           onClick={() => top && decide(top.id, "save")}
-          disabled={!top}
+          disabled={!top || !!leaving}
           aria-label="Save this deal"
-          className="inline-flex items-center gap-1.5 rounded-full px-6 py-2.5 text-[13px] font-black text-white shadow-[var(--shadow2)] transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-40"
+          title="Save this vehicle"
+          className="grid h-14 w-14 place-items-center rounded-full text-white shadow-[var(--shadow2)] transition-colors disabled:opacity-40"
           style={{ background: "var(--grad)" }}
         >
-          <Heart className="h-4 w-4" strokeWidth={2.5} />
-          Save
+          <Heart className="h-6 w-6" strokeWidth={2.5} />
         </button>
       </div>
     </div>

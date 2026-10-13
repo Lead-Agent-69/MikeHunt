@@ -15,9 +15,9 @@ describe("visor desk invent + soft-fail honesty", () => {
   it("feed throws on !ok and soft-fails instead of empty success", () => {
     const page = read("app/(dashboard)/feed/page.tsx");
     expect(page).toMatch(
-      /if \(!res\.ok \|\| data\.error \|\| data\.degraded\)/,
+      /if \(!response\.ok \|\| data\.error \|\| data\.degraded\)/,
     );
-    expect(page).toContain("setLoadError(true)");
+    expect(page).toContain("setFailed(true)");
     expect(page).toContain("Try again");
     expect(page).not.toMatch(/>\s*Live feed\s*</);
   });

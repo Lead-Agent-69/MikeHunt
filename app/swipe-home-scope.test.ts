@@ -27,19 +27,20 @@ describe("Swipe buyer-mode gating + labels", () => {
   const page = read("app/(dashboard)/swipe/page.tsx");
 
   it("hides flip economics outside reseller/dealer desks", () => {
-    expect(page).toContain("isFlipBuyerMode(");
-    expect(page).toMatch(
-      /flipDesk &&\s*\(deal\.sellEstimate \|\| deal\.recommendedMaxBid\)/,
-    );
-    expect(page).toMatch(/\{flipDesk && \(\s*<div className="text-right">/);
+    expect(page).toContain("<SwipeVehicleFace deal={d}");
+    const face = read("components/search/SwipeVehicleFace.tsx");
+    expect(face).not.toContain("deal.sellEstimate");
+    expect(face).not.toContain("deal.recommendedMaxBid");
+    expect(face).not.toContain("deal.profitEstimate");
   });
 
   it("renders human source/condition labels, not raw enums", () => {
-    expect(page).toContain("sourceLabel(deal.source, deal.sourceUrl)");
-    expect(page).toContain("readCondition(deal.condition");
-    expect(page).not.toContain(
+    const face = read("components/search/SwipeVehicleFace.tsx");
+    expect(face).toContain("sourceLabel(deal.source, deal.sourceUrl)");
+    expect(face).toContain("<TitleBadge");
+    expect(face).not.toContain(
       '<span className="capitalize">{deal.condition}</span>',
     );
-    expect(page).not.toContain("{deal.source}</span>");
+    expect(face).not.toContain("{deal.source}</span>");
   });
 });
