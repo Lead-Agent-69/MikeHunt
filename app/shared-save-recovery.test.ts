@@ -71,16 +71,19 @@ describe("shared vehicle save recovery", () => {
     expect(mocks.replace).toHaveBeenCalledWith(`/deal/${id}`);
     expect(host.textContent).not.toMatch(/profit|scored|analyz/i);
   });
-  it.each([{}, { dealId: "undefined" }, { dealId: "https://evil.example" }])(
-    "does not navigate on malformed success: %j",
-    async (body) => {
-      fetchMock.mockResolvedValue(response(body));
-      await render();
-      expect(mocks.replace).not.toHaveBeenCalled();
-      expect(host.textContent).toContain("couldn't confirm");
-      expect(host.textContent).toContain("Try again");
-    },
-  );
+  it.each([
+    null,
+    "invalid body",
+    {},
+    { dealId: "undefined" },
+    { dealId: "https://evil.example" },
+  ])("does not navigate on malformed success: %j", async (body) => {
+    fetchMock.mockResolvedValue(response(body));
+    await render();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("couldn't confirm");
+    expect(host.textContent).toContain("Try again");
+  });
   it("retries the original URL after a failed request", async () => {
     fetchMock.mockResolvedValueOnce(
       response({ error: "Listing temporarily unavailable" }, false),

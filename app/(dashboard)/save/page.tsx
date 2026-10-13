@@ -39,7 +39,9 @@ export default function SavePage({
           signal: abortController.signal,
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
+        if (!data || typeof data !== "object")
+          throw new Error("We couldn't confirm the saved vehicle. Try again.");
 
         if (!response.ok || data.error) {
           throw new Error(

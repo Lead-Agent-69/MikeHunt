@@ -597,6 +597,10 @@ Related evidence:
   responses offer a retry; anonymous sign-in preserves the shared listing;
   superseded/account-changed requests cannot navigate. Do not claim a valuation
   or profit calculation merely because listing details were saved.
+- Market context now labels time since our first observation, not claimed days
+  on market or inferred seller motivation. Cross-source API aggregate price
+  comparability remains an intelligence follow-up; the visible table already
+  distinguishes source-channel price types but those are not transaction proof.
 - Local controlled tests cover all four ordinary desks on desktop/mobile.
   These do not prove a remote site's extraction permission or real hosted saves.
   Final test, merge and deployment receipts belong to the integration PR.
