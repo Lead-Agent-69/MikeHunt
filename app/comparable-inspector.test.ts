@@ -33,7 +33,9 @@ it("preserves exact price meaning and uses confirmed identifiers for deep links"
   expect(html).toContain("$15,000");
   expect(html).toContain("40,000 mi");
   expect(html).toContain(`href="/deal/${other}"`);
-  expect(html).toContain(`href="/compare?ids=${current},${other}"`);
+  expect(html).toContain(
+    `href="/compare?ids=${current},${other}&amp;from=${current}"`,
+  );
   expect(html).toContain('aria-live="polite"');
   expect(html).not.toMatch(/better buy|profit|resale value/i);
 });

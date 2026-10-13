@@ -146,12 +146,12 @@ function CompareContent() {
           Compare Vehicles
         </h1>
         <p className="text-[var(--t3)]">
-          Compare costs, listing claims and outstanding checks for your saved
+          Compare costs, listing claims and outstanding checks for selected
           vehicles.
         </p>
       </div>
 
-      <VehicleComparison ids={ids} />
+      <VehicleComparison ids={ids} origin={params.get("from")} />
       {flipDesk && (
         <>
           <h2 className="text-lg font-bold">Market segment research</h2>

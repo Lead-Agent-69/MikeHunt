@@ -346,7 +346,7 @@ export default function SavedCarsPage() {
           {comparisonIds.length >= 2 ? (
             <Link
               className="inline-flex min-h-11 items-center font-bold text-[var(--blue)]"
-              href={`/compare?ids=${encodeURIComponent(comparisonIds.join(","))}`}
+              href={`/compare?ids=${encodeURIComponent(comparisonIds.join(","))}&from=saved`}
             >
               Compare selected vehicles
             </Link>
