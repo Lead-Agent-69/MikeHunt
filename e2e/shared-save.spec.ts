@@ -4,6 +4,24 @@ import { localOnly } from "./support/target";
 
 const link = "https://seller.example/car/1";
 const id = "00000000-0000-4000-8000-000000000001";
+const contrast = (element: Element) => {
+  const luminance = (color: string) => {
+    const channels = (color.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    if (channels.length !== 3) throw new Error("Unsupported computed color");
+    return channels.reduce((sum, channel, index) => {
+      const value = channel / 255;
+      return (
+        sum +
+        [0.2126, 0.7152, 0.0722][index] *
+          (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+      );
+    }, 0);
+  };
+  const style = getComputedStyle(element);
+  const a = luminance(style.color),
+    b = luminance(style.backgroundColor);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+};
 for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
   test.describe(`${desk} shared listing save`, () => {
     localOnly();
@@ -36,11 +54,10 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible();
       expect((await retry.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-      expect(
-        await retry.evaluate((button) => getComputedStyle(button).color),
-      ).toBe("rgb(255, 255, 255)");
+      expect(await retry.evaluate(contrast)).toBeGreaterThanOrEqual(4.5);
       const connection = page.locator(".connection-status-mobile");
       await expect(connection).toBeVisible();
+      expect(await connection.evaluate(contrast)).toBeGreaterThanOrEqual(4.5);
       const noticeBox = (await connection.boundingBox())!;
       const headerBox = (await page.getByRole("banner").boundingBox())!;
       expect(headerBox.y).toBeGreaterThanOrEqual(

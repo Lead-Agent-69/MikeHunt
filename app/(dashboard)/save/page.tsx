@@ -163,7 +163,7 @@ export default function SavePage({
               {!dealerId && sharedUrl && (
                 <Link
                   href={`/login?next=${encodeURIComponent(`/save?url=${encodeURIComponent(sharedUrl)}`)}`}
-                  className="w-full py-3 px-4 rounded-lg bg-[var(--blue)] text-white font-bold text-sm"
+                  className="w-full py-3 px-4 rounded-lg bg-[var(--accent)] text-[color:var(--on-accent)] font-bold text-sm"
                 >
                   Sign in
                 </Link>
@@ -178,7 +178,7 @@ export default function SavePage({
                     setErrorMessage("");
                     void handleSaveUrl(sharedUrl, id);
                   }}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-[var(--blue)] text-white font-bold text-sm"
+                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-[var(--accent)] text-[color:var(--on-accent)] font-bold text-sm"
                 >
                   <RotateCw className="w-4 h-4" aria-hidden="true" /> Try again
                 </button>

@@ -609,6 +609,9 @@ Related evidence:
   connectivity probe is labeled connection unavailable, not proof that the device
   is offline. Retry/sign-in buttons use a defined high-contrast text color;
   controlled browser tests check banner/header separation and 44px targets.
+- Define paired accent/status text tokens for light and dark themes. Browser
+  checks measure actual contrast ratios, not just the presence of white text;
+  existing accent-token consumers also receive the dark-theme foreground.
 
 ## Remaining Acceptance Order
 
