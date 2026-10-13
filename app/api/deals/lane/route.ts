@@ -48,6 +48,7 @@ const LANE_COLUMNS = [
   "estimated_repair_cost",
   "price_evidence:options->priceEvidence",
   "listing_description:options->>description",
+  "reference_only:options->>price_is_acv_estimate",
 ].join(", ");
 
 const MAX_VINS = 200;

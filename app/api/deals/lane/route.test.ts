@@ -78,6 +78,7 @@ describe("GET /api/deals/lane", () => {
     await GET(req("?vins=1HGCM82633A004352"));
     const cols = calls.select.split(",").map((c) => c.trim());
     expect(calls.select).not.toContain("*");
+    expect(cols).toContain("reference_only:options->>price_is_acv_estimate");
     for (const c of [
       "embedding",
       "lat",
