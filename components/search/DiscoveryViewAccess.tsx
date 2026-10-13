@@ -1,0 +1,24 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
+import { InventoryViewLinks } from "./InventoryViewLinks";
+
+export function DiscoveryViewAccess() {
+  const path = usePathname();
+  const { query, ready } = useInventoryViewScope();
+  if (path !== "/discover") return null;
+  if (!ready)
+    return (
+      <div
+        className="mb-4 h-11 bg-[var(--s2)] shimmer"
+        aria-label="Loading inventory views"
+        role="status"
+      />
+    );
+  return (
+    <div className="mb-4 border-b border-[var(--b1)] pb-3" aria-busy={!ready}>
+      <InventoryViewLinks query={query} current="/discover" />
+    </div>
+  );
+}
