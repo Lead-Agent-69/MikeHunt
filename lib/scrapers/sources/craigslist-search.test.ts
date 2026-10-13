@@ -96,6 +96,25 @@ describe("craigslistSearchUrl", () => {
 });
 
 describe("parseCraigslistResults", () => {
+  it.each([
+    ["cto", "craigslist"],
+    ["ctd", "craigslist_dealer"],
+  ] as const)(
+    "does not invent operability for the %s channel",
+    async (path, source) => {
+      const { items } = await parseCraigslistResults(
+        PAGE.replace("2020 Bmw 330i", "2020 Bmw 330i - mechanic's special"),
+        "dallas",
+        { path, source },
+      );
+      expect(items).toHaveLength(2);
+      for (const item of items) {
+        expect(item.condition).toBeUndefined();
+        expect(item.title_source).toBeUndefined();
+      }
+    },
+  );
+
   it("reads the layout without mistaking the site's region for the listing state", async () => {
     const { items } = await parseCraigslistResults(PAGE, "dallas", {
       path: "cto",
@@ -111,6 +130,7 @@ describe("parseCraigslistResults", () => {
       seller_type: "private",
     });
     expect(items[0].location_state).toBeUndefined();
+    expect(items[0].condition).toBeUndefined();
     expect(items[0].metadata).toMatchObject({
       search_market_state: "TX",
       location_state_source: "unverified",
