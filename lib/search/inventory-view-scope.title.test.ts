@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyInventoryViewScope } from "./inventory-view-scope";
+import {
+  applyInventoryViewScope,
+  inventoryViewParams,
+} from "./inventory-view-scope";
 
 function query() {
   const b: any = {};
@@ -24,6 +27,35 @@ const titleOr = (q: any) =>
     .filter((f: string) => f.startsWith("condition."));
 
 describe("applyInventoryViewScope titleType (feed + map)", () => {
+  it("preserves repair eligibility when switching inventory views", () => {
+    const params = inventoryViewParams(
+      new URLSearchParams({
+        states: "MO,TX",
+        includeRepairable: "0",
+        page: "4",
+      }),
+    );
+    expect(params.get("includeRepairable")).toBe("0");
+    expect(params.get("states")).toBe("MO,TX");
+    expect(params.has("page")).toBe(false);
+  });
+
+  it("screens seller-reported repairs before map and feed pagination", () => {
+    const q = query();
+    applyInventoryViewScope(q, new URLSearchParams({ includeRepairable: "0" }));
+    expect(q.or).toHaveBeenCalledWith(
+      expect.stringContaining("title.is.null,title.not.imatch."),
+    );
+  });
+
+  it("keeps explicitly requested repairable inventory eligible", () => {
+    const q = query();
+    applyInventoryViewScope(q, new URLSearchParams({ includeRepairable: "1" }));
+    expect(q.or).not.toHaveBeenCalledWith(
+      expect.stringContaining("title.not.imatch."),
+    );
+  });
+
   it.each([
     ["clean", "condition.in.(clean_title)"],
     ["rebuilt", "condition.in.(rebuilt_title)"],

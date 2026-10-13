@@ -154,22 +154,32 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
   const writes: Record<string, any>[][] = [];
   const touches: { source: string; ids: string[]; patch: any }[] = [];
   const reads: string[][] = [];
+  const touchOptions: unknown[] = [];
   return {
     rows,
     writes,
     touches,
     reads,
+    touchOptions,
     client: {
       from: () => ({
-        update: (patch: Record<string, any>) => ({
+        update: (patch: Record<string, any>, options?: { count?: string }) => ({
           eq: (_column: string, source: string) => ({
             in: async (_idColumn: string, ids: string[]) => {
               touches.push({ source, ids, patch });
+              touchOptions.push(options);
               for (const id of ids) {
                 const stored = rows.get(`${source}|${id}`);
                 if (stored) Object.assign(stored, patch);
               }
-              return { data: null, error: null };
+              return {
+                data: null,
+                error: null,
+                count:
+                  options?.count === "exact"
+                    ? ids.filter((id) => rows.has(`${source}|${id}`)).length
+                    : null,
+              };
             },
           }),
         }),
@@ -227,6 +237,82 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("does not mark a missing cached listing fresh and recovers it on the next pass", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+    const { cache, dir } = await makeCache();
+    const db = fakeSupabase();
+    await cache.persistRows([row("missing")], db.client, "*");
+    db.rows.delete("test|missing");
+    vi.setSystemTime(new Date("2026-10-05T13:00:00Z"));
+    const result = await cache.persistRows([row("missing")], db.client, "*");
+    expect(result.touches).toBe(0);
+    expect(db.touchOptions).toEqual([{ count: "exact" }]);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|missing"]).toMatchObject({
+      synced: false,
+      data: { ask_price: 10000 },
+    });
+    expect(
+      (await cache.persistRows([row("missing")], db.client, "*")).inserts,
+    ).toBe(1);
+    expect(cache.getQuota().inserts).toBe(2);
+  });
+
+  it("reports only confirmed touches and reclassifies a partially matched batch", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+    const { cache, dir } = await makeCache();
+    const db = fakeSupabase();
+    await cache.persistRows([row("a"), row("b")], db.client, "*");
+    db.rows.delete("test|b");
+    vi.setSystemTime(new Date("2026-10-05T13:00:00Z"));
+    expect(
+      (await cache.persistRows([row("a"), row("b")], db.client, "*")).touches,
+    ).toBe(1);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    for (const key of ["test|a", "test|b"])
+      expect(disk.entries[key].synced).toBe(false);
+    expect(
+      (await cache.persistRows([row("a"), row("b")], db.client, "*")).inserts,
+    ).toBe(1);
+  });
+
+  it.each([null, { message: "offline" }])(
+    "keeps unconfirmed freshness observations buffered (%s)",
+    async (error) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+      const { cache, dir } = await makeCache();
+      const db = fakeSupabase();
+      await cache.persistRows([row("uncertain")], db.client, "*");
+      vi.setSystemTime(new Date("2026-10-05T13:00:00Z"));
+      const client = {
+        from: () => ({
+          update: () => ({
+            eq: () => ({ in: async () => ({ error, count: null }) }),
+          }),
+        }),
+      } as any;
+      expect(
+        (await cache.persistRows([row("uncertain")], client, "*")).touches,
+      ).toBe(0);
+      const disk = JSON.parse(
+        await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+      );
+      expect(disk.entries["test|uncertain"]).toMatchObject({
+        synced: false,
+        data: { ask_price: 10000 },
+      });
+      expect(cache.getQuota().inserts).toBe(1);
+      expect(cache.getQuota().touches).toBe(1);
+    },
+  );
+
   it("keeps a newer observation for a synced vehicle when writes are paused", async () => {
     let writable = true;
     const { cache, dir } = await makeCache({

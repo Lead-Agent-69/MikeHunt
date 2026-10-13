@@ -131,6 +131,26 @@ describe("inventory filter contract", () => {
     );
     expect(q.or.mock.calls[1][0]).toContain("damage_type.is.null");
     expect(q.or.mock.calls[1][0]).toContain("damage_type.ilike.unknown");
+    expect(q.or.mock.calls[2][0]).toContain("title.is.null,title.not.imatch.");
+    const pattern = JSON.parse(
+      q.or.mock.calls[2][0].split("title.not.imatch.")[1],
+    );
+    expect(pattern).toContain("\\y");
+    expect(
+      new RegExp(pattern.replace(/\\y/g, "\\b"), "i").test(
+        "Mechanic's Special",
+      ),
+    ).toBe(true);
+    expect(
+      new RegExp(pattern.replace(/\\y/g, "\\b"), "i").test(
+        "Mechanic\u2019s-Special",
+      ),
+    ).toBe(true);
+    expect(
+      new RegExp(pattern.replace(/\\y/g, "\\b"), "i").test(
+        "Mechanic Utility Service Truck",
+      ),
+    ).toBe(false);
     const enabled = query();
     applyRepairEligibility(enabled, "1");
     expect(enabled.or).not.toHaveBeenCalled();

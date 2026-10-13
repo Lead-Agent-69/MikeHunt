@@ -29,6 +29,7 @@ export const NO_DAMAGE_VALUES = [
 export function hasReportedRepairRisk(
   condition?: string | null,
   damageType?: string | null,
+  title?: string | null,
 ) {
   const text = String(condition || "")
     .trim()
@@ -38,7 +39,21 @@ export function hasReportedRepairRisk(
     .toLowerCase();
   return (
     REPAIR_CONDITION_TERMS.some((term) => text.includes(term)) ||
-    !NO_DAMAGE_VALUES.includes(damage)
+    !NO_DAMAGE_VALUES.includes(damage) ||
+    hasTitleReportedRepairRisk(title)
+  );
+}
+
+/** Explicit seller wording is a screening signal, not an inspection or damage estimate. */
+export const REPORTED_REPAIR_TITLE_PATTERN =
+  "mechanic(?:['\u2019]s|s)?[\\s-]+special|(?:restoration|repair)[\\s-]+project|parts[\\s-]+only|non[\\s-]+runner|not[\\s-]+running|does(?:n't|[\\s]+not)[\\s]+run|needs[\\s]+(?:repairs?|(?:an?[\\s]+)?(?:engine|transmission))";
+
+export function hasTitleReportedRepairRisk(title?: string | null) {
+  const text = String(title || "")
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'");
+  return new RegExp(`\\b(?:${REPORTED_REPAIR_TITLE_PATTERN})\\b`, "i").test(
+    text,
   );
 }
 

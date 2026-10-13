@@ -35,6 +35,7 @@ export function WorkspaceNav() {
           <Link
             key={tool.href}
             href={tool.href}
+            prefetch={false}
             aria-current={active ? "page" : undefined}
             className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-xs font-semibold ${active ? "border-[var(--accent)] text-[var(--t1)]" : "border-transparent text-[var(--t3)] hover:text-[var(--t1)]"}`}
           >

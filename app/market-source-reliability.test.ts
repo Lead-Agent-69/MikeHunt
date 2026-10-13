@@ -48,6 +48,12 @@ it("returns trend endpoints at the actual observed mileage bounds", async () => 
   state.rows = Array.from({ length: 8 }, (_, i) => ({
     mileage: 20000 + i * 10000,
     ask_price: 20000 - i * 1000,
+    source: "independent_dealer",
+    source_url: `https://seller.example/car/${i}`,
+    title: "clean",
+    condition: "excellent",
+    last_seen_at: new Date().toISOString(),
+    price_evidence: { kind: "asking", askingPrice: 20000 - i * 1000 },
   }));
   const body = await (await depreciation(request())).json();
   expect(body.trend).toEqual([

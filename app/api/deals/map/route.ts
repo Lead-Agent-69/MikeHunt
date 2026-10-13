@@ -15,6 +15,7 @@ import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
 import { titleCategory, titleSourceOf } from "@/lib/deals/title-category";
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
 
 // GET /api/deals/map?verdict=actionable&limit= — active deals as map points. Precise geocoded coords
 // when we have them, else a STATE CENTROID fallback (with deterministic jitter so a state's deals
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
         let q = supabase
           .from("deals")
           .select(
-            "id, year, make, model, ask_price, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource",
+            "id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource",
           )
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
@@ -143,8 +144,11 @@ export async function GET(req: NextRequest) {
           ? ` · ${d.location_state}`
           : "";
       // Profit only in the label for a flip desk; personal buyers see ask + place.
+      const price = sourcePriceContext(d);
       const priceText =
-        Number(d.ask_price) > 0 ? money(d.ask_price) : "Price not reported";
+        price.amount != null
+          ? `${price.label}: ${money(price.amount)}`
+          : "Price not reported";
       const profitText =
         d.true_net_profit == null
           ? "Profit not reported"
@@ -160,7 +164,10 @@ export async function GET(req: NextRequest) {
         lng: coarseCoord(lng),
         approx,
         url: `/deal/${encodeURIComponent(d.id)}`,
-        price: Number(d.ask_price) || undefined, // → Zillow-style price-pill marker
+        price: price.amount ?? undefined,
+        priceLabel: price.label,
+        image: Array.isArray(d.images) ? d.images[0] : undefined,
+        source: d.source,
         type: flipDesk ? typeForVerdict(d.deal_verdict) : "dealer",
         label,
         // Public columns (20261010020000 grants): safe for every desk.

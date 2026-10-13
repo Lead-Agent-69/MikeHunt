@@ -120,6 +120,7 @@ export const LANE_COLORS: Record<DealLane, string> = {
 export const laneColor = (lane: DealLane): string => LANE_COLORS[lane];
 
 export function dealLane(deal: {
+  title?: string | null;
   source?: string | null;
   condition?: string | null;
   damage_type?: string | null;
@@ -137,7 +138,11 @@ export function dealLane(deal: {
     return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
     return "salvage";
-  const damaged = hasReportedRepairRisk(deal.condition, deal.damage_type);
+  const damaged = hasReportedRepairRisk(
+    deal.condition,
+    deal.damage_type,
+    deal.title,
+  );
   if (damaged) return "repairable";
   if (LANE_RETAIL.has(src)) return "clean-retail";
   return "private";

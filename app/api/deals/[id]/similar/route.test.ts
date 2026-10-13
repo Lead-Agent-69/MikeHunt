@@ -8,6 +8,7 @@ const queryRows = vi.hoisted(() => ({
   rows: [] as any[],
   error: null as any,
   basePrice: 15000,
+  baseFields: {} as Record<string, unknown>,
   filters: [] as { method: string; args: any[] }[],
 }));
 
@@ -32,7 +33,12 @@ vi.mock("@/lib/supabase", () => ({
             table === "user_preferences" && savedMode.value
               ? { prefs: { buyerScope: { buyerMode: savedMode.value } } }
               : table === "deals" && baseRow.value
-                ? { ...ROW, id: "deal-1", ask_price: queryRows.basePrice }
+                ? {
+                    ...ROW,
+                    ...queryRows.baseFields,
+                    id: "deal-1",
+                    ask_price: queryRows.basePrice,
+                  }
                 : null,
           error: null,
         }),
@@ -108,8 +114,67 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     queryRows.rows = [ROW];
     queryRows.error = null;
     queryRows.basePrice = 15000;
+    queryRows.baseFields = {};
     queryRows.filters = [];
     baseRow.value = true;
+  });
+
+  it("hydrates reported truck identity before ranking without exposing raw title or trim", async () => {
+    getServerUser.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+    savedMode.value = "personal";
+    queryRows.baseFields = {
+      make: "Chevrolet",
+      model: "Silverado",
+      title: "2019 Chevrolet SILVERADO3500HDWT",
+      trim: "WT",
+    };
+    rpc.mockResolvedValue({ data: [], error: null });
+    queryRows.rows = [
+      {
+        ...ROW,
+        id: "wrong-series",
+        make: "Chevrolet",
+        model: "Silverado",
+        title: "Silverado 1500",
+      },
+      { ...ROW, id: "unknown-series", make: "Chevrolet", model: "Silverado" },
+      {
+        ...ROW,
+        id: "heavy-match",
+        make: "Chevrolet",
+        model: "Silverado",
+        title: "Silverado 3500 HD",
+        trim: "WT",
+      },
+    ];
+    const response = await GET(
+      new NextRequest("https://app.test/api/deals/deal-1/similar"),
+      { params: Promise.resolve({ id: "deal-1" }) },
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.similar.map((row: any) => row.id)).toEqual(["heavy-match"]);
+    expect(body.similar[0].matchReasons).toContain(
+      "Same reported truck series (3500)",
+    );
+    expect(body.similar[0]).not.toHaveProperty("title");
+    expect(body.similar[0]).not.toHaveProperty("trim");
+    expect(body.similar[0]).not.toHaveProperty("trueNetProfit");
+    expect(
+      queryRows.filters.some(
+        ({ method, args }) =>
+          method === "select" &&
+          ["title", "trim"].every((column) =>
+            String(args[0])
+              .split(",")
+              .map((value) => value.trim())
+              .includes(column),
+          ),
+      ),
+    ).toBe(true);
   });
 
   it.each(["dealer", "reseller"])(

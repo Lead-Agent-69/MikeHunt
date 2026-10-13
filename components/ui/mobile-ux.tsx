@@ -105,7 +105,7 @@ export function NetworkStatusBanner() {
       aria-live="polite"
     >
       {isOffline
-        ? "You're offline. Some features may be limited."
+        ? "Connection unavailable. Some features may be limited."
         : "Back online!"}
     </div>
   );

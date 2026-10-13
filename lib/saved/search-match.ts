@@ -24,6 +24,7 @@ type Search = {
 };
 type Coordinates = { lat?: number | null; lng?: number | null };
 type Listing = Coordinates & {
+  title?: string | null;
   make?: string | null;
   model?: string | null;
   year?: number | null;
@@ -124,7 +125,11 @@ export function matchesSavedSearch(
     return false;
   const lane = text(search.lane);
   if (lane && lane !== "all") {
-    const risk = hasReportedRepairRisk(deal.condition, deal.damage_type);
+    const risk = hasReportedRepairRisk(
+      deal.condition,
+      deal.damage_type,
+      deal.title,
+    );
     const matchesLane =
       lane === "auction"
         ? dealLane(deal) === "auction"

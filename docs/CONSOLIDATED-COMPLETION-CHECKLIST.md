@@ -60,6 +60,24 @@ The older snapshot bullets below remain point-in-time evidence.
 
 ## Finish In This Order
 
+### Vendor Badge Integration (October 12 Follow-Up)
+
+- #363's six-file vendor identity change is integrated on current main in a
+  fresh branch rather than merging its older dependency tree. Discover and Saved
+  now use the shared badge alongside the existing detail/shared card/table users.
+- Badge links are native, touch-sized, separately named original-listing actions
+  above the card navigation overlay, not nested links. Known source hosts select
+  the vendor name; lookalike hosts never receive official artwork. The original
+  local Craigslist favicon is retained; other vendors use a neutral store icon.
+- Review found that hostname-only Craigslist classification could turn dealer
+  ads into Private badges. Dealer/owner listing sections now determine that
+  channel; an unclassified Craigslist hostname alone does not prove private sale.
+- Forty-three focused tests passed, including actual Discover/Saved markup,
+  channel attribution, unsafe URL rejection, event separation and image fallback.
+  Full verification, CI, exact deployment and public smoke receipts belong to
+  the integration PR. Browser inventory remains empty, so visual acceptance is
+  still separate; no source collection, pricing or database changes are included.
+
 ### Release Reconciliation (October 12, Afternoon Chicago)
 
 - #380 source-outcome receipts merged at `e57bb5e`; #381 detail hierarchy and
@@ -550,3 +568,410 @@ Related evidence:
 - Exact-head independent database review, approved hosted apply before dependent web release,
   operator worker rollout and real cron/Saved/usage receipts remain mandatory. These local tests
   do not certify production load, provider limits or every transaction isolation level.
+
+## Local Collector Rollout Receipt (October 12)
+
+- The already-merged #384 worker logging code is now running locally in image
+  `mikehunt-scraper-release:bebb6b8`, built from exact main
+  `bebb6b85af0c2c0d04d48942b3b6b07d445532a5`. Eleven rotating-log tests passed
+  in the Linux image with networking disabled before deployment.
+- The operator's existing Compose override now sets Docker logging to three
+  10 MB generations. Original Docker log history was saved locally before the
+  collector was recreated. Other services were not recreated or upgraded.
+- Health is healthy; a fresh status update at 23:42 UTC reported quota_paused,
+  no active job/error and unchanged 1,000 inserts / 535 updates / zero touches.
+  Cache, profiles and logs retain their original mounts; quotas and scope are
+  unchanged. This is a local rollout, not remote Zeus or hosted retention proof.
+
+## Reported Pickup-Series Matching (October 12 Follow-Up)
+
+- Reproduced through read-only production APIs: the known Silverado 3500 listing
+  `869fde80-0d5e-4298-a396-00d45009e6c3` returned six same-model alternatives:
+  three reported 1500, one reported 2500 and two did not report a series. None
+  was a confirmed 3500 match. Generic stored model names hid these distinctions.
+- The alternatives query now reads existing title/trim fields for server-side
+  matching; no schema, grants or source permissions change. Those raw fields
+  are not added to the response. Existing buyer-mode redaction stays intact.
+- Silverado/Sierra matching compares only explicitly reported 1500/2500/3500
+  series. Conflicting reports or unknown-vs-known series do not match. Two
+  unknown-series records retain a family-level suggestion with an explicit
+  missing-series reason, not an exact-model claim. Unrelated prices, down payments
+  and odometer amounts do not substitute for a reported series.
+- Forty-six focused matcher, identity and API-contract tests passed. Source,
+  freshness, auction-window, condition, VIN and price-band guards are retained.
+  Full integration/deployment and post-release query receipts remain separate;
+  this does not validate every truck platform, physical specifications or resale.
+
+## Share-To-Save And Neutral Guidance (October 12 Follow-Up)
+
+- Remove branded comparisons/examples from buyer scope, auction scheduling,
+  Discover auction guidance and shared-listing instructions. Factual source labels
+  and original links are not promotional comparisons; their visibility is a
+  separate product choice, not a reason to falsify provenance.
+- Shared links embedded in prose are extracted before posting. Unsupported
+  protocols, incomplete URLs and embedded credentials do not start a request.
+  Server-side public-URL/permission checks remain authoritative and unchanged.
+- Require a confirmed vehicle identifier before navigation. Failed or malformed
+  responses offer a retry; anonymous sign-in preserves the shared listing;
+  superseded/account-changed requests cannot navigate. Do not claim a valuation
+  or profit calculation merely because listing details were saved.
+- Market context now labels time since our first observation, not claimed days
+  on market or inferred seller motivation. Cross-source API aggregate price
+  comparability remains an intelligence follow-up; the visible table already
+  distinguishes source-channel price types but those are not transaction proof.
+- Local controlled tests cover all four ordinary desks on desktop/mobile.
+  These do not prove a remote site's extraction permission or real hosted saves.
+  Final test, merge and deployment receipts belong to the integration PR.
+- Screenshot review caught the connection banner covering navigation globally.
+  It now reserves document space including the safe-area inset. A failed app
+  connectivity probe is labeled connection unavailable, not proof that the device
+  is offline. Retry/sign-in buttons use a defined high-contrast text color;
+  controlled browser tests check banner/header separation and 44px targets.
+- Define paired accent/status text tokens for light and dark themes. Browser
+  checks measure actual contrast ratios, not just the presence of white text;
+  existing accent-token consumers also receive the dark-theme foreground.
+
+## Remaining Acceptance Order
+
+### October 13 Hosted Acceptance Snapshot
+
+- Read-only hosted audit at 06:28 UTC: database size 102,960,275 bytes;
+  protected retention and storage meter functions absent. Both legacy jobs
+  (`cleanup-expired-deals`, `cleanup-dead-deals`) remain active. #360 remains
+  open without a recorded review. No cleanup or hosted migration was applied.
+- Containment after inspecting the job commands: paused only
+  `cleanup-expired-deals` and `cleanup-dead-deals` with `cron.alter_job`.
+  Verified both inactive; `aggregate-market-data` remains active. The dead-deal
+  job had no owner exclusion; the expired-deal hard-delete excluded saves but
+  not all research references. No data was deleted and no schema/grants were
+  changed. This is temporary containment, not protected-retention completion.
+  Review/apply #360 and verify reference survival before enabling replacement
+  cleanup. Review actual hosted growth while legacy cleanup is paused.
+- Dashboard billing counters: database 118/500 MB, egress 1.07/5 GB, log
+  ingestion 0.49/1 GB. Billing counters and SQL relation size are different
+  measurements. This snapshot does not certify monthly capacity.
+- Active inventory snapshot: 8,266 stored rows across 11 source types. Only
+  396 rows have multiple captured photos. Fresh observations within 24 hours:
+  independent dealers 177/2,544, Copart 1,195/1,779, government 102/1,537,
+  Craigslist dealer 202/855 and private 126/428. The other six source types
+  have zero fresh observations in this window. These are not unique vehicle
+  counts or proof that every source works. Recent runs include errors and
+  an Autotrader success with zero rows; discovery is not persistence proof.
+- Connected Docker host, not remote Zeus: image
+  `mikehunt-scraper-release:b495d4e`, healthy status endpoint but
+  `quota_paused`, 1,000 inserts and 550 updates. Persistent cache/log/profile
+  binds use F:, disk 12% used, Docker logs bounded to 3 x 10 MB. No quota
+  reset, container recreation, restricted-source activation or Zeus SSH.
+- Live signed-in dealer account: unchanged profile/cost save confirmed,
+  unchanged home-state save confirmed, reload preserved cost fields, account
+  watchlist loaded and its detail link opened. Desktop and 390px photo preview
+  loaded with an accessible close control; mobile dialog filled the viewport
+  without page horizontal overflow. Existing saved research was not removed.
+- Discover initially failed and recovered on retry. Push settings explicitly
+  report that push is not switched on. These remain acceptance gaps. Other
+  hosted buyer roles, admin authorization, purchase mutations, saved-search
+  writes and real-device alert delivery are not certified by this dealer pass.
+- Pipeline loaded its empty state and its saved-candidate link returned to the
+  account watchlist. Saved searches rendered their empty account state. These
+  checks do not prove populated purchase workflows or saved-search delivery.
+- Alerts loaded the existing watched vehicle without inventing a price-drop
+  event. Edit-onboarding loaded the dealer goal as selected; no role changes
+  were made. The temporary QA tab was closed and viewport override reset.
+- Craigslist search-card ingestion no longer invents `run_drive` when no
+  listing evidence is available. Detail-page title evidence is preserved.
+  Existing stored assumptions require a separately reviewed remediation;
+  a web deployment alone does not update worker code or rewrite old records.
+- Repeat the aggregate-only SQL snapshot with
+  `supabase/tests/inventory-readiness-audit.sql`; read-only transaction and
+  10-second statement limit, no customer rows or cleanup operations.
+
+1. Protected retention #360: refresh against current main, independent database
+   review, targeted hosted apply and grants/cron/reference-survival proof before
+   dependent cleanup rollout. CI passing alone does not clear this gate.
+2. Worker cache fix #387: code merged as `43c889e` and Vercel READY at that SHA;
+   worker rebuild/observation recovery receipt remains separate. Preserve cache,
+   profiles and quota state. Local log rollout at `bebb6b8` is not this code.
+3. Actual hosted storage/egress/CPU headroom and cold-archive restore/replay proof.
+   The connected F: disk and bounded logs do not expand hosted free-tier quotas.
+4. Provider delivery configuration, delivered/bounced receipts and real device
+   notification opening; hosted login/onboarding/saves and authorized admin QA.
+5. Consistent versioned intelligence across cards, comparison, saved vehicles,
+   alerts and pipeline; verified local comps and costs, held-out outcomes and
+   real-traffic freshness before purchase-confidence or accuracy claims.
+6. Permission-backed source expansion with per-source field/photo completeness,
+   deduplication and successful fresh-row receipts. Never count catalog entries,
+   blocked endpoints or speculative API routes as working coverage.
+
+## Price Meaning And Comparable Research (October 12 Follow-Up)
+
+- Cross-source observations now distinguish reported asking and buy-now prices
+  from bids, payment amounts, reference values and unverified advertisements.
+  Only recent, traceable full cash amounts enter a range; single observations or
+  a truncated source sample do not establish a complete range. Missing values
+  remain missing. Safe original links and factual source attribution remain.
+- Sources are bounded to the latest 50 exact reported VIN observations, with an
+  explicit incomplete-sample notice. VIN syntax is not identity verification.
+  Service-role projections classify existing private JSON evidence server-side;
+  raw seller text, descriptions and evidence are not exposed. No schema, grants,
+  source activation, hosted cleanup or quota resets are part of this change.
+- Comparable charts separate qualified cash asking prices from an explicitly
+  labeled advertised-amount research mode. Known bids/payments/reference values
+  are excluded from both. Research mode has no cash-price trend or deal grade.
+  Current vehicles do not count toward the comparison sample, and a cash-price
+  curve cannot grade a vehicle outside the actual observed mileage domain.
+- The mileage API matches the complete model literally, checks price meaning,
+  freshness and retail suitability, and bounds work to 500 observations. A
+  truncated sample cannot generate a cash-price trend. Existing alternatives
+  ranking, desk-based profit redaction and source permission boundaries remain.
+- The adjacent seasonal panel uses theme surfaces instead of a dark-only fill.
+  Seasonal copy remains a general heuristic, not measured local-sale forecasting.
+- Read-only hosted audit: 6,693 active rows had no price-kind record, 900 were
+  reference values, 488 unknown and nine current bids; no asking/buy-now kinds
+  were recorded. These are point-in-time observations, not verified cars or
+  evidence of cash-price coverage. Ingestion/enrichment must capture price
+  meaning before cash intelligence can be broadly populated. Research views are
+  intentionally preserved without inferring full prices from seller identity.
+- Hosted database size was 102,583,443 bytes; protected retention remains absent.
+  This measurement alone does not certify free-tier CPU, storage or egress.
+- Global market snapshots, geographic comparisons and recommendation price
+  differences still need a consistent versioned price-evidence audit. This
+  phase does not certify repair costs, embeddings, resale accuracy, source photo
+  completeness, alert delivery or real hosted account mutations.
+- Verification before integration: 81 focused tests across seven files and the
+  production build passed. Twenty-eight controlled local browser checks passed
+  across all four ordinary desks on desktop/mobile, plus light/dark panel checks.
+  Screenshots were inspected. Real local detail routes used mocked comparison
+  evidence; this is not proof of hosted cash-price coverage or source extraction.
+
+## Interactive Comparable Research (October 13)
+
+- Turn the previously passive detail scatterplot into a selectable research
+  surface. Mouse/touch selection and keyboard-focusable points synchronize with
+  a native vehicle selector and an inline inspector showing exact amounts,
+  mileage, source and available location. No hover-only essential information.
+- Link selected alternatives directly to their existing detail and side-by-side
+  comparison routes. Validate identifiers, prevent self-comparison and disable
+  speculative route prefetching. Existing user-desk authorization stays intact.
+- The linked saved comparison now uses the same price-evidence classification,
+  including stated full asking prices, explicit buy-now offers, payments and
+  reference values. Unverified amounts/bids/payments cannot create cash-cost
+  subtotals. Keep the original advertised amount separately where it differs;
+  inactive/ended offers do not become current purchase subtotals. Original links
+  reject unsupported schemes and embedded credentials. No extra queries needed.
+- On overflowing comparisons, provide previous/next and native vehicle selection,
+  synchronize manual horizontal scrolling, and pin the metric labels. Narrow
+  columns fit a 320px viewport; the controls stay absent when every column fits.
+- Add maximum-amount and mileage controls with reset, per-field validation and
+  explicit loaded-sample counts. Filtering/selection operates on loaded evidence
+  rather than creating requests per keystroke. It is not a whole-market search.
+- Keep small-sample alternatives inspectable without rendering a misleading
+  curve. The current vehicle never fills the comparison sample. Research mode
+  remains separate from cash comparisons; known bids/payments stay excluded.
+- Acceptance covers all four ordinary desks, mouse/touch/keyboard selection,
+  actual local detail/comparison navigation, narrow 320px layouts, light/dark
+  themes, aligned 44px controls, sparse/empty/invalid filter recovery and no new
+  evidence requests from selection/filtering. Controlled comparison fixtures
+  do not establish real hosted data accuracy or competitor-wide parity.
+- Remaining benchmark gates: capture and validate price meaning during ingestion;
+  apply consistent evidence to cards and global market tools;
+  obtain verified build/options and complete authorized photos; prove alert
+  delivery and cold-cache performance. The first #390 production status smoke
+  exceeded 15 seconds, a targeted retry took 11.5 seconds, and a warm rerun took
+  111ms. A successful warm retry does not close the public cold-status cost/SLA
+  gap. Reviewed retention, worker rollout and hosted capacity remain separate.
+- Before integration: 48 focused interaction/price-evidence tests and the production build passed. Final
+  browser run passed all 44 controlled cases, including real local detail and
+  comparison destinations; screenshots were inspected. Release CI and exact
+  production-commit receipts are tracked on the integration PR.
+
+## Responsive And Scroll Acceptance (October 13)
+
+- Discovery rails publish edge-control state only when an edge changes, with
+  passive scrolling, one geometry read per animation frame and complete cleanup.
+  Matching scroll padding fixes keyboard navigation leaving the first card 24px
+  away from the start. Previous/next controls have 44px CSS-pixel targets.
+- Vehicle cards and rail sections no longer wait for viewport entrance animations
+  to reveal prices and facts. Remove unnecessary per-card layout measurement;
+  retain optional hover feedback, native scrolling and reduced-motion behavior.
+- Move the decision guide from a floating launcher that covered inventory into
+  account navigation on every viewport. Preserve its existing opening event and
+  requests made before the idle-loaded drawer mounts. Use the existing Radix
+  modal dependency for focus containment, Escape, background locking and focus
+  return. The guide remains rule-based buying help, not an AI photo inspection.
+- Load the guide on user request, not merely idle. Its availability response
+  distinguishes pending/unavailable from an empty index and labels index-wide
+  totals instead of claiming they match selected filters. Profile and buying
+  guidance does not infer source coverage from a failed request.
+- Native discovery cards retain CSS interaction feedback without per-card motion
+  subscriptions; reduced-motion CSS suppresses card transforms. Decode photos
+  asynchronously and remove blur from scrolling image controls. Keep the same
+  labels, prices, save behavior, deep links and source evidence.
+- Install hints sit below navigation, and account-menu scrolling reserves footer
+  and safe-area space. Intentional iOS-hint fixtures verify guide and All tools
+  remain reachable for every ordinary user type, including unavailable-health
+  recovery. This does not prove native installation or notification delivery.
+- Give inventory its missing semantic heading. Extend controlled local account
+  coverage to DIY alongside personal, reseller, dealer and parts. Test ordinary
+  accounts cannot read admin aggregates; dealers still receive dealer tools,
+  not admin privileges.
+- Inventory results also render without staggered hidden-card entrance states.
+  Page acceptance waits for loaded settings fields, inventory links and saved
+  content rather than treating a loading heading as a finished screen; verify
+  the actual HTML theme, not only the requested storage preference.
+- Secondary marketplace handoffs are collapsed by default, so external links
+  do not displace indexed inventory. The existing shortcut opens the native
+  disclosure directly; preserve every destination and transferred/untransferred
+  filter detail. This change does not create a new backend request.
+- Discovery quick filters are also collapsed initially, with the active buying
+  scope kept visible and a dedicated inventory button. Narrow cards repeat their
+  existing vehicle identity, price label and amount at the top of the photo;
+  screen readers retain the original facts without duplicate announcements.
+  This is a visual preview of the same evidence, never a new cash-price inference.
+- Disable speculative route prefetching in primary navigation, inventory view
+  links and discovery cards. Links still perform normal client navigation on
+  selection. The cross-engine diagnostic run exposed abandoned-prefetch errors
+  in WebKit; errors are not filtered out of the acceptance check. Marketplace
+  shortcuts now land immediately and focus the disclosure, retaining the URL
+  fragment and modified-click behavior, so smooth scrolling cannot move controls
+  behind fixed navigation during the next tap.
+- Acceptance matrix: Chromium at 320x740, 390x844, 768x1024, 1024x768 and 1440x900;
+  light/dark Discover, inventory, saved and settings; role-scoped APIs and detail
+  routes; touch/keyboard/reduced-motion scrolling and guide focus restoration.
+  This uses local authentication/data, not hosted provider or delivery receipts.
+- Optional local-only WebKit phone and Firefox desktop projects are enabled with
+  `E2E_CROSS_BROWSER=1`; do not expand production smoke traffic automatically.
+  Include account-save persistence after clearing the device backup and reloading,
+  plus reachable dealer pipeline and parts screens. These are local integration
+  receipts, not proof of production provider login or hosted storage retention.
+- Harden the write-test target check using parsed URL hosts shared by the runner
+  and write helpers. Reject remote lookalikes, credential-bearing URLs and invalid
+  protocols. Before this run, verify the test build's Supabase endpoint is also
+  loopback (`127.0.0.1:54321`); a local web origin alone does not prove local data.
+- Read-only hosted check confirmed the password minimum is already 12. At this
+  snapshot, Supabase reports Free/Nano, CPU 6%, disk 21%, RAM 66% and 24/60
+  connections; no scheduled backup shown. Advisor still flags the extension-owned
+  `public.spatial_ref_sys`. Review effective exposure before changing a managed
+  PostGIS table. The platform also shows an active incident banner. These signals
+  do not certify sustained capacity or a completed recovery plan.
+- Benchmark principles: prioritize immediately inspectable cards, predictable
+  search/filter and saved workflows, reachable research and source attribution.
+  Reference [Copart search](https://www.copart.com/content/us/en/support/faq-topics/searching-1)
+  and [Visor filters](https://visor.vin/search/filters) externally only; no
+  competitor branding belongs in the product. Use
+  [Apple interaction guidance](https://developer.apple.com/design/human-interface-guidelines/buttons)
+  as a design reference, not native-platform certification. Web targets here are
+  CSS pixels, not a claim of physical iOS points.
+- Synthetic requestAnimationFrame intervals establish an exercised scrolling
+  path, not physical-device presented FPS, battery/thermal performance or field
+  interaction latency. Field acceptance still needs representative iOS Safari,
+  Android and installed-PWA devices, plus cold/warm and constrained-network runs.
+  [Google Web Vitals](https://web.dev/articles/vitals) targets are LCP <=2.5s,
+  INP <=200ms and CLS <=0.1 at the 75th percentile, separated by mobile/desktop.
+- Chromium acceptance before the final handoff disclosure change: all 185 cases
+  passed. Across 25 scrolling samples, median intervals were 16.7ms, the largest
+  per-sample p95 was 33.4ms and there were no gaps above 50ms. Phone cases used 4x
+  simulated CPU throttling. These observations are not a 60fps device guarantee
+  or a controlled causal comparison with earlier diagnostic runs.
+- The subsequent seven-project run passed 172 of 175 cases. One real iOS install
+  overlap was fixed; two test assumptions were corrected (fitting rails need no
+  scrolling, and Firefox geometry must settle). All three follow-up cases plus
+  five forced-install-overlay regressions passed. The complete run remains a
+  diagnostic receipt, not a claimed single all-green run. Further WebKit and
+  final optimization receipts belong with the integration PR.
+- Windows WebKit diagnostics showed stalls despite fast median intervals; the
+  bare native-scroll control had 17-18ms p95 without stalls. Do not attribute app
+  stalls solely to the engine or certify device FPS from functional passes.
+  Cold versus settled sampling, profiling and physical Safari/Android remain
+  performance gates even after these focused reductions in startup work.
+- Final focused optimization run: 21/22 passed; the remaining abandoned `/alerts`
+  prefetch was traced to workspace peer navigation and disabled there too. The
+  native-card WebKit samples still reached 117ms p95 with 32 gaps above 50ms
+  across five samples. Functional interaction checks are not a smoothness gate.
+  Do not describe this phase as proven high-FPS Safari readiness; trace loading,
+  decode/layout and steady-state work next, alongside the existing large-list
+  and map integration queue. No package updates or paid infrastructure required.
+
+### Product Promise Gates Still Open
+
+Final integration receipts: refreshed against main #395/#396, keeping the new
+body-style filter and pending-scope safeguards. The integrated view bar initially
+hid phone prices; compact native disclosure and tighter spacing corrected it.
+All 20 first-viewport/card-navigation cases then passed (five desks across desktop,
+tablet, 320px Chromium and WebKit phone). Five forced iOS install-overlay cases
+passed. Saved-card speculative prefetch was also disabled after the core pass
+exposed aborted detail requests. Initial theme setup now happens before page load
+instead of abandoning an initial Discover request; browser-error assertions remain
+unchanged. The final ten tablet/WebKit core cases passed across light/dark loaded
+Discover, inventory, Saved and Settings, including guide focus handling. These
+functional receipts do not close the physical-device performance gate above.
+
+The broader final Chromium matrix passed 95/100: all five landscape-tablet price
+checks exposed a remaining first-viewport gap at 1024x768. The same existing price
+preview now remains visible at every breakpoint, with duplicate vehicle identity
+limited to phones; the original accessible body facts remain intact. The corrected
+price/card-navigation matrix passed all 35 cases across the five Chromium sizes,
+WebKit phone and Firefox desktop, covering every ordinary desk. This closes all
+five diagnostic visibility failures, not a claim of a single 100/100 rerun.
+
+1. Inventory: permission-backed successful fresh-row receipts, validated price
+   meaning, deduplication and authorized multi-photo completeness for each source.
+   A configured adapter or a stored row count is not verified unique-car coverage.
+2. Intelligence: versioned evidence shared across cards, comparisons, saved,
+   alerts and pipeline; qualified local comps, measured repair costs and held-out
+   outcomes. Keep unavailable estimates unavailable rather than inventing values.
+3. Retention: independent review and targeted apply of #360, reference-survival
+   tests, archive restore/replay and hosted capacity receipts. Unsafe cleanup stays
+   paused; a 1TB worker disk does not expand Supabase/Vercel free-tier quotas.
+4. Delivery and hosted workflows: missing VAPID/Resend setup, delivered/bounced
+   receipts, real notification deep links, authenticated save/settings/onboarding
+   persistence and populated pipeline tests. Empty screens are not end-to-end proof.
+5. Performance: cold public status/API cost, field Web Vitals, real-device scroll
+   and gallery rendering, offline/reconnect and installed-PWA lifecycle checks.
+   This frontend release changes no database grants, source permissions, worker
+   quotas or provider plans and requires no scraper rebuild by itself.
+6. Unfinished performance integration: #343 virtual inventory and #344 list Back
+   restoration remain drafts. Refresh against current main, prove 384+ loaded
+   cards, retained focused items and Back restoration within 100px together.
+   #345 map batching remains draft with failed CI; reconcile current DealerMap
+   behavior, rerun the exact-head gate and verify 3,000+ pins. Old branch-local
+   successes are not evidence these features are integrated or live.
+7. Hosting eligibility: [Vercel's Hobby policy](https://vercel.com/docs/plans/hobby)
+   limits that plan to personal/non-commercial use. Remaining below resource
+   quotas is not permission for a commercial launch. Confirm the intended launch
+   qualifies or choose compliant hosting before business rollout; do not silently
+   upgrade a paid plan or describe free-tier headroom as commercial readiness.
+
+## Worker And Retention Review Preparation (October 13)
+
+- Zeus scraper now runs exact reviewed main `c6c63d5`, healthy, using a tracked-file
+  archive and the already-installed runtime. Code/lock hashes match the archive;
+  no local credentials or untracked operations scripts were baked into the image.
+  Original F: cache/profile/log mounts, quota state and source permissions remain.
+  Docker logs remain bounded to three 10 MB files. Other services were untouched.
+- Persisted counters survived restart: 1,000 inserts / 550 updates / zero touches.
+  The 80% guard pauses at 1,000 of 1,250 permitted daily inserts. No forced sweep,
+  quota reset or budget increase was used. Fresh writes from the new revision
+  after a natural budget reset remain an acceptance requirement.
+- Read-only hosted inventory: 9,433 stored / 8,266 active rows, 396 with multiple
+  distinct photo URLs, 32 repeated VIN groups. Repeated VIN groups are candidates
+  for investigation, not permission to merge or delete referenced vehicles.
+  Cars.com and Autotrader reported successful empty runs; several historical
+  large-source rows have no recent observation. Run-found counts are not saves,
+  advertised amounts are not necessarily cash prices, and URL count is not
+  source-gallery completeness. Source coverage is not certified by this audit.
+- Hosted size: 109,563,027 bytes. Protected prune/storage RPCs remain absent; both
+  unsafe legacy deletion jobs remain inactive, market aggregation active. No
+  hosted migration, grant change or pruning performed.
+- #360 refreshed against current main, retaining newer observation durability,
+  exact freshness-count recovery, worker logging, and UI changes. Thirty-six
+  focused regressions passed on Node 24. Actual local schema/reference/grant/cron
+  tests rolled back; service-role and two-session races passed on a disposable
+  database that was removed. Independent exact-head review is still required.
+- Production dependency audit reports zero vulnerabilities. Full dependency
+  audit reports 11 high findings in development-tool chains; record the worker's
+  include-dev installation and examine reachability before choosing surgical
+  fixes. Do not use automatic major downgrades or the parked mega update.
+- Full gate and exact refreshed-head CI receipts belong on #360. Do not merge or
+  apply its dependent cleanup until independent sign-off and targeted hosted
+  migration verification. A local F: rollout does not expand cloud free-tier
+  allowances or resolve licensed-feed/dealer permission requirements.

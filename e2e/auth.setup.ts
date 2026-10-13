@@ -12,7 +12,7 @@ import {
 
 // One signed-in storage state per desk, built through the real register + onboarding UI against the
 // LOCAL stack. On prod this whole project is skipped.
-const DESKS: Desk[] = ["personal", "reseller", "dealer", "parts"];
+const DESKS: Desk[] = ["personal", "diy", "reseller", "dealer", "parts"];
 
 for (const desk of DESKS) {
   setup(`create ${desk} desk account`, async ({ page }) => {

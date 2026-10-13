@@ -135,6 +135,8 @@
   --blo: rgba(7, 91, 232, 0.12);
   --bbd: rgba(7, 91, 232, 0.25);
   --accent: #075be8;
+  --on-accent: #ffffff;
+  --on-status: #ffffff;
   --accent-surface: #edf3ff;
   --orange: #b45309;
   --olo: rgba(180, 83, 9, 0.1);
@@ -205,6 +207,8 @@
   --blo: rgba(59, 130, 246, 0.2);
   --bbd: rgba(59, 130, 246, 0.5);
   --accent: #8eb6ff;
+  --on-accent: #07111f;
+  --on-status: #07111f;
   --accent-surface: #21354d;
   --olo: rgba(249, 115, 22, 0.2);
   --plo: rgba(139, 92, 246, 0.2);
@@ -263,6 +267,11 @@ html {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .discovery-card .interactive-surface,
+  .discovery-card .interactive-surface:hover,
+  .discovery-card .interactive-surface:active {
+    transform: none;
   }
 }
 

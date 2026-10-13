@@ -84,7 +84,7 @@ function matchesTitleType(deal: Partial<Deal>, titleType?: string) {
 export function matchesBuyerScope(deal: Partial<Deal>, scope: BuyerScope) {
   if (
     scope.includeRepairable === false &&
-    hasReportedRepairRisk(deal.condition, deal.damage_type)
+    hasReportedRepairRisk(deal.condition, deal.damage_type, deal.title)
   )
     return false;
   if (

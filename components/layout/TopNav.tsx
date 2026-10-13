@@ -33,6 +33,7 @@ function IconBtn({
   return (
     <Link
       href={href}
+      prefetch={false}
       title={title}
       aria-label={title}
       className="relative flex h-11 w-11 items-center justify-center rounded-lg transition-colors text-[var(--t3)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
@@ -82,7 +83,7 @@ export function TopNav() {
           className="sticky top-0 z-30 flex h-14 items-center px-4 md:px-6"
           style={{ background: "var(--glass)" }}
         >
-          <Link href="/discover" aria-label="MIKEHUNT home">
+          <Link href="/discover" prefetch={false} aria-label="MIKEHUNT home">
             <MikeHuntLogo />
           </Link>
         </header>
@@ -209,6 +210,7 @@ function TopNavContent() {
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link
           href="/discover"
+          prefetch={false}
           aria-label="MIKEHUNT home"
           className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
@@ -239,6 +241,7 @@ function TopNavContent() {
             <Link
               key={item.name}
               href={item.href}
+              prefetch={false}
               title={
                 item.signInRequired ? `Sign in to use ${item.name}` : item.name
               }

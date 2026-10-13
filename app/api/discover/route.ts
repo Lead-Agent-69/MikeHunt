@@ -602,7 +602,7 @@ export async function GET(request: NextRequest) {
       const eligiblePreview = previewDeals.deals.filter(
         (row: any) =>
           !excludeRepairable ||
-          !hasReportedRepairRisk(row.condition, row.damageType),
+          !hasReportedRepairRisk(row.condition, row.damageType, row.title),
       );
       return NextResponse.json({
         rails: eligiblePreview.length
@@ -677,7 +677,7 @@ export async function GET(request: NextRequest) {
         const rows: any[] = marketRows.filter((row: any) => {
           if (
             excludeRepairable &&
-            hasReportedRepairRisk(row.condition, row.damage_type)
+            hasReportedRepairRisk(row.condition, row.damage_type, row.title)
           )
             return false;
           if (
@@ -1097,7 +1097,7 @@ export async function GET(request: NextRequest) {
       {
         key: "auctionLots",
         title: "🟡 Auction Lots",
-        subtitle: "Live auction inventory (Copart/IAA/ADESA & gov)",
+        subtitle: "Auction inventory from vehicle and government sales",
         deals: auctionLots,
       },
       {

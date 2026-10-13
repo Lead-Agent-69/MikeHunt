@@ -5,6 +5,31 @@ import { dealLane } from "@/lib/discovery/categorize";
 
 describe("repair eligibility and classification", () => {
   it.each([
+    "2003 Ford Escape $800 OBO *Mechanic's Special",
+    "Mechanic\u2019s special",
+    "Mechanics-special",
+    "Classic Restoration Project",
+    "Needs an engine",
+    "doesn't run",
+    "parts-only",
+  ])("screens explicit seller repair wording: %s", (title) => {
+    expect(hasReportedRepairRisk("clean_title", "none", title)).toBe(true);
+    expect(dealLane({ condition: "clean_title", title })).toBe("repairable");
+    expect(
+      assessDecisionEvidence({ condition: "clean_title", title }).state,
+    ).toBe("repairable");
+  });
+  it.each([
+    "Pontiac Firebird",
+    "New parts installed",
+    "No repairs needed",
+    "Special edition",
+    "Work truck",
+    "Engine serviced",
+  ])("does not diagnose damage from ordinary wording: %s", (title) => {
+    expect(hasReportedRepairRisk("clean_title", "none", title)).toBe(false);
+  });
+  it.each([
     "front end",
     "rear end",
     "mechanical",

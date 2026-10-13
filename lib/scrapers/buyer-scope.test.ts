@@ -6,6 +6,22 @@ import {
 } from "./buyer-scope";
 
 describe("buyer scope planning", () => {
+  it("keeps retail aggregators eligible for all-lane state searches without widening location", () => {
+    const plan = planScrapeForBuyerScope({
+      lane: "all",
+      state: "MO",
+      make: "Ford",
+      maxPrice: 20000,
+    });
+    expect(plan.sourceIds).toContain("cargurus");
+    expect(plan.sourceIds).toContain("autotempest");
+    expect(plan.filters).toMatchObject({
+      state: "MO",
+      make: "Ford",
+      maxPrice: 20000,
+    });
+    expect(plan.scope.states).toBeUndefined();
+  });
   it("carries repair eligibility through the plan and navigation links", () => {
     const plan = planScrapeForBuyerScope({ includeRepairable: false });
     expect(plan.scope.includeRepairable).toBe(false);

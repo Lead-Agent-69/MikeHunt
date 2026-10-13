@@ -20,6 +20,8 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
     expect(page).toContain("Browse inventory");
+    expect(page).toContain("Search filters");
+    expect(page).toContain('aria-label="Browse inventory"');
     expect(page).toContain("href={`/scan${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
   });
@@ -39,17 +41,32 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).toContain("Next vehicles in");
     expect(page).toContain('event.key === "ArrowRight"');
     expect(page).toContain("disabled={edges.end}");
-    expect(page).toContain("observer.disconnect()");
+    expect(page).toContain("return observeScrollEdges(element, setEdges)");
+    expect(page).toContain("scroll-px-4");
+    expect(page).toContain("md:scroll-px-6");
     expect(page).toContain('behavior: reducedMotion ? "instant" : "smooth"');
   });
 
   it("retains estimates in disclosure, allows long names and avoids hover motion when reduced", () => {
+    expect(card).not.toContain("framer-motion");
+    expect(card).toContain("discovery-card w-");
+    expect(card).toContain('data-testid="discovery-card-price-preview"');
+    expect(card).toContain("{displayPrice}");
+    expect(card).toContain('decoding="async"');
+    expect(card).not.toContain("backdropFilter");
+    expect(card).not.toContain("whileInView");
+    expect(card).not.toMatch(/<motion.div\s+layout/);
+    expect(page).not.toContain("motion.section");
+    const inventory = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
+    expect(inventory).toContain("<div className={gridClass}>");
+    expect(inventory).not.toContain("staggerChildren: 0.06");
     expect(card).toContain("Cost estimates and source details");
     expect(card.replace(/\s+/g, " ")).toContain(
       "not inspection findings or guaranteed sale prices",
     );
     expect(card).toContain("break-words");
-    expect(card).toContain("whileHover={reducedMotion ? undefined");
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toContain(".discovery-card .interactive-surface:hover");
     expect(card).toContain(
       'external ? "View source listing" : "Review vehicle"',
     );

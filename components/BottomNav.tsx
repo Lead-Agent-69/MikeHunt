@@ -54,6 +54,7 @@ export function BottomNav() {
           <Link
             key={item.name}
             href={item.href}
+            prefetch={false}
             aria-current={isActive ? "page" : undefined}
             aria-label={
               item.signInRequired

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LiquidGlassButton } from "@/components/ui/framer-components";
 import { ArrowRight, Bot, Calculator, Send, X } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 
 type LiveCoverage = {
   liveRows?: number;
@@ -50,9 +51,14 @@ interface ChatMessage {
   };
 }
 
-export function MikeHuntCopilotDrawer() {
-  const [isOpen, setIsOpen] = useState(false);
+export function MikeHuntCopilotDrawer({
+  initialOpen = false,
+}: {
+  initialOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(initialOpen);
   const [input, setInput] = useState("");
+  const [availabilityPending, setAvailabilityPending] = useState(true);
   const [sourceHealth, setSourceHealth] = useState<SourceHealthSummary | null>(
     null,
   );
@@ -83,17 +89,20 @@ export function MikeHuntCopilotDrawer() {
 
     const controller = new AbortController();
     async function loadAvailability() {
+      setAvailabilityPending(true);
       try {
         const healthRes = await fetch("/api/scrape/health", {
           signal: controller.signal,
         });
         const healthJson = healthRes.ok ? await healthRes.json() : null;
         if (!alive) return;
-        setSourceHealth(healthJson);
+        setSourceHealth(healthJson?.configured === false ? null : healthJson);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         if (!alive) return;
         setSourceHealth(null);
+      } finally {
+        if (alive) setAvailabilityPending(false);
       }
     }
     loadAvailability();
@@ -132,11 +141,13 @@ export function MikeHuntCopilotDrawer() {
   const marketCount = coverage?.workingMarkets ?? readySourceCount;
   const stateCount = coverage?.liveStates || 0;
   const listingCount = coverage?.liveRows ?? visibleRows;
-  const launcherLabel = "Decision guide";
-  const headerStatus =
-    listingCount > 0
-      ? `${listingCount.toLocaleString()} current listings from ${marketCount} working market${marketCount === 1 ? "" : "s"}${stateCount ? ` in ${stateCount} state${stateCount === 1 ? "" : "s"}` : ""}`
-      : "Checking current market availability";
+  const headerStatus = availabilityPending
+    ? "Checking indexed availability"
+    : !sourceHealth
+      ? "Market availability unavailable"
+      : listingCount > 0
+        ? `${listingCount.toLocaleString()} indexed listings across ${marketCount} market${marketCount === 1 ? "" : "s"}${stateCount ? ` in ${stateCount} state${stateCount === 1 ? "" : "s"}` : ""}`
+        : "No indexed availability reported";
 
   const handleSend = (userText: string) => {
     if (!userText.trim()) return;
@@ -172,6 +183,13 @@ export function MikeHuntCopilotDrawer() {
       "Start with your budget, location, title tolerance, and vehicle type. MIKEHUNT will keep the search focused and show what still needs checking.";
 
     if (
+      !sourceHealth &&
+      /source|market|working|empty|inventory|match/.test(lower)
+    ) {
+      responseText = availabilityPending
+        ? "Indexed availability is still loading. Missing counts do not mean there are no cars for sale."
+        : "Indexed availability is unavailable right now. Missing counts do not mean there are no cars for sale.";
+    } else if (
       lower.includes("source") ||
       lower.includes("market") ||
       lower.includes("working")
@@ -193,15 +211,15 @@ export function MikeHuntCopilotDrawer() {
               .join(
                 "; ",
               )}. ${authSources.length} market${authSources.length === 1 ? " needs" : "s need"} sign-in, and ${noRowSources.length} ${noRowSources.length === 1 ? "has" : "have"} no match for the current search.`
-          : "No market has current matches for this search yet. Try a broader location, vehicle type, title preference, or budget.";
+          : "No indexed availability was reported. Missing coverage is not proof that no cars are for sale.";
     } else if (
       lower.includes("empty") ||
       lower.includes("inventory") ||
       lower.includes("match")
     ) {
       responseText = totalRows
-        ? `${totalRows.toLocaleString()} current listings are available from ${marketCount} working markets${stateCount ? ` in ${stateCount} states` : ""}, including ${totalPhotos.toLocaleString()} with photos. Broaden one filter at a time to find more matches.`
-        : "No current listings match this search yet. Broaden the location or budget first, then consider more vehicle types or title conditions.";
+        ? `${totalRows.toLocaleString()} indexed listings across ${marketCount} markets${stateCount ? ` in ${stateCount} states` : ""}, including ${totalPhotos.toLocaleString()} with photos. These are index-wide totals, not the match count for your selected filters.`
+        : "No indexed availability was reported. Missing coverage is not proof that no cars are for sale.";
     } else if (
       lower.includes("next") ||
       lower.includes("fix") ||
@@ -234,170 +252,161 @@ export function MikeHuntCopilotDrawer() {
   };
 
   return (
-    <>
-      {/* Floating Launcher Button */}
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(true)}
-        aria-label="Open decision guide"
-        className="fixed right-4 top-20 z-40 hidden max-w-[calc(100vw-24px)] items-center gap-3 rounded-full border px-4 py-3 text-sm font-bold shadow-2xl md:flex lg:right-6 lg:top-auto lg:bottom-24 lg:z-40 lg:px-5 lg:py-3.5"
-        style={{
-          background: "var(--s0)",
-          color: "var(--t1)",
-          borderColor: "var(--b2)",
-          boxShadow: "var(--shadow)",
-        }}
-      >
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--amber-lo)] text-[11px] font-black text-[var(--amber-d)]">
-          <Bot className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        <span className="hidden truncate md:inline">{launcherLabel}</span>
-        <span className="sr-only">{launcherLabel}</span>
-      </motion.button>
-
-      {/* Drawer overlay */}
-      <AnimatePresence>
-        {isOpen && (
+    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      {isOpen && (
+        <Dialog.Portal>
           <div className="fixed inset-0 z-[70] flex justify-end pb-[env(safe-area-inset-bottom)]">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
-            />
+            <Dialog.Overlay asChild>
+              <motion.div
+                initial={false}
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              />
+            </Dialog.Overlay>
 
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="relative z-10 flex h-[calc(100%-env(safe-area-inset-bottom))] w-full max-w-md flex-col border-l border-[var(--b2)] bg-[var(--s0)] shadow-2xl sm:m-3 sm:h-[calc(100%-24px)] sm:rounded-[var(--r4)] sm:border"
+            <Dialog.Content
+              asChild
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                Array.from(
+                  document.querySelectorAll<HTMLButtonElement>(
+                    'button[aria-label="Account menu"]',
+                  ),
+                )
+                  .find((button) => button.getClientRects().length > 0)
+                  ?.focus();
+              }}
             >
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between p-5 border-b border-[var(--b2)] bg-[var(--s1)]/80 backdrop-blur-xl">
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 rounded-xl grid place-items-center text-white font-bold"
-                    style={{ background: "var(--grad)" }}
+              <motion.div
+                initial={false}
+                className="relative z-10 flex h-[calc(100%-env(safe-area-inset-bottom))] w-full max-w-md flex-col border-l border-[var(--b2)] bg-[var(--s0)] shadow-2xl sm:m-3 sm:h-[calc(100%-24px)] sm:rounded-[var(--r4)] sm:border"
+              >
+                {/* Drawer Header */}
+                <div className="flex items-center justify-between p-5 border-b border-[var(--b2)] bg-[var(--s1)]/80 backdrop-blur-xl">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-9 h-9 rounded-xl grid place-items-center text-white font-bold"
+                      style={{ background: "var(--grad)" }}
+                    >
+                      <Bot className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <Dialog.Title className="text-base font-black text-[var(--t1)]">
+                        Decision guide
+                      </Dialog.Title>
+                      <Dialog.Description className="text-xs text-[var(--t4)]">
+                        {headerStatus}
+                      </Dialog.Description>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setIsOpen(false)}
+                    className="w-11 h-11 shrink-0 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
+                    aria-label="Close decision guide"
                   >
-                    <Bot className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-[var(--t1)]">
-                      Decision guide
-                    </h3>
-                    <p className="text-xs text-[var(--t4)]">{headerStatus}</p>
-                  </div>
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="w-8 h-8 rounded-full border border-[var(--b2)] grid place-items-center text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
-                  aria-label="Close decision guide"
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 font-sans text-sm">
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
-                  >
+                {/* Chat Messages */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 font-sans text-sm">
+                  {messages.map((m) => (
                     <div
-                      className={`max-w-[85%] p-3.5 rounded-2xl ${
-                        m.sender === "user"
-                          ? "bg-[var(--purple)] text-white rounded-br-none"
-                          : "bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] rounded-bl-none"
-                      }`}
+                      key={m.id}
+                      className={`flex flex-col ${m.sender === "user" ? "items-end" : "items-start"}`}
                     >
-                      <p className="leading-relaxed whitespace-pre-wrap">
-                        {m.text}
-                      </p>
+                      <div
+                        className={`max-w-[85%] p-3.5 rounded-2xl ${
+                          m.sender === "user"
+                            ? "bg-[var(--purple)] text-white rounded-br-none"
+                            : "bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] rounded-bl-none"
+                        }`}
+                      >
+                        <p className="leading-relaxed whitespace-pre-wrap">
+                          {m.text}
+                        </p>
 
-                      {m.dealSuggestion && (
-                        <div className="mt-3 p-3 rounded-xl border border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--t1)]">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-[var(--amber-d)] font-mono">
-                              IQ {m.dealSuggestion.score}
-                            </span>
-                            <span className="text-xs font-black text-[#00ff66]">
-                              {m.dealSuggestion.profit}
-                            </span>
+                        {m.dealSuggestion && (
+                          <div className="mt-3 p-3 rounded-xl border border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--t1)]">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-xs font-bold text-[var(--amber-d)] font-mono">
+                                IQ {m.dealSuggestion.score}
+                              </span>
+                              <span className="text-xs font-black text-[#00ff66]">
+                                {m.dealSuggestion.profit}
+                              </span>
+                            </div>
+                            <p className="font-bold text-sm">
+                              {m.dealSuggestion.title}
+                            </p>
+                            <p className="text-[11px] text-[var(--t4)] font-mono">
+                              VIN: {m.dealSuggestion.vin}
+                            </p>
                           </div>
-                          <p className="font-bold text-sm">
-                            {m.dealSuggestion.title}
-                          </p>
-                          <p className="text-[11px] text-[var(--t4)] font-mono">
-                            VIN: {m.dealSuggestion.vin}
-                          </p>
-                        </div>
-                      )}
+                        )}
+                      </div>
+                      <span className="text-[10px] text-[var(--t5)] mt-1 px-1">
+                        {m.timestamp}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-[var(--t5)] mt-1 px-1">
-                      {m.timestamp}
-                    </span>
-                  </div>
-                ))}
+                  ))}
 
-                {isTyping && (
-                  <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-[var(--s1)] border border-[var(--b2)] text-[var(--t4)] w-fit">
-                    <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-bounce" />
-                    <span className="w-2 h-2 rounded-full bg-[var(--purple)] animate-bounce [animation-delay:0.2s]" />
-                    <span className="w-2 h-2 rounded-full bg-[#00ff66] animate-bounce [animation-delay:0.4s]" />
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+                  {isTyping && (
+                    <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-[var(--s1)] border border-[var(--b2)] text-[var(--t4)] w-fit">
+                      <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-bounce" />
+                      <span className="w-2 h-2 rounded-full bg-[var(--purple)] animate-bounce [animation-delay:0.2s]" />
+                      <span className="w-2 h-2 rounded-full bg-[#00ff66] animate-bounce [animation-delay:0.4s]" />
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-              {/* Quick Prompts Pill Strip */}
-              <div className="p-3 border-t border-[var(--b2)] bg-[var(--s1)]/40 overflow-x-auto flex gap-2 no-scrollbar">
-                {QUICK_PROMPTS.map((qp, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSend(qp)}
-                    className="shrink-0 text-xs px-3 py-1.5 rounded-full border border-[var(--b2)] bg-[var(--s0)] text-[var(--t3)] hover:text-[var(--t1)] hover:border-[var(--amber-bd)] transition-all whitespace-nowrap"
+                {/* Quick Prompts Pill Strip */}
+                <div className="p-3 border-t border-[var(--b2)] bg-[var(--s1)]/40 overflow-x-auto flex gap-2 no-scrollbar">
+                  {QUICK_PROMPTS.map((qp, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSend(qp)}
+                      className="min-h-11 shrink-0 text-xs px-3 py-1.5 rounded-full border border-[var(--b2)] bg-[var(--s0)] text-[var(--t3)] hover:text-[var(--t1)] hover:border-[var(--amber-bd)] transition-all whitespace-nowrap"
+                    >
+                      {qp}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input Bar */}
+                <div className="border-t border-[var(--b2)] bg-[var(--s1)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:p-4">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSend(input);
+                    }}
+                    className="flex items-center gap-2"
                   >
-                    {qp}
-                  </button>
-                ))}
-              </div>
-
-              {/* Input Bar */}
-              <div className="border-t border-[var(--b2)] bg-[var(--s1)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))] sm:p-4">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSend(input);
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask about a market, title, or next step..."
-                    className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
-                  />
-                  <button
-                    type="submit"
-                    className="shrink-0 rounded-xl px-3 py-2.5 text-sm font-bold text-white sm:px-4"
-                    style={{ background: "var(--grad)" }}
-                  >
-                    <Send className="h-4 w-4" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only">Send</span>
-                  </button>
-                </form>
-              </div>
-            </motion.div>
+                    <input
+                      type="text"
+                      aria-label="Message for decision guide"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Ask about a market, title, or next step..."
+                      className="min-w-0 flex-1 rounded-xl border border-[var(--b2)] bg-[var(--s0)] px-3 py-2.5 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:border-[var(--amber)] focus:outline-none sm:px-4"
+                    />
+                    <button
+                      type="submit"
+                      className="min-h-11 min-w-11 shrink-0 rounded-xl px-3 py-2.5 text-sm font-bold text-white sm:px-4"
+                      style={{ background: "var(--grad)" }}
+                    >
+                      <Send className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only sm:not-sr-only">Send</span>
+                    </button>
+                  </form>
+                </div>
+              </motion.div>
+            </Dialog.Content>
           </div>
-        )}
-      </AnimatePresence>
-    </>
+        </Dialog.Portal>
+      )}
+    </Dialog.Root>
   );
 }
 

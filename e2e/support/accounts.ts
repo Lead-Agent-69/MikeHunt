@@ -1,9 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 import { assertLocalTarget } from "./target";
 
-export type Desk = "personal" | "reseller" | "dealer" | "parts";
+export type Desk = "personal" | "diy" | "reseller" | "dealer" | "parts";
 export const DESK_LABEL: Record<Desk, RegExp> = {
   personal: /Personal buyer/,
+  diy: /DIY/,
   reseller: /Independent reseller/,
   dealer: /Dealer\/team/,
   parts: /Parts \/ teardown/,

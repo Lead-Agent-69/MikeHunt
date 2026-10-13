@@ -106,7 +106,7 @@ export default function MapPage() {
           </div>
         )}
       </div>
-      <InventoryViewLinks query={query} current="/map" />
+      <InventoryViewLinks query={query} current="/map" disabled={!ready} />
       <label className="flex items-center gap-2 text-xs font-bold text-[var(--t4)]">
         Title
         <select

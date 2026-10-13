@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { titleBadgeHtml, titleBadgeModel } from "@/lib/deals/title-badge-model";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
+import { vehiclePopup } from "@/lib/map/vehicle-popup";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
@@ -51,6 +52,7 @@ export interface MapPoint {
   score?: number;
   tier?: string; // hot | warm | standard
   image?: string;
+  source?: string;
   beds?: number;
   baths?: number;
   sqft?: number;
@@ -183,16 +185,32 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
         (p.price != null && p.price > 0) || p.image || p.score != null;
       const marker = L.marker([p.lat, p.lng], {
         icon: rich ? pillIcon(p) : icons[p.type ?? "dealer"],
+        title: p.name,
+        keyboard: true,
       });
       marker.bindPopup(
         rich
-          ? cardPopup(p)
+          ? p.beds || p.sqft
+            ? cardPopup(p)
+            : vehiclePopup(p)
           : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}${pinTitleBadge(p)}</div>`,
         rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
+      // Hover previews are also available by keyboard focus and by tapping a marker.
+      marker.on("click mouseover focus", () => marker.openPopup());
+      marker.on("add", () => {
+        const element = marker.getElement();
+        element?.setAttribute("aria-label", p.name);
+        element?.addEventListener("focus", () => marker.openPopup());
+      });
       group.addLayer(marker);
     }
     map.addLayer(group);
+    if (points.length)
+      map.fitBounds(
+        L.latLngBounds(points.map((point) => [point.lat, point.lng])),
+        { padding: [32, 32], maxZoom: 9, animate: false },
+      );
     return () => {
       map.removeLayer(group);
     };
@@ -227,6 +245,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         zoom={4}
         style={{ width: "100%", height: "100%", background: "#0a0a0a" }}
         zoomControl={false}
+        scrollWheelZoom={false}
       >
         <TileLayer
           url={
@@ -241,6 +260,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
         />
 
         <ClusteredMarkers points={validPoints} />
+        <ZoomControl position="topright" />
       </MapContainer>
 
       {/* Empty-state overlay when there is no real geo data to plot */}

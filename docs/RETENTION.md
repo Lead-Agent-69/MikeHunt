@@ -17,6 +17,28 @@ Redis uses 1.22 MB at inspection but has no live maximum. The local compose upda
 256 MB with `noeviction` and a 512 MB container limit: no silent eviction of queued jobs; at the
 limit producers receive errors/backpressure. This does not archive or expire completed Redis jobs.
 
+## Hosted Rollout Gate (October 13)
+
+The following tables describe intended retention behavior, not a certified
+hosted rollout. The hosted protected inventory function is still absent and
+#360 needs independent database review before apply. Both legacy deletion
+jobs (`cleanup-expired-deals`, `cleanup-dead-deals`) were paused after inspection
+found incomplete owner-reference protection. The market aggregation job stays
+active. This change deleted no records, changed no grants, and did not stop
+worker collection. Watch hosted growth while replacement cleanup is pending;
+local F: headroom does not expand hosted storage or egress quotas.
+
+Do not re-enable the legacy hard-delete jobs. Apply the independently reviewed
+replacement, prove saved/watchlist/inventory/outcome/alert reference survival,
+verify grants and cron targets, and test archive restoration first. The pause
+is a temporary safety measure, not an archive or permanent retention guarantee.
+
+Current-main worker rollout on October 13 uses image
+`mikehunt-scraper-release:c6c63d5`, with original cache/profile/log mounts and
+persisted quotas. Hosted read-only inspection reports 109,563,027 database bytes;
+protected prune and storage-measurement RPCs are still absent. Source URL storage
+is not a durable photo archive, and daily writes do not certify monthly capacity.
+
 ## Supabase (500 MB)
 
 | data                                 | rule                                                                                                                               | where                                                                       |

@@ -4,6 +4,7 @@ import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { useCallback, useEffect, useState } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
 import { defaultScanSort } from "@/lib/buyer/scan-sort";
+import { savedScopeStates } from "@/lib/preferences/location-form";
 
 export const BUYER_INTENT_KEY = "mh_buyer_scope";
 export const BUYER_INTENT_EVENT = "mh-buyer-scope-change";
@@ -470,5 +471,5 @@ export function useBuyerIntent(initialIntent?: BuyerIntent | null) {
     return normalized;
   }, []);
 
-  return { intent, save, isLoading };
+  return { intent, save, isLoading, savedStates: savedScopeStates(prefs) };
 }

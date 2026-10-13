@@ -20,11 +20,21 @@ const MikeHuntCopilotDrawer = dynamic(
 );
 
 /**
- * Command and assistant tools are useful after the workspace is interactive, but should not
- * compete with the first render of every dashboard route. Load them at idle instead.
+ * Warm keyboard commands at idle; load buying guidance only when requested.
  */
 export function DashboardOverlays() {
   const [ready, setReady] = useState(false);
+  const [guideRequested, setGuideRequested] = useState(false);
+
+  useEffect(() => {
+    // Preserve requests made before the idle-loaded drawer has mounted.
+    const openGuide = () => {
+      setGuideRequested(true);
+      setReady(true);
+    };
+    window.addEventListener("open-mikehunt-copilot", openGuide);
+    return () => window.removeEventListener("open-mikehunt-copilot", openGuide);
+  }, []);
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -42,7 +52,7 @@ export function DashboardOverlays() {
   return (
     <>
       <CommandPalette />
-      <MikeHuntCopilotDrawer />
+      {guideRequested && <MikeHuntCopilotDrawer initialOpen={guideRequested} />}
     </>
   );
 }
