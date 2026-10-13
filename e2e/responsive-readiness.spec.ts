@@ -19,12 +19,18 @@ for (const desk of [
     }, info) => {
       test.setTimeout(120_000);
       const health = watchHealth(page);
-      await page.goto("/discover");
-      for (const theme of ["light", "dark"]) {
-        await page.evaluate(
-          (value) => localStorage.setItem("theme", value),
-          theme,
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "theme",
+          sessionStorage.getItem("responsive-qa-theme") || "light",
         );
+      });
+      for (const theme of ["light", "dark"]) {
+        if (theme === "dark")
+          await page.evaluate(
+            (value) => sessionStorage.setItem("responsive-qa-theme", value),
+            theme,
+          );
         for (const route of ["discover", "scan", "saved", "settings"]) {
           await page.goto(`/${route}`);
           await expect(page.locator("html")).toHaveAttribute(
