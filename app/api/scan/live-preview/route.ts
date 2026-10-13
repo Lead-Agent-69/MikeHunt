@@ -366,6 +366,7 @@ export async function GET(req: NextRequest) {
             hasReportedRepairRisk(
               row.condition,
               row.damage_type || row.damageType,
+              row.title,
             )
           )
             return false;

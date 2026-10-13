@@ -7,6 +7,15 @@ import {
 } from "./pipeline";
 
 describe("buyer-scoped intake", () => {
+  it("keeps title-reported mechanic specials out unless repairs are requested", () => {
+    const row = {
+      title: "2003 Ford Escape $800 OBO *Mechanic's Special",
+      condition: "run_drive",
+      damage_type: "none",
+    };
+    expect(matchesBuyerScope(row, { includeRepairable: false })).toBe(false);
+    expect(matchesBuyerScope(row, { includeRepairable: true })).toBe(true);
+  });
   it("cannot qualify reference values or unknown prices under a buyer budget", () => {
     const row = {
       ask_price: 3000,

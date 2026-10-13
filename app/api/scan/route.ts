@@ -989,7 +989,11 @@ async function publicPreviewFallback(args: {
   const effectiveRows = (unique.length > 0 ? unique : cachedRows).filter(
     (row) =>
       args.includeRepairable !== "0" ||
-      !hasReportedRepairRisk(row.condition, row.damageType ?? row.damage_type),
+      !hasReportedRepairRisk(
+        row.condition,
+        row.damageType ?? row.damage_type,
+        row.title,
+      ),
   );
   const start = args.page * args.pageSize;
   const pageRows = effectiveRows.slice(start, start + args.pageSize);

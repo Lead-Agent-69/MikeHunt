@@ -33,6 +33,7 @@ const AUCTION_SOURCES = new Set([
 ]);
 
 type GuardInput = {
+  title?: string | null;
   source?: string | null;
   condition?: string | null;
   damageType?: string | null;
@@ -66,7 +67,11 @@ export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
     input.priceEvidence?.kind === "current_bid" ||
     AUCTION_SOURCES.has(source) ||
     isAuctionChannel(source);
-  const repairable = hasReportedRepairRisk(input.condition, input.damageType);
+  const repairable = hasReportedRepairRisk(
+    input.condition,
+    input.damageType,
+    input.title,
+  );
   const priceAnomaly =
     Boolean(analysis.priceImplausible) ||
     ["typo", "implausible"].includes(String(analysis.priceSanity || ""));

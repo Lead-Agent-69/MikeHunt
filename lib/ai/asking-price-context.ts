@@ -44,7 +44,7 @@ export function eligibleAskingPrices<
       row.mileage > 0 &&
       !!row.condition &&
       !["unknown", "unlisted"].includes(row.condition.toLowerCase()) &&
-      !hasReportedRepairRisk(row.condition, row.damage_type) &&
+      !hasReportedRepairRisk(row.condition, row.damage_type, row.title) &&
       !/salvage|rebuilt|total[-_ ]?loss|parts[-_ ]?only/i.test(
         row.title || "",
       ) &&
