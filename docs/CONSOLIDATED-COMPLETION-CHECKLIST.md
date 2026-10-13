@@ -672,3 +672,44 @@ Related evidence:
   across all four ordinary desks on desktop/mobile, plus light/dark panel checks.
   Screenshots were inspected. Real local detail routes used mocked comparison
   evidence; this is not proof of hosted cash-price coverage or source extraction.
+
+## Interactive Comparable Research (October 13)
+
+- Turn the previously passive detail scatterplot into a selectable research
+  surface. Mouse/touch selection and keyboard-focusable points synchronize with
+  a native vehicle selector and an inline inspector showing exact amounts,
+  mileage, source and available location. No hover-only essential information.
+- Link selected alternatives directly to their existing detail and side-by-side
+  comparison routes. Validate identifiers, prevent self-comparison and disable
+  speculative route prefetching. Existing user-desk authorization stays intact.
+- The linked saved comparison now uses the same price-evidence classification,
+  including stated full asking prices, explicit buy-now offers, payments and
+  reference values. Unverified amounts/bids/payments cannot create cash-cost
+  subtotals. Keep the original advertised amount separately where it differs;
+  inactive/ended offers do not become current purchase subtotals. Original links
+  reject unsupported schemes and embedded credentials. No extra queries needed.
+- On overflowing comparisons, provide previous/next and native vehicle selection,
+  synchronize manual horizontal scrolling, and pin the metric labels. Narrow
+  columns fit a 320px viewport; the controls stay absent when every column fits.
+- Add maximum-amount and mileage controls with reset, per-field validation and
+  explicit loaded-sample counts. Filtering/selection operates on loaded evidence
+  rather than creating requests per keystroke. It is not a whole-market search.
+- Keep small-sample alternatives inspectable without rendering a misleading
+  curve. The current vehicle never fills the comparison sample. Research mode
+  remains separate from cash comparisons; known bids/payments stay excluded.
+- Acceptance covers all four ordinary desks, mouse/touch/keyboard selection,
+  actual local detail/comparison navigation, narrow 320px layouts, light/dark
+  themes, aligned 44px controls, sparse/empty/invalid filter recovery and no new
+  evidence requests from selection/filtering. Controlled comparison fixtures
+  do not establish real hosted data accuracy or competitor-wide parity.
+- Remaining benchmark gates: capture and validate price meaning during ingestion;
+  apply consistent evidence to cards and global market tools;
+  obtain verified build/options and complete authorized photos; prove alert
+  delivery and cold-cache performance. The first #390 production status smoke
+  exceeded 15 seconds, a targeted retry took 11.5 seconds, and a warm rerun took
+  111ms. A successful warm retry does not close the public cold-status cost/SLA
+  gap. Reviewed retention, worker rollout and hosted capacity remain separate.
+- Before integration: 48 focused interaction/price-evidence tests and the production build passed. Final
+  browser run passed all 44 controlled cases, including real local detail and
+  comparison destinations; screenshots were inspected. Release CI and exact
+  production-commit receipts are tracked on the integration PR.

@@ -46,6 +46,128 @@ describe("shortlist comparison", () => {
     swr.result.data.cars = [{ ...car, auctionEndAt: "2020-01-01" }];
     expect(render()).toContain("Auction ended");
   });
+  it("preserves reference values without calculating a purchase subtotal", () => {
+    swr.result.data.cars = [
+      {
+        ...car,
+        askPrice: 0,
+        priceEvidence: { kind: "reference", referenceValue: 24000 },
+      },
+    ];
+    const html = render();
+    expect(html).toContain("Reference value");
+    expect(html).toContain("$24,000");
+    expect(
+      html.slice(
+        html.indexOf("Known-cost subtotal"),
+        html.indexOf("All-in cost"),
+      ),
+    ).toContain("Not confirmed");
+  });
+  it.each([
+    { active: false },
+    { auctionEndAt: "2020-01-01" },
+    { lastSeenAt: "2020-01-01" },
+  ])(
+    "does not promote inactive, ended or stale offers into a current subtotal: %j",
+    (fields) => {
+      swr.result.data.cars = [
+        {
+          ...car,
+          sourceUrl: "https://seller.example/car/1",
+          priceEvidence: { kind: "asking", askingPrice: 15000 },
+          ...fields,
+        },
+      ];
+      expect(
+        render().split("Known-cost subtotal")[1].split("All-in cost")[0],
+      ).toContain("Not confirmed");
+    },
+  );
+  it("does not subtract impossible repair or transport allowances", () => {
+    swr.result.data.cars = [
+      {
+        ...car,
+        sourceUrl: "https://seller.example/car/1",
+        priceEvidence: { kind: "asking", askingPrice: 15000 },
+        dealAnalysis: { costs: { repair: -500, transport: Infinity } },
+      },
+    ];
+    const html = render();
+    expect(
+      html.split("Known-cost subtotal")[1].split("All-in cost")[0],
+    ).toContain("$15,000");
+    expect(html).not.toMatch(/-\$500|Infinity|\u221e/);
+  });
+  it.each(["monthly_payment", "down_payment", "unknown", "current_bid"])(
+    "never turns %s into a cash-cost subtotal",
+    (kind) => {
+      swr.result.data.cars = [
+        {
+          ...car,
+          askPrice: 300,
+          sourceUrl: "https://seller.example/car/1",
+          priceEvidence: { kind, listedAmount: 300, currentBid: 300 },
+          dealAnalysis: { costs: { repair: 500, transport: 100 } },
+        },
+      ];
+      const html = render();
+      const subtotal = html.slice(
+        html.indexOf("Known-cost subtotal"),
+        html.indexOf("All-in cost"),
+      );
+      expect(subtotal).toContain("Not confirmed");
+      expect(subtotal).not.toContain("$900");
+    },
+  );
+  it("uses the reported full asking price instead of a teaser amount", () => {
+    swr.result.data.cars = [
+      {
+        ...car,
+        askPrice: 300,
+        sourceUrl: "https://seller.example/car/1",
+        priceEvidence: { kind: "asking", askingPrice: 15000 },
+        dealAnalysis: { costs: { repair: 500, transport: 100 } },
+      },
+    ];
+    const html = render();
+    expect(
+      html.slice(
+        html.indexOf("Known-cost subtotal"),
+        html.indexOf("All-in cost"),
+      ),
+    ).toContain("$15,600");
+    expect(html).toContain("Advertised amount $300");
+  });
+  it("retains typed auction buy-now prices but not bid-based purchase math", () => {
+    swr.result.data.cars = [
+      {
+        ...car,
+        source: "copart",
+        askPrice: 400,
+        buyNowPrice: 12000,
+        priceEvidence: { kind: "current_bid", currentBid: 400, buyNow: 12000 },
+        sourceUrl: "https://www.copart.com/lot/123",
+      },
+    ];
+    const html = render();
+    expect(html).toContain("Current bid");
+    expect(html).toContain("Buy-now price");
+    expect(
+      html.slice(
+        html.indexOf("Known-cost subtotal"),
+        html.indexOf("All-in cost"),
+      ),
+    ).toContain("$12,000");
+  });
+  it.each(["javascript:alert(1)", "https://user:secret@seller.example/car"])(
+    "rejects unsafe original links: %s",
+    (sourceUrl) => {
+      swr.result.data.cars = [{ ...car, sourceUrl }];
+      expect(render()).not.toContain("Original listing");
+      expect(render()).not.toContain(sourceUrl);
+    },
+  );
   it("omits empty auction fields when comparing ordinary dealer inventory", () => {
     const html = render();
     expect(html).not.toContain("Run and drive");

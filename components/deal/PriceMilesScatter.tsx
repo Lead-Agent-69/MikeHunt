@@ -10,6 +10,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { RotateCcw } from "lucide-react";
+import {
+  ComparableInspector,
+  type ComparablePoint,
+} from "./ComparableInspector";
 
 const fetcher = async (url: string) => {
   const result = await fetch(url);
@@ -29,9 +34,16 @@ export function PriceMilesScatter({ dealId }: Props) {
   const [selectedMode, setSelectedMode] = React.useState<
     "cash" | "advertised" | null
   >(null);
+  const [maxAmount, setMaxAmount] = React.useState("");
+  const [maxMileage, setMaxMileage] = React.useState("");
+  const [selection, setSelection] = React.useState<{
+    dealId: string;
+    key: string;
+  } | null>(null);
   const {
     data,
     error,
+    isLoading,
     mutate: retrySimilar,
   } = useSWR(`/api/deals/${dealId}/similar`, fetcher, {
     revalidateOnFocus: false,
@@ -39,6 +51,7 @@ export function PriceMilesScatter({ dealId }: Props) {
   const {
     data: sourceData,
     error: sourceError,
+    isLoading: sourceLoading,
     mutate: retrySources,
   } = useSWR(`/api/deals/${dealId}/sources`, fetcher, {
     revalidateOnFocus: false,
@@ -55,7 +68,32 @@ export function PriceMilesScatter({ dealId }: Props) {
         }}
       />
     );
-  const comps: any[] = data?.similar || [];
+  if (isLoading || sourceLoading)
+    return (
+      <p role="status" className="p-4 text-sm text-[var(--t3)]">
+        Loading price comparisons...
+      </p>
+    );
+  const comps: any[] = (
+    Array.isArray(data?.similar) ? data.similar : []
+  ).filter((candidate: any) => candidate && candidate.id !== dealId);
+  const pointFor = (c: any, i: number, y: number): ComparablePoint => ({
+    key: c.id || `comparison-${i}`,
+    id: c.id,
+    x: Number(c.mileage),
+    y,
+    me: false,
+    name:
+      [c.year, c.make, c.model].filter(Boolean).join(" ") ||
+      "Comparable vehicle",
+    source: c.source,
+    location: [c.locationCity, c.locationState].filter(Boolean).join(", "),
+    priceLabel:
+      c.priceContext?.label ||
+      (c.priceContext?.canCompareToAskingCurve === true
+        ? "Reported asking price"
+        : "Unverified advertised amount"),
+  });
 
   const cashPoints = comps
     .filter(
@@ -66,11 +104,7 @@ export function PriceMilesScatter({ dealId }: Props) {
         Number.isFinite(c.priceContext.cashPrice) &&
         c.priceContext.cashPrice > 0,
     )
-    .map((c) => ({
-      x: Number(c.mileage),
-      y: c.priceContext.cashPrice as number,
-      me: false,
-    }));
+    .map((c, i) => pointFor(c, i, c.priceContext.cashPrice));
   const advertisedPoints = comps
     .filter(
       (c) =>
@@ -83,17 +117,25 @@ export function PriceMilesScatter({ dealId }: Props) {
         ) &&
         (c.priceContext.advertisedAmount ?? c.priceContext.amount) > 0,
     )
-    .map((c) => ({
-      x: Number(c.mileage),
-      y: (c.priceContext.advertisedAmount ?? c.priceContext.amount) as number,
-      me: false,
-    }));
+    .map((c, i) =>
+      pointFor(c, i, c.priceContext.advertisedAmount ?? c.priceContext.amount),
+    );
   const mode =
     selectedMode ??
     (cashPoints.length >= 4 || advertisedPoints.length < 4
       ? "cash"
       : "advertised");
-  const pts = mode === "cash" ? cashPoints : advertisedPoints;
+  const loaded = mode === "cash" ? cashPoints : advertisedPoints;
+  const invalidLimit = [maxAmount, maxMileage].some(
+    (value) =>
+      value !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0),
+  );
+  const pts = loaded.filter(
+    (point) =>
+      invalidLimit ||
+      ((!maxAmount || point.y <= Number(maxAmount)) &&
+        (!maxMileage || point.x <= Number(maxMileage))),
+  );
   const modeControl = (
     <div
       role="group"
@@ -110,7 +152,10 @@ export function PriceMilesScatter({ dealId }: Props) {
           key={value}
           type="button"
           aria-pressed={mode === value}
-          onClick={() => setSelectedMode(value)}
+          onClick={() => {
+            setSelectedMode(value);
+            setSelection(null);
+          }}
           className="min-h-11 flex-1 rounded-[var(--r2)] px-2 text-xs font-semibold"
           style={{
             background: mode === value ? "var(--accent)" : "transparent",
@@ -120,6 +165,76 @@ export function PriceMilesScatter({ dealId }: Props) {
           {label}
         </button>
       ))}
+    </div>
+  );
+  const filterControl = (
+    <div className="mb-4 w-full space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          {
+            label: "Maximum amount ($)",
+            value: maxAmount,
+            change: setMaxAmount,
+            step: 500,
+          },
+          {
+            label: "Maximum mileage",
+            value: maxMileage,
+            change: setMaxMileage,
+            step: 1000,
+          },
+        ].map((field) => (
+          <label
+            key={field.label}
+            className="min-w-0 text-xs font-semibold text-[var(--t2)]"
+          >
+            <span className="block min-h-8">{field.label}</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              step={field.step}
+              value={field.value}
+              onChange={(event) => {
+                field.change(event.target.value);
+                setSelection(null);
+              }}
+              placeholder="Any"
+              aria-invalid={
+                (field.value !== "" &&
+                  (!Number.isFinite(Number(field.value)) ||
+                    Number(field.value) < 0)) ||
+                undefined
+              }
+              className="mt-1 min-h-11 w-full min-w-0 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-2 text-sm text-[var(--t1)] aria-[invalid=true]:border-[var(--red)]"
+            />
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p role="status" className="text-xs text-[var(--t3)]">
+          {pts.length} of {loaded.length} loaded comparisons
+        </p>
+        <button
+          type="button"
+          title="Reset comparison filters"
+          aria-label="Reset comparison filters"
+          disabled={!maxAmount && !maxMileage}
+          onClick={() => {
+            setMaxAmount("");
+            setMaxMileage("");
+            setSelection(null);
+          }}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-[var(--r2)] border border-[var(--b2)] text-[var(--t2)] disabled:opacity-40"
+        >
+          <RotateCcw size={16} aria-hidden="true" />
+        </button>
+      </div>
+      {invalidLimit && (
+        <p role="alert" className="text-xs text-[var(--red)]">
+          Use a non-negative number. These limits have not been applied.
+        </p>
+      )}
     </div>
   );
   const base = sourceData?.base;
@@ -138,7 +253,36 @@ export function PriceMilesScatter({ dealId }: Props) {
     Number.isFinite(askPrice) &&
     askPrice > 0;
   const sampleCount = pts.length;
-  if (meValid) pts.push({ x: Number(mileage), y: Number(askPrice), me: true });
+  if (meValid)
+    pts.push({
+      key: "current",
+      id: dealId,
+      x: Number(mileage),
+      y: Number(askPrice),
+      me: true,
+      name:
+        [base.year, base.make, base.model].filter(Boolean).join(" ") ||
+        "This vehicle",
+      source: base.source,
+      priceLabel:
+        mode === "cash"
+          ? "Reported asking price"
+          : base.priceContext?.label || "Unverified advertised amount",
+    });
+  const selected =
+    (selection?.dealId === dealId &&
+      pts.find((point) => point.key === selection.key)) ||
+    pts.find((point) => point.me) ||
+    pts[0];
+  const selectPoint = (key: string) => setSelection({ dealId, key });
+  const inspector = (
+    <ComparableInspector
+      point={selected}
+      points={pts}
+      dealId={dealId}
+      onSelect={selectPoint}
+    />
+  );
 
   // Need a real cluster to draw an honest picture.
   // Don't silently vanish — tell the dealer WHY there's no chart (usually missing mileage on the
@@ -151,12 +295,19 @@ export function PriceMilesScatter({ dealId }: Props) {
       >
         <CardContent className="p-6 flex flex-col items-center justify-center text-center min-h-[180px] gap-2">
           {modeControl}
+          {filterControl}
           <Ico name="trending-up" size={20} className="text-[var(--t5)]" />
           <p className="text-sm font-semibold text-[var(--t3)]">
             {mode === "cash"
               ? "Not enough comparable asking prices with mileage"
               : "Not enough advertised amounts with mileage"}
           </p>
+          {loaded.length > 0 && sampleCount === 0 && (
+            <p className="text-sm text-[var(--t2)]">
+              No loaded comparisons match these limits.
+            </p>
+          )}
+          {inspector}
           <p className="text-xs text-[var(--t5)] max-w-[240px]">
             Bids, payment amounts, and unverified prices are not cash-price
             comparisons.
@@ -231,6 +382,7 @@ export function PriceMilesScatter({ dealId }: Props) {
     >
       <CardContent className="p-6 md:p-7">
         {modeControl}
+        {filterControl}
         <div className="flex items-center gap-2 mb-1">
           <Ico name="trending-up" size={15} className="text-[var(--t4)]" />
           <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
@@ -257,7 +409,7 @@ export function PriceMilesScatter({ dealId }: Props) {
         </p>
 
         <svg
-          role="img"
+          role="group"
           aria-label={
             mode === "cash"
               ? "Comparable asking prices by mileage"
@@ -266,6 +418,21 @@ export function PriceMilesScatter({ dealId }: Props) {
           viewBox={`0 0 ${W} ${H}`}
           className="w-full"
           style={{ maxHeight: 220 }}
+          onClick={(event) => {
+            const matrix = event.currentTarget.getScreenCTM();
+            if (!matrix) return;
+            const cursor = new DOMPoint(
+              event.clientX,
+              event.clientY,
+            ).matrixTransform(matrix.inverse());
+            const nearest = pts.reduce((best, point) =>
+              Math.hypot(sx(point.x) - cursor.x, sy(point.y) - cursor.y) <
+              Math.hypot(sx(best.x) - cursor.x, sy(best.y) - cursor.y)
+                ? point
+                : best,
+            );
+            selectPoint(nearest.key);
+          }}
         >
           {/* axes */}
           <line
@@ -298,15 +465,40 @@ export function PriceMilesScatter({ dealId }: Props) {
             />
           )}
           {/* comp dots */}
-          {comp.map((p, i) => (
-            <circle
-              key={i}
-              cx={sx(p.x)}
-              cy={sy(p.y)}
-              r="3.5"
-              fill="var(--t4)"
-              opacity={0.55}
-            />
+          {comp.map((p) => (
+            <g
+              key={p.key}
+              role="button"
+              tabIndex={0}
+              aria-label={`Inspect ${p.name}, ${p.priceLabel}, ${p.y.toLocaleString()} dollars, ${p.x.toLocaleString()} miles`}
+              aria-pressed={selected?.key === p.key}
+              className="cursor-pointer outline-none"
+              onFocus={() => selectPoint(p.key)}
+              onClick={(event) => {
+                event.stopPropagation();
+                selectPoint(p.key);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  selectPoint(p.key);
+                }
+              }}
+            >
+              <title>
+                {p.name}: {p.priceLabel} ${p.y.toLocaleString()},{" "}
+                {p.x.toLocaleString()} mi
+              </title>
+              <circle
+                cx={sx(p.x)}
+                cy={sy(p.y)}
+                r={selected?.key === p.key ? 6 : 3.5}
+                fill={selected?.key === p.key ? "var(--accent)" : "var(--t4)"}
+                stroke={selected?.key === p.key ? "var(--t1)" : "none"}
+                strokeWidth="1.5"
+                opacity={selected?.key === p.key ? 1 : 0.55}
+              />
+            </g>
           ))}
           {/* the deal */}
           {me && (
@@ -357,6 +549,7 @@ export function PriceMilesScatter({ dealId }: Props) {
             <Mono className="text-[var(--green)]">{money(me.y)}</Mono>.
           </p>
         )}
+        {inspector}
       </CardContent>
     </Card>
   );
