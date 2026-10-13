@@ -45,11 +45,14 @@ export function hasReportedRepairRisk(
 }
 
 /** Explicit seller wording is a screening signal, not an inspection or damage estimate. */
+export const REPORTED_REPAIR_TITLE_PATTERN =
+  "mechanic(?:['\u2019]s|s)?[\\s-]+special|(?:restoration|repair)[\\s-]+project|parts[\\s-]+only|non[\\s-]+runner|not[\\s-]+running|does(?:n't|[\\s]+not)[\\s]+run|needs[\\s]+(?:repairs?|(?:an?[\\s]+)?(?:engine|transmission))";
+
 export function hasTitleReportedRepairRisk(title?: string | null) {
   const text = String(title || "")
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'");
-  return /\b(?:mechanic(?:'s|s)?[\s-]+special|(?:restoration|repair)[\s-]+project|parts[\s-]+only|non[\s-]+runner|not[\s-]+running|does(?:n't|[\s]+not)[\s]+run|needs[\s]+(?:repairs?|(?:an?[\s]+)?(?:engine|transmission)))\b/.test(
+  return new RegExp(`\\b(?:${REPORTED_REPAIR_TITLE_PATTERN})\\b`, "i").test(
     text,
   );
 }
