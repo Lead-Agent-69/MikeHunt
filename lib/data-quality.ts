@@ -67,7 +67,7 @@ export function gradeDataQuality(input: DataQualityInput): DataQualityGrade {
   const images = Array.isArray(input.images) ? input.images : [];
   const sellerType = String(input.sellerType || "").toLowerCase();
   const auctionDateExpected = input.source
-    ? isAuctionChannel(input.source)
+    ? isAuctionChannel(input.source) || sellerType === "auction"
     : !["dealer", "private", "retail"].includes(sellerType);
   const checks: Array<[DataQualityField, boolean]> = [
     ["photo", images.length > 0 || Boolean(input.imageUrl)],
