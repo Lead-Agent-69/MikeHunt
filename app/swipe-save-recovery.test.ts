@@ -68,7 +68,9 @@ it("preserves a failed save for retry and counts only confirmed writes", async (
   expect(host.textContent).toContain("0 saved");
   expect(host.textContent).toContain("1 save not completed");
   await act(async () =>
-    host.querySelector<HTMLButtonElement>("button")!.click(),
+    Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("Retry saves"))!
+      .click(),
   );
   expect(host.textContent).toContain("1 saved");
   expect(host.textContent).not.toContain("save not completed");

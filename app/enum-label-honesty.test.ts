@@ -24,10 +24,10 @@ describe("raw DB enum labels never reach cards", () => {
     expect(humanizeEnumLabel("Run And Drive")).toBe("Run And Drive");
   });
 
-  it("Feed editorial cards use sourceLabel, not the raw source", () => {
-    const feed = read("app/(dashboard)/feed/page.tsx");
+  it("Feed summaries use sourceLabel, not the raw source", () => {
+    const feed = read("components/feed/FeedVehicleCard.tsx");
     expect(feed).not.toContain("category: it.source ||");
-    expect(feed).toContain("sourceLabel(it.source, it.sourceUrl)");
+    expect(feed).toContain("sourceLabel(item.source, item.sourceUrl)");
   });
 
   it("shared cards do not print raw source / seller enums", () => {

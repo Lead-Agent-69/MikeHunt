@@ -11,21 +11,14 @@ import Link from "next/link";
 import useSWR from "swr";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { CarFront, Layers, RefreshCw } from "lucide-react";
+import { Layers, RefreshCw } from "lucide-react";
 import { SwipeCardStack } from "@/components/ui/framer-components";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { proxiedImage } from "@/lib/image-url";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
-import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
-import { dealCardCopy } from "@/lib/deals/deal-card-copy";
-import { sourceLabel } from "@/lib/sources/source-meta";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
-import { readCondition } from "@/lib/intelligence/condition";
-import { conditionDisplayLabel } from "@/lib/deals/condition-display";
-import { TitleBadge } from "@/components/shared/TitleBadge";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
 import {
   titleFilterOptions,
@@ -35,6 +28,8 @@ import {
 
 const SWIPE_TITLE_OPTIONS = titleFilterOptions(null, "Any title");
 import { ErrorState } from "@/components/shared/PageStates";
+import type { PriceEvidence } from "@/lib/deals/acquisition-price";
+import { SwipeVehicleFace } from "@/components/search/SwipeVehicleFace";
 
 // Rapid triage: the fastest way to clear a backlog of graded deals. Drag right to save,
 // left to pass — the same two decisions the buttons below the stack make, for keyboard users.
@@ -58,6 +53,7 @@ type SwipeDeal = {
   damageType?: string;
   titleSource?: string | null;
   askPrice?: number;
+  priceEvidence?: PriceEvidence;
   profitScore?: number;
   profitEstimate?: number;
   true_net_profit?: number;
@@ -71,165 +67,6 @@ type SwipeDeal = {
   images?: string[];
 };
 
-function DealFace({ deal, flipDesk }: { deal: SwipeDeal; flipDesk: boolean }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const img = proxiedImage(deal.images?.[0]);
-  const title =
-    deal.title ||
-    `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim() ||
-    "Untitled deal";
-  const location = [deal.locationCity, deal.locationState]
-    .filter(Boolean)
-    .join(", ");
-  const sourceName = sourceLabel(deal.source, deal.sourceUrl);
-  const conditionRead = readCondition(deal.condition, deal.damageType, title);
-  const conditionLabel = conditionRead
-    ? conditionDisplayLabel(conditionRead, deal)
-    : "";
-  const seller =
-    (deal as { sellerType?: string }).sellerType === "dealer"
-      ? "Dealer"
-      : (deal as { sellerType?: string }).sellerType === "private"
-        ? "Private"
-        : "";
-
-  return (
-    <div className="flex h-full flex-col">
-      {/* Photo — chips sit along the bottom edge so they never collide with the
-          SAVE/PASS stamps the stack paints across the top corners. */}
-      <div
-        className="relative h-[46%] w-full shrink-0 overflow-hidden"
-        style={{ background: "var(--s2)" }}
-      >
-        {img && !imgFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={img}
-            alt={title}
-            loading="lazy"
-            onError={() => setImgFailed(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-2xl opacity-40">
-            <CarFront className="h-8 w-8" aria-hidden="true" />
-          </div>
-        )}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "linear-gradient(to top, rgba(0,0,0,0.82) 4%, transparent 55%)",
-          }}
-        />
-
-        <div className="absolute bottom-12 left-3 max-w-[calc(100%-1.5rem)] rounded-lg bg-black/75 px-3 py-2 text-white">
-          <span className="mr-2 text-xs">
-            {dealCardCopy(flipDesk).priceLabel(deal.source)}
-          </span>
-          <strong className="text-lg">
-            {deal.askPrice != null && deal.askPrice > 0
-              ? `$${Math.round(deal.askPrice).toLocaleString()}`
-              : "Not reported"}
-          </strong>
-        </div>
-        <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
-          {deal.source && (
-            <span
-              className="rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white"
-              style={{
-                background: "rgba(20,10,20,.72)",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              {sourceName}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Body */}
-      <div className="flex flex-1 flex-col gap-2 overflow-hidden p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="truncate text-[15px] font-bold leading-tight text-[var(--t1)]">
-            {title}
-          </h3>
-        </div>
-        <TitleBadge
-          className="w-fit"
-          condition={deal.condition}
-          damageType={deal.damageType}
-          titleSource={deal.titleSource}
-        />
-
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--t4)]">
-          {deal.mileage ? (
-            <span className="font-mono text-[var(--t3)]">
-              {deal.mileage.toLocaleString()} mi
-            </span>
-          ) : null}
-          {conditionLabel && <span>{conditionLabel}</span>}
-          {location && <span className="truncate">{location}</span>}
-          {deal.source && <span>{sourceName}</span>}
-          {seller && <span>{seller}</span>}
-        </div>
-
-        <div className="mt-auto grid grid-cols-2 gap-2 border-t border-[var(--b1)] pt-2.5">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-              {dealCardCopy(flipDesk).priceLabel(deal.source)}
-            </p>
-            <span className="font-mono text-lg font-black leading-none tracking-tight text-[var(--t1)]">
-              {deal.askPrice != null && deal.askPrice > 0
-                ? `$${Math.round(deal.askPrice).toLocaleString()}`
-                : "Not reported"}
-            </span>
-          </div>
-          {flipDesk && (
-            <div className="text-right">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--t4)]">
-                Resale basis
-              </p>
-              <span className="text-[11px] font-semibold leading-snug text-[var(--t3)]">
-                {deal.sellEstimate
-                  ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}`
-                  : "Resale basis not on file."}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {flipDesk && (deal.sellEstimate || deal.recommendedMaxBid) && (
-          <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-            <div
-              className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-              style={{ background: "var(--s1)" }}
-            >
-              <span className="font-semibold text-[var(--t4)]">Sell est</span>
-              <span className="font-mono font-bold text-[var(--t2)]">
-                {deal.sellEstimate
-                  ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
-                  : "—"}
-              </span>
-            </div>
-            <div
-              className="flex items-center justify-between rounded-[var(--r1)] px-2 py-1"
-              style={{ background: "var(--s1)" }}
-            >
-              <span className="font-semibold text-[var(--t4)]">Max bid</span>
-              <span className="font-mono font-bold text-[var(--green)]">
-                {deal.recommendedMaxBid
-                  ? `$${Math.round(deal.recommendedMaxBid).toLocaleString()}`
-                  : "—"}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function StackSkeleton() {
   return (
     <div
@@ -241,7 +78,7 @@ function StackSkeleton() {
 }
 
 export default function SwipePage() {
-  const { query: sharedQuery, ready, intent } = useInventoryViewScope();
+  const { query: sharedQuery, ready } = useInventoryViewScope();
   const { prefs, isLoading: prefsLoading } = usePreferences();
   const homeState = (
     effectiveHome(prefs)?.state ||
@@ -265,7 +102,6 @@ export default function SwipePage() {
   const scopeLabel =
     inventoryScopeStates(new URLSearchParams(query))?.join(", ") ||
     "Nationwide";
-  const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [batch, setBatch] = useState(0);
   // Bumped by "Start over" so a repeat of batch 0 still remounts the stack and clears counters.
   const [runId, setRunId] = useState(0);
@@ -296,7 +132,7 @@ export default function SwipePage() {
       ? `/api/scan?${query}&sort=newest&pageSize=${PAGE}&page=${effectiveBatch}`
       : null,
     fetcher,
-    { revalidateOnFocus: true, keepPreviousData: false },
+    { revalidateOnFocus: false, keepPreviousData: false },
   );
   const isLoading = !swipeReady || dealsLoading;
 
@@ -307,9 +143,9 @@ export default function SwipePage() {
     () =>
       ((data?.vehicles ?? []) as SwipeDeal[]).map((d) => ({
         id: d.id,
-        content: <DealFace deal={d} flipDesk={flipDesk} />,
+        content: <SwipeVehicleFace deal={d} />,
       })),
-    [data, flipDesk],
+    [data],
   );
 
   // Decision counters are per-batch; a new batch starts from zero.
@@ -504,7 +340,7 @@ export default function SwipePage() {
           cards={cards}
           onSave={onSave}
           onPass={onPass}
-          height={430}
+          height="clamp(500px, 65svh, 560px)"
         />
       )}
     </div>

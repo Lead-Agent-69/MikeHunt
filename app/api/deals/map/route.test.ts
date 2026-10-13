@@ -48,6 +48,9 @@ function query() {
               lat: 38.6270251,
               lng: -90.1994042,
               ask_price: 12000,
+              source: "independent_dealer",
+              images: ["https://dealer.example/photo.jpg"],
+              price_evidence: { kind: "down_payment", listedAmount: 12000 },
               true_net_profit: 4000,
               deal_verdict: "go",
               last_seen_at: "2026-10-10T05:00:00+00:00",
@@ -86,6 +89,13 @@ describe("Map scope and role safety", () => {
     state.flip = false;
     state.empty = false;
     state.calls = [];
+  });
+  it("provides source photos without relabeling a payment as a cash price", async () => {
+    const response = await request("");
+    const body = await response.json();
+    expect(body.points[0].image).toBe("https://dealer.example/photo.jpg");
+    expect(body.points[0].priceLabel).toBe("Possible down payment");
+    expect(body.points[0].label).toContain("Possible down payment");
   });
   it("does not let personal buyers probe economics through verdict filters or colors", async () => {
     const response = await request("verdict=go");

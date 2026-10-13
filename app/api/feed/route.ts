@@ -17,6 +17,10 @@ import { cached } from "@/lib/cache";
 import { buildInterestProfile } from "@/lib/intelligence/interest-profile";
 import { scoreInterest } from "@/lib/intelligence/interest-patterns";
 import {
+  SOURCE_PRICE_FIELDS,
+  sourcePriceContext,
+} from "@/lib/deals/source-price-context";
+import {
   isFlipDeskMode,
   readSavedBuyerMode,
   redactListingForNonFlipDesk,
@@ -27,7 +31,8 @@ import {
 // saves/watches/views) cached per user, paginated. ANON users get the plain best-first fresh feed. $0.
 
 const COLS =
-  "id, source, source_url, title, year, make, model, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, mileage, condition, deal_analysis";
+  "id, year, make, model, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, deal_analysis, title_source:options->>titleSource," +
+  SOURCE_PRICE_FIELDS;
 
 // Paging bounds. A guest can't walk the whole inventory: 30 cards a page, 600 cards deep, 30
 // requests a minute per IP. Signed-in For You pages a 250-card pool, so the cap never bites there.
@@ -36,6 +41,7 @@ export const FEED_MAX_OFFSET = 600;
 export const FEED_GUEST_RATE = { limit: 30, windowMs: 60_000 };
 
 function mapItem(d: any) {
+  const price = sourcePriceContext(d);
   return {
     id: d.id,
     source: d.source,
@@ -45,13 +51,22 @@ function mapItem(d: any) {
     make: d.make,
     model: d.model,
     image: Array.isArray(d.images) ? d.images[0] : null,
-    askPrice: Number(d.ask_price || 0),
+    askPrice: price.amount ?? 0,
+    priceLabel: price.label,
+    priceNote:
+      price.cashPrice == null
+        ? "Full cash price is not confirmed. This amount may be a bid, payment or reference value."
+        : "Confirm availability, fees and condition with the seller before buying.",
+    images: Array.isArray(d.images) ? d.images.slice(0, 8) : [],
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : null,
     netProfit: d.true_net_profit != null ? Number(d.true_net_profit) : null,
     score: d.profit_score != null ? Number(d.profit_score) : null,
     verdict: d.deal_verdict,
     mileage: d.mileage,
     condition: d.condition,
+    damageType: d.damage_type,
+    titleSource: d.title_source,
+    lastSeenAt: d.last_seen_at,
     locationCity: d.location_city,
     locationState: d.location_state,
     prediction: d.deal_analysis?.prediction ?? null,
@@ -157,7 +172,7 @@ async function getFeed(req: NextRequest) {
     return NextResponse.json(
       {
         items: forDesk(ranked.slice(offset, offset + limit)),
-        nextOffset: offset + limit,
+        nextOffset: offset + limit < ranked.length ? offset + limit : null,
         personalized: true,
         boundedPool: true,
         poolLimit: 250,

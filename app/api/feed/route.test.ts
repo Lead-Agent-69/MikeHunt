@@ -116,6 +116,36 @@ describe("GET /api/feed desk redaction", () => {
     db.cacheKeys = [];
   });
 
+  it("carries payment meaning, photo sequence and reported title source into quick reviews", async () => {
+    db.rows = [
+      {
+        ...ROW,
+        ask_price: 2600,
+        price_evidence: { kind: "down_payment", listedAmount: 2600 },
+        title_source: "Seller reported",
+        damage_type: "mechanical",
+        images: ["https://img.example/1.jpg", "https://img.example/2.jpg"],
+      },
+    ];
+    const item = await load("personal");
+    expect(item.priceLabel).toBe("Possible down payment");
+    expect(item.priceNote).toContain("not confirmed");
+    expect(item.askPrice).toBe(2600);
+    expect(item.images).toHaveLength(2);
+    expect(item.titleSource).toBe("Seller reported");
+    expect(item.damageType).toBe("mechanical");
+    expect(item.netProfit).toBeUndefined();
+  });
+
+  it("stops personalized pagination at the end of the actual pool", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    savedMode.value = "personal";
+    const response = await GET(
+      new NextRequest("https://app.test/api/feed?limit=12"),
+    );
+    expect((await response.json()).nextOffset).toBeNull();
+  });
+
   it("returns a retryable error rather than an empty personalized feed after a failed inventory read", async () => {
     getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     savedMode.value = "personal";
