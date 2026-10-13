@@ -22,6 +22,20 @@ for (const desk of [
       await expect(
         page.getByRole("region", { name: /vehicles$/ }).first(),
       ).toBeVisible();
+      const views = page
+        .locator("summary")
+        .filter({ hasText: /^Inventory views$/ });
+      await expect(
+        page.getByRole("navigation", { name: "Inventory views" }),
+      ).toBeHidden();
+      await views.click();
+      await expect(
+        page.getByRole("navigation", { name: "Inventory views" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("combobox", { name: "Shop by body style" }),
+      ).toBeVisible();
+      await views.click();
       const filters = page
         .locator("summary")
         .filter({ hasText: /^Search filters$/ });
