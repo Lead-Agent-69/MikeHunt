@@ -16,10 +16,21 @@ const VIEWS = [
 export function InventoryViewLinks({
   query,
   current,
+  disabled = false,
 }: {
   query: string;
   current: string;
+  disabled?: boolean;
 }) {
+  if (disabled)
+    return (
+      <div
+        role="status"
+        aria-label="Loading inventory views"
+        aria-busy="true"
+        className="h-[104px] w-full rounded-lg bg-[var(--s2)] shimmer sm:h-11"
+      />
+    );
   const params = inventoryViewParams(new URLSearchParams(query));
   params.set("scope", "explicit");
   // Empty explicit values prevent saved defaults from silently changing a shared search.

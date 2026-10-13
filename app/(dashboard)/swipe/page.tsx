@@ -220,7 +220,11 @@ export default function SwipePage() {
           Swipe
         </h1>
       </motion.div>
-      <InventoryViewLinks query={query} current="/swipe" />
+      <InventoryViewLinks
+        query={query}
+        current="/swipe"
+        disabled={!swipeReady}
+      />
       <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
         Title
         <select
