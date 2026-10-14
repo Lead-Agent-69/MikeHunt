@@ -1,6 +1,37 @@
 import { expect, it, vi } from "vitest";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 
+it("keeps attempted-check ordering across identical inventory observations, but resets for new URLs", async () => {
+  const attempt = { checkedAt: "now", state: "unknown" };
+  const query = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockResolvedValue({
+      data: [
+        {
+          source_deal_id: "1",
+          source_url: "https://dealer.example/1",
+          images: ["/a.jpg", "/b.jpg"],
+          photo_check_attempt: attempt,
+        },
+      ],
+      error: null,
+    }),
+  };
+  const row = {
+    source: "dealer",
+    source_deal_id: "1",
+    source_url: "https://dealer.example/1",
+    images: ["/a.jpg"],
+    options: {} as Record<string, unknown>,
+  };
+  await preserveListingPhotos({ from: () => query }, [row]);
+  expect(row.options.photoCheckAttempt).toEqual(attempt);
+  const changed = { ...row, images: ["/new.jpg"], options: {} };
+  await preserveListingPhotos({ from: () => query }, [changed]);
+  expect(changed.options).toEqual({});
+});
+
 it("does not resurrect a rejected cover or discard a repaired gallery on reingestion", async () => {
   const audit = {
     state: "available",

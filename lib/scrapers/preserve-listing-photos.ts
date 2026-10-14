@@ -5,6 +5,7 @@ type PhotoRow = {
   images: string[];
   options?: Record<string, any>;
   photo_audit?: Record<string, any> | null;
+  photo_check_attempt?: Record<string, any> | null;
 };
 
 /** An inventory thumbnail is a partial observation, not an instruction to erase a gallery. */
@@ -20,7 +21,7 @@ export async function preserveListingPhotos(
       const { data, error } = await client
         .from("deals")
         .select(
-          "source_deal_id,source_url,images,photo_audit:options->photoAudit",
+          "source_deal_id,source_url,images,photo_audit:options->photoAudit,photo_check_attempt:options->photoCheckAttempt",
         )
         .eq("source", source)
         .in(
@@ -54,7 +55,13 @@ export async function preserveListingPhotos(
           row.images.every((image) => observedImages.includes(image))
         ) {
           row.images = [...previous.images].slice(0, 20);
-          row.options = { ...row.options, photoAudit: previous.photo_audit };
+          row.options = {
+            ...row.options,
+            photoAudit: previous.photo_audit,
+            ...(previous.photo_check_attempt
+              ? { photoCheckAttempt: previous.photo_check_attempt }
+              : {}),
+          };
           continue;
         }
         // A different new cover photo may mean the listing has changed: do not revive old views.
@@ -71,6 +78,15 @@ export async function preserveListingPhotos(
           row.images.every((image) => previous.images.includes(image))
         )
           row.options = { ...row.options, photoAudit: previous.photo_audit };
+        if (
+          previous.photo_check_attempt &&
+          previous.images.length === row.images.length &&
+          row.images.every((image) => previous.images.includes(image))
+        )
+          row.options = {
+            ...row.options,
+            photoCheckAttempt: previous.photo_check_attempt,
+          };
       }
     }
   }

@@ -114,6 +114,9 @@ interface Status {
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
   writeCapacity?: ReturnType<typeof writeCapacity>;
+  photoMaintenance?: NonNullable<
+    Awaited<ReturnType<LocalScraperCache["verifyListingPhotos"]>>
+  >;
   curatedOutcomes: CuratedOutcome[];
   sweep?: {
     startedAt?: string;
@@ -717,6 +720,45 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           "[retention] auction expiry failed:",
           (error as Error).message,
         );
+      }
+    }
+    if (
+      !job &&
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      !stopRequested &&
+      cache.photoChecksDue()
+    ) {
+      currentStatus.currentSources = ["photo_health"];
+      await writeStatus();
+      try {
+        let photoStates = currentStatus.sweep?.demandStates ?? [];
+        try {
+          const { data, error } = await supabase
+            .rpc("scrape_demand", { p_active_days: 30 })
+            .abortSignal(AbortSignal.timeout(5_000));
+          if (!error)
+            photoStates =
+              summarizeDemand(data as DemandRow[]).anchors ?? photoStates;
+        } catch {
+          // Existing sweep demand and Missouri remain safe fallbacks during an RPC outage.
+        }
+        const receipt = await cache.verifyListingPhotos(supabase, photoStates);
+        if (receipt) {
+          currentStatus.photoMaintenance = receipt;
+          console.log(
+            `[photo-health] ${receipt.state}: ${receipt.checked} checked, ${receipt.written} written, ${receipt.unavailable} unavailable, ${receipt.unknown} unknown`,
+          );
+          await writeStatus();
+        }
+      } catch (error) {
+        console.warn(
+          "[photo-health] maintenance deferred:",
+          (error as Error).message,
+        );
+      } finally {
+        currentStatus.currentSources = [];
+        await writeStatus();
       }
     }
     if (!job && mode === "hybrid" && !manualPaused) {

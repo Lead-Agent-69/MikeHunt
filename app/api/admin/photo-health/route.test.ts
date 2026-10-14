@@ -102,6 +102,7 @@ it("retains original URLs and price evidence while quarantining with a concurren
   expect(await response.json()).toMatchObject({ written: 1, partial: false });
   expect(mocks.update).toHaveBeenCalledWith(
     expect.objectContaining({
+      updated_at: expect.any(String),
       images: row.images,
       options: expect.objectContaining({
         priceEvidence: row.options.priceEvidence,
