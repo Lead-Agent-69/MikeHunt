@@ -3,6 +3,10 @@ import { replayPrivacy } from "./replay-privacy";
 
 describe("sentry replay privacy", () => {
   it("masks text and blocks media", () => {
-    expect(replayPrivacy).toEqual({ maskAllText: true, blockAllMedia: true });
+    expect(replayPrivacy).toEqual({
+      maskAllText: true,
+      blockAllMedia: true,
+      workerUrl: "/sentry-replay-worker.js",
+    });
   });
 });
