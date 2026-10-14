@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeCapacity } from "./write-capacity";
+import { maintainListingPhotos } from "./photo-maintenance";
 
 export interface CachedListing {
   hash: string;
@@ -17,6 +18,7 @@ interface CacheFile {
   version: 1;
   entries: Record<string, CachedListing>;
   quota: { day: string; inserts: number; updates: number; touches?: number };
+  photoMaintenance?: { nextAt: number; stateIndex: number };
 }
 
 export interface LocalCacheOptions {
@@ -314,6 +316,63 @@ export class LocalScraperCache {
     const temp = `${this.filePath}.${process.pid}.tmp`;
     await writeFile(temp, JSON.stringify(this.state), { mode: 0o600 });
     await rename(temp, this.filePath);
+  }
+
+  photoChecksDue(): boolean {
+    return (
+      !this.cacheOnly &&
+      (!this.state.photoMaintenance ||
+        this.state.photoMaintenance.nextAt <= Date.now()) &&
+      writeCapacity(this.getQuota()).updatesRemaining > 0
+    );
+  }
+
+  /** Idle-only checks share inventory's update budget and persist their hourly cadence. */
+  async verifyListingPhotos(
+    supabase: SupabaseClient,
+    states: string[] = ["MO"],
+  ) {
+    return this.exclusive(async () => {
+      this.rollDay();
+      const now = Date.now();
+      const prior = this.state.photoMaintenance;
+      if (this.cacheOnly || (prior && prior.nextAt > now)) return null;
+      const available = writeCapacity(this.getQuota()).updatesRemaining;
+      const limit = Math.min(5, available);
+      if (!limit || (this.beforeWrite && !(await this.beforeWrite())))
+        return null;
+      const scope = Array.from(
+        new Set(["MO", ...states.filter((state) => /^[A-Z]{2}$/.test(state))]),
+      );
+      const index = (prior?.stateIndex ?? 0) % scope.length;
+      this.state.photoMaintenance = {
+        nextAt: now + 3600_000,
+        stateIndex: (index + 1) % scope.length,
+      };
+      // Persist cadence before network work so restarts cannot repeatedly consume the same budget.
+      await this.save();
+      const receipt = await maintainListingPhotos(supabase, {
+        state: scope[index],
+        limit,
+        signal: AbortSignal.timeout(45_000),
+        beforeWrite: async () =>
+          !this.beforeWrite || (await this.beforeWrite()),
+        onWrite: async (row) => {
+          this.rollDay();
+          this.state.quota.updates++;
+          const entry =
+            this.state.entries[`${row.source}|${row.source_deal_id}`];
+          if (entry) entry.synced = false;
+          await this.save();
+          const quota = this.getQuota();
+          this.onQuota?.(quota, writeCapacity(quota).paused);
+        },
+      });
+      return {
+        ...receipt,
+        nextAt: new Date(this.state.photoMaintenance.nextAt).toISOString(),
+      };
+    });
   }
 
   /** Reversible auction expiry, serialized with imports and charged to the same update budget. */
