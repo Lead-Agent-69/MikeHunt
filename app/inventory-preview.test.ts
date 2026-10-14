@@ -41,6 +41,7 @@ describe("photo-first inventory previews", () => {
       id: "seen",
       title: "Ford",
       source: "craigslist",
+      image: "https://example.com/car.jpg",
       lastSeenAt: "2026-10-12T23:00:00Z",
     };
     const html = renderToStaticMarkup(createElement(FeedVehicleCard, { item }));
@@ -107,6 +108,7 @@ describe("photo-first inventory previews", () => {
           source: "craigslist_dealer",
           askPrice: 2600,
           priceLabel: "Possible down payment",
+          image: "https://example.com/car.jpg",
           locationCity: "Springfield,mo",
           locationState: "MO",
         },

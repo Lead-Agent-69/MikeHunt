@@ -26,6 +26,7 @@ export const LISTING_IMAGE_DOMAINS = [
 ] as const;
 
 export const LISTING_IMAGE_HOSTS: ReadonlySet<string> = new Set([
+  "thumb.autotempest.com",
   "d37qv0n5b4mbzm.cloudfront.net",
   "gsa-prod-ppms-attachments-prod.s3.amazonaws.com",
   // Platform dealers (4cdg / VehiclesNETWORK) self-host their photos. Exact hosts only, checked

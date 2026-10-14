@@ -44,7 +44,7 @@ it("coalesces simultaneous cold auth reads and caches successful provider settin
   );
   const first = GET(request());
   const second = GET(request());
-  expect(mocks.read).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(1));
   resolve(provider);
   const bodies = await Promise.all(
     [first, second].map(async (response) => (await response).json()),

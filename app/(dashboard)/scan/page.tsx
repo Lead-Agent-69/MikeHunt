@@ -152,6 +152,7 @@ interface ScanResult {
   firstSeenAt?: string | Date;
   lastSeenAt?: string | Date;
   imageUrl?: string;
+  images?: string[];
   vin?: string;
   sourceUrl?: string;
   seller?: string;
@@ -393,6 +394,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     firstSeenAt: deal.firstSeenAt ?? undefined,
     lastSeenAt: deal.lastSeenAt ?? undefined,
     imageUrl: images[0],
+    images,
     vin: deal.vin,
     sourceUrl: deal.sourceUrl,
     seller: deal.seller,
@@ -5271,9 +5273,11 @@ function ScanPageInner() {
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
         <div className={gridClass}>
           {filteredResults.map((car: ScanResult) => (
-            <div key={car.id}>
+            <div key={car.id} className="contents">
               <DealCard
                 flipDesk={flipEconomics}
+                requirePhoto
+                imageUrls={car.images}
                 id={car.id}
                 source={car.source}
                 year={car.year}

@@ -3,6 +3,8 @@ type PhotoRow = {
   source_deal_id: string;
   source_url: string | undefined;
   images: string[];
+  options?: Record<string, any>;
+  photo_audit?: Record<string, any> | null;
 };
 
 /** An inventory thumbnail is a partial observation, not an instruction to erase a gallery. */
@@ -10,21 +12,16 @@ export async function preserveListingPhotos(
   client: any,
   rows: PhotoRow[],
 ): Promise<void> {
-  const sources = new Set(
-    rows
-      .filter((row) => row.images.length < 2)
-      .map((row) => row.source)
-      .filter(Boolean),
-  );
+  const sources = new Set(rows.map((row) => row.source).filter(Boolean));
   for (const source of Array.from(sources)) {
-    const candidates = rows.filter(
-      (row) => row.source === source && row.images.length < 2,
-    );
+    const candidates = rows.filter((row) => row.source === source);
     for (let offset = 0; offset < candidates.length; offset += 100) {
       const batch = candidates.slice(offset, offset + 100);
       const { data, error } = await client
         .from("deals")
-        .select("source_deal_id,source_url,images")
+        .select(
+          "source_deal_id,source_url,images,photo_audit:options->photoAudit",
+        )
         .eq("source", source)
         .in(
           "source_deal_id",
@@ -50,6 +47,13 @@ export async function preserveListingPhotos(
         ) {
           row.images = [...previous.images].slice(0, 20);
         }
+        // Re-observing the same failed URLs is not proof that their photos recovered.
+        if (
+          previous.photo_audit &&
+          previous.images.length === row.images.length &&
+          row.images.every((image) => previous.images.includes(image))
+        )
+          row.options = { ...row.options, photoAudit: previous.photo_audit };
       }
     }
   }

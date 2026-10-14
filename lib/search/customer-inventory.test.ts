@@ -30,16 +30,31 @@ describe("customer inventory eligibility", () => {
       ),
     ).toBe(false);
     expect(isCustomerInventory({ ...row, active: false }, now)).toBe(false);
+    expect(
+      isCustomerInventory(
+        { ...row, options: { photoAudit: { state: "unavailable" } } },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCustomerInventory(
+        { ...row, options: { photoAudit: { state: "available" } } },
+        now,
+      ),
+    ).toBe(true);
   });
   it("filters missing photos and stale/future observations before pagination", () => {
     const query: any = {};
-    for (const method of ["not", "neq", "gte", "lte"])
+    for (const method of ["not", "neq", "gte", "lte", "or"])
       query[method] = vi.fn(() => query);
     expect(
       applyCustomerInventory(query, Date.parse("2026-10-13T12:00:00Z")),
     ).toBe(query);
     expect(query.not).toHaveBeenCalledWith("images", "is", null);
     expect(query.neq).toHaveBeenCalledWith("images", "{}");
+    expect(query.or).toHaveBeenCalledWith(
+      "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+    );
     expect(query.gte).toHaveBeenCalledWith(
       "last_seen_at",
       "2026-10-10T12:00:00.000Z",

@@ -72,6 +72,9 @@ export interface DealCardProps {
   firstSeenAt?: string | Date;
   lastSeenAt?: string | Date;
   imageUrl?: string;
+  imageUrls?: string[];
+  /** Browse-only: saved history must remain accessible even if its photos disappear. */
+  requirePhoto?: boolean;
   vin?: string;
   sourceUrl?: string;
   seller?: string;

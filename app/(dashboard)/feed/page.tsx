@@ -34,6 +34,11 @@ export default function FeedPage() {
   const [done, setDone] = useState(false);
   const [boundedPool, setBoundedPool] = useState(false);
   const [capped, setCapped] = useState(false);
+  const [hiddenPhotos, setHiddenPhotos] = useState(0);
+  const hidePhotoUnavailable = useCallback((id: string) => {
+    setItems((previous) => previous.filter((item) => item.id !== id));
+    setHiddenPhotos((previous) => previous + 1);
+  }, []);
   const offset = useRef(0);
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -52,6 +57,7 @@ export default function FeedPage() {
         request.current?.abort();
         generation.current++;
         offset.current = 0;
+        setHiddenPhotos(0);
       }
       const token = generation.current;
       const controller = new AbortController();
@@ -156,9 +162,19 @@ export default function FeedPage() {
       </header>
       <div className="space-y-6">
         {items.map((item, index) => (
-          <FeedVehicleCard key={item.id} item={item} priority={index === 0} />
+          <FeedVehicleCard
+            key={item.id}
+            item={item}
+            priority={index === 0}
+            onPhotoUnavailable={hidePhotoUnavailable}
+          />
         ))}
       </div>
+      {hiddenPhotos > 0 && (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          Some vehicles were hidden because their photos couldn't load.
+        </p>
+      )}
       {!items.length && (!ready || loading) && (
         <div
           aria-label="Loading feed"

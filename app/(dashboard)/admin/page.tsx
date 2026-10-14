@@ -372,6 +372,14 @@ export default function AdminDashboard() {
           <div className="mt-5 space-y-3">
             {[
               {
+                id: "Verify Missouri photos",
+                detail:
+                  "Check 10 galleries. Recover working cover photos and hide confirmed missing galleries without deleting saved vehicles.",
+                icon: ImageIcon,
+                endpoint: "/api/admin/photo-health",
+                body: { limit: 10, state: "MO", dryRun: false },
+              },
+              {
                 id: "Recalculate decisions",
                 detail:
                   "Refresh pricing, costs, ceilings, and verdicts for active inventory.",

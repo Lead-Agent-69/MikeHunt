@@ -27,7 +27,7 @@ describe("Swipe buyer-mode gating + labels", () => {
   const page = read("app/(dashboard)/swipe/page.tsx");
 
   it("hides flip economics outside reseller/dealer desks", () => {
-    expect(page).toContain("<SwipeVehicleFace deal={d}");
+    expect(page).toMatch(/<SwipeVehicleFace\s+deal=\{d\}/);
     const face = read("components/search/SwipeVehicleFace.tsx");
     expect(face).not.toContain("deal.sellEstimate");
     expect(face).not.toContain("deal.recommendedMaxBid");
