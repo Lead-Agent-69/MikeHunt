@@ -1,4 +1,6 @@
 "use client";
+
+import { maintenanceReceipt } from "@/lib/admin/maintenance-receipt";
 import { sourceOperationLabel } from "@/lib/scrapers/source-proof-readiness";
 
 import { useCallback, useMemo, useState } from "react";
@@ -146,24 +148,30 @@ export default function AdminDashboard() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (!response.ok) throw new Error();
         const result = await response.json();
-        const count =
-          result.updated ??
-          result.cachedDeals ??
-          result.rescored ??
-          result.scanned ??
-          0;
-        toast.success(`${id} finished`, {
-          description: count
-            ? `${count.toLocaleString()} records processed.`
-            : "There was nothing waiting.",
-        });
-        await Promise.all([refreshStats(), refreshHealth()]);
+        if (!result || typeof result !== "object" || Array.isArray(result))
+          throw new Error();
+        const receipt = maintenanceReceipt(response.ok, result);
+        if (!response.ok) {
+          toast.error(`${id} could not finish`, {
+            description: receipt.description,
+          });
+          if (receipt.confirmedChanges)
+            await Promise.allSettled([refreshStats(), refreshHealth()]);
+          return;
+        }
+        toast.success(`${id} finished`, { description: receipt.description });
+        try {
+          await Promise.all([refreshStats(), refreshHealth()]);
+        } catch {
+          toast.error("Task completed; dashboard refresh failed", {
+            description: "Refresh operations data to see the latest result.",
+          });
+        }
       } catch {
         toast.error(`${id} could not finish`, {
           description:
-            "No changes were confirmed. Check the operational logs and try again.",
+            "Completion could not be verified. Check the operational logs before retrying.",
         });
       } finally {
         setActiveOperation(null);
