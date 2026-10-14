@@ -286,7 +286,9 @@ export default function RegisterPage() {
             <div className="text-lg font-bold text-[var(--t1)] mb-1">
               {liveStats.readySources ?? "Multi"}
             </div>
-            <div className="text-xs text-[var(--t4)]">Ready sources</div>
+            <div className="text-xs text-[var(--t4)]">
+              {liveStats.readySources == null ? "Sources" : "Ready sources"}
+            </div>
           </div>
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
             <div className="text-lg font-bold text-[var(--t1)] mb-1">Free</div>

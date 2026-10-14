@@ -13,6 +13,7 @@ import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { publicInventoryStatus } from "@/lib/public-inventory-status";
 import { summarizeReliability } from "@/lib/scrapers/reliability";
 import {
   applyAuthProviderReadiness,
@@ -22,6 +23,35 @@ import {
 } from "@/lib/auth/provider-readiness";
 
 let providerLoad: Promise<AuthProviderReadiness> | null = null;
+let publicLoad: Promise<Record<string, any>> | null = null;
+
+function loadPublicStatus() {
+  if (!publicLoad) {
+    publicLoad = cached("status:public:v2", 120_000, async () => {
+      if (!isSupabaseConfigured())
+        return toPublicStatus(await computeFullStatus());
+      const [authProviders, inventory] = await Promise.all([
+        loadAuthProviders(),
+        publicInventoryStatus(createServerComponentClient()),
+      ]);
+      return {
+        ...toPublicStatus({
+          configured: true,
+          authProviders,
+          readiness: applyAuthProviderReadiness(
+            systemReadiness(),
+            authProviders,
+          ),
+          ...inventory,
+        }),
+        sourceHealth: inventory.sourceHealth,
+      };
+    }).finally(() => {
+      publicLoad = null;
+    });
+  }
+  return publicLoad;
+}
 
 function loadAuthProviders(): Promise<AuthProviderReadiness> {
   if (!isSupabaseConfigured())
@@ -664,8 +694,8 @@ export function toPublicStatus(full: Record<string, any>) {
 // GET /api/system/status
 // scope=auth: provider readiness only, for sign-in without inventory diagnostics.
 // Admin (ADMIN_EMAIL session or INGEST_SECRET bearer): full self-awareness payload for /status.
-// Everyone else: a cached public projection with headline counts only. The full build runs a
-// dozen count queries plus multi-page scans, so anonymous traffic only ever hits the cache.
+// Everyone else: coalesced, cached count-only proof. Cold public requests must never trigger
+// inventory downloads, scraper diagnostics, learning jobs or valuation backtests.
 export async function GET(request: NextRequest) {
   // Sign-in needs provider settings, not inventory scans or an admin session lookup.
   if (new URL(request.url).searchParams.get("scope") === "auth") {
@@ -682,10 +712,17 @@ export async function GET(request: NextRequest) {
       headers: { "Cache-Control": "private, no-store" },
     });
   }
-  const payload = await cached("status:public:v1", 120_000, async () =>
-    toPublicStatus(await computeFullStatus()),
-  );
-  return NextResponse.json(payload, {
-    headers: { "Cache-Control": "private, no-store" },
-  });
+  try {
+    return NextResponse.json(await loadPublicStatus(), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch {
+    return NextResponse.json(
+      { scope: "public", error: "Status temporarily unavailable" },
+      {
+        status: 503,
+        headers: { "Cache-Control": "private, no-store", "Retry-After": "15" },
+      },
+    );
+  }
 }

@@ -641,7 +641,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
+    // Cache the expensive part — the bounded row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
     const DISCOVER_ROW_CAP = 2000;

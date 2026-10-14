@@ -6,6 +6,25 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### October 14 Public Status Efficiency
+
+- Public status no longer invokes the administrator's multi-page listing scan,
+  scraper diagnostics, learning jobs or valuation backtest. It uses ten exact
+  head-only counts and one newest timestamp; simultaneous cold requests share
+  one build, with a two-minute per-instance cache after success only.
+- Database errors and missing counts produce a sanitized, uncached 503 with
+  retry guidance, never a misleading healthy/empty result. Auth-only sign-in
+  checks and administrator diagnostics retain their separate paths.
+- Source totals require a dedicated aggregate and remain unknown in the public
+  fast path, rather than publishing a sampled or fabricated count. Registration
+  labels this as sources, not a claim that a worker is healthy.
+- Read-only primary-project verification returned 23,008 active rows and zero
+  sold comps; decision readiness stays false. One cold database probe took
+  5,976 ms, so this is not a claim that field latency or physical FPS is solved.
+- #360 remains open at `e68e91c7be0133f1485f684c88dc4da0ec0ad925`
+  with no recorded independent review. No protected cleanup, schema change,
+  source expansion, quota reset, saved-record deletion or paid upgrade applied.
+
 ### October 14 Release And Inventory Integrity
 
 - #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree
