@@ -19,12 +19,13 @@ export function discoverMatchLabel(input: {
   uniqueVehicles: number;
   totalListings?: number | null;
   previewMode?: boolean;
+  coverage?: { capped?: boolean } | null;
 }): string {
   const vehicles = Number(input.uniqueVehicles) || 0;
   if (input.previewMode)
     return `${plural(vehicles, "vehicle", "vehicles")} in preview`;
   const listings = Number(input.totalListings) || 0;
-  const base = plural(vehicles, "matching vehicle", "matching vehicles");
+  const base = `${plural(vehicles, "matching vehicle", "matching vehicles")}${input.coverage?.capped ? " in recent preview" : ""}`;
   if (listings > vehicles) {
     const merged = listings - vehicles;
     return `${base} · ${plural(listings, "listing", "listings")} (${plural(merged, "duplicate", "duplicates")} across sites merged)`;
@@ -36,11 +37,12 @@ export function marketListingsContext(input: {
   marketListings?: number | null;
   totalListings?: number | null;
   placeName: string;
+  coverage?: { capped?: boolean } | null;
 }): string | null {
   const market = Number(input.marketListings) || 0;
   const scoped = Number(input.totalListings) || 0;
   if (!(market > scoped)) return null;
-  return `${plural(market, "active listing", "active listings")} in ${input.placeName} under your price ceiling, before your other filters narrow it to ${plural(scoped, "listing", "listings")}.`;
+  return `${plural(market, "active listing", "active listings")}${input.coverage?.capped ? " in the recent preview" : ""} in ${input.placeName} under your price ceiling, before your other filters narrow it to ${plural(scoped, "listing", "listings")}.`;
 }
 
 /** Today's source-proof sentence counts listings (not VIN-merged vehicles). */

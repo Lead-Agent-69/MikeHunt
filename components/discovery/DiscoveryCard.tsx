@@ -82,6 +82,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const title =
     deal.title ||
     `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim();
+  const previewTitle =
+    [deal.year, deal.make, deal.model].filter(Boolean).join(" ") || title;
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
@@ -158,9 +160,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             )}
           </Link>
 
-          <div className="pointer-events-none absolute left-2.5 top-2.5 max-w-[calc(100%-4.5rem)]">
+          <div className="pointer-events-none absolute left-2.5 top-2.5 flex max-w-[calc(100%-4.5rem)] flex-col items-start">
             <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+              className="order-2 mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black sm:order-none sm:mt-0"
               style={{ background: decision.background, color: decision.color }}
             >
               {decision.label}
@@ -168,10 +170,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             <span
               aria-hidden="true"
               data-testid="discovery-card-price-preview"
-              className="mt-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)]"
+              className="order-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)] sm:order-none sm:mt-1"
             >
-              <span className="mb-1 block break-words text-xs font-bold sm:hidden">
-                {title}
+              <span className="mb-1 line-clamp-2 break-words text-xs font-bold sm:hidden">
+                {previewTitle}
               </span>
               <span className="block text-[10px] font-semibold">
                 {priceLabel}

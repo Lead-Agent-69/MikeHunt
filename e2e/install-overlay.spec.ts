@@ -31,6 +31,11 @@ for (const desk of [
       await expect(
         page.getByRole("region", { name: "Install MikeHunt" }),
       ).toBeVisible();
+      expect(
+        await page
+          .getByRole("region", { name: "Install MikeHunt" })
+          .evaluate((el) => getComputedStyle(el.parentElement!).position),
+      ).toBe("static");
       await page
         .getByRole("button", { name: "Account menu", exact: true })
         .click();

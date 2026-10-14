@@ -24,6 +24,16 @@ const build = (marketRows: ReturnType<typeof rows>, states: string[]) =>
   });
 
 describe("coverageNotice", () => {
+  it("discloses a capped preview even when enough rows or no eligible rows remain", () => {
+    for (const count of [0, 60]) {
+      const c = {
+        ...build(rows(count, "MO", "carvana"), ["MO"]),
+        capped: true,
+      };
+      expect(coverageNotice(c)?.headline).toBe("Recent inventory preview");
+      expect(coverageNotice(c)?.detail).toContain("not every matching vehicle");
+    }
+  });
   it("shows nothing for ok or a missing block", () => {
     const ok = build(
       [...rows(40, "TX", "craigslist"), ...rows(20, "TX", "cargurus")],

@@ -6,6 +6,98 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### End-To-End Follow-Through (October 13, Late Evening Chicago)
+
+The current integration is [PR #406](https://github.com/Lead-Agent-69/MikeHunt/pull/406),
+including main through #407. Its exact merge, deployment and final browser results
+belong in the PR receipt; this section does not turn pending work into a live claim.
+Older dated sections below remain historical evidence.
+
+**Implemented and verified locally:**
+
+- Tablet research-header overflow, mobile identity/price-first cards, compact
+  Discover filters/insights and honest indexed-inventory wording.
+- Supplementary vehicle actions and install/update notices in document flow;
+  navigation clearance, stable comparison clicks and no speculative search-link
+  prefetch. Existing tools, original-source links and buyer modes are preserved.
+- Shared form readiness prevents the first controlled edit disappearing during
+  hydration. Deal Check identifies manual amounts instead of claiming AI read them.
+- Service-worker failures resolve to valid responses; cached icons/image fallback
+  and background cache-write failures are handled. Private HTML/API data is never
+  moved into the offline cache.
+- Purchase-checklist preloading waits for the confirmed non-flip account and handles
+  speculative failure. A real Firefox NetworkError was traced to that preload.
+- Hosted Discover's 10,000-row RPC hit PostgreSQL `57014` (statement timeout).
+  A 2,000-row pull completed in 1.946 seconds. Discovery is now an explicitly bounded
+  recent preview, including capped/empty-result copy; full paginated Scan remains.
+  Raw cap evidence survives photo/freshness filtering. This is not whole-inventory
+  recommendation ranking or a measured production-latency guarantee.
+- Marked, bounded local freshness fixtures do not retime original or hosted rows.
+  React `.test.tsx` files under `app` are included in the full verification gate.
+
+Full gate at `8898ebf` passed 3,868 tests in 587 files, typecheck, lint (zero errors)
+and production build; exact-head CI `38511360915` passed. Local evidence includes
+35/35 first-glance checks across five desks/seven browser configurations, 14/14
+auth flows, six freshly onboarded local fixture accounts, and 195/195 route/layout
+checks. The broad 456-case run passed 438, skipped 15 non-iOS install cases and
+failed three mobile comparison assertions at `43.999969px` versus a 44px target.
+The existing two-decimal measurement convention now covers those checks; the
+clean final matrix is pending in the PR. Do not call that earlier run all green.
+External image/resource noise exclusions mean these tests do not certify every
+source photo, network request or physical-device FPS.
+
+**Actual hosted evidence, one existing Dealer/team account:**
+
+- Unchanged MO home save succeeded and MO survived reload. Existing buying
+  preferences saved successfully. Contact fields, coordinates, notification
+  subscriptions, admin privileges and buying mode were not changed.
+- The existing Saved Bronco's photo decoded; its lightbox and close control fit
+  768x1024, 390x664 and 1440x900. Only one photo is captured from that source;
+  source gallery completeness remains unproved. Other user identities, actual
+  provider/recovery logins and delivered alerts remain separate hosted gates.
+- `/api/push/status` returned `configured=true`. Vercel and Zeus have a matching
+  VAPID pair stored outside Git. Configuration is not device receipt. Resend
+  sender/webhook credentials and actual email/push delivery remain unverified.
+- Read-only SQL returned database size 163,867,795 bytes. Both legacy deletion
+  jobs remain inactive; market aggregation remains active. Protected prune and
+  storage-measurement RPCs are absent. No cleanup, migration or grant was applied.
+
+**Capacity and remaining priorities:**
+
+- Supabase Free, cycle September 28-October 28: visible database usage 36%,
+  uncached egress 28%, storage zero, eight MAU. Billing usage is delayed and its
+  size view is distinct from the instantaneous SQL measurement. The local worker
+  retains F-drive cache/log/profile binds, bounded Docker logs and ample disk;
+  runtime data is not tracked in Git. Local disk never extends hosted quotas.
+- Vercel Hobby, last-30-days view: Functions Storage 9.43/10 GB, deployment storage
+  3.11/10 GB, active CPU 1h11m/4h, invocations 59k/1M. Function storage is GB-months,
+  not instantaneous disk. Explicit approval was requested for project-only shorter
+  deployment retention; no deletion or paid upgrade occurred. Retention reduces
+  future storage, not already accrued usage. Preserve the production alias and
+  rollback exceptions. [Storage](https://vercel.com/docs/deployment-storage) and
+  [retention policy](https://vercel.com/docs/deployment-retention).
+- Commercial launch remains incompatible with Hobby's personal/noncommercial
+  restriction, independently of usage. Do not silently upgrade a paid plan.
+  [Hobby policy](https://vercel.com/docs/plans/hobby).
+- Security linter refresh: one error (`spatial_ref_sys` RLS), 12 warnings (three
+  public extensions, two public photo-bucket listing policies, six PostGIS definer
+  execution notices, leaked-password protection) and seven informational notices.
+  Review extension dependencies and bucket access before applying changes; the
+  advisor is not clean. Leaked-password protection is Pro-only.
+- Finish #360's independent exact-head review and protected migration first, then
+  hosted dry-run/reference-survival/restore checks. Keep legacy cleanup parked.
+  The old CI scraper workflow is parked too; its client-side pruning is not a
+  replacement for transactional reference protection and must not be resumed.
+- Verify permitted-source yield, complete/decodable photos, advertised-price
+  meaning and dedup conflicts before expanding collection. Preserve the worker's
+  1,000-insert safety stop; do not fabricate freshness or bypass permission gates.
+- Prove regional valuations/repair/fee assumptions against dated, held-out actual
+  sale outcomes. The asking-price proxy backtest is explicitly not transaction
+  accuracy; `decisionReady=false` remains the last recorded production result.
+- Complete hosted all-role account/permissions/alert checks and cross-network,
+  physical-device performance. Prior hosted API sampling had resets/timeouts;
+  successful-response percentiles alone are not acceptance evidence.
+
 - **Implemented** means code exists, not that the hosted feature works.
 - **Merged** requires a main SHA; **live** requires a matching deployment receipt.
 - **Accepted** additionally requires the actual user journey, negative/error cases

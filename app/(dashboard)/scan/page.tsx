@@ -539,8 +539,8 @@ function StatusStrip({
           {error
             ? "Couldn't update vehicles"
             : busy
-              ? "Updating saved inventory…"
-              : "Saved inventory loaded"}
+              ? "Updating inventory…"
+              : "Inventory loaded"}
         </span>
       </span>
 
@@ -1134,7 +1134,7 @@ function EmptyState({
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        No matching saved vehicles for this scope yet.
+        No matching inventory for this search yet.
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
@@ -1172,7 +1172,7 @@ function EmptyState({
           style={{ background: "var(--grad)" }}
         >
           <Ico name="refresh" size={16} />
-          Search saved inventory
+          Search inventory
         </button>
         {hasScopedProof && (
           <Link
@@ -2144,7 +2144,7 @@ function SmartDataPlanCard({
                 Data readiness
               </div>
               <p className="text-xs text-[var(--t4)]">
-                These items control saved inventory, Google sign-in, and
+                These items control stored inventory, Google sign-in, and
                 protected source searches.
               </p>
             </div>
@@ -4542,10 +4542,8 @@ function ScanPageInner() {
             mutate();
           }}
           disabled={loading}
-          aria-label={
-            loading ? "Updating saved inventory" : "Search saved inventory"
-          }
-          title="Search saved inventory"
+          aria-label={loading ? "Updating inventory" : "Search inventory"}
+          title="Search inventory"
           className="flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-all disabled:opacity-50 border-none sm:px-5"
           style={{ background: "var(--grad)" }}
         >
@@ -4555,14 +4553,12 @@ function ScanPageInner() {
                 className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                 style={{ animation: "spin 700ms linear infinite" }}
               />
-              <span className="hidden sm:inline">
-                Updating saved inventory…
-              </span>
+              <span className="hidden sm:inline">Updating inventory…</span>
             </>
           ) : (
             <>
               <Ico name="scan" size={16} />
-              <span className="hidden sm:inline">Search saved inventory</span>
+              <span className="hidden sm:inline">Search inventory</span>
             </>
           )}
         </button>

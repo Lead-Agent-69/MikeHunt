@@ -29,7 +29,7 @@ export function CoverageNotice({
       role="status"
       data-testid="coverage-notice"
       data-tone={notice.tone}
-      className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm"
+      className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-2 text-sm md:py-3"
     >
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
       <div className="min-w-0">
@@ -42,36 +42,37 @@ export function CoverageNotice({
             About these results
           </summary>
           <p className="pb-2 text-sm">{notice.detail}</p>
+          {notice.tone !== "unavailable" && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
+              <Link
+                href="/settings"
+                className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
+              >
+                Change search area
+              </Link>
+              <Link
+                href="/searches"
+                className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
+              >
+                Get match alerts
+              </Link>
+            </div>
+          )}
         </details>
-        {notice.tone === "unavailable" ? (
-          onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={isRefreshing}
-              aria-busy={isRefreshing}
-              className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[var(--blue)] disabled:opacity-60"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              {isRefreshing ? "Refreshing results" : "Try again"}
-            </button>
-          )
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
-            <Link
-              href="/settings"
-              className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
-            >
-              Change search area
-            </Link>
-            <Link
-              href="/searches"
-              className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
-            >
-              Get match alerts
-            </Link>
-          </div>
-        )}
+        {notice.tone === "unavailable"
+          ? onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isRefreshing}
+                aria-busy={isRefreshing}
+                className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[var(--blue)] disabled:opacity-60"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                {isRefreshing ? "Refreshing results" : "Try again"}
+              </button>
+            )
+          : null}
       </div>
     </div>
   );

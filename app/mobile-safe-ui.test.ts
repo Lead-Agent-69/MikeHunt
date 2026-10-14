@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("mobile fixed UI surfaces", () => {
+  it("keeps implicit focus scrolling instant and clear of fixed navigation", () => {
+    const css = readFileSync("app/globals.css", "utf8");
+    const html = css.match(/html \{([^}]+)\}/)![1];
+    expect(html).toContain("scroll-behavior: auto");
+    expect(html).toContain("scroll-padding-top: 80px");
+    expect(css).toContain(
+      "scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom))",
+    );
+  });
   it("keeps scan toasts above the mobile bottom nav", () => {
     const scanPage = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
 
@@ -74,6 +83,22 @@ describe("mobile fixed UI surfaces", () => {
     for (const [link] of links) expect(link).toContain("prefetch={false}");
   });
 
+  it("loads bookmarked search destinations only on selection", () => {
+    const searches = readFileSync("app/(dashboard)/searches/page.tsx", "utf8");
+    const links = Array.from(searches.matchAll(/<Link\b[\s\S]*?>/g));
+    expect(links).toHaveLength(2);
+    for (const [link] of links) expect(link).toContain("prefetch={false}");
+  });
+
+  it("keeps detail research controls clear of a floating action bar", () => {
+    const detail = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+    const actions = detail.match(
+      /<section\s+aria-label="Vehicle actions"[\s\S]*?>/,
+    );
+    expect(actions).not.toBeNull();
+    expect(actions![0]).not.toMatch(/\bfixed\b|\bsticky\b|\bz-50\b/);
+  });
+
   it("verifies the app connection and renders only one offline surface", () => {
     const mobileUx = readFileSync("components/ui/mobile-ux.tsx", "utf8");
     const layout = readFileSync("app/layout.tsx", "utf8");
@@ -101,7 +126,7 @@ describe("mobile fixed UI surfaces", () => {
     );
   });
 
-  it("keeps feed chrome and the install nudge above the mobile tab bar", () => {
+  it("keeps feed chrome clear and the install reminder in page flow", () => {
     const feedPage = readFileSync("app/(dashboard)/feed/page.tsx", "utf8");
     const dashboard = readFileSync("app/(dashboard)/layout.tsx", "utf8");
     const feedCard = readFileSync(
@@ -116,12 +141,13 @@ describe("mobile fixed UI surfaces", () => {
     // Vehicle actions are in document flow, not a floating rail over the tab bar.
     expect(feedCard).toContain("mt-auto flex flex-wrap items-center");
     expect(feedPage).not.toContain("sticky top-3");
-    // Install nudge sits above the tab bar (same clearance family as PWARegister).
+    // Footer reminders retain tab-bar clearance without creating another overlay.
     expect(installPrompt).toContain(
-      "bottom-[calc(72px+env(safe-area-inset-bottom))]",
+      "pb-[calc(72px+env(safe-area-inset-bottom))]",
     );
+    expect(installPrompt).not.toMatch(/className="[^"]*\bfixed\b/);
     expect(installPrompt).not.toContain("fixed inset-x-0 bottom-0 z-50");
-    expect(installPrompt).toContain("z-20");
+    expect(installPrompt).not.toMatch(/className="[^"]*\bz-/);
     expect(installPrompt).not.toContain("z-[60]");
   });
 });

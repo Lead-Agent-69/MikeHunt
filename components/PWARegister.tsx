@@ -76,7 +76,7 @@ export function PWARegister() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[80] mx-auto flex max-w-md items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-3 text-sm shadow-[var(--shadow)] md:bottom-5"
+      className="mx-auto mb-[calc(72px+env(safe-area-inset-bottom))] flex w-full max-w-md items-center justify-between gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-3 text-sm md:mb-5"
     >
       <span className="font-semibold text-[var(--t2)]">
         A new version is ready.
@@ -84,7 +84,7 @@ export function PWARegister() {
       <button
         type="button"
         onClick={() => window.location.reload()}
-        className="rounded-[var(--r1)] bg-[var(--accent)] px-3 py-1.5 text-xs font-black text-white"
+        className="min-h-11 rounded-[var(--r1)] bg-[var(--accent)] px-3 py-1.5 text-xs font-black text-white"
       >
         Refresh
       </button>

@@ -96,9 +96,9 @@ describe("install prompt", () => {
     expect(source).not.toMatch(/\.focus\(/);
   });
 
-  it("never blocks the page: only the card takes pointer events, tap targets are 44px", () => {
-    expect(source).toContain("pointer-events-none fixed inset-x-0");
-    expect(source).toContain("pointer-events-auto");
+  it("keeps the reminder in page flow with 44px tap targets", () => {
+    expect(source).toContain("mx-auto w-full max-w-sm");
+    expect(source).not.toMatch(/className="[^"]*\bfixed\b/);
     expect(source).toContain("min-h-11 min-w-11");
     expect(source).not.toContain("rgba(15,15,20");
   });
