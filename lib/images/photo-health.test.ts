@@ -57,8 +57,23 @@ describe("gallery verification", () => {
       ok: true,
       body: Buffer.from("<html>no photo</html>"),
     });
-    expect((await probeListingPhoto(a)).state).toBe("missing");
+    expect((await probeListingPhoto(a)).state).toBe("unknown");
     fetchImage.mockResolvedValueOnce({ ok: false, status: 403 });
     expect((await probeListingPhoto(a)).state).toBe("unknown");
+  });
+  it("does not quarantine a gallery when its host returns a temporary non-image response", async () => {
+    for (const status of [403, 415, 429, 500, 502, 503]) {
+      fetchImage.mockResolvedValueOnce({ ok: false, status });
+      expect((await inspectListingPhotos([a])).state).toBe("unknown");
+    }
+    fetchImage.mockResolvedValueOnce({
+      ok: true,
+      body: Buffer.from("<html>challenge</html>"),
+    });
+    expect((await inspectListingPhotos([a])).state).toBe("unknown");
+    for (const status of [404, 410]) {
+      fetchImage.mockResolvedValueOnce({ ok: false, status });
+      expect((await inspectListingPhotos([a])).state).toBe("unavailable");
+    }
   });
 });

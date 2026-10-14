@@ -1,6 +1,60 @@
 import { expect, it, vi } from "vitest";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 
+it("does not resurrect a rejected cover or discard a repaired gallery on reingestion", async () => {
+  const audit = {
+    state: "available",
+    originalImages: ["/broken.jpg", "/working.jpg"],
+    verifiedUrl: "/working.jpg",
+  };
+  const query = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockResolvedValue({
+      data: [
+        {
+          source_deal_id: "123",
+          source_url: "https://dealer.example/123",
+          images: ["/working.jpg"],
+          photo_audit: audit,
+        },
+      ],
+      error: null,
+    }),
+  };
+  for (const images of [
+    ["/broken.jpg"],
+    ["/broken.jpg", "/working.jpg"],
+    ["/working.jpg"],
+    [],
+  ]) {
+    const rows = [
+      {
+        source: "dealer",
+        source_deal_id: "123",
+        source_url: "https://dealer.example/123",
+        images,
+        options: { title: "reported" } as Record<string, unknown>,
+      },
+    ];
+    await preserveListingPhotos({ from: () => query }, rows);
+    expect(rows[0].images).toEqual(["/working.jpg"]);
+    expect(rows[0].options).toEqual({ title: "reported", photoAudit: audit });
+  }
+  const changed = [
+    {
+      source: "dealer",
+      source_deal_id: "123",
+      source_url: "https://dealer.example/123",
+      images: ["/working.jpg", "/new.jpg"],
+      options: {},
+    },
+  ];
+  await preserveListingPhotos({ from: () => query }, changed);
+  expect(changed[0].images).toEqual(["/working.jpg", "/new.jpg"]);
+  expect(changed[0].options).toEqual({});
+});
+
 it("keeps quarantine for identical URLs but permits a genuinely new gallery", async () => {
   const audit = { state: "unavailable", checkedAt: "2026-10-14T00:00:00Z" };
   const query = {
