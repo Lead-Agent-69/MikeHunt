@@ -6,6 +6,30 @@ import {
 } from "./count-labels";
 
 describe("inventory count labels (MO 245 / 246 / 290)", () => {
+  it("never labels a capped recent preview as the complete matching inventory", () => {
+    expect(
+      discoverMatchLabel({
+        uniqueVehicles: 0,
+        totalListings: 0,
+        coverage: { capped: true },
+      }),
+    ).toBe("0 matching vehicles in recent preview");
+    expect(
+      discoverMatchLabel({
+        uniqueVehicles: 10,
+        totalListings: 12,
+        coverage: { capped: true },
+      }),
+    ).toContain("10 matching vehicles in recent preview");
+    expect(
+      marketListingsContext({
+        marketListings: 12,
+        totalListings: 10,
+        placeName: "Missouri",
+        coverage: { capped: true },
+      }),
+    ).toContain("in the recent preview");
+  });
   it("Discover says vehicles for the VIN-merged count and shows the listing count", () => {
     expect(
       discoverMatchLabel({ uniqueVehicles: 245, totalListings: 246 }),

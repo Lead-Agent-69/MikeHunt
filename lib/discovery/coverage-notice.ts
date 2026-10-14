@@ -34,6 +34,12 @@ export function coverageNotice(
       detail:
         "Available results may be incomplete. This does not mean there are no cars for sale; we couldn't confirm how recently the sources were checked.",
     };
+  if (coverage.capped)
+    return {
+      tone: "thin",
+      headline: "Recent inventory preview",
+      detail: `${coverage.freshRows > 0 ? `Preview includes at least ${plural(coverage.freshRows, "recent listing")}. ` : ""}Discovery covers the newest indexed listings in this search area, not every matching vehicle. Counts describe this preview; full indexed inventory remains available in Results.`,
+    };
   if (coverage.status !== "thin" && coverage.status !== "none") return null;
 
   const days = coverage.windowDays;

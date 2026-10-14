@@ -366,7 +366,9 @@ export default function DiscoverPage() {
   const budgetText = buyerScope?.maxPrice
     ? ` under $${Number(buyerScope.maxPrice).toLocaleString()}`
     : "";
-  const emptyScopeMessage = `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or branded titles are excluded. " : ""}${!includesRepairable(buyerScope) ? "Vehicles with reported damage or repair needs are also excluded. " : ""}Review your buying preferences or try another market.`;
+  const emptyScopeMessage = data?.coverage?.capped
+    ? `No ${vehicleName} match this recent preview in ${placeName}${budgetText}. Matching listings outside the preview may still exist in the full indexed inventory.`
+    : `No ${vehicleName} match your full search in ${placeName}${budgetText}. ${buyerScope?.titleType === "clean" ? "Clean-title-only is enabled; listings with unknown or branded titles are excluded. " : ""}${!includesRepairable(buyerScope) ? "Vehicles with reported damage or repair needs are also excluded. " : ""}Review your buying preferences or try another market.`;
   // Count labels live in lib/discovery/count-labels (listings vs VIN-merged vehicles).
   const marketContext = data
     ? marketListingsContext({ ...data, placeName })
@@ -685,7 +687,11 @@ export default function DiscoverPage() {
           <EmptyState
             icon="search"
             className="!py-10 sm:!py-16"
-            title="Nothing to discover yet"
+            title={
+              data?.coverage?.capped
+                ? "No matches in this preview"
+                : "Nothing to discover yet"
+            }
             message={emptyScopeMessage}
           />
           <div className="flex flex-wrap items-center justify-center gap-2 px-6 pb-10">

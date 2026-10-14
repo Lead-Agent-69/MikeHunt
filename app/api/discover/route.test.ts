@@ -315,7 +315,7 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(res.status).toBe(200);
     expect(rpc).toHaveBeenLastCalledWith(
       "discover_deals",
-      expect.objectContaining({ p_states: ["MO", "IL"], p_limit: 10000 }),
+      expect.objectContaining({ p_states: ["MO", "IL"], p_limit: 2000 }),
     );
     expect(body.coverage).toMatchObject({
       status: "thin",
