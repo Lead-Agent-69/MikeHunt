@@ -26,6 +26,8 @@ export default function DealCheckPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"amounts" | "document">("amounts");
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const [amounts, setAmounts] = useState({
     price: "",
     fees: "",
@@ -224,6 +226,7 @@ export default function DealCheckPage() {
           <button
             key={item.mode}
             type="button"
+            disabled={!ready}
             aria-pressed={mode === item.mode}
             onClick={() => {
               beginRequest();
@@ -258,6 +261,7 @@ export default function DealCheckPage() {
                 <span className="block min-h-10">{field.label}</span>
                 <input
                   type="number"
+                  disabled={!ready}
                   min="0"
                   step="0.01"
                   required={field.key === "price"}
@@ -279,7 +283,10 @@ export default function DealCheckPage() {
             Blank amounts are unknown, not zero. Enter 0 only for a confirmed
             zero cost.
           </p>
-          <button className="min-h-11 rounded-lg bg-[var(--t1)] px-4 text-sm font-semibold text-[var(--s0)]">
+          <button
+            disabled={!ready}
+            className="min-h-11 rounded-lg bg-[var(--t1)] px-4 text-sm font-semibold text-[var(--s0)]"
+          >
             Review amounts
           </button>
         </form>
@@ -288,6 +295,7 @@ export default function DealCheckPage() {
           <form onSubmit={handleTextSubmit} className="flex flex-col relative">
             <textarea
               aria-label="Offer text or listing URL"
+              disabled={!ready}
               value={textInput}
               onChange={(e) => {
                 beginRequest();
@@ -304,6 +312,7 @@ export default function DealCheckPage() {
                 <span>Upload Photo</span>
                 <input
                   type="file"
+                  disabled={!ready}
                   accept="image/*"
                   aria-label="Upload offer photo"
                   className="sr-only"
@@ -400,8 +409,9 @@ export default function DealCheckPage() {
             </section>
           )}
           <p className="text-sm text-[var(--t3)]">
-            Read from your document by AI. Verify these details against the
-            original; this is not an inspection or a buy recommendation.
+            {result.manual
+              ? "Amounts entered by you. Verify them against the original offer; this is not an inspection or a buy recommendation."
+              : "Read from your document by AI. Verify these details against the original; this is not an inspection or a buy recommendation."}
           </p>
           {/* Market comparison */}
           {!mc && result?.marketValue?.reason && (

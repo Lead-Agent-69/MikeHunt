@@ -398,7 +398,7 @@ export default function DiscoverPage() {
     : "all";
 
   return (
-    <div className="space-y-6 pb-24 md:pb-8">
+    <div className="space-y-3 pb-24 md:space-y-6 md:pb-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
@@ -441,214 +441,217 @@ export default function DiscoverPage() {
         onRetry={() => void mutate().catch(() => undefined)}
       />
 
-      <section className="border-y border-[var(--b1)] py-3">
+      <section className="border-y border-[var(--b1)] py-2 md:py-3">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
           Buying for
         </p>
-        <p className="mt-1 text-sm font-bold text-[var(--t1)]">
+        <p className="mt-1 text-xs font-bold text-[var(--t1)] md:text-sm">
           {activeScopeLabel}
         </p>
-        <details className="mt-2">
-          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)]">
-            Search filters
-          </summary>
-          <form
-            className="flex flex-col gap-3"
-            aria-label="Buying for"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!discoverReady) return;
-              const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
-              const next = applyBuyingForIntent(buyerScope, {
-                make: makeDraft,
-                maxPrice: Number.isFinite(budget) ? budget : 0,
-                laneValue: laneValueDraft,
-                state: state || "NATIONWIDE",
-              });
-              if (next) {
-                writeLocalBuyerIntent(next);
-                setBuyerScope(next);
-              }
-              const params = discoverQueryForBuyingFor(
-                next,
-                state || "NATIONWIDE",
-                selectedStates,
-              );
-              const qs = params.toString();
-              router.replace(qs ? `${pathname}?${qs}` : pathname, {
-                scroll: false,
-              });
-            }}
-          >
-            <div>
-              <p className="mt-1 text-xs text-[var(--t4)]">
-                {marketContext ||
-                  "Refine makes and budgets without leaving your matching results."}
-              </p>
-            </div>
-            <fieldset
-              disabled={!discoverReady}
-              className="grid min-w-0 gap-2 sm:grid-cols-3"
+        <div className="grid grid-cols-2 items-start gap-x-3">
+          <details className="mt-2 open:col-span-2">
+            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] md:text-sm">
+              Search filters
+            </summary>
+            <form
+              className="flex flex-col gap-3"
+              aria-label="Buying for"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!discoverReady) return;
+                const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
+                const next = applyBuyingForIntent(buyerScope, {
+                  make: makeDraft,
+                  maxPrice: Number.isFinite(budget) ? budget : 0,
+                  laneValue: laneValueDraft,
+                  state: state || "NATIONWIDE",
+                });
+                if (next) {
+                  writeLocalBuyerIntent(next);
+                  setBuyerScope(next);
+                }
+                const params = discoverQueryForBuyingFor(
+                  next,
+                  state || "NATIONWIDE",
+                  selectedStates,
+                );
+                const qs = params.toString();
+                router.replace(qs ? `${pathname}?${qs}` : pathname, {
+                  scroll: false,
+                });
+              }}
             >
-              <label className="block text-xs font-semibold text-[var(--t3)]">
-                Make
-                <input
-                  value={makeDraft}
-                  onChange={(event) => setMakeDraft(event.target.value)}
-                  placeholder="Any make"
-                  aria-label="Make"
-                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-                />
-              </label>
-              <label className="block text-xs font-semibold text-[var(--t3)]">
-                Budget
-                <input
-                  inputMode="numeric"
-                  value={budgetDraft}
-                  onChange={(event) =>
-                    setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
-                  }
-                  placeholder="Max price"
-                  aria-label="Budget"
-                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-                />
-              </label>
-              <label className="block text-xs font-semibold text-[var(--t3)]">
-                Lane
-                <select
-                  value={laneValueDraft}
-                  onChange={(event) => setLaneDraft(event.target.value)}
-                  aria-label="Lane"
-                  className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
-                >
-                  {laneOptions.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </fieldset>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="submit"
+              <div>
+                <p className="mt-1 text-xs text-[var(--t4)]">
+                  {marketContext ||
+                    "Refine makes and budgets without leaving your matching results."}
+                </p>
+              </div>
+              <fieldset
                 disabled={!discoverReady}
-                className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+                className="grid min-w-0 gap-2 sm:grid-cols-3"
               >
-                Apply filters
-              </button>
-              {discoverReady && (
-                <Link
-                  href={`/scan${scopeQuery}`}
-                  prefetch={false}
-                  className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
-                >
-                  Browse inventory
-                </Link>
-              )}
-            </div>
-          </form>
-        </details>
-      </section>
-
-      <details
-        className="border-b border-[var(--b1)] pb-3"
-        onToggle={(event) => setShowInsights(event.currentTarget.open)}
-      >
-        <summary className="cursor-pointer text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
-          Market insights and saved interests
-        </summary>
-        {showInsights && (
-          <div className="mt-4 space-y-6">
-            {/* Flip-economics widgets (profit on the board, highest-margin spotlight, best flip,
-                avg profit by model, "deals like your winners") are for reseller/dealer desks only. */}
-            {hasLiveListings && flipDesk && <EdgeBanner />}
-            {/* Always show the saved dealer intent. Even before database import is live, this confirms the
-          shops being watched and gives the user a direct path to source proof. */}
-            <WatchedDealerFeed />
-
-            {hasLiveListings && (
-              <>
-                {/* Jump back to deals you just looked at. */}
-                <RecentlyViewed kind="car" accent="var(--amber-d)" />
-
-                {/* Deals near you — personalized to the saved home market + surrounding states. */}
-                <NearbyDeals />
-              </>
-            )}
-
-            {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
-            {data && !data.personalized && (
-              <a
-                href="/settings"
-                className="glass-panel flex items-center gap-3 px-4 py-3 transition-colors hover:border-[var(--amber-bd)]"
-              >
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-[var(--t1)]">
-                    Personalize your feed
-                  </p>
-                  <p className="text-xs text-[var(--t4)]">
-                    {flipDesk
-                      ? "Set your states, budget & profit target in Settings to get a “For You” rail tuned to how you buy."
-                      : "Set your states and budget in Settings to get a “For You” rail tuned to how you buy."}
-                  </p>
-                </div>
-                <span className="text-xs font-bold text-[var(--amber)]">
-                  Set up →
-                </span>
-              </a>
-            )}
-
-            {hasLiveListings && flipDesk && (
-              <>
-                {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
-                <NextBestBuySpotlight initialState={state || undefined} />
-
-                {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
-                <DiscoverHero state={state || undefined} />
-
-                {/* What the market's doing — top GO make/models by avg profit */}
-                <MarketPulse />
-              </>
-            )}
-
-            {hasLiveListings && (
-              <>
-                {/* Live ticker (Visor marquee) */}
-                <DealTicker />
-
-                {/* Market summary — at-a-glance intelligence (hides when empty) */}
-                <MarketSummary />
-              </>
-            )}
-
-            {hasLiveListings && (
-              <>
-                {/* Flash deals — pinned rail (self-fetching, hides when empty) */}
-                <FlashRail state={state || undefined} />
-
-                {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
-                {flipDesk && (
-                  <IntelRail
-                    endpoint="/api/recommendations"
-                    title="Deals like your winners"
-                    subtitle="Matched to the make/models you've actually profited on"
+                <label className="block text-xs font-semibold text-[var(--t3)]">
+                  Make
+                  <input
+                    value={makeDraft}
+                    onChange={(event) => setMakeDraft(event.target.value)}
+                    placeholder="Any make"
+                    aria-label="Make"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
+                </label>
+                <label className="block text-xs font-semibold text-[var(--t3)]">
+                  Budget
+                  <input
+                    inputMode="numeric"
+                    value={budgetDraft}
+                    onChange={(event) =>
+                      setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
+                    }
+                    placeholder="Max price"
+                    aria-label="Budget"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                  />
+                </label>
+                <label className="block text-xs font-semibold text-[var(--t3)]">
+                  Lane
+                  <select
+                    value={laneValueDraft}
+                    onChange={(event) => setLaneDraft(event.target.value)}
+                    aria-label="Lane"
+                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                  >
+                    {laneOptions.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={!discoverReady}
+                  className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+                >
+                  Apply filters
+                </button>
+                {discoverReady && (
+                  <Link
+                    href={`/scan${scopeQuery}`}
+                    prefetch={false}
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+                  >
+                    Browse inventory
+                  </Link>
                 )}
-                <IntelRail
-                  endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
-                  title="Underpriced vs peers"
-                  subtitle="Statistical outliers priced well under their cluster"
-                />
-                <IntelRail
-                  endpoint="/api/deals/near"
-                  title={flipDesk ? "Near you" : "Listings in your home state"}
-                />
-              </>
+              </div>
+            </form>
+          </details>
+          <details
+            className="mt-2 open:col-span-2"
+            onToggle={(event) => setShowInsights(event.currentTarget.open)}
+          >
+            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)] md:text-sm">
+              Market insights and saved interests
+            </summary>
+            {showInsights && (
+              <div className="mt-4 space-y-6">
+                {/* Flip-economics widgets (profit on the board, highest-margin spotlight, best flip,
+                avg profit by model, "deals like your winners") are for reseller/dealer desks only. */}
+                {hasLiveListings && flipDesk && <EdgeBanner />}
+                {/* Always show the saved dealer intent. Even before database import is live, this confirms the
+          shops being watched and gives the user a direct path to source proof. */}
+                <WatchedDealerFeed />
+
+                {hasLiveListings && (
+                  <>
+                    {/* Jump back to deals you just looked at. */}
+                    <RecentlyViewed kind="car" accent="var(--amber-d)" />
+
+                    {/* Deals near you — personalized to the saved home market + surrounding states. */}
+                    <NearbyDeals />
+                  </>
+                )}
+
+                {/* Onboarding nudge — wire up preferences to unlock a personalized feed. */}
+                {data && !data.personalized && (
+                  <a
+                    href="/settings"
+                    className="glass-panel flex items-center gap-3 px-4 py-3 transition-colors hover:border-[var(--amber-bd)]"
+                  >
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-[var(--t1)]">
+                        Personalize your feed
+                      </p>
+                      <p className="text-xs text-[var(--t4)]">
+                        {flipDesk
+                          ? "Set your states, budget & profit target in Settings to get a “For You” rail tuned to how you buy."
+                          : "Set your states and budget in Settings to get a “For You” rail tuned to how you buy."}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-[var(--amber)]">
+                      Set up →
+                    </span>
+                  </a>
+                )}
+
+                {hasLiveListings && flipDesk && (
+                  <>
+                    {/* AI NEXT BEST BUY SNIPER — Real-time #1 highest-margin deal spotlight */}
+                    <NextBestBuySpotlight initialState={state || undefined} />
+
+                    {/* THE MONEY — count-up of profit on the table + today's best flip (the hero that lands) */}
+                    <DiscoverHero state={state || undefined} />
+
+                    {/* What the market's doing — top GO make/models by avg profit */}
+                    <MarketPulse />
+                  </>
+                )}
+
+                {hasLiveListings && (
+                  <>
+                    {/* Live ticker (Visor marquee) */}
+                    <DealTicker />
+
+                    {/* Market summary — at-a-glance intelligence (hides when empty) */}
+                    <MarketSummary />
+                  </>
+                )}
+
+                {hasLiveListings && (
+                  <>
+                    {/* Flash deals — pinned rail (self-fetching, hides when empty) */}
+                    <FlashRail state={state || undefined} />
+
+                    {/* Deal IQ intel rails — personalized + statistical (self-fetching, hide when empty) */}
+                    {flipDesk && (
+                      <IntelRail
+                        endpoint="/api/recommendations"
+                        title="Deals like your winners"
+                        subtitle="Matched to the make/models you've actually profited on"
+                      />
+                    )}
+                    <IntelRail
+                      endpoint={`/api/mispricing${state ? `?state=${state}` : ""}`}
+                      title="Underpriced vs peers"
+                      subtitle="Statistical outliers priced well under their cluster"
+                    />
+                    <IntelRail
+                      endpoint="/api/deals/near"
+                      title={
+                        flipDesk ? "Near you" : "Listings in your home state"
+                      }
+                    />
+                  </>
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </details>
+          </details>
+        </div>
+      </section>
       {/* For You: personal reco rail, hidden unless the backend is personalizing */}
       {!isValidating && !error && hasRankingChoices && (
         <ForYouRail flipDesk={flipDesk} eligibleDeals={eligibleDeals} />

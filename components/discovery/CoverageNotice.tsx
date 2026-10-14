@@ -42,36 +42,37 @@ export function CoverageNotice({
             About these results
           </summary>
           <p className="pb-2 text-sm">{notice.detail}</p>
+          {notice.tone !== "unavailable" && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
+              <Link
+                href="/settings"
+                className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
+              >
+                Change search area
+              </Link>
+              <Link
+                href="/searches"
+                className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
+              >
+                Get match alerts
+              </Link>
+            </div>
+          )}
         </details>
-        {notice.tone === "unavailable" ? (
-          onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              disabled={isRefreshing}
-              aria-busy={isRefreshing}
-              className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[var(--blue)] disabled:opacity-60"
-            >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              {isRefreshing ? "Refreshing results" : "Try again"}
-            </button>
-          )
-        ) : (
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
-            <Link
-              href="/settings"
-              className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
-            >
-              Change search area
-            </Link>
-            <Link
-              href="/searches"
-              className="inline-flex min-h-11 items-center text-[var(--t2)] underline"
-            >
-              Get match alerts
-            </Link>
-          </div>
-        )}
+        {notice.tone === "unavailable"
+          ? onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                disabled={isRefreshing}
+                aria-busy={isRefreshing}
+                className="inline-flex min-h-11 items-center gap-2 text-xs font-bold text-[var(--blue)] disabled:opacity-60"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                {isRefreshing ? "Refreshing results" : "Try again"}
+              </button>
+            )
+          : null}
       </div>
     </div>
   );

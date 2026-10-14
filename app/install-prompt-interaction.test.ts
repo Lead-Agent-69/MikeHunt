@@ -56,6 +56,9 @@ describe("install prompt interaction", () => {
     expect(region()).toBeNull();
     await act(async () => markInstallEngagement());
     expect(region()).not.toBeNull();
+    expect(region()?.parentElement?.className).not.toMatch(
+      /\bfixed\b|\bsticky\b/,
+    );
     expect(localStorage.getItem(INSTALL_SESSIONS_KEY)).toBe("1");
   });
   it("retains the offer across navigation without covering a deal or login", async () => {
