@@ -692,7 +692,7 @@ export function SwipeCardStack({
 
   return (
     <div
-      className="flex flex-col gap-5 outline-offset-4 focus-visible:outline focus-visible:outline-[var(--blue)]"
+      className="flex flex-col gap-3 outline-offset-4 focus-visible:outline focus-visible:outline-[var(--blue)]"
       tabIndex={0}
       role="group"
       aria-label="Vehicle swipe deck"
@@ -758,7 +758,7 @@ export function SwipeCardStack({
 
       {/* Drag is the fast path; these give keyboard and assistive-tech users the same two
           decisions without needing a pointer. */}
-      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center gap-3 border-t border-[var(--b1)] bg-[var(--s0)] py-2 sm:static sm:border-0">
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center gap-3 border-t border-[var(--b1)] bg-[var(--s0)] py-2 lg:static lg:border-0">
         <button
           type="button"
           onClick={() => top && decide(top.id, "pass")}

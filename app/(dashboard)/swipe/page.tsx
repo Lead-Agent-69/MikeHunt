@@ -341,7 +341,7 @@ export default function SwipePage() {
           cards={cards}
           onSave={onSave}
           onPass={onPass}
-          height="clamp(430px, calc(100svh - 330px), 560px)"
+          height="clamp(360px, calc(100svh - 450px), 560px)"
         />
       )}
     </div>
