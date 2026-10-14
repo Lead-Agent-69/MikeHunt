@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { writeCapacity } from "./write-capacity";
 
 export interface CachedListing {
   hash: string;
@@ -363,11 +364,7 @@ export class LocalScraperCache {
       this.state.quota.updates += count;
       await this.save();
       const quota = this.getQuota();
-      this.onQuota?.(
-        quota,
-        quota.updates >= Math.floor(this.maxDailyUpdates * 0.8) ||
-          quota.inserts >= Math.floor(this.maxDailyInserts * 0.8),
-      );
+      this.onQuota?.(quota, writeCapacity(quota).paused);
       return count;
     });
   }
@@ -586,8 +583,7 @@ export class LocalScraperCache {
 
       await this.save();
       const quota = this.getQuota();
-      const paused =
-        quota.inserts >= insertThreshold || quota.updates >= updateThreshold;
+      const paused = writeCapacity(quota).paused;
       this.onQuota?.(quota, paused);
       return {
         rows: returnedRows,

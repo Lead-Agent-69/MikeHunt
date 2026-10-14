@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createClientComponentClient,
@@ -21,33 +21,8 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [liveStats, setLiveStats] = useState<{
-    activeDeals: number | null;
-    readySources: number | null;
-  }>({ activeDeals: null, readySources: null });
   const router = useRouter();
   const supabase = createClientComponentClient();
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/system/status")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((status) => {
-        if (cancelled || !status) return;
-        setLiveStats({
-          activeDeals:
-            typeof status.activeDeals === "number" ? status.activeDeals : null,
-          readySources:
-            typeof status.sourceHealth?.readySources === "number"
-              ? status.sourceHealth.readySources
-              : null,
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,16 +252,12 @@ export default function RegisterPage() {
         {/* Benefits */}
         <div className="mt-6 grid grid-cols-3 gap-3 text-center">
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
-            <div className="text-lg font-bold text-[var(--t1)] mb-1">
-              {liveStats.activeDeals?.toLocaleString() || "Live"}
-            </div>
-            <div className="text-xs text-[var(--t4)]">Active deals</div>
+            <div className="text-lg font-bold text-[var(--t1)] mb-1">Saved</div>
+            <div className="text-xs text-[var(--t4)]">Your shortlist</div>
           </div>
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
-            <div className="text-lg font-bold text-[var(--t1)] mb-1">
-              {liveStats.readySources ?? "Multi"}
-            </div>
-            <div className="text-xs text-[var(--t4)]">Ready sources</div>
+            <div className="text-lg font-bold text-[var(--t1)] mb-1">Links</div>
+            <div className="text-xs text-[var(--t4)]">Original listings</div>
           </div>
           <div className="p-3 rounded-lg bg-[var(--s0)] border border-[var(--b2)]">
             <div className="text-lg font-bold text-[var(--t1)] mb-1">Free</div>

@@ -23,6 +23,7 @@ import {
 } from "../lib/scrapers/curated-outcomes";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
+import { writeCapacity } from "../lib/scrapers/write-capacity";
 import {
   isAutomationAllowedSource,
   advanceSweep,
@@ -112,6 +113,7 @@ interface Status {
     requestedAt: string;
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
+  writeCapacity?: ReturnType<typeof writeCapacity>;
   curatedOutcomes: CuratedOutcome[];
   sweep?: {
     startedAt?: string;
@@ -158,6 +160,7 @@ const statusDir = path.dirname(STATUS_PATH);
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
+  currentStatus.writeCapacity = writeCapacity(currentStatus.quota);
   currentStatus.curatedOutcomes = (await loadCuratedOutcomes()).rows;
   await mkdir(statusDir, { recursive: true });
   const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
@@ -168,11 +171,7 @@ async function writeStatus(): Promise<void> {
 }
 
 function quotaReached(): boolean {
-  const q = cache.getQuota();
-  return (
-    q.inserts >= Math.max(1, Math.floor(q.maxInserts * 0.8)) ||
-    q.updates >= Math.max(1, Math.floor(q.maxUpdates * 0.8))
-  );
+  return writeCapacity(cache.getQuota()).paused;
 }
 
 async function waitUntilWritable(): Promise<boolean> {
@@ -191,10 +190,7 @@ async function waitUntilWritable(): Promise<boolean> {
 
 async function waitForNextJob(): Promise<boolean> {
   while (!stopRequested) {
-    const quotaNow = cache.getQuota();
-    const hitQuota =
-      quotaNow.inserts >= Math.max(1, Math.floor(quotaNow.maxInserts * 0.8)) ||
-      quotaNow.updates >= Math.max(1, Math.floor(quotaNow.maxUpdates * 0.8));
+    const hitQuota = quotaReached();
     if (!hitQuota) quotaPaused = false;
     if (hitQuota) {
       quotaPaused = true;
@@ -677,7 +673,12 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     quotaPaused = false;
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
-      job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+      // Keep new buyer searches queued until inserts can actually add their matches.
+      // The idle sweep may still refresh existing inventory within its separate budgets.
+      job =
+        writeCapacity(cache.getQuota()).insertsRemaining > 0
+          ? await claimNextScopedScrapeJob(supabase, WORKER_ID)
+          : null;
       currentStatus.lastError = recoveredClaimError(
         currentStatus.lastError,
         claimFailures,
