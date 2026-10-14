@@ -101,6 +101,7 @@ export async function POST(request: Request) {
       let update = sb
         .from("deals")
         .update({
+          updated_at: new Date().toISOString(),
           images: result.images,
           options: { ...row.options, photoAudit },
         })

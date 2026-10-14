@@ -97,6 +97,7 @@ it("scopes and bounds checks, preserves unrelated evidence, and charges only con
   ]);
   expect(c.calls).toContainEqual(["eq", "updated_at", row.updated_at]);
   expect(c.patches[0]).toEqual({
+    updated_at: expect.any(String),
     images: ["photo"],
     options: {
       ...row.options,
@@ -121,6 +122,7 @@ it("records unknown attempts without removing existing quarantine or changing ph
     unavailable: 0,
   });
   expect(c.patches[0]).toEqual({
+    updated_at: expect.any(String),
     options: {
       ...row.options,
       photoCheckAttempt: { state: "unknown", checkedAt: "now" },

@@ -67,6 +67,7 @@ export async function maintainListingPhotos(
       if (!(await options.beforeWrite())) break;
       options.signal.throwIfAborted();
       const patch = {
+        updated_at: new Date().toISOString(),
         options: {
           ...row.options,
           // Unknown is an attempted check, not new evidence that overrides a quarantine.
