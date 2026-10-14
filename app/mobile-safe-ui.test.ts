@@ -101,7 +101,7 @@ describe("mobile fixed UI surfaces", () => {
     );
   });
 
-  it("keeps feed chrome and the install nudge above the mobile tab bar", () => {
+  it("keeps feed chrome clear and the install reminder in page flow", () => {
     const feedPage = readFileSync("app/(dashboard)/feed/page.tsx", "utf8");
     const dashboard = readFileSync("app/(dashboard)/layout.tsx", "utf8");
     const feedCard = readFileSync(
@@ -116,12 +116,13 @@ describe("mobile fixed UI surfaces", () => {
     // Vehicle actions are in document flow, not a floating rail over the tab bar.
     expect(feedCard).toContain("mt-auto flex flex-wrap items-center");
     expect(feedPage).not.toContain("sticky top-3");
-    // Install nudge sits above the tab bar (same clearance family as PWARegister).
+    // Footer reminders retain tab-bar clearance without creating another overlay.
     expect(installPrompt).toContain(
-      "bottom-[calc(72px+env(safe-area-inset-bottom))]",
+      "pb-[calc(72px+env(safe-area-inset-bottom))]",
     );
+    expect(installPrompt).not.toMatch(/className="[^"]*\bfixed\b/);
     expect(installPrompt).not.toContain("fixed inset-x-0 bottom-0 z-50");
-    expect(installPrompt).toContain("z-20");
+    expect(installPrompt).not.toMatch(/className="[^"]*\bz-/);
     expect(installPrompt).not.toContain("z-[60]");
   });
 });
