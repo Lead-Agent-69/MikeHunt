@@ -22,7 +22,7 @@ export function rescoreUpdate(row: RescoreRow, analysis: DealAnalysis) {
     sell_estimate: safeMath ? analysis.sellEstimate : null,
     recommended_max_bid: safeMath ? analysis.recommendedMaxBid : null,
     true_net_profit: safeMath ? analysis.profit : null,
-    profit_estimate: safeMath ? analysis.profit : null,
+    // Legacy profit_estimate is a generated column; net profit belongs above.
     estimated_repair_cost: analysis.repairCost,
     estimated_transport_cost: analysis.transportCost,
     profit_score: safeMath ? Math.min(100, Math.max(0, analysis.score)) : 0,

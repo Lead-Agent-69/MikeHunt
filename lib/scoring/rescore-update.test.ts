@@ -32,7 +32,6 @@ describe("rescore persistence integrity", () => {
       estimated_transport_cost: 600,
       profit_score: 100,
       true_net_profit: 2000,
-      profit_estimate: 2000,
       deal_verdict: "go",
       is_arbitrage_opportunity: true,
     });
@@ -47,6 +46,7 @@ describe("rescore persistence integrity", () => {
       "transport_estimate",
       "score_updated_at",
       "mmr_value",
+      "profit_estimate",
     ])
       expect(patch).not.toHaveProperty(removed);
   });
@@ -65,7 +65,6 @@ describe("rescore persistence integrity", () => {
       sell_estimate: null,
       recommended_max_bid: null,
       true_net_profit: null,
-      profit_estimate: null,
       profit_score: 0,
       deal_verdict: "not_enough_data",
       is_arbitrage_opportunity: false,
