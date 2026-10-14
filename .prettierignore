@@ -28,3 +28,4 @@ deploy_log.txt
 # Docs that predate the formatter (historical records — leave byte-identical)
 .agents/
 .qodo/
+public/sentry-replay-worker.js
