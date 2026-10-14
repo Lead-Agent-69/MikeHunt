@@ -40,6 +40,23 @@ export async function preserveListingPhotos(
           !Array.isArray(previous.images)
         )
           continue;
+        const auditedImages = previous.photo_audit?.originalImages;
+        const observedImages = Array.isArray(auditedImages)
+          ? auditedImages.filter(
+              (image): image is string => typeof image === "string",
+            )
+          : previous.images;
+        // Inventory pages may keep advertising a cover that the verifier already replaced.
+        // Only genuinely new URLs invalidate the audit, not a subset of its original gallery.
+        if (
+          previous.photo_audit &&
+          observedImages.length > 0 &&
+          row.images.every((image) => observedImages.includes(image))
+        ) {
+          row.images = [...previous.images].slice(0, 20);
+          row.options = { ...row.options, photoAudit: previous.photo_audit };
+          continue;
+        }
         // A different new cover photo may mean the listing has changed: do not revive old views.
         if (
           previous.images.length > row.images.length &&

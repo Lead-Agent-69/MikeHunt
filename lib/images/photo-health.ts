@@ -21,11 +21,12 @@ export async function probeListingPhoto(
     );
     if (result.ok)
       return {
-        state: sniffImageType(result.body) ? "available" : "missing",
+        // A successful response can still be a CDN challenge or temporary error page.
+        state: sniffImageType(result.body) ? "available" : "unknown",
         status: 200,
       };
     return {
-      state: [404, 410, 415].includes(result.status) ? "missing" : "unknown",
+      state: [404, 410].includes(result.status) ? "missing" : "unknown",
       status: result.status,
     };
   } catch {
