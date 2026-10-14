@@ -84,6 +84,27 @@ beforeEach(() => {
   });
 });
 describe("bounded authorized rescore", () => {
+  it.each([null, []])("rejects non-object request bodies %j", async (body) => {
+    expect((await POST(request(body))).status).toBe(400);
+    expect(mocks.client).not.toHaveBeenCalled();
+  });
+  it.each(["", "{"])(
+    "rejects missing or malformed JSON without triggering a default write batch",
+    async (body) => {
+      expect(
+        (
+          await POST(
+            new Request("https://app.test/api/admin/rescore", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body,
+            }),
+          )
+        ).status,
+      ).toBe(400);
+      expect(mocks.client).not.toHaveBeenCalled();
+    },
+  );
   it("creates no privileged client for unauthorized callers", async () => {
     mocks.authorized.mockResolvedValue(false);
     expect((await POST(request())).status).toBe(401);

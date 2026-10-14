@@ -34,8 +34,16 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    /* ok */
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400, headers: CORS },
+    );
   }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return NextResponse.json(
+      { error: "Invalid request body" },
+      { status: 400, headers: CORS },
+    );
   const page = Number(body?.page ?? 0);
   const requestedSize = Number(body?.pageSize ?? 800);
   if (
