@@ -109,7 +109,7 @@ export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
           {images.length > 1 ? ` · ${photo + 1}/${images.length} photos` : ""}
         </p>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
         <h2 className="line-clamp-2 break-words text-base font-bold leading-snug">
           {title}
         </h2>
