@@ -227,7 +227,7 @@ export default function SwipePage() {
             aria-label="Title filter"
             value={titleTypeFromQuery(query)}
             onChange={(event) => setTitleFilter(event.target.value)}
-            className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
+            className="min-h-11 w-28 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)] sm:w-auto"
           >
             {SWIPE_TITLE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
