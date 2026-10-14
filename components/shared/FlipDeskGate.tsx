@@ -14,7 +14,6 @@ import {
 } from "@/lib/buyer/flip-tool-access";
 import { fetchSavedPage, savedCollectionKey } from "@/lib/saved/collection";
 import { useDealerId } from "@/hooks/useDealerId";
-import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
 /**
  * Route-level gate for wholesale flip tools (see FLIP_TOOL_ROUTES). Wraps the
@@ -41,18 +40,14 @@ export function FlipDeskGate({
     prefsLoading: isLoading,
   });
 
-  // /fleet for a non-flip desk renders the Purchase plan checklist. Start its fetch NOW, in
-  // parallel with /api/preferences, instead of waiting for prefs to mount the checklist first.
-  const preloadChecklist =
-    route === "/fleet" &&
-    access !== "allow" &&
-    !isFlipBuyerMode(intent?.buyerMode);
+  // Only warm the checklist after this account's non-flip desk is confirmed.
+  const preloadChecklist = route === "/fleet" && access === "deny";
   useEffect(() => {
     if (preloadChecklist && dealerId && !accountLoading)
-      preload(
+      void preload(
         savedCollectionKey(dealerId, "checklist-page", "all"),
         fetchSavedPage,
-      );
+      ).catch(() => undefined);
   }, [preloadChecklist, dealerId, accountLoading]);
 
   if (access === "allow") return <>{children}</>;
