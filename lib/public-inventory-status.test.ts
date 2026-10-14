@@ -24,6 +24,7 @@ function client(counts = [100, 10, 90, 90, 90, 90, 90, 2, 3, 4]) {
         "neq",
         "or",
         "lt",
+        "lte",
         "order",
         "limit",
         "maybeSingle",
@@ -64,6 +65,17 @@ describe("publicInventoryStatus", () => {
     expect(queries[9].table).toBe("sold_listings");
     expect(queries[10].select).toHaveBeenCalledWith("last_seen_at");
     expect(queries[10].limit).toHaveBeenCalledWith(1);
+    expect(queries[2].or).toHaveBeenCalledWith(
+      "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+    );
+    expect(queries[2].gte).toHaveBeenCalledWith(
+      "last_seen_at",
+      expect.any(String),
+    );
+    expect(queries[2].lte).toHaveBeenCalledWith(
+      "last_seen_at",
+      expect.any(String),
+    );
     expect(
       queries.every(
         (q) => q.abortSignal.mock.calls[0][0] instanceof AbortSignal,

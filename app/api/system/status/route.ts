@@ -8,12 +8,12 @@ import {
 } from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import { cached } from "@/lib/cache";
+import { publicInventoryStatus } from "@/lib/public-inventory-status";
 import { computeValuationAccuracy } from "@/lib/scoring/accuracy";
 import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
-import { publicInventoryStatus } from "@/lib/public-inventory-status";
 import { summarizeReliability } from "@/lib/scrapers/reliability";
 import {
   applyAuthProviderReadiness,
@@ -23,34 +23,25 @@ import {
 } from "@/lib/auth/provider-readiness";
 
 let providerLoad: Promise<AuthProviderReadiness> | null = null;
-let publicLoad: Promise<Record<string, any>> | null = null;
 
 function loadPublicStatus() {
-  if (!publicLoad) {
-    publicLoad = cached("status:public:v2", 120_000, async () => {
-      if (!isSupabaseConfigured())
-        return toPublicStatus(await computeFullStatus());
-      const [authProviders, inventory] = await Promise.all([
-        loadAuthProviders(),
-        publicInventoryStatus(createServerComponentClient()),
-      ]);
-      return {
-        ...toPublicStatus({
-          configured: true,
-          authProviders,
-          readiness: applyAuthProviderReadiness(
-            systemReadiness(),
-            authProviders,
-          ),
-          ...inventory,
-        }),
-        sourceHealth: inventory.sourceHealth,
-      };
-    }).finally(() => {
-      publicLoad = null;
-    });
-  }
-  return publicLoad;
+  return cached("status:public:v2", 120_000, async () => {
+    if (!isSupabaseConfigured())
+      return toPublicStatus(await computeFullStatus());
+    const [authProviders, inventory] = await Promise.all([
+      loadAuthProviders(),
+      publicInventoryStatus(createServerComponentClient()),
+    ]);
+    return {
+      ...toPublicStatus({
+        configured: true,
+        authProviders,
+        readiness: applyAuthProviderReadiness(systemReadiness(), authProviders),
+        ...inventory,
+      }),
+      sourceHealth: inventory.sourceHealth,
+    };
+  });
 }
 
 function loadAuthProviders(): Promise<AuthProviderReadiness> {

@@ -1,5 +1,6 @@
 import type { createServerComponentClient } from "@/lib/supabase";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
+import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 
 /** Public headline proof needs counts, never listing payloads or valuation backtests. */
 export async function publicInventoryStatus(
@@ -33,7 +34,7 @@ export async function publicInventoryStatus(
   ] = await Promise.all([
     count(activeQuery()),
     count(activeQuery().gt("created_at", since24)),
-    count(activeQuery().not("images", "is", null).neq("images", "{}")),
+    count(applyCustomerInventory(activeQuery())),
     count(activeQuery().not("source_url", "is", null).neq("source_url", "")),
     count(activeQuery().gt("ask_price", 0)),
     count(activeQuery().not("title", "is", null).neq("title", "")),
@@ -54,6 +55,7 @@ export async function publicInventoryStatus(
       .select("last_seen_at")
       .eq("active", true)
       .not("last_seen_at", "is", null)
+      .lte("last_seen_at", new Date().toISOString())
       .order("last_seen_at", { ascending: false })
       .limit(1)
       .abortSignal(signal)

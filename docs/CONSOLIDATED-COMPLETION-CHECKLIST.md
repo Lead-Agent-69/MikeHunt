@@ -17,7 +17,16 @@ existing features and evidence; it does not declare the entire app finished.
   checks and administrator diagnostics retain their separate paths.
 - Source totals require a dedicated aggregate and remain unknown in the public
   fast path, rather than publishing a sampled or fabricated count. Registration
-  labels this as sources, not a claim that a worker is healthy.
+  no longer requests inventory status, and ordinary Scan users do not trigger
+  administrator diagnostics. Existing authentication/readiness checks remain.
+- Consolidated the overlapping #412 worker changes: insert, update and observation
+  budgets are independent. New searches stay queued at the insert reserve while
+  verified existing listings may refresh within their unchanged separate limits.
+  No quota reset or worker deployment is implied by merging this code.
+- Browse proof excludes stale/future observations and galleries explicitly
+  quarantined as unavailable, using the shared customer-inventory predicates.
+  A read-only hosted query confirmed 18,233 such listings in 4,448 ms; no image
+  payloads, keys or private account data were downloaded by that query.
 - Read-only primary-project verification returned 23,008 active rows and zero
   sold comps; decision readiness stays false. One cold database probe took
   5,976 ms, so this is not a claim that field latency or physical FPS is solved.

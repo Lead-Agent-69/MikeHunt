@@ -206,6 +206,27 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("refreshes existing prices after insert capacity is exhausted without inserting another car", async () => {
+    const onQuota = vi.fn();
+    const { cache } = await makeCache({ maxDailyInserts: 1, onQuota });
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    const result = await cache.persistRows(
+      [row("existing", 9000), row("new")],
+      db.client,
+      "*",
+    );
+    expect(result).toMatchObject({
+      saved: 1,
+      inserts: 0,
+      updates: 1,
+      paused: false,
+    });
+    expect(cache.getQuota()).toMatchObject({ inserts: 1, updates: 1 });
+    expect(db.rows.get("test|existing")?.ask_price).toBe(9000);
+    expect(db.rows.has("test|new")).toBe(false);
+    expect(onQuota).toHaveBeenLastCalledWith(expect.anything(), false);
+  });
   it("does not mark a missing cached listing fresh and recovers it on the next pass", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
@@ -513,7 +534,7 @@ describe("LocalScraperCache", () => {
     ]);
     expect(left.saved + right.saved).toBe(4);
     expect(cache.getQuota().inserts).toBe(4);
-    expect(left.paused || right.paused).toBe(true);
+    expect(left.paused || right.paused).toBe(false);
     expect(db.rows.size).toBe(4);
   });
 

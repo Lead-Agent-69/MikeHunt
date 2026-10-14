@@ -15,10 +15,12 @@ describe("scoped worker quota pause", () => {
       source.indexOf("async function runQueuedJobLoop"),
     );
     expect(loop.indexOf("if (quotaReached())")).toBeLessThan(
-      loop.indexOf("job = await claimNextScopedScrapeJob"),
+      loop.indexOf("await claimNextScopedScrapeJob"),
     );
     expect(loop).toContain("scopedWorkerIdleState(manualPaused, true)");
-    expect(source).toContain("Math.floor(q.maxInserts * 0.8)");
-    expect(source).toContain("Math.floor(q.maxUpdates * 0.8)");
+    expect(source).toContain("writeCapacity(cache.getQuota()).paused");
+    expect(source).toContain(
+      "writeCapacity(cache.getQuota()).insertsRemaining > 0",
+    );
   });
 });
