@@ -248,8 +248,15 @@ body {
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  scroll-padding-top: 80px;
   -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 1023px) {
+  html {
+    scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
 }
 
 /* GPU compositing */

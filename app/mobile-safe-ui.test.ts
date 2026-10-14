@@ -2,6 +2,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("mobile fixed UI surfaces", () => {
+  it("keeps implicit focus scrolling instant and clear of fixed navigation", () => {
+    const css = readFileSync("app/globals.css", "utf8");
+    const html = css.match(/html \{([^}]+)\}/)![1];
+    expect(html).toContain("scroll-behavior: auto");
+    expect(html).toContain("scroll-padding-top: 80px");
+    expect(css).toContain(
+      "scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom))",
+    );
+  });
   it("keeps scan toasts above the mobile bottom nav", () => {
     const scanPage = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
 
@@ -72,6 +81,22 @@ describe("mobile fixed UI surfaces", () => {
     const links = Array.from(savedCard.matchAll(/<Link\b[\s\S]*?>/g));
     expect(links).toHaveLength(3);
     for (const [link] of links) expect(link).toContain("prefetch={false}");
+  });
+
+  it("loads bookmarked search destinations only on selection", () => {
+    const searches = readFileSync("app/(dashboard)/searches/page.tsx", "utf8");
+    const links = Array.from(searches.matchAll(/<Link\b[\s\S]*?>/g));
+    expect(links).toHaveLength(2);
+    for (const [link] of links) expect(link).toContain("prefetch={false}");
+  });
+
+  it("keeps detail research controls clear of a floating action bar", () => {
+    const detail = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
+    const actions = detail.match(
+      /<section\s+aria-label="Vehicle actions"[\s\S]*?>/,
+    );
+    expect(actions).not.toBeNull();
+    expect(actions![0]).not.toMatch(/\bfixed\b|\bsticky\b|\bz-50\b/);
   });
 
   it("verifies the app connection and renders only one offline surface", () => {

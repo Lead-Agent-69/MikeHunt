@@ -29,7 +29,7 @@ export function CoverageNotice({
       role="status"
       data-testid="coverage-notice"
       data-tone={notice.tone}
-      className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-3 text-sm"
+      className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-2 text-sm md:py-3"
     >
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
       <div className="min-w-0">

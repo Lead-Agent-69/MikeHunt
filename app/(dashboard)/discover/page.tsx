@@ -71,8 +71,7 @@ const fetcher = (url: string) =>
 
 // Research-only framing for branded/damaged supply: no profit claim on the lane itself.
 const SALVAGE_LANE_TITLE = "Salvage & Rebuildable";
-const SALVAGE_LANE_SUBTITLE =
-  "Salvage, parts-only and rebuildable titles from every source. For research: verify the title, damage and repair cost before you buy.";
+const SALVAGE_LANE_SUBTITLE = "Research: verify title, damage, costs.";
 
 function Rail({ rail }: { rail: DiscoveryRail }) {
   const salvageLane = rail.key === "salvageRebuildable";
@@ -398,7 +397,7 @@ export default function DiscoverPage() {
     : "all";
 
   return (
-    <div className="space-y-3 pb-24 md:space-y-6 md:pb-8">
+    <div className="space-y-2 pb-24 md:space-y-6 md:pb-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
