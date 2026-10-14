@@ -11,7 +11,8 @@ import { rescoreUpdate } from "@/lib/scoring/rescore-update";
 // POST /api/admin/rescore — recompute valuation/verdict/max-bid/score for existing active deals with
 // the fixed analyzer (baseline sanity gate + clamped score). New scrapes already use it; this fixes
 // the backlog so wrong numbers (e.g. $42k max bid on a $5.5k Mustang) don't linger. Gated by
-// INGEST_SECRET. Body: { page?, pageSize? } — loop pages until hasMore is false.
+// Verified operations access. Body: { page?, pageSize?, dryRun? }.
+// Preview before applying a bounded, operator-budgeted batch; this is not an unlimited write job.
 const CORS = { "Access-Control-Allow-Origin": "*" };
 
 function admin() {
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
     page < 0 ||
     !Number.isSafeInteger(requestedSize) ||
     requestedSize < 1 ||
+    (body?.dryRun !== undefined && typeof body.dryRun !== "boolean") ||
     page > Math.floor(Number.MAX_SAFE_INTEGER / 1000) - 1
   )
     return NextResponse.json(
@@ -49,6 +51,7 @@ export async function POST(req: Request) {
       { status: 400, headers: CORS },
     );
   const pageSize = Math.min(1000, requestedSize);
+  const dryRun = body?.dryRun === true;
 
   const sb = admin();
   try {
@@ -78,18 +81,36 @@ export async function POST(req: Request) {
   }
   if (!deals?.length)
     return NextResponse.json(
-      { page, scanned: 0, updated: 0, rescored: 0, failed: 0, hasMore: false },
+      {
+        page,
+        dryRun,
+        scanned: 0,
+        analyzed: 0,
+        updated: 0,
+        rescored: 0,
+        failed: 0,
+        verdicts: {},
+        hasMore: false,
+      },
       { headers: CORS },
     );
 
   let updated = 0;
   let failed = 0;
+  let analyzed = 0;
+  const verdicts: Record<string, number> = {};
   for (const d of deals) {
     try {
       const a = analyzeDeal(d as any);
+      const patch = rescoreUpdate(d, a);
+      if (dryRun) {
+        analyzed++;
+        verdicts[patch.deal_verdict] = (verdicts[patch.deal_verdict] || 0) + 1;
+        continue;
+      }
       const { data: written, error: upErr } = await sb
         .from("deals")
-        .update(rescoreUpdate(d, a))
+        .update(patch)
         .eq("id", d.id)
         .eq("active", true)
         .eq("updated_at", d.updated_at)
@@ -97,6 +118,8 @@ export async function POST(req: Request) {
       if (upErr || written?.length !== 1)
         throw new Error("Score write not confirmed");
       updated++;
+      analyzed++;
+      verdicts[patch.deal_verdict] = (verdicts[patch.deal_verdict] || 0) + 1;
     } catch {
       failed++;
     }
@@ -105,10 +128,13 @@ export async function POST(req: Request) {
   return NextResponse.json(
     {
       page,
+      dryRun,
       scanned: deals.length,
+      analyzed,
       updated,
       rescored: updated,
       failed,
+      verdicts,
       hasMore: deals.length === pageSize,
     },
     { status: failed ? 503 : 200, headers: CORS },

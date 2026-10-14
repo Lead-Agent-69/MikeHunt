@@ -145,6 +145,22 @@ describe("bounded authorized rescore", () => {
       recommended_max_bid: null,
     });
   });
+  it("previews decisions without issuing a write", async () => {
+    const response = await POST(request({ dryRun: true, pageSize: 1 }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      dryRun: true,
+      analyzed: 1,
+      updated: 0,
+      rescored: 0,
+      verdicts: { go: 1 },
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("does not accept truthy strings as preview mode", async () => {
+    expect((await POST(request({ dryRun: "true" }))).status).toBe(400);
+    expect(mocks.client).not.toHaveBeenCalled();
+  });
   it.each([
     { data: null, error: { message: "private diagnostic" } },
     { data: [], error: null },
