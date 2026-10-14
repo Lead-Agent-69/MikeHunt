@@ -28,6 +28,9 @@ export async function expectHealthy(page: Page, h: Health) {
   await expect(page.locator("text=Something went wrong")).toHaveCount(0);
   await expect(page.locator("nextjs-portal")).toHaveCount(0);
   expect(h.pageErrors, `uncaught page errors on ${page.url()}`).toEqual([]);
+  expect(h.consoleErrors, `unexpected console errors on ${page.url()}`).toEqual(
+    [],
+  );
   // Mobile layout: nothing should force sideways scrolling at 390px.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,

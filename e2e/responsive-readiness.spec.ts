@@ -45,7 +45,7 @@ for (const desk of [
           if (route === "scan") {
             await expect(
               page.getByRole("button", {
-                name: "Search saved inventory",
+                name: "Search inventory",
                 exact: true,
               }),
             ).toBeEnabled();

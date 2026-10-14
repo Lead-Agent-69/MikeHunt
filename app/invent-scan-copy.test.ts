@@ -27,11 +27,12 @@ describe("invent-scan copy honesty", () => {
     expect(page).toContain("Loading saved listings…");
   });
 
-  it("Scan primary CTA and empty state talk about saved inventory only", () => {
+  it("Scan re-queries inventory without implying only personal saves or a live scrape", () => {
     const page = read("app/(dashboard)/scan/page.tsx");
-    expect(page).toContain("Search saved inventory");
-    expect(page).toContain("Updating saved inventory…");
-    expect(page).toContain("No matching saved vehicles for this scope yet.");
+    expect(page).toContain("Search inventory");
+    expect(page).toContain("Updating inventory…");
+    expect(page).toContain("No matching inventory for this search yet.");
+    expect(page).not.toContain("Search saved inventory");
     expect(page).not.toContain("Scan Market");
     expect(page).not.toMatch(/animation:\s*"pulse-ring/);
     expect(page).toContain("Last loaded:");
@@ -54,7 +55,7 @@ describe("invent-scan copy honesty", () => {
     const page = read("app/(dashboard)/find/page.tsx");
     expect(page).not.toContain("Live Scanner");
     expect(page).not.toMatch(/local deals instantly/i);
-    expect(page).toContain("Search saved inventory");
+    expect(page).toContain("Search inventory");
     expect(page).toContain("not a live market scan");
     expect(page).toContain("find-load-error");
   });

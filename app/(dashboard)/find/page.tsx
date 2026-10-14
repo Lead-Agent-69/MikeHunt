@@ -107,18 +107,18 @@ export default function ArbitrageDashboardPage() {
   return (
     <div className="space-y-4 pb-24 md:pb-6">
       {/* TOOL DOCK & COMMAND CENTER */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 md:p-6 glass-panel mb-6 md:mb-8">
-        <div className="w-full md:w-auto">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-4 md:p-6 glass-panel mb-6 md:mb-8">
+        <div className="w-full min-w-0 lg:w-auto lg:flex-1">
           <h1 className="text-xl md:text-2xl font-bold text-[var(--t1)] flex items-center gap-2 md:gap-3">
             <Ico name="map" className="text-[var(--green)]" size={24} />{" "}
             National Arbitrage Hub
           </h1>
           <p className="text-xs md:text-sm text-[var(--t4)] mt-1 md:mt-2">
-            Transport routes and local deals from your home state and saved
+            Transport routes and local deals from your home state and indexed
             inventory — not a live market scan.
           </p>
         </div>
-        <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full lg:w-auto lg:shrink-0">
           <SelectField
             aria-label="Home state"
             options={[
@@ -132,7 +132,7 @@ export default function ArbitrageDashboardPage() {
           <Link href="/scan" className="flex-1 md:flex-none">
             <Btn variant="primary" className="w-full min-h-[44px]">
               <Ico name="scan" size={16} />{" "}
-              <span className="hidden sm:inline">Search saved inventory</span>
+              <span className="hidden sm:inline">Search inventory</span>
               <span className="sm:hidden">Scan</span>
             </Btn>
           </Link>
@@ -181,8 +181,8 @@ export default function ArbitrageDashboardPage() {
           </p>
           {!authError ? (
             <p className="text-sm text-[var(--t3)] max-w-md mx-auto">
-              Saved inventory is still available on Discover and Scan. Retry
-              this page in a moment, or continue there.
+              Inventory is still available on Discover and Scan. Retry this page
+              in a moment, or continue there.
             </p>
           ) : null}
           {!authError ? (
@@ -194,7 +194,7 @@ export default function ArbitrageDashboardPage() {
               </Link>
               <Link href="/scan">
                 <Btn variant="ghost" className="min-h-[44px]">
-                  Search saved inventory
+                  Search inventory
                 </Btn>
               </Link>
             </div>

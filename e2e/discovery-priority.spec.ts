@@ -41,14 +41,20 @@ for (const desk of [
         .filter({ hasText: /^Search filters$/ });
       await expect(page.getByLabel("Make", { exact: true })).toBeHidden();
       const preview = page.getByTestId("discovery-card-price-preview").first();
-      const bodyAmount = page
-        .getByTestId("discovery-card-price")
-        .first()
-        .locator("span")
-        .first();
       const amount = preview;
       await expect(amount).toBeVisible();
-      await expect(preview).toContainText(await bodyAmount.innerText());
+      // A refreshed rail can replace its first vehicle between two locator reads.
+      await expect
+        .poll(() =>
+          preview.evaluate((element) => {
+            const value = element
+              .closest(".discovery-card")
+              ?.querySelector('[data-testid="discovery-card-price"] span')
+              ?.textContent?.trim();
+            return Boolean(value && element.textContent?.includes(value));
+          }),
+        )
+        .toBe(true);
       const nav = await page
         .locator('nav[aria-label="Primary mobile navigation"]')
         .boundingBox();

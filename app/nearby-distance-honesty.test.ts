@@ -19,8 +19,8 @@ describe("nearby distance honesty", () => {
 
   it("Onboarding aligns refresh language with Scan CTAs", () => {
     const src = read("app/onboarding/page.tsx");
-    expect(src).toContain("Search saved inventory");
-    expect(src).toContain("Find new matches");
+    expect(src).toContain("Search inventory");
+    expect(src).toMatch(/Find new\s+matches/);
     expect(src).not.toMatch(/Choose Refresh\s+inventory/i);
   });
 });
