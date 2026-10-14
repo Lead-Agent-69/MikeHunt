@@ -149,7 +149,9 @@ test.describe("price panels in both themes", () => {
         .getByRole("spinbutton", { name: "Maximum mileage", exact: true })
         .boundingBox())!;
       expect(Math.abs(amountBox.y - mileageBox.y)).toBeLessThanOrEqual(1);
-      expect(amountBox.height).toBeGreaterThanOrEqual(44);
+      expect(Math.round(amountBox.height * 100) / 100).toBeGreaterThanOrEqual(
+        44,
+      );
       await chart.evaluate((element) =>
         element.scrollIntoView({ block: "center", behavior: "instant" }),
       );
@@ -247,7 +249,10 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
           name: "Next vehicle",
           exact: true,
         });
-        expect((await next.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        // Browser transforms can report 43.99997px for a 44px CSS target.
+        expect(
+          Math.round((await next.boundingBox())!.height * 100) / 100,
+        ).toBeGreaterThanOrEqual(44);
         await next.tap();
         await expect(selector).toHaveValue(fixture.comparisonIds[0]);
         await expect
@@ -359,7 +364,9 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       for (const name of ["Cash prices", "Advertised amounts"]) {
         const button = page.getByRole("button", { name, exact: true });
         await button.scrollIntoViewIfNeeded();
-        expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+        expect(
+          Math.round((await button.boundingBox())!.height * 100) / 100,
+        ).toBeGreaterThanOrEqual(44);
       }
       expect(
         await page.evaluate(
