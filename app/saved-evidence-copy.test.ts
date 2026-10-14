@@ -68,3 +68,37 @@ it("retains unavailable vehicles and does not describe them as ready to buy", ()
   expect(html).toContain("Acura");
   expect(html).not.toContain("Ready to review");
 });
+
+it("keeps payment meaning and withholds legacy saved profit and repair guesses", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SavedCarCard, {
+      save: {
+        ...save,
+        profit_at_save: 14901,
+        snapshot: {
+          ...save.snapshot,
+          estimatedProfit: 14901,
+          sellEstimate: 24254,
+          recommendedMaxBid: 12872,
+          repairEstimate: 400,
+          transportEstimate: 600,
+          priceEvidence: { kind: "down_payment", listedAmount: 3000 },
+        },
+      },
+      flipDesk: true,
+      onDelete: () => {},
+      onUpdateStatus: () => {},
+    }),
+  );
+  expect(html).toContain("Possible down payment");
+  expect(html).toContain("Sold comparisons and total costs need verification");
+  for (const claim of [
+    "Est. Profit",
+    "Max bid",
+    "$24,254",
+    "$14,901",
+    "Repair $400",
+    "Transport $600",
+  ])
+    expect(html).not.toContain(claim);
+});
