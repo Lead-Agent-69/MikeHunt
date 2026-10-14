@@ -26,6 +26,7 @@ vi.mock("@/lib/deals/deal-desk-access", async (orig) => {
 });
 
 import { GET } from "./route";
+const soldAt = new Date(Date.now() - 86400000).toISOString();
 
 const saved = () => ({
   id: "s1",
@@ -39,6 +40,22 @@ const saved = () => ({
     make: "Honda",
     model: "Accord",
     askingPrice: 9000,
+    analysis: {
+      valuation: {
+        source: "comparables",
+        confidence: "high",
+        soldLane: "clean",
+        soldAnchored: true,
+        soldCount: 3,
+        soldAt,
+      },
+      evidenceGates: {
+        priceMeaningConfirmed: true,
+        titleReviewed: true,
+        conditionInspected: true,
+        costsConfirmed: true,
+      },
+    },
     marketValue: 12000,
     sellEstimate: 11800,
     estimatedProfit: 2100,
@@ -101,6 +118,22 @@ describe("GET /api/saved-cars desk redaction on read", () => {
     resolveCallerFlipDesk.mockResolvedValue(true);
     const body = await (await GET(req())).json();
     expect(body[0]).toEqual(saved());
+  });
+
+  it("does not promote legacy saved math to verified economics on a flip desk", async () => {
+    resolveCallerFlipDesk.mockResolvedValue(true);
+    const legacy = saved();
+    delete (legacy.snapshot as any).analysis;
+    rows.value = [legacy];
+    const [row] = await (await GET(req())).json();
+    expect(row.snapshot.estimatedProfit).toBeUndefined();
+    expect(row.snapshot.recommendedMaxBid).toBeUndefined();
+    expect(row.snapshot.sellEstimate).toBeUndefined();
+    expect(row.profit_at_save).toBeUndefined();
+    expect(row.snapshot.sellerPhone).toBe("5550100");
+    expect(row.snapshot.sourceUrl).toBe(legacy.snapshot.sourceUrl);
+    expect(row.snapshot.economicsUnavailable).toBe(true);
+    expect(legacy.snapshot.estimatedProfit).toBe(2100);
   });
 
   it("resolves the desk once per request, not per row", async () => {

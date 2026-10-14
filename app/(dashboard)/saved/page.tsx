@@ -941,36 +941,10 @@ function LocalSavedSection({
                       item.transportEstimate ||
                       item.recommendedMaxBid ||
                       item.sellEstimate) && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-[var(--t3)]">
-                        {flipDesk && item.sellEstimate ? (
-                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
-                            Sell $
-                            {Math.round(item.sellEstimate).toLocaleString()}
-                          </span>
-                        ) : null}
-                        {flipDesk && item.recommendedMaxBid ? (
-                          <span className="rounded-full bg-[var(--glo)] px-2 py-1 text-[var(--green)]">
-                            Max $
-                            {Math.round(
-                              item.recommendedMaxBid,
-                            ).toLocaleString()}
-                          </span>
-                        ) : null}
-                        {item.repairEstimate ? (
-                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
-                            Repair $
-                            {Math.round(item.repairEstimate).toLocaleString()}
-                          </span>
-                        ) : null}
-                        {item.transportEstimate ? (
-                          <span className="rounded-full bg-[var(--s1)] px-2 py-1">
-                            Transport $
-                            {Math.round(
-                              item.transportEstimate,
-                            ).toLocaleString()}
-                          </span>
-                        ) : null}
-                      </div>
+                      <p className="mt-2 text-xs text-[var(--t4)]">
+                        Open the analysis to verify sold comparisons and total
+                        costs.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -978,18 +952,11 @@ function LocalSavedSection({
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   <div className="mr-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)]">
-                      Price
+                      Unverified advertised amount
                     </p>
                     <p className="font-mono text-lg font-black text-[var(--t1)]">
                       {formatMoney(item.askPrice)}
                     </p>
-                    {flipDesk &&
-                      item.estimatedProfit &&
-                      item.estimatedProfit > 0 && (
-                        <p className="text-xs font-bold text-[var(--green)]">
-                          +{formatMoney(item.estimatedProfit)} est.
-                        </p>
-                      )}
                   </div>
 
                   {item.sourceUrl && (

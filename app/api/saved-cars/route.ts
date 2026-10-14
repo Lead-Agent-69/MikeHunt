@@ -10,6 +10,7 @@ import { recordDealSignal } from "@/lib/reco/signals";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { savedCarsForDesk } from "@/lib/saved/saved-car-desk-redact";
+import { listingPriceEvidence } from "@/lib/deals/acquisition-price";
 import { parseSavedCursor, SAVED_PAGE_SIZE } from "@/lib/saved/collection";
 import {
   CHECKLIST_SELECT,
@@ -442,6 +443,13 @@ export async function POST(request: NextRequest) {
       damageType: deal.damage_type || deal.damageType,
       odometer: deal.mileage,
       askingPrice: deal.ask_price,
+      priceEvidence: listingPriceEvidence(deal),
+      analysis: deal.deal_analysis
+        ? {
+            valuation: deal.deal_analysis.valuation,
+            evidenceGates: deal.deal_analysis.evidenceGates,
+          }
+        : undefined,
       marketValue: deal.mmr_value,
       estimatedProfit: trueNetProfit,
       sellEstimate:
