@@ -9,6 +9,7 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { isCustomerInventory } from "@/lib/search/customer-inventory";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -672,7 +673,10 @@ export async function GET(request: NextRequest) {
         );
         if (rpcErr) throw new Error(rpcErr.message);
         const marketRows: any[] = Array.isArray(rpcData)
-          ? rpcData.filter((row: any) => isWithinAuctionWindow(row))
+          ? rpcData.filter(
+              (row: any) =>
+                isWithinAuctionWindow(row) && isCustomerInventory(row),
+            )
           : [];
         const rows: any[] = marketRows.filter((row: any) => {
           if (

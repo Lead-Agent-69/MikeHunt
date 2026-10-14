@@ -45,6 +45,7 @@ function query() {
     "lte",
     "lt",
     "not",
+    "neq",
     "or",
     "ilike",
     "order",

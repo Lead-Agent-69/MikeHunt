@@ -17,10 +17,12 @@ export function InventoryViewLinks({
   query,
   current,
   disabled = false,
+  children,
 }: {
   query: string;
   current: string;
   disabled?: boolean;
+  children?: React.ReactNode;
 }) {
   if (disabled)
     return (
@@ -71,7 +73,7 @@ export function InventoryViewLinks({
             prefetch={false}
             title={label}
             aria-current={path === current ? "page" : undefined}
-            className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold sm:flex-row sm:gap-2 sm:px-3 ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
+            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-semibold sm:gap-2 sm:px-3 ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
           >
             <Icon className="h-4 w-4" aria-hidden="true" /> {label}
           </Link>
@@ -112,6 +114,7 @@ export function InventoryViewLinks({
           <ArrowRight size={18} aria-hidden="true" />
         </button>
       </form>
+      {children}
       {params.get("body") && params.get("body") !== "all" && (
         <div className="flex w-full flex-wrap items-center gap-2 text-xs text-[var(--t2)]">
           <p>Body style is not reported for every listing.</p>

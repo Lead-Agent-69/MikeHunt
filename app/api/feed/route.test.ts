@@ -116,10 +116,10 @@ describe("GET /api/feed desk redaction", () => {
     db.cacheKeys = [];
   });
 
-  it("pages signed-in full browsing beyond the 250-car pool and includes missing photos", async () => {
+  it("pages signed-in full browsing beyond the 250-car pool with photo and freshness eligibility", async () => {
     getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     savedMode.value = "personal";
-    db.rows = [{ ...ROW, images: [] }];
+    db.rows = [ROW];
     const response = await GET(
       new NextRequest(
         "https://app.test/api/feed?browse=all&states=MO&offset=300&limit=12",
@@ -135,7 +135,11 @@ describe("GET /api/feed desk redaction", () => {
     ]);
     expect(
       db.calls.some((call) => call[0] === "not" && call[1] === "images"),
-    ).toBe(false);
+    ).toBe(true);
+    expect(db.calls).toContainEqual(["neq", "images", "{}"]);
+    expect(
+      db.calls.some((call) => call[0] === "gte" && call[1] === "last_seen_at"),
+    ).toBe(true);
     expect(body.items).toHaveLength(1);
     expect(body.items[0].netProfit).toBeUndefined();
     expect(body.boundedPool).toBe(false);
