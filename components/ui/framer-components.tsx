@@ -663,10 +663,11 @@ export function SwipeCardStack({
 }) {
   const reducedMotion = useReducedMotion();
   const [stack, setStack] = useState(cards);
+  const decidedIds = useRef(new Set<string>());
   // A newly-fetched batch has to replace the queue — seeding state once would freeze the
   // stack on whatever cards existed at first mount.
   useEffect(() => {
-    setStack(cards);
+    setStack(cards.filter((card) => !decidedIds.current.has(card.id)));
   }, [cards]);
 
   // The card flying off, rendered above the incoming one so departure and arrival never
@@ -680,6 +681,7 @@ export function SwipeCardStack({
     (id: string, dir: "save" | "pass") => {
       const card = stack.find((c) => c.id === id);
       if (!card || leaving) return;
+      decidedIds.current.add(id);
       if (dir === "save") onSave(id);
       else onPass(id);
       setStack((s) => s.filter((c) => c.id !== id));
@@ -725,6 +727,7 @@ export function SwipeCardStack({
 
         {leaving && (
           <motion.div
+            aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-[var(--r4)] border border-[var(--b2)] bg-[var(--s0)]"
             initial={{ x: 0, opacity: 1, rotate: 0 }}
             animate={{

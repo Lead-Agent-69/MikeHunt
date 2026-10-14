@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import { VERDICT_STYLES } from "./deal-card/utils";
@@ -106,6 +107,8 @@ export const DealCard = memo(function DealCard({
   firstSeenAt,
   lastSeenAt,
   imageUrl,
+  imageUrls,
+  requirePhoto = false,
   vin,
   sourceUrl,
   seller,
@@ -121,6 +124,7 @@ export const DealCard = memo(function DealCard({
   onSave,
   flipDesk = true,
 }: DealCardProps) {
+  const gallery = useListingPhotos([imageUrl, ...(imageUrls || [])]);
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
   // /api/scan strips profit/max bid for non-flip desks; never render "$NaN" if the client
@@ -446,7 +450,9 @@ export const DealCard = memo(function DealCard({
       : confidenceScore >= 62
         ? copy.confidenceReview
         : copy.confidenceThin);
-  const proxiedUrl = proxiedImage(imageUrl) || imageUrl;
+  const cover = requirePhoto ? gallery.image : imageUrl;
+  const proxiedUrl = proxiedImage(cover) || cover;
+  if (requirePhoto && gallery.exhausted) return null;
 
   return (
     <motion.div
@@ -491,6 +497,12 @@ export const DealCard = memo(function DealCard({
           alt={`${year} ${make} ${model}`}
           className="h-full w-full object-cover opacity-100 transition-transform duration-300 group-hover:scale-[1.02]"
           onError={(e) => {
+            if (requirePhoto) {
+              gallery.reject();
+              return;
+            }
+            if (e.currentTarget.src.endsWith("/images/car-placeholder.jpg"))
+              return;
             e.currentTarget.src = "/images/car-placeholder.jpg";
           }}
         />

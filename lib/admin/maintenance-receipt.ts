@@ -8,6 +8,13 @@ export function maintenanceReceipt(
   ok: boolean,
   result: Record<string, unknown>,
 ) {
+  if (result.photoHealth === true) {
+    const written = count(result.written) ?? 0;
+    return {
+      confirmedChanges: written > 0,
+      description: `${count(result.checked) ?? 0} galleries checked; ${count(result.available) ?? 0} working, ${count(result.unavailable) ?? 0} missing, ${count(result.unknown) ?? 0} unverified. ${result.dryRun === true ? "Preview only; no changes made." : `${written} updates confirmed.`}${!ok ? " Some checks or writes could not finish." : ""}`,
+    };
+  }
   const written = count(
     result.updated ?? result.cachedDeals ?? result.rescored,
   );

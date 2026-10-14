@@ -5,6 +5,9 @@ export function applyCustomerInventory<T>(query: T, now = Date.now()): T {
   return (query as any)
     .not("images", "is", null)
     .neq("images", "{}")
+    .or(
+      "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+    )
     .gte(
       "last_seen_at",
       new Date(now - STALE_AFTER_HOURS * 3_600_000).toISOString(),
@@ -38,6 +41,7 @@ export function isCustomerInventory(
     images?: unknown;
     last_seen_at?: unknown;
     active?: boolean;
+    options?: { photoAudit?: { state?: string } } | null;
   },
   now = Date.now(),
 ): boolean {
@@ -45,6 +49,7 @@ export function isCustomerInventory(
     typeof row.last_seen_at === "string" ? Date.parse(row.last_seen_at) : NaN;
   return (
     row.active !== false &&
+    row.options?.photoAudit?.state !== "unavailable" &&
     listingPhotos(row.images).length > 0 &&
     Number.isFinite(seen) &&
     seen <= now &&

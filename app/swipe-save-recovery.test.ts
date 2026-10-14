@@ -20,7 +20,13 @@ vi.mock("swr", () => ({
     return {
       data: {
         vehicles: [
-          { id: "car", title: "Test car", askPrice: 5000, sellEstimate: 9000 },
+          {
+            id: "car",
+            title: "Test car",
+            askPrice: 5000,
+            sellEstimate: 9000,
+            images: ["https://dealer.test/car.jpg"],
+          },
         ],
         total: 1,
       },
