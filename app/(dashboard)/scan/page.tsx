@@ -3691,10 +3691,14 @@ function ScanPageInner() {
     },
   });
 
-  const { data: systemStatus } = useSWR("/api/system/status", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 30000,
-  });
+  const { data: systemStatus } = useSWR(
+    isAdmin ? "/api/system/status" : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+    },
+  );
   const scrapeHealthKey = useMemo(() => {
     const params = new URLSearchParams();
     if (smartPlan.scope.lane) params.set("lane", String(smartPlan.scope.lane));
