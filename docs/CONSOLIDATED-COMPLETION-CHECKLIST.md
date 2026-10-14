@@ -6,6 +6,42 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### October 14 Release And Inventory Integrity
+
+- #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree
+  matches main. Clean browser matrix: 441 passed, 15 expected platform skips,
+  zero failures or flaky tests. Production Discover recovered for the actual
+  Dealer account with a disclosed 2,000-vehicle recent preview; full Scan remains.
+- Hosted guest QA then caught Sentry Replay's CSP-blocked blob worker. #408
+  merged to `23da711ff6d79462cb06ba3be0a46d738b81ffe7`, exact-head CI green,
+  Vercel production `dpl_7L95XF2CwdG5hqHozH2Skr6eRpPP` READY and canonical alias
+  verified. It serves the installed SDK worker from the same origin, preserving
+  compression/privacy and the unchanged CSP. All 27 hosted guest browser checks
+  and 20 release-smoke checks passed afterward. Local worker protocol checks:
+  9/9 across Chromium/Firefox/WebKit and phone/tablet/desktop sizes.
+- Direct source checking found one concrete price/gallery conflict: Kona VIN
+  `KM8HF3AB3VU504430`, captured amount $4,545 versus source-advertised $28,734,
+  captured one photo versus 18 in the original gallery. One optimistic, audited
+  maintenance update added existing `priceEvidence.kind=unknown` plus source
+  review provenance. Vehicle, raw amount, first/last-seen timestamps, previous
+  options and saved research remain. The actual live detail page now states the
+  conflict and withholds value/profit assessment. No rows deleted or quotas reset.
+  Raw upstream cause and complete gallery capture are still unresolved; do not
+  infer a parser defect, full-source permission or an outcome from this sample.
+- Rescore follow-up corrects non-existent cost/timestamp columns, carries source
+  pricing and location evidence into analysis, preserves evidence with the score,
+  and rejects unverified/payment/reference amounts from actionable math. API and
+  CLI share a schema-compatible update; optimistic guards prevent overwriting
+  newer collector changes. Failed/conflicting writes are counted, not silently
+  called success, and admin receipts distinguish partial results from unknown
+  completion. Focused regressions pass; exact merge/live receipts belong in its
+  PR. No full hosted rescore was run. Budget and independently reviewed database
+  rollout gates still apply; an unbounded bulk rescore is not free-tier-safe.
+- The previous capacity, retention review, source permissions, all-role hosted
+  delivery, actual-sale accuracy and physical-device performance gates below
+  remain open. `decisionReady=false` is still the production result. These releases
+  are progress, not certification of every feature or an elite launch.
+
 ### End-To-End Follow-Through (October 13, Late Evening Chicago)
 
 The current integration is [PR #406](https://github.com/Lead-Agent-69/MikeHunt/pull/406),
