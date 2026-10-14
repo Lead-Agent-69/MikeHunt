@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeDeal } from "../lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "../lib/scoring/market-value";
 import { extractTrim } from "../lib/scrapers/tools/deal-normalizer";
+import { rescoreUpdate } from "../lib/scoring/rescore-update";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -19,7 +20,8 @@ async function main() {
   let page = 0,
     scanned = 0,
     updated = 0,
-    goToPass = 0;
+    goToPass = 0,
+    failed = 0;
   const verdicts: Record<string, number> = {};
   while (true) {
     const { data: deals, error } = await sb
@@ -38,39 +40,25 @@ async function main() {
           if (t) row.trim = t;
         }
         const a = analyzeDeal(row);
-        if (row.deal_verdict === "go" && a.verdict !== "go") goToPass++;
-        verdicts[a.verdict] = (verdicts[a.verdict] || 0) + 1;
-        const { error: upErr } = await sb
+        const patch = rescoreUpdate(row, a);
+        const { data: written, error: upErr } = await sb
           .from("deals")
           .update({
             trim: row.trim ?? null,
-            sell_estimate: a.sellEstimate,
-            recommended_max_bid: a.recommendedMaxBid,
-            true_net_profit: a.profit,
-            profit_score: a.score,
-            deal_verdict: a.verdict,
-            is_arbitrage_opportunity: a.verdict === "go",
-            deal_analysis: {
-              ...(row.deal_analysis || {}),
-              sellBasis: a.sellBasis,
-              // Keep "How we valued this" + the not_enough_data evidence flag in step with the verdict.
-              valuation: a.valuation,
-              scoreBreakdown: a.scoreBreakdown,
-              recommendations: a.recommendations,
-              priceImplausible: a.priceImplausible,
-              conditionTag: a.conditionTag,
-              soldAnchored: a.soldAnchored,
-              wholesaleEstimate: a.wholesaleEstimate,
-              priceSanity: a.priceSanity,
-              inferredPrice: a.inferredPrice,
-              warnings: a.warnings,
-              prediction: a.prediction,
-            },
+            ...patch,
           })
-          .eq("id", row.id);
-        if (!upErr) updated++;
+          .eq("id", row.id)
+          .eq("active", true)
+          .eq("updated_at", row.updated_at)
+          .select("id");
+        if (upErr || written?.length !== 1)
+          throw new Error("Score write not confirmed");
+        updated++;
+        if (row.deal_verdict === "go" && patch.deal_verdict !== "go")
+          goToPass++;
+        verdicts[patch.deal_verdict] = (verdicts[patch.deal_verdict] || 0) + 1;
       } catch {
-        /* skip */
+        failed++;
       }
     };
 
@@ -89,8 +77,14 @@ async function main() {
     page++;
   }
   console.log(
-    `DONE: scanned ${scanned}, updated ${updated}, demoted go→pass ${goToPass}`,
+    `DONE: scanned ${scanned}, updated ${updated}, failed ${failed}, demoted go→pass ${goToPass}`,
   );
   console.log("verdicts:", JSON.stringify(verdicts));
+  return failed;
 }
-main().then(() => process.exit(0));
+main()
+  .then((failed) => process.exit(failed ? 1 : 0))
+  .catch(() => {
+    console.error("Rescore aborted; completion was not confirmed.");
+    process.exit(1);
+  });

@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { loadMarketIndex } from "@/lib/scoring/market-value";
 import { canManageOperations } from "@/lib/auth/admin-operations";
+import { rescoreUpdate } from "@/lib/scoring/rescore-update";
 
 // POST /api/admin/rescore — recompute valuation/verdict/max-bid/score for existing active deals with
 // the fixed analyzer (baseline sanity gate + clamped score). New scrapes already use it; this fixes
@@ -34,16 +35,35 @@ export async function POST(req: Request) {
   } catch {
     /* ok */
   }
-  const page = Math.max(0, Number(body.page) || 0);
-  const pageSize = Math.min(1500, Math.max(1, Number(body.pageSize) || 800));
+  const page = Number(body?.page ?? 0);
+  const requestedSize = Number(body?.pageSize ?? 800);
+  if (
+    !Number.isSafeInteger(page) ||
+    page < 0 ||
+    !Number.isSafeInteger(requestedSize) ||
+    requestedSize < 1 ||
+    page > Math.floor(Number.MAX_SAFE_INTEGER / 1000) - 1
+  )
+    return NextResponse.json(
+      { error: "Invalid pagination" },
+      { status: 400, headers: CORS },
+    );
+  const pageSize = Math.min(1000, requestedSize);
 
   const sb = admin();
-  await loadMarketIndex(sb); // populate the in-memory comps index the analyzer reads
+  try {
+    await loadMarketIndex(sb); // populate the in-memory comps index the analyzer reads
+  } catch {
+    return NextResponse.json(
+      { error: "Market evidence unavailable" },
+      { status: 503, headers: CORS },
+    );
+  }
 
   const { data: deals, error } = await sb
     .from("deals")
     .select(
-      "id, year, make, model, trim, mileage, ask_price, source, condition, damage_type, location_state, mmr_value",
+      "id, title, year, make, model, trim, mileage, ask_price, buy_now_price, source, condition, damage_type, location_state, lat, lng, mmr_value, options, deal_analysis, updated_at",
     )
     .eq("active", true)
     .order("id", { ascending: true })
@@ -58,32 +78,27 @@ export async function POST(req: Request) {
   }
   if (!deals?.length)
     return NextResponse.json(
-      { page, updated: 0, hasMore: false },
+      { page, scanned: 0, updated: 0, rescored: 0, failed: 0, hasMore: false },
       { headers: CORS },
     );
 
   let updated = 0;
+  let failed = 0;
   for (const d of deals) {
     try {
       const a = analyzeDeal(d as any);
-      const { error: upErr } = await sb
+      const { data: written, error: upErr } = await sb
         .from("deals")
-        .update({
-          sell_estimate: a.sellEstimate,
-          mmr_value: a.mmrValue || null,
-          recommended_max_bid: a.recommendedMaxBid,
-          true_net_profit: a.profit,
-          repair_estimate: a.repairCost,
-          transport_estimate: a.transportCost,
-          profit_score: Math.min(100, Math.max(0, a.score)),
-          deal_verdict: a.verdict,
-          is_arbitrage_opportunity: a.verdict === "go",
-          score_updated_at: new Date().toISOString(),
-        })
-        .eq("id", d.id);
-      if (!upErr) updated++;
+        .update(rescoreUpdate(d, a))
+        .eq("id", d.id)
+        .eq("active", true)
+        .eq("updated_at", d.updated_at)
+        .select("id");
+      if (upErr || written?.length !== 1)
+        throw new Error("Score write not confirmed");
+      updated++;
     } catch {
-      /* skip */
+      failed++;
     }
   }
 
@@ -92,8 +107,10 @@ export async function POST(req: Request) {
       page,
       scanned: deals.length,
       updated,
+      rescored: updated,
+      failed,
       hasMore: deals.length === pageSize,
     },
-    { headers: CORS },
+    { status: failed ? 503 : 200, headers: CORS },
   );
 }
