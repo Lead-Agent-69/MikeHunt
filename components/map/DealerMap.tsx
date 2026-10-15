@@ -196,8 +196,14 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
           : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}${pinTitleBadge(p)}</div>`,
         rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
-      // Hover previews are also available by keyboard focus and by tapping a marker.
-      marker.on("click mouseover focus", () => marker.openPopup());
+      // bindPopup toggles on click/Enter, which closes an already-open hover/focus preview.
+      // This newly-created marker has no other click/keypress listeners to preserve yet.
+      marker.off("click keypress");
+      marker.on("click mouseover", () => marker.openPopup());
+      marker.on("keypress", (event) => {
+        if ((event.originalEvent as KeyboardEvent).key === "Enter")
+          marker.openPopup();
+      });
       marker.on("add", () => {
         const element = marker.getElement();
         element?.setAttribute("aria-label", p.name);

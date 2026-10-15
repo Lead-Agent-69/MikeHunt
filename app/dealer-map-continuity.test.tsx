@@ -6,6 +6,11 @@ import { expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   map: { addLayer: vi.fn(), removeLayer: vi.fn(), fitBounds: vi.fn() },
   marker: vi.fn(),
+  previews: [] as Array<{
+    open: boolean;
+    handlers: Map<string, (event?: any) => void>;
+    element: HTMLElement;
+  }>,
 }));
 vi.mock("react-leaflet", () => ({
   MapContainer: ({ children }: { children: React.ReactNode }) => (
@@ -22,7 +27,35 @@ vi.mock("leaflet", () => ({
     markerClusterGroup: () => ({ addLayer: vi.fn() }),
     marker: (...args: unknown[]) => {
       state.marker(...args);
-      return { bindPopup: vi.fn(), on: vi.fn() };
+      const preview = {
+        open: false,
+        handlers: new Map<string, (event?: any) => void>(),
+        element: document.createElement("div"),
+      };
+      state.previews.push(preview);
+      const marker = {
+        bindPopup: vi.fn(() => {
+          preview.handlers.set("click", () => {
+            preview.open = !preview.open;
+          });
+          preview.handlers.set("keypress", () => {
+            preview.open = !preview.open;
+          });
+        }),
+        off: vi.fn((events: string) =>
+          events.split(" ").forEach((name) => preview.handlers.delete(name)),
+        ),
+        on: vi.fn((events: string, handler: (event?: any) => void) =>
+          events
+            .split(" ")
+            .forEach((name) => preview.handlers.set(name, handler)),
+        ),
+        openPopup: vi.fn(() => {
+          preview.open = true;
+        }),
+        getElement: () => preview.element,
+      };
+      return marker;
     },
     latLngBounds: vi.fn(),
   },
@@ -57,6 +90,34 @@ it("retains marker groups on unrelated renders and rebuilds only for changed inv
     expect(state.map.addLayer).toHaveBeenCalledTimes(built + 1);
     expect(state.map.removeLayer).toHaveBeenCalledTimes(removed + 1);
     expect(state.map.fitBounds).toHaveBeenCalledTimes(fitted + 1);
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
+
+it("keeps hover/focus previews open when a marker is clicked or activated with Enter", async () => {
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  try {
+    await act(async () =>
+      root.render(
+        <DealerMap points={[{ id: "car", name: "Car", lat: 38, lng: -90 }]} />,
+      ),
+    );
+    const preview = state.previews.at(-1)!;
+    preview.handlers.get("add")!();
+    preview.element.dispatchEvent(new Event("focus"));
+    expect(preview.open).toBe(true);
+    preview.handlers.get("keypress")!({ originalEvent: { key: "Enter" } });
+    expect(preview.open).toBe(true);
+    preview.handlers.get("click")!();
+    expect(preview.open).toBe(true);
+    preview.open = false;
+    preview.handlers.get("keypress")!({ originalEvent: { key: "x" } });
+    expect(preview.open).toBe(false);
+    preview.handlers.get("mouseover")!();
+    preview.handlers.get("click")!();
+    expect(preview.open).toBe(true);
   } finally {
     await act(async () => root.unmount());
   }
