@@ -20,10 +20,25 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
     expect(page).toContain("Browse inventory");
-    expect(page).toContain("Search filters");
+    expect(page).toContain("Quick filters");
+    expect(page).toContain("Search cars");
+    expect(page).toContain("All filters & results");
     expect(page).toContain('aria-label="Browse inventory"');
     expect(page).toContain("href={`/scan${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
+  });
+  it("keeps mileage and source controls outside the additional filters disclosure", () => {
+    const scan = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
+    const primaryStart = scan.indexOf("{/* Model cascades");
+    const additionalStart = scan.indexOf("{/* ADVANCED:");
+    const primary = scan.slice(primaryStart, additionalStart);
+    expect(primary).toContain('label="Max Miles"');
+    expect(primary).toContain('label="Source"');
+    expect(primary).toContain("aria-expanded={showMore}");
+    expect(primary).toContain('aria-controls="additional-inventory-filters"');
+    expect(primary).toContain("Year, distance & condition");
+    expect(scan.match(/label="Max Miles"/g)).toHaveLength(1);
+    expect(scan.match(/label="Source"/g)).toHaveLength(1);
   });
   it("mounts secondary market requests only when insights are opened", () => {
     expect(page).toContain("showInsights &&");

@@ -62,6 +62,9 @@ describe("buying preferences", () => {
     vi.unstubAllGlobals();
   });
   it("saves working scope parameters without dropping other buyer settings", async () => {
+    expect(
+      host.querySelector<HTMLButtonElement>("button")!.className,
+    ).toContain("bg-[var(--blue)]");
     account.save.mockResolvedValue({});
     await act(async () =>
       host.querySelector<HTMLButtonElement>("button")!.click(),

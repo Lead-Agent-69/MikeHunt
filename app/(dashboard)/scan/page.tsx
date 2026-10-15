@@ -4820,6 +4820,17 @@ function ScanPageInner() {
             value={maxPrice}
             onChange={setMaxPrice}
           />
+          <RangeInput
+            label="Max Miles"
+            value={maxMileage}
+            onChange={setMaxMileage}
+          />
+          <FilterSelect
+            label="Source"
+            value={sourceFilter}
+            onChange={setSourceFilter}
+            options={sourceOptions}
+          />
           <FilterSelect
             label="Sort"
             value={sort}
@@ -4840,6 +4851,8 @@ function ScanPageInner() {
           <button
             type="button"
             onClick={() => setShowMore((s) => !s)}
+            aria-expanded={showMore}
+            aria-controls="additional-inventory-filters"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
             style={{
               background: advancedCount > 0 ? "var(--amber-lo)" : "var(--s0)",
@@ -4848,7 +4861,8 @@ function ScanPageInner() {
             }}
           >
             <Ico name="filter" size={12} />
-            More filters{advancedCount > 0 ? ` (${advancedCount})` : ""}
+            Year, distance & condition
+            {advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
           </button>
           {flipDesk && (
@@ -4952,7 +4966,10 @@ function ScanPageInner() {
 
         {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
         {showMore && (
-          <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
+          <div
+            id="additional-inventory-filters"
+            className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5"
+          >
             <InventoryDetailFilters
               values={extraFilters}
               keys={SCAN_EXTRA_KEYS}
@@ -4966,12 +4983,6 @@ function ScanPageInner() {
                 value={sellerTypeFilter}
                 onChange={setSellerTypeFilter}
                 options={sellerTypeOptions}
-              />
-              <FilterSelect
-                label="Source"
-                value={sourceFilter}
-                onChange={setSourceFilter}
-                options={sourceOptions}
               />
             </FilterGroup>
 
@@ -5048,11 +5059,6 @@ function ScanPageInner() {
                 label="Min Miles"
                 value={minMileage}
                 onChange={setMinMileage}
-              />
-              <RangeInput
-                label="Max Miles"
-                value={maxMileage}
-                onChange={setMaxMileage}
               />
               <FilterSelect
                 label="Title Type"
