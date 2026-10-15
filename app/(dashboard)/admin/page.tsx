@@ -34,7 +34,7 @@ type AdminStats = {
     year: number;
     make: string;
     model: string;
-    true_net_profit: number;
+    true_net_profit: number | null;
     deal_verdict: string;
   }>;
 };
@@ -129,6 +129,11 @@ export default function AdminDashboard() {
     refreshInterval: 60000,
   });
   const [activeOperation, setActiveOperation] = useState<string | null>(null);
+  const [lastReceipt, setLastReceipt] = useState<{
+    failed: boolean;
+    title: string;
+    description: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     await Promise.all([refreshStats(), refreshHealth()]);
@@ -142,6 +147,7 @@ export default function AdminDashboard() {
       body: Record<string, unknown> = {},
     ) => {
       setActiveOperation(id);
+      setLastReceipt(null);
       try {
         const response = await fetch(endpoint, {
           method: "POST",
@@ -152,6 +158,11 @@ export default function AdminDashboard() {
         if (!result || typeof result !== "object" || Array.isArray(result))
           throw new Error();
         const receipt = maintenanceReceipt(response.ok, result);
+        setLastReceipt({
+          failed: !response.ok,
+          title: `${id} ${response.ok ? "finished" : "could not finish"}`,
+          description: receipt.description,
+        });
         if (!response.ok) {
           toast.error(`${id} could not finish`, {
             description: receipt.description,
@@ -164,11 +175,22 @@ export default function AdminDashboard() {
         try {
           await Promise.all([refreshStats(), refreshHealth()]);
         } catch {
+          setLastReceipt({
+            failed: true,
+            title: `${id} finished; dashboard refresh failed`,
+            description: `${receipt.description} Refresh operations data to see the latest status.`,
+          });
           toast.error("Task completed; dashboard refresh failed", {
             description: "Refresh operations data to see the latest result.",
           });
         }
       } catch {
+        setLastReceipt({
+          failed: true,
+          title: `${id} could not finish`,
+          description:
+            "Completion could not be verified. Check the operational logs before retrying.",
+        });
         toast.error(`${id} could not finish`, {
           description:
             "Completion could not be verified. Check the operational logs before retrying.",
@@ -285,7 +307,7 @@ export default function AdminDashboard() {
         <Metric
           label="Decision feedback"
           value={stats?.outcomeCount ?? "--"}
-          hint={`${stats?.goDealsCount ?? 0} current buy candidates`}
+          hint={`${stats?.goDealsCount ?? 0} stored model candidates`}
           icon={CheckCircle2}
         />
       </div>
@@ -369,6 +391,18 @@ export default function AdminDashboard() {
             Each task is bounded, uses your authenticated owner session, and
             refreshes the workspace when it completes.
           </p>
+          {lastReceipt && (
+            <div
+              role={lastReceipt.failed ? "alert" : "status"}
+              aria-label="Latest maintenance result"
+              className="mt-4 border-l-2 border-[var(--b2)] pl-3 text-sm text-[var(--t2)]"
+            >
+              <p className="font-semibold">{lastReceipt.title}</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--t3)]">
+                {lastReceipt.description}
+              </p>
+            </div>
+          )}
           <div className="mt-5 space-y-3">
             {[
               {
@@ -398,7 +432,7 @@ export default function AdminDashboard() {
               {
                 id: "Cache listing photos",
                 detail:
-                  "Preserve source photos for high-confidence buy candidates.",
+                  "Preserve available source photos for model-ranked inventory.",
                 icon: ImageIcon,
                 endpoint: "/api/admin/cache-photos",
                 body: { limit: 25, goOnly: true },
@@ -458,10 +492,11 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between border-b border-[var(--b1)] px-5 py-4">
           <div>
             <h2 className="font-semibold text-[var(--t1)]">
-              High-confidence buys
+              Model-ranked inventory
             </h2>
             <p className="mt-1 text-xs text-[var(--t4)]">
-              Live rows ranked by the current decision model.
+              Stored model estimates, not verified purchase recommendations.
+              Check price meaning, costs, and evidence before acting.
             </p>
           </div>
           <a
@@ -476,7 +511,7 @@ export default function AdminDashboard() {
             <thead className="text-xs text-[var(--t4)]">
               <tr>
                 <th className="px-5 py-3 font-medium">Vehicle</th>
-                <th className="px-5 py-3 font-medium">Net estimate</th>
+                <th className="px-5 py-3 font-medium">Model net estimate</th>
                 <th className="px-5 py-3 font-medium">Decision</th>
                 <th className="px-5 py-3 text-right font-medium">Open</th>
               </tr>
@@ -488,20 +523,17 @@ export default function AdminDashboard() {
                     {deal.year} {deal.make} {deal.model}
                   </td>
                   <td className="px-5 py-3">
-                    <Mono
-                      className={
-                        deal.true_net_profit >= 0
-                          ? "text-[var(--green)]"
-                          : "text-[var(--red)]"
-                      }
-                    >
-                      ${Math.round(deal.true_net_profit || 0).toLocaleString()}
+                    <Mono className="text-[var(--t2)]">
+                      {typeof deal.true_net_profit === "number" &&
+                      Number.isFinite(deal.true_net_profit)
+                        ? `$${Math.round(deal.true_net_profit).toLocaleString()}`
+                        : "Not calculated"}
                     </Mono>
                   </td>
                   <td className="px-5 py-3">
                     <span className="rounded-full bg-[var(--glo)] px-2.5 py-1 text-xs font-semibold text-[var(--green)]">
                       {deal.deal_verdict === "go"
-                        ? "Buy candidate"
+                        ? "Model candidate"
                         : deal.deal_verdict}
                     </span>
                   </td>
