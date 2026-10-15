@@ -3,6 +3,7 @@
 
 import { createServerComponentClient } from "@/lib/supabase";
 import { preserveListingPhotos } from "./preserve-listing-photos";
+import { preserveExistingDealerListingIds } from "./dealer-listing-id";
 import { listingPhotos } from "@/lib/search/customer-inventory";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
@@ -432,6 +433,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (rows.length === 0) return 0;
 
   if (!localContext?.cacheOnly) {
+    await preserveExistingDealerListingIds(getSupabase(), rows);
     try {
       await preserveListingPhotos(getSupabase(), rows);
       for (const row of rows) row.completeness = completenessScore(row);

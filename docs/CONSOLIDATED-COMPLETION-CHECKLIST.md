@@ -1003,6 +1003,45 @@ Related evidence:
 
 ### Product Promise Gates Still Open
 
+#### 2026-10-15 Source Coverage And Live QA Follow-Up
+
+- Read-only production snapshot at 07:55 UTC: Missouri had 3,354 active rows,
+  248 without galleries and 479 last seen more than 72 hours ago. The exclusions
+  overlap. 2,738 rows passed the photo-presence/freshness candidate checks; this
+  is not proof that all photos load, sellers remain available or cars are unique.
+- Candidate source labels: independent dealer 1,048; CarGurus 1,122; Cars.com
+  293; Carvana 105; TrueCar 86; government auction 33; eBay Motors 28; Copart 15;
+  Craigslist dealer 8. Aggregator-derived rows do not prove direct-adapter health.
+- Fixed generic dealer URL-tail identity collisions across sites, query-based
+  detail links wrongly treated as inventory pages, and missed lazy photo URLs.
+  Unique exact-URL legacy IDs are retained to protect existing saved references.
+  Ambiguous identities are not guessed; failed lookups stop the write path.
+- Normalized protocol-relative AutoTempest source links to absolute HTTP(S),
+  preserving existing photo-audit evidence for equivalent URL normalization.
+  Existing protocol-relative links were not necessarily unclickable or lost rows.
+- Live worker limits remain relevant: new inserts reached the effective daily
+  1,000-row allowance; existing-row refresh budget remained available. eBay and
+  Cars.com direct requests returned 403; AutoTrader returned a challenge page.
+  These are unavailable collection paths, not evidence of empty inventories.
+  No quota reset, permission bypass, fabricated rows or coverage guarantee added.
+- Live in-app-browser QA used an existing personal-mode session. At 390px:
+  Discover to inventory, scope-preserving Feed/Swipe navigation, feed quick review
+  and its close action passed. At 1440px: map loaded 1,000 sampled pins with
+  approximate-location disclosure; keyboard activation opened a photo preview.
+  Preview disappearance during unrelated renders exposed unstable marker inputs;
+  memoization now retains marker groups, popup state and map position when the
+  inventory array is unchanged, covered by a mounted-component regression test.
+- Vehicle detail showed price uncertainty, seller-reported title attribution,
+  missing cost/evidence checks and a one-photo completeness disclosure. Gallery
+  open/Escape close passed. Saved reached account-connected state and retained
+  its existing device backup. Settings loaded home location and buying controls.
+  No user settings, credentials, saved cars or financial actions were changed.
+- This is not full authenticated E2E certification: admin role, OAuth/recovery,
+  write/reload persistence, populated pipeline, provider delivery and physical
+  Android/iOS performance remain separate gates. Chrome extension control failed;
+  the supported in-app browser was used instead. Do not mark these untested paths
+  complete or convert a partial-source count into verified statewide coverage.
+
 Final integration receipts: refreshed against main #395/#396, keeping the new
 body-style filter and pending-scope safeguards. The integrated view bar initially
 hid phone prices; compact native disclosure and tighter spacing corrected it.

@@ -8,6 +8,9 @@ type PhotoRow = {
   photo_check_attempt?: Record<string, any> | null;
 };
 
+const sourceUrlIdentity = (value: string | undefined) =>
+  value?.startsWith("//") ? `https:${value}` : value;
+
 /** An inventory thumbnail is a partial observation, not an instruction to erase a gallery. */
 export async function preserveListingPhotos(
   client: any,
@@ -37,7 +40,8 @@ export async function preserveListingPhotos(
         if (
           !previous ||
           !row.source_url ||
-          previous.source_url !== row.source_url ||
+          sourceUrlIdentity(previous.source_url) !==
+            sourceUrlIdentity(row.source_url) ||
           !Array.isArray(previous.images)
         )
           continue;
