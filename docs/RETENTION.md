@@ -39,6 +39,21 @@ Supabase holds thin URL / index rows only. Heavy artifacts live on Zeus (Docker 
 `run_retention()` (migration `20261006020000_run_retention.sql`) is called daily by the Vercel cron
 `/api/cron/retention` (07:30 UTC, `Authorization: Bearer $CRON_SECRET`). Missing tables are skipped.
 
+### Cron Completion Receipts
+
+The route confirms telemetry cleanup first, then purges expired VIN and recall
+caches with `p_batch=1000` and `p_max_batches=1` (at most 1,000 rows per cache
+table per call). Each request has a 20-second client deadline. This does not
+bound the existing telemetry SQL's row count or guarantee server-side cancellation.
+
+Both steps must return valid, nonnegative integer counts for a successful
+receipt. Missing configuration, RPC failures, deadlines, and malformed receipts
+return HTTP 503 with `completion: "unconfirmed"`, the failed step, and only
+earlier confirmed counts. A timeout or lost receipt is not evidence of rollback;
+do not replay deletion blindly. Raw database errors are not returned or logged.
+Responses are private and not cacheable. This route does not call protected
+inventory cleanup or change the hosted rollout gate above.
+
 Auction expiry uses the worker's existing serialized daily update budget and 80% pause threshold. It does not delete deals, touch saved records, or rewrite their last-seen timestamp. Cache-only and paused workers do not write. Failed passes retry after five minutes; successful passes wait an hour. A missing end time is not proof of expiry. Ingestion marks known-ended lots inactive, excludes them from new-match notifications, and can restore rescheduled lots with a future closing time. Age-based hard deletion remains exclusive to the separate `scrape-ci` path above.
 
 ## Zeus disk (`./cache` → `/app/cache` in the scraper)
