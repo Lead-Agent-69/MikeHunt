@@ -14,12 +14,13 @@ describe("dealer network honesty", () => {
     expect(page).toContain("!data || prefsLoading ?");
   });
 
-  it("calls inventory saved/imported, not live", () => {
+  it("describes stored inventory, not a live feed", () => {
     expect(page).not.toMatch(/live\{" "\}/);
     expect(page).not.toContain("{data.message}");
     expect(page).not.toMatch(/Connect Supabase/);
     expect(host).not.toContain("live vehicles");
     expect(host).not.toContain("No live inventory");
-    expect(host).toContain("saved / imported vehicles");
+    expect(host).toContain("Stored listings; confirm price, title, condition");
+    expect(host).toContain("matching listings");
   });
 });

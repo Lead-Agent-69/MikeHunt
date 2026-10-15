@@ -1,40 +1,179 @@
 "use client";
 
-import { use } from "react";
+import { use, useRef, useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+} from "lucide-react";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
+import { DealCard, DealCardSkeleton } from "@/components/shared/DealCard";
 
-// A single dealer's storefront inside our app: their imported inventory, each with the ACCURATE title status +
-// our resale estimate + BUY/HOLD/PASS verdict, newest listings first. This is the payoff of watching a shop.
-
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
-const money = (n?: number | null) =>
-  n != null ? `$${Math.round(n).toLocaleString()}` : "—";
-
-// Accurate per-car title label — never guessed; straight from the scraped `condition`.
-const TITLE_META: Record<string, { label: string; color: string }> = {
-  clean_title: { label: "Clean title", color: "var(--green)" },
-  clean: { label: "Clean title", color: "var(--green)" },
-  rebuilt_title: { label: "Rebuilt", color: "var(--amber)" },
-  repairable: { label: "Repairable", color: "var(--amber)" },
-  run_drive: { label: "Runs & drives", color: "var(--amber)" },
-  salvage_title: { label: "Salvage", color: "var(--red)" },
-  parts_only: { label: "Parts only", color: "var(--t4)" },
-  flood: { label: "Flood", color: "var(--blue)" },
-  fire: { label: "Fire damage", color: "var(--red)" },
-  hail: { label: "Hail", color: "var(--amber)" },
+const PAGE_SIZE = 48;
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!response.ok || data?.error || data?.degraded)
+    throw new Error("Dealer inventory unavailable");
+  if (
+    url.startsWith("/api/scan?") &&
+    (!Array.isArray(data?.vehicles) ||
+      !Number.isSafeInteger(data?.total) ||
+      data.total < 0 ||
+      typeof data?.hasMore !== "boolean")
+  )
+    throw new Error("Dealer inventory unavailable");
+  return data;
 };
 
-const VERDICT_COLOR: Record<string, string> = {
-  go: "var(--green)",
-  buy: "var(--green)",
-  hold: "var(--amber)",
-  pass: "var(--red)",
-};
+export function DealerStorefrontContent({ host }: { host: string }) {
+  const [page, setPage] = useState(0);
+  const heading = useRef<HTMLElement>(null);
+  const changePage = (next: number) => {
+    setPage(next);
+    heading.current?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  };
+  const { data: net } = useSWR("/api/dealer-network", fetcher, {
+    revalidateOnFocus: false,
+  });
+  const dealer = net?.dealers?.find((item: any) => item.host === host);
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/scan?dealer=${encodeURIComponent(host)}&page=${page}&pageSize=${PAGE_SIZE}&sort=newest`,
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  const watch = useDealerWatch();
+  const watching = watch.has(host);
+  const cars = Array.isArray(data?.vehicles) ? data.vehicles : [];
+  const total = typeof data?.total === "number" ? data.total : null;
+  const pageCount =
+    total == null ? null : Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-const isNew = (d?: string) =>
-  d ? Date.now() - new Date(d).getTime() < 3 * 24 * 3600 * 1000 : false;
+  return (
+    <div className="space-y-5 pb-24 md:pb-8">
+      <Link
+        href="/dealer-network"
+        className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--t3)]"
+      >
+        <ArrowLeft size={16} aria-hidden="true" /> Dealer network
+      </Link>
+      <header
+        ref={heading}
+        className="scroll-mt-20 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-4"
+      >
+        <div className="min-w-0">
+          <h1 className="break-words text-xl font-bold text-[var(--t1)]">
+            {dealer?.name || host}
+          </h1>
+          <p role="status" className="mt-1 text-sm text-[var(--t3)]">
+            {isLoading
+              ? "Checking dealer inventory..."
+              : error
+                ? "Inventory temporarily unavailable"
+                : total == null
+                  ? "Inventory count unavailable"
+                  : `${total.toLocaleString()} matching listings`}
+            {dealer?.state ? ` - ${dealer.state}` : ""}
+          </p>
+          <p className="mt-1 text-xs text-[var(--t4)]">
+            Stored listings; confirm price, title, condition and availability
+            with the seller.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => watch.toggle(host)}
+            aria-pressed={watching}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--b2)] px-3 text-sm font-semibold text-[var(--t2)]"
+          >
+            <Star
+              size={16}
+              fill={watching ? "currentColor" : "none"}
+              aria-hidden="true"
+            />{" "}
+            {watching ? "Watching" : "Watch"}
+          </button>
+          <a
+            href={dealer?.url || `https://${host}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--b2)] px-3 text-sm font-semibold text-[var(--blue)]"
+          >
+            Visit site <ArrowUpRight size={16} aria-hidden="true" />
+          </a>
+        </div>
+      </header>
+      {isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <DealCardSkeleton key={index} />
+          ))}
+        </div>
+      ) : error ? (
+        <div role="alert" className="py-8 text-sm text-[var(--t3)]">
+          <p>
+            We couldn't load this dealer's listings. This doesn't mean its
+            inventory is empty.
+          </p>
+          <button
+            type="button"
+            onClick={() => void mutate().catch(() => {})}
+            className="mt-3 min-h-11 font-semibold text-[var(--blue)]"
+          >
+            Try again
+          </button>
+        </div>
+      ) : cars.length === 0 ? (
+        <p className="py-8 text-sm text-[var(--t3)]">
+          No matching listings on this page. Check the dealer's original
+          inventory for current availability.
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {cars.map((car: any) => (
+            <DealCard
+              key={car.id}
+              {...car}
+              requirePhoto
+              imageUrls={car.images}
+              flipDesk={data?.deskAccess === "flip"}
+            />
+          ))}
+        </div>
+      )}
+      <nav
+        aria-label="Dealer inventory pages"
+        className="flex items-center justify-between gap-3 border-t border-[var(--b1)] pt-4"
+      >
+        <button
+          type="button"
+          disabled={page === 0 || isLoading}
+          onClick={() => changePage(Math.max(0, page - 1))}
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--t2)] disabled:opacity-40"
+        >
+          <ChevronLeft size={18} aria-hidden="true" /> Previous
+        </button>
+        <span className="text-xs text-[var(--t3)]">
+          Page {page + 1}
+          {pageCount && !error && !isLoading ? ` of ${pageCount}` : ""}
+        </span>
+        <button
+          type="button"
+          disabled={isLoading || Boolean(error) || !data?.hasMore}
+          onClick={() => changePage(page + 1)}
+          className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--t2)] disabled:opacity-40"
+        >
+          Next <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </nav>
+    </div>
+  );
+}
 
 export default function DealerStorefront({
   params,
@@ -42,184 +181,5 @@ export default function DealerStorefront({
   params: Promise<{ host: string }>;
 }) {
   const { host } = use(params);
-  const { data: net } = useSWR<{ dealers: any[] }>(
-    "/api/dealer-network",
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const dealer = net?.dealers?.find((d) => d.host === host);
-  const { data: carsData, isLoading } = useSWR(
-    `/api/scan?dealer=${encodeURIComponent(host)}&limit=300`,
-    fetcher,
-    { revalidateOnFocus: false },
-  );
-  const watch = useDealerWatch();
-  const on = watch.has(host);
-
-  const cars = ((carsData?.vehicles || carsData?.deals || []) as any[])
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(b.firstSeenAt || 0).getTime() -
-        new Date(a.firstSeenAt || 0).getTime(),
-    );
-
-  return (
-    <div className="space-y-5 pb-24 md:pb-8">
-      <Link
-        href="/dealer-network"
-        className="text-xs font-bold text-[var(--t4)] hover:text-[var(--t2)]"
-      >
-        ← Dealer network
-      </Link>
-
-      {/* Dealer header */}
-      <div className="glass-panel p-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg md:text-xl font-black text-[var(--t1)] truncate">
-              {dealer?.name || host}
-            </h1>
-            {dealer && (
-              <span
-                className="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full"
-                style={{
-                  color: dealer.accent,
-                  border: `1px solid ${dealer.accent}`,
-                }}
-              >
-                {dealer.typeLabel}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-[var(--t4)] mt-0.5">
-            {cars.length.toLocaleString()} saved / imported vehicles
-            {dealer?.state ? ` · ${dealer.state}` : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => watch.toggle(host)}
-            className="px-3 py-2 rounded-xl text-sm font-bold border transition-colors"
-            style={{
-              background: on ? "var(--amber)" : "var(--s0)",
-              color: on ? "#000" : "var(--t3)",
-              borderColor: on ? "var(--amber)" : "var(--b1)",
-            }}
-          >
-            {on ? "★ Watching" : "☆ Watch"}
-          </button>
-          <a
-            href={dealer?.url || `https://${host}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-2 rounded-xl text-sm font-bold text-white"
-            style={{ background: "var(--grad)" }}
-          >
-            Visit site ↗
-          </a>
-        </div>
-      </div>
-
-      {/* Inventory */}
-      {isLoading ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="glass-panel h-64 shimmer" />
-          ))}
-        </div>
-      ) : cars.length === 0 ? (
-        <div className="glass-panel p-10 text-center text-sm text-[var(--t4)]">
-          No imported inventory from this dealer yet.
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cars.map((c) => {
-            const t = TITLE_META[c.condition] || null;
-            const verdict = (c.dealVerdict || "").toLowerCase();
-            const img =
-              Array.isArray(c.images) && c.images[0]?.startsWith?.("http")
-                ? c.images[0]
-                : null;
-            return (
-              <Link
-                key={c.id}
-                href={`/deal/${c.id}`}
-                className="glass-panel overflow-hidden flex flex-col hover:border-[var(--amber-bd)] transition-colors"
-                style={{ padding: 0 }}
-              >
-                <div className="relative aspect-[4/3] bg-[var(--s2)] grid place-items-center">
-                  {img ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={img}
-                      alt={c.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="text-2xl opacity-30">🚗</span>
-                  )}
-                  {isNew(c.firstSeenAt) && (
-                    <span className="absolute top-2 left-2 text-[10px] font-black px-1.5 py-0.5 rounded text-black bg-[var(--amber)]">
-                      NEW
-                    </span>
-                  )}
-                  {t && (
-                    <span
-                      className="absolute bottom-2 left-2 text-[10px] font-black px-1.5 py-0.5 rounded text-white"
-                      style={{ background: t.color }}
-                    >
-                      {t.label}
-                    </span>
-                  )}
-                </div>
-                <div className="p-3 flex flex-col gap-1">
-                  <div className="text-sm font-bold text-[var(--t1)] truncate">
-                    {[c.year, c.make, c.model].filter(Boolean).join(" ")}
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-base font-black text-[var(--t1)]">
-                      {money(c.askPrice)}
-                    </span>
-                    {c.sellEstimate != null && (
-                      <span className="text-[11px] text-[var(--t4)]">
-                        resale ~{money(c.sellEstimate)}
-                      </span>
-                    )}
-                  </div>
-                  {(verdict || c.true_net_profit != null) && (
-                    <div className="flex items-center gap-2 text-[11px] font-bold">
-                      {verdict && (
-                        <span
-                          style={{
-                            color: VERDICT_COLOR[verdict] || "var(--t3)",
-                          }}
-                        >
-                          {verdict === "go" ? "BUY" : verdict.toUpperCase()}
-                        </span>
-                      )}
-                      {c.true_net_profit != null && (
-                        <span
-                          style={{
-                            color:
-                              c.true_net_profit > 0
-                                ? "var(--green)"
-                                : "var(--t4)",
-                          }}
-                        >
-                          {c.true_net_profit > 0 ? "+" : ""}
-                          {money(c.true_net_profit)} net
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <DealerStorefrontContent key={host} host={host} />;
 }

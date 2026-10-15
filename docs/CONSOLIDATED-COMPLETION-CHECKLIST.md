@@ -1023,6 +1023,13 @@ Related evidence:
 - Admin stored-model outputs are no longer called high-confidence buys. Missing
   net estimates stay unavailable rather than becoming zero; raw diagnostics
   remain available to the owner without becoming purchase recommendations.
+- Chrome's ReCar storefront exposed a separate cap: it requested unsupported
+  `limit=300`, received the API's default 48-row page, displayed 48 as if it were
+  the whole inventory and had no next-page action. It now uses explicit `page`
+  and `pageSize=48`, shows the response total, and offers Previous/Next. Loading
+  and failures cannot become a zero inventory count. Shared evidence-aware
+  DealCards replace its legacy raw verdict/profit/title/photo rendering; the
+  API's desk access controls economics and missing photos use the shared guard.
 
 #### 2026-10-15 Source Coverage And Live QA Follow-Up
 
