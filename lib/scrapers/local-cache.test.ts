@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createStorageBudgetChecker } from "./storage-budget";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
   LocalScraperCache,
@@ -237,6 +238,27 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("refreshes existing prices after insert capacity is exhausted without inserting another car", async () => {
+    const onQuota = vi.fn();
+    const { cache } = await makeCache({ maxDailyInserts: 1, onQuota });
+    const db = fakeSupabase();
+    await cache.persistRows([row("existing")], db.client, "*");
+    const result = await cache.persistRows(
+      [row("existing", 9000), row("new")],
+      db.client,
+      "*",
+    );
+    expect(result).toMatchObject({
+      saved: 1,
+      inserts: 0,
+      updates: 1,
+      paused: false,
+    });
+    expect(cache.getQuota()).toMatchObject({ inserts: 1, updates: 1 });
+    expect(db.rows.get("test|existing")?.ask_price).toBe(9000);
+    expect(db.rows.has("test|new")).toBe(false);
+    expect(onQuota).toHaveBeenLastCalledWith(expect.anything(), false);
+  });
   it("does not mark a missing cached listing fresh and recovers it on the next pass", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
@@ -426,6 +448,46 @@ describe("LocalScraperCache", () => {
     expect(cache.getQuota().updates).toBe(0);
   });
 
+  it("releases the serialized writer after a hanging size probe and preserves buffered observations", async () => {
+    let clock = 0;
+    const check = createStorageBudgetChecker(() => clock);
+    const { cache, dir } = await makeCache({
+      allowInsert: async (client) => (await check(client)).allowInsert,
+    });
+    const sb = fakeSupabase();
+    const abortSignal = vi.fn().mockReturnValue(new Promise(() => {}));
+    const rpc = vi
+      .fn()
+      .mockReturnValueOnce({ abortSignal })
+      .mockReturnValue({
+        abortSignal: vi
+          .fn()
+          .mockResolvedValue({ data: 100_000_000, error: null }),
+      });
+    const client = { ...sb.client, rpc } as any;
+    vi.useFakeTimers();
+    const first = cache.persistRows([row("hung-first")], client, "*");
+    await vi.waitFor(() => expect(abortSignal).toHaveBeenCalledTimes(1));
+    const second = cache.persistRows([row("queued-second")], client, "*");
+    await vi.advanceTimersByTimeAsync(5000);
+    await Promise.all([first, second]);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|hung-first"].synced).toBe(false);
+    expect(disk.entries["test|queued-second"].synced).toBe(false);
+    expect(cache.getQuota().inserts).toBe(0);
+    expect(abortSignal.mock.calls[0][0].aborted).toBe(true);
+    clock = 60_000;
+    await cache.persistRows(
+      [row("hung-first"), row("queued-second")],
+      client,
+      "*",
+    );
+    expect(cache.getQuota().inserts).toBe(2);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
   it("buffers size-blocked inserts without losing newer observations, while existing updates continue", async () => {
     let allow = false;
     const { cache, dir } = await makeCache({ allowInsert: async () => allow });
@@ -567,7 +629,7 @@ describe("LocalScraperCache", () => {
     ]);
     expect(left.saved + right.saved).toBe(4);
     expect(cache.getQuota().inserts).toBe(4);
-    expect(left.paused || right.paused).toBe(true);
+    expect(left.paused || right.paused).toBe(false);
     expect(db.rows.size).toBe(4);
   });
 

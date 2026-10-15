@@ -152,6 +152,7 @@ interface ScanResult {
   firstSeenAt?: string | Date;
   lastSeenAt?: string | Date;
   imageUrl?: string;
+  images?: string[];
   vin?: string;
   sourceUrl?: string;
   seller?: string;
@@ -308,6 +309,7 @@ function mapDealToResult(deal: Deal): ScanResult {
   const quality =
     existingQuality ||
     gradeDataQuality({
+      source: deal.source,
       images,
       imageUrl: images[0],
       vin: deal.vin,
@@ -392,6 +394,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     firstSeenAt: deal.firstSeenAt ?? undefined,
     lastSeenAt: deal.lastSeenAt ?? undefined,
     imageUrl: images[0],
+    images,
     vin: deal.vin,
     sourceUrl: deal.sourceUrl,
     seller: deal.seller,
@@ -538,8 +541,8 @@ function StatusStrip({
           {error
             ? "Couldn't update vehicles"
             : busy
-              ? "Updating saved inventory…"
-              : "Saved inventory loaded"}
+              ? "Updating inventory…"
+              : "Inventory loaded"}
         </span>
       </span>
 
@@ -1133,7 +1136,7 @@ function EmptyState({
       </div>
 
       <h2 className="text-2xl font-bold text-[var(--t1)] mb-3">
-        No matching saved vehicles for this scope yet.
+        No matching inventory for this search yet.
       </h2>
       <p className="text-[var(--t3)] max-w-sm mb-8 leading-relaxed">
         {hasScopedProof
@@ -1171,7 +1174,7 @@ function EmptyState({
           style={{ background: "var(--grad)" }}
         >
           <Ico name="refresh" size={16} />
-          Search saved inventory
+          Search inventory
         </button>
         {hasScopedProof && (
           <Link
@@ -2143,7 +2146,7 @@ function SmartDataPlanCard({
                 Data readiness
               </div>
               <p className="text-xs text-[var(--t4)]">
-                These items control saved inventory, Google sign-in, and
+                These items control stored inventory, Google sign-in, and
                 protected source searches.
               </p>
             </div>
@@ -2501,7 +2504,9 @@ let _toastId = 0;
 function ScanPageInner() {
   const { isAdmin } = useIsAdmin();
   const urlParams = useSearchParams();
-  const { intent: savedBuyerIntent } = useBuyerIntent();
+  const { intent: savedBuyerIntent, isLoading: prefsLoading } =
+    useBuyerIntent();
+  const [urlHydrated, setUrlHydrated] = useState(false);
   const repairEligibility =
     urlParams.get("includeRepairable") ??
     (savedBuyerIntent?.includeRepairable === true
@@ -2706,6 +2711,7 @@ function ScanPageInner() {
 
   useEffect(() => {
     const q = urlParams.get("q");
+    setUrlHydrated(true);
     const source = urlParams.get("source");
     const sellerTypeParam = urlParams.get("sellerType");
     const title = urlParams.get("titleType");
@@ -2721,6 +2727,9 @@ function ScanPageInner() {
     const dealersParam = urlParams.get("dealers");
     const dealerSourceIdsParam = urlParams.get("dealerSourceIds");
     const hasExplicitScanParams = [
+      sortParam,
+      urlParams.get("scope"),
+      urlParams.get("includeRepairable"),
       q,
       source,
       sellerTypeParam,
@@ -3627,6 +3636,18 @@ function ScanPageInner() {
     buyNow,
   ]);
 
+  // Preserve the exact active filters before a vehicle link unmounts this page.
+  useEffect(() => {
+    if (!swrKey || prefsLoading || !urlHydrated) return;
+    const href = scanPageHrefFromApiKey(swrKey);
+    if (
+      window.location.pathname === "/scan" &&
+      window.location.pathname + window.location.search !== href
+    ) {
+      window.history.replaceState(window.history.state, "", href);
+    }
+  }, [swrKey, prefsLoading, urlHydrated]);
+
   // Use SWR for data fetching
   const {
     data: swrData,
@@ -3670,10 +3691,14 @@ function ScanPageInner() {
     },
   });
 
-  const { data: systemStatus } = useSWR("/api/system/status", fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 30000,
-  });
+  const { data: systemStatus } = useSWR(
+    isAdmin ? "/api/system/status" : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
+    },
+  );
   const scrapeHealthKey = useMemo(() => {
     const params = new URLSearchParams();
     if (smartPlan.scope.lane) params.set("lane", String(smartPlan.scope.lane));
@@ -4523,10 +4548,8 @@ function ScanPageInner() {
             mutate();
           }}
           disabled={loading}
-          aria-label={
-            loading ? "Updating saved inventory" : "Search saved inventory"
-          }
-          title="Search saved inventory"
+          aria-label={loading ? "Updating inventory" : "Search inventory"}
+          title="Search inventory"
           className="flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-2 rounded-lg px-3 font-bold text-white transition-all disabled:opacity-50 border-none sm:px-5"
           style={{ background: "var(--grad)" }}
         >
@@ -4536,14 +4559,12 @@ function ScanPageInner() {
                 className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
                 style={{ animation: "spin 700ms linear infinite" }}
               />
-              <span className="hidden sm:inline">
-                Updating saved inventory…
-              </span>
+              <span className="hidden sm:inline">Updating inventory…</span>
             </>
           ) : (
             <>
               <Ico name="scan" size={16} />
-              <span className="hidden sm:inline">Search saved inventory</span>
+              <span className="hidden sm:inline">Search inventory</span>
             </>
           )}
         </button>
@@ -4699,7 +4720,7 @@ function ScanPageInner() {
         configured={scrapeHealth?.configured}
         onRetry={() => void mutateScrapeHealth()}
       />
-      <details className="glass-panel px-4 py-3 space-y-3">
+      <details open className="glass-panel px-4 py-3 space-y-3">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Filters &amp; view
           {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
@@ -4799,6 +4820,17 @@ function ScanPageInner() {
             value={maxPrice}
             onChange={setMaxPrice}
           />
+          <RangeInput
+            label="Max Miles"
+            value={maxMileage}
+            onChange={setMaxMileage}
+          />
+          <FilterSelect
+            label="Source"
+            value={sourceFilter}
+            onChange={setSourceFilter}
+            options={sourceOptions}
+          />
           <FilterSelect
             label="Sort"
             value={sort}
@@ -4819,6 +4851,8 @@ function ScanPageInner() {
           <button
             type="button"
             onClick={() => setShowMore((s) => !s)}
+            aria-expanded={showMore}
+            aria-controls="additional-inventory-filters"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r2)] text-xs font-bold border transition-colors shrink-0"
             style={{
               background: advancedCount > 0 ? "var(--amber-lo)" : "var(--s0)",
@@ -4827,7 +4861,8 @@ function ScanPageInner() {
             }}
           >
             <Ico name="filter" size={12} />
-            More filters{advancedCount > 0 ? ` (${advancedCount})` : ""}
+            Year, distance & condition
+            {advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
           </button>
           {flipDesk && (
@@ -4931,7 +4966,10 @@ function ScanPageInner() {
 
         {/* ADVANCED: grouped by what / where / kind / from — intuitive */}
         {showMore && (
-          <div className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5">
+          <div
+            id="additional-inventory-filters"
+            className="pt-3 border-t border-[var(--b1)] flex flex-wrap items-center gap-x-2 gap-y-2.5"
+          >
             <InventoryDetailFilters
               values={extraFilters}
               keys={SCAN_EXTRA_KEYS}
@@ -4945,12 +4983,6 @@ function ScanPageInner() {
                 value={sellerTypeFilter}
                 onChange={setSellerTypeFilter}
                 options={sellerTypeOptions}
-              />
-              <FilterSelect
-                label="Source"
-                value={sourceFilter}
-                onChange={setSourceFilter}
-                options={sourceOptions}
               />
             </FilterGroup>
 
@@ -5027,11 +5059,6 @@ function ScanPageInner() {
                 label="Min Miles"
                 value={minMileage}
                 onChange={setMinMileage}
-              />
-              <RangeInput
-                label="Max Miles"
-                value={maxMileage}
-                onChange={setMaxMileage}
               />
               <FilterSelect
                 label="Title Type"
@@ -5256,9 +5283,11 @@ function ScanPageInner() {
       {!loading && !error && filteredResults.length > 0 && view === "grid" && (
         <div className={gridClass}>
           {filteredResults.map((car: ScanResult) => (
-            <div key={car.id}>
+            <div key={car.id} className="contents">
               <DealCard
                 flipDesk={flipEconomics}
+                requirePhoto
+                imageUrls={car.images}
                 id={car.id}
                 source={car.source}
                 year={car.year}

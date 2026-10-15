@@ -34,7 +34,7 @@ function CarsViewPrefs() {
       </h2>
       <LocationPrefs />
       <BuyingProfilePrefs />
-      <div className="mt-6 pt-6 border-t border-[var(--b1)] flex items-center justify-between gap-4">
+      <div className="mt-6 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
           <p className="text-[12px] text-[var(--t4)]">
@@ -42,7 +42,7 @@ function CarsViewPrefs() {
             vehicles.
           </p>
         </div>
-        <div className="shrink-0">
+        <div className="min-w-0 max-w-full">
           <EnablePush />
         </div>
       </div>

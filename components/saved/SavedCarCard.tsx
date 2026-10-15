@@ -22,9 +22,11 @@ import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta, sellerTypeLabel } from "@/lib/sources/source-meta";
 import { SourceBadge } from "@/components/shared/SourceBadge";
-import { buyTerm } from "@/lib/deal-terms";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
+import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
+import { priceEvidenceLabel } from "@/lib/deals/acquisition-price";
+import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 
 export type SavedCarStatus =
   | "active"
@@ -53,6 +55,11 @@ interface SavedCarCardProps {
       trim?: string;
       odometer?: number;
       askingPrice?: number;
+      priceEvidence?: PriceEvidence;
+      analysis?: {
+        valuation?: Record<string, unknown>;
+        evidenceGates?: Record<string, unknown>;
+      };
       marketValue?: number;
       estimatedProfit?: number;
       sellEstimate?: number;
@@ -121,6 +128,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const currentPrice = Number(last_price_seen || 0);
   const priceDiff = currentPrice - originalPrice;
   const profitValue = Number(snapshot.estimatedProfit ?? profit_at_save ?? 0);
+  const financialReady = economicsEvidenceReady(snapshot.analysis);
   const lastSeenTime = snapshot.lastSeenAt
     ? new Date(snapshot.lastSeenAt).getTime()
     : NaN;
@@ -345,8 +353,11 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             <div aria-label="Saved vehicle price">
               <span className="block text-xs text-[var(--t4)]">
                 {status === "unavailable"
-                  ? "Last reported price"
-                  : buyTerm(save.source_name).priceLabel}
+                  ? "Last reported amount"
+                  : priceEvidenceLabel(snapshot.priceEvidence) ||
+                    (snapshot.priceEvidence?.kind === "asking"
+                      ? "Asking price"
+                      : "Unverified advertised amount")}
               </span>
               <span className="text-xl font-bold text-[var(--t1)]">
                 {Number.isFinite(
@@ -472,45 +483,49 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                 ) : null}
               </details>
             ) : null}
-            {(snapshot.sellEstimate ||
-              snapshot.recommendedMaxBid ||
-              snapshot.repairEstimate ||
-              snapshot.transportEstimate) && (
-              <div className="flex flex-wrap gap-1.5">
-                {flipDesk && snapshot.sellEstimate ? (
-                  <Badge
-                    className="border-none text-[10px] font-bold uppercase"
-                    style={{ background: "var(--glo)", color: "var(--green)" }}
-                  >
-                    Sell {formatMoney(snapshot.sellEstimate)}
-                  </Badge>
-                ) : null}
-                {flipDesk && snapshot.recommendedMaxBid ? (
-                  <Badge
-                    className="border-none text-[10px] font-bold uppercase"
-                    style={{ background: "var(--blo)", color: "var(--blue)" }}
-                  >
-                    Max bid {formatMoney(snapshot.recommendedMaxBid)}
-                  </Badge>
-                ) : null}
-                {snapshot.repairEstimate ? (
-                  <Badge
-                    className="border-none text-[10px] font-bold uppercase"
-                    style={{ background: "var(--s1)", color: "var(--t3)" }}
-                  >
-                    Repair {formatMoney(snapshot.repairEstimate)}
-                  </Badge>
-                ) : null}
-                {snapshot.transportEstimate ? (
-                  <Badge
-                    className="border-none text-[10px] font-bold uppercase"
-                    style={{ background: "var(--s1)", color: "var(--t3)" }}
-                  >
-                    Transport {formatMoney(snapshot.transportEstimate)}
-                  </Badge>
-                ) : null}
-              </div>
-            )}
+            {financialReady &&
+              (snapshot.sellEstimate ||
+                snapshot.recommendedMaxBid ||
+                snapshot.repairEstimate ||
+                snapshot.transportEstimate) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {flipDesk && snapshot.sellEstimate ? (
+                    <Badge
+                      className="border-none text-[10px] font-bold uppercase"
+                      style={{
+                        background: "var(--glo)",
+                        color: "var(--green)",
+                      }}
+                    >
+                      Sell {formatMoney(snapshot.sellEstimate)}
+                    </Badge>
+                  ) : null}
+                  {flipDesk && snapshot.recommendedMaxBid ? (
+                    <Badge
+                      className="border-none text-[10px] font-bold uppercase"
+                      style={{ background: "var(--blo)", color: "var(--blue)" }}
+                    >
+                      Max bid {formatMoney(snapshot.recommendedMaxBid)}
+                    </Badge>
+                  ) : null}
+                  {snapshot.repairEstimate ? (
+                    <Badge
+                      className="border-none text-[10px] font-bold uppercase"
+                      style={{ background: "var(--s1)", color: "var(--t3)" }}
+                    >
+                      Repair {formatMoney(snapshot.repairEstimate)}
+                    </Badge>
+                  ) : null}
+                  {snapshot.transportEstimate ? (
+                    <Badge
+                      className="border-none text-[10px] font-bold uppercase"
+                      style={{ background: "var(--s1)", color: "var(--t3)" }}
+                    >
+                      Transport {formatMoney(snapshot.transportEstimate)}
+                    </Badge>
+                  ) : null}
+                </div>
+              )}
 
             {save.notes && (
               <p
@@ -525,17 +540,25 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           {/* Pricing & Actions */}
           <div className="flex flex-col sm:items-end justify-between gap-4 min-w-[160px]">
             <div className="text-left sm:text-right">
-              {status !== "unavailable" && flipDesk && (
-                <span
-                  className={`text-xs font-bold block mt-0.5 ${
-                    profitValue >= 0
-                      ? "text-[var(--green)]"
-                      : "text-[var(--red)]"
-                  }`}
-                >
-                  Est. Profit: {profitValue >= 0 ? "+" : ""}
-                  {formatMoney(profitValue)}
-                </span>
+              {status !== "unavailable" &&
+                flipDesk &&
+                financialReady &&
+                Number.isFinite(profitValue) && (
+                  <span
+                    className={`text-xs font-bold block mt-0.5 ${
+                      profitValue >= 0
+                        ? "text-[var(--green)]"
+                        : "text-[var(--red)]"
+                    }`}
+                  >
+                    Est. Profit: {profitValue >= 0 ? "+" : ""}
+                    {formatMoney(profitValue)}
+                  </span>
+                )}
+              {!financialReady && (
+                <p className="text-xs text-[var(--t4)]">
+                  Sold comparisons and total costs need verification.
+                </p>
               )}
             </div>
 

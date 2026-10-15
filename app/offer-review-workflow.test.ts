@@ -1,5 +1,6 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 vi.mock("@/components/brand/MikeHuntLoader", () => ({
   MikeHuntLoader: () => null,
@@ -40,6 +41,20 @@ async function submit() {
   );
 }
 describe("offer-review task", () => {
+  it("keeps server-rendered controls disabled until client handlers are ready", () => {
+    const server = document.createElement("div");
+    server.innerHTML = renderToString(React.createElement(DealCheck));
+    const inputs = Array.from(
+      server.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    );
+    expect(inputs).toHaveLength(5);
+    expect(inputs.every((input) => input.disabled)).toBe(true);
+    expect(
+      Array.from(
+        host.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+      ).every((input) => !input.disabled),
+    ).toBe(true);
+  });
   it("checks manual offer amounts without an AI key or request and exposes planning next steps", async () => {
     const values = ["18000", "300", "0", "1200", "19500"];
     for (let index = 0; index < values.length; index++)
@@ -47,6 +62,8 @@ describe("offer-review task", () => {
     await submit();
     expect(request).not.toHaveBeenCalled();
     expect(host.textContent).toContain("Quoted total matches");
+    expect(host.textContent).toContain("Amounts entered by you.");
+    expect(host.textContent).not.toContain("Read from your document by AI.");
     expect(host.querySelector('a[href="/fleet"]')).not.toBeNull();
   });
   it("shows incomplete costs instead of turning blanks into zeros", async () => {

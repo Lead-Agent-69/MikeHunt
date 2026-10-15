@@ -10,18 +10,15 @@ import {
 } from "@/lib/supabase";
 
 // GET /api/cron/retention — daily Vercel cron. public.run_retention (telemetry and queue history),
-// then public.purge_expired_vin_cache (VIN decode + recall cache rows 30 days past expiry). Three
-// bounded RPCs on the existing cron, so no new Vercel cron is added. Protected listing retention
-// is shared with scrape-ci; Zeus disk is cleaned by scripts/zeus-janitor.sh.
+// then public.purge_expired_vin_cache (VIN decode + recall cache rows 30 days past expiry). Two
+// cheap RPCs on the existing cron, so no new Vercel cron is added. Listing retention runs on the
+// Zeus scraper (scripts/scrape-ci.ts); Zeus disk is cleaned by scripts/zeus-janitor.sh.
 // See docs/RETENTION.md.
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isSupabaseConfigured())
-    return NextResponse.json(
-      { ok: false, error: "Supabase not configured" },
-      { status: 503 },
-    );
+    return NextResponse.json({ ok: false, error: "Supabase not configured" });
   const { data, error } =
     await createServerComponentClient().rpc("run_retention");
   if (error) {
@@ -29,24 +26,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "run_retention failed" },
       { status: 500 },
-    );
-  }
-  const inventory = await createServerComponentClient().rpc(
-    "prune_inventory_retention",
-    { p_limit: 1000 },
-  );
-  if (inventory.error) {
-    console.warn(
-      "[cron/retention] protected inventory retention failed:",
-      inventory.error.message,
-    );
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Protected inventory retention failed",
-        deleted: data,
-      },
-      { status: 503 },
     );
   }
   // VIN cache purge is best-effort: if the migration isn't applied yet (function missing) or it
@@ -69,10 +48,5 @@ export async function GET(req: NextRequest) {
     "vin_cache",
     JSON.stringify(vinCache),
   );
-  return NextResponse.json({
-    ok: true,
-    deleted: data,
-    inventory: inventory.data,
-    vinCache,
-  });
+  return NextResponse.json({ ok: true, deleted: data, vinCache });
 }

@@ -99,6 +99,7 @@ describe("GET /api/scan/live-preview", () => {
         condition: "clean_title",
         damage_type: "front end",
         title: "Ford SUV",
+        images: ["https://example.com/ford.jpg"],
         location_state: "FL",
         ask_price: 5000,
       } as any,

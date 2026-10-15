@@ -123,10 +123,11 @@ describe("owned saved collection paging", () => {
     expect(body.rows[0].snapshot).toEqual({ make: "Honda", model: "Civic" });
     expect(body.ownerId).toBe("one");
   });
-  it("preserves flip-desk snapshots", async () => {
+  it("preserves flip-desk contact but not unsupported saved profit", async () => {
     state.flip = true;
     const body = await (await GET(req())).json();
-    expect(body.rows[0].snapshot.estimatedProfit).toBe(3000);
+    expect(body.rows[0].snapshot.estimatedProfit).toBeUndefined();
+    expect(body.rows[0].snapshot.sellerPhone).toBe("private");
   });
   it("continues through legacy null timestamps", async () => {
     state.rows.forEach((row) => (row.saved_at = null));

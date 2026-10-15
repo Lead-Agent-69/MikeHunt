@@ -5,6 +5,7 @@ import pRetry from "p-retry";
 import Redis from "ioredis";
 import { createClient } from "@supabase/supabase-js";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
+import { listingPhotos } from "@/lib/search/customer-inventory";
 
 // Enhanced scraping configuration
 export interface EnhancedScraperConfig {
@@ -496,15 +497,19 @@ export class EnhancedScrapingEngine {
   // Save deals to database
   async saveDeals(input: EnhancedDeal[]): Promise<void> {
     // Passenger cars and light/medium trucks only; see lib/vehicle/vehicle-scope.ts.
-    const deals = input.filter((deal: any) =>
-      isInVehicleScope({
-        title: deal.title,
-        make: deal.make,
-        model: deal.model,
-        source: deal.source,
-        source_url: deal.url,
-      }),
-    );
+    const deals = input
+      .map((deal) => ({ ...deal, images: listingPhotos(deal.images) }))
+      .filter(
+        (deal: any) =>
+          deal.images.length > 0 &&
+          isInVehicleScope({
+            title: deal.title,
+            make: deal.make,
+            model: deal.model,
+            source: deal.source,
+            source_url: deal.url,
+          }),
+      );
     if (deals.length === 0) return;
 
     try {

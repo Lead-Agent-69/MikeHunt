@@ -1,6 +1,6 @@
 ﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v8'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v6'
+const STATIC_CACHE = 'MikeHunt-static-v9'
+const DYNAMIC_CACHE = 'MikeHunt-dynamic-v7'
 
 const STATIC_ASSETS = [
   '/offline.html',
@@ -47,6 +47,17 @@ self.addEventListener('activate', (event) => {
 })
 
 // Fetch event - serve from cache with network fallback
+async function cachedResponse(request) {
+  try { return await caches.match(request) } catch (_) { return undefined }
+}
+
+function unavailableResponse() {
+  return new Response('Temporarily unavailable. Please retry.', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' },
+  })
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
@@ -57,7 +68,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Skip external requests
-  if (!request.url.startsWith(self.location.origin)) {
+  if (url.origin !== self.location.origin) {
     return
   }
 
@@ -78,7 +89,7 @@ self.addEventListener('fetch', (event) => {
           try {
             return await fetch(request)
           } catch (_) {
-            return caches.match('/offline.html')
+            return (await cachedResponse('/offline.html')) || unavailableResponse()
           }
         }
         return new Response(JSON.stringify({ error: 'Request could not reach MIKEHUNT. Please retry.' }), {
@@ -100,8 +111,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request)
-      .then(response => {
+    cachedResponse(request)
+      .then(async response => {
         // Return cached response or fetch from network
         if (response) {
           return response
@@ -118,23 +129,25 @@ self.addEventListener('fetch', (event) => {
             const responseToCache = response.clone()
 
             // Cache dynamic content
-            caches.open(DYNAMIC_CACHE)
+            event.waitUntil(caches.open(DYNAMIC_CACHE)
               .then(cache => {
-                cache.put(request, responseToCache)
-              })
+                return cache.put(request, responseToCache)
+              }).catch(() => {}))
 
             return response
           })
-          .catch(() => {
-            // Handle offline fallback for specific routes
-            if (request.url.includes('/discover')) {
-              return caches.match('/')
+          .catch(async () => {
+            // A precached icon may differ in request headers from a browser image request.
+            if (STATIC_ASSETS.includes(url.pathname)) {
+              const cached = await cachedResponse(url.pathname)
+              if (cached) return cached
             }
-
-            // Return offline page for navigation requests
-            if (request.mode === 'navigate') {
-              return caches.match('/offline.html')
+            if (request.destination === 'image') {
+              const placeholder = await cachedResponse('/images/car-placeholder.png')
+              if (placeholder) return placeholder
             }
+            // Never resolve respondWith(undefined) or send HTML in place of scripts.
+            return unavailableResponse()
           })
       })
   )

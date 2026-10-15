@@ -93,22 +93,6 @@ async function enrichGoBacklog(limit: number): Promise<void> {
   if (n) console.log(`🖼️  topped up ${n} GO deals with real photos/VIN`);
 }
 
-// The database owns retention: bounded row locks and a delete guard protect concurrent saves.
-// Never fall back to client-side deletes if the migration is missing or a reference lookup fails.
-async function pruneStaleDeals(): Promise<void> {
-  const { createClient } = await import("@supabase/supabase-js");
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-  const { data, error } = await sb.rpc("prune_inventory_retention", {
-    p_limit: 1000,
-  });
-  if (error)
-    throw new Error(`Protected inventory retention failed: ${error.message}`);
-  console.log("[retention]", JSON.stringify(data));
-}
-
 // CL listing cards don't carry odometer — the real mileage lives on each detail page. This bounded
 // pass pulls mileage (+ VIN) for active CL deals that still lack it, best deals first, so mileage-
 // aware valuation + the price-vs-mileage visualizer light up across our biggest source over runs.
@@ -399,12 +383,8 @@ async function main() {
     console.warn("AI dealer crawl skipped:", (e as Error).message);
   }
 
-  // Keep the DB bounded without ever touching saved data (runs every cycle).
-  try {
-    await pruneStaleDeals();
-  } catch (e) {
-    console.warn("retention skipped:", (e as Error).message);
-  }
+  // Listing retention belongs to the reviewed database cron, with a pre-statement deadline.
+  // Scrapers never repeat it through PostgREST or fall back to client-side deletes.
 
   // VIN-graph fraud pass (runs every cycle): re-score the cross-market history so any car listed
   // "clean" that our records show was salvaged/washed/rolled-back gets demoted out of the GO list +

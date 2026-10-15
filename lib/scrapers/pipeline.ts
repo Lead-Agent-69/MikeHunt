@@ -3,6 +3,8 @@
 
 import { createServerComponentClient } from "@/lib/supabase";
 import { preserveListingPhotos } from "./preserve-listing-photos";
+import { preserveExistingDealerListingIds } from "./dealer-listing-id";
+import { listingPhotos } from "@/lib/search/customer-inventory";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
@@ -214,7 +216,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
   const inScopeDeals = scope.kept as typeof report.validDeals;
 
-  const rows = inScopeDeals
+  let rows = inScopeDeals
     .filter(
       (deal) =>
         deal.year &&
@@ -431,6 +433,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (rows.length === 0) return 0;
 
   if (!localContext?.cacheOnly) {
+    await preserveExistingDealerListingIds(getSupabase(), rows);
     try {
       await preserveListingPhotos(getSupabase(), rows);
       for (const row of rows) row.completeness = completenessScore(row);
@@ -438,6 +441,17 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       console.warn("[upsertDeals] stored-photo lookup failed:", error);
     }
   }
+
+  const beforePhotoGate = rows.length;
+  rows = rows.filter((row) => {
+    row.images = listingPhotos(row.images);
+    return row.images.length > 0;
+  });
+  if (rows.length !== beforePhotoGate)
+    console.info(
+      `[upsertDeals] ${beforePhotoGate - rows.length} listings deferred: no usable photo URL`,
+    );
+  if (!rows.length) return 0;
 
   // Geocode each deal's location (cached + free) so the map and saved-search radius matching work.
   // Best-effort: any failure leaves lat/lng null and the upsert proceeds unchanged. A DB trigger

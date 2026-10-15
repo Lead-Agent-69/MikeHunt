@@ -17,6 +17,7 @@ function query() {
     "lte",
     "lt",
     "not",
+    "neq",
   ])
     b[m] = vi.fn(() => b);
   return b;

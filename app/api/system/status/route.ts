@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { loadProfitableMakes } from "@/lib/intelligence/profitable-segments";
 import { cached } from "@/lib/cache";
+import { publicInventoryStatus } from "@/lib/public-inventory-status";
 import { computeValuationAccuracy } from "@/lib/scoring/accuracy";
 import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
@@ -18,7 +19,35 @@ import {
   applyAuthProviderReadiness,
   readAuthProviderReadiness,
   unconfiguredAuthProviders,
+  type AuthProviderReadiness,
 } from "@/lib/auth/provider-readiness";
+
+let providerLoad: Promise<AuthProviderReadiness> | null = null;
+
+function loadAuthProviders(): Promise<AuthProviderReadiness> {
+  if (!isSupabaseConfigured())
+    return Promise.resolve(unconfiguredAuthProviders());
+  if (!providerLoad) {
+    providerLoad = cached(
+      "status:auth-providers:v1",
+      300_000,
+      readAuthProviderReadiness,
+      (result) => result.reachable,
+    ).finally(() => {
+      providerLoad = null;
+    });
+  }
+  return providerLoad;
+}
+
+function publicAuthProviders(auth: AuthProviderReadiness) {
+  return {
+    reachable: auth.reachable,
+    google: auth.google,
+    email: auth.email,
+    checkedAt: auth.checkedAt,
+  };
+}
 
 function statusSource(row: any) {
   return sourceFromUrl(row.source_url) || row.source || "unknown";
@@ -134,14 +163,7 @@ export function summarizeSourceHealth(sources: any[], realData?: any) {
 // system (and the dealer) see whether it's running itself.
 async function computeFullStatus(): Promise<Record<string, any>> {
   const configured = isSupabaseConfigured();
-  const authProviders = configured
-    ? await cached(
-        "status:auth-providers:v1",
-        300_000,
-        readAuthProviderReadiness,
-        (result) => result.reachable,
-      )
-    : unconfiguredAuthProviders();
+  const authProviders = await loadAuthProviders();
   const readiness = applyAuthProviderReadiness(
     systemReadiness(),
     authProviders,
@@ -641,19 +663,49 @@ export function toPublicStatus(full: Record<string, any>) {
 }
 
 // GET /api/system/status
+// scope=auth: provider readiness only, for sign-in without inventory diagnostics.
 // Admin (ADMIN_EMAIL session or INGEST_SECRET bearer): full self-awareness payload for /status.
-// Everyone else: a cached public projection with headline counts only. The full build runs a
-// dozen count queries plus multi-page scans, so anonymous traffic only ever hits the cache.
+// Everyone else: bounded headline counts, without source scans or valuation computations.
 export async function GET(request: NextRequest) {
+  // Sign-in needs provider settings, not inventory scans or an admin session lookup.
+  if (new URL(request.url).searchParams.get("scope") === "auth") {
+    return NextResponse.json(
+      {
+        scope: "auth",
+        authProviders: publicAuthProviders(await loadAuthProviders()),
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
   if (await canManageOperations(request)) {
     return NextResponse.json(await computeFullStatus(), {
       headers: { "Cache-Control": "private, no-store" },
     });
   }
-  const payload = await cached("status:public:v1", 120_000, async () =>
-    toPublicStatus(await computeFullStatus()),
-  );
-  return NextResponse.json(payload, {
-    headers: { "Cache-Control": "private, no-store" },
-  });
+  try {
+    const payload = await cached("status:public:v2", 120_000, async () => {
+      if (!isSupabaseConfigured())
+        return toPublicStatus(await computeFullStatus());
+      const [authProviders, inventory] = await Promise.all([
+        loadAuthProviders(),
+        publicInventoryStatus(createServerComponentClient()),
+      ]);
+      const publicStatus = toPublicStatus({
+        configured: true,
+        authProviders,
+        readiness: applyAuthProviderReadiness(systemReadiness(), authProviders),
+      });
+      return { ...publicStatus, ...inventory };
+    });
+    return NextResponse.json(payload, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        error: "We couldn't check inventory status. Please try again shortly.",
+      },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
 }

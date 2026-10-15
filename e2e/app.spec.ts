@@ -29,6 +29,8 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await page.goto("/deal-check");
     await page.getByLabel("Selling price ($)").fill("14500");
     await page.getByLabel("Itemized fees total ($)").fill("299");
+    await expect(page.getByLabel("Selling price ($)")).toHaveValue("14500");
+    await expect(page.getByLabel("Itemized fees total ($)")).toHaveValue("299");
     await page.getByRole("button", { name: "Review amounts" }).click();
     await expect(page.getByLabel("Offer arithmetic")).toBeVisible({
       timeout: 30_000,

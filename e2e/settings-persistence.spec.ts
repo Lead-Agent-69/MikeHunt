@@ -21,7 +21,7 @@ for (const desk of [
       await page.goto("/scan");
       await expect(
         page.getByRole("button", {
-          name: "Search saved inventory",
+          name: "Search inventory",
           exact: true,
         }),
       ).toBeEnabled();

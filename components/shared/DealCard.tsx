@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import { VERDICT_STYLES } from "./deal-card/utils";
@@ -24,6 +25,8 @@ import { isSourceLandingPage } from "@/lib/sources/listing-link";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { sellerTypeLabel } from "@/lib/sources/source-meta";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
+import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { isAuctionChannel } from "@/lib/sources/source-meta";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -104,6 +107,8 @@ export const DealCard = memo(function DealCard({
   firstSeenAt,
   lastSeenAt,
   imageUrl,
+  imageUrls,
+  requirePhoto = false,
   vin,
   sourceUrl,
   seller,
@@ -119,6 +124,7 @@ export const DealCard = memo(function DealCard({
   onSave,
   flipDesk = true,
 }: DealCardProps) {
+  const gallery = useListingPhotos([imageUrl, ...(imageUrls || [])]);
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;
   // /api/scan strips profit/max bid for non-flip desks; never render "$NaN" if the client
@@ -129,9 +135,15 @@ export const DealCard = memo(function DealCard({
     flipDesk &&
     !id.startsWith("live-") &&
     typeof profitEstimate === "number" &&
-    Number.isFinite(profitEstimate);
+    Number.isFinite(profitEstimate) &&
+    askPrice > 0 &&
+    (sellEstimate || mmrValue || 0) > 0 &&
+    hasRecentSoldEvidence({
+      ...valuation,
+      soldAnchored: soldAnchored === true,
+    });
   const isPositive = profitEstimate >= 0;
-  const location = [locationCity, locationState].filter(Boolean).join(", ");
+  const location = vehicleLocation(locationCity, locationState);
   // Operability ("Runs & drives" / "Needs work") stays its own chip; title lives in TitleBadge.
   const operability = readCondition(condition, damageType);
   const operabilityLabel = operability
@@ -375,7 +387,9 @@ export const DealCard = memo(function DealCard({
         : "freshness pending";
   const sourceWeakDetails = weakSourceDetails(sourceHealth?.completeness);
   const weakAssumption = mathGaps[0] || "source freshness";
-  const visibleWarnings = warnings.filter(Boolean).slice(0, 2);
+  const visibleWarnings = showFlipEconomics
+    ? warnings.filter(Boolean).slice(0, 2)
+    : [];
   const mathDecisionLabel =
     showFlipEconomics && dealVerdict === "pass"
       ? "Pass for now"
@@ -420,11 +434,15 @@ export const DealCard = memo(function DealCard({
       ? "listing fields are present; verify with the seller"
       : "listing details are incomplete",
   ];
-  const explainedWhyShown = trustExplanation?.reasons?.length
-    ? trustExplanation.reasons
-    : whyShown;
+  const explainedWhyShown =
+    showFlipEconomics && trustExplanation?.reasons?.length
+      ? trustExplanation.reasons
+      : whyShown;
   const explanationNextChecks =
-    trustExplanation?.nextChecks?.filter(Boolean) || [];
+    trustExplanation?.nextChecks
+      ?.filter(Boolean)
+      .filter((check) => isAuctionChannel(source) || !/auction/i.test(check)) ||
+    [];
   const explainedConfidenceSummary =
     trustExplanation?.summary ||
     (confidenceScore >= 82
@@ -432,7 +450,9 @@ export const DealCard = memo(function DealCard({
       : confidenceScore >= 62
         ? copy.confidenceReview
         : copy.confidenceThin);
-  const proxiedUrl = proxiedImage(imageUrl) || imageUrl;
+  const cover = requirePhoto ? gallery.image : imageUrl;
+  const proxiedUrl = proxiedImage(cover) || cover;
+  if (requirePhoto && gallery.exhausted) return null;
 
   return (
     <motion.div
@@ -477,6 +497,12 @@ export const DealCard = memo(function DealCard({
           alt={`${year} ${make} ${model}`}
           className="h-full w-full object-cover opacity-100 transition-transform duration-300 group-hover:scale-[1.02]"
           onError={(e) => {
+            if (requirePhoto) {
+              gallery.reject();
+              return;
+            }
+            if (e.currentTarget.src.endsWith("/images/car-placeholder.jpg"))
+              return;
             e.currentTarget.src = "/images/car-placeholder.jpg";
           }}
         />

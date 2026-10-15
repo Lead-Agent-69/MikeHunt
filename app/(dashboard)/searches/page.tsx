@@ -665,12 +665,14 @@ export default function SearchesPage() {
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Link
                   href={scanHrefForSavedSearch(search)}
+                  prefetch={false}
                   className="inline-flex min-h-11 items-center px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
                 >
                   Open Scan
                 </Link>
                 <Link
                   href={sourceProofHrefForSavedSearch(search)}
+                  prefetch={false}
                   className="inline-flex min-h-11 items-center px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
                 >
                   Source proof

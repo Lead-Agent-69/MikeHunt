@@ -6,6 +6,26 @@ service `scraper`) once they are merged to `main`. Nothing here applies to Verce
 
 ## 0. Order of operations
 
+### Preserve The Active Compose Configuration
+
+Before any operator rollout, inspect the running scraper's
+`com.docker.compose.project.config_files` label and retain every existing overlay.
+The October 13 Windows rollout includes cache/photo, location-scope, pagination,
+photo-freshness and worker-push overrides. A bare base-file deployment drops those
+settings. The worker-push override references a protected generated env file
+outside Git; never paste its private key into a compose file or shell argument.
+The deployment receipt is `F:/MikeHunt/docker/worker-push-receipt-20261013.json`.
+It records unchanged image, mounts, source settings and quota counters, not proof
+of notification delivery. Keep the existing agent deployment restriction above;
+an owner-approved exception for one rollout is not a standing permission.
+
+The worker and Vercel must use the same `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, paired
+`VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Do not generate a replacement pair when
+subscriptions already exist. Confirm configuration on both runtimes, then verify
+an opted-in device receives the notification and opens its intended vehicle.
+Resend additionally needs `RESEND_API_KEY`, a verified sender and a registered
+webhook with `RESEND_WEBHOOK_SECRET`; key presence alone is not delivery proof.
+
 1. Merge the PRs (sections 2–3) to `main`.
 2. On Zeus: `git pull` in the MikeHunt checkout.
 3. Add or adjust env in `.env.local.scraper` (section 1). Never paste secrets into the compose file or a

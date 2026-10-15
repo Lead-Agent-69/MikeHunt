@@ -137,20 +137,56 @@ export default function SwipePage() {
   const isLoading = !swipeReady || dealsLoading;
 
   const hasMore: boolean = !!data?.hasMore;
+  const photoScope = `${query}:${effectiveBatch}:${runId}`;
+  const currentPhotoScope = useRef(photoScope);
+  currentPhotoScope.current = photoScope;
+  const decidedIds = useRef(new Set<string>());
+  const [photoFailures, setPhotoFailures] = useState<{
+    scope: string;
+    ids: string[];
+  }>({ scope: "", ids: [] });
+  const onPhotoUnavailable = useCallback(
+    (id: string) => {
+      if (
+        currentPhotoScope.current !== photoScope ||
+        decidedIds.current.has(id)
+      )
+        return;
+      setPhotoFailures((previous) => {
+        const ids = previous.scope === photoScope ? previous.ids : [];
+        return ids.includes(id)
+          ? previous
+          : { scope: photoScope, ids: [...ids, id] };
+      });
+    },
+    [photoScope],
+  );
 
   // Memoised on `data` so the stack only resets its queue when a genuinely new batch arrives.
   const cards = useMemo(
     () =>
-      ((data?.vehicles ?? []) as SwipeDeal[]).map((d) => ({
-        id: d.id,
-        content: <SwipeVehicleFace deal={d} />,
-      })),
-    [data],
+      ((data?.vehicles ?? []) as SwipeDeal[])
+        .filter(
+          (d) =>
+            photoFailures.scope !== photoScope ||
+            !photoFailures.ids.includes(d.id),
+        )
+        .map((d) => ({
+          id: d.id,
+          content: (
+            <SwipeVehicleFace
+              deal={d}
+              onPhotoUnavailable={onPhotoUnavailable}
+            />
+          ),
+        })),
+    [data, photoFailures, photoScope, onPhotoUnavailable],
   );
 
   // Decision counters are per-batch; a new batch starts from zero.
   useEffect(() => {
     setDecided(0);
+    decidedIds.current.clear();
   }, [batch, runId]);
 
   const persistSave = useCallback((id: string) => {
@@ -177,13 +213,15 @@ export default function SwipePage() {
   }, []);
   const onSave = useCallback(
     (id: string) => {
+      decidedIds.current.add(id);
       setDecided((n) => n + 1);
       persistSave(id);
     },
     [persistSave],
   );
 
-  const onPass = useCallback(() => {
+  const onPass = useCallback((id: string) => {
+    decidedIds.current.add(id);
     setDecided((n) => n + 1);
     setPassed((n) => n + 1);
   }, []);
@@ -199,7 +237,10 @@ export default function SwipePage() {
   }, []);
 
   const exhausted =
-    !isLoading && cards.length > 0 && decided >= cards.length && !error;
+    !isLoading &&
+    data?.vehicles?.length > 0 &&
+    decided >= cards.length &&
+    !error;
 
   return (
     <div className="mx-auto w-full max-w-md space-y-5 pb-24 md:pb-8">
@@ -220,26 +261,23 @@ export default function SwipePage() {
           Swipe
         </h1>
       </motion.div>
-      <InventoryViewLinks
-        query={query}
-        current="/swipe"
-        disabled={!swipeReady}
-      />
-      <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
-        Title
-        <select
-          aria-label="Title filter"
-          value={titleTypeFromQuery(query)}
-          onChange={(event) => setTitleFilter(event.target.value)}
-          className="min-h-11 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)]"
-        >
-          {SWIPE_TITLE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <InventoryViewLinks query={query} current="/swipe" disabled={!swipeReady}>
+        <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[var(--t4)]">
+          <span className="sr-only">Title</span>
+          <select
+            aria-label="Title filter"
+            value={titleTypeFromQuery(query)}
+            onChange={(event) => setTitleFilter(event.target.value)}
+            className="min-h-11 w-28 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)] sm:w-auto"
+          >
+            {SWIPE_TITLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </InventoryViewLinks>
       {failedSaves.length > 0 && (
         <div
           role="status"
@@ -297,7 +335,9 @@ export default function SwipePage() {
           className="glass-panel flex flex-col items-center gap-3 py-12 text-center"
         >
           <span className="text-3xl">🏁</span>
-          <p className="text-sm font-bold text-[var(--t1)]">Batch cleared</p>
+          <p className="text-sm font-bold text-[var(--t1)]">
+            {cards.length ? "Batch cleared" : "No usable photos in this batch"}
+          </p>
           <p className="text-xs text-[var(--t4)]">
             {saved} saved · {passed} passed this session
           </p>
@@ -344,7 +384,7 @@ export default function SwipePage() {
           cards={cards}
           onSave={onSave}
           onPass={onPass}
-          height="clamp(500px, 65svh, 560px)"
+          height="clamp(360px, calc(100svh - 450px), 560px)"
         />
       )}
     </div>

@@ -4,6 +4,7 @@
 // best-effort; freshness stays high because TTLs are short and scrapers update continuously anyway.
 type Entry = { value: unknown; expires: number };
 const store = new Map<string, Entry>();
+const pending = new Map<string, Promise<unknown>>();
 
 export async function cached<T>(
   key: string,
@@ -16,20 +17,38 @@ export async function cached<T>(
   const now = Date.now();
   const hit = store.get(key);
   if (hit && hit.expires > now) return hit.value as T;
-  const value = await fn();
-  if (!shouldCache || shouldCache(value)) {
-    store.set(key, { value, expires: now + ttlMs });
-    if (store.size > 300) {
-      for (const [k, e] of Array.from(store.entries()))
-        if (e.expires <= now) store.delete(k);
-    }
-  }
-  return value;
+  const existing = pending.get(key);
+  if (existing) return existing as Promise<T>;
+  // Defer execution so synchronous throws also share the same cleanup path.
+  const task = Promise.resolve()
+    .then(fn)
+    .then((value) => {
+      if (pending.get(key) === task && (!shouldCache || shouldCache(value))) {
+        const completedAt = Date.now();
+        store.set(key, { value, expires: completedAt + ttlMs });
+        if (store.size > 300) {
+          for (const [k, e] of Array.from(store.entries()))
+            if (e.expires <= completedAt) store.delete(k);
+        }
+      }
+      return value;
+    })
+    .finally(() => {
+      if (pending.get(key) === task) pending.delete(key);
+    });
+  pending.set(key, task);
+  return task;
 }
 
 /** Drop cache entries (all, or those whose key starts with `prefix`) — e.g. after a fresh scrape. */
 export function invalidate(prefix?: string): void {
-  if (!prefix) return store.clear();
+  if (!prefix) {
+    store.clear();
+    pending.clear();
+    return;
+  }
   for (const k of Array.from(store.keys()))
     if (k.startsWith(prefix)) store.delete(k);
+  for (const k of Array.from(pending.keys()))
+    if (k.startsWith(prefix)) pending.delete(k);
 }

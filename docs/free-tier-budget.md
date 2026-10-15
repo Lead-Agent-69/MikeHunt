@@ -13,6 +13,17 @@ bottom monthly.
 
 ## 2026-10-11 clarification
 
+### October 15 Deployment Retention
+
+With operator approval, MikeHunt project-only preview, canceled and errored
+deployment retention was reduced from 30 to 7 days and re-read through Vercel's
+project API. Production stays at 30 days because the supported duration set does
+not include the requested 14-day option. `deploymentsToKeep=10` was preserved;
+team defaults, aliases, paid plans and other projects were not changed. This
+reduces future accumulation, not already accrued Functions Storage usage. The
+latest CLI billing-usage call returned unavailable data on this Hobby team, so
+it is not a fresh monthly-headroom receipt or proof that another rollout fits.
+
 The measurements below are historical, NOT today's hosted usage. The connector inspection was
 denied on Oct 11, but CLI reads work on Oct 12. Check both provider Usage dashboards before deciding
 more sources fit; successful SQL access does not measure all monthly usage.

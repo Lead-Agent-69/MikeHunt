@@ -57,6 +57,7 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/public/sentry-replay-worker.js
 /e2e/.auth/
 
 # IDE

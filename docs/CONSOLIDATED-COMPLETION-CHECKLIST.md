@@ -6,6 +6,134 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### October 14 Release And Inventory Integrity
+
+- #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree
+  matches main. Clean browser matrix: 441 passed, 15 expected platform skips,
+  zero failures or flaky tests. Production Discover recovered for the actual
+  Dealer account with a disclosed 2,000-vehicle recent preview; full Scan remains.
+- Hosted guest QA then caught Sentry Replay's CSP-blocked blob worker. #408
+  merged to `23da711ff6d79462cb06ba3be0a46d738b81ffe7`, exact-head CI green,
+  Vercel production `dpl_7L95XF2CwdG5hqHozH2Skr6eRpPP` READY and canonical alias
+  verified. It serves the installed SDK worker from the same origin, preserving
+  compression/privacy and the unchanged CSP. All 27 hosted guest browser checks
+  and 20 release-smoke checks passed afterward. Local worker protocol checks:
+  9/9 across Chromium/Firefox/WebKit and phone/tablet/desktop sizes.
+- Direct source checking found one concrete price/gallery conflict: Kona VIN
+  `KM8HF3AB3VU504430`, captured amount $4,545 versus source-advertised $28,734,
+  captured one photo versus 18 in the original gallery. One optimistic, audited
+  maintenance update added existing `priceEvidence.kind=unknown` plus source
+  review provenance. Vehicle, raw amount, first/last-seen timestamps, previous
+  options and saved research remain. The actual live detail page now states the
+  conflict and withholds value/profit assessment. No rows deleted or quotas reset.
+  Raw upstream cause and complete gallery capture are still unresolved; do not
+  infer a parser defect, full-source permission or an outcome from this sample.
+- Rescore follow-up corrects non-existent cost/timestamp columns, carries source
+  pricing and location evidence into analysis, preserves evidence with the score,
+  and rejects unverified/payment/reference amounts from actionable math. API and
+  CLI share a schema-compatible update; optimistic guards prevent overwriting
+  newer collector changes. Failed/conflicting writes are counted, not silently
+  called success, and admin receipts distinguish partial results from unknown
+  completion. Focused regressions pass; exact merge/live receipts belong in its
+  PR. No full hosted rescore was run. Budget and independently reviewed database
+  rollout gates still apply; an unbounded bulk rescore is not free-tier-safe.
+- The previous capacity, retention review, source permissions, all-role hosted
+  delivery, actual-sale accuracy and physical-device performance gates below
+  remain open. `decisionReady=false` is still the production result. These releases
+  are progress, not certification of every feature or an elite launch.
+
+### End-To-End Follow-Through (October 13, Late Evening Chicago)
+
+The current integration is [PR #406](https://github.com/Lead-Agent-69/MikeHunt/pull/406),
+including main through #407. Its exact merge, deployment and final browser results
+belong in the PR receipt; this section does not turn pending work into a live claim.
+Older dated sections below remain historical evidence.
+
+**Implemented and verified locally:**
+
+- Tablet research-header overflow, mobile identity/price-first cards, compact
+  Discover filters/insights and honest indexed-inventory wording.
+- Supplementary vehicle actions and install/update notices in document flow;
+  navigation clearance, stable comparison clicks and no speculative search-link
+  prefetch. Existing tools, original-source links and buyer modes are preserved.
+- Shared form readiness prevents the first controlled edit disappearing during
+  hydration. Deal Check identifies manual amounts instead of claiming AI read them.
+- Service-worker failures resolve to valid responses; cached icons/image fallback
+  and background cache-write failures are handled. Private HTML/API data is never
+  moved into the offline cache.
+- Purchase-checklist preloading waits for the confirmed non-flip account and handles
+  speculative failure. A real Firefox NetworkError was traced to that preload.
+- Hosted Discover's 10,000-row RPC hit PostgreSQL `57014` (statement timeout).
+  A 2,000-row pull completed in 1.946 seconds. Discovery is now an explicitly bounded
+  recent preview, including capped/empty-result copy; full paginated Scan remains.
+  Raw cap evidence survives photo/freshness filtering. This is not whole-inventory
+  recommendation ranking or a measured production-latency guarantee.
+- Marked, bounded local freshness fixtures do not retime original or hosted rows.
+  React `.test.tsx` files under `app` are included in the full verification gate.
+
+Full gate at `8898ebf` passed 3,868 tests in 587 files, typecheck, lint (zero errors)
+and production build; exact-head CI `38511360915` passed. Local evidence includes
+35/35 first-glance checks across five desks/seven browser configurations, 14/14
+auth flows, six freshly onboarded local fixture accounts, and 195/195 route/layout
+checks. The broad 456-case run passed 438, skipped 15 non-iOS install cases and
+failed three mobile comparison assertions at `43.999969px` versus a 44px target.
+The existing two-decimal measurement convention now covers those checks; the
+clean final matrix is pending in the PR. Do not call that earlier run all green.
+External image/resource noise exclusions mean these tests do not certify every
+source photo, network request or physical-device FPS.
+
+**Actual hosted evidence, one existing Dealer/team account:**
+
+- Unchanged MO home save succeeded and MO survived reload. Existing buying
+  preferences saved successfully. Contact fields, coordinates, notification
+  subscriptions, admin privileges and buying mode were not changed.
+- The existing Saved Bronco's photo decoded; its lightbox and close control fit
+  768x1024, 390x664 and 1440x900. Only one photo is captured from that source;
+  source gallery completeness remains unproved. Other user identities, actual
+  provider/recovery logins and delivered alerts remain separate hosted gates.
+- `/api/push/status` returned `configured=true`. Vercel and Zeus have a matching
+  VAPID pair stored outside Git. Configuration is not device receipt. Resend
+  sender/webhook credentials and actual email/push delivery remain unverified.
+- Read-only SQL returned database size 163,867,795 bytes. Both legacy deletion
+  jobs remain inactive; market aggregation remains active. Protected prune and
+  storage-measurement RPCs are absent. No cleanup, migration or grant was applied.
+
+**Capacity and remaining priorities:**
+
+- Supabase Free, cycle September 28-October 28: visible database usage 36%,
+  uncached egress 28%, storage zero, eight MAU. Billing usage is delayed and its
+  size view is distinct from the instantaneous SQL measurement. The local worker
+  retains F-drive cache/log/profile binds, bounded Docker logs and ample disk;
+  runtime data is not tracked in Git. Local disk never extends hosted quotas.
+- Vercel Hobby, last-30-days view: Functions Storage 9.43/10 GB, deployment storage
+  3.11/10 GB, active CPU 1h11m/4h, invocations 59k/1M. Function storage is GB-months,
+  not instantaneous disk. Explicit approval was requested for project-only shorter
+  deployment retention; no deletion or paid upgrade occurred. Retention reduces
+  future storage, not already accrued usage. Preserve the production alias and
+  rollback exceptions. [Storage](https://vercel.com/docs/deployment-storage) and
+  [retention policy](https://vercel.com/docs/deployment-retention).
+- Commercial launch remains incompatible with Hobby's personal/noncommercial
+  restriction, independently of usage. Do not silently upgrade a paid plan.
+  [Hobby policy](https://vercel.com/docs/plans/hobby).
+- Security linter refresh: one error (`spatial_ref_sys` RLS), 12 warnings (three
+  public extensions, two public photo-bucket listing policies, six PostGIS definer
+  execution notices, leaked-password protection) and seven informational notices.
+  Review extension dependencies and bucket access before applying changes; the
+  advisor is not clean. Leaked-password protection is Pro-only.
+- Finish #360's independent exact-head review and protected migration first, then
+  hosted dry-run/reference-survival/restore checks. Keep legacy cleanup parked.
+  The old CI scraper workflow is parked too; its client-side pruning is not a
+  replacement for transactional reference protection and must not be resumed.
+- Verify permitted-source yield, complete/decodable photos, advertised-price
+  meaning and dedup conflicts before expanding collection. Preserve the worker's
+  1,000-insert safety stop; do not fabricate freshness or bypass permission gates.
+- Prove regional valuations/repair/fee assumptions against dated, held-out actual
+  sale outcomes. The asking-price proxy backtest is explicitly not transaction
+  accuracy; `decisionReady=false` remains the last recorded production result.
+- Complete hosted all-role account/permissions/alert checks and cross-network,
+  physical-device performance. Prior hosted API sampling had resets/timeouts;
+  successful-response percentiles alone are not acceptance evidence.
+
 - **Implemented** means code exists, not that the hosted feature works.
 - **Merged** requires a main SHA; **live** requires a matching deployment receipt.
 - **Accepted** additionally requires the actual user journey, negative/error cases
@@ -282,11 +410,12 @@ It does not close the remaining acceptance items below.
 ### 1. Protect Ownership And Release Operations (P0)
 
 - [ ] Obtain exact-head Ren review for #360 and sensitive security changes.
-      Apply the reviewed retention migration before its dependent web rollout.
+      Apply the reviewed retention migration before its dependent storage-guard worker rollout.
 - [ ] Verify all six owner references: Saved, watchlist, inventory, outcomes,
       dealer purchases and alert matches. Prove unavailable Saved survives pruning.
 - [ ] Replace/disable the two unsafe legacy deletion jobs through the approved
-      change path. They were active on inspection; no pause or migration is claimed.
+      change path. Earlier active-job inspection was superseded by their October 13
+      safety pause; a reviewed replacement and hosted survival proof remain open.
 - [ ] Verify hosted migration history, grants, RLS and authorization against the
       dependency queue. Repair failed checks on current main before any merge.
 - [ ] Recheck advisor findings, hosted password minimum 12, compromised-password
@@ -893,6 +1022,87 @@ Related evidence:
 
 ### Product Promise Gates Still Open
 
+#### Chrome Owner-Session QA Follow-Up
+
+- Chrome automation reconnected after the user reopened their signed-in session.
+  `/admin` loaded actual inventory/account/source aggregates, and `/orchestrator`
+  loaded 33 configured sources (24 enabled, 10 meeting its health threshold).
+  Those are run-history indicators, not proof of statewide listing completeness.
+  Owner-only Admin dashboard and Source operations links appeared after the
+  server-backed account check settled. No credentials or grants were changed.
+- The bounded Missouri photo task returned its controls to idle, but its toast
+  was too transient to retain a reviewable result. Maintenance now retains the
+  latest counted success/partial/failure receipt on the dashboard until another
+  task starts or the page is left. Confirmed writes remain visible even when a
+  subsequent dashboard refresh fails. This is not a durable cross-session log.
+- Watched-dealer UI previously treated loading and HTTP/soft failures as empty
+  inventory. It now separates loading, retryable failure, unconfigured inventory
+  and genuine empty results, and retains previously loaded cards on refresh
+  failure. This corrects reporting; it does not claim new dealer imports.
+- Admin stored-model outputs are no longer called high-confidence buys. Missing
+  net estimates stay unavailable rather than becoming zero; raw diagnostics
+  remain available to the owner without becoming purchase recommendations.
+- Chrome's ReCar storefront exposed a separate cap: it requested unsupported
+  `limit=300`, received the API's default 48-row page, displayed 48 as if it were
+  the whole inventory and had no next-page action. It now uses explicit `page`
+  and `pageSize=48`, shows the response total, and offers Previous/Next. Loading
+  and failures cannot become a zero inventory count. Shared evidence-aware
+  DealCards replace its legacy raw verdict/profit/title/photo rendering; the
+  API's desk access controls economics and missing photos use the shared guard.
+
+#### 2026-10-15 Source Coverage And Live QA Follow-Up
+
+- Read-only production snapshot at 07:55 UTC: Missouri had 3,354 active rows,
+  248 without galleries and 479 last seen more than 72 hours ago. The exclusions
+  overlap. 2,738 rows passed the photo-presence/freshness candidate checks; this
+  is not proof that all photos load, sellers remain available or cars are unique.
+- Candidate source labels: independent dealer 1,048; CarGurus 1,122; Cars.com
+  293; Carvana 105; TrueCar 86; government auction 33; eBay Motors 28; Copart 15;
+  Craigslist dealer 8. Aggregator-derived rows do not prove direct-adapter health.
+- Fixed generic dealer URL-tail identity collisions across sites, query-based
+  detail links wrongly treated as inventory pages, and missed lazy photo URLs.
+  Unique exact-URL legacy IDs are retained to protect existing saved references.
+  Ambiguous identities are not guessed; failed lookups stop the write path.
+- Normalized protocol-relative AutoTempest source links to absolute HTTP(S),
+  preserving existing photo-audit evidence for equivalent URL normalization.
+  Existing protocol-relative links were not necessarily unclickable or lost rows.
+- Live worker limits remain relevant: new inserts reached the effective daily
+  1,000-row allowance; existing-row refresh budget remained available. eBay and
+  Cars.com direct requests returned 403; AutoTrader returned a challenge page.
+  These are unavailable collection paths, not evidence of empty inventories.
+  No quota reset, permission bypass, fabricated rows or coverage guarantee added.
+- Live in-app-browser QA used an existing personal-mode session. At 390px:
+  Discover to inventory, scope-preserving Feed/Swipe navigation, feed quick review
+  and its close action passed. At 1440px: map loaded 1,000 sampled pins with
+  approximate-location disclosure; keyboard activation opened a photo preview.
+  Preview disappearance during unrelated renders exposed unstable marker inputs;
+  memoization now retains marker groups, popup state and map position when the
+  inventory array is unchanged, covered by a mounted-component regression test.
+- Vehicle detail showed price uncertainty, seller-reported title attribution,
+  missing cost/evidence checks and a one-photo completeness disclosure. Gallery
+  open/Escape close passed. Saved reached account-connected state and retained
+  its existing device backup. Settings loaded home location and buying controls.
+  No user settings, credentials, saved cars or financial actions were changed.
+- This is not full authenticated E2E certification: admin role, OAuth/recovery,
+  write/reload persistence, populated pipeline, provider delivery and physical
+  Android/iOS performance remain separate gates. Chrome extension control failed;
+  the supported in-app browser was used instead. Do not mark these untested paths
+  complete or convert a partial-source count into verified statewide coverage.
+- Follow-up QA: 320/430/768px Settings had no horizontal document overflow;
+  the 320px location sheet searched Missouri and displayed its active count.
+  Profile editing restored the personal-mode selection without saving changes.
+  The personal session was redirected away from `/admin`. This proves that
+  session's navigation boundary, not a complete admin-role/security audit.
+- Post-release map testing caught a second interaction defect: Leaflet's default
+  click/Enter toggle could close an already-open hover/focus preview. New marker
+  bindings now explicitly open on click/Enter rather than toggle; a regression
+  covers focus then Enter, hover then click, and unrelated key handling.
+- PR #417 landed as `f4432f2`; 3,952 tests and the production build passed, and
+  the worker's six changed file hashes matched the tested image. Insert/update
+  counters persisted at 1,000/2,000. The first public smoke run saw status 503;
+  the subsequent complete 20-check run passed with decision readiness still
+  false. No new-listing growth is claimed while daily write capacity is depleted.
+
 Final integration receipts: refreshed against main #395/#396, keeping the new
 body-style filter and pending-scope safeguards. The integrated view bar initially
 hid phone prices; compact native disclosure and tighter spacing corrected it.
@@ -912,6 +1122,27 @@ limited to phones; the original accessible body facts remain intact. The correct
 price/card-navigation matrix passed all 35 cases across the five Chromium sizes,
 WebKit phone and Firefox desktop, covering every ordinary desk. This closes all
 five diagnostic visibility failures, not a claim of a single 100/100 rerun.
+
+Recording QA follow-up (2026-10-15): confirmed DriveNation's inventory lists
+Savings before All In Price and Retail. The shared CMS parser now prioritizes the
+seller's all-in/sale asking price and excludes savings, retail references and
+financing-only amounts. Regression fixtures cover the reported Kia-shaped case
+and card-to-deal import. This does NOT repair existing stored rows, rebuild the
+running worker, or validate the valuation model. Recollect affected source rows
+with the corrected worker, invalidate derived estimates and verify source detail
+receipts before calling historical prices corrected.
+
+Search usability follow-up: expose Max Miles and Source in the main results bar;
+name the additional filter disclosure Year, distance & condition; add a visible
+Search cars entry above Discover's compact filters; style Save buying preferences
+as the primary form action. Existing mode-specific capabilities remain preserved.
+
+Recording follow-ups still open: single-owner workspace simplification without
+destroying archived capabilities; compact sparse discovery rails; radius-first
+search across state borders; comparable-row provenance and estimate eligibility;
+source-by-source price validation; lightweight feedback with permission-safe
+storage. Test search first; do not equate a parser fixture with a corrected live
+database or a model's comparable count with 20 qualified sold transactions.
 
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.

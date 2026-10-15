@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { CarFront, Heart, ExternalLink, ChevronRight } from "lucide-react";
+import { Heart, ExternalLink, ChevronRight } from "lucide-react";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { toast } from "sonner";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceLabel } from "@/lib/sources/source-meta";
@@ -37,13 +38,18 @@ export interface FeedVehicle {
 export function FeedVehicleCard({
   item,
   priority = false,
+  onPhotoUnavailable,
 }: {
   item: FeedVehicle;
   priority?: boolean;
+  onPhotoUnavailable?: (id: string) => void;
 }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [failedImage, setFailedImage] = useState(false);
+  const gallery = useListingPhotos([item.image, ...(item.images || [])]);
+  useEffect(() => {
+    if (gallery.exhausted) onPhotoUnavailable?.(item.id);
+  }, [gallery.exhausted, onPhotoUnavailable, item.id]);
   const [review, setReview] = useState(false);
   async function save() {
     if (saving || saved) return;
@@ -66,6 +72,7 @@ export function FeedVehicleCard({
     }
   }
   const location = vehicleLocation(item.locationCity, item.locationState);
+  if (gallery.exhausted) return null;
   return (
     <article
       data-testid="feed-vehicle"
@@ -73,21 +80,16 @@ export function FeedVehicleCard({
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 600px" }}
     >
       <div className="relative aspect-[4/3] min-w-0 bg-[var(--s2)] lg:aspect-auto lg:min-h-[380px]">
-        {item.image && !failedImage ? (
+        {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={proxiedImage(item.image)}
+            src={proxiedImage(gallery.image)}
             alt={item.title}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
-            onError={() => setFailedImage(true)}
+            onError={gallery.reject}
             className="absolute inset-0 h-full w-full object-contain"
           />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-[var(--t3)]">
-            <CarFront size={40} aria-hidden="true" />
-            <span className="sr-only">Photo unavailable</span>
-          </div>
         )}
         <div className="absolute inset-x-0 bottom-0 bg-black/80 px-4 py-3 text-white">
           <span className="text-xs">

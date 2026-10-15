@@ -33,7 +33,7 @@ CREATE TABLE public.dealer_deals(
 CREATE TABLE public.alert_matches(
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), deal_id uuid REFERENCES public.deals
 );
-CREATE TABLE public.source_url_cache(expires_at timestamptz);
+CREATE TABLE public.source_url_cache(url_hash text PRIMARY KEY, url text NOT NULL, expires_at timestamptz);
 
 -- Record-only scheduler fixture: no daemon and no scheduled job execution here.
 CREATE SCHEMA cron;

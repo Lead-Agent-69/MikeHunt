@@ -196,23 +196,30 @@ export function parsePrice(text: string): number | undefined {
     const n = Number(raw.replace(/,/g, ""));
     return n >= 100 && n < 2_000_000 ? n : undefined;
   };
-  // A labelled sale price wins over payment / down-payment amounts printed earlier on the card
-  // (VehiclesNETWORK cards show "Payment Amount: $325.00" before "Sale Price $ 10,900 00").
-  const labelled = text.match(
-    /\b(?:sale|our|cash|internet|special|asking|retail|selling|pre-owned)\s+price\s*:?\s*\$\s*([\d,]{3,})/i,
-  );
-  if (labelled && ok(labelled[1])) return ok(labelled[1]);
+  // Seller transaction prices outrank savings, payments and reference retail values.
+  // DriveNation prints "Savings" first, then "All In Price", then "Retail".
+  for (const label of [
+    /\ball[\s-]+in\s+price\s*:?\s*\$\s*([\d,]{3,})/i,
+    /\b(?:sale|our|cash|internet|special|asking|selling|pre-owned)\s+price\s*:?\s*\$\s*([\d,]{3,})/i,
+  ]) {
+    const labelled = text.match(label);
+    if (labelled && ok(labelled[1])) return ok(labelled[1]);
+  }
   const re = /\$\s*([\d,]{3,})(?:\.\d{2})?/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const before = text.slice(Math.max(0, m.index - 30), m.index);
     const after = text.slice(re.lastIndex, re.lastIndex + 12);
     if (
-      /(?:payment(?:\s+amount)?\s*:?|down\s+payment\s*:?|down\s*:|per month\s*:?)\s*$/i.test(before)
+      /(?:payment(?:\s+amount)?\s*:?|down\s+payment\s*:?|down\s*:|per month\s*:?|(?:savings|you\s+save|save|discount|rebate|MSRP|retail(?:\s+(?:price|value))?|was|original\s+price)\s*:?)\s*$/i.test(
+        before,
+      )
     )
       continue;
     if (
-      /^\s*(?:(?:\/|per\s)\s*(?:mo|month|wk|week)|down\b|bi-?weekly|weekly|monthly)/i.test(after)
+      /^\s*(?:(?:\/|per\s)\s*(?:mo|month|wk|week)|down\b|bi-?weekly|weekly|monthly|savings\b|off\b)/i.test(
+        after,
+      )
     )
       continue;
     const n = ok(m[1]);
@@ -416,7 +423,13 @@ export function parseListingPage(
         .find("p, .model, [class*=subtitle]")
         .map((_, el) => clean($(el).text()))
         .get()
-        .find((t) => t.length >= 2 && t.length <= 40 && /[a-z]/i.test(t) && !/\$|call|sale/i.test(t));
+        .find(
+          (t) =>
+            t.length >= 2 &&
+            t.length <= 40 &&
+            /[a-z]/i.test(t) &&
+            !/\$|call|sale/i.test(t),
+        );
       if (sub) {
         title = `${title} ${sub}`;
         parts = splitTitle(title);
@@ -657,7 +670,10 @@ export function stripContactInfo(text: string | undefined): string | undefined {
   const out = text
     .replace(EMAIL, "")
     .replace(PHONE, "")
-    .replace(/\b(?:call|text|email|e-mail|phone)(?:\s+(?:us|now|today))?\s*(?:at|:)?\s*(?=[.,;!]|$)/gi, "")
+    .replace(
+      /\b(?:call|text|email|e-mail|phone)(?:\s+(?:us|now|today))?\s*(?:at|:)?\s*(?=[.,;!]|$)/gi,
+      "",
+    )
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([.,;!])/g, "$1")
     .trim();

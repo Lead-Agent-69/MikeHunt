@@ -27,6 +27,7 @@ import {
 } from "../lib/scrapers/curated-outcomes";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
+import { writeCapacity } from "../lib/scrapers/write-capacity";
 import {
   isAutomationAllowedSource,
   advanceSweep,
@@ -117,6 +118,10 @@ interface Status {
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
   databaseStorage?: StorageBudget;
+  writeCapacity?: ReturnType<typeof writeCapacity>;
+  photoMaintenance?: NonNullable<
+    Awaited<ReturnType<LocalScraperCache["verifyListingPhotos"]>>
+  >;
   curatedOutcomes: CuratedOutcome[];
   sweep?: {
     startedAt?: string;
@@ -163,6 +168,7 @@ const statusDir = path.dirname(STATUS_PATH);
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
+  currentStatus.writeCapacity = writeCapacity(currentStatus.quota);
   currentStatus.curatedOutcomes = (await loadCuratedOutcomes()).rows;
   await mkdir(statusDir, { recursive: true });
   const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
@@ -173,11 +179,7 @@ async function writeStatus(): Promise<void> {
 }
 
 function quotaReached(): boolean {
-  const q = cache.getQuota();
-  return (
-    q.inserts >= Math.max(1, Math.floor(q.maxInserts * 0.8)) ||
-    q.updates >= Math.max(1, Math.floor(q.maxUpdates * 0.8))
-  );
+  return writeCapacity(cache.getQuota()).paused;
 }
 
 async function waitUntilWritable(): Promise<boolean> {
@@ -196,10 +198,7 @@ async function waitUntilWritable(): Promise<boolean> {
 
 async function waitForNextJob(): Promise<boolean> {
   while (!stopRequested) {
-    const quotaNow = cache.getQuota();
-    const hitQuota =
-      quotaNow.inserts >= Math.max(1, Math.floor(quotaNow.maxInserts * 0.8)) ||
-      quotaNow.updates >= Math.max(1, Math.floor(quotaNow.maxUpdates * 0.8));
+    const hitQuota = quotaReached();
     if (!hitQuota) quotaPaused = false;
     if (hitQuota) {
       quotaPaused = true;
@@ -696,7 +695,12 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     quotaPaused = false;
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
-      job = await claimNextScopedScrapeJob(supabase, WORKER_ID);
+      // Keep new buyer searches queued until inserts can actually add their matches.
+      // The idle sweep may still refresh existing inventory within its separate budgets.
+      job =
+        writeCapacity(cache.getQuota()).insertsRemaining > 0
+          ? await claimNextScopedScrapeJob(supabase, WORKER_ID)
+          : null;
       currentStatus.lastError = recoveredClaimError(
         currentStatus.lastError,
         claimFailures,
@@ -735,6 +739,45 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           "[retention] auction expiry failed:",
           (error as Error).message,
         );
+      }
+    }
+    if (
+      !job &&
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      !stopRequested &&
+      cache.photoChecksDue()
+    ) {
+      currentStatus.currentSources = ["photo_health"];
+      await writeStatus();
+      try {
+        let photoStates = currentStatus.sweep?.demandStates ?? [];
+        try {
+          const { data, error } = await supabase
+            .rpc("scrape_demand", { p_active_days: 30 })
+            .abortSignal(AbortSignal.timeout(5_000));
+          if (!error)
+            photoStates =
+              summarizeDemand(data as DemandRow[]).anchors ?? photoStates;
+        } catch {
+          // Existing sweep demand and Missouri remain safe fallbacks during an RPC outage.
+        }
+        const receipt = await cache.verifyListingPhotos(supabase, photoStates);
+        if (receipt) {
+          currentStatus.photoMaintenance = receipt;
+          console.log(
+            `[photo-health] ${receipt.state}: ${receipt.checked} checked, ${receipt.written} written, ${receipt.unavailable} unavailable, ${receipt.unknown} unknown`,
+          );
+          await writeStatus();
+        }
+      } catch (error) {
+        console.warn(
+          "[photo-health] maintenance deferred:",
+          (error as Error).message,
+        );
+      } finally {
+        currentStatus.currentSources = [];
+        await writeStatus();
       }
     }
     if (!job && mode === "hybrid" && !manualPaused) {

@@ -3,6 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -304,6 +305,8 @@ export class DealsService {
       .select(DEALS_LIST_SELECT, { count: "exact" })
       .eq("active", true);
 
+    query = applyCustomerInventory(query);
+
     if (filters.source?.length) {
       query = query.in("source", filters.source);
     }
@@ -415,6 +418,8 @@ export class DealsService {
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
 
+    query = applyCustomerInventory(query);
+
     if (filters.states?.length) {
       query =
         filters.states.length === 1
@@ -460,10 +465,9 @@ export class DealsService {
       return [];
     }
 
-    const { data, error } = await this.supabase
-      .from("deals")
-      .select(DEALS_LIST_SELECT)
-      .eq("active", true)
+    const { data, error } = await applyCustomerInventory(
+      this.supabase.from("deals").select(DEALS_LIST_SELECT).eq("active", true),
+    )
       .gte("profit_score", 70)
       .order("profit_score", { ascending: false })
       .limit(limit);

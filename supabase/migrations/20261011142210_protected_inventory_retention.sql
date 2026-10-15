@@ -32,14 +32,22 @@ FOR EACH ROW EXECUTE FUNCTION public.protect_referenced_deal_delete();
 
 CREATE OR REPLACE FUNCTION public.prune_inventory_retention(p_limit integer DEFAULT 1000)
 RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = ''
-SET lock_timeout = '2s' SET statement_timeout = '15s' AS $$
+SET lock_timeout = '2s' AS $$
 DECLARE
   ids uuid[];
   demoted integer;
   deleted integer;
+  cache_deleted integer;
+  timeout_ms integer;
 BEGIN
   IF p_limit IS NULL OR p_limit < 1 OR p_limit > 2000 THEN
     RAISE EXCEPTION 'Retention limit must be between 1 and 2000';
+  END IF;
+  -- Configuration guard only: callers must arm this BEFORE the outer statement starts.
+  -- Setting this GUC inside a function/wrapper cannot establish a real execution deadline.
+  SELECT setting::integer INTO timeout_ms FROM pg_catalog.pg_settings WHERE name = 'statement_timeout';
+  IF timeout_ms IS NULL OR timeout_ms <= 0 OR timeout_ms > 15000 THEN
+    RAISE EXCEPTION 'Retention requires a pre-statement timeout between 1 and 15000 ms';
   END IF;
   WITH stale AS (
     SELECT id FROM public.deals
@@ -64,12 +72,22 @@ BEGIN
   DELETE FROM public.deals WHERE id = ANY(ids)
     AND active = false AND last_seen_at < now() - interval '90 days';
   GET DIAGNOSTICS deleted = ROW_COUNT;
+  WITH expired AS (
+    SELECT ctid FROM public.source_url_cache
+    WHERE expires_at < now()
+    ORDER BY expires_at, ctid LIMIT p_limit FOR UPDATE SKIP LOCKED
+  ) DELETE FROM public.source_url_cache c USING expired e WHERE c.ctid = e.ctid;
+  GET DIAGNOSTICS cache_deleted = ROW_COUNT;
   RETURN jsonb_build_object('demoted', demoted, 'deleted', deleted,
+    'url_cache_deleted', cache_deleted,
     'database_bytes', pg_database_size(current_database()));
 END;
 $$;
 REVOKE ALL ON FUNCTION public.prune_inventory_retention(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.prune_inventory_retention(integer) TO service_role;
+GRANT SELECT, DELETE ON public.source_url_cache TO service_role;
+-- PostgreSQL row locks require UPDATE on at least one column, even for a delete-only batch.
+GRANT UPDATE(expires_at) ON public.source_url_cache TO service_role;
 CREATE OR REPLACE FUNCTION public.inventory_storage_bytes()
 RETURNS bigint LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''
 AS $$ SELECT pg_database_size(current_database()); $$;
@@ -77,6 +95,8 @@ REVOKE ALL ON FUNCTION public.inventory_storage_bytes() FROM PUBLIC, anon, authe
 GRANT EXECUTE ON FUNCTION public.inventory_storage_bytes() TO service_role;
 CREATE INDEX IF NOT EXISTS idx_deals_inactive_retention
   ON public.deals(last_seen_at, id) WHERE active = false;
+CREATE INDEX IF NOT EXISTS idx_source_url_cache_retention
+  ON public.source_url_cache(expires_at);
 
 DO $$
 DECLARE caller_role text;
@@ -113,6 +133,6 @@ END $$;
 DO $$ BEGIN
   IF to_regclass('cron.job') IS NOT NULL THEN
     PERFORM cron.schedule('cleanup-expired-deals', '0 2 * * *',
-      'SELECT public.prune_inventory_retention(1000); DELETE FROM public.source_url_cache WHERE expires_at < now();');
+      'SET statement_timeout = ''15s''; SET lock_timeout = ''2s''; SELECT public.prune_inventory_retention(1000);');
   END IF;
 END $$;

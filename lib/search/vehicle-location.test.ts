@@ -6,6 +6,10 @@ describe("vehicle location display", () => {
     ["Springfield,mo", "MO", "Springfield, MO"],
     ["St. Louis", "MO", "St. Louis, MO"],
     [null, "MO", "MO"],
+    ["MO", "MO", "MO"],
+    ["il", "IL", "IL"],
+    ["O Fallon MO", "MO", "O Fallon, MO"],
+    ["Florissant Mo", "MO", "Florissant, MO"],
     [null, null, "Location not reported"],
   ])("normalizes %s / %s", (city, state, expected) =>
     expect(vehicleLocation(city, state)).toBe(expected),

@@ -15,8 +15,7 @@ import { X } from "lucide-react";
 //   sign-in and onboarding.
 // - Dismissable with a visible 44px ✕ labelled "Dismiss" and with Escape; remembered for 30 days.
 //   Hidden for good once installed (standalone display-mode or `appinstalled`).
-// - A non-modal `role="region"` banner: no focus stealing. The full-width wrapper is pointer-events-none
-//   so only the card takes taps.
+// - A non-modal reminder after page content: never covers cards, forms or navigation.
 
 interface BIPEvent extends Event {
   prompt: () => Promise<void>;
@@ -191,7 +190,7 @@ export function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 px-3 pb-2 pt-2 md:left-auto md:right-4 md:bottom-4 md:max-w-sm md:px-0 md:pb-4">
+    <div className="mx-auto w-full max-w-sm px-3 pb-[calc(72px+env(safe-area-inset-bottom))] pt-2 md:pb-4">
       <div
         role="region"
         aria-label="Install MikeHunt"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { titleBadgeHtml, titleBadgeModel } from "@/lib/deals/title-badge-model";
 import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { vehiclePopup } from "@/lib/map/vehicle-popup";
@@ -196,8 +196,14 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
           : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}${pinTitleBadge(p)}</div>`,
         rich ? { minWidth: 208, maxWidth: 240 } : undefined,
       );
-      // Hover previews are also available by keyboard focus and by tapping a marker.
-      marker.on("click mouseover focus", () => marker.openPopup());
+      // bindPopup toggles on click/Enter, which closes an already-open hover/focus preview.
+      // This newly-created marker has no other click/keypress listeners to preserve yet.
+      marker.off("click keypress");
+      marker.on("click mouseover", () => marker.openPopup());
+      marker.on("keypress", (event) => {
+        if ((event.originalEvent as KeyboardEvent).key === "Enter")
+          marker.openPopup();
+      });
       marker.on("add", () => {
         const element = marker.getElement();
         element?.setAttribute("aria-label", p.name);
@@ -225,12 +231,17 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
     setMapKey(`map-${Date.now()}`);
   }, []);
 
-  const validPoints = points.filter(
-    (p) =>
-      typeof p.lat === "number" &&
-      typeof p.lng === "number" &&
-      !Number.isNaN(p.lat) &&
-      !Number.isNaN(p.lng),
+  // Keep open previews and map position through unrelated parent renders.
+  const validPoints = useMemo(
+    () =>
+      points.filter(
+        (p) =>
+          typeof p.lat === "number" &&
+          typeof p.lng === "number" &&
+          !Number.isNaN(p.lat) &&
+          !Number.isNaN(p.lng),
+      ),
+    [points],
   );
   // Pills (price/score/image) are self-labeling, so the dot "Network" legend only applies to dot markers.
   const hasPills = validPoints.some(

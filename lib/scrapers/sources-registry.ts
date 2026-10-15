@@ -813,7 +813,9 @@ export const OPEN_GOV_FEEDS: SourceConfig[] = [
     format: "socrata",
     license: "Public Domain",
     description:
-      "Historical sold fleet vehicles with VIN, sale price and date (comps only).",
+      "Historical sold fleet equipment with VIN, sale price and date; not current retail comparisons.",
+    notes:
+      "Verified 2026-10-14: newest sale 2025-12-19, outside the 180-day valuation window. Title brand and mileage are not supplied. Public domain dataset; research only until a relevant recent sale is verified.",
     priority: "P3",
   }),
   openGov({

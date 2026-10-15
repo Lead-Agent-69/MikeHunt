@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
-import { CarFront, ChevronLeft, ChevronRight } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceLabel } from "@/lib/sources/source-meta";
 import { TitleBadge } from "@/components/shared/TitleBadge";
@@ -27,11 +28,20 @@ export type SwipeVehicle = {
   source?: string;
   sourceUrl?: string;
 };
-export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
-  const [photo, setPhoto] = useState(0);
-  const [imgFailed, setImgFailed] = useState(false);
+export function SwipeVehicleFace({
+  deal,
+  onPhotoUnavailable,
+}: {
+  deal: SwipeVehicle;
+  onPhotoUnavailable?: (id: string) => void;
+}) {
+  const gallery = useListingPhotos(deal.images);
+  const photo = gallery.index;
   const [review, setReview] = useState(false);
-  const images = deal.images || [];
+  const images = gallery.images;
+  useEffect(() => {
+    if (gallery.exhausted) onPhotoUnavailable?.(deal.id);
+  }, [gallery.exhausted, onPhotoUnavailable, deal.id]);
   const title =
     deal.title ||
     [deal.year, deal.make, deal.model].filter(Boolean).join(" ") ||
@@ -45,25 +55,21 @@ export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
   });
   const location = vehicleLocation(deal.locationCity, deal.locationState);
   function changePhoto(next: number) {
-    setPhoto(next);
-    setImgFailed(false);
+    gallery.select(next);
   }
+  if (gallery.exhausted) return null;
   return (
     <div className="flex h-full flex-col">
       <div className="relative h-[46%] w-full shrink-0 overflow-hidden bg-[var(--s2)]">
-        {images[photo] && !imgFailed ? (
+        {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={proxiedImage(images[photo])}
             alt={title}
-            onError={() => setImgFailed(true)}
+            onError={gallery.reject}
             decoding="async"
             className="absolute inset-0 h-full w-full object-contain"
           />
-        ) : (
-          <div className="absolute inset-0 grid place-items-center text-[var(--t3)]">
-            <CarFront size={32} aria-hidden="true" />
-          </div>
         )}
         {images.length > 1 && images.length <= 8 && (
           <div
@@ -109,7 +115,7 @@ export function SwipeVehicleFace({ deal }: { deal: SwipeVehicle }) {
           {images.length > 1 ? ` · ${photo + 1}/${images.length} photos` : ""}
         </p>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
         <h2 className="line-clamp-2 break-words text-base font-bold leading-snug">
           {title}
         </h2>

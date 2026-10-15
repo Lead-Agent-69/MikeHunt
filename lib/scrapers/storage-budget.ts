@@ -14,8 +14,20 @@ export function createStorageBudgetChecker(now = () => Date.now()) {
     client: Pick<SupabaseClient, "rpc">,
   ): Promise<StorageBudget> => {
     if (cached && now() < nextCheck) return cached;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const { data, error } = await client.rpc("inventory_storage_bytes");
+      // The explicit race releases the serialized writer even if a transport ignores abort.
+      const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("Database size measurement timed out"));
+        }, 5000);
+      });
+      const { data, error } = await Promise.race([
+        client.rpc("inventory_storage_bytes").abortSignal(controller.signal),
+        deadline,
+      ]);
       const bytes =
         typeof data === "number" || typeof data === "string"
           ? Number(data)
@@ -36,6 +48,8 @@ export function createStorageBudgetChecker(now = () => Date.now()) {
     } catch {
       cached = { bytes: null, state: "unknown", allowInsert: false };
       nextCheck = now() + 60_000;
+    } finally {
+      clearTimeout(timer);
     }
     return cached;
   };

@@ -963,7 +963,7 @@ export default function DealPage({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-40 md:pb-24">
+    <div className="space-y-6 max-w-5xl mx-auto pb-6">
       {/* Listing identity, reports and primary research action. */}
       <div>
         <div className="min-w-0 flex-1">
@@ -1837,15 +1837,13 @@ export default function DealPage({
         />
       </DetailDisclosure>
 
-      {/* FIXED BOTTOM ACTION BAR — sits ABOVE the mobile BottomNav (which is itself bottom-0), so
-          the two fixed bars don't overlap on phones; flush to the bottom on desktop (no BottomNav). */}
+      {/* Supplemental actions stay in flow so research controls remain unobstructed. */}
       <section
         aria-label="Vehicle actions"
-        className="fixed left-0 right-0 p-3 md:p-4 z-50 bottom-[calc(58px+env(safe-area-inset-bottom))] lg:bottom-0"
+        className="border-t border-[var(--b1)] py-3 md:py-4"
         style={{
           background: "var(--s0)",
           borderTop: "1px solid var(--b1)",
-          boxShadow: "var(--shadow2)",
         }}
       >
         <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">

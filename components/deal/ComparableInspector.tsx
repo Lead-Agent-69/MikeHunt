@@ -100,7 +100,7 @@ export function ComparableInspector({
           {canCompare && (
             <Link
               prefetch={false}
-              href={`/compare?ids=${dealId},${point.id}`}
+              href={`/compare?ids=${dealId},${point.id}&from=${dealId}`}
               className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs font-semibold text-[var(--t1)]"
             >
               <Columns2 size={15} aria-hidden="true" />

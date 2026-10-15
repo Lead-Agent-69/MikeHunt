@@ -43,7 +43,7 @@ is not a durable photo archive, and daily writes do not certify monthly capacity
 
 | data                                 | rule                                                                                                                               | where                                                                       |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `deals` active                       | demoted to `active=false` when unseen **30 days** (reversible on re-sight)                                                         | `scripts/scrape-ci.ts` `pruneStaleDeals()` on Zeus                          |
+| `deals` active                       | demoted to `active=false` when unseen **30 days** (reversible on re-sight)                                                         | reviewed database cron, after approved migration apply                      |
 | ended auctions                       | up to **100** known-ended active lots deactivated hourly when the queue/hybrid worker is idle; expiry rechecked during the write   | `LocalScraperCache.deactivateEndedAuctions()` via `scripts/scrape-local.ts` |
 | `deals` inactive                     | protected retention: unseen **90 days**, bounded 1,000 per call, never when saved/watched/purchased/outcome/alert-match referenced | `prune_inventory_retention`, after reviewed migration apply                 |
 | daily write budget                   | configured 1,250 inserts / 2,500 updates; pause at 80%. A write budget is NOT a database-size limit                                | `lib/scrapers/local-cache.ts`                                               |
@@ -59,23 +59,40 @@ is not a durable photo archive, and daily writes do not certify monthly capacity
 `run_retention()` is called daily by the existing Vercel cron (07:30 UTC, cron-secret protected).
 The protected inventory migration `20261011142210_protected_inventory_retention.sql` adds a
 service-only INVOKER RPC and a BEFORE DELETE guard; removes both conflicting legacy cleanup jobs;
-and reuses `cleanup-expired-deals` for bounded protected retention plus disposable URL cache
-cleanup. `scrape-ci` uses the same RPC instead of a truncated client-side saved-reference scan.
-The web cron reports 503 if this protected RPC is missing, rather than silently falling back to
-unsafe deletes. Apply the reviewed migration BEFORE deploying this route.
+and reuses `cleanup-expired-deals` as the sole routine listing-retention executor. It sets
+`statement_timeout=15s` and `lock_timeout=2s` BEFORE the cleanup SELECT. The function bounds each
+demotion, unreferenced-listing deletion and expired URL-cache batch to the requested limit (default
+1,000, maximum 2,000). URL-cache rows use ordered `FOR UPDATE SKIP LOCKED` and return a separate
+`url_cache_deleted` count; there is no unbounded raw DELETE after the function.
 
-**Deployment status:** no hosted apply performed. October 12 CLI inspection works: the protected
-RPCs/migration are absent and two legacy deal-deletion jobs are active. The connector's older
-permission denial is not the current access blocker. Require exact-head independent database
-review, approved apply, and cron/Saved-persistence proof before deploying dependent code.
+Scraper cycles no longer delete listings, directly or through PostgREST. The Vercel cron handles
+only telemetry and regenerable VIN/recall caches; #421 separately improves its receipts. It does
+not depend on this listing-retention function. The worker size guard does depend on the reviewed
+storage-meter function: apply the approved migration before deploying that worker candidate.
+
+The inventory function no longer pretends that function-level `SET statement_timeout` arms an
+outer-query deadline. It rejects zero or greater-than-15-second timeout configuration before any
+mutation. This check is defense in depth, NOT proof of an armed timer. Service-only operator calls
+must establish their bounded session/transaction timeout BEFORE the outer statement; do not call
+through a wrapper that changes the setting mid-statement. Direct PostgREST mutation callers are
+not part of the routine execution path. Do not broadly change service-role defaults to satisfy a
+check. Verify the actual scheduled command, role, cancellation and rollback before hosted rollout.
+
+**Deployment status:** no hosted apply performed. The October 12 observation of active legacy
+jobs predates their October 13 safety pause documented above. Require revised exact-head
+independent database review, approved targeted apply, and cron/Saved-persistence proof before
+deploying dependent worker code. Historical database sizes are not current capacity receipts.
 
 Run `node scripts/test-protected-retention.mjs` against the existing local Supabase Docker stack.
 It rejects remote Docker endpoints/target arguments, verifies the MikeHunt container label, tests
 the actual schema inside BEGIN/ROLLBACK, then creates and removes a uniquely named disposable
 database for real two-session locking tests. A committed save survives both the bounded RPC and
 a direct deletion race. When pruning wins, a late save fails its FK rather than reporting success.
-The isolated scheduler fixture records commands only; no daemon runs its jobs. This is not a
-hosted-apply receipt, proof of arbitrary isolation levels or production-load certification.
+The scheduler fixture records commands; no daemon runs its jobs. The test executes the actual
+recorded multi-command job through one psql `-c` request with a shortened deadline, proving that
+timeout during deletion rolls back an earlier demotion. It also rejects unbounded configuration
+before mutation and checks a 1,205-row expired cache backlog stays batched while fresh rows survive.
+This is not a hosted-apply receipt, proof of arbitrary isolation levels or production-load certification.
 
 The replacement job no longer age-purges `vin_price_history`. Those observations can support saved
 research and are not disposable cache entries. Owner-aware history archival/retention needs its
@@ -88,7 +105,10 @@ authenticated delivery, backups and restore tests; URL-only saves cannot guarant
 
 The Zeus local worker also checks the service-only `inventory_storage_bytes()` RPC before new
 inserts: warn at 350 MB, buffer new observations locally at 450 MB, fail closed when measurement
-is unavailable. Existing updates/touches continue. This is not a quota guarantee for all database
+is unavailable. Measurement has a five-second client deadline and an explicit race so even a
+transport ignoring abort cannot indefinitely hold the serialized writer. A timeout fails closed,
+retains buffered observations and can recover on the next scheduled measurement. It is not proof
+of database-side cancellation. Existing updates/touches continue. This is not a quota guarantee for all database
 writers or network egress. Changed/new observations are atomically written to local cache before
 remote classification or upsert. Pauses, exhausted update budgets, read/write failures and
 missing/invalid size measurements do not discard the newest payload or reset confirmed daily
@@ -96,7 +116,7 @@ counters. Buffered records retain the latest observation; they are not a complet
 archive and require renewed capture/replay after capacity becomes available. Ambiguous remote
 commit receipts are not a global quota guarantee.
 
-Auction expiry uses the worker's existing serialized daily update budget and 80% pause threshold. It does not delete deals, touch saved records, or rewrite their last-seen timestamp. Cache-only and paused workers do not write. Failed passes retry after five minutes; successful passes wait an hour. A missing end time is not proof of expiry. Ingestion marks known-ended lots inactive, excludes them from new-match notifications, and can restore rescheduled lots with a future closing time. Age-based hard deletion remains exclusive to the separate `scrape-ci` path above.
+Auction expiry uses the worker's existing serialized daily update budget and 80% pause threshold. It does not delete deals, touch saved records, or rewrite their last-seen timestamp. Cache-only and paused workers do not write. Failed passes retry after five minutes; successful passes wait an hour. A missing end time is not proof of expiry. Ingestion marks known-ended lots inactive, excludes them from new-match notifications, and can restore rescheduled lots with a future closing time. Age-based hard deletion belongs only to the reviewed database scheduler described above.
 
 ## Zeus disk (`./cache` → `/app/cache` in the scraper)
 

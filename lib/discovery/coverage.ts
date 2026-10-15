@@ -83,6 +83,8 @@ export function buildDiscoverCoverage(input: {
   maxPrice?: number;
   /** The RPC LIMIT used for marketRows. */
   rowCap: number;
+  /** Raw returned count, before photo/freshness filters; preserves limit evidence. */
+  queryRowCount?: number;
   now?: Date;
   windowDays?: number;
 }): DiscoverCoverage {
@@ -144,9 +146,11 @@ export function buildDiscoverCoverage(input: {
     ? seenMs(input.marketRows[input.marketRows.length - 1])
     : NaN;
   const capped =
-    input.marketRows.length >= input.rowCap &&
-    Number.isFinite(oldest) &&
-    oldest >= sinceMs;
+    input.queryRowCount != null
+      ? input.queryRowCount >= input.rowCap
+      : input.marketRows.length >= input.rowCap &&
+        Number.isFinite(oldest) &&
+        oldest >= sinceMs;
 
   const freshRows = fresh.length;
   const sourceCount = bySource.length;

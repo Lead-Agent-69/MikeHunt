@@ -67,7 +67,10 @@ export function inventoryScopeStates(
 }
 
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
-  let q = applyVehicleDetails(applyLiveAuctionWindow(query), params);
+  let q = applyVehicleDetails(
+    applyLiveAuctionWindow(applyCustomerInventory(query)),
+    params,
+  );
   q = applyInventoryLane(q, params.get("lane") || "all");
   q = applyRepairEligibility(q, params.get("includeRepairable"));
   const csv = (key: string) =>
@@ -143,6 +146,7 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   return q;
 }
 import { applyLiveAuctionWindow } from "./live-auction-window";
+import { applyCustomerInventory } from "./customer-inventory";
 import {
   parseTitleTypes,
   titleCategoryOrFilter,

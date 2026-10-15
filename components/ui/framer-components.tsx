@@ -663,10 +663,11 @@ export function SwipeCardStack({
 }) {
   const reducedMotion = useReducedMotion();
   const [stack, setStack] = useState(cards);
+  const decidedIds = useRef(new Set<string>());
   // A newly-fetched batch has to replace the queue — seeding state once would freeze the
   // stack on whatever cards existed at first mount.
   useEffect(() => {
-    setStack(cards);
+    setStack(cards.filter((card) => !decidedIds.current.has(card.id)));
   }, [cards]);
 
   // The card flying off, rendered above the incoming one so departure and arrival never
@@ -680,6 +681,7 @@ export function SwipeCardStack({
     (id: string, dir: "save" | "pass") => {
       const card = stack.find((c) => c.id === id);
       if (!card || leaving) return;
+      decidedIds.current.add(id);
       if (dir === "save") onSave(id);
       else onPass(id);
       setStack((s) => s.filter((c) => c.id !== id));
@@ -692,7 +694,7 @@ export function SwipeCardStack({
 
   return (
     <div
-      className="flex flex-col gap-5 outline-offset-4 focus-visible:outline focus-visible:outline-[var(--blue)]"
+      className="flex flex-col gap-3 outline-offset-4 focus-visible:outline focus-visible:outline-[var(--blue)]"
       tabIndex={0}
       role="group"
       aria-label="Vehicle swipe deck"
@@ -725,6 +727,7 @@ export function SwipeCardStack({
 
         {leaving && (
           <motion.div
+            aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-[var(--r4)] border border-[var(--b2)] bg-[var(--s0)]"
             initial={{ x: 0, opacity: 1, rotate: 0 }}
             animate={{
@@ -758,7 +761,7 @@ export function SwipeCardStack({
 
       {/* Drag is the fast path; these give keyboard and assistive-tech users the same two
           decisions without needing a pointer. */}
-      <div className="flex items-center justify-center gap-3">
+      <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-center gap-3 border-t border-[var(--b1)] bg-[var(--s0)] py-2 lg:static lg:border-0">
         <button
           type="button"
           onClick={() => top && decide(top.id, "pass")}

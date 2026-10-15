@@ -9,6 +9,13 @@ interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   hint?: string;
 }
 
+// Controlled values must not accept edits before their client handlers are attached.
+function useControlsReady() {
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => setReady(true), []);
+  return ready;
+}
+
 export function Field({
   label,
   error,
@@ -16,6 +23,7 @@ export function Field({
   className = "",
   ...props
 }: FieldProps) {
+  const ready = useControlsReady();
   const reactId = React.useId();
   const id = props.id || props.name || reactId;
   const hintId = hint ? `${id}-hint` : undefined;
@@ -38,6 +46,7 @@ export function Field({
         }
         className={`field ${error ? "border-[var(--red)] focus:border-[var(--red)]" : ""}`}
         {...props}
+        disabled={!ready || props.disabled}
       />
       {error && (
         <p id={errorId} className="mt-1 text-xs text-[var(--red)]">
@@ -62,6 +71,7 @@ export function PasswordField({
   type: _type,
   ...props
 }: FieldProps) {
+  const ready = useControlsReady();
   const [visible, setVisible] = React.useState(false);
   const reactId = React.useId();
   const id = props.id || props.name || reactId;
@@ -88,9 +98,11 @@ export function PasswordField({
           }
           className={`field pr-12 ${error ? "border-[var(--red)] focus:border-[var(--red)]" : ""}`}
           {...props}
+          disabled={!ready || props.disabled}
         />
         <button
           type="button"
+          disabled={!ready || props.disabled}
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? "Hide password" : "Show password"}
           aria-pressed={visible}
@@ -130,6 +142,7 @@ export function SelectField({
   className = "",
   ...props
 }: SelectProps) {
+  const ready = useControlsReady();
   const reactId = React.useId();
   const id = props.id || props.name || reactId;
   const errorId = error ? `${id}-error` : undefined;
@@ -149,6 +162,7 @@ export function SelectField({
         aria-describedby={errorId}
         className={`field appearance-none ${error ? "border-[var(--red)]" : ""}`}
         {...props}
+        disabled={!ready || props.disabled}
       >
         {options.map((opt) => (
           <option

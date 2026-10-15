@@ -45,7 +45,7 @@ export default function MapPage() {
   const [titleFilter, setTitleFilter] = useState<string | null>(null);
   const query = withTitleType(scopeQuery, titleFilter);
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
-  const [verdict, setVerdict] = useState("actionable");
+  const [verdict, setVerdict] = useState("all");
   const { data, error, isLoading, mutate } = useSWR(
     ready
       ? `/api/deals/map?${query}&verdict=${flipDesk ? verdict : "all"}`
@@ -96,8 +96,8 @@ export default function MapPage() {
                 className="min-h-12 min-w-12 px-3 rounded-[var(--r2)] text-xs font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
                 style={{
                   background:
-                    verdict === f.key ? "var(--amber)" : "transparent",
-                  color: verdict === f.key ? "#fff" : "var(--t3)",
+                    verdict === f.key ? "var(--accent)" : "transparent",
+                  color: verdict === f.key ? "var(--on-accent)" : "var(--t3)",
                 }}
               >
                 {f.label}
@@ -180,7 +180,9 @@ export default function MapPage() {
         {approximateCount > 0 &&
           `${approximateCount} ${approximateCount === 1 ? "location is an approximate state-level position" : "locations are approximate state-level positions"}. `}
         Verify the seller&apos;s address before planning a trip.
-        {flipDesk && " Review includes Go and Hold listings."}
+        {flipDesk &&
+          verdict === "actionable" &&
+          " Review includes Go and Hold listings."}
       </p>
     </div>
   );

@@ -31,12 +31,19 @@ vi.mock("@/lib/supabase", () => ({
         calls.select = c;
         const q: any = {
           in: (_k: string, v: any) => {
-            calls.inArgs = v;
-            return Promise.resolve({ data: [row], error: null });
+            if (_k === "vin") calls.inArgs = v;
+            return q;
           },
+          or: () => q,
+          not: () => q,
+          neq: () => q,
+          gte: () => q,
+          lte: () => q,
           eq: () => q,
           order: () => q,
           limit: () => Promise.resolve({ data: [row], error: null }),
+          then: (resolve: (value: unknown) => unknown) =>
+            resolve({ data: [row], error: null }),
         };
         return q;
       },
@@ -75,6 +82,7 @@ describe("GET /api/deals/lane", () => {
     await GET(req("?vins=1HGCM82633A004352"));
     const cols = calls.select.split(",").map((c) => c.trim());
     expect(calls.select).not.toContain("*");
+    expect(cols).toContain("reference_only:options->>price_is_acv_estimate");
     for (const c of [
       "embedding",
       "lat",

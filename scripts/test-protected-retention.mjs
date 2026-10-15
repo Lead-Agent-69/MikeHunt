@@ -51,7 +51,8 @@ const args = (db) => [
   "-v",
   "ON_ERROR_STOP=1",
 ];
-const query = (sql, db = database) => exec(args(db), sql);
+const query = (sql, db = database) =>
+  exec(args(db), `SET statement_timeout='12s';\n${sql}`);
 const migration = readFileSync(
   "supabase/migrations/20261011142210_protected_inventory_retention.sql",
   "utf8",
@@ -67,7 +68,7 @@ const fixture = readFileSync(
 
 // Exercise actual local tables, FKs, grants and pg_cron without retaining changes.
 query(
-  `BEGIN; SET LOCAL lock_timeout='2s'; SET LOCAL statement_timeout='20s';
+  `BEGIN; SET LOCAL lock_timeout='2s'; SET LOCAL statement_timeout='15s';
 ${migration}
 ${regressions}
 SET LOCAL ROLE service_role;
@@ -81,10 +82,15 @@ console.log(
 );
 
 const children = new Set();
-function session(sql) {
-  const child = spawn("docker", args(database), {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+function session(sql, singleCommand = false) {
+  const command = `SET statement_timeout='12s';\n${sql}`;
+  const child = spawn(
+    "docker",
+    singleCommand ? [...args(database), "-c", command] : args(database),
+    {
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  );
   children.add(child);
   let output = "";
   let error = "";
@@ -117,7 +123,7 @@ function session(sql) {
       resolve({ code, output: output.trim(), error });
     });
   });
-  child.stdin.end(sql);
+  child.stdin.end(singleCommand ? undefined : command);
   return { ready, done };
 }
 function confirmHolderIsSleeping() {
@@ -216,6 +222,46 @@ try {
   );
   console.log(
     "PASS prune wins: late save fails its FK instead of claiming success",
+  );
+  const slowDelete = randomUUID();
+  const demoteFirst = randomUUID();
+  listing(slowDelete);
+  listing(demoteFirst);
+  query(`UPDATE public.deals SET active=true,last_seen_at=now()-interval '40 days' WHERE id='${demoteFirst}';
+    CREATE FUNCTION public.retention_deadline_probe() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN PERFORM pg_sleep(0.5); RETURN OLD; END; $$;
+    CREATE TRIGGER retention_deadline_probe BEFORE DELETE ON public.deals
+      FOR EACH ROW WHEN (OLD.id='${slowDelete}'::uuid) EXECUTE FUNCTION public.retention_deadline_probe();`);
+  const scheduled = query(
+    "SELECT command FROM cron.job WHERE jobname='cleanup-expired-deals';",
+  );
+  const bounded = scheduled.replace(
+    "statement_timeout = '15s'",
+    "statement_timeout = '100ms'",
+  );
+  assert.notEqual(
+    bounded,
+    scheduled,
+    "Exercise the recorded cron command's pre-statement deadline",
+  );
+  const timedOut = await session(bounded, true).done;
+  assert.notEqual(
+    timedOut.code,
+    0,
+    "Slow cleanup must be canceled at the real statement boundary",
+  );
+  assert.match(timedOut.error, /statement timeout/i);
+  assert.equal(
+    query(`SELECT active FROM public.deals WHERE id='${demoteFirst}';`),
+    "t",
+    "Timeout must roll back demotion performed before the slow deletion",
+  );
+  assert.equal(
+    query(`SELECT count(*) FROM public.deals WHERE id='${slowDelete}';`),
+    "1",
+  );
+  console.log(
+    "PASS actual cron-style multi-command deadline cancels cleanup and rolls back prior demotion",
   );
 } finally {
   for (const child of children) child.kill();

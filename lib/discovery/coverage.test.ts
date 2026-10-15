@@ -170,6 +170,19 @@ describe("buildDiscoverCoverage", () => {
     expect(notCapped.capped).toBe(false);
   });
 
+  it("retains raw query-cap evidence after all ineligible rows are filtered out", () => {
+    const c = buildDiscoverCoverage({
+      marketRows: [],
+      feedRows: [],
+      states: ["MO"],
+      rowCap: 2000,
+      queryRowCount: 2000,
+      now,
+    });
+    expect(c.capped).toBe(true);
+    expect(c.freshRows).toBe(0);
+  });
+
   it("nationwide requests report no states", () => {
     const c = buildDiscoverCoverage({
       marketRows: [row("govdeals", "TX", 1)],

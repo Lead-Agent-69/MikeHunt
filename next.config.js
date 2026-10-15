@@ -1,4 +1,5 @@
 const { withSentryConfig } = require("@sentry/nextjs");
+require("./scripts/prepare-replay-worker.cjs")();
 
 function supabaseConnectSources() {
   const sources = new Set(["'self'", "https:", "wss:"]);

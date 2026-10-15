@@ -126,7 +126,7 @@ const baseRow = {
   location_state: "TX",
   images: ["https://example.com/truck.jpg"],
   first_seen_at: "2026-10-02T00:00:00.000Z",
-  last_seen_at: "2026-10-02T04:00:00.000Z",
+  last_seen_at: new Date().toISOString(),
   auction_end_at: new Date(Date.now() + 86400000).toISOString(),
   deal_analysis: {
     sellBasis: "market",
@@ -315,7 +315,7 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(res.status).toBe(200);
     expect(rpc).toHaveBeenLastCalledWith(
       "discover_deals",
-      expect.objectContaining({ p_states: ["MO", "IL"], p_limit: 10000 }),
+      expect.objectContaining({ p_states: ["MO", "IL"], p_limit: 2000 }),
     );
     expect(body.coverage).toMatchObject({
       status: "thin",

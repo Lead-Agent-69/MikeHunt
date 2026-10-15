@@ -1,7 +1,5 @@
 export const dynamic = "force-dynamic";
-// A cold miss pulls up to 10k rows via discover_deals and grades them in JS: prod first hit measured
-// 7.0s (p95 3.5s over 25 sequential guest calls, 2026-10-10). Without an explicit maxDuration a legacy
-// Hobby project kills it at 10s; 60s is within every Hobby/Pro limit.
+// Discovery is a bounded recent preview; full indexed research remains paginated on Scan.
 export const maxDuration = 60;
 import {
   hasReportedRepairRisk,
@@ -9,6 +7,7 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { isCustomerInventory } from "@/lib/search/customer-inventory";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -645,9 +644,9 @@ export async function GET(request: NextRequest) {
     // Cache the expensive part — the 5k-row pull + cross-source VIN dedup + grading — by state for
     // 45s, so the main feed paints instantly on repeat loads. Personalization (For You) is rebuilt
     // per-request below from this cached, graded set (cheap), so it stays current.
-    const DISCOVER_ROW_CAP = 10000;
+    const DISCOVER_ROW_CAP = 2000;
     const { merged, rowCount, marketListingCount, coverage } = await cached(
-      `discover:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}`,
+      `discover:recent-2000:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -656,11 +655,9 @@ export async function GET(request: NextRequest) {
         coverage: DiscoverCoverage;
       }> => {
         const supabase = createServerComponentClient();
-        // ONE index-driven pull via the discover_deals RPC. The old approach paged .range() up to 24k rows
-        // across 24 round-trips — but the real cost was serializing 24k heavy rows (deal_analysis + options
-        // JSONB) at ~10s. The RPC uses the idx_deals_last_seen_active partial index for the ORDER BY and caps
-        // at 10k — verified to still cover all live sources (freshest 10k spans every one) — so it's ~2s, not
-        // 18s. Returns one jsonb array (not row-capped by PostgREST). Cached 45s upstream.
+        // A 10k-row hosted pull now hits statement_timeout (57014). A 2k-row pull was
+        // measured at 1.95s. Keep the preview bounded and disclose the cap, including
+        // when photo/freshness filtering removes some of the raw returned rows.
         const { data: rpcData, error: rpcErr } = await supabase.rpc(
           "discover_deals",
           {
@@ -672,7 +669,10 @@ export async function GET(request: NextRequest) {
         );
         if (rpcErr) throw new Error(rpcErr.message);
         const marketRows: any[] = Array.isArray(rpcData)
-          ? rpcData.filter((row: any) => isWithinAuctionWindow(row))
+          ? rpcData.filter(
+              (row: any) =>
+                isWithinAuctionWindow(row) && isCustomerInventory(row),
+            )
           : [];
         const rows: any[] = marketRows.filter((row: any) => {
           if (
@@ -797,6 +797,7 @@ export async function GET(request: NextRequest) {
             states: scopeStates.length ? scopeStates : state ? [state] : [],
             maxPrice: maxPrice || 0,
             rowCap: DISCOVER_ROW_CAP,
+            queryRowCount: Array.isArray(rpcData) ? rpcData.length : 0,
           }),
         };
       },

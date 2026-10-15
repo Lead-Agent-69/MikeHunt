@@ -1,3 +1,5 @@
+import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
+
 // Read-time desk gate for /api/saved-cars. Snapshots are stored with full flip economics and seller
 // contact (taken at save time, possibly on a flip desk). Redacting on READ means a user who later
 // switches to a personal / parts / DIY desk stops seeing them, and switching back restores them.
@@ -91,5 +93,24 @@ export function savedCarsForDesk<T extends Record<string, any>>(
   rows: T[],
   flipDesk: boolean,
 ): Array<T | Record<string, any>> {
-  return flipDesk ? rows : rows.map((r) => redactSavedCarForNonFlipDesk(r));
+  return rows.map((row) => {
+    let safe: Record<string, any> = row;
+    if (!economicsEvidenceReady(row.snapshot?.analysis)) {
+      safe = { ...row, snapshot: { ...row.snapshot } };
+      for (const key of ROW_FLIP_ONLY) {
+        if (!/seller|contact/.test(key)) delete safe[key];
+      }
+      delete safe.market_value_at_save;
+      for (const key of SNAPSHOT_FLIP_ONLY) {
+        if (!/seller|contact/i.test(key)) delete safe.snapshot[key];
+      }
+      delete safe.snapshot.sellEstimate;
+      delete safe.snapshot.marketValue;
+      safe.snapshot.trustExplanation = safeTrust(
+        safe.snapshot.trustExplanation,
+      );
+      safe.snapshot.economicsUnavailable = true;
+    }
+    return flipDesk ? safe : redactSavedCarForNonFlipDesk(safe);
+  });
 }

@@ -29,6 +29,25 @@ E2E_BASE_URL=http://127.0.0.1:3100 npm run e2e
 Prod runs (`npm run e2e:prod`) only execute the guest specs; every write / sign-in spec skips itself
 when `E2E_BASE_URL` is not localhost (`e2e/support/target.ts`), and the account helpers throw.
 
+## Docker Desktop Freshness Fixtures (Windows)
+
+For the real Supabase CLI Docker stack (`supabase_db_MikeHunt`), run
+`node scripts/seed-local-qa.mjs` before inventory-dependent browser tests.
+The helper requires `.env.local` to point at `http://127.0.0.1:54321`, a local
+Windows Docker named pipe, and the matching Supabase project label. It refuses
+Docker endpoint overrides and unmarked fixture identity collisions.
+
+It adds at most 24 clearly marked `[Local QA fixture]` vehicles derived from local
+dealer samples, with synthetic listing URLs and locations. Repeated runs refresh
+only those marked fixtures, not the original inventory. No hosted data, source
+permissions, retention settings, or user roles are changed. Existing local donor
+photos are reused; this does not certify live source photo availability, market
+coverage, valuation accuracy, or production account flows.
+
+Set the local server's `ADMIN_EMAIL=e2e-admin@local.test` to exercise the admin
+fixture without modifying production permissions. Keep both the application and
+the browser test origin on `localhost` so the stored account cookies match.
+
 ## Scale probes (local only)
 
 `scale.sql` adds realistic 768-d embeddings to every row (`-v phase_b=1`) and grows the table to 25k rows

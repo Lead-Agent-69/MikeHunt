@@ -22,6 +22,18 @@ const deal = {
   recommendedMaxBid: 15900,
 };
 
+const soldEvidence = {
+  soldAnchored: true,
+  valuation: {
+    source: "comparables" as const,
+    confidence: "high" as const,
+    compCount: 5,
+    soldCount: 3,
+    soldLane: "clean" as const,
+    soldAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+};
+
 beforeAll(() => {
   // framer-motion warns about useLayoutEffect under renderToStaticMarkup.
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -31,6 +43,7 @@ function render(flipDesk?: boolean) {
   return renderToStaticMarkup(
     createElement(DealCard, {
       ...deal,
+      ...(flipDesk === false ? {} : soldEvidence),
       ...(flipDesk === undefined ? {} : { flipDesk }),
     }),
   );
@@ -46,8 +59,22 @@ describe("DealCard flip economics by buyer desk", () => {
     expect(html).toContain("estimated spread");
   });
 
-  it("keeps legacy flip-only callers unchanged when flipDesk is omitted", () => {
+  it("allows evidence-backed flip callers when flipDesk is omitted", () => {
     expect(render()).toContain("Net Profit Est.");
+  });
+
+  it("suppresses legacy profit and bid claims without dated sold evidence", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...deal,
+        flipDesk: true,
+        soldAnchored: false,
+        valuation: undefined,
+      }),
+    );
+    expect(html).not.toContain("Net Profit Est.");
+    expect(html).not.toContain("$15,900");
+    expect(html).toContain("Sold comparisons not verified");
   });
 
   it("hides profit, max bid, and spread from non-flip buyers", () => {

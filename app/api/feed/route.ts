@@ -38,6 +38,7 @@ const COLS =
 // requests a minute per IP. Signed-in For You pages a 250-card pool, so the cap never bites there.
 export const FEED_MAX_LIMIT = 30;
 export const FEED_MAX_OFFSET = 600;
+export const FEED_MAX_SIGNED_OFFSET = 10000;
 export const FEED_GUEST_RATE = { limit: 30, windowMs: 60_000 };
 
 function mapItem(d: any) {
@@ -87,10 +88,7 @@ async function getFeed(req: NextRequest) {
   const rangeError = validateInventoryRanges(sp);
   if (rangeError)
     return NextResponse.json({ error: rangeError }, { status: 400 });
-  const offset = Math.min(
-    Math.max(0, Math.floor(Number(sp.get("offset")) || 0)),
-    FEED_MAX_OFFSET,
-  );
+  const offset = Math.max(0, Math.floor(Number(sp.get("offset")) || 0));
   const limit = Math.min(
     Math.max(Math.floor(Number(sp.get("limit")) || 12), 1),
     FEED_MAX_LIMIT,
@@ -119,6 +117,50 @@ async function getFeed(req: NextRequest) {
     : false;
   const forDesk = (items: ReturnType<typeof mapItem>[]) =>
     flipDesk ? items : items.map((it) => redactListingForNonFlipDesk(it));
+
+  // Full browsing is paged from stored inventory, not a truncated recommendation pool.
+  if (user?.id && sp.get("browse") === "all") {
+    const rl = rateLimit(req, {
+      key: "feed-browse",
+      limit: 90,
+      windowMs: 60_000,
+    });
+    if (!rl.allowed) return tooManyRequests(rl);
+    if (offset >= FEED_MAX_SIGNED_OFFSET)
+      return NextResponse.json(
+        { items: [], nextOffset: null, capped: true },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    const pageLimit = Math.min(limit, FEED_MAX_SIGNED_OFFSET - offset);
+    let q = supabase
+      .from("deals")
+      .select(COLS)
+      .eq("active", true)
+      // Nonempty image arrays sort before empty arrays; keep photo-less rows in the stream.
+      .order("images", { ascending: false, nullsFirst: false })
+      .order("last_seen_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageLimit - 1);
+    q = applyInventoryViewScope(q, sp);
+    const { data, error } = await q;
+    if (error) throw error;
+    const rows = data || [];
+    return NextResponse.json(
+      {
+        items: forDesk(rows.map(mapItem)),
+        nextOffset:
+          rows.length === pageLimit &&
+          offset + pageLimit < FEED_MAX_SIGNED_OFFSET
+            ? offset + pageLimit
+            : null,
+        boundedPool: false,
+        capped:
+          rows.length === pageLimit &&
+          offset + pageLimit >= FEED_MAX_SIGNED_OFFSET,
+      },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
 
   // ── FOR YOU (signed in): a taste-ranked pool, cached per user for 60s and paginated over. ──
   if (user?.id) {
