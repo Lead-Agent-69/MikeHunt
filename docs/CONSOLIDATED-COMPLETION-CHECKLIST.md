@@ -1041,6 +1041,20 @@ Related evidence:
   Android/iOS performance remain separate gates. Chrome extension control failed;
   the supported in-app browser was used instead. Do not mark these untested paths
   complete or convert a partial-source count into verified statewide coverage.
+- Follow-up QA: 320/430/768px Settings had no horizontal document overflow;
+  the 320px location sheet searched Missouri and displayed its active count.
+  Profile editing restored the personal-mode selection without saving changes.
+  The personal session was redirected away from `/admin`. This proves that
+  session's navigation boundary, not a complete admin-role/security audit.
+- Post-release map testing caught a second interaction defect: Leaflet's default
+  click/Enter toggle could close an already-open hover/focus preview. New marker
+  bindings now explicitly open on click/Enter rather than toggle; a regression
+  covers focus then Enter, hover then click, and unrelated key handling.
+- PR #417 landed as `f4432f2`; 3,952 tests and the production build passed, and
+  the worker's six changed file hashes matched the tested image. Insert/update
+  counters persisted at 1,000/2,000. The first public smoke run saw status 503;
+  the subsequent complete 20-check run passed with decision readiness still
+  false. No new-listing growth is claimed while daily write capacity is depleted.
 
 Final integration receipts: refreshed against main #395/#396, keeping the new
 body-style filter and pending-scope safeguards. The integrated view bar initially
