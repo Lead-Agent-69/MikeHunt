@@ -1,6 +1,36 @@
 import { expect, it, vi } from "vitest";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 
+it("retains photo evidence when a source-provided protocol-relative link becomes absolute", async () => {
+  const audit = { state: "unavailable" };
+  const q = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockResolvedValue({
+      data: [
+        {
+          source_deal_id: "at-123",
+          source_url: "//www.autotempest.com/details/123",
+          images: ["/bad.jpg"],
+          photo_audit: audit,
+        },
+      ],
+      error: null,
+    }),
+  };
+  const rows = [
+    {
+      source: "independent_dealer",
+      source_deal_id: "at-123",
+      source_url: "https://www.autotempest.com/details/123",
+      images: ["/bad.jpg"],
+      options: {} as Record<string, unknown>,
+    },
+  ];
+  await preserveListingPhotos({ from: () => q }, rows);
+  expect(rows[0].options.photoAudit).toEqual(audit);
+});
+
 it("keeps attempted-check ordering across identical inventory observations, but resets for new URLs", async () => {
   const attempt = { checkedAt: "now", state: "unknown" };
   const query = {

@@ -61,6 +61,7 @@ import {
   type CuratedOutcome,
 } from "../curated-outcomes";
 import { hostMatches, hostOf, urlHostMatches } from "@/lib/net/host-match";
+import { dealerListingId } from "../dealer-listing-id";
 import {
   disclosedPriceEvidence,
   positivePrice,
@@ -689,9 +690,12 @@ export async function scrapeIndependentDealer(
         const mileText = sel.mileage
           ? card.find(sel.mileage).first().text().trim()
           : "";
-        const imgSrc = sel.image
-          ? card.find(sel.image).first().attr("src")
-          : undefined;
+        const image = sel.image ? card.find(sel.image).first() : null;
+        const imgSrc =
+          image?.attr("data-src") ||
+          image?.attr("data-original") ||
+          image?.attr("data-lazy-src") ||
+          image?.attr("src");
         const href = sel.link
           ? card.find(sel.link).first().attr("href")
           : undefined;
@@ -703,13 +707,9 @@ export async function scrapeIndependentDealer(
         const sourceUrl = dealerListingUrl(href, baseUrl, profile.inventoryUrl);
         if (!sourceUrl) return;
 
-        // Require a stable id from the listing URL so upsert dedupe works.
-        const dealId = href?.split("/").filter(Boolean).pop();
-        if (!dealId) return;
-
         items.push({
           source: "independent_dealer",
-          source_deal_id: dealId,
+          source_deal_id: dealerListingId(sourceUrl),
           source_url: sourceUrl,
           title,
           year: extractYear(title),
@@ -781,11 +781,7 @@ export async function scrapeIndependentDealer(
           if (g.vin) listingVins.add(g.vin);
           items.push({
             source: "independent_dealer",
-            source_deal_id:
-              (g.source_url && g.source_url !== baseUrl
-                ? g.source_url.split("/").filter(Boolean).pop()
-                : "") ||
-              `${profile.dealerId}-${[g.year, g.make, g.model, g.ask_price, g.mileage].filter(Boolean).join("-")}`,
+            source_deal_id: dealerListingId(sourceUrl),
             source_url: sourceUrl,
             title:
               [g.year, g.make, g.model].filter(Boolean).join(" ") ||
@@ -842,7 +838,7 @@ export async function scrapeIndependentDealer(
             if (!sourceUrl) continue;
             items.push({
               source: "independent_dealer",
-              source_deal_id: sourceUrl.split("/").filter(Boolean).pop(),
+              source_deal_id: dealerListingId(sourceUrl),
               source_url: sourceUrl,
               // Real vehicle identity first; v.title is often just the title-brand badge ("Salvage"),
               // which we already fold into condition via conditionFromTitle below.

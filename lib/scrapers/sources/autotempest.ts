@@ -56,6 +56,19 @@ const num = (v: unknown): number =>
 const s = (v: unknown): string | undefined =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
 
+function sourceListingUrl(value: unknown): string | undefined {
+  const raw = s(value);
+  if (!raw) return undefined;
+  try {
+    const url = raw.startsWith("/") ? new URL(raw, API) : new URL(raw);
+    return /^https?:$/.test(url.protocol) && !url.username && !url.password
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function usdAmount(value: unknown): number | undefined {
   if (typeof value === "number") return positivePrice(value);
   if (typeof value !== "string") return undefined;
@@ -113,7 +126,7 @@ export function parseAutotempest(json: any): Partial<Deal>[] {
       .split(",")
       .map((p) => p.trim());
     const origin = s(r.sourceName) || "Autotempest";
-    const url = s(r.url);
+    const url = sourceListingUrl(r.url);
     const title =
       s(r.title) ||
       `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`

@@ -34,6 +34,7 @@ import {
   imagesFromDetail,
 } from "./sources";
 import { load } from "cheerio";
+import { dealerListingId } from "./dealer-listing-id";
 
 const html = `<article><h2>2020 Ford Escape</h2><span class="price">$12,500</span><a href="/cars/123">Car</a></article><a rel="next" href="?page=2">Next</a>`;
 const profile = {
@@ -46,6 +47,48 @@ const profile = {
 };
 
 describe("curated import receipts", () => {
+  it("keeps same-numbered vehicles from different dealers separate and reads real lazy photos", async () => {
+    const page = html
+      .replace(
+        "<h2>",
+        '<img src="data:image/gif;base64,placeholder" data-src="/photos/123.jpg"><h2>',
+      )
+      .replace('<a rel="next" href="?page=2">Next</a>', "");
+    for (const host of ["first.example", "second.example"])
+      await scrapeIndependentDealer(
+        { ...profile, selectors: { ...profile.selectors, image: "img" } },
+        `https://${host}`,
+        undefined,
+        async () => page,
+      );
+    const first = mocks.save.mock.calls[0][0][0],
+      second = mocks.save.mock.calls[1][0][0];
+    expect(first.source_deal_id).not.toBe(second.source_deal_id);
+    expect(first.images).toEqual(["https://first.example/photos/123.jpg"]);
+    expect(second.images).toEqual(["https://second.example/photos/123.jpg"]);
+  });
+  it("imports distinct vehicle queries on the inventory endpoint", async () => {
+    const page =
+      html
+        .replace("/cars/123", "/inventory?vehicleId=123")
+        .replace('<a rel="next" href="?page=2">Next</a>', "") +
+      html
+        .replace("/cars/123", "/inventory?vehicleId=456")
+        .replace('<a rel="next" href="?page=2">Next</a>', "");
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      async () => page,
+    );
+    const saved = mocks.save.mock.calls[0][0];
+    expect(saved).toHaveLength(2);
+    expect(new Set(saved.map((row: any) => row.source_deal_id)).size).toBe(2);
+    expect(saved.map((row: any) => row.source_url)).toEqual([
+      "https://dealer.example/inventory?vehicleId=123",
+      "https://dealer.example/inventory?vehicleId=456",
+    ]);
+  });
   it("uses the real detail gallery on the CMS ingestion path, not only og:image", () => {
     const page =
       '<meta property="og:image" content="/1.jpg"><div class="car-details"><div class="flexslider"><ul>' +
@@ -250,7 +293,14 @@ describe("curated import receipts", () => {
       "https://www.salvagezone.com/repairable/salvage/rebuildables/2",
     );
     const saved = mocks.save.mock.calls[0][0];
-    expect(saved.map((row: any) => row.source_deal_id)).toEqual(["123", "126"]);
+    expect(saved.map((row: any) => row.source_deal_id)).toEqual([
+      dealerListingId(
+        "https://www.salvagezone.com/inventory/salvage/repairable/2024/CHEVROLET/123",
+      ),
+      dealerListingId(
+        "https://www.salvagezone.com/inventory/salvage/repairable/2024/CHEVROLET/126",
+      ),
+    ]);
     expect(saved[0]).toMatchObject({
       mileage: 37977,
       condition: "rebuilt_title",

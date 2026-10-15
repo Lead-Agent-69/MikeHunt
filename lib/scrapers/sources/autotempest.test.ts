@@ -28,6 +28,22 @@ describe("parseAutotempest", () => {
     price: "$2,600",
     sourceName: "Cars.com",
   };
+  it("normalizes source-provided relative links and never emits unsafe navigation schemes", () => {
+    for (const url of [
+      "//www.autotempest.com/details/abt-123",
+      "/details/abt-123",
+    ])
+      expect(parseAutotempest(resp([{ ...base, url }]))[0].source_url).toBe(
+        "https://www.autotempest.com/details/abt-123",
+      );
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,hi",
+      "https://user:pass@dealer.example/car",
+      "not-a-url",
+    ])
+      expect(parseAutotempest(resp([{ ...base, url }]))[0].source_url).toBe("");
+  });
   it.each([-2600, "-$2,600", "C $2,600", "$2,600 to $3,000"])(
     "does not turn invalid or ambiguous prices into cash: %s",
     (price) => {
