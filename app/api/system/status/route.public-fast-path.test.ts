@@ -1,5 +1,6 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { invalidate } from "@/lib/cache";
+import { InventoryStatusReadError } from "@/lib/public-inventory-status";
 const mocks = vi.hoisted(() => ({ inventory: vi.fn(), client: vi.fn() }));
 vi.mock("@/lib/auth/admin-operations", () => ({
   canManageOperations: async () => false,
@@ -8,7 +9,8 @@ vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: mocks.client,
 }));
-vi.mock("@/lib/public-inventory-status", () => ({
+vi.mock("@/lib/public-inventory-status", async (original) => ({
+  ...(await original<typeof import("@/lib/public-inventory-status")>()),
   publicInventoryStatus: mocks.inventory,
 }));
 vi.mock("@/lib/auth/provider-readiness", async (original) => ({
@@ -26,7 +28,9 @@ beforeEach(() => {
   invalidate();
   vi.clearAllMocks();
   mocks.client.mockReturnValue({});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
+afterEach(() => vi.restoreAllMocks());
 it("shares headline reads and never invokes the full inventory scan for public callers", async () => {
   mocks.inventory.mockResolvedValue({
     activeDeals: 12,
@@ -46,6 +50,39 @@ it("returns friendly non-cacheable failure and recovers on the next request", as
   expect(res.status).toBe(503);
   expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   expect(JSON.stringify(await res.json())).not.toContain("SQL");
+  expect(console.warn).toHaveBeenCalledWith(
+    "[status/public] inventory check failed",
+    { reason: "unexpected" },
+  );
+  expect(JSON.stringify(vi.mocked(console.warn).mock.calls)).not.toContain(
+    "SQL",
+  );
   mocks.inventory.mockResolvedValueOnce({ activeDeals: 2 });
   expect((await GET(req())).status).toBe(200);
+});
+
+it("keeps per-read diagnostics server-only and never caches a failed check", async () => {
+  mocks.inventory.mockRejectedValueOnce(
+    new InventoryStatusReadError("fresh_photos", "deadline", 4001, null),
+  );
+  const response = await GET(req());
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({
+    error: "We couldn't check inventory status. Please try again shortly.",
+  });
+  expect(console.warn).toHaveBeenCalledWith(
+    "[status/public] inventory check failed",
+    {
+      read: "fresh_photos",
+      reason: "deadline",
+      durationMs: 4001,
+      httpStatus: null,
+    },
+  );
+  mocks.inventory.mockResolvedValueOnce({
+    activeDeals: 2,
+    decisionReady: false,
+  });
+  expect((await GET(req())).status).toBe(200);
+  expect(mocks.inventory).toHaveBeenCalledTimes(2);
 });
