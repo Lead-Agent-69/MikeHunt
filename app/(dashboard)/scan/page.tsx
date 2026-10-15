@@ -4720,7 +4720,7 @@ function ScanPageInner() {
         configured={scrapeHealth?.configured}
         onRetry={() => void mutateScrapeHealth()}
       />
-      <details className="glass-panel px-4 py-3 space-y-3">
+      <details open className="glass-panel px-4 py-3 space-y-3">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Filters &amp; view
           {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
