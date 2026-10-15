@@ -1125,6 +1125,19 @@ source-by-source price validation; lightweight feedback with permission-safe
 storage. Test search first; do not equate a parser fixture with a corrected live
 database or a model's comparable count with 20 qualified sold transactions.
 
+DriveNation evidence follow-up: verified the K5 source detail states $19,520 and
+54,124 miles. Its promotional 200-mile shipping radius was being used as the
+odometer by the generic detail fallback. Read explicit `.d-title`/`.d-value`
+fields and bounded JSON-LD mileage; never concatenate arbitrary digits or use
+unlabelled delivery distances. The source registry no longer presumes all
+DriveNation stock is repairable. A bounded dry-run/apply repair script validates
+the project, URL, VIN, explicit all-in price, mileage and title; stores a before
+receipt; compares updated_at before writing; and clears derived estimates instead
+of immediately promising profit. Corrected price history excludes pre-correction
+imports from customer charts without deleting the audit rows. Exact live apply
+and worker rollout receipts must be recorded separately; fixture success is not
+proof those operations ran.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.

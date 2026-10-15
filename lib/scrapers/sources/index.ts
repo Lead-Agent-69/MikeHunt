@@ -15,6 +15,10 @@ import {
 } from "../engine";
 import { upsertDeals } from "../pipeline";
 import {
+  dealerDetailMileage,
+  parseDealerOdometer,
+} from "../platforms/dealer-detail";
+import {
   normalizeCondition,
   resolveListingCondition,
 } from "../normalize-condition";
@@ -1624,16 +1628,19 @@ function parseJsonLdCars($: any) {
 
 function detailValueByLabel($: any, labelPattern: RegExp) {
   let value = "";
-  $(".leftview, .config-label, th, dt").each((_: number, el: any) => {
+  $(".leftview, .config-label, .d-title, th, dt").each((_: number, el: any) => {
     if (value) return;
     const label = textClean($(el).text());
     if (!labelPattern.test(label)) return;
     const sibling = $(el).next();
-    const parentValue = $(el).parent().find(".rightview, td, dd").last();
+    const parentValue = $(el)
+      .parent()
+      .find(".rightview, .d-value, td, dd")
+      .last();
     value = textClean(sibling.text()) || textClean(parentValue.text());
   });
   if (value) return value;
-  $("tr, .row, .product-config tr, .leftview").each((_: number, el: any) => {
+  $("tr, .product-config tr").each((_: number, el: any) => {
     if (value) return;
     const text = textClean($(el).text());
     if (!labelPattern.test(text)) return;
@@ -1646,11 +1653,7 @@ function detailValueByLabel($: any, labelPattern: RegExp) {
 }
 
 function parseDetailMileage(value: string) {
-  const fromText = extractMileage(value);
-  if (fromText) return fromText;
-  const digits = value.replace(/[^0-9]/g, "");
-  const n = Number(digits);
-  return n >= 1 && n <= 500000 ? n : undefined;
+  return parseDealerOdometer(value);
 }
 
 export function extractAeOfMiamiVinFromHtml(html: string) {
@@ -1782,10 +1785,7 @@ async function enrichCdgDetail(
       car.vehicleIdentificationNumber ||
       text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
       undefined;
-    const mileage =
-      Number(car.mileageFromOdometer?.value) ||
-      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
-      extractMileage(text);
+    const mileage = dealerDetailMileage($, car.mileageFromOdometer);
     const titleText =
       car.additionalProperty?.find?.((entry: any) =>
         /title/i.test(String(entry?.name || "")),
@@ -1799,7 +1799,7 @@ async function enrichCdgDetail(
     return {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
-      mileage: mileage || deal.mileage,
+      mileage: mileage ?? deal.mileage,
       // A title the detail page states wins; else keep what the card gave us (stated or default).
       ...(conditionFromTitle(titleText)
         ? resolveListingCondition(conditionFromTitle(titleText))
@@ -1892,10 +1892,7 @@ async function enrichCdgDetailLegacy(
       car.vehicleIdentificationNumber ||
       text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
       undefined;
-    const mileage =
-      Number(car.mileageFromOdometer?.value) ||
-      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
-      extractMileage(text);
+    const mileage = dealerDetailMileage($, car.mileageFromOdometer);
     const titleText =
       car.additionalProperty?.find?.((entry: any) =>
         /title/i.test(String(entry?.name || "")),
@@ -1909,7 +1906,7 @@ async function enrichCdgDetailLegacy(
     return {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
-      mileage: mileage || deal.mileage,
+      mileage: mileage ?? deal.mileage,
       // A title the detail page states wins; else keep what the card gave us (stated or default).
       ...(conditionFromTitle(titleText)
         ? resolveListingCondition(conditionFromTitle(titleText))
