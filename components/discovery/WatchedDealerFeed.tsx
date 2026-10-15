@@ -7,10 +7,19 @@ import type {
   DiscoverResponse,
   DiscoveryDeal,
 } from "@/components/discovery/types";
+import { RefreshCw } from "lucide-react";
 
 // Watched shops are a discovery rail, not a scan proof board. Rows come from
 // /api/discover?dealerSourceIds= and render as DiscoveryCards.
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const response = await fetch(url);
+  const data = await response.json();
+  if (!response.ok || data?.error || data?.degraded)
+    throw new Error("Watched listings unavailable");
+  if (!data || !Array.isArray(data.rails))
+    throw new Error("Watched listings unavailable");
+  return data as DiscoverResponse;
+};
 
 export function WatchedDealerFeed() {
   const watch = useDealerWatch();
@@ -19,9 +28,13 @@ export function WatchedDealerFeed() {
   const key = sourceIds.length
     ? `/api/discover?dealerSourceIds=${encodeURIComponent(sourceIds.join(","))}`
     : null;
-  const { data } = useSWR<DiscoverResponse>(key, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data, error, isLoading, mutate } = useSWR<DiscoverResponse>(
+    key,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+    },
+  );
 
   if (!watch.hosts.length) return null;
 
@@ -48,21 +61,43 @@ export function WatchedDealerFeed() {
           </span>
         </h2>
       </div>
+      {sourceIds.length > 0 && error && (
+        <div role="alert" className="mb-3 text-xs text-[var(--t3)]">
+          <p>
+            We couldn't load your watched dealers. Your saved shops haven't
+            changed.
+          </p>
+          <button
+            type="button"
+            onClick={() => void mutate().catch(() => {})}
+            className="mt-1 inline-flex min-h-11 items-center gap-2 text-[var(--blue)] font-semibold"
+            aria-label="Retry watched dealer listings"
+          >
+            <RefreshCw size={14} aria-hidden="true" /> Try again
+          </button>
+        </div>
+      )}
       {!sourceIds.length ? (
         <p className="text-xs leading-relaxed text-[var(--t4)]">
           These shops are not on the discovery dealer list yet.
         </p>
-      ) : !deals.length ? (
-        <p className="text-xs leading-relaxed text-[var(--t4)]">
-          No discovery cards for these shops yet.
+      ) : !data && isLoading ? (
+        <p role="status" className="text-xs leading-relaxed text-[var(--t4)]">
+          Checking your watched dealers...
         </p>
-      ) : (
+      ) : !deals.length && !error ? (
+        <p className="text-xs leading-relaxed text-[var(--t4)]">
+          {data?.configured === false
+            ? "Dealer inventory isn't available yet. Your watched shops are saved."
+            : "No recent matching vehicles to show. Open a watched shop below to review its listings."}
+        </p>
+      ) : deals.length > 0 ? (
         <div className="scrollbar-hide -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
           {deals.map((deal) => (
             <DiscoveryCard key={deal.id} deal={deal} />
           ))}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

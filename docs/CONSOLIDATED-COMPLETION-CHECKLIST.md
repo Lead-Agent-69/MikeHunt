@@ -1003,6 +1003,27 @@ Related evidence:
 
 ### Product Promise Gates Still Open
 
+#### Chrome Owner-Session QA Follow-Up
+
+- Chrome automation reconnected after the user reopened their signed-in session.
+  `/admin` loaded actual inventory/account/source aggregates, and `/orchestrator`
+  loaded 33 configured sources (24 enabled, 10 meeting its health threshold).
+  Those are run-history indicators, not proof of statewide listing completeness.
+  Owner-only Admin dashboard and Source operations links appeared after the
+  server-backed account check settled. No credentials or grants were changed.
+- The bounded Missouri photo task returned its controls to idle, but its toast
+  was too transient to retain a reviewable result. Maintenance now retains the
+  latest counted success/partial/failure receipt on the dashboard until another
+  task starts or the page is left. Confirmed writes remain visible even when a
+  subsequent dashboard refresh fails. This is not a durable cross-session log.
+- Watched-dealer UI previously treated loading and HTTP/soft failures as empty
+  inventory. It now separates loading, retryable failure, unconfigured inventory
+  and genuine empty results, and retains previously loaded cards on refresh
+  failure. This corrects reporting; it does not claim new dealer imports.
+- Admin stored-model outputs are no longer called high-confidence buys. Missing
+  net estimates stay unavailable rather than becoming zero; raw diagnostics
+  remain available to the owner without becoming purchase recommendations.
+
 #### 2026-10-15 Source Coverage And Live QA Follow-Up
 
 - Read-only production snapshot at 07:55 UTC: Missouri had 3,354 active rows,
