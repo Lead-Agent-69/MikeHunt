@@ -148,7 +148,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             browse(event.key === "ArrowRight" ? 1 : -1);
           }
         }}
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 md:-mx-6 md:scroll-px-6 md:px-6"
+        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 md:-mx-6 md:scroll-px-6 md:px-6 lg:mx-0 lg:scroll-px-0 lg:px-0"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
@@ -670,7 +670,7 @@ export default function DiscoverPage() {
 
       {/* Body */}
       {(!discoverReady || isLoading) && !data ? (
-        <div className="space-y-8">
+        <div className="grid min-w-0 grid-cols-1 items-start gap-8 lg:grid-cols-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <RailSkeleton key={i} />
           ))}
@@ -726,7 +726,7 @@ export default function DiscoverPage() {
           </div>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="grid min-w-0 grid-cols-1 items-start gap-8 lg:grid-cols-2">
           {visibleRails.map((rail) => (
             <Rail key={rail.key} rail={rail} />
           ))}
