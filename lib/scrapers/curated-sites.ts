@@ -291,7 +291,7 @@ export const CURATED_SITES: CuratedSite[] = [
   // ── Platform dealers found 2026-10-10 by footprint (one polite fetch each: robots allowed, terms
   //    silent on automated access, priced cars/trucks parsed by the shared dealer-CMS parser) ──
   // Creative Design Group / Smart Marketing ("Website Designed by Creative Design Group", vehiclesDetail.php)
-  { url: "https://www.drivenation.com", name: "DriveNation", state: "MO", city: "Jackson", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.drivenation.com/vehicles.php" },
+  { url: "https://www.drivenation.com", name: "DriveNation", state: "MO", city: "Jackson", type: "independent_dealer", platform: "4cdg", inventoryUrl: "https://www.drivenation.com/vehicles.php" },
   // VehiclesNETWORK / apogeeINVENT independent-dealer sites ("Powered by VehiclesNETWORK", /autos)
   { url: "https://www.usedcarsokc.com", name: "Super Sports & Imports", state: "OK", city: "Oklahoma City", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.usedcarsanchorageak.com", name: "Lyberger's Car & Truck Sales", state: "AK", city: "Anchorage", type: "independent_dealer", platform: "vehiclesnetwork" },
