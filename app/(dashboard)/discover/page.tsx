@@ -449,10 +449,20 @@ export default function DiscoverPage() {
         <p className="mt-1 text-xs font-bold text-[var(--t1)] md:text-sm">
           {activeScopeLabel}
         </p>
+        {discoverReady && (
+          <Link
+            href={`/scan${scopeQuery}`}
+            prefetch={false}
+            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-4 py-2.5 text-sm font-bold text-white"
+          >
+            <ScanSearch size={18} aria-hidden="true" />
+            Search cars
+          </Link>
+        )}
         <div className="grid grid-cols-2 items-start gap-x-3">
           <details className="mt-2 open:col-span-2">
             <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] md:text-sm">
-              Search filters
+              Quick filters
             </summary>
             <form
               className="flex flex-col gap-3"
@@ -543,9 +553,9 @@ export default function DiscoverPage() {
                   <Link
                     href={`/scan${scopeQuery}`}
                     prefetch={false}
-                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--amber)]"
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
                   >
-                    Browse inventory
+                    All filters & results
                   </Link>
                 )}
               </div>

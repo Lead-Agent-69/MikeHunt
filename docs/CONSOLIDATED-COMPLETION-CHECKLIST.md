@@ -1104,6 +1104,27 @@ price/card-navigation matrix passed all 35 cases across the five Chromium sizes,
 WebKit phone and Firefox desktop, covering every ordinary desk. This closes all
 five diagnostic visibility failures, not a claim of a single 100/100 rerun.
 
+Recording QA follow-up (2026-10-15): confirmed DriveNation's inventory lists
+Savings before All In Price and Retail. The shared CMS parser now prioritizes the
+seller's all-in/sale asking price and excludes savings, retail references and
+financing-only amounts. Regression fixtures cover the reported Kia-shaped case
+and card-to-deal import. This does NOT repair existing stored rows, rebuild the
+running worker, or validate the valuation model. Recollect affected source rows
+with the corrected worker, invalidate derived estimates and verify source detail
+receipts before calling historical prices corrected.
+
+Search usability follow-up: expose Max Miles and Source in the main results bar;
+name the additional filter disclosure Year, distance & condition; add a visible
+Search cars entry above Discover's compact filters; style Save buying preferences
+as the primary form action. Existing mode-specific capabilities remain preserved.
+
+Recording follow-ups still open: single-owner workspace simplification without
+destroying archived capabilities; compact sparse discovery rails; radius-first
+search across state borders; comparable-row provenance and estimate eligibility;
+source-by-source price validation; lightweight feedback with permission-safe
+storage. Test search first; do not equate a parser fixture with a corrected live
+database or a model's comparable count with 20 qualified sold transactions.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.

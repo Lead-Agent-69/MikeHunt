@@ -48,13 +48,21 @@ describe("platform dealers (no per-site config)", () => {
   it("builds a VehiclesNETWORK config from a registry line", () => {
     expect(vn.inventoryUrl).toBe("https://www.usedcarsokc.com/autos");
     expect(vn.sourceId).toBe("vehiclesnetwork-usedcarsokc-com");
-    expect(pageUrlFor(vn, 3)).toBe("https://www.usedcarsokc.com/autos?ai_page=3");
-    expect(VEHICLESNETWORK_DETAIL.test("autos/2015-Nissan-Armada-Oklahoma-City-OK-2711")).toBe(true);
+    expect(pageUrlFor(vn, 3)).toBe(
+      "https://www.usedcarsokc.com/autos?ai_page=3",
+    );
+    expect(
+      VEHICLESNETWORK_DETAIL.test(
+        "autos/2015-Nissan-Armada-Oklahoma-City-OK-2711",
+      ),
+    ).toBe(true);
     expect(VEHICLESNETWORK_DETAIL.test("applications?autoID=2711")).toBe(false);
   });
 
   it("reads VehiclesNETWORK cards: sale price over payments, title without spec labels", () => {
-    const page = parseListingPage(cheerio.load(VN_PAGE), vn.inventoryUrl, [vn.detailPattern!]);
+    const page = parseListingPage(cheerio.load(VN_PAGE), vn.inventoryUrl, [
+      vn.detailPattern!,
+    ]);
     expect(page.lastPage).toBe(21);
     const deals = page.cards.map((c) => cardToDeal(c, vn));
     expect(deals[0]).toMatchObject({
@@ -64,7 +72,8 @@ describe("platform dealers (no per-site config)", () => {
       ask_price: 10900,
       mileage: 124613,
       location_state: "OK",
-      source_deal_id: "vehiclesnetwork-usedcarsokc-com-2015-Nissan-Armada-Oklahoma-City-OK-2711",
+      source_deal_id:
+        "vehiclesnetwork-usedcarsokc-com-2015-Nissan-Armada-Oklahoma-City-OK-2711",
     });
     expect(deals[1]).toMatchObject({ ask_price: 7900, mileage: 109074 });
   });
@@ -83,8 +92,22 @@ describe("platform dealers (no per-site config)", () => {
   });
 
   it("untagged or stateless registry lines keep their existing crawl path", () => {
-    expect(dealerCmsSiteFromCurated({ url: "https://x.example", name: "x", state: "TX", type: "independent_dealer" })).toBeUndefined();
-    expect(dealerCmsSiteFromCurated({ url: "https://x.example", name: "x", type: "independent_dealer", platform: "4cdg" })).toBeUndefined();
+    expect(
+      dealerCmsSiteFromCurated({
+        url: "https://x.example",
+        name: "x",
+        state: "TX",
+        type: "independent_dealer",
+      }),
+    ).toBeUndefined();
+    expect(
+      dealerCmsSiteFromCurated({
+        url: "https://x.example",
+        name: "x",
+        type: "independent_dealer",
+        platform: "4cdg",
+      }),
+    ).toBeUndefined();
   });
 
   it("every platform-tagged registry site has a state and a parser config", () => {
@@ -98,15 +121,63 @@ describe("platform dealers (no per-site config)", () => {
 });
 
 describe("price and mileage guards", () => {
+  it("uses DriveNation's all-in price, never the advertised savings or retail reference", () => {
+    expect(
+      parsePrice(
+        "2023 Kia K5 LXS Savings: $2,180 All In Price $18,520 Retail $20,700",
+      ),
+    ).toBe(18520);
+    expect(
+      parsePrice("Retail Price $20,700 Savings: $2,180 All In Price $18,520"),
+    ).toBe(18520);
+    expect(parsePrice("Savings: $2,180 Retail $20,700")).toBeUndefined();
+    expect(parsePrice("You Save: $2,180 MSRP: $20,700")).toBeUndefined();
+    expect(parsePrice("$2,180 savings All-In Price: $18,520")).toBe(18520);
+  });
+
+  it("does not turn reference or financing-only amounts into a cash asking price", () => {
+    expect(parsePrice("Retail Price $24,000 Sale Price $19,500")).toBe(19500);
+    expect(parsePrice("Was: $24,000 Now: $19,500")).toBe(19500);
+    expect(parsePrice("Down Payment: $2,180 $350/mo")).toBeUndefined();
+    expect(parsePrice("Rebate: $2,180 Discount: $1,000")).toBeUndefined();
+  });
+
+  it("imports the asking price from a savings-first CMS card end to end", () => {
+    const site = dealerCmsSiteFromCurated(
+      CURATED_SITES.find((s) => s.url === "https://www.drivenation.com")!,
+    )!;
+    const page = parseListingPage(
+      cheerio.load(
+        `<div><a href="vehiclesDetail.php?123"><h3>2023 Kia K5 LXS</h3><img src="/k5.jpg"></a><p>47,729 Mi</p><p>Savings: $2,180</p><p>All In Price $18,520</p><p>Retail $20,700</p></div>`,
+      ),
+      site.inventoryUrl,
+    );
+    expect(page.cards).toHaveLength(1);
+    expect(cardToDeal(page.cards[0], site)).toMatchObject({
+      ask_price: 18520,
+      year: 2023,
+      make: "Kia",
+      mileage: 47729,
+    });
+  });
+
   it("skips payment amounts", () => {
-    expect(parsePrice("Payment Amount: $325.00 Sale Price $ 10,900 00")).toBe(10900);
-    expect(parsePrice("Down Payment: $299.00 Price: $299 Down $8,995 $210 Bi-Weekly")).toBe(8995);
+    expect(parsePrice("Payment Amount: $325.00 Sale Price $ 10,900 00")).toBe(
+      10900,
+    );
+    expect(
+      parsePrice(
+        "Down Payment: $299.00 Price: $299 Down $8,995 $210 Bi-Weekly",
+      ),
+    ).toBe(8995);
     expect(parsePrice("$350/mo or $14,500")).toBe(14500);
     expect(parsePrice("$12,500")).toBe(12500);
   });
 
   it("never reads 4x4 or a price as the odometer", () => {
-    expect(parseMiles("Big Horn 2500 4x4 $29,500 Miles: 83,698 Title: Rebuilt")).toBe(83698);
+    expect(
+      parseMiles("Big Horn 2500 4x4 $29,500 Miles: 83,698 Title: Rebuilt"),
+    ).toBe(83698);
     expect(parseMiles("$9,300 Miles: 20,391")).toBe(20391);
     expect(parseMiles("47k / Front / $5,450")).toBe(47000);
     expect(parseMiles("Runs 120,000 miles")).toBe(120000);
