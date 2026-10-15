@@ -40,6 +40,21 @@ vi.mock("@/lib/server-supabase", () => ({
 }));
 
 describe("production scoped scrape queue", () => {
+  it("does not drop radius criteria and queue a broader source job", async () => {
+    enqueueScopedScrapeJob.mockClear();
+    const { POST } = await import("./route");
+    const response = await POST(
+      new NextRequest("https://app.test/api/scrape/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scope: { state: "MO", zip: "63101", radius: 50 },
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(enqueueScopedScrapeJob).not.toHaveBeenCalled();
+  });
   it("queues the resolved runner and exact dealer scope without loading a scraper", async () => {
     const { POST } = await import("./route");
     const request = new NextRequest("https://app.test/api/scrape/run", {

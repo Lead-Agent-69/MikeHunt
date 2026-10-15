@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { nearbySearchDraft } from "./nearby-search-draft";
+import {
+  hasRadiusCollectionScope,
+  nearbySearchDraft,
+} from "./nearby-search-draft";
 
 describe("nearby search scope", () => {
+  it("recognizes unsupported collection location fields without rejecting state-only searches", () => {
+    expect(hasRadiusCollectionScope({ zip: "63101", radius: 50 })).toBe(true);
+    expect(hasRadiusCollectionScope({ radiusMiles: 100 })).toBe(true);
+    expect(
+      hasRadiusCollectionScope({ state: "MO", states: ["MO", "IL"] }),
+    ).toBe(false);
+    expect(hasRadiusCollectionScope(null)).toBe(false);
+  });
   it("removes a state boundary once the user enters a complete ZIP", () => {
     expect(nearbySearchDraft("63101")).toEqual({
       zip: "63101",
