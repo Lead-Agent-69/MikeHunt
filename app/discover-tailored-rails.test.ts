@@ -21,7 +21,7 @@ describe("discover tailored rails by buyer mode", () => {
     expect(rails).toContain('PARTS_HIDDEN = ["roi", "auctionLots", "fresh"]');
   });
 
-  it("exposes parts as a real buyer mode that maps to the parts desk", () => {
+  it("retains legacy parts compatibility without presenting role selection in onboarding", () => {
     const intent = readFileSync("hooks/useBuyerIntent.ts", "utf8");
     const saved = readFileSync("lib/buyer/saved-buyer-mode.ts", "utf8");
     const onboarding = readFileSync("app/onboarding/page.tsx", "utf8");
@@ -29,7 +29,7 @@ describe("discover tailored rails by buyer mode", () => {
     expect(intent).toContain("Parts / teardown");
     expect(saved).toContain('mode === "parts"');
     expect(saved).toContain('return "parts"');
-    expect(onboarding).toContain("parts:");
-    expect(onboarding).toContain("For cores and teardown");
+    expect(onboarding).toContain("BUYING_WORKSPACE_MODE");
+    expect(onboarding).not.toContain("For cores and teardown");
   });
 });

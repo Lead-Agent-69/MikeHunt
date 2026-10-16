@@ -28,7 +28,7 @@ describe("signed-out nav", () => {
     });
   });
 
-  it("flags the mobile tabs and exposes Market before Discover", () => {
+  it("flags the mobile tabs the same way and keeps five task-focused tabs", () => {
     const tabs = mobileNavForMode(undefined).map((item) =>
       navItemForViewer(item, true),
     );

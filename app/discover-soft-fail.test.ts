@@ -10,7 +10,8 @@ describe("discover soft-fail honesty", () => {
     expect(page).toContain("not running a live market scan");
     expect(page).toContain("Checking saved listings");
     expect(page).not.toMatch(/live results/i);
-    expect(page).toContain("matching results");
+    expect(page).toContain("marketListingsContext");
+    expect(page).toContain("{marketContext}");
     expect(page).not.toMatch(/Live Scanner/i);
     expect(page).not.toMatch(/constantly scanning/i);
   });

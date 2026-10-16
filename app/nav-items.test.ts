@@ -33,7 +33,7 @@ describe("primaryJobForPath", () => {
     ).toContain("/lane");
   });
   it("keeps secondary pages under the five main jobs", () => {
-    expect(primaryJobForPath("/")).toBe("Market");
+    expect(primaryJobForPath("/")).toBe("Market Explorer");
     expect(primaryJobForPath("/feed")).toBe("Discover");
     expect(primaryJobForPath("/find")).toBe("Discover");
     expect(primaryJobForPath("/scan")).toBe("Discover");
@@ -51,7 +51,7 @@ describe("primaryJobForPath", () => {
     expect(primaryJobForPath("/move")).toBe("Pipeline");
     expect(primaryJobForPath("/finance")).toBeNull();
     expect(primaryJobForPath("/best-buy")).toBe("Discover");
-    expect(primaryJobForPath("/market")).toBe("Market");
+    expect(primaryJobForPath("/market")).toBe("Market Explorer");
     expect(primaryJobForPath("/deal-check")).toBe("Deal Check");
     expect(primaryJobForPath("/lane")).toBe("Auction Lane");
     expect(primaryJobForPath("/auctions")).toBe("Auction Lane");
@@ -92,7 +92,7 @@ describe("primaryJobForPath", () => {
 
   it("keeps the primary nav to the core buyer workflow", () => {
     expect(PRIMARY.map((item) => item.name)).toEqual([
-      "Market",
+      "Market Explorer",
       "Discover",
       "Saved",
       "Pipeline",
@@ -111,7 +111,7 @@ describe("primaryJobForPath", () => {
       "Auction Lane",
       "Deal Check",
       "Discover",
-      "Market",
+      "Market Explorer",
       "Pipeline",
       "Saved",
     ]);
@@ -207,7 +207,7 @@ describe("primaryJobForPath", () => {
     for (const mode of ["personal", "diy", "parts"]) {
       expect(hidesFlipNav(mode)).toBe(true);
       expect(primaryNavForMode(mode).map((item) => item.name)).toEqual([
-        "Market",
+        "Market Explorer",
         "Discover",
         "Saved",
         mode === "personal" ? "Purchase plan" : "Plan",

@@ -6,7 +6,8 @@ const read = (p: string) => readFileSync(p, "utf8");
 describe("legacy location readers prefer the #66 fields", () => {
   it("NearbyDeals centers on effectiveHome, not raw carsState", () => {
     const src = read("components/discovery/NearbyDeals.tsx");
-    expect(src).toContain('effectiveHome(prefs)?.state || ""');
+    expect(src).toContain("const savedHome = effectiveHome(prefs)");
+    expect(src).toContain('savedHome?.state || ""');
     expect(src).not.toContain("prefs.carsState ||");
   });
 

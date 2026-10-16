@@ -45,13 +45,20 @@ export async function loginViaUi(
   await page.locator('button[type="submit"]').click();
 }
 
-/** Walks the 4-step onboarding: desk -> Nationwide scope -> comfort -> "See my matches". */
+export async function logoutViaUi(page: Page) {
+  assertLocalTarget("sign out");
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login/);
+}
+
+/** Unified buying setup; optional legacy desk fixtures are seeded explicitly through the local API. */
 export async function completeOnboarding(page: Page, desk: Desk) {
   assertLocalTarget("save onboarding preferences");
-  const deskButton = page.getByRole("button", { name: DESK_LABEL[desk] });
-  await expect(deskButton).toBeEnabled({ timeout: 20_000 });
-  await deskButton.click();
-  await expect(deskButton).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Continue/ })).toBeEnabled({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("Buyer mode", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /^Continue/ }).click();
   await page.locator("select").first().selectOption("Nationwide");
   for (let i = 0; i < 4; i++) {
@@ -63,4 +70,10 @@ export async function completeOnboarding(page: Page, desk: Desk) {
     await page.getByRole("button", { name: /^Continue/ }).click();
   }
   await page.waitForURL(/\/discover/, { timeout: 30_000 });
+  if (desk !== "reseller") {
+    const legacy = await page.request.put("/api/preferences", {
+      data: { buyerScope: { buyerMode: desk } },
+    });
+    expect(legacy.ok()).toBe(true);
+  }
 }

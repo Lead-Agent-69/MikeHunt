@@ -117,6 +117,49 @@ beforeEach(() => {
 });
 
 describe("GET /api/deals/near zip-radius", () => {
+  it("a St. Louis 50-mile search includes nearby Illinois, not Chicago or unlocated cars", async () => {
+    geocode.mockResolvedValue({ lat: 38.63, lng: -90.2 });
+    dealRows.rows = [
+      {
+        ...row("st-louis", "hold", 38.63, -90.2, "St. Louis"),
+        location_state: "MO",
+      },
+      {
+        ...row("belleville", "pass", 38.52, -89.98, "Belleville"),
+        location_state: "IL",
+      },
+      {
+        ...row("chicago", "pass", 41.88, -87.63, "Chicago"),
+        location_state: "IL",
+      },
+      {
+        ...row("unlocated", "pass", null, null, "St. Louis"),
+        location_state: "MO",
+      },
+    ];
+    const body = await near("zip=63101&radius=50");
+    expect(body).toMatchObject({ scope: "radius", radiusMiles: 50 });
+    expect(body.deals.map((d: any) => d.id)).toEqual([
+      "st-louis",
+      "belleville",
+    ]);
+    expect(calls).not.toContainEqual(["eq", "location_state", "MO"]);
+    const stateOnly = await near("zip=63101");
+    expect(stateOnly.scope).toBe("state");
+    expect(stateOnly.deals.map((d: any) => d.id)).toEqual([
+      "st-louis",
+      "unlocated",
+    ]);
+  });
+
+  it("does not query an unbounded region when the center coordinates are invalid", async () => {
+    geocode.mockResolvedValue({ lat: NaN, lng: -90.2 });
+    expect(await near("zip=63101&radius=50")).toMatchObject({
+      needsLocation: true,
+      deals: [],
+    });
+    expect(calls).toEqual([]);
+  });
   it("returns a retryable failure instead of pretending a database failure means no inventory", async () => {
     dealRows.error = { message: "private database diagnostic" };
     const response = await GET(

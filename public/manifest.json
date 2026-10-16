@@ -3,7 +3,7 @@
   "short_name": "MikeHunt",
   "id": "/",
   "description": "Compare vehicle listings, review available evidence, and plan purchase costs. Source availability and verification vary.",
-  "start_url": "/discover",
+  "start_url": "/market",
   "display": "standalone",
   "background_color": "#F6F8FB",
   "theme_color": "#075BE8",

@@ -6,6 +6,132 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Recorded Walkthrough Follow-Through (October 15, 2026)
+
+Branch: `codex/walkthrough-search-acceptance`, including main through #425.
+This section supersedes the earlier multi-persona product direction for the
+buying interface. It does not grant admin access or remove account isolation.
+
+Implemented in modular commits:
+
+- One buying setup and preference form, with the old persona choice archived
+  when the user confirms a save. No dealer/personal role selector or purchase
+  upgrade requirement. Existing accounts and protected administration remain.
+- Always-visible inventory view links and quick filters, prominent primary save
+  actions, plus directly reachable model, mileage, multiple sources, ZIP and
+  radius controls. Secondary insights mount only when requested. Late activity
+  recommendations follow the main inventory so they cannot move its first card
+  out from under a click.
+- Cross-border radius filtering runs in PostgreSQL before sorting, counting and
+  pagination. Scan, facets, Feed and Map share the same location scope; a ZIP is
+  not also treated as an exact postal-code filter. Unresolved locations fail
+  clearly rather than silently widening the search. Listings without coordinates
+  cannot be placed inside a radius. Map's All view is distinct from Review/GO/HOLD.
+- Sort choices now survive the Scan response normalization. Qualified price gap
+  is explicitly before costs, separate from net profit; unverified asking amounts
+  and unsupported valuations cannot qualify for this new sort.
+- Why shown exposes recorded reference values, comp type/count/scope, mileage
+  and title multipliers, evidence flags and genuine calculation timestamps.
+  Missing inputs and unretained individual comparable IDs stay explicit, not
+  invented. This is not proof of valuation accuracy against completed sales.
+- Listing issue reports use the signed-in account's RLS client, bounded text,
+  owner isolation, immutable records, daily limits and idempotent receipts.
+  Failed submissions retain their text. Reports survive removal of the listing.
+
+Required release order: independent review of this exact code/SQL head, current
+primary-project storage/compute headroom, targeted application of the following
+three migrations to `qupzqpezslsbobhugswp`, then app deployment and hosted QA:
+
+1. `20261016005413_listing_feedback.sql`
+2. `20261016005724_qualified_listing_margin.sql`
+3. `20261016011958_radius_inventory_search.sql`
+
+Do not use a blanket database push: unrelated unapplied migrations need their own
+review. The new schema has been exercised only on guarded local Docker databases;
+no production apply, full rescore, cleanup or worker recreation is implied.
+The service-only invoker radius function uses schema-qualified references and an
+inlineable SQL text body so later inventory columns do not break it. Local JSON
+execution-plan QA checks for no Function Scan after adding a future column; outer
+filters/order/limits can reach the indexed inventory query. A function SET clause
+would prevent that optimization. Production plans, configured API search path,
+latency and capacity still require independent review and measurement.
+The local advisor flags `inventory_within_radius` with
+`function_search_path_mutable` (WARN) because there is no function SET clause.
+This tradeoff needs exact-head security review of the service-only grant,
+qualified references and configured API search path before production apply;
+do not silence the advisor project-wide. See
+[PostgREST function inlining](https://docs.postgrest.org/en/v14/references/api/functions.html#function-inlining).
+
+Walkthrough acceptance checks:
+
+- `e2e/walkthrough-feedback.spec.ts`: visible search/view controls, actual
+  St. Louis/Belleville radius results excluding Chicago across inventory APIs,
+  qualified gap order, preference save/reload and database-confirmed reports.
+- `e2e/discovery-priority.spec.ts`: first vehicle price remains above navigation
+  on desktop, narrow phones and both tablet orientations; tapping it opens that
+  vehicle. Legacy account data is compatibility coverage, not new persona UI.
+- `node scripts/test-listing-feedback.mjs`: disposable local PostgreSQL tests
+  actual grants/RLS, forged ownership, modification denial, daily quota, report
+  survival, evidence-qualified margins, cross-border/dateline radius and later
+  inventory-column compatibility. It never targets the hosted database.
+- Core account and bookmark checks block service workers, consistent with the other isolated
+  persistence tests. Playwright supports worker automation only on Chromium;
+  `e2e/pwa-registration.spec.ts` separately allows the real worker and checks
+  activation, private-cache exclusion, offline navigation and recovery there.
+  Real Safari/iOS PWA and alert delivery remain hosted device gates. This is test
+  isolation, not a production feature toggle or an ignored page-error assertion.
+  The full affected-flow matrix first passed 173/174: Firefox's automated profile
+  threw `AbortError: Error retrieving push subscription` before Supabase logout.
+  Direct diagnostics reproduced the failure in `pushManager.getSubscription()`.
+  Account tests now isolate that unsupported browser push service; production
+  device-detachment protections remain unchanged and real-device logout with
+  push enabled is still required. The original failure receipt is retained.
+
+Local release receipts (October 15/16):
+
+- Normal pre-push verification passed 619 unit files / 4,041 tests, typecheck,
+  lint (existing warnings, no errors) and the production build. CI also passed
+  for application head `483f55a6`; the following change is test isolation/docs only.
+- The serial seven-project affected-flow run passed 173/174 before account-test
+  worker isolation. All view, first-price/card-click, filter/radius/pagination,
+  bookmark, preferences and report cases passed. The isolated account rerun then
+  passed all 20 checks, including six setup cases, across those seven projects.
+  This is a failure plus a targeted clean rerun, not a claim of 174/174 in one run.
+- The earlier serial WebKit run passed 47/48; its unsupported worker/bookmark
+  case passed in the isolated eight-case rerun. The dedicated Chromium worker
+  integration passed seven checks including six setup cases. A separate manual
+  browser check verified the actual offline Try again button returns to Settings
+  online with no page errors. Its first attempt had gone offline before the page
+  was worker-controlled; the successful check waited for the controller first.
+- Final desktop, 320px phone, landscape tablet and WebKit screenshots were
+  inspected. Receipts, including original failures, remain under the ignored
+  `F:/MikeHunt/docker` QA location, not Git or hosted storage. These use synthetic
+  local accounts and fixtures; they do not certify live inventory or device FPS.
+
+Manual hosted acceptance after the gated rollout:
+
+1. Search ZIP `63101` within 50 miles. Check actual distances and both sides of
+   the state border; no exact-ZIP or home-state constraint should remain.
+2. Choose a make/model, maximum mileage and two sources. Open Results, Feed and
+   Map: the search scope must remain intact. Clear filters to restore inventory.
+3. Choose Highest price gap, then Highest net profit. Confirm the distinction
+   between before-cost gap and after-cost estimates. Open Why shown and compare
+   the recorded inputs with the original seller's actual asking price.
+4. Save buying preferences, reload and sign back in. Confirm the saved values,
+   no persona prompt, and no access to administration from an ordinary account.
+5. Report incorrect data and verify the stored receipt; exercise a failed/retried
+   submission. Tap the first visible car's price on phone/tablet/desktop, then
+   return to the search without losing its filters or hiding controls.
+
+Still open beyond this branch: source-wide corrected-price/gallery ingestion,
+Zeus rollout receipts, held-out valuation outcomes, independently reviewed safe
+retention, measured hosted free-tier capacity, actual email/push delivery and
+physical-device performance. Browser access to the signed-in hosted account is
+currently unavailable; local synthetic-account QA is not a substitute for it.
+Local security advisors also report five existing unrelated errors: the
+`source_health` definer view and RLS-disabled `spatial_ref_sys`, `price_history`,
+`scraper_runs`, `source_url_cache`. These need scoped review, not blind RLS changes.
+
 ### October 14 Release And Inventory Integrity
 
 - #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree

@@ -5,7 +5,7 @@ const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
 const insightsStart = page.indexOf("Market insights and saved interests");
 const insights = page.slice(
   insightsStart,
-  page.indexOf("</details>", insightsStart),
+  page.indexOf("{/* Body */}", insightsStart),
 );
 
 describe("Discover market insights by buyer desk", () => {

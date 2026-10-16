@@ -1,13 +1,18 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-describe("NearbyDeals state scope", () => {
+describe("NearbyDeals search scope", () => {
   const src = readFileSync("components/discovery/NearbyDeals.tsx", "utf8");
 
-  it("asks for one state and does not add neighbor states", () => {
+  it("uses ZIP/radius across borders, with a state-only fallback when no ZIP is set", () => {
     expect(src).not.toContain("nearbyStates");
     expect(src).not.toContain("neighbor");
     expect(src).toContain("`/api/scan?states=${center}&sort=${sort}`");
+    expect(src).toContain(
+      "`/api/scan?zip=${zip}&radius=${radius}&sort=${sort}`",
+    );
+    expect(src).toContain('aria-label="Nearby radius"');
+    expect(src).not.toContain("keepPreviousData: true");
     // Profit ranking only for a saved reseller/dealer desk; everyone else asks for trust ranking.
     expect(src).toMatch(
       /isFlipBuyerMode\(prefs\?\.buyerScope\?\.buyerMode\)\s*\?\s*"profit"\s*:\s*"score"/,

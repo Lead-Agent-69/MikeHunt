@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
-  CarFront,
-  Wrench,
-  TrendingUp,
-  Building2,
-  Package,
   MapPin,
   ShieldCheck,
   Sparkles,
@@ -25,12 +20,14 @@ import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
-  BUYER_MODES,
-  buildBuyerIntentQuery,
   type BuyerIntent,
   type BuyerMode,
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import {
+  BUYING_WORKSPACE_MODE,
+  buyingWorkspaceScope,
+} from "@/lib/buyer/workspace-scope";
 import {
   onboardingHomeState,
   onboardingLocationPatch,
@@ -47,38 +44,6 @@ const VEHICLES = [
   "Luxury",
   "Hybrid / EV",
 ];
-const MODE_VISUALS = {
-  personal: {
-    icon: CarFront,
-    position: "0%",
-    caption: "For everyday life",
-    color: "#176d51",
-  },
-  diy: {
-    icon: Wrench,
-    position: "25%",
-    caption: "For your next project",
-    color: "#9b6014",
-  },
-  parts: {
-    icon: Package,
-    position: "50%",
-    caption: "For cores and teardown",
-    color: "#7a4a1a",
-  },
-  reseller: {
-    icon: TrendingUp,
-    position: "75%",
-    caption: "For your next opportunity",
-    color: "#126a89",
-  },
-  dealer: {
-    icon: Building2,
-    position: "100%",
-    caption: "For your business",
-    color: "#315bd7",
-  },
-};
 const TITLES = [
   { value: "all", label: "Any title" },
   { value: "clean", label: "Clean title only" },
@@ -120,12 +85,11 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
+  const buyerMode: BuyerMode = BUYING_WORKSPACE_MODE;
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [accountRequired, setAccountRequired] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const modeTouchedRef = useRef(false);
   const [vehicles, setVehicles] = useState<string[]>([]);
   const vehicle = vehicles.length ? vehicles.join(", ") : "All vehicle types";
   const [state, setState] = useState("");
@@ -170,7 +134,7 @@ export default function OnboardingPage() {
           router.replace(
             new URL(destination, window.location.origin).pathname ===
               "/onboarding"
-              ? "/discover"
+              ? "/market"
               : destination,
           );
           return;
@@ -184,9 +148,6 @@ export default function OnboardingPage() {
         if (!saved) {
           setPrefsHydrated(true);
           return;
-        }
-        if (!modeTouchedRef.current) {
-          setBuyerMode(saved.buyerMode || "personal");
         }
         setVehicles(
           saved.vehicles?.length
@@ -226,10 +187,7 @@ export default function OnboardingPage() {
       titleType,
       includeRepairable,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      targetProfit:
-        buyerMode === "reseller" || buyerMode === "dealer"
-          ? Number(targetProfit || 0) || undefined
-          : undefined,
+      targetProfit: Number(targetProfit || 0) || undefined,
       laneValue: titleType === "salvage" ? "damaged" : "all",
       lane: titleType === "salvage" ? "Salvage & repairable" : "All deals",
     }),
@@ -246,25 +204,18 @@ export default function OnboardingPage() {
   );
 
   const previewHref = useMemo(() => {
-    const params = buildBuyerIntentQuery(intent);
-    return `/discover${params.size ? `?${params.toString()}` : ""}`;
+    const params = new URLSearchParams();
+    if (intent.state && US_STATES.includes(intent.state))
+      params.set("states", intent.state);
+    if (intent.minPrice) params.set("priceMin", String(intent.minPrice));
+    if (intent.maxPrice) params.set("priceMax", String(intent.maxPrice));
+    return `/market${params.size ? `?${params.toString()}` : ""}`;
   }, [intent]);
 
   const modeDetail =
-    buyerMode === "diy"
-      ? "Your repair comfort guides the evidence we prioritize."
-      : buyerMode === "personal"
-        ? "Reliability, safety, and total ownership cost lead your decision."
-        : buyerMode === "parts"
-          ? "Core value, salvage title risk, and yard time lead your decision."
-          : buyerMode === "reseller"
-            ? "Profit, repair risk, and time-to-sale lead your decision."
-            : "Inventory fit, capital, recon capacity, and turnover lead your decision.";
+    "Choose acceptable title and repair risk, and your target net margin.";
 
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
-  // Until saved prefs load, no mode is shown as selected — the "personal" default would otherwise
-  // flash as the choice for a saved Dealer (onboarding?edit=1).
-  const selectedMode: BuyerMode | null = prefsHydrated ? buyerMode : null;
 
   async function finish() {
     if (saving || !prefsHydrated || !buyerMode || !vehicle || !scopeChosen)
@@ -272,19 +223,23 @@ export default function OnboardingPage() {
     if (
       (maxPrice &&
         (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0)) ||
-      ((buyerMode === "dealer" || buyerMode === "reseller") &&
-        (!Number.isFinite(Number(targetProfit)) || Number(targetProfit) < 0))
+      !Number.isFinite(Number(targetProfit)) ||
+      Number(targetProfit) < 0
     ) {
       toast.error("Enter a valid non-negative budget and target profit.");
       return;
     }
     setSaving(true);
     const preferences = {
-      buyerScope: {
+      buyerScope: buyingWorkspaceScope({
+        ...savedPrefs?.buyerScope,
         ...intent,
+        legacyBuyerMode:
+          savedPrefs?.buyerScope?.legacyBuyerMode ??
+          savedPrefs?.buyerScope?.buyerMode,
         timeline,
-        repairCapability: buyerMode === "diy" ? repairCapability : undefined,
-      },
+        repairCapability,
+      }),
       // Home location (#66) + legacy mirrors; saved search markets are kept.
       ...onboardingLocationPatch(state, savedPrefs),
     };
@@ -323,10 +278,7 @@ export default function OnboardingPage() {
           home_state: state && state !== "Nationwide" ? state : undefined,
           state: state && state !== "Nationwide" ? state : undefined,
           budget_max: maxPrice ? Number(maxPrice) : undefined,
-          target_profit:
-            buyerMode === "reseller" || buyerMode === "dealer"
-              ? Number(targetProfit || 0) || undefined
-              : undefined,
+          target_profit: Number(targetProfit || 0) || undefined,
         }),
       });
       if (!profileResult.ok || !preferenceResult.ok) {
@@ -358,106 +310,42 @@ export default function OnboardingPage() {
 
   const steps = [
     {
-      title: "What are you buying for?",
-      description: "Start with your goal. You can change it anytime.",
+      title: "What vehicles are you looking for?",
+      description: "Choose any vehicle types that interest you.",
       body: (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(Object.keys(BUYER_MODES) as BuyerMode[]).map((mode) => {
-            const item = BUYER_MODES[mode];
-            const visual = MODE_VISUALS[mode];
-            const Icon = visual.icon;
-            return (
-              <button
-                type="button"
-                key={mode}
-                aria-pressed={selectedMode === mode}
-                disabled={!prefsHydrated}
-                aria-busy={!prefsHydrated}
-                onClick={() => {
-                  modeTouchedRef.current = true;
-                  setBuyerMode(mode);
-                }}
-                className="group overflow-hidden rounded-lg border-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-                style={{
-                  borderColor:
-                    selectedMode === mode ? "var(--accent)" : "var(--b1)",
-                  background:
-                    selectedMode === mode
-                      ? "var(--accent-surface)"
-                      : "var(--s0)",
-                }}
-              >
-                <span
-                  className="relative block h-28 sm:h-36"
-                  style={{
-                    backgroundImage: "url(/images/onboarding-buyers.webp)",
-                    backgroundSize: "400% auto",
-                    backgroundPosition: `${visual.position} center`,
-                  }}
-                >
-                  <span
-                    className="absolute bottom-2 left-2 grid h-9 w-9 place-items-center rounded-lg bg-white shadow-sm"
-                    style={{ color: visual.color }}
-                  >
-                    <Icon size={20} aria-hidden="true" />
-                  </span>
-                  <span
-                    className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full border bg-white"
-                    style={{
-                      color: selectedMode === mode ? "white" : "transparent",
-                      background:
-                        selectedMode === mode ? "var(--accent)" : "white",
-                    }}
-                  >
-                    <Check size={15} aria-hidden="true" />
-                  </span>
-                </span>
-                <span className="block p-3 sm:p-4">
-                  <span className="block text-[10px] font-semibold uppercase text-[var(--t4)]">
-                    {visual.caption}
-                  </span>
-                  <span className="mt-1 block text-base font-bold text-[var(--t1)]">
-                    {item.label}
-                  </span>
-                  <span className="mt-1 block text-xs leading-relaxed text-[var(--t4)]">
-                    {item.question}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <fieldset
+          disabled={!prefsHydrated}
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+        >
+          {VEHICLES.map((item) => (
+            <ChoiceButton
+              key={item}
+              active={
+                item === "All vehicle types"
+                  ? vehicles.length === 0
+                  : vehicles.includes(item)
+              }
+              onClick={() =>
+                setVehicles((selected) =>
+                  item === "All vehicle types"
+                    ? []
+                    : selected.includes(item)
+                      ? selected.filter((value) => value !== item)
+                      : [...selected, item],
+                )
+              }
+            >
+              {item}
+            </ChoiceButton>
+          ))}
+        </fieldset>
       ),
     },
     {
       title: "Set your search boundary",
-      description:
-        "These choices narrow the cars and sources we show you. You can change them anytime.",
+      description: "Set your home location and vehicle budget.",
       body: (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {VEHICLES.map((item) => (
-              <ChoiceButton
-                key={item}
-                active={
-                  item === "All vehicle types"
-                    ? vehicles.length === 0
-                    : vehicles.includes(item)
-                }
-                onClick={() =>
-                  setVehicles((selected) =>
-                    item === "All vehicle types"
-                      ? []
-                      : selected.includes(item)
-                        ? selected.filter((value) => value !== item)
-                        : [...selected, item],
-                  )
-                }
-              >
-                {item}
-              </ChoiceButton>
-            ))}
-          </div>
           <label className="block text-sm font-bold text-[var(--t2)]">
             Home state
             <span className="mt-0.5 block text-xs font-medium text-[var(--t4)]">
@@ -508,12 +396,6 @@ export default function OnboardingPage() {
               </ChoiceButton>
             ))}
           </div>
-          {buyerMode === "diy" && (
-            <p className="text-sm text-[var(--t3)]">
-              Repair capability describes who can do the work, not whether
-              damaged cars are included.
-            </p>
-          )}
           <label className="flex min-h-11 items-center gap-3 text-sm font-semibold text-[var(--t1)]">
             <input
               type="checkbox"
@@ -527,7 +409,7 @@ export default function OnboardingPage() {
             A clean title does not mean undamaged. Unknown condition still needs
             an inspection.
           </p>
-          {buyerMode === "diy" && (
+          {includeRepairable && (
             <label className="block text-sm font-bold text-[var(--t2)]">
               Repair capability
               <select
@@ -543,7 +425,7 @@ export default function OnboardingPage() {
               </select>
             </label>
           )}
-          {(buyerMode === "reseller" || buyerMode === "dealer") && (
+          {
             <label className="block text-sm font-bold text-[var(--t2)]">
               Target net margin
               <input
@@ -555,7 +437,7 @@ export default function OnboardingPage() {
                 className="mt-2 w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-3 text-[var(--t1)]"
               />
             </label>
-          )}
+          }
           <div className="grid grid-cols-3 gap-2">
             {TIMELINES.map((item) => (
               <ChoiceButton
@@ -578,14 +460,14 @@ export default function OnboardingPage() {
           <div className="rounded-[var(--r3)] border border-[var(--accent)] bg-[var(--accent-surface)] p-4">
             <div className="flex items-center gap-2 text-sm font-black text-[var(--t1)]">
               <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-              {BUYER_MODES[buyerMode].label}
+              Your buying workspace
             </div>
             <p className="mt-2 text-sm font-bold text-[var(--t2)]">
               {vehicle} · {state || "Nationwide"}
               {maxPrice ? ` · under $${Number(maxPrice).toLocaleString()}` : ""}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
-              {BUYER_MODES[buyerMode].priorities.join(" · ")}
+              Price evidence · Repair risk · Total purchase cost
             </p>
             <div className="mt-3 border-t border-[var(--b1)] pt-3">
               <h3 className="text-xs font-bold text-[var(--t2)]">
@@ -593,10 +475,8 @@ export default function OnboardingPage() {
               </h3>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--t3)]">
                 {accountMenuForMode(buyerMode)
-                  .tools.filter(
-                    (tool) =>
-                      buyerMode === "dealer" ||
-                      FOCUSED_TOOLS.has(tool.href.split("?")[0]),
+                  .tools.filter((tool) =>
+                    FOCUSED_TOOLS.has(tool.href.split("?")[0]),
                   )
                   .map((tool) => (
                     <li key={tool.href}>{tool.name}</li>
@@ -649,7 +529,7 @@ export default function OnboardingPage() {
           className="mb-4 flex justify-between gap-2 text-[11px] font-semibold text-[var(--t4)]"
           aria-label="Setup progress"
         >
-          {["Your goal", "Your search", "Your comfort", "Ready"].map(
+          {["Vehicles", "Location & budget", "Condition", "Ready"].map(
             (label, index) => (
               <li
                 key={label}

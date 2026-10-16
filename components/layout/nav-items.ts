@@ -38,7 +38,7 @@ export type NavItem = {
 };
 export type NavGroup = { group: string; items: NavItem[] };
 export type PrimaryJob =
-  | "Market"
+  | "Market Explorer"
   | "Discover"
   | "Deal Check"
   | "Auction Lane"
@@ -51,19 +51,19 @@ export type PrimaryJob =
 
 /** The desktop daily-driver routes from the acquisition workflow. */
 export const PRIMARY: NavItem[] = [
-  { name: "Market", href: "/market", icon: Search },
+  { name: "Market Explorer", href: "/market", icon: SlidersHorizontal },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
   { name: "Auction Lane", href: "/lane", icon: Gavel },
 ];
 
-/** The mobile bottom bar exposes three daily buyer actions plus Tools. */
+/** Market first, Discover second, followed by saved vehicles, planning and Tools. */
 export const MOBILE_TAB_COUNT = 5;
 
 /** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
 export const MOBILE_PRIMARY: NavItem[] = [
-  { name: "Market", href: "/market", icon: Search },
+  { name: "Market", href: "/market", icon: SlidersHorizontal },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
@@ -378,7 +378,10 @@ export function navItemMatchesPath(
   pathname: string,
 ) {
   const normalized = pathname === "/" ? "/market" : pathname;
-  return normalized === item.href || normalized.startsWith(`${item.href}/`);
+  return (
+    normalized === item.href ||
+    (item.href !== "/" && normalized.startsWith(`${item.href}/`))
+  );
 }
 
 export function primaryJobForPath(pathname: string): PrimaryJob | null {
@@ -536,6 +539,7 @@ export function accountMenuForMode(buyerMode: unknown): {
   const mode = normalizeFlipLeadMode(buyerMode);
   const partsDesk = flip || mode === "parts" || mode === "diy";
   const tools: AccountMenuEntry[] = [
+    { name: "Market Explorer", href: "/market", group: "Browse" },
     {
       name: "Search cars",
       href: scanHrefForMode(buyerMode),
@@ -572,7 +576,6 @@ export function accountMenuForMode(buyerMode: unknown): {
       { name: "Outcomes & intelligence", href: "/insights", group: "Business" },
       { name: "Auctions", href: "/auctions", group: "Business" },
       { name: "Auction Lane", href: "/lane", group: "Business" },
-      { name: "Market explorer", href: "/market", group: "Business" },
       { name: "Arbitrage", href: "/arbitrage", group: "Business" },
       { name: "Arbitrage routes", href: "/find", group: "Business" },
       { name: "Ranked picks", href: "/best-buy", group: "Business" },
@@ -632,16 +635,6 @@ export function workspaceGroupsForMode(
     });
     groups.set(group, items);
   }
-  const browse = groups.get("Browse");
-  if (browse) {
-    for (const href of ["/discover", "/market"]) {
-      if (
-        !Array.from(groups.values()).some((items) =>
-          items.some((item) => item.href === href),
-        )
-      )
-        browse.unshift(PRIMARY.find((item) => item.href === href)!);
-    }
-  }
+  groups.get("Browse")?.unshift(PRIMARY[1]);
   return Array.from(groups, ([group, items]) => ({ group, items }));
 }

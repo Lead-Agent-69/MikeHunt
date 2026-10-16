@@ -1,15 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { internalError } from "@/lib/api/http-error";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
-import {
-  resolveZipRadius,
-  parseZipRadius,
-  applyZipRadiusBox,
-  filterZipRadiusRows,
-  ZIP_LOOKUP_ERROR,
-} from "@/lib/search/zip-radius";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -32,10 +29,15 @@ import {
   applyInventoryLane,
   applyVehicleDetails,
   uniqueDbSources,
+  applySelectedSources,
   sellerTypeSourceValues,
   sourceUrlNeedles,
   validateInventoryRanges,
 } from "@/lib/search/inventory-filters";
+import {
+  selectedSourceIds,
+  validSourceSelection,
+} from "@/lib/search/source-selection";
 import {
   AUCTION_DB_SOURCES,
   wantsAuctionInventory,
@@ -164,11 +166,19 @@ export async function GET(req: NextRequest) {
       models: cascade ? [] : undefined,
     });
   const supabase = createServerComponentClient();
-  const zipRadius = await resolveZipRadius(supabase, params);
-  if (parseZipRadius(params) && !zipRadius)
-    return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
+  const location = await inventoryLocation(supabase, params);
+  if (location.requested && !location.radius)
+    return NextResponse.json(
+      { error: "This ZIP location could not be resolved." },
+      { status: 422 },
+    );
   const flipDesk = (await resolveCallerDesk()) === "flip";
-  const source = params.get("source") || "";
+  const source = params.get("sources") || params.get("source") || "";
+  if (!validSourceSelection(source))
+    return NextResponse.json(
+      { error: "Choose up to 25 valid listing sources." },
+      { status: 400 },
+    );
   const lane = params.get("lane") || "all";
   const seller = params.get("sellerType") || "all";
   const sourceIds = (params.get("dealerSourceIds") || "")
@@ -180,27 +190,25 @@ export async function GET(req: NextRequest) {
   // title filter and the remaining facets are narrowed in memory with the same enum mapping.
   const applyTitleInDb = cascade;
   const build = () => {
-    let query = supabase
-      .from("deals")
-      .select(
-        cascade
-          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state,lat,lng"
-          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url,lat,lng",
-      )
-      .eq("active", true);
+    let query = inventoryLocationQuery(
+      supabase,
+      location,
+      cascade
+        ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
+        : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
+    ).eq("active", true);
     query = applyLiveAuctionWindow(applyCustomerInventory(query));
     if (
       !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
         lane,
         sellerType: seller,
-        sources: [source, ...sourceIds],
+        sources: [...selectedSourceIds(source), ...sourceIds],
       })
     )
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
     query = applyInventoryLane(query, lane);
-    query = applyVehicleDetails(query, params);
-    if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
+    query = applyVehicleDetails(query, location.details);
     if (flipDesk && Number(params.get("minProfit")) > 0)
       query = query.gte("true_net_profit", Number(params.get("minProfit")));
     const verdict = params.get("verdict");
@@ -240,12 +248,7 @@ export async function GET(req: NextRequest) {
     }
     if (cascade) query = query.ilike("make", make!);
     if (source && source !== "all") {
-      query = query.in("source", uniqueDbSources([source]));
-      const needles = sourceUrlNeedles(source);
-      if (needles.length)
-        query = query.or(
-          needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
-        );
+      query = applySelectedSources(query, selectedSourceIds(source));
     }
     const sellers = sellerTypeSourceValues(seller);
     if (sellers.length) query = query.in("source", sellers);
@@ -285,10 +288,9 @@ export async function GET(req: NextRequest) {
       { max: 30000 },
     );
     const bounded = candidates.length === 30000;
-    const nearby = filterZipRadiusRows(candidates, zipRadius);
     const rows = categoryQuery
-      ? nearby.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
-      : nearby;
+      ? candidates.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
+      : candidates;
     if (!cascade) {
       const titled = rows.filter((row) =>
         matchesTitleCategories(row, titleTypes),

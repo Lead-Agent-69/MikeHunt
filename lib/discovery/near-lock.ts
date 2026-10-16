@@ -30,7 +30,7 @@ function stateCode(value: unknown): string | null {
 }
 
 /**
- * State lock for /api/deals/near.
+ * Distance-center state and fallback state scope for /api/deals/near.
  * A query ZIP's state wins. Then prefs.homeLocation (Settings/onboarding "where you live",
  * sanitized). Then the legacy profile home ZIP, then home_state.
  * The untouched CA column default (no pin, no home ZIP) is not a lock.
@@ -83,7 +83,7 @@ function explicitRadius(
   if (!hasState) return 0;
   const requested = Number(radiusParam);
   if (!Number.isFinite(requested) || requested <= 0) return 0;
-  return requested;
+  return Math.min(requested, 500);
 }
 
 /**

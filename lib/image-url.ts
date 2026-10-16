@@ -1,3 +1,5 @@
+import { isAllowedImageUrl } from "@/lib/images/image-hosts";
+
 // Prefer direct source CDN URLs for listing photos (free-tier: no Storage,
 // fewer Vercel proxy invokes). Proxy only hosts known to hotlink-block.
 // Local/already-proxied/data/our Storage URLs pass through untouched.
@@ -27,6 +29,8 @@ export function needsImageProxy(url?: string | null): boolean {
   if (!url || !/^https?:\/\//.test(url)) return false;
   const hostname = hostnameOf(url);
   if (!hostname) return false;
+  // HTTP-only dealer photos need the existing allowlisted proxy on HTTPS pages.
+  if (url.startsWith("http://") && isAllowedImageUrl(url)) return true;
   return HOTLINK_BLOCK_DOMAINS.some(
     (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
   );

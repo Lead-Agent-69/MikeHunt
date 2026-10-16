@@ -122,6 +122,13 @@ describe("Map scope and role safety", () => {
     state.flip = true;
     await request("");
     expect(orders()).toEqual(["profit_score", "id"]);
+    // PostgREST set-returning RPCs require ordering columns in the projection.
+    expect(
+      state.calls.some(
+        (call) =>
+          call[0] === "select" && String(call[1]).includes(",profit_score"),
+      ),
+    ).toBe(true);
   });
   it("preserves dealer verdict views", async () => {
     state.flip = true;

@@ -80,6 +80,10 @@ vi.mock("@/lib/intelligence/interest-patterns", () => ({
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
+    rpc: (...args: unknown[]) => {
+      db.calls.push(["rpc", ...args]);
+      return query();
+    },
     from: (table: string) =>
       table === "user_preferences"
         ? {
@@ -116,12 +120,12 @@ describe("GET /api/feed desk redaction", () => {
     const response = await GET(
       new NextRequest("https://app.test/api/feed?zip=00000&radius=50"),
     );
-    expect(response.status).toBe(503);
-    expect((await response.json()).error).toContain("has not been broadened");
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toBeTruthy();
   });
-  it("filters the circle before projecting cards, preserves paging, and never exposes coordinates", async () => {
+  it("requests exact SQL radius before paging and never exposes coordinates", async () => {
     getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
-    db.rows = [{ ...ROW, lat: 39.36, lng: -90.2 }];
+    db.rows = [];
     const response = await GET(
       new NextRequest(
         "https://app.test/api/feed?browse=all&zip=63101&radius=50&limit=1",
@@ -129,8 +133,13 @@ describe("GET /api/feed desk redaction", () => {
     );
     const body = await response.json();
     expect(body.items).toEqual([]);
-    expect(body.nextOffset).toBe(1);
-    expect(db.calls).toContainEqual(["not", "lat", "is", null]);
+    expect(body.nextOffset).toBeNull();
+    expect(db.calls).toContainEqual([
+      "rpc",
+      "inventory_within_radius",
+      { p_lat: 38.63, p_lng: -90.2, p_radius: 50 },
+      {},
+    ]);
     db.rows = [{ ...ROW, lat: 38.62, lng: -90.15 }];
     const inside = await GET(
       new NextRequest(

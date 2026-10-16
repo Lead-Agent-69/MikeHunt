@@ -8,12 +8,9 @@ import {
 } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
-  resolveZipRadius,
-  parseZipRadius,
-  applyZipRadiusBox,
-  filterZipRadiusRows,
-  ZIP_LOOKUP_ERROR,
-} from "@/lib/search/zip-radius";
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -38,7 +35,7 @@ import {
 // saves/watches/views) cached per user, paginated. ANON users get the plain best-first fresh feed. $0.
 
 const COLS =
-  "id, year, make, model, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, lat, lng, images, deal_analysis, title_source:options->>titleSource," +
+  "id, year, make, model, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, deal_analysis, title_source:options->>titleSource," +
   SOURCE_PRICE_FIELDS;
 
 // Paging bounds. A guest can't walk the whole inventory: 30 cards a page, 600 cards deep, 30
@@ -114,9 +111,12 @@ async function getFeed(req: NextRequest) {
   const scopeKey = inventoryViewParams(sp).toString();
 
   const supabase = createServerComponentClient();
-  const zipRadius = await resolveZipRadius(supabase, sp);
-  if (parseZipRadius(sp) && !zipRadius)
-    return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
+  const location = await inventoryLocation(supabase, sp);
+  if (location.requested && !location.radius)
+    return NextResponse.json(
+      { error: "This ZIP location could not be resolved." },
+      { status: 422 },
+    );
   const {
     data: { user },
   } = await getServerUser();
@@ -142,23 +142,20 @@ async function getFeed(req: NextRequest) {
         { headers: { "Cache-Control": "private, no-store" } },
       );
     const pageLimit = Math.min(limit, FEED_MAX_SIGNED_OFFSET - offset);
-    let q = supabase
-      .from("deals")
-      .select(COLS)
+    let q = inventoryLocationQuery(supabase, location, COLS)
       .eq("active", true)
       // Nonempty image arrays sort before empty arrays; keep photo-less rows in the stream.
       .order("images", { ascending: false, nullsFirst: false })
       .order("last_seen_at", { ascending: false, nullsFirst: false })
       .order("id", { ascending: true })
       .range(offset, offset + pageLimit - 1);
-    q = applyInventoryViewScope(q, sp);
-    if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
+    q = applyInventoryViewScope(q, location.details);
     const { data, error } = await q;
     if (error) throw error;
-    const rows = (data || []) as unknown as Record<string, any>[];
+    const rows = data || [];
     return NextResponse.json(
       {
-        items: forDesk(filterZipRadiusRows(rows, zipRadius).map(mapItem)),
+        items: forDesk(rows.map(mapItem)),
         nextOffset:
           rows.length === pageLimit &&
           offset + pageLimit < FEED_MAX_SIGNED_OFFSET
@@ -180,9 +177,7 @@ async function getFeed(req: NextRequest) {
       60_000,
       async () => {
         const profile = await buildInterestProfile(supabase, user.id);
-        let q = supabase
-          .from("deals")
-          .select(COLS)
+        let q = inventoryLocationQuery(supabase, location, COLS)
           .eq("active", true)
           .not("images", "is", null)
           .neq("images", "{}")
@@ -193,14 +188,10 @@ async function getFeed(req: NextRequest) {
           .order("last_seen_at", { ascending: false })
           .order("id", { ascending: true })
           .limit(250);
-        q = applyInventoryViewScope(q, sp);
-        if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
+        q = applyInventoryViewScope(q, location.details);
         const { data, error } = await q;
         if (error) throw error;
-        const items = filterZipRadiusRows(
-          (data || []) as unknown as Record<string, any>[],
-          zipRadius,
-        )
+        const items: ReturnType<typeof mapItem>[] = (data || [])
           .filter((d: any) => Array.isArray(d.images) && d.images[0])
           .map(mapItem);
 
@@ -244,31 +235,24 @@ async function getFeed(req: NextRequest) {
   if (offset >= FEED_MAX_OFFSET)
     return NextResponse.json({ items: [], nextOffset: null, capped: true });
   const pageLimit = Math.min(limit, FEED_MAX_OFFSET - offset);
-  let q = supabase
-    .from("deals")
-    .select(COLS)
+  let q = inventoryLocationQuery(supabase, location, COLS)
     .eq("active", true)
     .not("images", "is", null)
     .neq("images", "{}")
     .order("last_seen_at", { ascending: false, nullsFirst: false })
     .order("id", { ascending: true })
     .range(offset, offset + pageLimit - 1);
-  q = applyInventoryViewScope(q, sp);
-  if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
+  q = applyInventoryViewScope(q, location.details);
 
   const { data, error } = await q;
   if (error) throw error;
 
-  const items = filterZipRadiusRows(
-    (data || []) as unknown as Record<string, any>[],
-    zipRadius,
-  )
+  const items = (data || [])
     .filter((d: any) => Array.isArray(d.images) && d.images[0])
     .map(mapItem);
   const next = offset + pageLimit;
   return NextResponse.json({
     items: forDesk(items),
-    nextOffset:
-      (data || []).length === pageLimit && next < FEED_MAX_OFFSET ? next : null,
+    nextOffset: next < FEED_MAX_OFFSET ? next : null,
   });
 }

@@ -6,15 +6,9 @@ const page = readFileSync("app/onboarding/page.tsx", "utf8");
 
 describe("onboarding does not flash a default mode while prefs load", () => {
   it("renders no selected mode until prefs hydrate", () => {
-    expect(page).toContain(
-      "const selectedMode: BuyerMode | null = prefsHydrated ? buyerMode : null;",
-    );
-    const start = page.indexOf("(Object.keys(BUYER_MODES) as BuyerMode[]).map");
-    const end = page.indexOf("{item.question}", start);
-    const modeGrid = page.slice(start, end);
-    expect(modeGrid).not.toContain("buyerMode === mode");
-    expect(modeGrid.match(/selectedMode === mode/g)?.length).toBe(5);
-    expect(modeGrid).toContain("aria-busy={!prefsHydrated}");
+    expect(page).not.toContain("selectedMode");
+    expect(page).not.toContain("Object.keys(BUYER_MODES)");
+    expect(page).toContain("disabled={!prefsHydrated}");
   });
 
   it("DIY priorities only name evidence the app actually shows", () => {

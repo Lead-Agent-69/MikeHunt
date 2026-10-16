@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowUpRight, Search, Settings2 } from "lucide-react";
 import { useBuyerIntent, BUYER_MODES } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
-import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   navItemForViewer,
   workspaceGroupsForMode,
@@ -14,10 +13,9 @@ import {
 export default function ToolsPage() {
   const { intent } = useBuyerIntent();
   const { dealerId, loading } = useDealerId();
-  const { expanded } = useWorkspace();
   const [search, setSearch] = useState("");
   const term = search.trim().toLowerCase();
-  const groups = workspaceGroupsForMode(intent?.buyerMode, expanded || !!term)
+  const groups = workspaceGroupsForMode(intent?.buyerMode, true)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
@@ -48,14 +46,14 @@ export default function ToolsPage() {
       </header>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3 text-sm">
         <span className="text-[var(--t3)]">
-          {expanded ? "Expanded workspace" : "Focused workspace"}
+          All tools for your buying profile
         </span>
         <Link
           href="/upgrade"
           className="inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--blue)]"
         >
           <Settings2 className="h-4 w-4" aria-hidden="true" />
-          {expanded ? "Workspace options" : "Free workspace upgrade"}
+          Workspace options
         </Link>
       </div>
       <label className="flex min-h-11 items-center gap-3 border-b border-[var(--b2)] px-2">

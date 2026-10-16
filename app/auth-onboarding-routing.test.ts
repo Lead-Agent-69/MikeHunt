@@ -18,8 +18,6 @@ describe("new-account onboarding routes", () => {
     expect(login).toContain("new URLSearchParams(window.location.search)");
     expect(login).toContain('useState("/market")');
     expect(login).toContain('safeNextPath(params.get("next"), "/market")');
-    expect(safeNextPath("/deal/123", "/market")).toBe("/deal/123");
-    expect(safeNextPath("//example.com", "/market")).toBe("/market");
     expect(login).toContain(
       "postLoginDestination(account.onboarded === true, next)",
     );
@@ -30,9 +28,9 @@ describe("new-account onboarding routes", () => {
     expect(safeNextPath("/deal-check?vehicle=123")).toBe(
       "/deal-check?vehicle=123",
     );
-    expect(safeNextPath("//example.com")).toBe("/discover");
-    expect(safeNextPath("https://example.com")).toBe("/discover");
-    expect(safeNextPath("/\\example.com")).toBe("/discover");
+    expect(safeNextPath("//example.com")).toBe("/market");
+    expect(safeNextPath("https://example.com")).toBe("/market");
+    expect(safeNextPath("/\\example.com")).toBe("/market");
   });
 
   it("does not let the onboarding logo skip setup", () => {

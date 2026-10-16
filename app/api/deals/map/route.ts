@@ -14,12 +14,9 @@ import { hashJitter } from "@/lib/db/stable-id";
 import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
-  resolveZipRadius,
-  parseZipRadius,
-  applyZipRadiusBox,
-  filterZipRadiusRows,
-  ZIP_LOOKUP_ERROR,
-} from "@/lib/search/zip-radius";
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
 import { titleCategory, titleSourceOf } from "@/lib/deals/title-category";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
@@ -68,6 +65,14 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServerComponentClient();
+  const location = await inventoryLocation(supabase, sp);
+  if (location.requested && !location.radius)
+    return withNoStore(
+      NextResponse.json(
+        { error: "This ZIP location could not be resolved." },
+        { status: 422 },
+      ),
+    );
   let flipDesk = false;
   try {
     flipDesk = await resolveCallerFlipDesk();
@@ -79,18 +84,13 @@ export async function GET(req: NextRequest) {
   // (a single .limit() silently dropped everything past 1000).
   let data: any[];
   try {
-    const zipRadius = await resolveZipRadius(supabase, sp);
-    if (parseZipRadius(sp) && !zipRadius)
-      return withNoStore(
-        NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 }),
-      );
     data = await fetchAllRows<any>(
       (from, to) => {
-        let q = supabase
-          .from("deals")
-          .select(
-            "id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource",
-          )
+        let q = inventoryLocationQuery(
+          supabase,
+          location,
+          `id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource${flipDesk ? ",profit_score" : ""}`,
+        )
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
           .or("lat.not.is.null,location_state.not.is.null")
@@ -100,8 +100,7 @@ export async function GET(req: NextRequest) {
           })
           .order("id", { ascending: true })
           .range(from, to);
-        q = applyInventoryViewScope(q, sp);
-        if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
+        q = applyInventoryViewScope(q, location.details);
         if (verdictFilter.mode === "eq") {
           q = q.eq("deal_verdict", verdictFilter.values[0]);
         } else if (verdictFilter.mode === "in") {
@@ -111,7 +110,6 @@ export async function GET(req: NextRequest) {
       },
       { max: limit },
     );
-    data = filterZipRadiusRows(data, zipRadius);
   } catch (error) {
     // Honest empty map (200) beats a 500 — /find's shared fetcher throws on !ok.
     console.error(

@@ -5,6 +5,7 @@ import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { valueConfidence, CONFIDENCE_META } from "@/lib/valuation/confidence";
 import type { ValuationBreakdown as VB } from "@/lib/scoring/deal-analyzer";
+import { ValuationInputs } from "./ValuationInputs";
 
 // "How we valued this" — the moat made transparent. Shows the EVIDENCE behind the resale number (real
 // comps, KBB market value, completed sales) and the exact adjustments applied to THIS car (mileage,
@@ -166,10 +167,7 @@ export function ValuationBreakdown({
         </>
       )}
 
-      <p className="mt-3 text-[11px] text-[var(--t4)] leading-relaxed">
-        Built from our own multi-source market data — no paid feed. Sharpens as
-        more comps and real sales come in.
-      </p>
+      <ValuationInputs valuation={v} />
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { sellerTypeLabel } from "@/lib/sources/source-meta";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { ValuationInputs } from "@/components/deal/ValuationInputs";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -725,7 +726,7 @@ export const DealCard = memo(function DealCard({
         )}
         <details className="group/details border-t border-[var(--b1)] py-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-[var(--t3)] [&::-webkit-details-marker]:hidden">
-            <span>Costs & evidence</span>
+            <span>Why shown, estimate & costs</span>
             <span aria-hidden="true">+</span>
           </summary>
           <div className="mt-3 space-y-3">
@@ -921,7 +922,7 @@ export const DealCard = memo(function DealCard({
               )}
             </div>
 
-            {explainedWhyShown.length > 0 && (
+            {
               <div className="rounded-[var(--r1)] bg-[var(--s0)] px-2.5 py-2">
                 <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
                   Why shown
@@ -930,8 +931,9 @@ export const DealCard = memo(function DealCard({
                   {explainedWhyShown.join(" · ")}
                   {lastSeenText ? ` · seen ${lastSeenText}` : ""}
                 </p>
+                <ValuationInputs valuation={valuation} />
               </div>
-            )}
+            }
 
             <div className="rounded-[var(--r1)] bg-[var(--s0)] px-2.5 py-2">
               <div className="flex items-center justify-between gap-2">

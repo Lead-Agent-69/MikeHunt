@@ -44,10 +44,12 @@ test.describe("signed-in app, personal desk (local only)", () => {
   test("Discover renders rails with deal links", async ({ page }) => {
     const h = watchHealth(page);
     await page.goto("/discover");
-    await expect(page.getByText(/BUYING FOR/i).first()).toBeVisible({
+    await expect(
+      page.getByRole("heading", { name: "Quick filters" }),
+    ).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByText(/Personal buyer/).first()).toBeVisible();
+    await expect(page.getByText(/Personal buyer/)).toHaveCount(0);
     await expect(page.locator('a[href^="/deal/"]').first()).toBeVisible({
       timeout: 30_000,
     });
@@ -167,12 +169,20 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expectHealthy(page, h);
   });
 
-  test("settings shows locations and buyer mode", async ({ page }) => {
+  test("settings shows locations and unified buying preferences", async ({
+    page,
+  }) => {
     const h = watchHealth(page);
     await page.goto("/settings");
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await expect(page.getByText("Home location").first()).toBeVisible();
-    await expect(page.getByText("Buyer mode").first()).toBeVisible();
+    await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: "Save buying preferences",
+        exact: true,
+      }),
+    ).toBeEnabled();
     await expectHealthy(page, h);
   });
 

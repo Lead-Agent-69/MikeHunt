@@ -64,7 +64,13 @@ vi.mock("@/lib/geo/geocode", () => ({
 }));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
-  createServerComponentClient: () => ({ from: () => query() }),
+  createServerComponentClient: () => ({
+    from: () => query(),
+    rpc: (...args: unknown[]) => {
+      calls.push(["rpc", ...args]);
+      return query();
+    },
+  }),
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ from: () => query() }),
@@ -85,19 +91,24 @@ describe("Scan and facets query parity", () => {
       const response = await handler(
         new NextRequest("https://example.test/api/scan?zip=00000&radius=50"),
       );
-      expect(response.status).toBe(503);
-      expect((await response.json()).error).toContain("has not been broadened");
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toBeTruthy();
       expect(calls.some((call) => call[0] === "range")).toBe(false);
     }
   });
-  it("uses a nearby box rather than an exact listing ZIP for radius searches", async () => {
+  it("applies the exact radius in SQL before pagination", async () => {
     for (const handler of [scan, facets]) {
       calls.splice(0);
       const response = await handler(
         new NextRequest("https://example.test/api/scan?zip=63101&radius=50"),
       );
       expect(response.status).toBe(200);
-      expect(calls).toContainEqual(["not", "lat", "is", null]);
+      expect(calls).toContainEqual([
+        "rpc",
+        "inventory_within_radius",
+        { p_lat: 38.63, p_lng: -90.2, p_radius: 50 },
+        expect.any(Object),
+      ]);
       expect(calls).not.toContainEqual(["eq", "location_zip", "63101"]);
     }
   });

@@ -12,6 +12,41 @@ function fakeTable(n: number, cap = 1000) {
 }
 
 describe("fetchAllRows", () => {
+  it("bounds parallel reads and keeps database order despite out-of-order completion", async () => {
+    let active = 0,
+      peak = 0;
+    const table = fakeTable(2350);
+    const rows = await fetchAllRows(
+      async (from, to) => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) =>
+          setTimeout(resolve, from === 0 ? 10 : 1),
+        );
+        const result = await table(from, to);
+        active--;
+        return result;
+      },
+      { pageSize: 500, concurrency: 3, max: 2200 },
+    );
+    expect(peak).toBe(3);
+    expect(rows.map((row) => row.i)).toEqual(
+      Array.from({ length: 2200 }, (_, i) => i),
+    );
+  });
+  it("fails a parallel scan if any page fails", async () => {
+    await expect(
+      fetchAllRows(
+        (from) =>
+          Promise.resolve(
+            from === 1000
+              ? { data: null, error: new Error("page unavailable") }
+              : { data: [{ i: from }], error: null },
+          ),
+        { concurrency: 3 },
+      ),
+    ).rejects.toThrow("page unavailable");
+  });
   it("pages past the 1000-row cap to get everything", async () => {
     const rows = await fetchAllRows<{ i: number }>(fakeTable(2350), {
       pageSize: 1000,

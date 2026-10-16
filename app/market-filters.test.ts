@@ -13,16 +13,7 @@ vi.mock("swr", () => ({
     state.keys.push(key);
     return {
       data: key
-        ? {
-            rows: [{ id: "car" }],
-            total: 1105,
-            mode: "all",
-            facets: {},
-            marketEvidence: {
-              qualifiedAskingCount: 12,
-              medianAskingPrice: 20520,
-            },
-          }
+        ? { rows: [{ id: "car" }], total: 1105, mode: "all", facets: {} }
         : undefined,
       isLoading: false,
       mutate: vi.fn(),
@@ -32,28 +23,27 @@ vi.mock("swr", () => ({
 vi.mock("@/hooks/useBuyerIntent", () => ({
   useBuyerIntent: () => ({ intent: { buyerMode: state.mode } }),
 }));
-vi.mock("@/hooks/usePreferences", () => ({
-  usePreferences: () => ({ prefs: {}, isLoading: false }),
-}));
 vi.mock("@/components/ui/performance-optimizations", () => ({
   useDebouncedValue: (value: string) =>
     state.pending ? "stale-search" : value,
 }));
 vi.mock("@/components/market/USHeatmap", () => ({ USHeatmap: () => null }));
 vi.mock("@/components/market/MarketVisualizers", () => ({
-  MarketVisualizers: () =>
-    React.createElement("p", null, "Price evidence charts"),
+  MarketVisualizers: () => null,
 }));
 vi.mock("@/components/scan/DealTable", () => ({
   DealTable: () => React.createElement("p", null, "Inventory results"),
-}));
-vi.mock("@/components/market/MarketResultCards", () => ({
-  MarketResultCards: () => React.createElement("p", null, "Inventory results"),
 }));
 vi.mock("@/components/shared/Ico", () => ({ Ico: () => null }));
 vi.mock("@/components/shared/PriceRangeSelector", () => ({
   PriceRangeSelector: () => null,
   YearRangeSelector: () => null,
+}));
+vi.mock("@/components/market/MarketListingCard", () => ({
+  MarketListingCard: () => React.createElement("p", null, "Inventory results"),
+}));
+vi.mock("@/hooks/usePreferences", () => ({
+  usePreferences: () => ({ prefs: {} }),
 }));
 import MarketPage from "./(dashboard)/market/page";
 let root: Root;
@@ -77,37 +67,6 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
-  it("keeps charts off the first screen and mounts evidence only when opened", async () => {
-    await render();
-    const disclosure = Array.from(host.querySelectorAll("details")).find(
-      (element) =>
-        element.querySelector("summary")?.textContent === "Market evidence",
-    )!;
-    expect(disclosure.open).toBe(false);
-    expect(host.textContent).not.toContain("Price evidence charts");
-    expect(host.textContent).toContain("Inventory results");
-    act(() => {
-      disclosure.open = true;
-      disclosure.dispatchEvent(new Event("toggle", { bubbles: true }));
-    });
-    expect(host.textContent).toContain("Price evidence charts");
-    expect(host.textContent).toContain("Asking prices are not confirmed sales");
-  });
-  it("shows radius controls immediately and clears state boundaries when a nearby ZIP is complete", async () => {
-    window.history.replaceState(null, "", "/market?states=MO");
-    await render();
-    const zip = host.querySelector<HTMLInputElement>(
-      '[aria-label="Near ZIP code"]',
-    )!;
-    expect(zip).not.toBeNull();
-    expect(host.querySelector('[aria-label="Search radius"]')).not.toBeNull();
-    act(() => Simulate.change(zip, { target: { value: "63101" } } as any));
-    const params = new URLSearchParams(window.location.search);
-    expect(params.get("zip")).toBe("63101");
-    expect(params.get("radius")).toBe("100");
-    expect(params.has("states")).toBe(false);
-    expect(host.querySelector("h1")?.textContent).toBe("Market Explorer");
-  });
   it("preserves a typed comma so users can enter multiple makes", async () => {
     await render();
     const input = host.querySelector<HTMLInputElement>('[aria-label="Makes"]')!;
@@ -149,7 +108,11 @@ describe("Market filter journey", () => {
   });
 
   it("offers mobile filter disclosure, removable filters and reachable result pages", async () => {
-    window.history.replaceState(null, "", "/market?zip=78701&sources=copart");
+    window.history.replaceState(
+      null,
+      "",
+      "/market?listingZip=78701&sources=copart",
+    );
     await render();
     const toggle = host.querySelector<HTMLButtonElement>(
       '[aria-controls="market-filter-panel"]',
@@ -166,11 +129,11 @@ describe("Market filter journey", () => {
     act(() =>
       host
         .querySelector<HTMLButtonElement>(
-          '[aria-label="Remove ZIP code filter"]',
+          '[aria-label="Remove Listing ZIP filter"]',
         )!
         .click(),
     );
-    expect(window.location.search).not.toContain("zip=");
+    expect(window.location.search).not.toContain("listingZip=");
     expect(window.location.search).toContain("page=0");
     act(() =>
       host
@@ -190,5 +153,52 @@ describe("Market filter journey", () => {
     expect(
       state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
+    window.history.replaceState(null, "", "/market?states=MO");
+    await render();
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLInputElement>('[aria-label="Search location"]')!,
+        { target: { value: "63101" } } as any,
+      ),
+    );
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>('[aria-label="Search radius"]')!,
+        { target: { value: "150" } } as any,
+      ),
+    );
+    act(() =>
+      Simulate.submit(
+        host.querySelector('section[aria-label="Location and radius"] form')!,
+      ),
+    );
+    expect(new URLSearchParams(window.location.search).get("near")).toBe(
+      "63101",
+    );
+    expect(new URLSearchParams(window.location.search).get("radius")).toBe(
+      "150",
+    );
+    expect(new URLSearchParams(window.location.search).has("states")).toBe(
+      false,
+    );
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>(
+          '[aria-label="Sort market results"]',
+        )!,
+        { target: { value: "distanceMiles:asc" } } as any,
+      ),
+    );
+    act(() =>
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent === "Nationwide")!
+        .click(),
+    );
+    expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
+    expect(new URLSearchParams(window.location.search).get("sort")).toBe(
+      "lastSeenAt",
+    );
   });
 });

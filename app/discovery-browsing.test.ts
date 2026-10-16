@@ -50,8 +50,14 @@ describe("discovery browsing presentation safeguards", () => {
   });
   it("mounts secondary market requests only when insights are opened", () => {
     expect(page).toContain("showInsights &&");
-    expect(page).toContain("setShowInsights(event.currentTarget.open)");
+    expect(page).toContain("setShowInsights(!showInsights)");
+    expect(page).toContain('aria-controls="discovery-market-insights"');
     expect(page).toContain("Market insights and saved interests");
+  });
+  it("keeps late activity recommendations below the main inventory", () => {
+    expect(page.indexOf("<ForYouRail")).toBeGreaterThan(
+      page.indexOf("visibleRails.map"),
+    );
   });
   it("does not submit or navigate an incomplete account scope during hydration", () => {
     expect(page).toContain("if (!discoverReady) return;");

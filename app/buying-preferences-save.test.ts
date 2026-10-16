@@ -32,16 +32,12 @@ describe("buying preferences", () => {
     act(() => root.render(React.createElement(BuyingProfilePrefs)));
   });
   it.each(["personal", "diy", "parts", "reseller", "dealer"])(
-    "provides working, relevant controls for %s without an admin option",
+    "unifies legacy %s controls without an admin option",
     async (mode) => {
       account.prefs.buyerScope.buyerMode = mode;
       act(() => root.render(React.createElement(BuyingProfilePrefs)));
-      expect(host.textContent?.includes("Repair experience")).toBe(
-        mode === "diy",
-      );
-      expect(host.textContent?.includes("Maximum donor price")).toBe(
-        mode === "parts",
-      );
+      expect(host.textContent).not.toContain("Buyer mode");
+      expect(host.textContent).not.toContain("Maximum donor price");
       expect(
         Array.from(host.querySelectorAll("option")).map(
           (option) => option.value,
@@ -51,7 +47,9 @@ describe("buying preferences", () => {
       await act(async () =>
         host.querySelector<HTMLButtonElement>("button")!.click(),
       );
-      expect(account.save.mock.calls[0][0].buyerScope.buyerMode).toBe(mode);
+      expect(account.save.mock.calls[0][0].buyerScope.buyerMode).toBe(
+        "reseller",
+      );
       expect(account.save.mock.calls[0][0]).not.toHaveProperty("role");
       expect(account.save.mock.calls[0][0]).not.toHaveProperty("plan");
     },
@@ -71,7 +69,8 @@ describe("buying preferences", () => {
     );
     expect(account.save).toHaveBeenCalledWith({
       buyerScope: expect.objectContaining({
-        buyerMode: "dealer",
+        buyerMode: "reseller",
+        legacyBuyerMode: "dealer",
         minPrice: 1000,
         maxPrice: 5000,
         preferredMakes: ["Ford"],

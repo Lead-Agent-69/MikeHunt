@@ -61,9 +61,12 @@ describe("Discover Salvage & Rebuildable lane", () => {
     expect(subtitle).not.toMatch(/profit|flip|\$/i);
   });
 
-  it("Settings explains the opt-in toggle turns the lane on", () => {
+  it("Settings retains the explicit repairable opt-in without requiring a persona choice", () => {
     const settings = read("components/settings/BuyingProfilePrefs.tsx");
     expect(settings).toContain("includeRepairable: event.target.checked");
-    expect(settings).toContain("Rebuildable lane on Discover");
+    expect(settings).toContain(
+      "Include vehicles with reported damage or repair needs",
+    );
+    expect(settings).not.toContain("Buyer mode");
   });
 });

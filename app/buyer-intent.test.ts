@@ -91,7 +91,7 @@ describe("buyer intent profile", () => {
     expect(params.get("dealerSourceIds")).toBe("ae-of-miami");
     expect(scanHrefForBuyerIntent(intent)).toContain("sort=score");
     expect(buyerIntentLabel(intent)).toContain("Ford/Toyota");
-    expect(buyerIntentLabel(intent)).toContain("Personal buyer");
+    expect(buyerIntentLabel(intent)).not.toContain("Personal buyer");
     expect(buyerIntentLabel(intent)).toContain("over $5,000");
     expect(buyerIntentLabel(intent)).toContain("1 watched dealer");
   });
@@ -133,9 +133,10 @@ describe("buyer intent profile", () => {
 
     expect(personal?.buyerMode).toBe("personal");
     expect(buildBuyerIntentQuery(personal).get("mode")).toBe("personal");
-    expect(buyerIntentLabel(personal)).toContain("Personal buyer");
+    expect(buyerIntentLabel(personal)).not.toContain("Personal buyer");
     expect(diy?.buyerMode).toBe("diy");
-    expect(buyerIntentLabel(diy)).toContain("DIY enthusiast");
+    expect(buyerIntentLabel(diy)).not.toContain("DIY enthusiast");
+    expect(buyerIntentLabel(diy)).toContain("Trucks");
   });
 
   it("preserves onboarding watched-shop goals in exact scan links", () => {

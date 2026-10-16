@@ -21,13 +21,10 @@ function DiscoveryViews() {
       />
     );
   return (
-    <details className="mb-2 border-b border-[var(--b1)] pb-1">
-      <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[var(--t2)]">
-        Inventory views
-      </summary>
-      <div className="pt-3">
+    <div className="mb-2 border-b border-[var(--b1)] pb-3">
+      <div>
         <InventoryViewLinks query={query} current="/discover" />
       </div>
-    </details>
+    </div>
   );
 }

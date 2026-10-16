@@ -174,9 +174,11 @@ function TopNavContent() {
       const params = new URLSearchParams(window.location.search);
       params.delete("state");
       params.delete("states");
-      params.delete("zip");
-      params.delete("radius");
-      if (states.length === 1) params.set("state", states[0]);
+      if (pathname === "/market") {
+        for (const key of ["near", "radius", "lat", "lng", "page"])
+          params.delete(key);
+        if (states.length) params.set("states", states.join(","));
+      } else if (states.length === 1) params.set("state", states[0]);
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
       window.history.replaceState(null, "", `${pathname}?${params.toString()}`);

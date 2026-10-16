@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { galleryImageSrc, needsImageProxy, proxiedImage } from "./image-url";
 
 describe("image-url free-tier routing", () => {
+  it("proxies allowlisted HTTP dealer photos to avoid mixed-content failures", () => {
+    const url = "http://rebuilders.stjamesautoparts.com/car.jpg";
+    expect(proxiedImage(url)).toBe(
+      `/api/image/proxy?url=${encodeURIComponent(url)}`,
+    );
+    expect(galleryImageSrc(url, 2)).toBe(proxiedImage(url));
+    expect(
+      needsImageProxy("http://stjamesautoparts.com.evil.test/car.jpg"),
+    ).toBe(false);
+    expect(needsImageProxy("http://127.0.0.1/car.jpg")).toBe(false);
+  });
   it("leaves dealer/gov CDN URLs direct (no proxy)", () => {
     const url = "https://webassets.lqdt1.com/assets/photo.jpg";
     expect(needsImageProxy(url)).toBe(false);

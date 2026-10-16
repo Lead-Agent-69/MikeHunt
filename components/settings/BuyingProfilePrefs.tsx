@@ -3,11 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePreferences, type Prefs } from "@/hooks/usePreferences";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
-import {
-  BUYER_MODES,
-  VEHICLE_TO_QUERY,
-  type BuyerMode,
-} from "@/hooks/useBuyerIntent";
+import { VEHICLE_TO_QUERY } from "@/hooks/useBuyerIntent";
+import { buyingWorkspaceScope } from "@/lib/buyer/workspace-scope";
 
 type Scope = NonNullable<Prefs["buyerScope"]>;
 const field =
@@ -57,11 +54,11 @@ export function BuyingProfilePrefs() {
         ),
       ).slice(0, 30);
       await save({
-        buyerScope: {
+        buyerScope: buyingWorkspaceScope({
           ...draft,
           makes: selectedMakes,
           preferredMakes: selectedMakes,
-        },
+        }),
       });
       setStatus(
         authed
@@ -93,25 +90,6 @@ export function BuyingProfilePrefs() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            Buyer mode
-            <select
-              className={field}
-              value={draft.buyerMode || "personal"}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  buyerMode: event.target.value as BuyerMode,
-                })
-              }
-            >
-              {Object.entries(BUYER_MODES).map(([value, mode]) => (
-                <option key={value} value={value}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="min-w-0 text-sm text-[var(--t2)]">
             Seller type
             <select
               className={field}
@@ -140,9 +118,7 @@ export function BuyingProfilePrefs() {
             />
           </label>
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            {draft.buyerMode === "parts"
-              ? "Maximum donor price ($)"
-              : "Maximum price ($)"}
+            Maximum price ($)
             <input
               className={field}
               type="number"
@@ -186,7 +162,7 @@ export function BuyingProfilePrefs() {
             </select>
           </label>
         </div>
-        {draft.buyerMode === "diy" && (
+        {includesRepairable(draft) && (
           <label className="block text-sm text-[var(--t2)]">
             Repair experience
             <select
@@ -264,10 +240,6 @@ export function BuyingProfilePrefs() {
           />
           Include vehicles with reported damage or repair needs
         </label>
-        <p className="-mt-1 text-xs text-[var(--t4)]">
-          On personal and DIY profiles this also shows the Salvage &amp;
-          Rebuildable lane on Discover, for research only.
-        </p>
         <button
           type="button"
           onClick={() => void submit()}
