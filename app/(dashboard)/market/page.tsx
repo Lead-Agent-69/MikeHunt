@@ -147,6 +147,7 @@ export default function MarketPage() {
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
   const [view, setView] = React.useState<"cards" | "table">("cards");
+  const [showEvidence, setShowEvidence] = React.useState(false);
   const set = (patch: Partial<Filters>) => {
     setPage(0);
     setF((p) => ({ ...p, ...patch }));
@@ -312,7 +313,7 @@ export default function MarketPage() {
     Object.entries(f) as [keyof Filters, Filters[keyof Filters]][]
   ).filter(
     ([key, value]) =>
-      !["sort", "sortDir", "mode", "radius"].includes(key) &&
+      !["sort", "sortDir", "mode", "radius", "states"].includes(key) &&
       (flipDesk || !["verdicts", "minRoi", "minProfit"].includes(key)) &&
       (Array.isArray(value) ? value.length > 0 : Boolean(value)),
   );
@@ -339,7 +340,7 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
         <h1 className="text-xl font-bold text-[var(--t1)]">Market Explorer</h1>
         <div className="flex gap-2">
@@ -500,21 +501,8 @@ export default function MarketPage() {
             ))}
           </select>
         </label>
-        <p className="col-span-2 self-end pb-2 text-xs text-[var(--t3)] sm:col-span-1">
-          Straight-line distance across state borders. Nearby results require
-          listing coordinates.
-        </p>
       </div>
 
-      {/* Whole-country opportunity heatmap — where the GO/HOLD money clusters. */}
-      {flipDesk && (
-        <details>
-          <summary className="cursor-pointer py-2 text-sm font-semibold">
-            National market map
-          </summary>
-          <USHeatmap />
-        </details>
-      )}
       <button
         type="button"
         aria-expanded={showFilters}
@@ -792,44 +780,58 @@ export default function MarketPage() {
         </aside>
 
         {/* ── Results ── */}
-        <main className="min-w-0 flex-1">
+        <section aria-label="Market results" className="min-w-0 flex-1">
           {!error && !busy && data?.marketEvidence && (
-            <section
-              aria-label="Market evidence"
-              className="mb-4 grid grid-cols-2 gap-3 border-b border-[var(--b1)] pb-4"
+            <details
+              className="mb-3 border-b border-[var(--b1)]"
+              onToggle={(event) => setShowEvidence(event.currentTarget.open)}
             >
-              <div>
-                <p className="text-xs text-[var(--t3)]">
-                  Confirmed asking-price observations
-                </p>
-                <p className="text-xl font-semibold tabular-nums">
-                  {data.marketEvidence.qualifiedAskingCount.toLocaleString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--t3)]">
-                  Median observed asking price
-                </p>
-                <p className="text-xl font-semibold tabular-nums">
-                  {data.marketEvidence.medianAskingPrice != null
-                    ? `$${Math.round(data.marketEvidence.medianAskingPrice).toLocaleString()}`
-                    : "Not enough evidence"}
-                </p>
-              </div>
-              <p className="col-span-2 text-xs text-[var(--t3)]">
-                Asking prices are not confirmed sales or a valuation. Counts
-                cover collected, photo-bearing inventory
-                {data?.capped ? " within a limited sample" : ""}, not every
-                vehicle on the web.
-              </p>
-            </section>
-          )}
-          {!error && (
-            <details className="mb-3">
-              <summary className="cursor-pointer py-2 text-sm font-semibold">
-                Price distribution and channel details
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">
+                Market evidence
               </summary>
-              <MarketVisualizers facets={facets} />
+              {showEvidence && (
+                <div className="grid grid-cols-2 gap-3 pb-4">
+                  <div>
+                    <p className="text-xs text-[var(--t3)]">
+                      Confirmed asking-price observations
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums">
+                      {data.marketEvidence.qualifiedAskingCount.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-[var(--t3)]">
+                      Median observed asking price
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums">
+                      {data.marketEvidence.medianAskingPrice != null
+                        ? `$${Math.round(data.marketEvidence.medianAskingPrice).toLocaleString()}`
+                        : "Not enough evidence"}
+                    </p>
+                  </div>
+                  <p className="col-span-2 text-xs text-[var(--t3)]">
+                    Asking prices are not confirmed sales or a valuation. Counts
+                    cover collected, photo-bearing inventory
+                    {data?.capped ? " within a limited sample" : ""}, not every
+                    vehicle on the web.
+                  </p>
+                  <p className="col-span-2 text-xs text-[var(--t3)]">
+                    Nearby distances are straight-line across state borders;
+                    only listings with coordinates can be placed.
+                  </p>
+                  <div className="col-span-2">
+                    <MarketVisualizers facets={facets} />
+                  </div>
+                  {flipDesk && (
+                    <details className="col-span-2">
+                      <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">
+                        National market map
+                      </summary>
+                      <USHeatmap />
+                    </details>
+                  )}
+                </div>
+              )}
             </details>
           )}
 
@@ -906,7 +908,11 @@ export default function MarketPage() {
           {error ? (
             <ErrorState
               title="Market data unavailable"
-              message="Could not load market listings. Your filters have been kept."
+              message={
+                f.zip
+                  ? "Could not load nearby listings. Check your ZIP code or try again. Your filters have been kept."
+                  : "Could not load market listings. Your filters have been kept."
+              }
               onRetry={() => void mutate()}
             />
           ) : rows.length > 0 ? (
@@ -968,7 +974,7 @@ export default function MarketPage() {
               </div>
             </nav>
           )}
-        </main>
+        </section>
       </div>
     </div>
   );

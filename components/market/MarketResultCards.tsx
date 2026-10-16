@@ -17,7 +17,10 @@ export type MarketRow = TableRow & {
 export function MarketResultCards({ rows }: { rows: MarketRow[] }) {
   return (
     <div
-      className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2 xl:grid-cols-3"
+      className="grid gap-3"
+      style={{
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+      }}
       aria-label="Market vehicles"
     >
       {rows.map((row) => (
