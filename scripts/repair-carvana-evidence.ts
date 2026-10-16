@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { appendFileSync } from "node:fs";
+import pLimit from "p-limit";
 import { inspectListingPhotos } from "../lib/images/photo-health";
 import { parseCarvanaVehicles } from "../lib/scrapers/sources/carvana";
 config({ path: ".env.local", quiet: true });
@@ -10,12 +11,17 @@ const apply = process.argv.includes("--apply");
 const maxPages = process.argv.includes("--max-pages")
   ? Number(arg("--max-pages"))
   : 25;
+const fromPage = process.argv.includes("--from-page")
+  ? Number(arg("--from-page"))
+  : 1;
 const receipt = process.argv.includes("--receipt")
   ? arg("--receipt")
   : undefined;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 412)
-  throw Error("--max-pages must be 1–412 (source pagination limit)");
+if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 395)
+  throw Error("--max-pages must be 1–395 (verified source pagination limit)");
+if (!Number.isInteger(fromPage) || fromPage < 1 || fromPage > maxPages)
+  throw Error("--from-page must be within the requested page range");
 if (
   apply &&
   (!receipt ||
@@ -41,6 +47,7 @@ async function main() {
     if (!data || data.length < 500) break;
   }
   const seen = new Set<string>();
+  const photoLimit = pLimit(3);
   const counts = {
     pages: 0,
     vehicles: 0,
@@ -50,8 +57,8 @@ async function main() {
     conflicts: 0,
     unavailablePhotos: 0,
   };
-  for (let page = 1; page <= maxPages; page++) {
-    if (page > 1) await new Promise((r) => setTimeout(r, 1200));
+  for (let page = fromPage; page <= maxPages; page++) {
+    if (page > fromPage) await new Promise((r) => setTimeout(r, 1200));
     const res = await fetch(
       "https://apik.carvana.io/merch/search/api/v2/search",
       {
@@ -80,72 +87,78 @@ async function main() {
     if (!vehicles.length) break;
     counts.pages++;
     counts.vehicles += vehicles.length;
-    for (const vehicle of vehicles) {
-      const vin = vehicle.vin!.toUpperCase();
-      const row = byVin.get(vin);
-      if (!row || seen.has(vin)) continue;
-      seen.add(vin);
-      counts.matched++;
-      const patch: Record<string, any> = {};
-      if (row.source_url !== vehicle.source_url)
-        patch.source_url = vehicle.source_url;
-      const realPhotos = (vehicle.images || []).filter(
-        (image) => !image.includes("/stockimages/"),
-      );
-      if (
-        realPhotos.length &&
-        !row.images?.some((image: string) => realPhotos.includes(image))
-      ) {
-        const audit = await inspectListingPhotos(realPhotos, { maxPhotos: 3 });
-        if (audit.state === "available") {
-          patch.images = [
-            ...audit.images,
-            ...(row.images || []).filter(
-              (image: string) => !audit.images.includes(image),
-            ),
-          ].slice(0, 12);
-          patch.options = { ...row.options, photoAudit: audit };
-        } else counts.unavailablePhotos++;
-      }
-      // Do not change stored pricing/economics during photo maintenance. Evidence can qualify the
-      // existing price only when the freshly observed seller amount agrees with it exactly.
-      if (vehicle.ask_price === row.ask_price)
-        patch.options = {
-          ...(patch.options || row.options),
-          priceEvidence: vehicle.options?.priceEvidence,
-        };
-      if (!Object.keys(patch).length) continue;
-      if (receipt)
-        appendFileSync(
-          receipt,
-          JSON.stringify({
-            at: new Date().toISOString(),
-            before: row,
-            patch,
-            apply,
-          }) + "\n",
-        );
-      if (apply) {
-        const { data, error } = await db
-          .from("deals")
-          .update(patch)
-          .eq("id", row.id)
-          .eq("active", true)
-          .eq("vin", row.vin)
-          .eq("source_url", row.source_url)
-          .eq("updated_at", row.updated_at)
-          .select("id");
-        if (error) throw Error(error.message);
-        if (!data?.length) {
-          counts.conflicts++;
-          continue;
-        }
-      }
-      if (patch.images) counts.photos++;
-      if (patch.source_url) counts.links++;
-    }
+    await Promise.all(
+      vehicles.map((vehicle) =>
+        photoLimit(async () => {
+          const vin = vehicle.vin!.toUpperCase();
+          const row = byVin.get(vin);
+          if (!row || seen.has(vin)) return;
+          seen.add(vin);
+          counts.matched++;
+          const patch: Record<string, any> = {};
+          if (row.source_url !== vehicle.source_url)
+            patch.source_url = vehicle.source_url;
+          const realPhotos = (vehicle.images || []).filter(
+            (image) => !image.includes("/stockimages/"),
+          );
+          if (
+            realPhotos.length &&
+            !row.images?.some((image: string) => realPhotos.includes(image))
+          ) {
+            const audit = await inspectListingPhotos(realPhotos, {
+              maxPhotos: 3,
+            });
+            if (audit.state === "available") {
+              patch.images = [
+                ...audit.images,
+                ...(row.images || []).filter(
+                  (image: string) => !audit.images.includes(image),
+                ),
+              ].slice(0, 12);
+              patch.options = { ...row.options, photoAudit: audit };
+            } else counts.unavailablePhotos++;
+          }
+          // Do not change stored pricing/economics during photo maintenance. Evidence can qualify the
+          // existing price only when the freshly observed seller amount agrees with it exactly.
+          if (vehicle.ask_price === row.ask_price)
+            patch.options = {
+              ...(patch.options || row.options),
+              priceEvidence: vehicle.options?.priceEvidence,
+            };
+          if (!Object.keys(patch).length) return;
+          if (receipt)
+            appendFileSync(
+              receipt,
+              JSON.stringify({
+                at: new Date().toISOString(),
+                before: row,
+                patch,
+                apply,
+              }) + "\n",
+            );
+          if (apply) {
+            const { data, error } = await db
+              .from("deals")
+              .update(patch)
+              .eq("id", row.id)
+              .eq("active", true)
+              .eq("vin", row.vin)
+              .eq("source_url", row.source_url)
+              .eq("updated_at", row.updated_at)
+              .select("id");
+            if (error) throw Error(error.message);
+            if (!data?.length) {
+              counts.conflicts++;
+              return;
+            }
+          }
+          if (patch.images) counts.photos++;
+          if (patch.source_url) counts.links++;
+        }),
+      ),
+    );
     if (page % 10 === 0 || page === maxPages)
-      console.log(JSON.stringify({ apply, ...counts }));
+      console.log(JSON.stringify({ apply, page, ...counts }));
     if (
       page >= Number(body.inventory?.pagination?.totalMatchedPages || Infinity)
     )

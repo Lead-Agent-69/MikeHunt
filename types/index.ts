@@ -22,6 +22,9 @@ export interface Deal {
   location_city?: string;
   location_state?: string;
   location_zip?: string;
+  /** Source coordinates are validated at intake and take precedence over city/ZIP centers. */
+  lat?: number | null;
+  lng?: number | null;
   images?: string[];
   description?: string;
   seller?: string;

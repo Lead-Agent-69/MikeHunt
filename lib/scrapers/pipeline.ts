@@ -22,7 +22,7 @@ import {
   trackingUrls,
 } from "@/lib/alerts/delivery-tracking";
 import { sendAlertMatchSMS } from "@/lib/notifications/sms";
-import { resolvePlaces } from "@/lib/geo/geocode";
+import { coordinatesForPlace, resolvePlaces } from "@/lib/geo/geocode";
 import { matchesSavedSearch } from "@/lib/saved/search-match";
 import { cleanCity } from "@/lib/data/clean-location";
 import { getLocalWriteContext } from "./local-write-context";
@@ -341,6 +341,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
+        ...(coordinatesForPlace({ lat: deal.lat, lng: deal.lng }) || {}),
         // Re-observation restores ordinary listings and rescheduled auctions, not known-ended lots.
         active: isWithinAuctionWindow({ auction_end_at: auctionEndAt }),
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested
@@ -462,20 +463,26 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     } else {
       const coords = await resolvePlaces(
         getSupabase(),
-        rows.map((r) => ({
-          zip: r.location_zip,
-          city: r.location_city,
-          state: r.location_state,
-        })),
+        rows
+          .filter((r) => r.lat == null || r.lng == null)
+          .map((r) => ({
+            zip: r.location_zip,
+            city: r.location_city,
+            state: r.location_state,
+          })),
       );
       if (coords.size > 0) {
         for (const r of rows as any[]) {
-          const key = r.location_zip
-            ? `zip:${String(r.location_zip).match(/\b(\d{5})\b/)?.[1] || ""}`
-            : r.location_city && r.location_state
-              ? `cs:${String(r.location_city).trim().toLowerCase().replace(/\s+/g, " ")}|${String(r.location_state).trim().toLowerCase()}`
-              : "";
-          const c = key ? coords.get(key) : undefined;
+          const c = coordinatesForPlace(
+            {
+              lat: r.lat,
+              lng: r.lng,
+              zip: r.location_zip,
+              city: r.location_city,
+              state: r.location_state,
+            },
+            coords,
+          );
           if (c) {
             r.lat = c.lat;
             r.lng = c.lng;
