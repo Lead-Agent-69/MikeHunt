@@ -18,8 +18,8 @@ const receipt = process.argv.includes("--receipt")
   ? arg("--receipt")
   : undefined;
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 412)
-  throw Error("--max-pages must be 1–412 (source pagination limit)");
+if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 395)
+  throw Error("--max-pages must be 1–395 (verified source pagination limit)");
 if (!Number.isInteger(fromPage) || fromPage < 1 || fromPage > maxPages)
   throw Error("--from-page must be within the requested page range");
 if (
