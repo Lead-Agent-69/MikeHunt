@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { filterDisplayValue } from "./filter-display";
 
 describe("applied search filter labels", () => {
+  it("names each selected platform separately", () => {
+    const label = filterDisplayValue("Source", "cars_com,copart");
+    expect(label).toContain("Cars.com");
+    expect(label).toContain("Copart");
+  });
   it("keeps storage slugs out of source/title labels", () => {
     expect(filterDisplayValue("Source", "independent_dealer")).not.toContain(
       "_",

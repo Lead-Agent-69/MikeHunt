@@ -36,6 +36,12 @@ export interface DealCardProps {
   /** What backs the resale estimate. */
   sellBasis?: "comps" | "market" | "baseline";
   valuation?: {
+    cleanComp?: number | null;
+    baseline?: number;
+    compScope?: string;
+    compKind?: string;
+    compExcludedSelf?: number;
+    resaleEvidence?: boolean;
     basis?: "comps" | "market" | "baseline";
     source?:
       | "comparables"

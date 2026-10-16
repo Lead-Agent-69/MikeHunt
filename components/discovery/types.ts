@@ -1,6 +1,7 @@
 import type { DealGrade } from "./DealGradeBadge";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import type { DiscoverCoverage } from "@/lib/discovery/coverage";
+import type { ValuationInputs } from "@/lib/valuation/explanation";
 
 export interface AlsoOn {
   source: string;
@@ -34,6 +35,7 @@ export interface DiscoveryDeal {
   soldAnchored?: boolean;
   /** When the resale figure was computed, if the analyzer stored it. */
   valueAsOf?: string | null;
+  valuation?: ValuationInputs;
   profitScore?: number;
   trueNetProfit?: number;
   recommendedMaxBid?: number;

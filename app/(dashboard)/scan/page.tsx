@@ -99,6 +99,8 @@ import {
 } from "@/lib/search/nearby-search-draft";
 import { filterDisplayValue } from "@/lib/search/filter-display";
 import { sortInventoryResults } from "@/lib/search/sort-inventory-results";
+import { SourceFilter } from "@/components/search/SourceFilter";
+import { selectedSourceIds as parseSelectedSourceIds } from "@/lib/search/source-selection";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -111,6 +113,7 @@ const ProfitSimulatorDrawer = dynamic(
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ScanResult {
+  dealMargin?: number;
   id: string;
   source: string;
   title?: string;
@@ -353,6 +356,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     bodyClass: (deal as any).bodyClass || undefined,
     recallsCount: (deal as any).recallsCount ?? undefined,
     askPrice: deal.askPrice ?? 0,
+    dealMargin: deal.dealMargin,
     mmrValue: deal.mmrValue ?? 0,
     profitEstimate: deal.profitEstimate ?? 0,
     profitScore: deal.profitScore ?? 50,
@@ -2721,7 +2725,7 @@ function ScanPageInner() {
   useEffect(() => {
     const q = urlParams.get("q");
     setUrlHydrated(true);
-    const source = urlParams.get("source");
+    const source = urlParams.get("sources") || urlParams.get("source");
     const sellerTypeParam = urlParams.get("sellerType");
     const title = urlParams.get("titleType");
     const laneParam = urlParams.get("lane");
@@ -3277,7 +3281,9 @@ function ScanPageInner() {
         body: JSON.stringify({
           scope: smartPlan.scope,
           sourceIds:
-            sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds,
+            sourceFilter !== "all"
+              ? parseSelectedSourceIds(sourceFilter)
+              : smartPlan.sourceIds,
         }),
         signal: request.signal,
       });
@@ -3796,7 +3802,10 @@ function ScanPageInner() {
     [sourceHealthById],
   );
   const selectedSourceIds = useMemo(
-    () => (sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds),
+    () =>
+      sourceFilter !== "all"
+        ? parseSelectedSourceIds(sourceFilter)
+        : smartPlan.sourceIds,
     [sourceFilter, smartPlan.sourceIds],
   );
   const effectiveSmartPlan = useMemo(
@@ -4097,7 +4106,9 @@ function ScanPageInner() {
     ]);
     const canPublicPreview =
       sourceFilter !== "all"
-        ? publicPreviewSourceIds.has(sourceFilter)
+        ? parseSelectedSourceIds(sourceFilter).some((id) =>
+            publicPreviewSourceIds.has(id),
+          )
         : smartPlan.sourceIds.some((sourceId) =>
             publicPreviewSourceIds.has(sourceId),
           );
@@ -4313,12 +4324,16 @@ function ScanPageInner() {
             !wantsAuctionInventory({
               lane,
               sellerType: sellerTypeFilter,
-              sources: [sourceFilter],
+              sources: parseSelectedSourceIds(sourceFilter),
             })
           )
             return;
           if (state !== "all" && d.location_state !== state) return;
-          if (sourceFilter !== "all" && d.source !== sourceFilter) return;
+          if (
+            sourceFilter !== "all" &&
+            !parseSelectedSourceIds(sourceFilter).includes(d.source)
+          )
+            return;
 
           // Realtime only carries the deals columns the browser role is GRANTED (listing facts, no
           // economics: see supabase/migrations/20261010020000_deals_column_grants.sql). So don't
@@ -4413,13 +4428,16 @@ function ScanPageInner() {
       }),
     );
     const seen = new Set(opts.map((option) => option.value));
-    ALL_VEHICLE_SOURCES.slice(0, 20).forEach((s) => {
+    ALL_VEHICLE_SOURCES.forEach((s) => {
       if (seen.has(s.id)) return;
       opts.push({ value: s.id, label: s.name });
       seen.add(s.id);
     });
+    parseSelectedSourceIds(sourceFilter).forEach((id) => {
+      if (!seen.has(id)) opts.push({ value: id, label: sourceMeta(id).label });
+    });
     return opts;
-  }, [facets?.sources]);
+  }, [facets?.sources, sourceFilter]);
 
   const stateOptions = useMemo(() => {
     const opts = [{ value: "all", label: "State: All" }];
@@ -4846,7 +4864,7 @@ function ScanPageInner() {
             value={maxMileage}
             onChange={setMaxMileage}
           />
-          <FilterSelect
+          <SourceFilter
             label="Source"
             value={sourceFilter}
             onChange={setSourceFilter}
@@ -4894,6 +4912,10 @@ function ScanPageInner() {
             value={sort}
             onChange={setSort}
             options={[
+              {
+                value: "margin",
+                label: "Sort: Highest price gap (before costs)",
+              },
               // Profit sort is a flip-desk tool; keep it listed if a URL already picked it.
               ...(flipDesk || sort === "profit"
                 ? [{ value: "profit", label: "Sort: Profit ↓" }]

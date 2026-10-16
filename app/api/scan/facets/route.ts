@@ -25,10 +25,15 @@ import {
   applyInventoryLane,
   applyVehicleDetails,
   uniqueDbSources,
+  applySelectedSources,
   sellerTypeSourceValues,
   sourceUrlNeedles,
   validateInventoryRanges,
 } from "@/lib/search/inventory-filters";
+import {
+  selectedSourceIds,
+  validSourceSelection,
+} from "@/lib/search/source-selection";
 import {
   AUCTION_DB_SOURCES,
   wantsAuctionInventory,
@@ -158,7 +163,12 @@ export async function GET(req: NextRequest) {
     });
   const supabase = createServerComponentClient();
   const flipDesk = (await resolveCallerDesk()) === "flip";
-  const source = params.get("source") || "";
+  const source = params.get("sources") || params.get("source") || "";
+  if (!validSourceSelection(source))
+    return NextResponse.json(
+      { error: "Choose up to 25 valid listing sources." },
+      { status: 400 },
+    );
   const lane = params.get("lane") || "all";
   const seller = params.get("sellerType") || "all";
   const sourceIds = (params.get("dealerSourceIds") || "")
@@ -184,7 +194,7 @@ export async function GET(req: NextRequest) {
       !wantsAuctionInventory({
         lane,
         sellerType: seller,
-        sources: [source, ...sourceIds],
+        sources: [...selectedSourceIds(source), ...sourceIds],
       })
     )
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
@@ -229,12 +239,7 @@ export async function GET(req: NextRequest) {
     }
     if (cascade) query = query.ilike("make", make!);
     if (source && source !== "all") {
-      query = query.in("source", uniqueDbSources([source]));
-      const needles = sourceUrlNeedles(source);
-      if (needles.length)
-        query = query.or(
-          needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
-        );
+      query = applySelectedSources(query, selectedSourceIds(source));
     }
     const sellers = sellerTypeSourceValues(seller);
     if (sellers.length) query = query.in("source", sellers);

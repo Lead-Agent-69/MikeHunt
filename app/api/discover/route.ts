@@ -44,6 +44,7 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { cached } from "@/lib/cache";
 import { valueConfidence } from "@/lib/valuation/confidence";
+import { valuationInputs } from "@/lib/valuation/explanation";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { resolveBuyerHome } from "@/lib/geo/buyer-home";
 import {
@@ -151,9 +152,10 @@ function mapDeal(
       (d.deal_analysis?.valuation?.compCount ?? 0) +
       (d.deal_analysis?.valuation?.soldCount ?? 0),
     compCount: d.deal_analysis?.valuation?.compCount ?? 0,
+    valuation: valuationInputs(d.deal_analysis?.valuation),
     sellBasis: d.deal_analysis?.sellBasis,
     soldAnchored: d.deal_analysis?.soldAnchored === true,
-    valueAsOf: d.deal_analysis?.valuation?.asOf || d.last_seen_at || null,
+    valueAsOf: d.deal_analysis?.valuation?.asOf || null,
     profitScore:
       reportedAcquisitionPrice(d) > 0 && d.profit_score != null
         ? Number(d.profit_score)

@@ -14,6 +14,10 @@ const ENUM_LABELS = new Set([
 ]);
 
 export function filterDisplayValue(label: string, value: string): string {
-  if (label === "Source") return sourceMeta(value).label;
+  if (label === "Source")
+    return value
+      .split(",")
+      .map((id) => sourceMeta(id).label)
+      .join(", ");
   return ENUM_LABELS.has(label) ? humanizeEnumLabel(value) : value;
 }

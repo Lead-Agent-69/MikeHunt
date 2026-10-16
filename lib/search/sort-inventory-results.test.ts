@@ -22,6 +22,18 @@ const rows = [
   },
 ];
 describe("inventory result ordering", () => {
+  it("ranks recorded price gaps, never profit substitutes or unqualified previews", () => {
+    const gaps = [
+      { id: "unknown", profitEstimate: 99999 },
+      { id: "small", dealMargin: 1000, profitEstimate: 5000 },
+      { id: "large", dealMargin: 5000, profitEstimate: 0 },
+    ];
+    expect(sortInventoryResults(gaps, "margin").map((row) => row.id)).toEqual([
+      "large",
+      "small",
+      "unknown",
+    ]);
+  });
   it.each([
     ["year", "new"],
     ["mileage", "new"],

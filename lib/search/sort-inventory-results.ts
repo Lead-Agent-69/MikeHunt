@@ -1,4 +1,5 @@
 type SortableListing = {
+  dealMargin?: number;
   askPrice?: number;
   year?: number;
   mileage?: number;
@@ -14,6 +15,7 @@ export function sortInventoryResults<T extends SortableListing>(
   sort: string,
 ): T[] {
   const value = (row: T): number | undefined => {
+    if (sort === "margin") return row.dealMargin;
     if (sort === "price" || sort === "price-desc")
       return row.askPrice && row.askPrice > 0 ? row.askPrice : undefined;
     if (sort === "year") return row.year && row.year > 0 ? row.year : undefined;
