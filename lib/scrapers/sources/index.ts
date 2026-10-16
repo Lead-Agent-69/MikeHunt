@@ -44,6 +44,7 @@ import {
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import { dealerDetailPhotos } from "../dealer-detail-photos";
+import { listingLocation } from "../listing-location";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
@@ -201,6 +202,12 @@ export async function enrichCraigslistDetail(
       extractVin($(".attrgroup").text()) ||
       extractVin($("#postingbody").text());
     if (vin) out.vin = vin;
+    Object.assign(
+      out,
+      listingLocation(fetched.html, fetched.finalUrl || url, vin || null),
+    );
+    if (out.location_state)
+      out.metadata = { ...out.metadata, location_state_source: "listing" };
 
     // Odometer / true mileage.
     const odo = attr("auto_miles") || attr("odometer");
@@ -934,7 +941,9 @@ export async function scrapeIndependentDealer(
     ? Math.max(0, Math.min(25, Math.floor(configuredPhotoLimit)))
     : 12;
   const photoCandidates = allDeals.filter(
-    (deal) => (deal.images?.length || 0) < 2,
+    (deal) =>
+      (deal.images?.length || 0) < 2 ||
+      (!deal.location_city && !deal.location_zip),
   );
   // Advance the bounded batch hourly; stable inventory order must not starve later cars.
   const photoOffset = photoCandidates.length
@@ -961,6 +970,14 @@ export async function scrapeIndependentDealer(
         if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
         const photos = dealerDetailPhotos(response.body, url);
         if (photos.length > (deal.images?.length || 0)) deal.images = photos;
+        const location = listingLocation(response.body, response.url, deal.vin);
+        if (location.lat != null && location.lng != null)
+          Object.assign(deal, location);
+        else {
+          deal.location_city ||= location.location_city;
+          deal.location_state ||= location.location_state;
+          deal.location_zip ||= location.location_zip;
+        }
       } catch (error) {
         abortSignal?.throwIfAborted();
         console.warn(

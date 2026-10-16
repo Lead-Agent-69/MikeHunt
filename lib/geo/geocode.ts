@@ -26,28 +26,40 @@ type FetchLike = (
   init?: { headers?: Record<string, string> },
 ) => Promise<{
   ok: boolean;
+  status?: number;
   json: () => Promise<any>;
 }>;
 
 const NOMINATIM_UA = "MikeHuntPro/1.0 (vehicle deal geocoding)";
+const FAILED_TTL_MS = 24 * 60 * 60 * 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const ZIP_RE = /\b(\d{5})\b/;
+function cityName(p: PlaceInput): string {
+  const city = (p.city || "").trim().replace(/\s+/g, " ");
+  const state = (p.state || "").trim();
+  // Sources sometimes put "Forsyth, MO" in the city column as well as state="MO".
+  // Strip only the same explicit state; a conflicting state needs source evidence to resolve.
+  return /^[a-z]{2}$/i.test(state)
+    ? city.replace(new RegExp(`[,\\s]+${state}$`, "i"), "").trim()
+    : city;
+}
 
 /** Canonical cache key for a place. ZIP wins (most precise); else "city|state". Null if unusable. */
 export function placeKey(p: PlaceInput): string | null {
   const zip = p.zip ? String(p.zip).match(ZIP_RE)?.[1] : null;
   if (zip) return `zip:${zip}`;
-  const city = (p.city || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const city = cityName(p).toLowerCase();
   const state = (p.state || "").trim().toLowerCase();
   if (city && state) return `cs:${city}|${state}`;
   return null;
 }
 
 function validCoords(lat: any, lng: any): LatLng | null {
+  if (lat == null || lng == null || lat === "" || lng === "") return null;
   const la = Number(lat);
   const lo = Number(lng);
   if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
@@ -74,22 +86,32 @@ async function geocodeOnline(
   key: string,
   p: PlaceInput,
   fetchImpl: FetchLike,
-): Promise<LatLng | null> {
+): Promise<LatLng | "not_found" | null> {
   try {
     if (key.startsWith("zip:")) {
       const zip = key.slice(4);
       const res = await fetchImpl(`https://api.zippopotam.us/us/${zip}`);
-      if (!res.ok) return null;
-      return parseZippopotam(await res.json());
+      if (!res.ok) return res.status === 404 ? "not_found" : null;
+      const body = await res.json();
+      return (
+        parseZippopotam(body) ??
+        (Array.isArray(body?.places) && !body.places.length
+          ? "not_found"
+          : null)
+      );
     }
-    const city = encodeURIComponent(String(p.city || ""));
+    const city = encodeURIComponent(cityName(p));
     const state = encodeURIComponent(String(p.state || ""));
     const res = await fetchImpl(
       `https://nominatim.openstreetmap.org/search?city=${city}&state=${state}&country=US&format=json&limit=1`,
       { headers: { "User-Agent": NOMINATIM_UA } },
     );
     if (!res.ok) return null;
-    return parseNominatim(await res.json());
+    const body = await res.json();
+    return (
+      parseNominatim(body) ??
+      (Array.isArray(body) && !body.length ? "not_found" : null)
+    );
   } catch {
     return null;
   }
@@ -123,7 +145,9 @@ export async function resolvePlaces(
   opts: { maxLookups?: number; fetchImpl?: FetchLike; delayMs?: number } = {},
 ): Promise<Map<string, LatLng>> {
   const fetchImpl =
-    opts.fetchImpl || (globalThis.fetch as unknown as FetchLike);
+    opts.fetchImpl ||
+    ((url, init) =>
+      globalThis.fetch(url, { ...init, signal: AbortSignal.timeout(8000) }));
   const maxLookups = opts.maxLookups ?? 25;
   const delayMs = opts.delayMs ?? 0;
   const out = new Map<string, LatLng>();
@@ -138,17 +162,19 @@ export async function resolvePlaces(
 
   const keys = Array.from(keyToPlace.keys());
 
-  // 1) Cache read. A row with source='failed' is a remembered miss — a place the geocoder couldn't
-  //    resolve — so we don't retry it on every pass (protects the hot path and lets backfill converge).
+  // 1) Remember true misses for one day. Transient outages must not poison the cache forever.
   const failed = new Set<string>();
+  const expired = new Map<string, string | null>();
   try {
     const { data } = await supabase
       .from("geocode_cache")
-      .select("place_key, lat, lng, source")
+      .select("place_key, lat, lng, source, created_at")
       .in("place_key", keys);
     for (const row of data || []) {
       if (row.source === "failed") {
-        failed.add(row.place_key);
+        const age = Date.now() - Date.parse(row.created_at || "");
+        if (age >= 0 && age < FAILED_TTL_MS) failed.add(row.place_key);
+        else expired.set(row.place_key, row.created_at ?? null);
         continue;
       }
       const c = validCoords(row.lat, row.lng);
@@ -166,32 +192,57 @@ export async function resolvePlaces(
     lat: number;
     lng: number;
     source: string;
+    created_at: string;
   }[] = [];
 
   for (let i = 0; i < toFetch.length; i++) {
     const k = toFetch[i];
     if (delayMs > 0 && i > 0) await sleep(delayMs);
     const coords = await geocodeOnline(k, keyToPlace.get(k)!, fetchImpl);
-    if (coords) {
+    const created_at = new Date().toISOString();
+    if (coords && coords !== "not_found") {
       out.set(k, coords);
       fresh.push({
         place_key: k,
         lat: coords.lat,
         lng: coords.lng,
         source: k.startsWith("zip:") ? "zippopotam" : "nominatim",
+        created_at,
       });
-    } else {
-      // Remember the miss so we don't hammer the geocoder with it again.
-      fresh.push({ place_key: k, lat: 0, lng: 0, source: "failed" });
+    } else if (coords === "not_found") {
+      fresh.push({
+        place_key: k,
+        lat: 0,
+        lng: 0,
+        source: "failed",
+        created_at,
+      });
     }
   }
 
   // 3) Write fresh results back to the cache (best-effort).
   if (fresh.length) {
     try {
-      await supabase
-        .from("geocode_cache")
-        .upsert(fresh, { onConflict: "place_key", ignoreDuplicates: true });
+      const inserts = fresh.filter((row) => !expired.has(row.place_key));
+      if (inserts.length)
+        await supabase.from("geocode_cache").upsert(inserts, {
+          onConflict: "place_key",
+          ignoreDuplicates: true,
+        });
+      // Replace only the failed row we read. A concurrent successful lookup wins.
+      for (const row of fresh.filter((row) => expired.has(row.place_key))) {
+        const previous = expired.get(row.place_key);
+        let query = supabase
+          .from("geocode_cache")
+          .update(row)
+          .eq("place_key", row.place_key)
+          .eq("source", "failed");
+        query =
+          previous == null
+            ? query.is("created_at", null)
+            : query.eq("created_at", previous);
+        await query;
+      }
     } catch {
       /* non-fatal */
     }
