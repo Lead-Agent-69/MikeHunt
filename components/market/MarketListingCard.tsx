@@ -145,9 +145,9 @@ export function MarketListingCard({
               row.lane?.replace(/-/g, " ") ||
               "Seller type unreported"}
           </p>
-          <h3 className="mt-1 text-base font-bold leading-snug">
+          <h3 className="mt-1 break-words text-base font-bold leading-snug">
             <Link href={`/deal/${row.id}`} className="hover:underline">
-              {row.year} {row.make} {row.model}
+              {row.title || `${row.year} ${row.make} ${row.model}`}
             </Link>
           </h3>
           {row.trim && <p className="text-xs text-[var(--t3)]">{row.trim}</p>}

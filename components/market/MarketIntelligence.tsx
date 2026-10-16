@@ -90,7 +90,7 @@ export function MarketIntelligence({
           {
             label: "Median cash asking price",
             value: reportedPrice(summary.medianAsk),
-            detail: `${summary.askingSample} comparable asking listings`,
+            detail: `${summary.askingSample.toLocaleString()} of ${n.toLocaleString()} matches qualify (${n ? ((summary.askingSample / n) * 100).toFixed(1) : "0"}%)`,
             icon: BarChart3,
           },
           {
@@ -143,8 +143,8 @@ export function MarketIntelligence({
           </summary>
           <p>
             {summary.askingSample >= 5
-              ? `Use the ${summary.askingSample} comparable asking listings to review asking levels, then check year, mileage and condition on each vehicle.`
-              : "Comparable cash asking evidence is thin in this search. Confirm full purchase prices at the source before comparing value."}{" "}
+              ? `The median covers ${summary.askingSample} qualified asking listings in this filtered mix of vehicles. It is not a valuation of an individual vehicle; compare year, mileage and condition.`
+              : "Cash asking evidence is thin in this search. Confirm full purchase prices at the source before comparing value."}{" "}
             Bids, payments and reference values are excluded from the
             asking-price median. Fees, tax and transport are additional.
           </p>
