@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 const generate = vi.hoisted(() => vi.fn());
 vi.mock("./embeddings", () => ({ generateEmbeddings: generate }));
 import { backfillEmbeddings, dealEmbeddingText } from "./deal-embeddings";
@@ -9,7 +10,12 @@ interface Fixture {
   missing?: any[];
   embedded?: any[];
   usedToday?: number;
-  counts?: { active: number; embedded: number; missing: number; fresh: number };
+  counts?: {
+    active: number;
+    embedded: number;
+    missing: number;
+    hashTracked: number;
+  };
   readError?: { message: string } | null;
   budgetError?: { message: string; code?: string } | null;
   budgetResponses?: {
@@ -36,7 +42,12 @@ function database(f: Fixture = {}) {
     }
     reads.push(ops);
     const sel = ops.find((o) => o[0] === "select")!;
-    const c = f.counts ?? { active: 10, embedded: 4, missing: 6, fresh: 2 };
+    const c = f.counts ?? {
+      active: 10,
+      embedded: 4,
+      missing: 6,
+      hashTracked: 2,
+    };
     if (sel[2]?.head) {
       if (has(ops, "gte", "embedded_at")) {
         if (f.budgetResponses)
@@ -48,7 +59,7 @@ function database(f: Fixture = {}) {
           : { count: f.usedToday ?? 0, error: null };
       }
       if (has(ops, "not", "embedding_source_hash"))
-        return { count: c.fresh, error: null };
+        return { count: c.hashTracked, error: null };
       if (has(ops, "is", "embedding")) return { count: c.missing, error: null };
       if (has(ops, "not", "embedding"))
         return { count: c.embedded, error: null };
@@ -101,6 +112,7 @@ const deal = (id: string, created_at: string, extra: any = {}) => ({
 beforeEach(() => vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test"));
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   generate.mockReset();
   sleep.mockClear();
 });
@@ -230,13 +242,72 @@ describe("Embedding backfill proof", () => {
       skipped: false,
       schemaReady: true,
       byTier: { missing: 1, changed: 0, legacy: 0 },
-      coverage: { active: 10, embedded: 4, fresh: 2, pct: 40 },
+      coverage: {
+        active: 10,
+        embedded: 4,
+        fresh: null,
+        sourceHashTracked: 2,
+        currentContentFreshness: "not_measured",
+        pct: 40,
+      },
     });
     expect(db.writes[0].id).toBe("one");
     expect(db.writes[0].patch.embedding_source_hash).toBe(
       embeddingSourceHash(dealEmbeddingText(d)),
     );
     expect(Date.parse(db.writes[0].patch.embedded_at)).not.toBeNaN();
+  });
+
+  it("does not certify a changed listing as fresh just because its old source hash exists", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const previous = deal("changed", "2026-10-09", { mileage: 50000 });
+    const changed = {
+      ...previous,
+      mileage: 80000,
+      embedding_source_hash: embeddingSourceHash(dealEmbeddingText(previous)),
+    };
+    expect(changed.embedding_source_hash).not.toBe(
+      embeddingSourceHash(dealEmbeddingText(changed)),
+    );
+    const db = database({
+      embedded: [changed],
+      usedToday: 900,
+      counts: { active: 1, embedded: 1, missing: 0, hashTracked: 1 },
+    });
+    const result = await backfillEmbeddings(db.client, 1, {
+      dailyCap: 900,
+      sleep,
+    });
+    expect(result.coverage).toEqual({
+      active: 1,
+      embedded: 1,
+      pct: 100,
+      sourceHashTracked: 1,
+      fresh: null,
+      currentContentFreshness: "not_measured",
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toEqual([]);
+    const message = log.mock.calls.flat().join(" ");
+    expect(message).toContain("source hash recorded 1");
+    expect(message).toContain("current content freshness not measured");
+    expect(message).not.toContain("hash-verified");
+    expect(
+      db.reads.filter((ops) =>
+        ops.some((o) => o[0] === "select" && o[2]?.head),
+      ),
+    ).toHaveLength(5);
+  });
+
+  it("keeps the workflow consumer explicit about unmeasured content freshness", () => {
+    const workflow = readFileSync(
+      ".github/workflows/embeddings-backfill.yml",
+      "utf8",
+    );
+    expect(workflow).toContain("$c.sourceHashTracked");
+    expect(workflow).toContain("current content freshness not measured");
+    expect(workflow).not.toContain("$c.fresh");
+    expect(workflow).not.toContain("hash-verified fresh");
   });
 });
 
@@ -299,6 +370,8 @@ describe("needs-embedding selection", () => {
       { id: "a", patch: { embedding: expect.any(String) } },
     ]);
     expect(r.coverage?.fresh).toBeNull();
+    expect(r.coverage?.sourceHashTracked).toBeNull();
+    expect(r.coverage?.currentContentFreshness).toBe("not_measured");
   });
 });
 
