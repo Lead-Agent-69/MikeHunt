@@ -152,21 +152,43 @@ export async function backfillEmbeddings(
   //    Only rows stamped with a hash count, so the migration's embedded_at backfill doesn't.
   let schemaReady = true;
   let usedToday: number | null = 0;
-  const used = await supabase
-    .from("deals")
-    .select("id", { count: "exact", head: true })
-    .not("embedding_source_hash", "is", null)
-    .gte("embedded_at", startOfPacificDay(new Date(now())).toISOString());
+  const readBudget = () =>
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .not("embedding_source_hash", "is", null)
+      .gte("embedded_at", startOfPacificDay(new Date(now())).toISOString())
+      .abortSignal(AbortSignal.timeout(5000));
+  let used = await readBudget();
+  // HEAD failures can have an empty body. Retry that read once, never provider
+  // calls or writes, and never assume that an unavailable budget means zero use.
+  if (
+    used.error &&
+    !used.error.code &&
+    [0, 500, 502, 503, 504].includes(used.status ?? 0) &&
+    now() - startedAt + 5250 < timeBudgetMs
+  ) {
+    await sleep(250);
+    used = await readBudget();
+  }
   if (used.error) {
     if (!isMissingFreshnessColumn(used.error))
-      throw new Error(`Embedding budget read failed: ${used.error.message}`);
+      throw new Error("Embedding budget read failed; no provider work started");
     schemaReady = false;
     usedToday = null;
     console.warn(
       "[embeddings] freshness columns missing — apply migration 20261009200000; running missing-only mode",
     );
   } else {
-    usedToday = used.count || 0;
+    if (
+      used.count === null ||
+      !Number.isSafeInteger(used.count) ||
+      used.count < 0
+    )
+      throw new Error(
+        "Embedding budget count unavailable; no provider work started",
+      );
+    usedToday = used.count;
   }
   // Without the ledger we can't see other runs' spend; assume 8 runs/day share the cap.
   const runCap = schemaReady

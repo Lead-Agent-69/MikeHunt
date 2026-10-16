@@ -6,6 +6,53 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Market Release QA Follow-Up (October 16, 2026)
+
+PR #426 is merged as `7283c7f239375d3e4bc27798ccfbda6baf6a6f38`.
+Market Explorer, not Discover, is now the signed-in home. Its code CI passed
+run `38889038286`. The older pending/local-only statements below are historical;
+#426 records the targeted migration rollout and inventory repair receipts.
+This follow-up does not repeat those operations or certify their capacity gates.
+Main also includes #429 as `128faf20d38131d23c433fc7366e7504c00c33e1`, with
+successful production deployment record `7127558555`. Preserve its source
+identity, location-cache and photo-host repairs when integrating this follow-up.
+
+The first refreshed browser run exposed outdated onboarding and navigation test
+contracts. After correcting them, 97 local account/Market/core-page checks passed
+across seven browser/viewport projects. That was not sufficient visual proof:
+a separate unscrolled 320px screenshot showed the first car below the viewport.
+The follow-up therefore adds actual first-photo/price viewport checks, including
+saved-home searches, rather than scrolling to a card before asserting visibility.
+
+The phone layout groups location controls, keeps filters and insights explicit,
+and moves secondary tools after inventory. A native area selector retains
+Nationwide, saved home and surrounding-state choices. Cards keep the recorded
+price meaning visible over the photo; the body and photo open details, while a
+separate enlarge control, photo arrows, saves and source links stay independent.
+The gallery, its close/focus behavior and return to the same search are exercised.
+DOM reading and keyboard order follow the visual order. Insights have an explicit
+shortcut and a Back to results link rather than a visually reordered focus target.
+Exact final browser and full verification receipts belong in this follow-up PR.
+
+Production status returned HTTP 200 with `decisionReady=false`. The separate
+Embeddings backfill workflow `38950436875` failed before provider work: the
+runtime log identifies its budget-count read, with an empty upstream message.
+One read-only recheck returned HTTP 200 in 620 ms and a count of 500 for that
+Pacific day. This is evidence of intermittent failure, not an index diagnosis.
+The fix bounds that read to five seconds, permits only one transient retry and
+refuses provider work if a successful response has no valid count. It does not
+retry model writes, bypass permission/rate failures or reset quotas. The existing
+known-missing-schema compatibility path remains separate and unchanged.
+
+No hosted application migrations, cleanup, scraper recreation or source-permission expansion is part
+of this follow-up. Signed-in hosted browser discovery still times out; local
+synthetic accounts are not a substitute. The local fixture also lacks the scrape
+queue's `requested_by` column, so saved-location UI checks do not prove collection
+jobs run. Real alert delivery, retention/reference survival, hosted capacity,
+valuation outcomes and physical-device performance remain release gates.
+The current Vercel usage command still reports billing data unavailable, not zero
+consumption. This change adds no schedule, provider-plan change or quota reset.
+
 ### Recorded Walkthrough Follow-Through (October 15, 2026)
 
 Branch: `codex/walkthrough-search-acceptance`, including main through #425.

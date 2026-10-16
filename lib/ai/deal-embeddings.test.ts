@@ -12,6 +12,11 @@ interface Fixture {
   counts?: { active: number; embedded: number; missing: number; fresh: number };
   readError?: { message: string } | null;
   budgetError?: { message: string; code?: string } | null;
+  budgetResponses?: {
+    count: number | null;
+    error: { message: string; code?: string } | null;
+    status: number;
+  }[];
   writeError?: { message: string } | null;
 }
 
@@ -19,6 +24,7 @@ interface Fixture {
 function database(f: Fixture = {}) {
   const writes: { id: string; patch: any }[] = [];
   const reads: Op[][] = [];
+  let budgetReads = 0;
   const has = (ops: Op[], ...m: any[]) =>
     ops.some((o) => m.every((v, i) => o[i] === v));
   function resolve(ops: Op[]) {
@@ -32,10 +38,15 @@ function database(f: Fixture = {}) {
     const sel = ops.find((o) => o[0] === "select")!;
     const c = f.counts ?? { active: 10, embedded: 4, missing: 6, fresh: 2 };
     if (sel[2]?.head) {
-      if (has(ops, "gte", "embedded_at"))
+      if (has(ops, "gte", "embedded_at")) {
+        if (f.budgetResponses)
+          return f.budgetResponses[
+            Math.min(budgetReads++, f.budgetResponses.length - 1)
+          ];
         return f.budgetError
           ? { count: null, error: f.budgetError }
           : { count: f.usedToday ?? 0, error: null };
+      }
       if (has(ops, "not", "embedding_source_hash"))
         return { count: c.fresh, error: null };
       if (has(ops, "is", "embedding")) return { count: c.missing, error: null };
@@ -67,6 +78,7 @@ function database(f: Fixture = {}) {
       "limit",
       "range",
       "update",
+      "abortSignal",
     ])
       b[m] = (...args: any[]) => builder([...ops, [m, ...args]]);
     b.then = (ok: any, bad: any) => Promise.resolve(resolve(ops)).then(ok, bad);
@@ -94,6 +106,93 @@ afterEach(() => {
 });
 
 describe("Embedding backfill proof", () => {
+  it("retries one transient budget HEAD failure without duplicating provider work", async () => {
+    generate.mockResolvedValue([vec()]);
+    const db = database({
+      missing: [deal("one", "2026-10-16")],
+      budgetResponses: [
+        { count: null, error: { message: "" }, status: 503 },
+        { count: 899, error: null, status: 200 },
+      ],
+    });
+    const result = await backfillEmbeddings(db.client, 250, { sleep });
+    expect(result.budget).toEqual({ dailyCap: 900, usedToday: 899, runCap: 1 });
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(250);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(db.writes).toHaveLength(1);
+    const budgetReads = db.reads.filter((ops) =>
+      ops.some(([op]) => op === "gte"),
+    );
+    expect(budgetReads).toHaveLength(2);
+    for (const ops of budgetReads)
+      expect(
+        ops.some(
+          ([op, signal]) =>
+            op === "abortSignal" && signal instanceof AbortSignal,
+        ),
+      ).toBe(true);
+  });
+
+  it("stops after two failed budget reads without spending quota or writing vectors", async () => {
+    const db = database({
+      budgetResponses: [{ count: null, error: { message: "" }, status: 504 }],
+    });
+    await expect(backfillEmbeddings(db.client, 250, { sleep })).rejects.toThrow(
+      "budget read failed",
+    );
+    expect(db.reads).toHaveLength(2);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("honors an exhausted daily cap after recovering the count", async () => {
+    const db = database({
+      budgetResponses: [
+        { count: null, error: { message: "" }, status: 503 },
+        { count: 900, error: null, status: 200 },
+      ],
+    });
+    const result = await backfillEmbeddings(db.client, 250, { sleep });
+    expect(result.budgetExhausted).toBe(true);
+    expect(result.budget?.runCap).toBe(0);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("does not retry rate limits or exceed a short run deadline", async () => {
+    for (const [status, timeBudgetMs] of [
+      [429, 240000],
+      [503, 5000],
+    ]) {
+      const db = database({
+        budgetResponses: [{ count: null, error: { message: "" }, status }],
+      });
+      await expect(
+        backfillEmbeddings(db.client, 250, { sleep, timeBudgetMs }),
+      ).rejects.toThrow("budget read failed");
+      expect(db.reads).toHaveLength(1);
+      expect(generate).not.toHaveBeenCalled();
+    }
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("does not retry permission failures or pretend a missing count is zero", async () => {
+    for (const response of [
+      { count: null, error: { message: "denied", code: "42501" }, status: 403 },
+      { count: null, error: null, status: 200 },
+      { count: -1, error: null, status: 200 },
+    ]) {
+      const db = database({ budgetResponses: [response] });
+      await expect(
+        backfillEmbeddings(db.client, 250, { sleep }),
+      ).rejects.toThrow("no provider work started");
+      expect(db.reads).toHaveLength(1);
+      expect(generate).not.toHaveBeenCalled();
+      expect(db.writes).toHaveLength(0);
+    }
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it("reports a database failure rather than successful zero work", async () => {
     await expect(
       backfillEmbeddings(
