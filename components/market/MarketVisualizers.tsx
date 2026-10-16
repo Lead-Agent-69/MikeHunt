@@ -16,7 +16,7 @@ export function MarketVisualizers({ facets }: { facets: any }) {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       <div className="glass-panel flex flex-col gap-3">
         <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Price Distribution
+          Comparable cash asking prices
         </h3>
         <div className="flex-1 min-h-[120px]">
           {hasPrices ? (
@@ -44,23 +44,25 @@ export function MarketVisualizers({ facets }: { facets: any }) {
         </div>
       </div>
 
-      <div className="glass-panel flex flex-col gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Median Profit by Lane
-        </h3>
-        <div className="flex-1 min-h-[120px]">
-          {hasProfit ? (
-            <ProfitWaterfall
-              laneProfit={facets.laneProfit}
-              colors={facets.laneColors}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-[var(--t4)]">
-              No data
-            </div>
-          )}
+      {hasProfit && (
+        <div className="glass-panel flex flex-col gap-3">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+            Estimated median profit by lane
+          </h3>
+          <div className="flex-1 min-h-[120px]">
+            {hasProfit ? (
+              <ProfitWaterfall
+                laneProfit={facets.laneProfit}
+                colors={facets.laneColors}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-xs text-[var(--t4)]">
+                No data
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

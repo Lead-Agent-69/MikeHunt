@@ -39,6 +39,12 @@ vi.mock("@/components/shared/PriceRangeSelector", () => ({
   PriceRangeSelector: () => null,
   YearRangeSelector: () => null,
 }));
+vi.mock("@/components/market/MarketListingCard", () => ({
+  MarketListingCard: () => React.createElement("p", null, "Inventory results"),
+}));
+vi.mock("@/hooks/usePreferences", () => ({
+  usePreferences: () => ({ prefs: {} }),
+}));
 import MarketPage from "./(dashboard)/market/page";
 let root: Root;
 let host: HTMLDivElement;
@@ -141,7 +147,54 @@ describe("Market filter journey", () => {
       host.querySelector('option[value="profitEstimate:desc"]'),
     ).not.toBeNull();
     expect(
-      state.keys.filter(Boolean).some((key) => key!.includes("mode=curated")),
+      state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
+    window.history.replaceState(null, "", "/market?states=MO");
+    await render();
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLInputElement>('[aria-label="Search location"]')!,
+        { target: { value: "63101" } } as any,
+      ),
+    );
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>('[aria-label="Search radius"]')!,
+        { target: { value: "150" } } as any,
+      ),
+    );
+    act(() =>
+      Simulate.submit(
+        host.querySelector('section[aria-label="Location and radius"] form')!,
+      ),
+    );
+    expect(new URLSearchParams(window.location.search).get("near")).toBe(
+      "63101",
+    );
+    expect(new URLSearchParams(window.location.search).get("radius")).toBe(
+      "150",
+    );
+    expect(new URLSearchParams(window.location.search).has("states")).toBe(
+      false,
+    );
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>(
+          '[aria-label="Sort market results"]',
+        )!,
+        { target: { value: "distanceMiles:asc" } } as any,
+      ),
+    );
+    act(() =>
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent === "Nationwide")!
+        .click(),
+    );
+    expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
+    expect(new URLSearchParams(window.location.search).get("sort")).toBe(
+      "lastSeenAt",
+    );
   });
 });

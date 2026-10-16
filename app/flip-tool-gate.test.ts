@@ -47,7 +47,6 @@ describe("flip tool routes", () => {
         "/find",
         "/fleet",
         "/lane",
-        "/market",
       ].sort(),
     );
     for (const route of Object.keys(FLIP_TOOL_ROUTES)) {

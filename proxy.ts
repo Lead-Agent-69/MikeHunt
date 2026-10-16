@@ -6,7 +6,7 @@ import { loginRedirectUrl } from "@/lib/auth/login-redirect";
 
 // Protected routes that require authentication.
 // Note: '/' is intentionally PUBLIC — the landing page handles its own
-// auth check and redirects logged-in users to /find.
+// auth check and redirects logged-in users to /market.
 const protectedRoutes = [
   // Dashboard pages — all live behind auth; '/' (landing), '/login', '/register' stay public.
   "/today",
@@ -178,15 +178,13 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(loginRedirectUrl(request.nextUrl));
       }
       const url = request.nextUrl.clone();
-      url.pathname = "/discover";
+      url.pathname = "/market";
       return NextResponse.redirect(url);
     }
 
     if (isAuthRoute && demoUser) {
       const url = request.nextUrl.clone();
-      url.pathname = guestProfileOnboarded(request)
-        ? "/discover"
-        : "/onboarding";
+      url.pathname = guestProfileOnboarded(request) ? "/market" : "/onboarding";
       url.search = "";
       return NextResponse.redirect(url);
     }
@@ -259,7 +257,7 @@ export async function proxy(request: NextRequest) {
     if (!user)
       return redirectWithAuthCookies(loginRedirectUrl(request.nextUrl));
     const url = request.nextUrl.clone();
-    url.pathname = "/discover";
+    url.pathname = "/market";
     return redirectWithAuthCookies(url);
   }
 
@@ -280,7 +278,7 @@ export async function proxy(request: NextRequest) {
       onboarded = profile?.onboarded === true;
     }
     const url = request.nextUrl.clone();
-    url.pathname = !profileError && !onboarded ? "/onboarding" : "/discover";
+    url.pathname = !profileError && !onboarded ? "/onboarding" : "/market";
     url.search = "";
     return redirectWithAuthCookies(url);
   }

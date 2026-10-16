@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   size: 1105,
   error: null as null | { message: string },
   calls: [] as unknown[][],
+  rows: null as Record<string, any>[] | null,
+  center: { lat: 38.63, lng: -90.2 } as { lat: number; lng: number } | null,
 }));
 function query() {
   const q: any = {};
@@ -37,26 +39,33 @@ function query() {
   q.then = (resolve: (value: unknown) => unknown) =>
     resolve({
       error: state.error,
-      data: Array.from(
-        { length: Math.max(0, Math.min(range[1] + 1, state.size) - range[0]) },
-        (_, offset) => ({
-          id: `car-${range[0] + offset}`,
-          source: "copart",
-          make: "Ford",
-          model: "F-150",
-          year: 2020,
-          body_class: "Pickup",
-          condition: "clean_title",
-          location_state: "TX",
-          seller_type: "auction",
-          ask_price: 1000 + range[0] + offset,
-          true_net_profit: 2500,
-          profit_score: 80,
-          sell_estimate: 15000,
-          deal_verdict: "go",
-          deal_analysis: { roi: 50 },
-        }),
-      ),
+      data: state.rows
+        ? state.rows.slice(range[0], range[1] + 1)
+        : Array.from(
+            {
+              length: Math.max(
+                0,
+                Math.min(range[1] + 1, state.size) - range[0],
+              ),
+            },
+            (_, offset) => ({
+              id: `car-${range[0] + offset}`,
+              source: "copart",
+              make: "Ford",
+              model: "F-150",
+              year: 2020,
+              body_class: "Pickup",
+              condition: "clean_title",
+              location_state: "TX",
+              seller_type: "auction",
+              ask_price: 1000 + range[0] + offset,
+              true_net_profit: 2500,
+              profit_score: 80,
+              sell_estimate: 15000,
+              deal_verdict: "go",
+              deal_analysis: { roi: 50 },
+            }),
+          ),
     });
   return q;
 }
@@ -68,6 +77,7 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: true }),
   tooManyRequests: vi.fn(),
 }));
+vi.mock("@/lib/geo/geocode", () => ({ geocodeZip: async () => state.center }));
 vi.mock("@/lib/deals/deal-desk-access", async (original) => ({
   ...(await original<object>()),
   resolveCallerFlipDesk: async () => state.flip,
@@ -84,6 +94,8 @@ describe("Market inventory filtering and pagination", () => {
     state.size = 1105;
     state.flip = true;
     state.error = null;
+    state.rows = null;
+    state.center = { lat: 38.63, lng: -90.2 };
   });
   it("uses the same price and mileage policies with legacy Market range aliases", async () => {
     const response = await request(
@@ -124,6 +136,14 @@ describe("Market inventory filtering and pagination", () => {
     ).json();
     expect(body.rows[0].id).toBe("car-50");
     expect(state.calls).toHaveLength(count);
+  });
+  it("clamps an outdated shared page to the last real result page", async () => {
+    const body = await (
+      await request("mode=all&page=999&sort=askPrice&sortDir=asc")
+    ).json();
+    expect(body.page).toBe(22);
+    expect(body.rows).toHaveLength(5);
+    expect(body.rows[0].id).toBe("car-1100");
   });
 
   it("reports the bounded inventory sample honestly", async () => {
@@ -198,5 +218,140 @@ describe("Market inventory filtering and pagination", () => {
     ).toBe(true);
     await request("mode=all&priceMax=20000");
     expect(state.calls).toContainEqual(["gt", "ask_price", 0]);
+  });
+
+  it("crosses state borders, measures exact radius and excludes missing coordinates", async () => {
+    state.rows = [
+      {
+        id: "missouri",
+        source: "copart",
+        lat: 38.63,
+        lng: -90.2,
+        location_state: "MO",
+      },
+      {
+        id: "illinois",
+        source: "copart",
+        lat: 38.62,
+        lng: -90.15,
+        location_state: "IL",
+      },
+      {
+        id: "outside",
+        source: "copart",
+        lat: 40,
+        lng: -90.2,
+        location_state: "IL",
+      },
+      { id: "unknown", source: "copart", lat: null, lng: null },
+    ];
+    const body = await (
+      await request(
+        "near=63101&radius=25&states=MO&sort=distanceMiles&sortDir=asc",
+      )
+    ).json();
+    expect(body.rows.map((row: any) => row.id)).toEqual([
+      "missouri",
+      "illinois",
+    ]);
+    expect(body.rows[0].distanceMiles).toBe(0);
+    expect(body.location.radius).toBe(25);
+    expect(state.calls).not.toContainEqual(["in", "location_state", ["MO"]]);
+    expect(
+      state.calls.some((call) => call[0] === "gte" && call[1] === "lat"),
+    ).toBe(true);
+  });
+
+  it("preserves photos, source, city and distinct source price evidence", async () => {
+    state.rows = [
+      {
+        id: "bid",
+        source: "copart",
+        source_url: "https://www.copart.com/lot/123",
+        ask_price: 1200,
+        buy_now_price: 9500,
+        price_evidence: { kind: "current_bid", currentBid: 1200 },
+        location_city: "Dallas",
+        location_state: "TX",
+        images: ["https://cs.copart.com/car.jpg"],
+        last_seen_at: new Date().toISOString(),
+      },
+    ];
+    const body = await (await request("mode=all")).json();
+    expect(body.rows[0]).toMatchObject({
+      locationCity: "Dallas",
+      imageUrl: "https://cs.copart.com/car.jpg",
+      sourceUrl: "https://www.copart.com/lot/123",
+      price: { kind: "current_bid", amount: 1200, buyNowPrice: 9500 },
+    });
+    expect(body.summary.withPhotos).toBe(1);
+    expect(body.summary.askingSample).toBe(0);
+    expect(body.summary.medianAsk).toBeNull();
+  });
+
+  it("compares a cash budget to the disclosed full price, excluding deposits, payments and references", async () => {
+    state.rows = [
+      {
+        id: "full",
+        source: "independent_dealer",
+        ask_price: 1000,
+        listing_description: "Cash price $12,000",
+        source_url: "https://dealer.test/car",
+      },
+      {
+        id: "deposit",
+        source: "independent_dealer",
+        ask_price: 500,
+        listing_description: "Down payment $500",
+      },
+      {
+        id: "monthly",
+        source: "independent_dealer",
+        ask_price: 299,
+        listing_description: "$299 per month",
+      },
+      {
+        id: "reference",
+        source: "copart",
+        ask_price: 900,
+        reference_only: "true",
+      },
+      {
+        id: "bid",
+        source: "copart",
+        ask_price: 500,
+        buy_now_price: 14000,
+        price_evidence: { kind: "current_bid", currentBid: 500 },
+      },
+    ];
+    const low = await (await request("priceBasis=cash&priceMax=1000")).json();
+    expect(low.rows).toEqual([]);
+    const budget = await (
+      await request("priceBasis=cash&priceMax=13000")
+    ).json();
+    expect(budget.rows.map((row: any) => row.id)).toEqual(["full"]);
+    expect(budget.rows[0].price.amount).toBe(12000);
+    const bids = await (
+      await request("priceBasis=advertised&priceKind=current_bid")
+    ).json();
+    expect(bids.rows.map((row: any) => row.id)).toEqual(["bid"]);
+  });
+
+  it.each([
+    "radius=100",
+    "near=unknown&radius=50",
+    "near=Chicago,ZZ",
+    "lat=0&lng=0&radius=50",
+    "priceKind=sold",
+    "priceBasis=monthly",
+  ])("rejects invalid location and price choices: %s", async (search) => {
+    expect((await request(search)).status).toBe(400);
+    expect(state.calls).toEqual([]);
+  });
+
+  it("reports an unresolved location instead of silently returning nationwide inventory", async () => {
+    state.center = null;
+    expect((await request("near=00000&radius=50")).status).toBe(422);
+    expect(state.calls).toEqual([]);
   });
 });

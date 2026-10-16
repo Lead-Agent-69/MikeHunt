@@ -6,6 +6,7 @@ export function workspaceIsExpanded(buyerMode: unknown, mode?: unknown) {
 }
 
 export const FOCUSED_TOOLS = new Set([
+  "/market",
   "/discover",
   "/scan",
   "/dealer-network",

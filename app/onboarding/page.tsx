@@ -20,7 +20,6 @@ import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
-  buildBuyerIntentQuery,
   type BuyerIntent,
   type BuyerMode,
   writeLocalBuyerIntent,
@@ -135,7 +134,7 @@ export default function OnboardingPage() {
           router.replace(
             new URL(destination, window.location.origin).pathname ===
               "/onboarding"
-              ? "/discover"
+              ? "/market"
               : destination,
           );
           return;
@@ -205,8 +204,12 @@ export default function OnboardingPage() {
   );
 
   const previewHref = useMemo(() => {
-    const params = buildBuyerIntentQuery(intent);
-    return `/discover${params.size ? `?${params.toString()}` : ""}`;
+    const params = new URLSearchParams();
+    if (intent.state && US_STATES.includes(intent.state))
+      params.set("states", intent.state);
+    if (intent.minPrice) params.set("priceMin", String(intent.minPrice));
+    if (intent.maxPrice) params.set("priceMax", String(intent.maxPrice));
+    return `/market${params.size ? `?${params.toString()}` : ""}`;
   }, [intent]);
 
   const modeDetail =

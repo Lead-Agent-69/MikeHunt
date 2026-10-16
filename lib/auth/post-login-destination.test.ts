@@ -9,7 +9,7 @@ describe("post-login destination", () => {
   });
   it("keeps returning users on their intended destination", () => {
     expect(postLoginDestination(true, "/deal/123")).toBe("/deal/123");
-    expect(postLoginDestination(true, "/onboarding")).toBe("/discover");
+    expect(postLoginDestination(true, "/onboarding")).toBe("/market");
   });
   it("does not nest setup or redirect outside the app", () => {
     expect(postLoginDestination(false, "/onboarding")).toBe("/onboarding");

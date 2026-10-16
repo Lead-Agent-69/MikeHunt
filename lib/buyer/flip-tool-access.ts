@@ -13,7 +13,6 @@ export const FLIP_TOOL_ROUTES = {
   "/arbitrage": "Arbitrage",
   "/find": "Arbitrage routes",
   "/best-buy": "Next Best Buy",
-  "/market": "Market sourcing",
 } as const;
 
 export type FlipToolRoute = keyof typeof FLIP_TOOL_ROUTES;

@@ -19,6 +19,19 @@ import {
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
 import {
+  SOURCE_PRICE_FIELDS,
+  sourcePriceContext,
+} from "@/lib/deals/source-price-context";
+import {
+  parseMarketLocation,
+  marketDistance,
+  summarizeMarket,
+  MARKET_PRICE_KINDS,
+} from "@/lib/market/explorer";
+import { geocodeZip } from "@/lib/geo/geocode";
+import { boundingBox } from "@/lib/geo/distance";
+import { vendorIdentity } from "@/lib/sources/vendor-identity";
+import {
   applyVehicleDetails,
   applySelectedSources,
   validateInventoryRanges,
@@ -63,6 +76,15 @@ export async function GET(req: NextRequest) {
   }
   try {
     const sp = new URL(req.url).searchParams;
+    const location = parseMarketLocation(sp);
+    if ("error" in location)
+      return NextResponse.json({ error: location.error }, { status: 400 });
+    const priceKind = sp.get("priceKind");
+    if (priceKind && !MARKET_PRICE_KINDS.some((kind) => kind === priceKind))
+      return NextResponse.json(
+        { error: "Choose a valid price type." },
+        { status: 400 },
+      );
     const states = csv(sp.get("states")).map((s) => s.toUpperCase());
     const lanes = csv(sp.get("lanes")) as DealLane[];
     const makes = csv(sp.get("makes"))
@@ -101,6 +123,22 @@ export async function GET(req: NextRequest) {
     const rangeError = validateInventoryRanges(detailParams);
     if (rangeError)
       return NextResponse.json({ error: rangeError }, { status: 400 });
+    const priceBasis = sp.get("priceBasis") || "advertised";
+    if (!["cash", "advertised"].includes(priceBasis))
+      return NextResponse.json(
+        { error: "Choose a valid price basis." },
+        { status: 400 },
+      );
+    const cashMin = detailParams.get("minPrice"),
+      cashMax = detailParams.get("maxPrice");
+    const cashPolicy = detailParams.get("pricePolicy");
+    if (priceBasis === "cash") {
+      // Disclosed full prices can differ from the headline amount (for example a deposit).
+      // Apply a cash budget to classified evidence after mapping, never to the teaser in SQL.
+      detailParams.delete("minPrice");
+      detailParams.delete("maxPrice");
+      detailParams.delete("pricePolicy");
+    }
     const flipDesk = await resolveCallerFlipDesk();
     const conditions = csv(sp.get("conditions"));
     const verdicts = flipDesk ? csv(sp.get("verdicts")) : [];
@@ -122,8 +160,8 @@ export async function GET(req: NextRequest) {
     const yearMin = parseInt(sp.get("yearMin") || "0") || 0;
     const yearMax = parseInt(sp.get("yearMax") || "0") || 0;
     const minProfit = flipDesk ? parseInt(sp.get("minProfit") || "0") || 0 : 0;
-    const mode = !flipDesk || sp.get("mode") === "all" ? "all" : "curated";
-    const requestedSort = sp.get("sort") || "profitEstimate";
+    const mode = flipDesk && sp.get("mode") === "curated" ? "curated" : "all";
+    const requestedSort = sp.get("sort") || "lastSeenAt";
     const sort =
       !flipDesk &&
       ["profitEstimate", "profitScore", "sellEstimate"].includes(requestedSort)
@@ -150,16 +188,36 @@ export async function GET(req: NextRequest) {
       30_000,
       async () => {
         const supabase = createServerComponentClient();
+        const center =
+          location.center ||
+          (location.place
+            ? await geocodeZip(supabase, location.place, {
+                fetchImpl: (url, init) =>
+                  fetch(url, { ...init, signal: AbortSignal.timeout(6000) }),
+              })
+            : null);
+        if (location.radius != null && !center)
+          throw new Error("MARKET_LOCATION_UNRESOLVED");
+        const bounds =
+          center && location.radius != null
+            ? boundingBox(center.lat, center.lng, location.radius)
+            : null;
         const build = () => {
           let q = supabase
             .from("deals")
             .select(
-              "id, source, source_url, title, year, make, model, trim, body_class, fuel_type, vin, mileage, condition, damage_type, ask_price, buy_now_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type:options->>sellerType, is_arbitrage_opportunity, location_state",
+              `id, year, make, model, trim, body_class, fuel_type, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
             )
             .eq("active", true);
 
           // SQL-able filters (push down what we can).
-          if (states.length) q = q.in("location_state", states);
+          if (states.length && !bounds) q = q.in("location_state", states);
+          if (bounds)
+            q = q
+              .gte("lat", bounds.minLat)
+              .lte("lat", bounds.maxLat)
+              .gte("lng", bounds.minLng)
+              .lte("lng", bounds.maxLng);
           if (search)
             q = q.or(
               `make.ilike.%${search}%,model.ilike.%${search}%,title.ilike.%${search}%,vin.ilike.%${search}%`,
@@ -188,8 +246,7 @@ export async function GET(req: NextRequest) {
           if (model) q = q.ilike("model", `%${model}%`);
           // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
           // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
-          if (sellerTypes.length)
-            q = q.in("options->>sellerType", sellerTypes);
+          if (sellerTypes.length) q = q.in("options->>sellerType", sellerTypes);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
@@ -209,7 +266,32 @@ export async function GET(req: NextRequest) {
 
         let rows = (data || []).map((d: any) => ({
           id: d.id,
+          title:
+            d.title ||
+            `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
           source: d.source,
+          sourceUrl: vendorIdentity(d.source, d.source_url).href,
+          vin: d.vin || undefined,
+          images: Array.isArray(d.images)
+            ? d.images
+                .filter(
+                  (url: unknown) =>
+                    typeof url === "string" && /^https?:\/\//i.test(url),
+                )
+                .slice(0, 30)
+            : [],
+          imageUrl: d.images?.find(
+            (url: unknown) =>
+              typeof url === "string" && /^https?:\/\//i.test(url),
+          ),
+          locationCity: d.location_city || undefined,
+          firstSeenAt: d.first_seen_at || undefined,
+          lastSeenAt: d.last_seen_at || undefined,
+          auctionEndAt: d.auction_end_at || undefined,
+          price: sourcePriceContext(d),
+          distanceMiles: center
+            ? (marketDistance(center, d) ?? undefined)
+            : undefined,
           year: d.year,
           make: d.make,
           model: d.model,
@@ -240,6 +322,23 @@ export async function GET(req: NextRequest) {
         }));
 
         // Lane filter (computed, so done here).
+        if (priceBasis === "cash")
+          rows = rows.filter((r) => {
+            const cash = r.price.cashPrice;
+            if (cashPolicy === "unknown") return cash == null;
+            if (!cashMin && !cashMax && cashPolicy !== "reported") return true;
+            if (cash == null) return cashPolicy === "include";
+            return (
+              (!cashMin || cash >= Number(cashMin)) &&
+              (!cashMax || cash <= Number(cashMax))
+            );
+          });
+        if (location.radius != null)
+          rows = rows.filter(
+            (r) =>
+              r.distanceMiles != null && r.distanceMiles <= location.radius!,
+          );
+        if (priceKind) rows = rows.filter((r) => r.price.kind === priceKind);
         if (lanes.length) rows = rows.filter((r) => lanes.includes(r.lane));
         // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
         if (minRoi > 0)
@@ -266,7 +365,10 @@ export async function GET(req: NextRequest) {
           .map(([make, n]) => ({ make, n }));
 
         // Price distribution — chart-ready histogram (12 quantile-free fixed buckets) for the market viz.
-        const prices = rows.map((r) => r.askPrice).filter((p) => p > 0);
+        const prices = rows
+          .filter((r) => r.price.canCompareToAskingCurve)
+          .map((r) => r.price.cashPrice!)
+          .filter((p) => p > 0);
         const hiP = prices.length ? Math.max(...prices) : 0;
         const bw =
           hiP > 0 ? Math.max(1000, Math.ceil(hiP / 12 / 1000) * 1000) : 1000;
@@ -301,13 +403,29 @@ export async function GET(req: NextRequest) {
             profitEstimate: "profitEstimate",
             profitScore: "profitScore",
             year: "year",
+            distanceMiles: "distanceMiles",
+            lastSeenAt: "lastSeenAt",
           } as Record<string, keyof (typeof rows)[number]>
         )[sort];
         if (sortKey)
-          rows.sort(
-            (a, b) =>
-              dir * ((Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0)),
-          );
+          rows.sort((a, b) => {
+            const value = (row: (typeof rows)[number]) => {
+              if (sortKey === "lastSeenAt")
+                return row.lastSeenAt ? Date.parse(row.lastSeenAt) : NaN;
+              if (sortKey === "askPrice" && priceBasis === "cash")
+                return row.price.cashPrice ?? NaN;
+              const v = row[sortKey];
+              return v == null || (sortKey === "askPrice" && Number(v) <= 0)
+                ? NaN
+                : Number(v);
+            };
+            const av = value(a),
+              bv = value(b);
+            if (!Number.isFinite(av))
+              return Number.isFinite(bv) ? 1 : a.id.localeCompare(b.id);
+            if (!Number.isFinite(bv)) return -1;
+            return dir * (av - bv) || a.id.localeCompare(b.id);
+          });
 
         const total = rows.length;
         return {
@@ -315,6 +433,18 @@ export async function GET(req: NextRequest) {
           total,
           capped,
           mode,
+          summary: summarizeMarket(rows),
+          location: {
+            label:
+              location.near ||
+              (center
+                ? "Your location"
+                : states.length
+                  ? states.join(", ")
+                  : "Nationwide"),
+            radius: location.radius,
+            approximate: !!center,
+          },
           facets: {
             states: stateCounts,
             lanes: laneCounts,
@@ -327,10 +457,17 @@ export async function GET(req: NextRequest) {
         };
       },
     );
+    const resultPage = Math.min(
+      page,
+      Math.max(0, Math.ceil(payload.total / pageSize) - 1),
+    );
     const paged = {
       ...payload,
-      rows: payload.rows.slice(page * pageSize, (page + 1) * pageSize),
-      page,
+      rows: payload.rows.slice(
+        resultPage * pageSize,
+        (resultPage + 1) * pageSize,
+      ),
+      page: resultPage,
       pageSize,
     };
     // Cache is shared; redact AFTER so a personal caller never gets a flip-desk hit.
@@ -347,6 +484,14 @@ export async function GET(req: NextRequest) {
           },
     );
   } catch (e: any) {
+    if (e?.message === "MARKET_LOCATION_UNRESOLVED")
+      return NextResponse.json(
+        {
+          error:
+            "Could not locate that ZIP code or city. Check the location and try again.",
+        },
+        { status: 422 },
+      );
     return internalError("market:explore", e);
   }
 }

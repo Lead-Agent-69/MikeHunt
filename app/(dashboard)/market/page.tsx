@@ -1,13 +1,17 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import useSWR from "swr";
-import { fetcher } from "@/lib/swr-config";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
+import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketIntelligence } from "@/components/market/MarketIntelligence";
+import { MarketLocation } from "@/components/market/MarketLocation";
+import type { MarketListing } from "@/lib/market/explorer";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import {
   readInventoryDetails,
@@ -24,6 +28,9 @@ import {
   RotateCcw,
   Filter,
   X,
+  LayoutGrid,
+  List,
+  ArrowUpRight,
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -39,7 +46,7 @@ import {
 // shared design tokens so it inherits whatever theme is active.
 
 // prettier-ignore
-const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
+const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 const LANES: { key: string; label: string }[] = [
   { key: "salvage", label: "Salvage" },
@@ -68,6 +75,12 @@ const VERDICTS = [
 ];
 
 type Filters = {
+  near: string;
+  radius: string;
+  lat: string;
+  lng: string;
+  priceKind: string;
+  priceBasis: string;
   q: string;
   states: string[];
   lanes: string[];
@@ -92,6 +105,12 @@ type Filters = {
 };
 
 const EMPTY: Filters = {
+  near: "",
+  radius: "",
+  lat: "",
+  lng: "",
+  priceKind: "",
+  priceBasis: "cash",
   q: "",
   states: [],
   lanes: [],
@@ -110,8 +129,8 @@ const EMPTY: Filters = {
   yearMax: "",
   mileageMax: "",
   minProfit: "",
-  mode: "curated",
-  sort: "profitEstimate",
+  mode: "all",
+  sort: "lastSeenAt",
   sortDir: "desc",
 };
 
@@ -120,6 +139,21 @@ const SELLERS = [
   { key: "auction", label: "Auction" },
   { key: "private", label: "Private" },
 ];
+
+async function fetchMarket(url: string) {
+  // Preserve the shared retry policy while surfacing actionable location validation.
+  const response = await fetch(url);
+  if (response.ok) return response.json();
+  const body = await response.json().catch(() => ({}));
+  const error = Object.assign(new Error("Market data could not be loaded."), {
+    status: response.status,
+    marketMessage:
+      [400, 422].includes(response.status) && typeof body.error === "string"
+        ? body.error
+        : undefined,
+  });
+  throw error;
+}
 
 function toggle(arr: string[], v: string): string[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
@@ -134,9 +168,16 @@ export default function MarketPage() {
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [view, setView] = React.useState<"grid" | "table">("grid");
   const set = (patch: Partial<Filters>) => {
     setPage(0);
-    setF((p) => ({ ...p, ...patch }));
+    setF((p) => ({
+      ...p,
+      ...patch,
+      ...(patch.near === "" && patch.lat === "" && p.sort === "distanceMiles"
+        ? { sort: "lastSeenAt", sortDir: "desc" as const }
+        : {}),
+    }));
   };
   const reset = () => {
     setPage(0);
@@ -144,36 +185,55 @@ export default function MarketPage() {
     setDetails({});
   };
   React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const next = { ...EMPTY };
-    for (const key of Object.keys(EMPTY) as (keyof Filters)[]) {
-      const value = params.get(key);
-      if (value == null) continue;
-      if (Array.isArray(EMPTY[key]))
-        (next as any)[key] = value.split(",").filter(Boolean);
-      else (next as any)[key] = value;
-    }
-    next.mode = next.mode === "all" ? "all" : "curated";
-    next.sortDir = next.sortDir === "asc" ? "asc" : "desc";
-    if (
-      ![
-        "askPrice",
-        "profitEstimate",
-        "profitScore",
-        "sellEstimate",
-        "mileage",
-        "year",
-      ].includes(next.sort)
-    )
-      next.sort = EMPTY.sort;
-    setF(next);
-    setDetails(readInventoryDetails(params));
-    setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
-    setReady(true);
+    const restore = () => {
+      const params = new URLSearchParams(window.location.search);
+      const next = { ...EMPTY };
+      for (const key of Object.keys(EMPTY) as (keyof Filters)[]) {
+        const value = params.get(key);
+        if (value == null) continue;
+        if (Array.isArray(EMPTY[key]))
+          (next as any)[key] = value.split(",").filter(Boolean);
+        else (next as any)[key] = value;
+      }
+      next.mode = next.mode === "curated" ? "curated" : "all";
+      next.sortDir = next.sortDir === "asc" ? "asc" : "desc";
+      if (
+        ![
+          "askPrice",
+          "profitEstimate",
+          "profitScore",
+          "sellEstimate",
+          "mileage",
+          "year",
+          "lastSeenAt",
+          "distanceMiles",
+        ].includes(next.sort)
+      )
+        next.sort = EMPTY.sort;
+      setF(next);
+      setDetails(readInventoryDetails(params));
+      setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
+      setReady(true);
+    };
+    restore();
+    window.addEventListener("popstate", restore);
+    window.addEventListener("inventory-scope-change", restore);
+    return () => {
+      window.removeEventListener("popstate", restore);
+      window.removeEventListener("inventory-scope-change", restore);
+    };
   }, []);
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
+    if (f.near) p.set("near", f.near);
+    if (f.radius) p.set("radius", f.radius);
+    if (f.lat && f.lng) {
+      p.set("lat", f.lat);
+      p.set("lng", f.lng);
+    }
+    if (f.priceKind) p.set("priceKind", f.priceKind);
+    p.set("priceBasis", f.priceBasis === "advertised" ? "advertised" : "cash");
     if (f.q.trim()) p.set("q", f.q.trim());
     if (f.states.length) p.set("states", f.states.join(","));
     if (f.lanes.length) p.set("lanes", f.lanes.join(","));
@@ -216,13 +276,17 @@ export default function MarketPage() {
 
   const { data, error, isLoading, mutate } = useSWR(
     !pendingFilters ? `/api/market/explore?${debouncedQs}` : null,
-    fetcher,
+    fetchMarket,
     {
       keepPreviousData: false,
     },
   );
 
-  const rows: TableRow[] = pendingFilters ? [] : data?.rows || [];
+  const rows: MarketListing[] = pendingFilters ? [] : data?.rows || [];
+  React.useEffect(() => {
+    if (!pendingFilters && typeof data?.page === "number" && data.page !== page)
+      setPage(data.page);
+  }, [data?.page, page, pendingFilters]);
   const busy = pendingFilters || isLoading;
   const facets = data?.facets || {
     states: {},
@@ -233,6 +297,8 @@ export default function MarketPage() {
   const total: number = data?.total ?? 0;
   const activeCount =
     Object.values(details).filter(Boolean).length +
+    (f.priceKind ? 1 : 0) +
+    (f.near || f.lat ? 1 : 0) +
     f.sources.length +
     (f.model ? 1 : 0) +
     (f.minMileage ? 1 : 0) +
@@ -255,7 +321,16 @@ export default function MarketPage() {
     Object.entries(f) as [keyof Filters, Filters[keyof Filters]][]
   ).filter(
     ([key, value]) =>
-      !["sort", "sortDir", "mode"].includes(key) &&
+      ![
+        "sort",
+        "sortDir",
+        "mode",
+        "near",
+        "radius",
+        "lat",
+        "lng",
+        "priceBasis",
+      ].includes(key) &&
       (flipDesk || !["verdicts", "minRoi", "minProfit"].includes(key)) &&
       (Array.isArray(value) ? value.length > 0 : Boolean(value)),
   );
@@ -278,12 +353,20 @@ export default function MarketPage() {
     yearMin: "Year from",
     yearMax: "Year to",
     minProfit: "Profit from ($)",
+    priceKind: "Price type",
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
-        <h1 className="text-xl font-bold text-[var(--t1)]">Market sourcing</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--t1)] md:text-3xl">
+            Market Explorer
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-[var(--t3)]">
+            Find the vehicle. Understand the price. Check the evidence.
+          </p>
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
@@ -317,6 +400,33 @@ export default function MarketPage() {
           </p>
         )}
       </header>
+      <nav
+        aria-label="Market tools"
+        className="flex gap-2 overflow-x-auto pb-1"
+      >
+        {[
+          { label: "Discover picks", href: "/discover" },
+          { label: "Map search", href: "/map" },
+          { label: "Deal Check", href: "/deal-check" },
+          { label: "Compare", href: "/compare" },
+          ...(flipDesk
+            ? [
+                { label: "Auction Lane", href: "/lane" },
+                { label: "Outcomes & intelligence", href: "/insights" },
+              ]
+            : []),
+          { label: "All tools", href: "/tools" },
+        ].map((tool) => (
+          <Link
+            key={tool.href}
+            href={tool.href}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 text-xs font-semibold"
+          >
+            {tool.label}
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        ))}
+      </nav>
       {baseChips.length > 0 && (
         <div
           className="flex flex-wrap gap-2"
@@ -386,32 +496,26 @@ export default function MarketPage() {
           )}
         </div>
       )}
-      {/* Search bar — the fast way in: type a make/model and the whole market filters live. */}
-      <div
-        className="flex items-center gap-2 rounded-[var(--r3)] px-3.5 py-2.5"
-        style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-      >
-        <Ico name="search" size={18} className="shrink-0 text-[var(--t4)]" />
-        <input
-          aria-label="Search make, model or VIN"
-          value={f.q}
-          onChange={(e) => set({ q: e.target.value })}
-          placeholder="Make, model or VIN"
-          className="w-full bg-transparent text-[15px] font-medium text-[var(--t1)] outline-none placeholder:text-[var(--t4)]"
+      <MarketLocation
+        value={f}
+        onChange={set}
+        search={{ value: f.q, onChange: (q) => set({ q }) }}
+      />
+      {!busy && !error && (
+        <MarketIntelligence
+          summary={data?.summary}
+          query={qs}
+          capped={data?.capped}
         />
-        {f.q && (
-          <button
-            onClick={() => set({ q: "" })}
-            className="shrink-0 text-[var(--t4)] transition-colors hover:text-[var(--t1)]"
-            title="Clear search"
-          >
-            <Ico name="close" size={16} />
-          </button>
-        )}
-      </div>
-
-      {/* Whole-country opportunity heatmap — where the GO/HOLD money clusters. */}
-      {flipDesk && <USHeatmap />}
+      )}
+      {flipDesk && (
+        <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+          <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">
+            National opportunity map · independent of search filters
+          </summary>
+          <USHeatmap />
+        </details>
+      )}
       <button
         type="button"
         aria-expanded={showFilters}
@@ -466,10 +570,55 @@ export default function MarketPage() {
           <StateGroup
             selected={f.states}
             counts={facets.states || {}}
-            onToggle={(k) => set({ states: toggle(f.states, k) })}
+            onToggle={(k) =>
+              set({
+                states: toggle(f.states, k),
+                near: "",
+                radius: "",
+                lat: "",
+                lng: "",
+              })
+            }
             onClear={() => set({ states: [] })}
           />
+          <label className="flex flex-col gap-1 rounded-xl bg-[var(--s1)] p-3 text-xs font-semibold text-[var(--t3)]">
+            Price type
+            <select
+              aria-label="Price type"
+              value={f.priceKind}
+              onChange={(event) => set({ priceKind: event.target.value })}
+              className="field min-h-11 !w-full"
+            >
+              <option value="">All reported types</option>
+              <option value="asking">Cash asking price</option>
+              <option value="current_bid">Current bid</option>
+              <option value="buy_now">Buy-now price</option>
+              <option value="down_payment">Possible down payment</option>
+              <option value="monthly_payment">Monthly payment</option>
+              <option value="finance_teaser">Payment amount</option>
+              <option value="reference">Reference value</option>
+              <option value="unknown">Unverified amount</option>
+            </select>
+            <span className="mt-1 text-[10px] font-normal">
+              Cash budgets use a reported full asking or buy-now price. Payments
+              and reference values never qualify.
+            </span>
+          </label>
 
+          <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+            Budget compares
+            <select
+              aria-label="Price comparison basis"
+              value={f.priceBasis}
+              onChange={(event) => set({ priceBasis: event.target.value })}
+              className="field min-h-11 !w-full"
+            >
+              <option value="cash">Full cash / buy-now price</option>
+              <option value="advertised">
+                Advertised amount (includes bids)
+              </option>
+            </select>
+          </label>
           <fieldset className="min-w-0 space-y-3 border-t border-[var(--b1)] pt-3">
             <legend className="text-xs font-bold text-[var(--t3)]">
               Vehicle & sources
@@ -689,10 +838,17 @@ export default function MarketPage() {
         </aside>
 
         {/* ── Results ── */}
-        <main className="min-w-0 flex-1">
-          {!error && <MarketVisualizers facets={facets} />}
+        <section aria-label="Market results" className="min-w-0 flex-1">
+          {!busy && !error && (
+            <details className="mb-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">
+                Market charts · current search
+              </summary>
+              <MarketVisualizers facets={facets} />
+            </details>
+          )}
 
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-[var(--t4)]">
                 {error ? (
@@ -705,13 +861,35 @@ export default function MarketPage() {
                       {total.toLocaleString()}
                     </strong>{" "}
                     {data?.mode === "curated" ? "curated" : "market"} matches
-                    {f.states.length
-                      ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
-                      : " · all states"}
+                    {data?.location?.radius
+                      ? ` · ${data.location.radius} mi radius`
+                      : f.states.length
+                        ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
+                        : " · all states"}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
                 )}
               </p>
+            </div>
+            <div aria-label="Result view" className="ml-auto flex gap-1">
+              <button
+                type="button"
+                aria-label="Photo cards"
+                aria-pressed={view === "grid"}
+                onClick={() => setView("grid")}
+                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "grid" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Table view"
+                aria-pressed={view === "table"}
+                onClick={() => setView("table")}
+                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "table" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+              >
+                <List className="h-4 w-4" />
+              </button>
             </div>
             <select
               aria-label="Sort market results"
@@ -722,25 +900,48 @@ export default function MarketPage() {
               }}
               className="field !w-auto text-xs"
             >
+              <option value="lastSeenAt:desc">Recently seen</option>
+              {(f.near || f.lat) && (
+                <option value="distanceMiles:asc">Nearest first</option>
+              )}
               {flipDesk && (
                 <option value="profitEstimate:desc">Profit ↓</option>
               )}
               {flipDesk && <option value="profitScore:desc">Score ↓</option>}
-              <option value="askPrice:asc">Price ↑</option>
-              <option value="askPrice:desc">Price ↓</option>
+              <option value="askPrice:asc">Advertised amount ↑</option>
+              <option value="askPrice:desc">Advertised amount ↓</option>
               <option value="mileage:asc">Miles ↑</option>
               <option value="year:desc">Year ↓</option>
             </select>
           </div>
 
-          {error ? (
+          {error || data?.configured === false ? (
             <ErrorState
               title="Market data unavailable"
-              message="Could not load market listings. Your filters have been kept."
+              message={
+                error?.marketMessage ||
+                "Could not load market listings. Your filters have been kept."
+              }
               onRetry={() => void mutate()}
             />
           ) : rows.length > 0 ? (
-            <DealTable rows={rows} />
+            view === "grid" ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {rows.map((row) => (
+                  <MarketListingCard
+                    key={row.id}
+                    row={row}
+                    flipDesk={flipDesk}
+                  />
+                ))}
+              </div>
+            ) : (
+              <DealTable
+                rows={rows as TableRow[]}
+                flipDesk={flipDesk}
+                preserveOrder
+              />
+            )
           ) : (
             <div
               className="flex flex-col items-center justify-center gap-2 rounded-[var(--r3)] py-20 text-center"
@@ -760,6 +961,15 @@ export default function MarketPage() {
                 </p>
               )}
             </div>
+          )}
+          {!busy && !error && (
+            <p className="mt-3 text-[11px] leading-relaxed text-[var(--t3)]">
+              Indexed inventory reflects the sources and locations collected so
+              far. Source availability, photos and prices can change.{" "}
+              {data?.capped
+                ? "This search reached the 8,000-row sample limit. Narrow location, source or vehicle filters to inspect more precise results."
+                : "Open the source listing to confirm availability and the full purchase amount."}
+            </p>
           )}
           {!error && !pendingFilters && total > 0 && (
             <nav
@@ -794,7 +1004,7 @@ export default function MarketPage() {
               </div>
             </nav>
           )}
-        </main>
+        </section>
       </div>
     </div>
   );

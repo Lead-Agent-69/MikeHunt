@@ -34,6 +34,7 @@ describe("account menu", () => {
     const menu = accountMenuForMode("personal");
     expect(names(menu.primary)).toEqual(["Saved", "Saved searches", "Alerts"]);
     expect(names(menu.tools)).toEqual([
+      "Market Explorer",
       "Search cars",
       "Feed",
       "Map",
@@ -43,7 +44,7 @@ describe("account menu", () => {
       "Purchase plan",
       "Transport",
     ]);
-    expect(menu.tools[0].href).toBe("/scan?sort=score");
+    expect(menu.tools[0].href).toBe("/market");
     expect(names(menu.secondary)).toEqual([
       "Settings",
       "Upgrade",
@@ -112,7 +113,7 @@ describe("account menu", () => {
     expect(hrefs).toContain("/map");
     expect(hrefs).toContain("/swipe");
     expect(hrefs).not.toContain("/auctions");
-    expect(hrefs).not.toContain("/market");
+    expect(hrefs).toContain("/market");
     expect(hrefs).not.toContain("/finance");
   });
 

@@ -1,6 +1,11 @@
-import { FlipDeskGate } from "@/components/shared/FlipDeskGate";
+import type { Metadata } from "next";
 
-// Flip tool: personal, DIY and parts desks get the in-page desk notice instead.
+export const metadata: Metadata = {
+  title: "Market Explorer | MIKEHUNT",
+  description:
+    "Explore indexed vehicles by location, radius, source, condition, and price evidence.",
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <FlipDeskGate route="/market">{children}</FlipDeskGate>;
+  return children;
 }
