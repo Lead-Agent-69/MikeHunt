@@ -20,6 +20,9 @@ test.describe("Market Explorer home", () => {
     await page.evaluate(() => document.fonts.ready);
     const preview = page.getByTestId("market-price-preview").first();
     await expect(preview).toBeVisible();
+    await expect(preview.getByTestId("market-identity-preview")).toHaveText(
+      /[A-Za-z]/,
+    );
     const previewBox = await preview.boundingBox();
     const mobileNavigation = page
       .getByRole("navigation", { name: "Primary mobile navigation" })
@@ -42,6 +45,19 @@ test.describe("Market Explorer home", () => {
       Math.min(photoBox!.y + photoBox!.height, visibleBottom) -
         Math.max(0, photoBox!.y),
     ).toBeGreaterThanOrEqual(120);
+    const locationFields = await page
+      .getByRole("region", { name: "Location and radius" })
+      .locator("input, select")
+      .evaluateAll((fields) =>
+        fields.map((field) => ({
+          fontSize: parseFloat(getComputedStyle(field).fontSize),
+          height: field.getBoundingClientRect().height,
+        })),
+      );
+    for (const field of locationFields) {
+      expect(field.fontSize).toBeGreaterThanOrEqual(16);
+      expect(field.height).toBeGreaterThanOrEqual(44);
+    }
     await page.screenshot({
       path: testInfo.outputPath("market-initial-viewport.png"),
     });

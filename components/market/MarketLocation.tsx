@@ -73,7 +73,7 @@ export function MarketLocation({
               placeholder="Make, model or VIN"
               value={search.value}
               onChange={(event) => search.onChange(event.target.value)}
-              className="field min-h-11 min-w-0 !w-full sm:mt-1"
+              className="field min-h-11 min-w-0 !w-full !py-2 !text-base sm:mt-1"
             />
           </label>
         )}
@@ -89,7 +89,7 @@ export function MarketLocation({
             value={near}
             onChange={(event) => setNear(event.target.value)}
             maxLength={100}
-            className="field min-h-11 !w-full"
+            className="field min-h-11 !w-full !py-2 !text-base"
           />
         </label>
         <label className="text-xs font-semibold text-[var(--t3)]">
@@ -98,7 +98,7 @@ export function MarketLocation({
             aria-label="Search radius"
             value={radius}
             onChange={(event) => setRadius(event.target.value)}
-            className="field mt-1 min-h-11 !w-full"
+            className="field mt-1 min-h-11 !w-full !py-2 !text-base"
           >
             {[25, 50, 100, 150, 200, 250, 500, 1000].map((miles) => (
               <option key={miles} value={miles}>
@@ -169,7 +169,7 @@ export function MarketLocation({
                     ? "states"
                     : "nationwide"
               }
-              className="field min-h-11 min-w-0 !w-full !text-sm"
+              className="field min-h-11 min-w-0 !w-full !py-2 !text-base"
               onChange={(event) => {
                 if (event.target.value === "nationwide") {
                   setNear("");
