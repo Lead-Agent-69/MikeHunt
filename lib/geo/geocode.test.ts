@@ -4,6 +4,7 @@ import {
   parseZippopotam,
   parseNominatim,
   resolvePlaces,
+  coordinatesForPlace,
 } from "./geocode";
 
 describe("placeKey", () => {
@@ -60,6 +61,30 @@ describe("parsers", () => {
   it("nominatim with no match → null", () => {
     expect(parseNominatim([])).toBeNull();
     expect(parseNominatim({})).toBeNull();
+  });
+});
+
+describe("listing coordinate precedence", () => {
+  const cache = new Map([
+    ["cs:saint louis|mo", { lat: 38.627, lng: -90.1994 }],
+  ]);
+  it("preserves the source map position instead of replacing it with the city center", () => {
+    expect(
+      coordinatesForPlace(
+        { city: "Saint Louis", state: "MO", lat: 38.6779, lng: -90.3033 },
+        cache,
+      ),
+    ).toEqual({ lat: 38.6779, lng: -90.3033 });
+  });
+  it("uses the same normalized key for lookup and assignment", () => {
+    expect(
+      coordinatesForPlace({ city: "Saint Louis, MO", state: "MO" }, cache),
+    ).toEqual({ lat: 38.627, lng: -90.1994 });
+  });
+  it("never treats a partial or invalid source position as a complete location", () => {
+    expect(coordinatesForPlace({ lat: null, lng: -90 })).toBeNull();
+    expect(coordinatesForPlace({ lat: 91, lng: -90 })).toBeNull();
+    expect(coordinatesForPlace({ lat: 0, lng: 0 })).toBeNull();
   });
 });
 

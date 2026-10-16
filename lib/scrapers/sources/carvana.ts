@@ -83,6 +83,7 @@ async function fetchCarvanaPage(
   pageSize: number,
 ): Promise<any | null> {
   const res = await fetch(CARVANA_API, {
+    signal: AbortSignal.timeout(15000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,23 +105,26 @@ async function fetchCarvanaPage(
 // different make/model/year buckets instead of re-fetching the same 1000 cars.
 export async function scrapeCarvana(
   maxPages = 15,
-  pageSize = 50,
+  pageSize = 24,
 ): Promise<number> {
+  // The API echoes larger requested sizes in pagination but returns at most 24 cars. Using that
+  // echoed size as the next offset skips cars between pages. Keep the request within its real cap.
+  pageSize = Math.max(1, Math.min(24, Math.floor(pageSize) || 24));
   console.log("[Carvana] Starting API scrape...");
   const all: Partial<Deal>[] = [];
 
   // Page 1 tells us how many pages exist; pick a random window start from there. The API caps deep
-  // pagination at a ~10k-result offset, so the reachable window is bounded regardless of total.
+  // pagination before the full advertised count. 9,480 is the verified reachable result window.
   const first = await fetchCarvanaPage(1, pageSize);
   if (!first) return 0;
   const totalPages: number = Math.max(
     1,
     Number(first?.inventory?.pagination?.totalMatchedPages) || 1,
   );
-  const maxReachablePage = Math.floor(9900 / pageSize); // offset cap (~page 198 @ size 50)
+  const maxReachablePage = Math.floor(9480 / pageSize);
   const lastStart = Math.max(
     1,
-    Math.min(totalPages, maxReachablePage) - maxPages,
+    Math.min(totalPages, maxReachablePage) - maxPages + 1,
   );
   const startPage =
     lastStart > 1 ? 1 + Math.floor(Math.random() * lastStart) : 1;
@@ -132,7 +136,8 @@ export async function scrapeCarvana(
 
   for (
     let page = startPage;
-    page < startPage + maxPages && page <= totalPages;
+    page < startPage + maxPages &&
+    page <= Math.min(totalPages, maxReachablePage);
     page++
   ) {
     if (page === 1 && startPage === 1) continue; // already captured above
