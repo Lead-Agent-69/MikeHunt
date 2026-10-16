@@ -13,7 +13,16 @@ vi.mock("swr", () => ({
     state.keys.push(key);
     return {
       data: key
-        ? { rows: [{ id: "car" }], total: 1105, mode: "all", facets: {} }
+        ? {
+            rows: [{ id: "car" }],
+            total: 1105,
+            mode: "all",
+            facets: {},
+            marketEvidence: {
+              qualifiedAskingCount: 12,
+              medianAskingPrice: 20520,
+            },
+          }
         : undefined,
       isLoading: false,
       mutate: vi.fn(),
@@ -32,7 +41,8 @@ vi.mock("@/components/ui/performance-optimizations", () => ({
 }));
 vi.mock("@/components/market/USHeatmap", () => ({ USHeatmap: () => null }));
 vi.mock("@/components/market/MarketVisualizers", () => ({
-  MarketVisualizers: () => null,
+  MarketVisualizers: () =>
+    React.createElement("p", null, "Price evidence charts"),
 }));
 vi.mock("@/components/scan/DealTable", () => ({
   DealTable: () => React.createElement("p", null, "Inventory results"),
@@ -67,6 +77,22 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("keeps charts off the first screen and mounts evidence only when opened", async () => {
+    await render();
+    const disclosure = Array.from(host.querySelectorAll("details")).find(
+      (element) =>
+        element.querySelector("summary")?.textContent === "Market evidence",
+    )!;
+    expect(disclosure.open).toBe(false);
+    expect(host.textContent).not.toContain("Price evidence charts");
+    expect(host.textContent).toContain("Inventory results");
+    act(() => {
+      disclosure.open = true;
+      disclosure.dispatchEvent(new Event("toggle", { bubbles: true }));
+    });
+    expect(host.textContent).toContain("Price evidence charts");
+    expect(host.textContent).toContain("Asking prices are not confirmed sales");
+  });
   it("shows radius controls immediately and clears state boundaries when a nearby ZIP is complete", async () => {
     window.history.replaceState(null, "", "/market?states=MO");
     await render();
