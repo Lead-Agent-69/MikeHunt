@@ -192,13 +192,37 @@ describe("Market filter journey", () => {
       ),
     );
     act(() =>
-      Array.from(host.querySelectorAll("button"))
-        .find((button) => button.textContent === "Nationwide")!
-        .click(),
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>('[aria-label="Search area"]')!,
+        { target: { value: "nationwide" } } as any,
+      ),
     );
     expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
     expect(new URLSearchParams(window.location.search).get("sort")).toBe(
       "lastSeenAt",
     );
+  });
+
+  it("keeps result controls and inventory before secondary insights in reading order", async () => {
+    await render();
+    const sort = host.querySelector('[aria-label="Sort market results"]')!;
+    const views = host.querySelector('[aria-label="Result view"]')!;
+    const inventory = Array.from(host.querySelectorAll("p")).find(
+      (node) => node.textContent === "Inventory results",
+    )!;
+    const insights = host.querySelector("#market-intelligence")!;
+    const tools = host.querySelector('nav[aria-label="Market tools"]')!;
+    for (const [first, second] of [
+      [sort, views],
+      [inventory, insights],
+      [insights, tools],
+    ]) {
+      expect(
+        first.compareDocumentPosition(second) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    expect(insights.className).not.toMatch(/\border-/);
+    expect(tools.className).not.toMatch(/\border-/);
   });
 });
