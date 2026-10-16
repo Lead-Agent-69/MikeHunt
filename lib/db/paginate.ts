@@ -21,18 +21,30 @@ export interface PageResult<T> {
  */
 export async function fetchAllRows<T>(
   page: (from: number, to: number) => PromiseLike<PageResult<T>>,
-  opts: { pageSize?: number; max?: number } = {},
+  opts: { pageSize?: number; max?: number; concurrency?: number } = {},
 ): Promise<T[]> {
   const pageSize = Math.max(1, opts.pageSize ?? 1000);
   const max = opts.max ?? Number.POSITIVE_INFINITY;
+  const concurrency = Number.isFinite(opts.concurrency)
+    ? Math.max(1, Math.min(4, Math.floor(opts.concurrency!)))
+    : 1;
   const out: T[] = [];
-  for (let from = 0; from < max; from += pageSize) {
-    const to = Math.min(from + pageSize, max) - 1;
-    const { data, error } = await page(from, to);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    out.push(...data);
-    if (data.length < to - from + 1) break; // short page → done
+  for (let start = 0; start < max; start += pageSize * concurrency) {
+    const ranges = Array.from({ length: concurrency }, (_, offset) => {
+      const from = start + offset * pageSize;
+      return { from, to: Math.min(from + pageSize, max) - 1 };
+    }).filter(({ from }) => from < max);
+    const results = await Promise.all(
+      ranges.map(({ from, to }) => page(from, to)),
+    );
+    // A failed page cannot masquerade as a complete count or market summary.
+    for (const result of results) if (result.error) throw result.error;
+    for (let i = 0; i < results.length; i++) {
+      const data = results[i].data;
+      if (!data?.length) return out;
+      out.push(...data);
+      if (data.length < ranges[i].to - ranges[i].from + 1) return out;
+    }
   }
   return out;
 }

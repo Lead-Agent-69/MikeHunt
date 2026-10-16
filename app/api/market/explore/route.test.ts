@@ -124,7 +124,7 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.rows).toHaveLength(50);
     expect(body.rows[0].id).toBe("car-1050");
     expect(body.capped).toBe(false);
-    expect(state.calls).toContainEqual(["range", 1000, 1499]);
+    expect(state.calls).toContainEqual(["range", 1000, 1999]);
     expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
   });
 
@@ -151,7 +151,7 @@ describe("Market inventory filtering and pagination", () => {
     const body = await (await request("mode=all")).json();
     expect(body.capped).toBe(false);
     expect(body.total).toBe(8005);
-    expect(state.calls).toContainEqual(["range", 8000, 8499]);
+    expect(state.calls).toContainEqual(["range", 8000, 8999]);
   });
 
   it("keeps photo, freshness and live-auction eligibility before pagination", async () => {

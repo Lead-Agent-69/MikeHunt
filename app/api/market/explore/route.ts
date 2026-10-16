@@ -262,7 +262,7 @@ export async function GET(req: NextRequest) {
         };
         const data = await fetchAllRows<any>(
           (from, to) => build().range(from, to),
-          { pageSize: 500 },
+          { pageSize: 1000, concurrency: 3 },
         );
         const capped = false;
 
