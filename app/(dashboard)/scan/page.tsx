@@ -2577,8 +2577,8 @@ function ScanPageInner() {
   }, []);
   const gridClass =
     density === "compact"
-      ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
-      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+      ? "grid items-start grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
+      : "grid items-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Commit a query to history + apply it immediately (used by Enter, Scan button, recent chips).
@@ -3153,6 +3153,23 @@ function ScanPageInner() {
       ...filter,
       value: filterDisplayValue(filter.label, filter.value),
     }));
+
+  // Primary controls already display their current value. Repeating those as a
+  // second row of removable chips made the toolbar much taller without adding
+  // information. Keep pills only for filters hidden in advanced controls.
+  const appliedDetailFilters = appliedFilters.filter(
+    (filter) =>
+      ![
+        "State",
+        "Make",
+        "Model",
+        "Max price",
+        "Max miles",
+        "Near",
+        "Source",
+        "Verdict",
+      ].includes(filter.label),
+  );
 
   const searchSummary = useMemo(() => {
     const laneLabel: Record<string, string> = {
@@ -4761,23 +4778,23 @@ function ScanPageInner() {
         configured={scrapeHealth?.configured}
         onRetry={() => void mutateScrapeHealth()}
       />
-      <details open className="glass-panel px-4 py-3 space-y-3">
-        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+      <details open className="glass-panel px-3 py-1.5">
+        <summary className="flex min-h-10 cursor-pointer items-center py-2 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Filters &amp; view
           {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
         </summary>
-        {appliedFilters.length > 0 && (
+        {appliedDetailFilters.length > 0 && (
           <div
-            className="flex flex-wrap items-center gap-2"
+            className="mb-2 flex flex-wrap items-center gap-1.5"
             aria-label="Applied filters"
           >
-            {appliedFilters.map((filter) => (
+            {appliedDetailFilters.map((filter) => (
               <button
                 key={filter.label}
                 type="button"
                 onClick={filter.clear}
                 aria-label={`Remove ${filter.label} filter`}
-                className="flex min-h-11 max-w-full items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs text-[var(--t2)]"
+                className="flex min-h-9 max-w-full items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] px-2.5 text-xs text-[var(--t2)]"
               >
                 <span className="break-words">
                   {filter.label}: {filter.value}
@@ -4785,17 +4802,10 @@ function ScanPageInner() {
                 <X className="h-3 w-3 shrink-0" aria-hidden="true" />
               </button>
             ))}
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="min-h-11 px-3 text-xs font-bold text-[var(--t2)]"
-            >
-              Clear all
-            </button>
           </div>
         )}
         {/* PRIMARY: the dealer's most-used controls, always visible */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
           {/* GO-only — the #1 filter */}
           {flipDesk && (
             <>
@@ -4965,6 +4975,16 @@ function ScanPageInner() {
             </button>
           )}
 
+          {appliedFilters.length > 0 && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="min-h-9 shrink-0 rounded-[var(--r2)] px-2.5 text-xs font-bold text-[var(--t3)] hover:bg-[var(--s1)] hover:text-[var(--t1)]"
+            >
+              Clear filters
+            </button>
+          )}
+
           {/* Results count + density */}
           {!loading && (
             <div className="ml-auto flex items-center gap-3 shrink-0">
@@ -5017,7 +5037,7 @@ function ScanPageInner() {
 
         {/* Browsable category chips — one-tap money-relevant slices (only non-empty render). */}
         {CAR_CATEGORIES.some((c) => categoryCounts[c.key]) && (
-          <div className="flex items-center gap-2 overflow-x-auto pt-2 -mx-1 px-1">
+          <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pt-1.5">
             <button
               onClick={() => setCategory("all")}
               className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors"

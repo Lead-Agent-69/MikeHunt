@@ -536,8 +536,30 @@ export default function MarketPage() {
         {/* ── Filter rail ── */}
         <aside
           id="market-filter-panel"
-          className={`${showFilters ? "flex" : "hidden"} md:flex md:w-72 md:shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto flex-col gap-4`}
+          aria-label="Market filters"
+          className={`${showFilters ? "flex" : "hidden"} md:flex md:w-64 md:shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto flex-col gap-2.5 md:pr-1`}
         >
+          <div className="sticky top-0 z-10 flex items-center justify-between rounded-lg border border-[var(--b1)] bg-[var(--s0)]/95 px-3 py-2 backdrop-blur">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--t2)]">
+                Filters
+              </p>
+              <p className="text-[10px] text-[var(--t4)]">
+                {activeCount
+                  ? `${activeCount} applied`
+                  : "Showing all inventory"}
+              </p>
+            </div>
+            {activeCount > 0 && (
+              <button
+                type="button"
+                onClick={reset}
+                className="min-h-8 rounded-md px-2 text-[11px] font-semibold text-[var(--blue)] hover:bg-[var(--s2)]"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
           {/* Curated ⟷ whole market */}
           {flipDesk && (
             <div
@@ -913,25 +935,38 @@ export default function MarketPage() {
           </div>
 
           {!busy && !error && (
-            <details className="mb-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
-                Market intelligence & AI · current search
-              </summary>
+            <div
+              className="mb-4 space-y-3"
+              data-testid="market-intelligence-dashboard"
+            >
               <MarketIntelligence
                 summary={data?.summary}
                 query={qs}
                 capped={data?.capped}
               />
-              <MarketVisualizers facets={facets} />
+              <MarketVisualizers
+                facets={facets}
+                selectedLanes={f.lanes}
+                selectedPrice={{ min: f.priceMin, max: f.priceMax }}
+                onLaneToggle={(lane) => set({ lanes: toggle(f.lanes, lane) })}
+                onPriceRangeSelect={(from, to) => {
+                  const alreadySelected =
+                    f.priceMin === String(from) && f.priceMax === String(to);
+                  set({
+                    priceMin: alreadySelected ? "" : String(from),
+                    priceMax: alreadySelected ? "" : String(to),
+                  });
+                }}
+              />
               {flipDesk && (
-                <details className="my-3">
+                <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
                   <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
                     National opportunity map · independent of search filters
                   </summary>
                   <USHeatmap />
                 </details>
               )}
-            </details>
+            </div>
           )}
           {error || data?.configured === false ? (
             <ErrorState
@@ -1149,24 +1184,27 @@ function StateGroup({
   );
   const without = US_STATES.filter((s) => !counts[s]);
   return (
-    <div
-      className="rounded-[var(--r3)] p-3"
-      style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+    <details
+      open={selected.length > 0 ? true : undefined}
+      className="rounded-[var(--r3)] bg-[var(--s1)] px-3"
+      style={{ boxShadow: "var(--shadow)" }}
     >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          State {selected.length ? `(${selected.length})` : ""}
+      <summary className="flex min-h-10 cursor-pointer items-center justify-between text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+        <span>States {selected.length ? `(${selected.length})` : ""}</span>
+        <span className="text-[9px] font-medium normal-case text-[var(--t5)]">
+          {withCars.length} with inventory
         </span>
-        {selected.length > 0 && (
-          <button
-            onClick={onClear}
-            className="text-[10px] font-bold text-[var(--t4)] hover:text-[var(--t1)]"
-          >
-            clear
-          </button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-1">
+      </summary>
+      {selected.length > 0 && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="mb-2 text-[10px] font-bold text-[var(--blue)] hover:text-[var(--t1)]"
+        >
+          Clear selected states
+        </button>
+      )}
+      <div className="flex flex-wrap gap-1 pb-3">
         {[...withCars, ...without].map((s) => {
           const on = selected.includes(s);
           const has = counts[s] > 0;
@@ -1191,6 +1229,6 @@ function StateGroup({
           );
         })}
       </div>
-    </div>
+    </details>
   );
 }

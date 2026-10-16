@@ -69,7 +69,7 @@ export async function completeOnboarding(page: Page, desk: Desk) {
     }
     await page.getByRole("button", { name: /^Continue/ }).click();
   }
-  await page.waitForURL(/\/discover/, { timeout: 30_000 });
+  await page.waitForURL(/\/(market|discover)/, { timeout: 30_000 });
   if (desk !== "reseller") {
     const legacy = await page.request.put("/api/preferences", {
       data: { buyerScope: { buyerMode: desk } },

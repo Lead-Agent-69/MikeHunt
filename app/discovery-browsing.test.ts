@@ -43,7 +43,7 @@ describe("discovery browsing presentation safeguards", () => {
     expect(primary).toContain('setSelectedStates("")');
     expect(scan).toContain("setPlanMessage(radiusRefreshMessage)");
     expect(scan).toContain(
-      '<details open className="glass-panel px-4 py-3 space-y-3">',
+      '<details open className="glass-panel px-3 py-1.5">',
     );
     expect(scan.match(/label="Max Miles"/g)).toHaveLength(1);
     expect(scan.match(/label="Source"/g)).toHaveLength(1);
