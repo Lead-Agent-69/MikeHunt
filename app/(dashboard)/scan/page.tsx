@@ -93,6 +93,11 @@ import {
   SCAN_EXTRA_KEYS,
 } from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
+import {
+  nearbySearchDraft,
+  radiusRefreshMessage,
+} from "@/lib/search/nearby-search-draft";
+import { filterDisplayValue } from "@/lib/search/filter-display";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -2450,15 +2455,18 @@ function FilterSelect({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       className="min-h-11 max-w-full text-sm text-[var(--t1)] rounded-[var(--r2)] px-3 py-2 outline-none transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
       style={{
@@ -2934,13 +2942,11 @@ function ScanPageInner() {
     if (verdict !== "all") c++;
     if (dealerHostsFilter.length) c++;
     if (dealerSourceIdsFilter.length) c++;
-    if (sourceFilter !== "all") c++;
     if (sellerTypeFilter !== "all") c++;
     if (minPrice !== "any") c++;
     if (minProfit !== "any") c++;
     if (minYear !== "any") c++;
     if (maxYear !== "any") c++;
-    if (maxMileage !== "any") c++;
     if (titleType !== "all") c++;
     if (availability !== "all") c++;
     if (madeInUsa) c++;
@@ -2959,13 +2965,11 @@ function ScanPageInner() {
     extraFilters,
     dealerHostsFilter.length,
     dealerSourceIdsFilter.length,
-    sourceFilter,
     sellerTypeFilter,
     minPrice,
     minProfit,
     minYear,
     maxYear,
-    maxMileage,
     titleType,
     availability,
     madeInUsa,
@@ -3134,7 +3138,12 @@ function ScanPageInner() {
           },
         ]
       : []),
-  ].filter((filter) => filter.value && !["all", "any"].includes(filter.value));
+  ]
+    .filter((filter) => filter.value && !["all", "any"].includes(filter.value))
+    .map((filter) => ({
+      ...filter,
+      value: filterDisplayValue(filter.label, filter.value),
+    }));
 
   const searchSummary = useMemo(() => {
     const laneLabel: Record<string, string> = {
@@ -3152,7 +3161,9 @@ function ScanPageInner() {
           ? "watch candidates"
           : null,
       laneLabel[lane] || lane,
-      selectedStates || (state !== "all" ? state : "nationwide"),
+      /^\d{5}$/.test(zip)
+        ? `within ${radius} miles of ${zip}`
+        : selectedStates || (state !== "all" ? state : "nationwide"),
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
       make === "all" && makesFilter.length
@@ -3194,6 +3205,8 @@ function ScanPageInner() {
     sellerTypeFilter,
     maxPrice,
     sort,
+    zip,
+    radius,
   ]);
 
   const smartPlan = useMemo(
@@ -3248,6 +3261,10 @@ function ScanPageInner() {
   );
 
   const previewSourcePlan = useCallback(async () => {
+    if (/^\d{5}$/.test(zip)) {
+      setPlanMessage(radiusRefreshMessage);
+      return;
+    }
     const request = planRequests.current.start();
     setPlanPreviewing(true);
     setPlanMessage(null);
@@ -3287,7 +3304,7 @@ function ScanPageInner() {
       if (request.isCurrent()) setPlanPreviewing(false);
       request.finish();
     }
-  }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter]);
+  }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter, zip]);
 
   const fetchLivePreview = useCallback(async () => {
     const request = previewRequests.current.start();
@@ -3789,6 +3806,8 @@ function ScanPageInner() {
   const sourceSearchKey = JSON.stringify({
     scope: smartPlan.scope,
     sourceIds: selectedSourceIds,
+    zip,
+    radius,
   });
   useEffect(() => {
     const runId = sourceRunId;
@@ -3805,6 +3824,10 @@ function ScanPageInner() {
   }, [sourceSearchKey]);
 
   const runMatchingSources = useCallback(async () => {
+    if (/^\d{5}$/.test(zip)) {
+      setPlanMessage(radiusRefreshMessage);
+      return;
+    }
     const runId = ++sourceRunId.current;
     sourceRunController.current?.abort();
     const controller = new AbortController();
@@ -3985,7 +4008,14 @@ function ScanPageInner() {
     } finally {
       if (runId === sourceRunId.current) setRunImporting(false);
     }
-  }, [isAdmin, smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
+  }, [
+    isAdmin,
+    smartPlan.scope,
+    selectedSourceIds,
+    mutate,
+    mutateScrapeHealth,
+    zip,
+  ]);
 
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
@@ -4801,14 +4831,17 @@ function ScanPageInner() {
             options={makeOptions}
           />
           {/* Model cascades off the chosen make (Copart-style) — appears once a make is picked. */}
-          {make !== "all" && (
-            <FilterSelect
-              label="Model"
-              value={model}
-              onChange={setModel}
-              options={modelOptions}
-            />
-          )}
+          <FilterSelect
+            label="Model"
+            value={model}
+            onChange={setModel}
+            disabled={make === "all"}
+            options={
+              make === "all"
+                ? [{ value: "all", label: "Model: Choose make" }]
+                : modelOptions
+            }
+          />
           <FilterSelect
             label="State"
             value={state}
@@ -4831,6 +4864,43 @@ function ScanPageInner() {
             onChange={setSourceFilter}
             options={sourceOptions}
           />
+          <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+            Near ZIP
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={5}
+              aria-label="ZIP"
+              placeholder="ZIP code"
+              value={zip}
+              onChange={(event) => {
+                const next = nearbySearchDraft(event.target.value);
+                setZip(next.zip);
+                if (next.clearStateBoundary) {
+                  setState("all");
+                  setSelectedStates("");
+                }
+              }}
+              className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+            Within
+            <select
+              aria-label="Radius"
+              value={radius}
+              disabled={!/^\d{5}$/.test(zip)}
+              onChange={(event) => setRadius(event.target.value)}
+              className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)] disabled:opacity-50"
+            >
+              {["25", "50", "100", "200", "500"].map((distance) => (
+                <option key={distance} value={distance}>
+                  {distance} mi
+                </option>
+              ))}
+            </select>
+          </label>
           <FilterSelect
             label="Sort"
             value={sort}
@@ -4861,7 +4931,7 @@ function ScanPageInner() {
             }}
           >
             <Ico name="filter" size={12} />
-            Year, distance & condition
+            Year & condition
             {advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
           </button>
@@ -5019,39 +5089,6 @@ function ScanPageInner() {
                 value={maxYear}
                 onChange={setMaxYear}
               />
-            </FilterGroup>
-
-            <FilterGroup label="Near">
-              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-                ZIP
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  aria-label="ZIP"
-                  placeholder="Any"
-                  value={zip}
-                  onChange={(e) =>
-                    setZip(e.target.value.replace(/\D/g, "").slice(0, 5))
-                  }
-                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-                Within
-                <select
-                  aria-label="Radius"
-                  value={radius}
-                  onChange={(e) => setRadius(e.target.value)}
-                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
-                >
-                  {["25", "50", "100", "200", "500"].map((r) => (
-                    <option key={r} value={r}>
-                      {r} mi
-                    </option>
-                  ))}
-                </select>
-              </label>
             </FilterGroup>
 
             <FilterGroup label="Condition">

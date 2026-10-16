@@ -36,7 +36,12 @@ describe("discovery browsing presentation safeguards", () => {
     expect(primary).toContain('label="Source"');
     expect(primary).toContain("aria-expanded={showMore}");
     expect(primary).toContain('aria-controls="additional-inventory-filters"');
-    expect(primary).toContain("Year, distance & condition");
+    expect(primary).toContain("Year & condition");
+    expect(primary).toContain('aria-label="ZIP"');
+    expect(primary).toContain('aria-label="Radius"');
+    expect(primary).toContain('disabled={make === "all"}');
+    expect(primary).toContain('setSelectedStates("")');
+    expect(scan).toContain("setPlanMessage(radiusRefreshMessage)");
     expect(scan).toContain(
       '<details open className="glass-panel px-4 py-3 space-y-3">',
     );
@@ -55,6 +60,8 @@ describe("discovery browsing presentation safeguards", () => {
   });
 
   it("provides labeled carousel controls and cleans up scroll observers", () => {
+    expect(page).toContain("items-start gap-8 lg:grid-cols-2");
+    expect(page).toContain("lg:mx-0 lg:scroll-px-0 lg:px-0");
     expect(page).toContain("Previous vehicles in");
     expect(page).toContain("Next vehicles in");
     expect(page).toContain('event.key === "ArrowRight"');

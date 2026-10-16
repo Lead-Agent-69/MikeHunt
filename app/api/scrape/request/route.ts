@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  hasRadiusCollectionScope,
+  radiusRefreshMessage,
+} from "@/lib/search/nearby-search-draft";
 import { getServerUser } from "@/lib/server-supabase";
 import { createServerComponentClient } from "@/lib/supabase";
 import { internalError } from "@/lib/api/http-error";
@@ -64,6 +68,11 @@ export async function POST(request: NextRequest) {
     )
       return NextResponse.json(
         { error: "Choose a location and search criteria first." },
+        { status: 400 },
+      );
+    if (hasRadiusCollectionScope(body.scope))
+      return NextResponse.json(
+        { error: radiusRefreshMessage },
         { status: 400 },
       );
     const plan = planScrapeForBuyerScope(body.scope);

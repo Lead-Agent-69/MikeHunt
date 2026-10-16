@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  hasRadiusCollectionScope,
+  radiusRefreshMessage,
+} from "@/lib/search/nearby-search-draft";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
   buildBuyerScopeLinks,
@@ -144,6 +148,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    if (hasRadiusCollectionScope(body.scope || body))
+      return NextResponse.json(
+        { error: radiusRefreshMessage },
+        { status: 400 },
+      );
     const plan = planScrapeForBuyerScope(body.scope || body);
     const requested: string[] = Array.isArray(body.sourceIds)
       ? body.sourceIds.map(normalizeSourceId).filter(Boolean)

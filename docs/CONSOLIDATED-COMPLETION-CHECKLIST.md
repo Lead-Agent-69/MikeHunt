@@ -1138,6 +1138,17 @@ imports from customer charts without deleting the audit rows. Exact live apply
 and worker rollout receipts must be recorded separately; fixture success is not
 proof those operations ran.
 
+Search clarity follow-up: keep model visible with a choose-make state; put ZIP
+and radius alongside the primary filters; a completed ZIP removes the current
+state boundary for this search only so nearby inventory may cross state borders.
+Named radius collection is not yet supported by BuyerScope, so its source-plan
+and collection actions must stop with a clear message instead of silently
+collecting nationwide. Existing indexed inventory and public previews retain
+their existing ZIP/radius filters. Applied-filter labels must not expose raw
+storage slugs, and source/mileage selections no longer inflate the additional
+filter count. Desktop Discover collections share two columns rather than giving
+a sparse one-card collection an entire row; mobile retains its horizontal rails.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.
