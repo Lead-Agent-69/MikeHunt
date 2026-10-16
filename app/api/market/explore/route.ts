@@ -18,6 +18,20 @@ import {
 } from "@/lib/discovery/categorize";
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
+import {
+  sourcePriceContext,
+  SOURCE_PRICE_FIELDS,
+} from "@/lib/deals/source-price-context";
+import {
+  resolveZipRadius,
+  parseZipRadius,
+  applyZipRadiusBox,
+  filterZipRadiusRows,
+  milesFrom,
+  ZIP_LOOKUP_ERROR,
+} from "@/lib/search/zip-radius";
 import {
   applyVehicleDetails,
   applySelectedSources,
@@ -102,6 +116,10 @@ export async function GET(req: NextRequest) {
     if (rangeError)
       return NextResponse.json({ error: rangeError }, { status: 400 });
     const flipDesk = await resolveCallerFlipDesk();
+    const supabase = createServerComponentClient();
+    const zipRadius = await resolveZipRadius(supabase, sp);
+    if (parseZipRadius(sp) && !zipRadius)
+      return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
     const conditions = csv(sp.get("conditions"));
     const verdicts = flipDesk ? csv(sp.get("verdicts")) : [];
     const sources = csv(sp.get("sources"))
@@ -149,14 +167,16 @@ export async function GET(req: NextRequest) {
       `mkt:explore:${flipDesk ? "flip" : "personal"}:${cacheParams.toString()}`,
       30_000,
       async () => {
-        const supabase = createServerComponentClient();
         const build = () => {
           let q = supabase
             .from("deals")
             .select(
-              "id, source, source_url, title, year, make, model, trim, body_class, fuel_type, vin, mileage, condition, damage_type, ask_price, buy_now_price, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, seller_type:options->>sellerType, is_arbitrage_opportunity, location_state",
+              "id, year, make, model, trim, body_class, fuel_type, vin, images, lat, lng, location_city, location_state, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, title_source:options->>titleSource," +
+                SOURCE_PRICE_FIELDS,
             )
             .eq("active", true);
+          q = applyLiveAuctionWindow(applyCustomerInventory(q));
+          if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
 
           // SQL-able filters (push down what we can).
           if (states.length) q = q.in("location_state", states);
@@ -188,8 +208,7 @@ export async function GET(req: NextRequest) {
           if (model) q = q.ilike("model", `%${model}%`);
           // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
           // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
-          if (sellerTypes.length)
-            q = q.in("options->>sellerType", sellerTypes);
+          if (sellerTypes.length) q = q.in("options->>sellerType", sellerTypes);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
@@ -205,16 +224,37 @@ export async function GET(req: NextRequest) {
           { pageSize: 500, max: CAP + 1 },
         );
         const capped = observed.length > CAP;
-        const data = observed.slice(0, CAP);
+        const data = filterZipRadiusRows(observed.slice(0, CAP), zipRadius);
 
         let rows = (data || []).map((d: any) => ({
           id: d.id,
           source: d.source,
+          sourceUrl: d.source_url,
+          imageUrl: Array.isArray(d.images) ? d.images[0] : undefined,
+          priceLabel: sourcePriceContext(d).label,
+          priceKind: sourcePriceContext(d).kind,
+          cashPriceConfirmed: sourcePriceContext(d).cashPrice != null,
+          titleStatus:
+            d.title_source === "listing" &&
+            [
+              "clean_title",
+              "rebuilt_title",
+              "salvage_title",
+              "parts_only",
+            ].includes(d.condition)
+              ? `Seller reports ${d.condition.replace(/_/g, " ")}`
+              : "Title needs checking",
+          comparableAskingPrice: sourcePriceContext(d).canCompareToAskingCurve
+            ? sourcePriceContext(d).cashPrice
+            : null,
+          distanceMiles: zipRadius ? milesFrom(zipRadius, d) : undefined,
+          locationCity: d.location_city || undefined,
+          lastSeenAt: d.last_seen_at || undefined,
           year: d.year,
           make: d.make,
           model: d.model,
           trim: d.trim,
-          askPrice: Number(d.ask_price || 0),
+          askPrice: sourcePriceContext(d).amount ?? 0,
           buyNowPrice:
             d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
           bodyClass: d.body_class || undefined,
@@ -244,6 +284,16 @@ export async function GET(req: NextRequest) {
         // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
         if (minRoi > 0)
           rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
+        const qualifiedPrices = rows
+          .map((r) => r.comparableAskingPrice)
+          .filter((price): price is number => price != null)
+          .sort((a, b) => a - b);
+        const mid = Math.floor(qualifiedPrices.length / 2);
+        const medianAskingPrice = !qualifiedPrices.length
+          ? null
+          : qualifiedPrices.length % 2
+            ? qualifiedPrices[mid]
+            : (qualifiedPrices[mid - 1] + qualifiedPrices[mid]) / 2;
 
         // Facets over the post-filter set so the UI shows live counts.
         const count = <T extends string>(
@@ -266,7 +316,7 @@ export async function GET(req: NextRequest) {
           .map(([make, n]) => ({ make, n }));
 
         // Price distribution — chart-ready histogram (12 quantile-free fixed buckets) for the market viz.
-        const prices = rows.map((r) => r.askPrice).filter((p) => p > 0);
+        const prices = qualifiedPrices;
         const hiP = prices.length ? Math.max(...prices) : 0;
         const bw =
           hiP > 0 ? Math.max(1000, Math.ceil(hiP / 12 / 1000) * 1000) : 1000;
@@ -315,6 +365,12 @@ export async function GET(req: NextRequest) {
           total,
           capped,
           mode,
+          marketEvidence: {
+            qualifiedAskingCount: qualifiedPrices.length,
+            medianAskingPrice,
+            basis:
+              "Observed asking prices, not confirmed sales or a vehicle valuation",
+          },
           facets: {
             states: stateCounts,
             lanes: laneCounts,

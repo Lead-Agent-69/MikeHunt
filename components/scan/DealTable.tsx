@@ -24,6 +24,7 @@ export interface TableRow {
   model: string;
   trim?: string;
   askPrice: number;
+  priceLabel?: string;
   mileage?: number;
   sellEstimate?: number;
   profitEstimate: number;
@@ -398,7 +399,7 @@ export function DealTable({
                     {r.askPrice > 0 ? fmt(r.askPrice) : "Not reported"}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
-                    {priceCopy.priceLabel(r.source)}
+                    {r.priceLabel || priceCopy.priceLabel(r.source)}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">

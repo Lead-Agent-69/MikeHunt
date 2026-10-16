@@ -14,7 +14,7 @@ export default async function Home() {
     const {
       data: { user },
     } = await getServerUser();
-    if (user) dest = "/discover";
+    if (user) dest = "/market";
   } catch {
     // Not configured or no session — show the public landing.
   }

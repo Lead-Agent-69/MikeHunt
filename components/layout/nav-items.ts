@@ -38,6 +38,7 @@ export type NavItem = {
 };
 export type NavGroup = { group: string; items: NavItem[] };
 export type PrimaryJob =
+  | "Market"
   | "Discover"
   | "Deal Check"
   | "Auction Lane"
@@ -50,6 +51,7 @@ export type PrimaryJob =
 
 /** The desktop daily-driver routes from the acquisition workflow. */
 export const PRIMARY: NavItem[] = [
+  { name: "Market", href: "/market", icon: Search },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
@@ -57,10 +59,11 @@ export const PRIMARY: NavItem[] = [
 ];
 
 /** The mobile bottom bar exposes three daily buyer actions plus Tools. */
-export const MOBILE_TAB_COUNT = 4;
+export const MOBILE_TAB_COUNT = 5;
 
 /** Auction work remains available from a listing or watchlist rather than taking a permanent tab. */
 export const MOBILE_PRIMARY: NavItem[] = [
+  { name: "Market", href: "/market", icon: Search },
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
@@ -79,7 +82,6 @@ export const FLIP_ONLY_HREFS: readonly string[] = [
   "/arbitrage",
   "/find",
   "/best-buy",
-  "/market",
 ];
 
 /**
@@ -267,13 +269,6 @@ export const MORE_GROUPS: NavGroup[] = [
     group: "Market",
     items: [
       {
-        name: "Market explorer",
-        href: "/market",
-        icon: SlidersHorizontal,
-        description:
-          "Explore indexed inventory and geographic market comparisons.",
-      },
-      {
         name: "Arbitrage",
         href: "/arbitrage",
         icon: ArrowLeftRight,
@@ -382,12 +377,12 @@ export function navItemMatchesPath(
   item: Pick<NavItem, "href">,
   pathname: string,
 ) {
-  const normalized = pathname === "/" ? "/discover" : pathname;
+  const normalized = pathname === "/" ? "/market" : pathname;
   return normalized === item.href || normalized.startsWith(`${item.href}/`);
 }
 
 export function primaryJobForPath(pathname: string): PrimaryJob | null {
-  const normalized = pathname === "/" ? "/discover" : pathname;
+  const normalized = pathname === "/" ? "/market" : pathname;
   if (navItemMatchesPath({ href: "/compare" }, normalized)) return "Saved";
   if (navItemMatchesPath({ href: "/dealer-network" }, normalized))
     return "Discover";

@@ -83,7 +83,7 @@ export function TopNav() {
           className="sticky top-0 z-30 flex h-14 items-center px-4 md:px-6"
           style={{ background: "var(--glass)" }}
         >
-          <Link href="/discover" prefetch={false} aria-label="MIKEHUNT home">
+          <Link href="/market" prefetch={false} aria-label="MIKEHUNT home">
             <MikeHuntLogo />
           </Link>
         </header>
@@ -166,10 +166,16 @@ function TopNavContent() {
   const totalAlertCount = alertCount;
   const changeLocation = (states: string[]) => {
     setScopedStates(states);
-    if (["/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname)) {
+    if (
+      ["/market", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(
+        pathname,
+      )
+    ) {
       const params = new URLSearchParams(window.location.search);
       params.delete("state");
       params.delete("states");
+      params.delete("zip");
+      params.delete("radius");
       if (states.length === 1) params.set("state", states[0]);
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
@@ -209,7 +215,7 @@ function TopNavContent() {
       {/* LEFT: Logo */}
       <div className="flex flex-1 items-center gap-2 min-w-0">
         <Link
-          href="/discover"
+          href="/market"
           prefetch={false}
           aria-label="MIKEHUNT home"
           className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
