@@ -38,15 +38,28 @@ async function submitFeedback(req: NextRequest) {
     data: { user },
     error: authError,
   } = await db.auth.getUser();
+  if (
+    !user?.id &&
+    (!authError ||
+      authError.name === "AuthSessionMissingError" ||
+      [400, 401, 403].includes(authError.status || 0))
+  )
+    return reply({ error: "Sign in to report a listing." }, 401);
   if (authError)
     return reply(
       { error: "Account unavailable. Your report has not been saved." },
       503,
     );
   if (!user?.id) return reply({ error: "Sign in to report a listing." }, 401);
+  // Next's standalone URL can contain the bind address, not the browser-facing host.
+  const protocol = process.env.VERCEL
+    ? req.headers.get("x-forwarded-proto") ||
+      req.nextUrl.protocol.replace(":", "")
+    : req.nextUrl.protocol.replace(":", "");
+  const expectedOrigin = `${protocol}://${req.headers.get("host") || req.nextUrl.host}`;
   if (
     (req.headers.get("origin") &&
-      req.headers.get("origin") !== req.nextUrl.origin) ||
+      req.headers.get("origin") !== expectedOrigin) ||
     req.headers.get("sec-fetch-site") === "cross-site"
   )
     return reply({ error: "Submit feedback from this app." }, 403);

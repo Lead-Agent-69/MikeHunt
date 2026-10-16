@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   error: null as any,
   existing: null as any,
   inserted: null as any,
+  authError: null as any,
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: mocks.allowed }),
@@ -15,7 +16,12 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
-    auth: { getUser: async () => ({ data: { user: mocks.user } }) },
+    auth: {
+      getUser: async () => ({
+        data: { user: mocks.user },
+        error: mocks.authError,
+      }),
+    },
     from: () => {
       let inserted = false;
       const result = async () =>
@@ -57,6 +63,7 @@ const post = (payload: unknown = body, headers: Record<string, string> = {}) =>
     }),
   );
 beforeEach(() => {
+  mocks.authError = null;
   mocks.user = { id: "owner" };
   mocks.allowed = true;
   mocks.error = null;
@@ -64,6 +71,28 @@ beforeEach(() => {
   mocks.inserted = null;
 });
 describe("listing feedback", () => {
+  it("uses the public Host for same-origin requests, not the internal bind address", async () => {
+    const response = await POST(
+      new NextRequest("http://0.0.0.0:3006/api/feedback", {
+        method: "POST",
+        headers: {
+          host: "localhost:3006",
+          origin: "http://localhost:3006",
+          "content-type": "application/json",
+          "sec-fetch-site": "same-origin",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(response.status).toBe(201);
+  });
+  it("distinguishes missing sessions from an unavailable auth provider", async () => {
+    mocks.user = null;
+    mocks.authError = { name: "AuthSessionMissingError", status: 400 };
+    expect((await post()).status).toBe(401);
+    mocks.authError = { name: "AuthRetryableFetchError", status: 0 };
+    expect((await post()).status).toBe(503);
+  });
   it("authenticates and uses the server owner, not a supplied user_id", async () => {
     expect((await post({ ...body, user_id: "attacker" })).status).toBe(201);
     expect(mocks.inserted.user_id).toBe("owner");

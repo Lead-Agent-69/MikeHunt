@@ -1,4 +1,6 @@
 begin;
+set local lock_timeout = '2s';
+set local statement_timeout = '15s';
 
 create table public.feedback (
   id uuid primary key default gen_random_uuid(),

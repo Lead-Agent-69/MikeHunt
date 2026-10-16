@@ -30,11 +30,11 @@ import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import { expandFreeTextQuery } from "@/lib/search/expand-free-text";
+import { milesFrom } from "@/lib/search/zip-radius";
 import {
-  applyZipRadiusBox,
-  milesFrom,
-  resolveZipRadius,
-} from "@/lib/search/zip-radius";
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
   CATEGORY_PROJECTION,
@@ -1175,12 +1175,19 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = db();
+  const location = await inventoryLocation(supabase, searchParams);
+  if (location.requested && !location.radius)
+    return NextResponse.json(
+      {
+        error: "This ZIP location could not be resolved. Try another ZIP code.",
+      },
+      { status: 422, headers: SCAN_CACHE_HEADERS },
+    );
+  const zipRadius = location.radius;
   const scanProjection =
     sort === "margin" ? `${SCAN_SELECT},deal_margin` : SCAN_SELECT;
 
-  let query = supabase
-    .from("deals")
-    .select(scanProjection, { count: "exact" })
+  let query = inventoryLocationQuery(supabase, location, scanProjection, true)
     // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
@@ -1225,8 +1232,6 @@ export async function GET(req: NextRequest) {
 
   // Guest-friendly ZIP + radius ("within 50 mi of 60601"). Cache-first geocode, then a lat/lng box in
   // SQL and an exact straight-line check per row below. Rows without coordinates can't be placed.
-  const zipRadius = await resolveZipRadius(supabase, searchParams);
-  if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
 
   if (availability && availability !== "all") {
     query = query.eq("availability_status", availability);
@@ -1260,7 +1265,7 @@ export async function GET(req: NextRequest) {
   }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
-  query = applyVehicleDetails(query, searchParams);
+  query = applyVehicleDetails(query, location.details);
 
   if (source && source.toLowerCase() !== "all") {
     query = applySelectedSources(query, selectedSourceIds(source));
@@ -1395,7 +1400,7 @@ export async function GET(req: NextRequest) {
     dealers,
     dealerSourceIds,
   };
-  const inRadius = zipRadius
+  const inRadius: any[] = zipRadius
     ? (data || []).filter((r: any) => {
         const mi = milesFrom(zipRadius, r);
         return mi != null && mi <= zipRadius.radius;

@@ -1,6 +1,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { internalError } from "@/lib/api/http-error";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 import {
@@ -162,6 +166,12 @@ export async function GET(req: NextRequest) {
       models: cascade ? [] : undefined,
     });
   const supabase = createServerComponentClient();
+  const location = await inventoryLocation(supabase, params);
+  if (location.requested && !location.radius)
+    return NextResponse.json(
+      { error: "This ZIP location could not be resolved." },
+      { status: 422 },
+    );
   const flipDesk = (await resolveCallerDesk()) === "flip";
   const source = params.get("sources") || params.get("source") || "";
   if (!validSourceSelection(source))
@@ -180,14 +190,13 @@ export async function GET(req: NextRequest) {
   // title filter and the remaining facets are narrowed in memory with the same enum mapping.
   const applyTitleInDb = cascade;
   const build = () => {
-    let query = supabase
-      .from("deals")
-      .select(
-        cascade
-          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
-          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
-      )
-      .eq("active", true);
+    let query = inventoryLocationQuery(
+      supabase,
+      location,
+      cascade
+        ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
+        : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
+    ).eq("active", true);
     query = applyLiveAuctionWindow(applyCustomerInventory(query));
     if (
       !hasAuctionDetailFilters(params) &&
@@ -199,7 +208,7 @@ export async function GET(req: NextRequest) {
     )
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
     query = applyInventoryLane(query, lane);
-    query = applyVehicleDetails(query, params);
+    query = applyVehicleDetails(query, location.details);
     if (flipDesk && Number(params.get("minProfit")) > 0)
       query = query.gte("true_net_profit", Number(params.get("minProfit")));
     const verdict = params.get("verdict");

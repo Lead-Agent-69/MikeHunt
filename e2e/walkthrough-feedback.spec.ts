@@ -1,11 +1,25 @@
 import { expect, test } from "@playwright/test";
-import { storagePath } from "./support/accounts";
+import { storagePath, type Desk } from "./support/accounts";
 import { localOnly } from "./support/target";
 import { expectHealthy, watchHealth } from "./support/health";
 
 test.describe("recorded user walkthrough acceptance", () => {
   localOnly();
-  test.use({ storageState: storagePath("reseller"), serviceWorkers: "block" });
+  test.use({
+    storageState: async ({}, provideState, info) => {
+      const desks: Record<string, Desk> = {
+        desktop: "reseller",
+        "tablet-768": "dealer",
+        "tablet-1024": "parts",
+        "mobile-320": "personal",
+        "mobile-390": "diy",
+        "webkit-390": "reseller",
+        "firefox-desktop": "dealer",
+      };
+      await provideState(storagePath(desks[info.project.name] || "reseller"));
+    },
+    serviceWorkers: "block",
+  });
 
   test("views and search controls are visible without a hidden Inventory Views menu", async ({
     page,
@@ -19,6 +33,8 @@ test.describe("recorded user walkthrough acceptance", () => {
     await expect(
       views.getByRole("link", { name: "Map", exact: true }),
     ).toBeVisible();
+    await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
     await page.goto(
       "/scan?scope=explicit&state=all&zip=63101&radius=50&q=WalkthroughRadius",
     );
@@ -53,6 +69,22 @@ test.describe("recorded user walkthrough acceptance", () => {
     expect(
       result.vehicles.some((row: any) => row.locationCity === "Chicago"),
     ).toBe(false);
+    const expectedIds = result.vehicles.map((row: any) => row.id).sort();
+    const scope =
+      "scope=explicit&state=all&zip=63101&radius=50&q=WalkthroughRadius";
+    const feed = await page.request.get(`/api/feed?browse=all&${scope}`);
+    expect(feed.ok()).toBe(true);
+    expect((await feed.json()).items.map((row: any) => row.id).sort()).toEqual(
+      expectedIds,
+    );
+    const map = await page.request.get(`/api/deals/map?${scope}`);
+    expect(map.ok()).toBe(true);
+    expect((await map.json()).points.map((row: any) => row.id).sort()).toEqual(
+      expectedIds,
+    );
+    const facets = await page.request.get(`/api/scan/facets?${scope}`);
+    expect(facets.ok()).toBe(true);
+    expect((await facets.json()).states.sort()).toEqual(["IL", "MO"]);
     expect(
       (
         await page.request.get("/api/scan?source=cars_com,copart&sort=price")
