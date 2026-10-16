@@ -24,6 +24,7 @@ export async function preserveExistingDealerListingIds(
     source_url: string | undefined;
     source_deal_id: string;
     vin?: string | null;
+    condition?: string | null;
     options?: Record<string, any> | null;
   }>,
 ) {
@@ -83,6 +84,15 @@ export async function preserveExistingDealerListingIds(
         row.options = { ...(row.options || {}), sourceCorrection: correction };
         if (!row.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(correction.vin || ""))
           row.vin = correction.vin;
+        if (
+          row.options?.titleSource !== "listing" &&
+          ["clean_title", "rebuilt_title", "salvage_title"].includes(
+            correction.condition,
+          )
+        ) {
+          row.condition = correction.condition;
+          row.options.titleSource = "listing";
+        }
       }
     }
   }

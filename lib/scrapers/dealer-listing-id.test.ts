@@ -110,11 +110,13 @@ it("preserves correction provenance for the actual DriveNation CMS identity with
     sourceUrl,
     checkedAt: "2026-10-15T22:00:00Z",
     vin: "5XXG14J25PG166770",
+    condition: "clean_title",
   };
   const current = {
     ...row(sourceUrl),
     source_deal_id: "4cdg-drivenation-com-1539",
     vin: null as string | null,
+    condition: null as string | null,
     options: {} as Record<string, any>,
   };
   const c = client([
@@ -128,6 +130,8 @@ it("preserves correction provenance for the actual DriveNation CMS identity with
   expect(current.source_deal_id).toBe("4cdg-drivenation-com-1539");
   expect(current.options.sourceCorrection).toEqual(correction);
   expect(current.vin).toBe(correction.vin);
+  expect(current.condition).toBe("clean_title");
+  expect(current.options.titleSource).toBe("listing");
   const conflicting = {
     ...current,
     vin: "1HGCM82633A004352",
