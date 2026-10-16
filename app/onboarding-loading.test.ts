@@ -53,12 +53,12 @@ it("blocks Continue until saved preferences arrive", async () => {
     b.textContent?.includes("Continue"),
   )!;
   expect(next.disabled).toBe(false);
-  act(() => next.click());
   expect(
     Array.from(host.querySelectorAll("button"))
       .find((b) => b.textContent === "Trucks")
       ?.getAttribute("aria-pressed"),
   ).toBe("true");
+  act(() => next.click());
 });
 it("offers recovery rather than replacing failed preferences with defaults", async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: false });

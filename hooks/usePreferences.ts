@@ -21,6 +21,8 @@ export interface Prefs {
   locationDemandStates?: string[];
   carsStates?: string[]; // legacy multi-state hunt list; fallback for searchLocations
   buyerScope?: {
+    /** Archived presentation choice; never an authorization claim. */
+    legacyBuyerMode?: string;
     buyerMode?: "personal" | "diy" | "parts" | "reseller" | "dealer";
     vehicle?: string;
     vehicles?: string[];

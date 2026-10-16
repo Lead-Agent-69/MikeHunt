@@ -24,6 +24,9 @@ describe("inventory browsing safety", () => {
     expect(read("components/search/DiscoveryViewAccess.tsx")).toContain(
       'path !== "/discover"',
     );
+    expect(read("components/search/DiscoveryViewAccess.tsx")).not.toContain(
+      "<details",
+    );
   });
   it("provides keyboard decisions, vertical touch scrolling and reduced motion", () => {
     const stack = read("components/ui/framer-components.tsx");
