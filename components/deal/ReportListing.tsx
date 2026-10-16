@@ -112,7 +112,7 @@ export function ReportListing({ listingId }: { listingId: string }) {
               <button
                 disabled={busy || !comment.trim()}
                 type="submit"
-                className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white disabled:opacity-50"
+                className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] disabled:opacity-50"
               >
                 {busy ? "Sending..." : "Send report"}
               </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ExternalLink,
   MapPin,
+  ZoomIn,
 } from "lucide-react";
 import { proxiedImage } from "@/lib/image-url";
 import { reportedPrice } from "@/lib/deals/reported-price";
@@ -17,6 +18,7 @@ import { vehicleLocation } from "@/lib/search/vehicle-location";
 import type { MarketListing } from "@/lib/market/explorer";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
+import { rememberMarketPosition } from "./MarketReturnPosition";
 
 export function MarketListingCard({
   row,
@@ -28,6 +30,9 @@ export function MarketListingCard({
   const [photo, setPhoto] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
   const [preview, setPreview] = useState<number | null>(null);
+  const previewTrigger = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const rememberPosition = () => rememberMarketPosition(cardRef.current);
   const photos = (row.images || []).filter((url) => !failed.includes(url));
   const index = photo % Math.max(photos.length, 1);
   const vendor = vendorIdentity(row.source, row.sourceUrl);
@@ -56,14 +61,19 @@ export function MarketListingCard({
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
   return (
-    <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm">
-      <div className="relative aspect-[16/10] overflow-hidden bg-[var(--s2)]">
+    <article
+      ref={cardRef}
+      data-market-vehicle={row.id}
+      className="relative min-w-0 overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
+    >
+      <div className="relative z-20 aspect-[16/10] overflow-hidden bg-[var(--s2)]">
         {photos.length ? (
-          <button
-            type="button"
-            aria-label={`View photos of ${row.title}`}
-            onClick={() => setPreview(index)}
-            className="h-full w-full"
+          <Link
+            href={`/deal/${row.id}`}
+            prefetch={false}
+            onNavigate={rememberPosition}
+            aria-label={`Open details for ${row.title}`}
+            className="block h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -74,28 +84,58 @@ export function MarketListingCard({
               className="h-full w-full object-cover"
               onError={() => setFailed((all) => [...all, photos[index]])}
             />
-          </button>
+          </Link>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--t3)]">
-            <Camera className="h-8 w-8" aria-hidden="true" />
+          <Link
+            href={`/deal/${row.id}`}
+            prefetch={false}
+            onNavigate={rememberPosition}
+            aria-label={`Open details for ${row.title}`}
+            className="flex h-full flex-col items-center justify-end gap-1 pb-3 text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
+          >
+            <Camera className="h-4 w-4" aria-hidden="true" />
             <span className="text-xs">Source photo unavailable</span>
-            {vendor.href && (
-              <a
-                href={vendor.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs underline"
-              >
-                Check source photos
-              </a>
-            )}
-          </div>
+          </Link>
         )}
-        <span className="absolute left-3 top-3 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white">
+        <span
+          title={vendor.label}
+          className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%_-_5rem)] truncate rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white"
+        >
           {vendor.label}
         </span>
+        {photos.length > 0 && (
+          <button
+            ref={previewTrigger}
+            type="button"
+            title={`Enlarge photos of ${row.title}`}
+            aria-label={`Enlarge photos of ${row.title}`}
+            onClick={() => setPreview(index)}
+            className="absolute bottom-2 left-2 grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white"
+          >
+            <ZoomIn className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        <div
+          aria-hidden="true"
+          data-testid="market-price-preview"
+          className="pointer-events-none absolute left-3 top-12 max-w-[calc(100%_-_4.5rem)] rounded bg-[var(--s1)] px-2 py-1 text-[var(--t1)] shadow-sm"
+        >
+          <p
+            data-testid="market-identity-preview"
+            className="truncate text-xs font-bold"
+          >
+            {[row.year, row.make, row.model].filter(Boolean).join(" ") ||
+              row.title}
+          </p>
+          <p className="text-[10px] font-semibold leading-snug">
+            {price?.label || "Unverified advertised amount"}
+          </p>
+          <p className="text-base font-extrabold tabular-nums">
+            {reportedPrice(price?.amount)}
+          </p>
+        </div>
         {photos[index]?.includes("carvana.io/stockimages/") && (
-          <span className="absolute bottom-3 left-3 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white">
+          <span className="pointer-events-none absolute bottom-5 left-16 max-w-[calc(100%_-_12rem)] rounded bg-black/75 px-2 py-1 text-[10px] text-white">
             Source stock photo
           </span>
         )}
@@ -146,7 +186,12 @@ export function MarketListingCard({
               "Seller type unreported"}
           </p>
           <h3 className="mt-1 break-words text-base font-bold leading-snug">
-            <Link href={`/deal/${row.id}`} className="hover:underline">
+            <Link
+              href={`/deal/${row.id}`}
+              prefetch={false}
+              onNavigate={rememberPosition}
+              className="hover:underline after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+            >
               {row.title || `${row.year} ${row.make} ${row.model}`}
             </Link>
           </h3>
@@ -244,7 +289,8 @@ export function MarketListingCard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--b1)] pt-2">
           <Link
             href={`/deal/${row.id}`}
-            className="inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
+            prefetch={false}
+            className="relative z-20 inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
           >
             Review listing →
           </Link>
@@ -254,7 +300,7 @@ export function MarketListingCard({
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Open ${vendor.label} listing in a new tab`}
-              className="inline-flex min-h-11 items-center gap-1 text-xs font-semibold"
+              className="relative z-20 inline-flex min-h-11 items-center gap-1 text-xs font-semibold"
             >
               Source <ExternalLink className="h-3 w-3" aria-hidden="true" />
             </a>
@@ -268,6 +314,7 @@ export function MarketListingCard({
         }))}
         selectedIndex={preview}
         onSelect={setPreview}
+        returnFocusRef={previewTrigger}
       />
     </article>
   );

@@ -147,6 +147,7 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link
           href="/"
+          prefetch={false}
           aria-label="MIKEHUNT home"
           className="inline-flex items-center gap-2.5"
         >
@@ -244,6 +245,7 @@ export default function LoginPage() {
               </span>
               <Link
                 href="/forgot-password"
+                prefetch={false}
                 className="text-[var(--amber-d)] hover:underline font-medium"
               >
                 Forgot password?
@@ -271,6 +273,7 @@ export default function LoginPage() {
               New to MikeHunt?{" "}
               <Link
                 href="/register"
+                prefetch={false}
                 className="font-semibold text-[var(--amber-d)] hover:underline"
               >
                 Create your free account
@@ -280,6 +283,7 @@ export default function LoginPage() {
               By signing in, you agree to our{" "}
               <Link
                 href="/tos"
+                prefetch={false}
                 className="text-[var(--t4)] hover:text-[var(--t1)]"
               >
                 Terms
@@ -287,6 +291,7 @@ export default function LoginPage() {
               and{" "}
               <Link
                 href="/privacy"
+                prefetch={false}
                 className="text-[var(--t4)] hover:text-[var(--t1)]"
               >
                 Privacy Policy

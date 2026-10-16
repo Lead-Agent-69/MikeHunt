@@ -188,7 +188,7 @@ function TopNavContent() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6"
+      className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6 lg:gap-3"
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -215,7 +215,7 @@ function TopNavContent() {
         }}
       />
       {/* LEFT: Logo */}
-      <div className="flex flex-1 items-center gap-2 min-w-0">
+      <div className="flex flex-1 items-center gap-2 min-w-0 lg:flex-none">
         <Link
           href="/market"
           prefetch={false}
@@ -237,11 +237,10 @@ function TopNavContent() {
         )}
       </div>
 
-      {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
-          overlap them as the window narrows. */}
+      {/* Desktop sides retain their content width; auto margins give navigation the remaining space. */}
       <nav
         aria-label="Primary desktop navigation"
-        className="hidden lg:flex items-center gap-0.5 shrink-0"
+        className="hidden lg:flex items-center gap-0.5 shrink-0 lg:mx-auto"
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);
@@ -286,12 +285,12 @@ function TopNavContent() {
       </nav>
 
       {/* RIGHT: Actions */}
-      <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
+      <div className="flex flex-1 items-center justify-end gap-2 min-w-0 lg:flex-none">
         <div className="hidden items-center justify-end gap-2 lg:flex">
           <MyStatesButton
             onChange={changeLocation}
             statesOverride={scopedStates}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
+            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
           />
           <ThemeToggle />
           <IconBtn

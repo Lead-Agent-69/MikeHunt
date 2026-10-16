@@ -9,6 +9,7 @@ import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
 import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { MarketLocation } from "@/components/market/MarketLocation";
 import type { MarketListing } from "@/lib/market/explorer";
@@ -170,6 +171,7 @@ export default function MarketPage() {
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const intelligenceRef = React.useRef<HTMLDetailsElement>(null);
   const [view, setView] = React.useState<"grid" | "table">("grid");
   const set = (patch: Partial<Filters>) => {
     setPage(0);
@@ -290,7 +292,8 @@ export default function MarketPage() {
   const debouncedQs = useDebouncedValue(qs, 350);
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready) window.history.replaceState(null, "", `/market?${qs}`);
+    if (ready)
+      window.history.replaceState(window.history.state, "", `/market?${qs}`);
   }, [qs, ready]);
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -376,13 +379,13 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--t1)] md:text-3xl">
+    <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--b1)] pb-2 sm:pb-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-extrabold text-[var(--t1)] md:text-3xl">
             Market Explorer
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--t3)]">
+          <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] md:block">
             Find the vehicle. Understand the price. Check the evidence.
           </p>
         </div>
@@ -419,33 +422,6 @@ export default function MarketPage() {
           </p>
         )}
       </header>
-      <nav
-        aria-label="Market tools"
-        className="flex gap-2 overflow-x-auto pb-1"
-      >
-        {[
-          { label: "Discover picks", href: "/discover" },
-          { label: "Map search", href: "/map" },
-          { label: "Deal Check", href: "/deal-check" },
-          { label: "Compare", href: "/compare" },
-          ...(flipDesk
-            ? [
-                { label: "Auction Lane", href: "/lane" },
-                { label: "Outcomes & intelligence", href: "/insights" },
-              ]
-            : []),
-          { label: "All tools", href: "/tools" },
-        ].map((tool) => (
-          <Link
-            key={tool.href}
-            href={tool.href}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 text-xs font-semibold"
-          >
-            {tool.label}
-            <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        ))}
-      </nav>
       {baseChips.length > 0 && (
         <div
           className="flex flex-wrap gap-2"
@@ -522,16 +498,35 @@ export default function MarketPage() {
           search={{ value: f.q, onChange: (q) => set({ q }) }}
         />
       )}
-      <button
-        type="button"
-        aria-expanded={showFilters}
-        aria-controls="market-filter-panel"
-        onClick={() => setShowFilters((current) => !current)}
-        className="inline-flex min-h-11 items-center gap-2 self-start rounded-lg border border-[var(--b1)] px-3 text-sm md:hidden"
-      >
-        <Filter className="h-4 w-4" /> Filters{" "}
-        {activeCount > 0 && `(${activeCount})`}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={showFilters}
+          aria-controls="market-filter-panel"
+          onClick={() => setShowFilters((current) => !current)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-sm md:hidden"
+        >
+          <Filter className="h-4 w-4" /> Filters{" "}
+          {activeCount > 0 && `(${activeCount})`}
+        </button>
+        <button
+          type="button"
+          aria-controls="market-intelligence"
+          disabled={
+            busy || Boolean(error) || !data || data.configured === false
+          }
+          onClick={() => {
+            const panel = intelligenceRef.current;
+            if (!panel) return;
+            panel.open = true;
+            panel.scrollIntoView({ block: "start" });
+            panel.querySelector("summary")?.focus({ preventScroll: true });
+          }}
+          className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm disabled:opacity-50"
+        >
+          Market insights
+        </button>
+      </div>
       <div className="flex flex-col gap-4 md:flex-row">
         {/* ── Filter rail ── */}
         <aside
@@ -844,9 +839,13 @@ export default function MarketPage() {
         </aside>
 
         {/* ── Results ── */}
-        <section aria-label="Market results" className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
+        <section
+          id="market-results"
+          aria-label="Market results"
+          className="flex min-w-0 flex-1 scroll-mt-20 flex-col"
+        >
+          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 lg:mb-3 lg:flex lg:flex-wrap lg:justify-between lg:gap-3">
+            <div className="col-span-2">
               <p className="text-xs text-[var(--t4)]">
                 {error ? (
                   "Market data unavailable"
@@ -868,6 +867,28 @@ export default function MarketPage() {
                 )}
               </p>
             </div>
+            <select
+              aria-label="Sort market results"
+              value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(f.sort) ? "askPrice" : f.sort}:${f.sortDir}`}
+              onChange={(e) => {
+                const [sort, sortDir] = e.target.value.split(":");
+                set({ sort, sortDir: sortDir as "asc" | "desc" });
+              }}
+              className="field min-w-0 !w-full text-xs lg:!w-auto"
+            >
+              <option value="lastSeenAt:desc">Recently seen</option>
+              {(f.near || f.lat) && (
+                <option value="distanceMiles:asc">Nearest first</option>
+              )}
+              {flipDesk && (
+                <option value="profitEstimate:desc">Profit ↓</option>
+              )}
+              {flipDesk && <option value="profitScore:desc">Score ↓</option>}
+              <option value="askPrice:asc">Advertised amount ↑</option>
+              <option value="askPrice:desc">Advertised amount ↓</option>
+              <option value="mileage:asc">Miles ↑</option>
+              <option value="year:desc">Year ↓</option>
+            </select>
             <div aria-label="Result view" className="ml-auto flex gap-1">
               <button
                 type="button"
@@ -888,51 +909,8 @@ export default function MarketPage() {
                 <List className="h-4 w-4" />
               </button>
             </div>
-            <select
-              aria-label="Sort market results"
-              value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(f.sort) ? "askPrice" : f.sort}:${f.sortDir}`}
-              onChange={(e) => {
-                const [sort, sortDir] = e.target.value.split(":");
-                set({ sort, sortDir: sortDir as "asc" | "desc" });
-              }}
-              className="field !w-auto text-xs"
-            >
-              <option value="lastSeenAt:desc">Recently seen</option>
-              {(f.near || f.lat) && (
-                <option value="distanceMiles:asc">Nearest first</option>
-              )}
-              {flipDesk && (
-                <option value="profitEstimate:desc">Profit ↓</option>
-              )}
-              {flipDesk && <option value="profitScore:desc">Score ↓</option>}
-              <option value="askPrice:asc">Advertised amount ↑</option>
-              <option value="askPrice:desc">Advertised amount ↓</option>
-              <option value="mileage:asc">Miles ↑</option>
-              <option value="year:desc">Year ↓</option>
-            </select>
           </div>
 
-          {!busy && !error && (
-            <details className="mb-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
-                Market intelligence & AI · current search
-              </summary>
-              <MarketIntelligence
-                summary={data?.summary}
-                query={qs}
-                capped={data?.capped}
-              />
-              <MarketVisualizers facets={facets} />
-              {flipDesk && (
-                <details className="my-3">
-                  <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
-                    National opportunity map · independent of search filters
-                  </summary>
-                  <USHeatmap />
-                </details>
-              )}
-            </details>
-          )}
           {error || data?.configured === false ? (
             <ErrorState
               title="Market data unavailable"
@@ -951,6 +929,7 @@ export default function MarketPage() {
                     "repeat(auto-fit, minmax(min(100%, 19rem), 1fr))",
                 }}
               >
+                <MarketReturnPosition />
                 {rows.map((row) => (
                   <MarketListingCard
                     key={row.id}
@@ -1028,8 +1007,67 @@ export default function MarketPage() {
               </div>
             </nav>
           )}
+          {!busy && !error && (
+            <details
+              ref={intelligenceRef}
+              id="market-intelligence"
+              className="mt-4 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-4"
+            >
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+                Market intelligence & AI · current search
+              </summary>
+              <a
+                href="#market-results"
+                className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-[var(--blue)]"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Back to
+                results
+              </a>
+              <MarketIntelligence
+                summary={data?.summary}
+                query={qs}
+                capped={data?.capped}
+              />
+              <MarketVisualizers facets={facets} />
+              {flipDesk && (
+                <details className="my-3">
+                  <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
+                    National opportunity map · independent of search filters
+                  </summary>
+                  <USHeatmap />
+                </details>
+              )}
+            </details>
+          )}
         </section>
       </div>
+      <nav
+        aria-label="Market tools"
+        className="flex gap-2 overflow-x-auto border-t border-[var(--b1)] pt-2"
+      >
+        {[
+          { label: "Discover picks", href: "/discover" },
+          { label: "Map search", href: "/map" },
+          { label: "Deal Check", href: "/deal-check" },
+          { label: "Compare", href: "/compare" },
+          ...(flipDesk
+            ? [
+                { label: "Auction Lane", href: "/lane" },
+                { label: "Outcomes & intelligence", href: "/insights" },
+              ]
+            : []),
+          { label: "All tools", href: "/tools" },
+        ].map((tool) => (
+          <Link
+            key={tool.href}
+            href={tool.href}
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 text-xs font-semibold"
+          >
+            {tool.label}
+            <ArrowUpRight className="h-3 w-3" />
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
