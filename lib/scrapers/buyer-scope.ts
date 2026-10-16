@@ -391,13 +391,16 @@ export function planScrapeForBuyerScope(
   const q = composeBuyerQuery(scope.vehicleType, scope.q);
   const laneSourceIds = Array.from(new Set(LANE_SOURCES[lane]));
   const sellerSourceIds = sourceIdsForSellerType(scope.sellerType);
-  const sourceIds = scope.dealerSourceIds?.length
-    ? ["curated_dealers"]
-    : sellerSourceIds
-      ? lane === "all"
-        ? sellerSourceIds
-        : laneSourceIds.filter((sourceId) => sellerSourceIds.includes(sourceId))
-      : laneSourceIds;
+  const sourceIds =
+    scope.dealerSourceIds?.length || scope.dealerHosts?.length
+      ? ["curated_dealers"]
+      : sellerSourceIds
+        ? lane === "all"
+          ? sellerSourceIds
+          : laneSourceIds.filter((sourceId) =>
+              sellerSourceIds.includes(sourceId),
+            )
+        : laneSourceIds;
   const reasons = [
     `${lane === "all" ? "broad but capped" : lane} source lane`,
     scope.sellerType
@@ -407,7 +410,7 @@ export function planScrapeForBuyerScope(
       ? "market-limited by location"
       : "nationwide location scope",
     q ? "keyword-limited by buyer intent" : "no keyword filter supplied",
-    scope.dealerSourceIds?.length
+    scope.dealerSourceIds?.length || scope.dealerHosts?.length
       ? "limited to watched dealer targets"
       : "no watched dealer target supplied",
   ];

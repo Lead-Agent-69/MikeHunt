@@ -56,6 +56,37 @@ it("reuses a unique exact-URL legacy identity without database updates or changi
   expect(c.q.eq).toHaveBeenCalledWith("source", "independent_dealer");
   expect(c.q.in).toHaveBeenCalledWith("source_url", [url, rows[1].source_url]);
 });
+it("retains verified correction provenance on a later import without retaining stale price evidence", async () => {
+  const sourceUrl = "https://www.drivenation.com/vehiclesDetail.php?1539";
+  const correction = {
+    version: "drivenation-price-odometer-v1",
+    sourceUrl,
+    checkedAt: "2026-10-15T22:00:00Z",
+  };
+  const c = client([
+    {
+      source_url: sourceUrl,
+      source_deal_id: "old-1539",
+      options: {
+        sourceCorrection: correction,
+        priceEvidence: { kind: "asking", askingPrice: 19520 },
+      },
+    },
+  ]);
+  const rows = [
+    {
+      ...row(sourceUrl),
+      options: { sellerType: "dealer" } as Record<string, any>,
+    },
+  ];
+  await preserveExistingDealerListingIds(c.sb, rows);
+  expect(rows[0].source_deal_id).toBe("old-1539");
+  expect(rows[0].options).toEqual({
+    sellerType: "dealer",
+    sourceCorrection: correction,
+  });
+  expect(rows[0].options).not.toHaveProperty("priceEvidence");
+});
 it("prefers its canonical identity and never guesses between duplicate legacy records", async () => {
   const original = row();
   const c = client([

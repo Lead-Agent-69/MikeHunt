@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { vendorIdentity } from "./vendor-identity";
 
 describe("listing vendor identity", () => {
+  it("uses the actual DriveNation identity without trusting a spoofed host", () => {
+    expect(
+      vendorIdentity(
+        "independent_dealer",
+        "https://www.drivenation.com/vehiclesDetail.php?1539",
+      ).label,
+    ).toBe("DriveNation");
+    expect(
+      vendorIdentity(
+        "independent_dealer",
+        "https://drivenation.com.evil.example/car",
+      ).label,
+    ).toBe("drivenation.com.evil.example");
+  });
   it("uses the actual listing vendor even when the scraper label differs", () => {
     const result = vendorIdentity(
       "copart",

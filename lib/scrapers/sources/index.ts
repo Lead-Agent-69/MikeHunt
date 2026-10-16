@@ -32,7 +32,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
-import { matchesRequestedDealer } from "@/lib/sources/source-meta";
+import { matchesCuratedTarget } from "../curated-targets";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
@@ -1207,10 +1207,12 @@ export async function scrapeCuratedSites(
 ): Promise<number> {
   const scope = getScrapeRunScope();
   const requestedDealers = new Set(scope?.dealerSourceIds || []);
+  const requestedHosts = scope?.dealerHosts || [];
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
   // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
   const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
-    (site) => matchesRequestedDealer(site, Array.from(requestedDealers)),
+    (site) =>
+      matchesCuratedTarget(site, Array.from(requestedDealers), requestedHosts),
   );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
@@ -1221,7 +1223,10 @@ export async function scrapeCuratedSites(
     );
   // A buyer-demand run (home / saved-search state kick) crawls that state's ring first and only;
   // a plain sweep keeps the rotation: least-recently-attempted dealers lead, demand breaks ties.
-  const demandStates = requestedDealers.size ? [] : scopeDemandStates(scope);
+  const demandStates =
+    requestedDealers.size || requestedHosts.length
+      ? []
+      : scopeDemandStates(scope);
   const plannedStates = demandStates.length
     ? curatedRingStates(demandStates)
     : getSweepPlan()?.states || [];
