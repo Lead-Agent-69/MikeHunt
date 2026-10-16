@@ -98,6 +98,7 @@ import {
   radiusRefreshMessage,
 } from "@/lib/search/nearby-search-draft";
 import { filterDisplayValue } from "@/lib/search/filter-display";
+import { sortInventoryResults } from "@/lib/search/sort-inventory-results";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -4380,20 +4381,7 @@ function ScanPageInner() {
         carCategories(r as CarLike).includes(category),
       );
     }
-    const sorted = [...list];
-    if (sort === "score") {
-      sorted.sort(
-        (a, b) =>
-          (b.trustExplanation?.score ?? b.profitScore ?? 0) -
-          (a.trustExplanation?.score ?? a.profitScore ?? 0),
-      );
-    } else if (sort === "price") {
-      sorted.sort((a, b) => (a.askPrice ?? 0) - (b.askPrice ?? 0));
-    } else {
-      // default: profit (descending)
-      sorted.sort((a, b) => (b.profitEstimate ?? 0) - (a.profitEstimate ?? 0));
-    }
-    return sorted;
+    return sortInventoryResults(list, sort);
   }, [results, search, sort, category]);
 
   const tableSourceHealthById = useMemo(() => {
