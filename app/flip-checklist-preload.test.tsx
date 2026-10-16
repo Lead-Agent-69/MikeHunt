@@ -42,7 +42,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function mount(route: "/fleet" | "/market" = "/fleet") {
+async function mount(route: "/fleet" | "/lane" = "/fleet") {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const host = document.createElement("div");
   const root = createRoot(host);
@@ -109,7 +109,7 @@ describe("account-scoped purchase checklist preloading", () => {
   });
   it("does not preload a checklist for a different tool route", async () => {
     Object.assign(state, { mode: "dealer", loading: false });
-    const h = await mount("/market");
+    const h = await mount("/lane");
     try {
       expect(preload).not.toHaveBeenCalled();
     } finally {

@@ -4,7 +4,12 @@ import React from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/swr-config";
 import { ErrorState } from "@/components/shared/ErrorState";
-import { DealTable, type TableRow } from "@/components/scan/DealTable";
+import { DealTable } from "@/components/scan/DealTable";
+import {
+  MarketResultCards,
+  type MarketRow,
+} from "@/components/market/MarketResultCards";
+import { usePreferences } from "@/hooks/usePreferences";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
@@ -24,6 +29,8 @@ import {
   RotateCcw,
   Filter,
   X,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -68,6 +75,8 @@ const VERDICTS = [
 ];
 
 type Filters = {
+  zip: string;
+  radius: string;
   q: string;
   states: string[];
   lanes: string[];
@@ -92,6 +101,8 @@ type Filters = {
 };
 
 const EMPTY: Filters = {
+  zip: "",
+  radius: "100",
   q: "",
   states: [],
   lanes: [],
@@ -110,9 +121,9 @@ const EMPTY: Filters = {
   yearMax: "",
   mileageMax: "",
   minProfit: "",
-  mode: "curated",
-  sort: "profitEstimate",
-  sortDir: "desc",
+  mode: "all",
+  sort: "askPrice",
+  sortDir: "asc",
 };
 
 const SELLERS = [
@@ -127,6 +138,7 @@ function toggle(arr: string[], v: string): string[] {
 
 export default function MarketPage() {
   const { intent } = useBuyerIntent();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [f, setF] = React.useState<Filters>(EMPTY);
   const [details, setDetails] = React.useState<Record<string, string>>({});
@@ -134,6 +146,7 @@ export default function MarketPage() {
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [view, setView] = React.useState<"cards" | "table">("cards");
   const set = (patch: Partial<Filters>) => {
     setPage(0);
     setF((p) => ({ ...p, ...patch }));
@@ -144,8 +157,21 @@ export default function MarketPage() {
     setDetails({});
   };
   React.useEffect(() => {
+    if (ready || prefsLoading) return;
     const params = new URLSearchParams(window.location.search);
     const next = { ...EMPTY };
+    if (!params.toString()) {
+      if (/^\d{5}$/.test(prefs.homeLocation?.zip || "")) {
+        next.zip = prefs.homeLocation!.zip!;
+        next.radius = String(prefs.homeLocation?.radiusMi || 100);
+      } else {
+        next.states = prefs.carsStates?.length
+          ? prefs.carsStates
+          : prefs.carsState
+            ? [prefs.carsState]
+            : [];
+      }
+    }
     for (const key of Object.keys(EMPTY) as (keyof Filters)[]) {
       const value = params.get(key);
       if (value == null) continue;
@@ -170,10 +196,21 @@ export default function MarketPage() {
     setDetails(readInventoryDetails(params));
     setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
     setReady(true);
-  }, []);
+  }, [
+    ready,
+    prefsLoading,
+    prefs.homeLocation?.zip,
+    prefs.homeLocation?.radiusMi,
+    prefs.carsStates,
+    prefs.carsState,
+  ]);
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
+    if (/^\d{5}$/.test(f.zip)) {
+      p.set("zip", f.zip);
+      p.set("radius", f.radius);
+    }
     if (f.q.trim()) p.set("q", f.q.trim());
     if (f.states.length) p.set("states", f.states.join(","));
     if (f.lanes.length) p.set("lanes", f.lanes.join(","));
@@ -209,7 +246,26 @@ export default function MarketPage() {
     return p.toString();
   }, [f, details, page, flipDesk]);
   const debouncedQs = useDebouncedValue(qs, 350);
-  const pendingFilters = !ready || qs !== debouncedQs;
+  const pendingFilters =
+    !ready || qs !== debouncedQs || (f.zip.length > 0 && f.zip.length !== 5);
+  React.useEffect(() => {
+    const updateLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const states = (params.get("states") || params.get("state") || "")
+        .split(",")
+        .filter((state) => /^[A-Z]{2}$/.test(state));
+      setPage(0);
+      setF((current) => ({
+        ...current,
+        states,
+        zip: params.get("zip") || "",
+        radius: params.get("radius") || "100",
+      }));
+    };
+    window.addEventListener("inventory-scope-change", updateLocation);
+    return () =>
+      window.removeEventListener("inventory-scope-change", updateLocation);
+  }, []);
   React.useEffect(() => {
     if (ready) window.history.replaceState(null, "", `/market?${qs}`);
   }, [qs, ready]);
@@ -222,7 +278,7 @@ export default function MarketPage() {
     },
   );
 
-  const rows: TableRow[] = pendingFilters ? [] : data?.rows || [];
+  const rows: MarketRow[] = pendingFilters ? [] : data?.rows || [];
   const busy = pendingFilters || isLoading;
   const facets = data?.facets || {
     states: {},
@@ -232,6 +288,7 @@ export default function MarketPage() {
   };
   const total: number = data?.total ?? 0;
   const activeCount =
+    (f.zip ? 1 : 0) +
     Object.values(details).filter(Boolean).length +
     f.sources.length +
     (f.model ? 1 : 0) +
@@ -255,11 +312,12 @@ export default function MarketPage() {
     Object.entries(f) as [keyof Filters, Filters[keyof Filters]][]
   ).filter(
     ([key, value]) =>
-      !["sort", "sortDir", "mode"].includes(key) &&
+      !["sort", "sortDir", "mode", "radius"].includes(key) &&
       (flipDesk || !["verdicts", "minRoi", "minProfit"].includes(key)) &&
       (Array.isArray(value) ? value.length > 0 : Boolean(value)),
   );
   const baseLabels: Partial<Record<keyof Filters, string>> = {
+    zip: "ZIP code",
     q: "Search",
     states: "States",
     lanes: "Channels",
@@ -283,7 +341,7 @@ export default function MarketPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
-        <h1 className="text-xl font-bold text-[var(--t1)]">Market sourcing</h1>
+        <h1 className="text-xl font-bold text-[var(--t1)]">Market Explorer</h1>
         <div className="flex gap-2">
           <button
             type="button"
@@ -410,8 +468,53 @@ export default function MarketPage() {
         )}
       </div>
 
+      <div className="grid grid-cols-2 gap-3 border-b border-[var(--b1)] pb-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <label className="text-xs font-semibold text-[var(--t3)]">
+          Near ZIP code
+          <input
+            aria-label="Near ZIP code"
+            inputMode="numeric"
+            autoComplete="postal-code"
+            maxLength={5}
+            value={f.zip}
+            onChange={(e) => {
+              const zip = e.target.value.replace(/\D/g, "").slice(0, 5);
+              set({ zip, ...(zip.length === 5 ? { states: [] } : {}) });
+            }}
+            placeholder="e.g. 63101"
+            className="field mt-1 !w-full min-h-11"
+          />
+        </label>
+        <label className="text-xs font-semibold text-[var(--t3)]">
+          Distance
+          <select
+            aria-label="Search radius"
+            value={f.radius}
+            onChange={(e) => set({ radius: e.target.value })}
+            className="field mt-1 !w-full min-h-11"
+          >
+            {[25, 50, 100, 150, 250, 500].map((n) => (
+              <option key={n} value={n}>
+                {n} miles
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="col-span-2 self-end pb-2 text-xs text-[var(--t3)] sm:col-span-1">
+          Straight-line distance across state borders. Nearby results require
+          listing coordinates.
+        </p>
+      </div>
+
       {/* Whole-country opportunity heatmap — where the GO/HOLD money clusters. */}
-      {flipDesk && <USHeatmap />}
+      {flipDesk && (
+        <details>
+          <summary className="cursor-pointer py-2 text-sm font-semibold">
+            National market map
+          </summary>
+          <USHeatmap />
+        </details>
+      )}
       <button
         type="button"
         aria-expanded={showFilters}
@@ -690,7 +793,45 @@ export default function MarketPage() {
 
         {/* ── Results ── */}
         <main className="min-w-0 flex-1">
-          {!error && <MarketVisualizers facets={facets} />}
+          {!error && !busy && data?.marketEvidence && (
+            <section
+              aria-label="Market evidence"
+              className="mb-4 grid grid-cols-2 gap-3 border-b border-[var(--b1)] pb-4"
+            >
+              <div>
+                <p className="text-xs text-[var(--t3)]">
+                  Confirmed asking-price observations
+                </p>
+                <p className="text-xl font-semibold tabular-nums">
+                  {data.marketEvidence.qualifiedAskingCount.toLocaleString()}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--t3)]">
+                  Median observed asking price
+                </p>
+                <p className="text-xl font-semibold tabular-nums">
+                  {data.marketEvidence.medianAskingPrice != null
+                    ? `$${Math.round(data.marketEvidence.medianAskingPrice).toLocaleString()}`
+                    : "Not enough evidence"}
+                </p>
+              </div>
+              <p className="col-span-2 text-xs text-[var(--t3)]">
+                Asking prices are not confirmed sales or a valuation. Counts
+                cover collected, photo-bearing inventory
+                {data?.capped ? " within a limited sample" : ""}, not every
+                vehicle on the web.
+              </p>
+            </section>
+          )}
+          {!error && (
+            <details className="mb-3">
+              <summary className="cursor-pointer py-2 text-sm font-semibold">
+                Price distribution and channel details
+              </summary>
+              <MarketVisualizers facets={facets} />
+            </details>
+          )}
 
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -705,9 +846,11 @@ export default function MarketPage() {
                       {total.toLocaleString()}
                     </strong>{" "}
                     {data?.mode === "curated" ? "curated" : "market"} matches
-                    {f.states.length
-                      ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
-                      : " · all states"}
+                    {f.zip
+                      ? ` · within ${f.radius} mi of ${f.zip}`
+                      : f.states.length
+                        ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
+                        : " · all states"}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
                 )}
@@ -733,6 +876,33 @@ export default function MarketPage() {
             </select>
           </div>
 
+          <div
+            className="mb-3 flex gap-1"
+            role="group"
+            aria-label="Market view"
+          >
+            <button
+              type="button"
+              aria-label="Card view"
+              title="Card view"
+              aria-pressed={view === "cards"}
+              onClick={() => setView("cards")}
+              className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] aria-pressed:bg-[var(--s2)]"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Table view"
+              title="Table view"
+              aria-pressed={view === "table"}
+              onClick={() => setView("table")}
+              className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] aria-pressed:bg-[var(--s2)]"
+            >
+              <List className="h-4 w-4" />
+            </button>
+          </div>
+
           {error ? (
             <ErrorState
               title="Market data unavailable"
@@ -740,7 +910,11 @@ export default function MarketPage() {
               onRetry={() => void mutate()}
             />
           ) : rows.length > 0 ? (
-            <DealTable rows={rows} />
+            view === "cards" ? (
+              <MarketResultCards rows={rows} />
+            ) : (
+              <DealTable rows={rows} />
+            )
           ) : (
             <div
               className="flex flex-col items-center justify-center gap-2 rounded-[var(--r3)] py-20 text-center"

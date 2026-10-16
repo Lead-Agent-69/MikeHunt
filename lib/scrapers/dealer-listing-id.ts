@@ -23,6 +23,8 @@ export async function preserveExistingDealerListingIds(
     source: string | undefined;
     source_url: string | undefined;
     source_deal_id: string;
+    vin?: string | null;
+    condition?: string | null;
     options?: Record<string, any> | null;
   }>,
 ) {
@@ -30,7 +32,11 @@ export async function preserveExistingDealerListingIds(
     (row) =>
       row.source === "independent_dealer" &&
       row.source_url &&
-      row.source_deal_id.startsWith("dealer-url:"),
+      (row.source_deal_id.startsWith("dealer-url:") ||
+        (row.source_deal_id.startsWith("4cdg-drivenation-com-") &&
+          row.source_url.startsWith(
+            "https://www.drivenation.com/vehiclesDetail.php?",
+          ))),
   );
   if (!candidates.length) return;
   for (const urls of listingIdBatches(
@@ -62,13 +68,32 @@ export async function preserveExistingDealerListingIds(
     for (const row of candidates) {
       const ids = stored.get(row.source_url!);
       // Multiple historical records are ambiguous: keep the URL-scoped identity, never guess.
-      if (!ids?.has(row.source_deal_id) && ids?.size === 1)
+      if (
+        row.source_deal_id.startsWith("dealer-url:") &&
+        !ids?.has(row.source_deal_id) &&
+        ids?.size === 1
+      )
         row.source_deal_id = Array.from(ids)[0];
       const correction = corrections.get(
         `${row.source_url}|${row.source_deal_id}`,
       );
-      if (correction)
+      if (
+        correction &&
+        (!row.vin || !correction.vin || row.vin === correction.vin)
+      ) {
         row.options = { ...(row.options || {}), sourceCorrection: correction };
+        if (!row.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(correction.vin || ""))
+          row.vin = correction.vin;
+        if (
+          row.options?.titleSource !== "listing" &&
+          ["clean_title", "rebuilt_title", "salvage_title"].includes(
+            correction.condition,
+          )
+        ) {
+          row.condition = correction.condition;
+          row.options.titleSource = "listing";
+        }
+      }
     }
   }
 }

@@ -105,7 +105,8 @@ describe("Feed scope request isolation", () => {
         json: async () => ({ items: [], nextOffset: 12 }),
       }),
     );
-    expect(host.textContent).toContain("No photo-ready feed items yet");
+    expect(host.textContent).toContain("Check next vehicles");
+    expect(host.textContent).not.toContain("No photo-ready feed items yet");
     expect(host.textContent).not.toContain("Feed temporarily unavailable");
   });
 });

@@ -23,6 +23,9 @@ vi.mock("swr", () => ({
 vi.mock("@/hooks/useBuyerIntent", () => ({
   useBuyerIntent: () => ({ intent: { buyerMode: state.mode } }),
 }));
+vi.mock("@/hooks/usePreferences", () => ({
+  usePreferences: () => ({ prefs: {}, isLoading: false }),
+}));
 vi.mock("@/components/ui/performance-optimizations", () => ({
   useDebouncedValue: (value: string) =>
     state.pending ? "stale-search" : value,
@@ -33,6 +36,9 @@ vi.mock("@/components/market/MarketVisualizers", () => ({
 }));
 vi.mock("@/components/scan/DealTable", () => ({
   DealTable: () => React.createElement("p", null, "Inventory results"),
+}));
+vi.mock("@/components/market/MarketResultCards", () => ({
+  MarketResultCards: () => React.createElement("p", null, "Inventory results"),
 }));
 vi.mock("@/components/shared/Ico", () => ({ Ico: () => null }));
 vi.mock("@/components/shared/PriceRangeSelector", () => ({
@@ -61,6 +67,21 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("shows radius controls immediately and clears state boundaries when a nearby ZIP is complete", async () => {
+    window.history.replaceState(null, "", "/market?states=MO");
+    await render();
+    const zip = host.querySelector<HTMLInputElement>(
+      '[aria-label="Near ZIP code"]',
+    )!;
+    expect(zip).not.toBeNull();
+    expect(host.querySelector('[aria-label="Search radius"]')).not.toBeNull();
+    act(() => Simulate.change(zip, { target: { value: "63101" } } as any));
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("zip")).toBe("63101");
+    expect(params.get("radius")).toBe("100");
+    expect(params.has("states")).toBe(false);
+    expect(host.querySelector("h1")?.textContent).toBe("Market Explorer");
+  });
   it("preserves a typed comma so users can enter multiple makes", async () => {
     await render();
     const input = host.querySelector<HTMLInputElement>('[aria-label="Makes"]')!;
@@ -141,7 +162,7 @@ describe("Market filter journey", () => {
       host.querySelector('option[value="profitEstimate:desc"]'),
     ).not.toBeNull();
     expect(
-      state.keys.filter(Boolean).some((key) => key!.includes("mode=curated")),
+      state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
   });
 });

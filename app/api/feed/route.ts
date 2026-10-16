@@ -8,6 +8,13 @@ import {
 } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
+  resolveZipRadius,
+  parseZipRadius,
+  applyZipRadiusBox,
+  filterZipRadiusRows,
+  ZIP_LOOKUP_ERROR,
+} from "@/lib/search/zip-radius";
+import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
@@ -31,7 +38,7 @@ import {
 // saves/watches/views) cached per user, paginated. ANON users get the plain best-first fresh feed. $0.
 
 const COLS =
-  "id, year, make, model, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, images, deal_analysis, title_source:options->>titleSource," +
+  "id, year, make, model, sell_estimate, true_net_profit, profit_score, deal_verdict, location_city, location_state, lat, lng, images, deal_analysis, title_source:options->>titleSource," +
   SOURCE_PRICE_FIELDS;
 
 // Paging bounds. A guest can't walk the whole inventory: 30 cards a page, 600 cards deep, 30
@@ -107,6 +114,9 @@ async function getFeed(req: NextRequest) {
   const scopeKey = inventoryViewParams(sp).toString();
 
   const supabase = createServerComponentClient();
+  const zipRadius = await resolveZipRadius(supabase, sp);
+  if (parseZipRadius(sp) && !zipRadius)
+    return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
   const {
     data: { user },
   } = await getServerUser();
@@ -142,12 +152,13 @@ async function getFeed(req: NextRequest) {
       .order("id", { ascending: true })
       .range(offset, offset + pageLimit - 1);
     q = applyInventoryViewScope(q, sp);
+    if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
     const { data, error } = await q;
     if (error) throw error;
-    const rows = data || [];
+    const rows = (data || []) as unknown as Record<string, any>[];
     return NextResponse.json(
       {
-        items: forDesk(rows.map(mapItem)),
+        items: forDesk(filterZipRadiusRows(rows, zipRadius).map(mapItem)),
         nextOffset:
           rows.length === pageLimit &&
           offset + pageLimit < FEED_MAX_SIGNED_OFFSET
@@ -183,9 +194,13 @@ async function getFeed(req: NextRequest) {
           .order("id", { ascending: true })
           .limit(250);
         q = applyInventoryViewScope(q, sp);
+        if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
         const { data, error } = await q;
         if (error) throw error;
-        const items = (data || [])
+        const items = filterZipRadiusRows(
+          (data || []) as unknown as Record<string, any>[],
+          zipRadius,
+        )
           .filter((d: any) => Array.isArray(d.images) && d.images[0])
           .map(mapItem);
 
@@ -239,16 +254,21 @@ async function getFeed(req: NextRequest) {
     .order("id", { ascending: true })
     .range(offset, offset + pageLimit - 1);
   q = applyInventoryViewScope(q, sp);
+  if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
 
   const { data, error } = await q;
   if (error) throw error;
 
-  const items = (data || [])
+  const items = filterZipRadiusRows(
+    (data || []) as unknown as Record<string, any>[],
+    zipRadius,
+  )
     .filter((d: any) => Array.isArray(d.images) && d.images[0])
     .map(mapItem);
   const next = offset + pageLimit;
   return NextResponse.json({
     items: forDesk(items),
-    nextOffset: next < FEED_MAX_OFFSET ? next : null,
+    nextOffset:
+      (data || []).length === pageLimit && next < FEED_MAX_OFFSET ? next : null,
   });
 }

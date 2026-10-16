@@ -28,14 +28,14 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
-  const [next, setNext] = useState("/discover");
+  const [next, setNext] = useState("/market");
   const router = useRouter();
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNext(safeNextPath(params.get("next")));
+    setNext(safeNextPath(params.get("next"), "/market"));
     setError(authCallbackMessage(params.get("error")));
   }, []);
 

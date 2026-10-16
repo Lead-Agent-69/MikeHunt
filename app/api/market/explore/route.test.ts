@@ -46,6 +46,11 @@ function query() {
           model: "F-150",
           year: 2020,
           body_class: "Pickup",
+          images: ["https://images.example/car.jpg"],
+          source_url: "https://www.copart.com/lot/123",
+          last_seen_at: new Date().toISOString(),
+          lat: 38.63,
+          lng: -90.2,
           condition: "clean_title",
           location_state: "TX",
           seller_type: "auction",
@@ -68,6 +73,10 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: true }),
   tooManyRequests: vi.fn(),
 }));
+vi.mock("@/lib/geo/geocode", () => ({
+  geocodeZip: async (_db: unknown, place: { zip: string }) =>
+    place.zip === "00000" ? null : { lat: 38.63, lng: -90.2 },
+}));
 vi.mock("@/lib/deals/deal-desk-access", async (original) => ({
   ...(await original<object>()),
   resolveCallerFlipDesk: async () => state.flip,
@@ -78,6 +87,33 @@ const request = (search: string) =>
   GET(new NextRequest(`https://example.test/api/market/explore?${search}`));
 
 describe("Market inventory filtering and pagination", () => {
+  it("requires photo/freshness eligibility and keeps bids out of asking-price evidence", async () => {
+    const body = await (await request("mode=all")).json();
+    expect(state.calls).toContainEqual(["neq", "images", "{}"]);
+    expect(
+      state.calls.some(
+        (call) => call[0] === "gte" && call[1] === "last_seen_at",
+      ),
+    ).toBe(true);
+    expect(body.rows[0].imageUrl).toBe("https://images.example/car.jpg");
+    expect(body.rows[0].priceLabel).toBe("Current bid");
+    expect(body.marketEvidence.qualifiedAskingCount).toBe(0);
+    expect(body.marketEvidence.medianAskingPrice).toBeNull();
+    expect(body.rows[0]).not.toHaveProperty("lat");
+  });
+  it("applies a border-friendly radius without requiring an exact listing ZIP", async () => {
+    const response = await request("mode=all&zip=63101&radius=50");
+    expect(response.status).toBe(200);
+    expect(state.calls).toContainEqual(["not", "lat", "is", null]);
+    expect(state.calls).not.toContainEqual(["eq", "location_zip", "63101"]);
+    expect((await response.json()).rows[0].distanceMiles).toBe(0);
+  });
+  it("fails closed on a ZIP that cannot be located", async () => {
+    const response = await request("zip=00000&radius=50");
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("has not been broadened");
+    expect(state.calls.some((call) => call[0] === "range")).toBe(false);
+  });
   beforeEach(() => {
     invalidate();
     state.calls = [];
@@ -135,7 +171,7 @@ describe("Market inventory filtering and pagination", () => {
 
   it("applies categories, provider URLs, and extended filters to the database", async () => {
     const response = await request(
-      "mode=all&categories=trucks&sources=govdeals&runDrive=no&maxBuyNow=20000&auctionTo=2026-10-07&zip=78701&hasPhotos=yes",
+      "mode=all&categories=trucks&sources=govdeals&runDrive=no&maxBuyNow=20000&auctionTo=2026-10-07&listingZip=78701&hasPhotos=yes",
     );
     expect(response.status).toBe(200);
     expect(state.calls).toContainEqual(["eq", "run_drive", false]);
