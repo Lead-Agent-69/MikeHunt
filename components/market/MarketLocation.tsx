@@ -111,7 +111,7 @@ export function MarketLocation({
           <button
             type="submit"
             aria-label="Search this area"
-            className="min-h-11 shrink-0 rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white"
+            className="min-h-11 shrink-0 rounded-lg bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)]"
           >
             Search
           </button>

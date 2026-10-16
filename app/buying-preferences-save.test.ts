@@ -62,7 +62,10 @@ describe("buying preferences", () => {
   it("saves working scope parameters without dropping other buyer settings", async () => {
     expect(
       host.querySelector<HTMLButtonElement>("button")!.className,
-    ).toContain("bg-[var(--blue)]");
+    ).toContain("bg-[var(--accent)]");
+    expect(
+      host.querySelector<HTMLButtonElement>("button")!.className,
+    ).toContain("text-[var(--on-accent)]");
     account.save.mockResolvedValue({});
     await act(async () =>
       host.querySelector<HTMLButtonElement>("button")!.click(),

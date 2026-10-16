@@ -44,6 +44,12 @@ their provider-status read on cleanup; canceled WebKit navigation reads are not
 blanket-ignored by the health assertions. Preserve these diagnostic failures.
 Main #430 source-coordinate and pagination fixes are integrated separately.
 
+The final dark-mode visual pass also found white labels on the pale-blue action
+color. Eight affected controls now use the established accent/on-accent pair,
+including Market search, buying-preference save, source links and listing reports.
+The existing contrast regression suite covers those controls and both palettes.
+This is a foreground-token correction, not a new theme or a change in behavior.
+
 Production status returned HTTP 200 with `decisionReady=false`. The separate
 Embeddings backfill workflow `38950436875` failed before provider work: the
 runtime log identifies its budget-count read, with an empty upstream message.

@@ -526,7 +526,7 @@ export default function DiscoverPage() {
                 <button
                   type="submit"
                   disabled={!discoverReady}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--blue)] px-3 py-2.5 text-sm font-bold text-white"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--accent)] px-3 py-2.5 text-sm font-bold text-[var(--on-accent)]"
                 >
                   Search cars
                 </button>

@@ -624,7 +624,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>
