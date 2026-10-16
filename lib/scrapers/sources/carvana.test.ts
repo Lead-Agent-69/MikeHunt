@@ -36,13 +36,11 @@ describe("parseCarvanaVehicles", () => {
     expect(d.ask_price).toBe(51990);
     expect(d.mileage).toBe(34427);
     expect(d.condition).toBe("clean");
-    expect(d.source_url).toBe(
-      "https://www.carvana.com/vehicle/2021-chevrolet-silverado-2500",
-    );
+    expect(d.source_url).toBe("https://www.carvana.com/vehicle/4097314");
     expect(d.images).toEqual(["https://carvana/x.jpg"]);
   });
 
-  it("falls back to model + msrp, and builds a vehicleId URL when no slug", () => {
+  it("falls back to model and disclosed sale price, and builds a vehicleId URL", () => {
     const items = parseCarvanaVehicles(
       resp([
         {
@@ -53,7 +51,7 @@ describe("parseCarvanaVehicles", () => {
           year: 2020,
           mileage: 40000,
           vin: "1HGCV1F30LA000000",
-          price: { msrp: 24000 },
+          price: { incentivizedPrice: 24000, msrp: 32000 },
           jellyBeanDesktopUrl: "https://carvana/jelly.png",
         },
       ]),
@@ -64,6 +62,38 @@ describe("parseCarvanaVehicles", () => {
     expect(items[0].ask_price).toBe(24000);
     expect(items[0].source_url).toBe("https://www.carvana.com/vehicle/555");
     expect(items[0].images).toEqual(["https://carvana/jelly.png"]);
+  });
+
+  it("prefers the absolute vehicle hero over relative paths and stock artwork", () => {
+    const [deal] = parseCarvanaVehicles(
+      resp([
+        {
+          vehicleId: 4787555,
+          vin: "JF1VA2T6XJ9816151",
+          price: { total: 27990 },
+          imageUrl: "/3006562099/post-large/normalized/zoomcrop/photo.jpg?v=1",
+          standardizedHero:
+            "https://vexgateway.fastly.carvana.io/3006562099/standardizedHero.jpg",
+          jellyBeanDesktopUrl:
+            "https://vexstockimages.fastly.carvana.io/stock.png",
+        },
+      ]),
+    );
+    expect(deal.images).toEqual([
+      "https://vexgateway.fastly.carvana.io/3006562099/standardizedHero.jpg",
+    ]);
+    expect(deal.options?.priceEvidence).toMatchObject({
+      kind: "asking",
+      askingPrice: 27990,
+    });
+  });
+
+  it("never treats MSRP as the seller's asking price", () => {
+    expect(
+      parseCarvanaVehicles(
+        resp([{ vehicleId: 555, vin: "X", price: { msrp: 24000 } }]),
+      ),
+    ).toEqual([]);
   });
 
   it("skips vehicles missing vin or price; never throws on junk", () => {

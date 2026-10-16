@@ -79,6 +79,8 @@ const nextConfig = {
       { protocol: "https", hostname: "*.cargurus.com" },
       { protocol: "https", hostname: "*.autotrader.com" },
       { protocol: "https", hostname: "*.carvana.io" },
+      { protocol: "https", hostname: "vexgateway.fastly.carvana.io" },
+      { protocol: "https", hostname: "vexstockimages.fastly.carvana.io" },
       { protocol: "https", hostname: "*.vroomcdn.com" },
       { protocol: "https", hostname: "*.truecar.com" },
       { protocol: "https", hostname: "*.offerupnow.com" },
