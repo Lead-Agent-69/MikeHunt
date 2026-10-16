@@ -74,12 +74,39 @@ Walkthrough acceptance checks:
   actual grants/RLS, forged ownership, modification denial, daily quota, report
   survival, evidence-qualified margins, cross-border/dateline radius and later
   inventory-column compatibility. It never targets the hosted database.
-- Core bookmark checks block service workers, consistent with the other isolated
+- Core account and bookmark checks block service workers, consistent with the other isolated
   persistence tests. Playwright supports worker automation only on Chromium;
   `e2e/pwa-registration.spec.ts` separately allows the real worker and checks
   activation, private-cache exclusion, offline navigation and recovery there.
   Real Safari/iOS PWA and alert delivery remain hosted device gates. This is test
   isolation, not a production feature toggle or an ignored page-error assertion.
+  The full affected-flow matrix first passed 173/174: Firefox's automated profile
+  threw `AbortError: Error retrieving push subscription` before Supabase logout.
+  Direct diagnostics reproduced the failure in `pushManager.getSubscription()`.
+  Account tests now isolate that unsupported browser push service; production
+  device-detachment protections remain unchanged and real-device logout with
+  push enabled is still required. The original failure receipt is retained.
+
+Local release receipts (October 15/16):
+
+- Normal pre-push verification passed 619 unit files / 4,041 tests, typecheck,
+  lint (existing warnings, no errors) and the production build. CI also passed
+  for application head `483f55a6`; the following change is test isolation/docs only.
+- The serial seven-project affected-flow run passed 173/174 before account-test
+  worker isolation. All view, first-price/card-click, filter/radius/pagination,
+  bookmark, preferences and report cases passed. The isolated account rerun then
+  passed all 20 checks, including six setup cases, across those seven projects.
+  This is a failure plus a targeted clean rerun, not a claim of 174/174 in one run.
+- The earlier serial WebKit run passed 47/48; its unsupported worker/bookmark
+  case passed in the isolated eight-case rerun. The dedicated Chromium worker
+  integration passed seven checks including six setup cases. A separate manual
+  browser check verified the actual offline Try again button returns to Settings
+  online with no page errors. Its first attempt had gone offline before the page
+  was worker-controlled; the successful check waited for the controller first.
+- Final desktop, 320px phone, landscape tablet and WebKit screenshots were
+  inspected. Receipts, including original failures, remain under the ignored
+  `F:/MikeHunt/docker` QA location, not Git or hosted storage. These use synthetic
+  local accounts and fixtures; they do not certify live inventory or device FPS.
 
 Manual hosted acceptance after the gated rollout:
 

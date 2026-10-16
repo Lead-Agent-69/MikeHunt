@@ -11,6 +11,9 @@ import { localOnly } from "./support/target";
 
 test.describe("signup, login, onboarding (local only)", () => {
   localOnly();
+  // Keep core account checks independent of browser push-service availability.
+  // The real worker has separate Chromium integration and hosted-device gates.
+  test.use({ serviceWorkers: "block" });
 
   test("signup -> unified buying setup -> Discover, then log out/in", async ({
     page,
