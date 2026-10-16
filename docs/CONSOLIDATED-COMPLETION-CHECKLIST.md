@@ -34,6 +34,16 @@ DOM reading and keyboard order follow the visual order. Insights have an explici
 shortcut and a Back to results link rather than a visually reordered focus target.
 Exact final browser and full verification receipts belong in this follow-up PR.
 
+Later visual review exposed a 1024px header collision despite passing geometry
+checks on the inventory. Desktop action groups now retain their actual widths;
+the browser check also measures every visible header target for overlap.
+WebKit exposed a gallery focus-return failure after its price/photo checks passed.
+The shared preview accepts an explicit return target and captures fallback focus
+before modal autofocus. Auth forms avoid speculative link requests and cancel
+their provider-status read on cleanup; canceled WebKit navigation reads are not
+blanket-ignored by the health assertions. Preserve these diagnostic failures.
+Main #430 source-coordinate and pagination fixes are integrated separately.
+
 Production status returned HTTP 200 with `decisionReady=false`. The separate
 Embeddings backfill workflow `38950436875` failed before provider work: the
 runtime log identifies its budget-count read, with an empty upstream message.

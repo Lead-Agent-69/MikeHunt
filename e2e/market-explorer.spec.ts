@@ -18,6 +18,44 @@ test.describe("Market Explorer home", () => {
     ).toBeVisible();
     await expect(page.locator("article").first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
+    const headerTargets = await page
+      .locator("header")
+      .first()
+      .locator("a, button")
+      .filter({ visible: true })
+      .evaluateAll((targets) =>
+        targets.map((target) => {
+          const box = target.getBoundingClientRect();
+          return {
+            label: target.getAttribute("aria-label") || target.textContent,
+            left: box.left,
+            right: box.right,
+            top: box.top,
+            bottom: box.bottom,
+          };
+        }),
+      );
+    for (let i = 0; i < headerTargets.length; i++) {
+      const target = headerTargets[i];
+      expect(
+        target.left,
+        `${target.label} stays inside the viewport`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
+        target.right,
+        `${target.label} stays inside the viewport`,
+      ).toBeLessThanOrEqual(page.viewportSize()!.width);
+      for (const next of headerTargets.slice(i + 1)) {
+        const overlapWidth =
+          Math.min(target.right, next.right) - Math.max(target.left, next.left);
+        const overlapHeight =
+          Math.min(target.bottom, next.bottom) - Math.max(target.top, next.top);
+        expect(
+          overlapWidth > 1 && overlapHeight > 1,
+          `${target.label} must not overlap ${next.label}`,
+        ).toBe(false);
+      }
+    }
     const preview = page.getByTestId("market-price-preview").first();
     await expect(preview).toBeVisible();
     await expect(preview.getByTestId("market-identity-preview")).toHaveText(

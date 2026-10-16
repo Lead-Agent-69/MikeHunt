@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -29,6 +29,7 @@ export function MarketListingCard({
   const [photo, setPhoto] = useState(0);
   const [failed, setFailed] = useState<string[]>([]);
   const [preview, setPreview] = useState<number | null>(null);
+  const previewTrigger = useRef<HTMLButtonElement>(null);
   const photos = (row.images || []).filter((url) => !failed.includes(url));
   const index = photo % Math.max(photos.length, 1);
   const vendor = vendorIdentity(row.source, row.sourceUrl);
@@ -95,6 +96,7 @@ export function MarketListingCard({
         </span>
         {photos.length > 0 && (
           <button
+            ref={previewTrigger}
             type="button"
             title={`Enlarge photos of ${row.title}`}
             aria-label={`Enlarge photos of ${row.title}`}
@@ -302,6 +304,7 @@ export function MarketListingCard({
         }))}
         selectedIndex={preview}
         onSelect={setPreview}
+        returnFocusRef={previewTrigger}
       />
     </article>
   );

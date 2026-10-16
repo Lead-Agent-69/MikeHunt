@@ -31,7 +31,8 @@ export function GoogleButton({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/system/status?scope=auth")
+    const controller = new AbortController();
+    fetch("/api/system/status?scope=auth", { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (cancelled) return;
@@ -56,6 +57,7 @@ export function GoogleButton({
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 
@@ -135,6 +137,7 @@ export function GoogleButton({
           </p>
           <Link
             href={setupHref}
+            prefetch={false}
             className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
           >
             Return to sign in
@@ -142,6 +145,7 @@ export function GoogleButton({
           <span className="mx-2 text-xs text-[var(--t5)]">·</span>
           <Link
             href={previewHref}
+            prefetch={false}
             className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
           >
             Preview live Scan

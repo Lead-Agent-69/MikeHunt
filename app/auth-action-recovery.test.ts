@@ -95,6 +95,16 @@ it("recovers from a thrown Google connection error", async () => {
   expect(host.querySelector("button")?.disabled).toBe(false);
   expect(host.textContent).not.toContain("Connecting");
 });
+it("cancels the auth-provider status request when its form leaves the page", async () => {
+  await render(GoogleButton);
+  const request = vi
+    .mocked(fetch)
+    .mock.calls.find(([url]) => url === "/api/system/status?scope=auth")!;
+  const signal = request[1]?.signal;
+  expect(signal?.aborted).toBe(false);
+  await act(async () => root.render(null));
+  expect(signal?.aborted).toBe(true);
+});
 it("exposes admin navigation only for the server-verified current identity", async () => {
   vi.stubGlobal(
     "fetch",

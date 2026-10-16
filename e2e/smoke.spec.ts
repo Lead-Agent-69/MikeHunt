@@ -37,6 +37,7 @@ test.describe("Auth Flow", () => {
     await expect(
       page.getByRole("heading", { name: "Market Explorer", exact: true }),
     ).toBeVisible();
+    await expect(page.locator("article").first()).toBeVisible();
     await expectHealthy(page, health);
   });
 });
