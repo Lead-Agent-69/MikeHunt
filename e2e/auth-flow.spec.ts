@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   completeOnboarding,
   loginViaUi,
+  logoutViaUi,
   registerViaUi,
   uniqueEmail,
 } from "./support/accounts";
@@ -13,7 +14,6 @@ test.describe("signup, login, onboarding (local only)", () => {
 
   test("signup -> unified buying setup -> Discover, then log out/in", async ({
     page,
-    context,
   }) => {
     const h = watchHealth(page);
     const email = uniqueEmail("flow");
@@ -38,8 +38,10 @@ test.describe("signup, login, onboarding (local only)", () => {
     await expectHealthy(page, h);
 
     // Fresh session: sign in with the same account; onboarded users skip setup.
-    await context.clearCookies();
-    await page.evaluate(() => localStorage.clear());
+    await expect(
+      page.getByRole("region", { name: /vehicles$/ }).first(),
+    ).toBeVisible();
+    await logoutViaUi(page);
     await loginViaUi(page, email);
     await page.waitForURL(/\/discover/, { timeout: 30_000 });
   });

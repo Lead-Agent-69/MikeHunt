@@ -86,6 +86,37 @@ test.describe("recorded user walkthrough acceptance", () => {
     const facets = await page.request.get(`/api/scan/facets?${scope}`);
     expect(facets.ok()).toBe(true);
     expect((await facets.json()).states.sort()).toEqual(["IL", "MO"]);
+    for (const [filters, states] of [
+      ["source=independent_dealer,cars_com", ["IL", "MO"]],
+      ["source=copart", []],
+      ["maxMileage=44000", []],
+      ["maxMileage=45000&make=Ford&model=Escape", ["IL", "MO"]],
+      ["model=Fiesta", []],
+      ["maxPrice=11000", ["IL"]],
+    ] as const) {
+      const filtered = await page.request.get(`/api/scan?${scope}&${filters}`);
+      expect(filtered.ok()).toBe(true);
+      expect(
+        (await filtered.json()).vehicles
+          .map((row: any) => row.locationState)
+          .sort(),
+      ).toEqual(states);
+    }
+    for (const [pageIndex, state] of [
+      [0, "IL"],
+      [1, "MO"],
+    ] as const) {
+      const response = await page.request.get(
+        `/api/scan?${scope}&sort=margin&pageSize=1&page=${pageIndex}`,
+      );
+      expect(response.ok()).toBe(true);
+      const body = await response.json();
+      expect(body.total).toBe(2);
+      expect(body.vehicles.map((row: any) => row.locationState)).toEqual([
+        state,
+      ]);
+      expect(body.hasMore).toBe(pageIndex === 0);
+    }
     expect(
       (
         await page.request.get("/api/scan?source=cars_com,copart&sort=price")
@@ -141,6 +172,62 @@ test.describe("recorded user walkthrough acceptance", () => {
             legacyBuyerMode: original.legacyBuyerMode ?? null,
           },
         },
+      });
+      expect(restored.ok()).toBe(true);
+    }
+  });
+
+  test("profile save keeps a failed draft and confirms only after an explicit retry", async ({
+    page,
+  }) => {
+    const health = watchHealth(page);
+    await page.goto("/settings");
+    const phone = page.getByLabel("Phone", { exact: true });
+    const save = page.getByRole("button", {
+      name: /^Save profile( and costs)?$/,
+    });
+    await expect(save).toBeEnabled();
+    const original = await phone.inputValue();
+    let failed = false;
+    let profileWrites = 0;
+    page.on("request", (req) => {
+      if (
+        new URL(req.url()).pathname === "/api/profile" &&
+        req.method() === "POST"
+      )
+        profileWrites++;
+    });
+    await page.route("**/api/preferences", async (route) => {
+      if (route.request().method() === "PUT" && !failed) {
+        failed = true;
+        await route.fulfill({
+          status: 503,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Local QA temporary upstream failure",
+          }),
+        });
+      } else await route.continue();
+    });
+    try {
+      await phone.fill("202-555-0198");
+      await save.click();
+      await expect(
+        page.getByText("Preferences could not be saved", { exact: true }),
+      ).toBeVisible();
+      await expect(phone).toHaveValue("202-555-0198");
+      await expect(page.getByText("Saved!", { exact: true })).toHaveCount(0);
+      expect(profileWrites).toBe(0);
+      await save.click();
+      await expect(page.getByText("Saved!", { exact: true })).toBeVisible();
+      expect(profileWrites).toBe(1);
+      await page.reload();
+      await expect(phone).toHaveValue("202-555-0198");
+      await expectHealthy(page, health);
+    } finally {
+      const restored = await page.request.put("/api/preferences", {
+        data: { profileContact: { phone: original } },
+        timeout: 10000,
       });
       expect(restored.ok()).toBe(true);
     }

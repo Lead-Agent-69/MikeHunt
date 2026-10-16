@@ -66,13 +66,16 @@ for (const desk of [
       });
       const saveContact = async (value: string) => {
         await phone.fill(value);
-        const response = page.waitForResponse(
-          (r) =>
-            r.url().endsWith("/api/profile") && r.request().method() === "POST",
-        );
+        const response = page
+          .waitForResponse(
+            (r) =>
+              r.url().endsWith("/api/profile") &&
+              r.request().method() === "POST",
+          )
+          .catch(() => null);
         await save.click();
-        expect((await response).ok()).toBe(true);
         await expect(page.getByText("Saved!", { exact: true })).toBeVisible();
+        expect((await response)?.ok()).toBe(true);
       };
       try {
         await saveContact("202-555-0100");
@@ -81,9 +84,11 @@ for (const desk of [
         await expect(home).toHaveValue(originalHome);
         await expectHealthy(page, health);
       } finally {
-        await page.goto("/settings");
-        await expect(phone).toBeVisible();
-        await saveContact(originalPhone);
+        const restored = await page.request.put("/api/preferences", {
+          data: { profileContact: { phone: originalPhone } },
+          timeout: 10000,
+        });
+        expect(restored.ok()).toBe(true);
       }
     });
   });

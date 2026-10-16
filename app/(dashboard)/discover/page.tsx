@@ -100,7 +100,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
     });
   };
   return (
-    <section className="space-y-3">
+    <section className="space-y-2">
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
           <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
@@ -399,7 +399,7 @@ export default function DiscoverPage() {
     : "all";
 
   return (
-    <div className="space-y-2 pb-24 md:space-y-3 md:pb-8">
+    <div className="space-y-1.5 pb-24 md:space-y-3 md:pb-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
@@ -416,7 +416,7 @@ export default function DiscoverPage() {
             </span>
             Discover
           </h1>
-          <p className="mt-1.5 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
+          <p className="mt-1 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
             {isValidating && data
               ? "Updating matching vehicles..."
               : !discoverReady || isLoading || (isValidating && !data)

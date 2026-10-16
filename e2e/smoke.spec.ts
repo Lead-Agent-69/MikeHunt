@@ -3,6 +3,7 @@ import { localOnly } from "./support/target";
 import {
   completeOnboarding,
   loginViaUi,
+  logoutViaUi,
   registerViaUi,
   storagePath,
   uniqueEmail,
@@ -24,16 +25,15 @@ test.describe("Auth Flow", () => {
     await expectHealthy(page, health);
   });
 
-  test("sign in redirects to the buying workspace", async ({
-    page,
-    context,
-  }) => {
+  test("sign in redirects to the buying workspace", async ({ page }) => {
     const health = watchHealth(page);
     const email = uniqueEmail("smoke");
     await registerViaUi(page, email);
     await completeOnboarding(page, "reseller");
-    await context.clearCookies();
-    await page.evaluate(() => localStorage.clear());
+    await expect(
+      page.getByRole("region", { name: /vehicles$/ }).first(),
+    ).toBeVisible();
+    await logoutViaUi(page);
     await loginViaUi(page, email);
     await expect(page).toHaveURL(/\/discover/);
     await expect(

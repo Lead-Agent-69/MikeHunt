@@ -45,6 +45,13 @@ export async function loginViaUi(
   await page.locator('button[type="submit"]').click();
 }
 
+export async function logoutViaUi(page: Page) {
+  assertLocalTarget("sign out");
+  await page.getByRole("button", { name: "Account menu", exact: true }).click();
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login/);
+}
+
 /** Unified buying setup; optional legacy desk fixtures are seeded explicitly through the local API. */
 export async function completeOnboarding(page: Page, desk: Desk) {
   assertLocalTarget("save onboarding preferences");
