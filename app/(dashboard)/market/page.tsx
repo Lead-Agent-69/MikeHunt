@@ -9,6 +9,7 @@ import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
 import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { MarketLocation } from "@/components/market/MarketLocation";
 import type { MarketListing } from "@/lib/market/explorer";
@@ -291,7 +292,8 @@ export default function MarketPage() {
   const debouncedQs = useDebouncedValue(qs, 350);
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready) window.history.replaceState(null, "", `/market?${qs}`);
+    if (ready)
+      window.history.replaceState(window.history.state, "", `/market?${qs}`);
   }, [qs, ready]);
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -927,6 +929,7 @@ export default function MarketPage() {
                     "repeat(auto-fit, minmax(min(100%, 19rem), 1fr))",
                 }}
               >
+                <MarketReturnPosition />
                 {rows.map((row) => (
                   <MarketListingCard
                     key={row.id}

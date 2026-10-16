@@ -50,7 +50,15 @@ including Market search, buying-preference save, source links and listing report
 The existing contrast regression suite covers those controls and both palettes.
 This is a foreground-token correction, not a new theme or a change in behavior.
 
-Production status returned HTTP 200 with `decisionReady=false`. The separate
+A deeper return-navigation check then found that Back lost the ninth vehicle's
+position on both desktop and phone. Market cards now record their viewport
+anchor in the current browser-history entry only for same-tab detail navigation.
+Results restore that anchor after mounting, retain native router state and
+consume the marker without changing filters or writing account preferences.
+The browser suite now exercises a later result rather than only the first card.
+
+Production status returned HTTP 200 with `decisionReady=false`; this public
+inventory-only response intentionally does not certify private valuations. The separate
 Embeddings backfill workflow `38950436875` failed before provider work: the
 runtime log identifies its budget-count read, with an empty upstream message.
 One read-only recheck returned HTTP 200 in 620 ms and a count of 500 for that
@@ -64,7 +72,10 @@ No hosted application migrations, cleanup, scraper recreation or source-permissi
 of this follow-up. Signed-in hosted browser discovery still times out; local
 synthetic accounts are not a substitute. The local fixture also lacks the scrape
 queue's `requested_by` column, so saved-location UI checks do not prove collection
-jobs run. Real alert delivery, retention/reference survival, hosted capacity,
+jobs run. A bounded read confirmed that column is present in the primary hosted
+database; do not apply a production migration based on the local fixture warning.
+The hosted preference-to-queue-to-listing path remains unverified.
+Real alert delivery, retention/reference survival, hosted capacity,
 valuation outcomes and physical-device performance remain release gates.
 The current Vercel usage command still reports billing data unavailable, not zero
 consumption. This change adds no schedule, provider-plan change or quota reset.

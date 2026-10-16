@@ -18,6 +18,7 @@ import { vehicleLocation } from "@/lib/search/vehicle-location";
 import type { MarketListing } from "@/lib/market/explorer";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
+import { rememberMarketPosition } from "./MarketReturnPosition";
 
 export function MarketListingCard({
   row,
@@ -30,6 +31,8 @@ export function MarketListingCard({
   const [failed, setFailed] = useState<string[]>([]);
   const [preview, setPreview] = useState<number | null>(null);
   const previewTrigger = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const rememberPosition = () => rememberMarketPosition(cardRef.current);
   const photos = (row.images || []).filter((url) => !failed.includes(url));
   const index = photo % Math.max(photos.length, 1);
   const vendor = vendorIdentity(row.source, row.sourceUrl);
@@ -58,12 +61,17 @@ export function MarketListingCard({
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
   return (
-    <article className="relative min-w-0 overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)] shadow-sm">
+    <article
+      ref={cardRef}
+      data-market-vehicle={row.id}
+      className="relative min-w-0 overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
+    >
       <div className="relative z-20 aspect-[16/10] overflow-hidden bg-[var(--s2)]">
         {photos.length ? (
           <Link
             href={`/deal/${row.id}`}
             prefetch={false}
+            onNavigate={rememberPosition}
             aria-label={`Open details for ${row.title}`}
             className="block h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
@@ -81,6 +89,7 @@ export function MarketListingCard({
           <Link
             href={`/deal/${row.id}`}
             prefetch={false}
+            onNavigate={rememberPosition}
             aria-label={`Open details for ${row.title}`}
             className="flex h-full flex-col items-center justify-end gap-1 pb-3 text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
@@ -180,6 +189,7 @@ export function MarketListingCard({
             <Link
               href={`/deal/${row.id}`}
               prefetch={false}
+              onNavigate={rememberPosition}
               className="hover:underline after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
             >
               {row.title || `${row.year} ${row.make} ${row.model}`}

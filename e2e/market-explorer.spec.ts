@@ -256,6 +256,36 @@ test.describe("Market Explorer home", () => {
     expect(errors).toEqual([]);
   });
 
+  test("Back restores a vehicle farther down the results without losing filters", async ({
+    page,
+  }) => {
+    await page.goto("/market?mode=all&sort=askPrice&sortDir=asc");
+    const card = page.locator("article").nth(8);
+    const link = card.locator('a[aria-label^="Open details for"]');
+    await expect(link).toBeVisible();
+    await link.scrollIntoViewIfNeeded();
+    const before = await card.boundingBox();
+    const origin = page.url();
+    const destination = await link.getAttribute("href");
+    await link.click();
+    await expect(page).toHaveURL(new URL(destination!, origin).href);
+    await expect(
+      page.getByText("Before you decide", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(Save vehicle|Saved)$/ }).first(),
+    ).toBeEnabled();
+    await page.goBack();
+    await expect(page).toHaveURL(origin);
+    await expect(link).toHaveAttribute("href", destination!);
+    await expect
+      .poll(async () => Math.abs((await card.boundingBox())!.y - before!.y))
+      .toBeLessThan(16);
+    await expect(page.getByLabel("Sort market results")).toHaveValue(
+      "askPrice:asc",
+    );
+  });
+
   test("runs a ZIP radius search, sorts by distance and restores its shareable URL", async ({
     page,
   }) => {
