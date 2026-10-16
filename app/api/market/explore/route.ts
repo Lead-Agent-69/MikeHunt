@@ -458,6 +458,8 @@ export async function GET(req: NextRequest) {
           },
         };
       },
+      undefined,
+      { prefix: "mkt:explore:", maxEntries: 4 },
     );
     const resultPage = Math.min(
       page,

@@ -4,6 +4,20 @@ afterEach(() => {
   invalidate();
   vi.useRealTimers();
 });
+it("bounds full-inventory caches without evicting other namespaces", async () => {
+  const limits = { prefix: "market:", maxEntries: 2 };
+  await cached("account:1", 1000, async () => 7);
+  await cached("market:a", 1000, async () => 1, undefined, limits);
+  await cached("market:b", 1000, async () => 2, undefined, limits);
+  await cached("market:c", 1000, async () => 3, undefined, limits);
+  expect(
+    await cached("market:b", 1000, async () => 99, undefined, limits),
+  ).toBe(2);
+  expect(await cached("market:a", 1000, async () => 9, undefined, limits)).toBe(
+    9,
+  );
+  expect(await cached("account:1", 1000, async () => 99)).toBe(7);
+});
 it("shares concurrent reads but not different scope keys", async () => {
   let resolve!: (value: number) => void;
   const load = vi.fn(
