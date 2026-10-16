@@ -39,7 +39,7 @@ export async function loginViaUi(
   password = PASSWORD,
 ) {
   assertLocalTarget("sign in");
-  await page.goto("/login");
+  if (new URL(page.url()).pathname !== "/login") await page.goto("/login");
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();

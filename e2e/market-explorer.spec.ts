@@ -207,6 +207,9 @@ test.describe("Market Explorer home", () => {
     const receipt = await confirmed.json();
     expect(receipt.success).toBe(true);
     expect(typeof receipt.id).toBe("string");
+    await expect(
+      card.getByRole("button", { name: /^Remove from account:/ }),
+    ).toBeEnabled();
     await page.reload();
     const remove = card.getByRole("button", { name: /^Remove from account:/ });
     await expect(remove).toBeVisible();
@@ -237,8 +240,19 @@ test.describe("Market Explorer home", () => {
         point!.y + point!.height / 2,
       );
     await expect(page).toHaveURL(new URL(destination!, origin).href);
+    await expect(page.locator("h1").first()).toBeVisible();
+    await expect(
+      page.getByText("Before you decide", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(Save vehicle|Saved)$/ }).first(),
+    ).toBeEnabled();
     await page.goBack();
     await expect(page).toHaveURL(origin);
+    await expect(card).toBeVisible();
+    await expect(
+      card.getByRole("button", { name: /^Save to account:/ }),
+    ).toBeEnabled();
     expect(errors).toEqual([]);
   });
 
