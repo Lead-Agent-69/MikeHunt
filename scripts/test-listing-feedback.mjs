@@ -10,7 +10,7 @@ const local = JSON.parse(execFileSync("docker", ["inspect", container], { encodi
 if (local?.Config?.Labels?.["com.supabase.cli.project"] !== "MikeHunt") throw new Error("Expected local Supabase container");
 const database = `qa_feedback_${Date.now()}`;
 let created = false;
-const sql = (db, input) => execFileSync("docker", ["exec", "-i", container, "psql", "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1"], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+const sql = (db, input) => execFileSync("docker", ["exec", "-i", container, "psql", "-qAt", "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1"], { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
 try {
   sql("postgres", `create database ${database};`);
   created = true;
@@ -23,8 +23,14 @@ try {
   sql(database, readFileSync("supabase/migrations/20261016005413_listing_feedback.sql", "utf8"));
   sql(database, readFileSync("supabase/migrations/20261016005724_qualified_listing_margin.sql", "utf8"));
   sql(database, readFileSync("supabase/migrations/20261016011958_radius_inventory_search.sql", "utf8"));
-  sql(database, `alter table public.deals add column future_inventory_field text;
+  sql(database, `alter table public.deals add column future_inventory_field text,
+    add column p_lat double precision, add column p_lng double precision, add column p_radius double precision;
     select * from public.inventory_within_radius(38.63,-90.2,50);`);
+  const plan = JSON.parse(sql(database, `explain (format json)
+    select id from public.inventory_within_radius(38.63,-90.2,50)
+    where ask_price > 0 order by deal_margin desc limit 1;`));
+  const nodes = (node) => [node, ...(node.Plans || []).flatMap(nodes)];
+  if (nodes(plan[0].Plan).some((node) => node["Node Type"] === "Function Scan")) throw new Error("RADIUS FILTERS NOT INLINED");
   sql(database, `insert into deals (id,lat,lng) values
     ('55555555-5555-4555-8555-555555555551',38.63,-90.2),
     ('55555555-5555-4555-8555-555555555552',38.52,-89.98),

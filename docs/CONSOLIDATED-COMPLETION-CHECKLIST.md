@@ -49,9 +49,18 @@ three migrations to `qupzqpezslsbobhugswp`, then app deployment and hosted QA:
 Do not use a blanket database push: unrelated unapplied migrations need their own
 review. The new schema has been exercised only on guarded local Docker databases;
 no production apply, full rescore, cleanup or worker recreation is implied.
-The radius function uses an active-coordinate partial index internally and a
-whole-row return so later inventory columns do not break it. Production execution
-plans and latency still require measurement; do not describe it as planner-inlined.
+The service-only invoker radius function uses schema-qualified references and an
+inlineable SQL text body so later inventory columns do not break it. Local JSON
+execution-plan QA checks for no Function Scan after adding a future column; outer
+filters/order/limits can reach the indexed inventory query. A function SET clause
+would prevent that optimization. Production plans, configured API search path,
+latency and capacity still require independent review and measurement.
+The local advisor flags `inventory_within_radius` with
+`function_search_path_mutable` (WARN) because there is no function SET clause.
+This tradeoff needs exact-head security review of the service-only grant,
+qualified references and configured API search path before production apply;
+do not silence the advisor project-wide. See
+[PostgREST function inlining](https://docs.postgrest.org/en/v14/references/api/functions.html#function-inlining).
 
 Walkthrough acceptance checks:
 
