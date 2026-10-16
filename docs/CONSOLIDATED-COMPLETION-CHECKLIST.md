@@ -6,6 +6,29 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Embedding Coverage Reporting Follow-Up (October 16, 2026)
+
+PR #431 is merged as `35b6ce2b553dad154a6c68ca8f3c33c4f32cd705` and its
+canonical production deployment is verified. The exact tested tree passed
+4,125 unit tests, 160 local browser checks and 18 read-only hosted guest checks.
+The six hosted account-setup checks were intentionally skipped; this does not
+certify signed-in hosted flows or real alert delivery.
+
+One capped production embedding attempt failed closed at the budget read;
+a separate limit=1 attempt succeeded with one generated/stored embedding and
+zero failures. Intermittent budget-read reliability remains tracked in #432.
+No quotas were reset or increased. Reported active embedding coverage was 23.1%,
+not complete intelligence or outcome validation.
+
+The coverage audit also found that the old `coverage.fresh` count measured only
+non-null recorded source hashes, not their match with current listing content.
+The follow-up for #433 adds `sourceHashTracked`, marks current content freshness
+as `not_measured`, and keeps the legacy nullable `fresh` field as null rather
+than certifying stale hashes. The existing workflow and runtime log use the
+accurate label. This is additive metadata with an explicit unknown, not a new
+query, schema change, provider request, quota policy or valuation algorithm.
+Actual current-content freshness and outcome validation still need proof.
+
 ### Market Release QA Follow-Up (October 16, 2026)
 
 PR #426 is merged as `7283c7f239375d3e4bc27798ccfbda6baf6a6f38`.

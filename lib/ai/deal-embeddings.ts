@@ -109,7 +109,10 @@ export interface BackfillResult {
   coverage?: {
     active: number;
     embedded: number;
-    fresh: number | null;
+    /** @deprecated Current content freshness is not measured; retained as null for compatibility. */
+    fresh: null;
+    sourceHashTracked: number | null;
+    currentContentFreshness: "not_measured";
     pct: number;
   };
 }
@@ -354,7 +357,7 @@ export async function backfillEmbeddings(
   // 4. Coverage (embedded / active) so every run reports where the backlog stands.
   const head = () =>
     supabase.from("deals").select("id", { count: "exact", head: true });
-  const [activeQ, embeddedQ, missingQ, freshQ] = await Promise.all([
+  const [activeQ, embeddedQ, missingQ, hashTrackedQ] = await Promise.all([
     head().eq("active", true),
     head().eq("active", true).not("embedding", "is", null),
     head().eq("active", true).is("embedding", null),
@@ -363,7 +366,7 @@ export async function backfillEmbeddings(
       : Promise.resolve({ count: null, error: null }),
   ]);
   const countErr =
-    activeQ.error || embeddedQ.error || missingQ.error || freshQ.error;
+    activeQ.error || embeddedQ.error || missingQ.error || hashTrackedQ.error;
   if (countErr)
     throw new Error(`Embedding backlog read failed: ${countErr.message}`);
   const active = activeQ.count || 0;
@@ -371,13 +374,18 @@ export async function backfillEmbeddings(
   const coverage = {
     active,
     embedded,
-    fresh: schemaReady ? freshQ.count || 0 : null,
+    fresh: null,
+    sourceHashTracked: schemaReady ? hashTrackedQ.count || 0 : null,
+    currentContentFreshness: "not_measured" as const,
     pct: active ? Math.round((embedded / active) * 1000) / 10 : 0,
   };
   const budgetExhausted = runCap === 0;
   console.log(
     `[embeddings] coverage ${embedded}/${active} active (${coverage.pct}%)` +
-      (coverage.fresh != null ? `, hash-verified ${coverage.fresh}` : "") +
+      (coverage.sourceHashTracked != null
+        ? `, source hash recorded ${coverage.sourceHashTracked}`
+        : "") +
+      ", current content freshness not measured" +
       ` | updated ${updated} (missing ${byTier.missing}, changed ${byTier.changed}, legacy ${byTier.legacy})` +
       ` | budget ${usedToday ?? "?"}+${updated}/${dailyCap} today` +
       (quota ? ` | quota:${quota}` : "") +
