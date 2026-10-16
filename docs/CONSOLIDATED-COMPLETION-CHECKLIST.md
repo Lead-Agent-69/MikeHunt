@@ -8,7 +8,7 @@ existing features and evidence; it does not declare the entire app finished.
 
 ### Recorded Walkthrough Follow-Through (October 15, 2026)
 
-Branch: `codex/walkthrough-search-acceptance`, based on main after #424.
+Branch: `codex/walkthrough-search-acceptance`, including main through #425.
 This section supersedes the earlier multi-persona product direction for the
 buying interface. It does not grant admin access or remove account isolation.
 
@@ -19,7 +19,9 @@ Implemented in modular commits:
   upgrade requirement. Existing accounts and protected administration remain.
 - Always-visible inventory view links and quick filters, prominent primary save
   actions, plus directly reachable model, mileage, multiple sources, ZIP and
-  radius controls. Secondary insights mount only when requested.
+  radius controls. Secondary insights mount only when requested. Late activity
+  recommendations follow the main inventory so they cannot move its first card
+  out from under a click.
 - Cross-border radius filtering runs in PostgreSQL before sorting, counting and
   pagination. Scan, facets, Feed and Map share the same location scope; a ZIP is
   not also treated as an exact postal-code filter. Unresolved locations fail
@@ -63,6 +65,21 @@ Walkthrough acceptance checks:
   actual grants/RLS, forged ownership, modification denial, daily quota, report
   survival, evidence-qualified margins, cross-border/dateline radius and later
   inventory-column compatibility. It never targets the hosted database.
+
+Manual hosted acceptance after the gated rollout:
+
+1. Search ZIP `63101` within 50 miles. Check actual distances and both sides of
+   the state border; no exact-ZIP or home-state constraint should remain.
+2. Choose a make/model, maximum mileage and two sources. Open Results, Feed and
+   Map: the search scope must remain intact. Clear filters to restore inventory.
+3. Choose Highest price gap, then Highest net profit. Confirm the distinction
+   between before-cost gap and after-cost estimates. Open Why shown and compare
+   the recorded inputs with the original seller's actual asking price.
+4. Save buying preferences, reload and sign back in. Confirm the saved values,
+   no persona prompt, and no access to administration from an ordinary account.
+5. Report incorrect data and verify the stored receipt; exercise a failed/retried
+   submission. Tap the first visible car's price on phone/tablet/desktop, then
+   return to the search without losing its filters or hiding controls.
 
 Still open beyond this branch: source-wide corrected-price/gallery ingestion,
 Zeus rollout receipts, held-out valuation outcomes, independently reviewed safe
