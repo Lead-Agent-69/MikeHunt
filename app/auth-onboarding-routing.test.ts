@@ -16,8 +16,10 @@ describe("new-account onboarding routes", () => {
     const login = readFileSync("app/(auth)/login/page.tsx", "utf8");
 
     expect(login).toContain("new URLSearchParams(window.location.search)");
-    expect(login).toContain('useState("/discover")');
-    expect(login).toContain('safeNextPath(params.get("next"))');
+    expect(login).toContain('useState("/market")');
+    expect(login).toContain('safeNextPath(params.get("next"), "/market")');
+    expect(safeNextPath("/deal/123", "/market")).toBe("/deal/123");
+    expect(safeNextPath("//example.com", "/market")).toBe("/market");
     expect(login).toContain(
       "postLoginDestination(account.onboarded === true, next)",
     );

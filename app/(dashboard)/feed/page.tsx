@@ -82,7 +82,11 @@ export default function FeedPage() {
           return [...previous, ...next.filter((item) => !seen.has(item.id))];
         });
         offset.current = data.nextOffset ?? cursor + 12;
-        setDone(data.configured === false || data.nextOffset === null);
+        setDone(
+          data.configured === false ||
+            data.nextOffset == null ||
+            Number(data.nextOffset) <= cursor,
+        );
         setBoundedPool(Boolean(data.boundedPool));
         setCapped(Boolean(data.capped));
       } catch {
@@ -198,14 +202,18 @@ export default function FeedPage() {
         />
       )}
       <div ref={sentinel} className="h-1" aria-hidden="true" />
-      {items.length > 0 && !done && (
+      {!failed && !done && (
         <button
           type="button"
           disabled={loading}
           onClick={() => void loadMore()}
           className="min-h-11 w-full border-t border-[var(--b1)] text-sm font-semibold text-[var(--blue)] disabled:opacity-50"
         >
-          {loading ? "Loading more cars..." : "Load more cars"}
+          {loading
+            ? "Loading more cars..."
+            : !items.length
+              ? "Check next vehicles"
+              : "Load more cars"}
         </button>
       )}
       {done && items.length > 0 && (

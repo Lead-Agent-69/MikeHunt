@@ -632,6 +632,16 @@ export function workspaceGroupsForMode(
     });
     groups.set(group, items);
   }
-  groups.get("Browse")?.unshift(PRIMARY[0]);
+  const browse = groups.get("Browse");
+  if (browse) {
+    for (const href of ["/discover", "/market"]) {
+      if (
+        !Array.from(groups.values()).some((items) =>
+          items.some((item) => item.href === href),
+        )
+      )
+        browse.unshift(PRIMARY.find((item) => item.href === href)!);
+    }
+  }
   return Array.from(groups, ([group, items]) => ({ group, items }));
 }
