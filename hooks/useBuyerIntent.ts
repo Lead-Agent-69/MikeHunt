@@ -335,7 +335,6 @@ export function buyerIntentLabel(
     ? intent.makes
     : intent?.preferredMakes || [];
   return [
-    intent?.buyerMode ? BUYER_MODES[intent.buyerMode].label : "",
     makes.length
       ? makes.slice(0, 3).join("/")
       : intent?.vehicle || "Any vehicle",

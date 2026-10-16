@@ -31,15 +31,14 @@ export function CoverageNotice({
       data-tone={notice.tone}
       className="flex items-start gap-3 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s1)] px-4 py-2 text-sm md:py-3"
     >
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
+      <Info className="mt-3.5 h-4 w-4 shrink-0 text-[var(--t3)]" aria-hidden />
       <div className="min-w-0">
-        <p className="font-bold text-[var(--t1)]">{notice.headline}</p>
         <details
-          className="mt-1 text-[var(--t2)]"
+          className="text-[var(--t2)]"
           open={notice.tone === "unavailable" ? true : undefined}
         >
-          <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
-            About these results
+          <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+            {notice.headline}
           </summary>
           <p className="pb-2 text-sm">{notice.detail}</p>
           {notice.tone !== "unavailable" && (

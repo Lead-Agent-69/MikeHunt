@@ -22,24 +22,10 @@ for (const desk of [
       await expect(
         page.getByRole("region", { name: /vehicles$/ }).first(),
       ).toBeVisible();
-      const views = page
-        .locator("summary")
-        .filter({ hasText: /^Inventory views$/ });
-      await expect(
-        page.getByRole("navigation", { name: "Inventory views" }),
-      ).toBeHidden();
-      await views.click();
       await expect(
         page.getByRole("navigation", { name: "Inventory views" }),
       ).toBeVisible();
-      await expect(
-        page.getByRole("combobox", { name: "Shop by body style" }),
-      ).toBeVisible();
-      await views.click();
-      const filters = page
-        .locator("summary")
-        .filter({ hasText: /^Search filters$/ });
-      await expect(page.getByLabel("Make", { exact: true })).toBeHidden();
+      await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
       const preview = page.getByTestId("discovery-card-price-preview").first();
       const amount = preview;
       await expect(amount).toBeVisible();
@@ -67,12 +53,9 @@ for (const desk of [
       await page.screenshot({
         path: info.outputPath(`${desk}-first-vehicle-price.png`),
       });
-      await filters.click();
       await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Lane", { exact: true })).toBeVisible();
-      await filters.click();
-      await expect(page.getByLabel("Make", { exact: true })).toBeHidden();
       await expect(
         page.getByRole("button", { name: "Browse inventory", exact: true }),
       ).toBeEnabled();

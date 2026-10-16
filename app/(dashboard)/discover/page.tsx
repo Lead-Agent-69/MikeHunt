@@ -399,7 +399,7 @@ export default function DiscoverPage() {
     : "all";
 
   return (
-    <div className="space-y-2 pb-24 md:space-y-6 md:pb-8">
+    <div className="space-y-2 pb-24 md:space-y-3 md:pb-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
@@ -443,29 +443,16 @@ export default function DiscoverPage() {
       />
 
       <section className="border-y border-[var(--b1)] py-2 md:py-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-          Buying for
-        </p>
-        <p className="mt-1 text-xs font-bold text-[var(--t1)] md:text-sm">
+        <p className="text-xs font-bold text-[var(--t1)] md:text-sm">
           {activeScopeLabel}
         </p>
-        {discoverReady && (
-          <Link
-            href={`/scan${scopeQuery}`}
-            prefetch={false}
-            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-4 py-2.5 text-sm font-bold text-white"
-          >
-            <ScanSearch size={18} aria-hidden="true" />
-            Search cars
-          </Link>
-        )}
         <div className="grid grid-cols-2 items-start gap-x-3">
-          <details className="mt-2 open:col-span-2">
-            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] md:text-sm">
+          <div className="col-span-2 min-w-0">
+            <h2 className="py-1 text-xs font-semibold text-[var(--t2)] md:text-sm">
               Quick filters
-            </summary>
+            </h2>
             <form
-              className="flex flex-col gap-3"
+              className="flex flex-col gap-2"
               aria-label="Buying for"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -492,22 +479,16 @@ export default function DiscoverPage() {
                 });
               }}
             >
-              <div>
-                <p className="mt-1 text-xs text-[var(--t4)]">
-                  {marketContext ||
-                    "Refine makes and budgets without leaving your matching results."}
-                </p>
-              </div>
               <fieldset
                 disabled={!discoverReady}
-                className="grid min-w-0 gap-2 sm:grid-cols-3"
+                className="grid min-w-0 grid-cols-3 gap-2"
               >
                 <label className="block text-xs font-semibold text-[var(--t3)]">
                   Make
                   <input
                     value={makeDraft}
                     onChange={(event) => setMakeDraft(event.target.value)}
-                    placeholder="Any make"
+                    placeholder="Any"
                     aria-label="Make"
                     className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
@@ -520,7 +501,7 @@ export default function DiscoverPage() {
                     onChange={(event) =>
                       setBudgetDraft(event.target.value.replace(/[^0-9]/g, ""))
                     }
-                    placeholder="Max price"
+                    placeholder="Max $"
                     aria-label="Budget"
                     className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
@@ -541,35 +522,43 @@ export default function DiscoverPage() {
                   </select>
                 </label>
               </fieldset>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="submit"
                   disabled={!discoverReady}
-                  className="inline-flex min-h-11 items-center justify-center rounded-[var(--r3)] border border-[var(--b2)] bg-[var(--s0)] px-4 py-2.5 text-sm font-black text-[var(--t2)]"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--blue)] px-3 py-2.5 text-xs font-bold text-white sm:text-sm"
                 >
-                  Apply filters
+                  Search cars
                 </button>
                 {discoverReady && (
                   <Link
                     href={`/scan${scopeQuery}`}
                     prefetch={false}
-                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+                    aria-label="All filters & results"
+                    className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--blue)] sm:text-sm"
                   >
-                    All filters & results
+                    All filters
                   </Link>
                 )}
+                <button
+                  type="button"
+                  aria-label="Market insights and saved interests"
+                  aria-expanded={showInsights}
+                  aria-controls="discovery-market-insights"
+                  onClick={() => setShowInsights(!showInsights)}
+                  className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--blue)] sm:text-sm"
+                >
+                  Insights
+                </button>
               </div>
             </form>
-          </details>
-          <details
-            className="mt-2 open:col-span-2"
-            onToggle={(event) => setShowInsights(event.currentTarget.open)}
-          >
-            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)] md:text-sm">
-              Market insights and saved interests
-            </summary>
+          </div>
+          <div id="discovery-market-insights" className="col-span-2">
             {showInsights && (
               <div className="mt-4 space-y-6">
+                {marketContext && (
+                  <p className="text-sm text-[var(--t2)]">{marketContext}</p>
+                )}
                 {/* Flip-economics widgets (profit on the board, highest-margin spotlight, best flip,
                 avg profit by model, "deals like your winners") are for reseller/dealer desks only. */}
                 {hasLiveListings && flipDesk && <EdgeBanner />}
@@ -660,7 +649,7 @@ export default function DiscoverPage() {
                 )}
               </div>
             )}
-          </details>
+          </div>
         </div>
       </section>
       {/* For You: personal reco rail, hidden unless the backend is personalizing */}
