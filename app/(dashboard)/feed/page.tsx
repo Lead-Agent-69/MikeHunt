@@ -82,11 +82,7 @@ export default function FeedPage() {
           return [...previous, ...next.filter((item) => !seen.has(item.id))];
         });
         offset.current = data.nextOffset ?? cursor + 12;
-        setDone(
-          data.configured === false ||
-            next.length === 0 ||
-            data.nextOffset === null,
-        );
+        setDone(data.configured === false || data.nextOffset === null);
         setBoundedPool(Boolean(data.boundedPool));
         setCapped(Boolean(data.capped));
       } catch {

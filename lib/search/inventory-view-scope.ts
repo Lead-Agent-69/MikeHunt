@@ -20,6 +20,8 @@ export const INVENTORY_SEARCH_KEYS = Array.from(
     "q",
     "state",
     "states",
+    "zip",
+    "radius",
     "source",
     "sources",
     "make",

@@ -61,6 +61,10 @@ function query() {
 }
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
+vi.mock("@/lib/geo/geocode", () => ({
+  geocodeZip: async (_db: unknown, place: { zip: string }) =>
+    place.zip === "00000" ? null : { lat: 38.63, lng: -90.2 },
+}));
 vi.mock("@/lib/cache", () => ({
   cached: (key: string, _t: number, run: () => unknown) => {
     db.cacheKeys.push(key);
@@ -108,6 +112,36 @@ async function load(mode: string | null, signedIn = true) {
 }
 
 describe("GET /api/feed desk redaction", () => {
+  it("rejects unknown nearby ZIPs instead of returning nationwide cars", async () => {
+    const response = await GET(
+      new NextRequest("https://app.test/api/feed?zip=00000&radius=50"),
+    );
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("has not been broadened");
+  });
+  it("filters the circle before projecting cards, preserves paging, and never exposes coordinates", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    db.rows = [{ ...ROW, lat: 39.36, lng: -90.2 }];
+    const response = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?browse=all&zip=63101&radius=50&limit=1",
+      ),
+    );
+    const body = await response.json();
+    expect(body.items).toEqual([]);
+    expect(body.nextOffset).toBe(1);
+    expect(db.calls).toContainEqual(["not", "lat", "is", null]);
+    db.rows = [{ ...ROW, lat: 38.62, lng: -90.15 }];
+    const inside = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?browse=all&zip=63101&radius=50&limit=1",
+      ),
+    );
+    const card = (await inside.json()).items[0];
+    expect(card.id).toBe(ROW.id);
+    expect(card).not.toHaveProperty("lat");
+    expect(card).not.toHaveProperty("lng");
+  });
   beforeEach(() => {
     getServerUser.mockReset();
     db.calls = [];

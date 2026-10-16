@@ -34,6 +34,9 @@ import {
   applyZipRadiusBox,
   milesFrom,
   resolveZipRadius,
+  parseZipRadius,
+  ZIP_LOOKUP_ERROR,
+  filterZipRadiusRows,
 } from "@/lib/search/zip-radius";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
@@ -1202,6 +1205,8 @@ export async function GET(req: NextRequest) {
   // Guest-friendly ZIP + radius ("within 50 mi of 60601"). Cache-first geocode, then a lat/lng box in
   // SQL and an exact straight-line check per row below. Rows without coordinates can't be placed.
   const zipRadius = await resolveZipRadius(supabase, searchParams);
+  if (parseZipRadius(searchParams) && !zipRadius)
+    return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
   if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
 
   if (availability && availability !== "all") {
@@ -1375,12 +1380,7 @@ export async function GET(req: NextRequest) {
     dealers,
     dealerSourceIds,
   };
-  const inRadius = zipRadius
-    ? (data || []).filter((r: any) => {
-        const mi = milesFrom(zipRadius, r);
-        return mi != null && mi <= zipRadius.radius;
-      })
-    : data || [];
+  const inRadius = filterZipRadiusRows(data || [], zipRadius);
   const dRows = inRadius.map((r: any) => {
     const normalized = {
       ...normalizeRow(r, "deals"),
@@ -1418,6 +1418,7 @@ export async function GET(req: NextRequest) {
       vehicles,
       deskAccess,
       total: count || 0,
+      totalIsApproximate: Boolean(zipRadius),
       state: states.join(",") || state || "nationwide",
       page,
       pageSize,

@@ -4,6 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 import {
+  resolveZipRadius,
+  parseZipRadius,
+  applyZipRadiusBox,
+  filterZipRadiusRows,
+  ZIP_LOOKUP_ERROR,
+} from "@/lib/search/zip-radius";
+import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
@@ -157,6 +164,9 @@ export async function GET(req: NextRequest) {
       models: cascade ? [] : undefined,
     });
   const supabase = createServerComponentClient();
+  const zipRadius = await resolveZipRadius(supabase, params);
+  if (parseZipRadius(params) && !zipRadius)
+    return NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 });
   const flipDesk = (await resolveCallerDesk()) === "flip";
   const source = params.get("source") || "";
   const lane = params.get("lane") || "all";
@@ -174,8 +184,8 @@ export async function GET(req: NextRequest) {
       .from("deals")
       .select(
         cascade
-          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
-          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
+          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state,lat,lng"
+          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url,lat,lng",
       )
       .eq("active", true);
     query = applyLiveAuctionWindow(applyCustomerInventory(query));
@@ -190,6 +200,7 @@ export async function GET(req: NextRequest) {
       query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
     query = applyInventoryLane(query, lane);
     query = applyVehicleDetails(query, params);
+    if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
     if (flipDesk && Number(params.get("minProfit")) > 0)
       query = query.gte("true_net_profit", Number(params.get("minProfit")));
     const verdict = params.get("verdict");
@@ -274,9 +285,10 @@ export async function GET(req: NextRequest) {
       { max: 30000 },
     );
     const bounded = candidates.length === 30000;
+    const nearby = filterZipRadiusRows(candidates, zipRadius);
     const rows = categoryQuery
-      ? candidates.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
-      : candidates;
+      ? nearby.filter((row) => rowMatchesBuyerQuery(row, buyerQuery))
+      : nearby;
     if (!cascade) {
       const titled = rows.filter((row) =>
         matchesTitleCategories(row, titleTypes),
