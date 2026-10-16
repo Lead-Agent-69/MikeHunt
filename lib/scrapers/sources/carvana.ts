@@ -20,30 +20,35 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
   const items: Partial<Deal>[] = [];
   for (const v of vehicles) {
     if (!v || typeof v !== "object") continue;
-    const price = Number(
-      v.price?.total ?? v.price?.incentivizedPrice ?? v.price?.msrp ?? 0,
-    );
+    const price = Number(v.price?.total ?? v.price?.incentivizedPrice ?? 0);
     const vin = s(v.vin);
-    if (!price || !vin) continue;
+    const vehicleId = Number(v.vehicleId);
+    if (
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      !vin ||
+      !Number.isSafeInteger(vehicleId) ||
+      vehicleId <= 0
+    )
+      continue;
     const year = Number(v.year) || undefined;
     const make = s(v.make);
     const model = s(v.parentModel) || s(v.model);
     const trim = s(v.trim) || s(v.kbbTrim);
-    // Carvana's `imageUrl` is a RELATIVE path (domain stripped) → renders as a broken image. Prefer any
-    // ABSOLUTE url: the real photo if it's absolute, else the full jellyBean stock image of the same
-    // year/make/model. A correct stock photo beats a broken one. (Was storing the broken relative URL.)
+    // Prefer the API's absolute vehicle photos. Relative imageUrl paths have no published origin;
+    // constructing a URL from them can return 404 even when the standardized hero is available.
     const abs = (u?: string) => (u && /^https?:\/\//i.test(u) ? u : "");
     const img =
       abs(s(v.imageUrl)) ||
+      abs(s(v.standardizedHero)) ||
+      abs(s(v.textlessUrl)) ||
       abs(s(v.jellyBeanDesktopUrl)) ||
       abs(s(v.jellyBeanMobileUrl));
-    const id = String(v.vehicleId ?? v.stockNumber ?? vin);
+    const id = String(vehicleId);
     items.push({
       source: "carvana",
       source_deal_id: vin || id,
-      source_url: v.vdpSlug
-        ? `https://www.carvana.com/vehicle/${v.vdpSlug}`
-        : `https://www.carvana.com/vehicle/${id}`,
+      source_url: `https://www.carvana.com/vehicle/${id}`,
       title: `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
         .replace(/\s+/g, " ")
         .trim(),
@@ -58,6 +63,14 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
       images: img ? [img] : [],
       seller_type: "dealer",
       seller: "Carvana",
+      options: {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: price,
+          listedAmount: price,
+          checkedAt: new Date().toISOString(),
+        },
+      },
       metadata: { delivery_available: true, seven_day_return: true },
       scraped_at: new Date().toISOString(),
     });

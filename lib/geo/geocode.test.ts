@@ -24,6 +24,17 @@ describe("placeKey", () => {
     expect(placeKey({})).toBeNull();
     expect(placeKey({ city: "Dallas" })).toBeNull();
   });
+  it("normalizes a repeated matching state without guessing away a conflict", () => {
+    expect(placeKey({ city: "Forsyth, MO", state: "MO" })).toBe(
+      "cs:forsyth|mo",
+    );
+    expect(placeKey({ city: "Springfield,mo", state: "MO" })).toBe(
+      "cs:springfield|mo",
+    );
+    expect(placeKey({ city: "Dallas, TX", state: "CT" })).toBe(
+      "cs:dallas, tx|ct",
+    );
+  });
 });
 
 describe("parsers", () => {
@@ -52,7 +63,10 @@ describe("parsers", () => {
   });
 });
 
-function fakeSupabase(cacheRows: any[], capture: { upserts: any[] }) {
+function fakeSupabase(
+  cacheRows: any[],
+  capture: { upserts: any[]; updates?: any[] },
+) {
   return {
     from() {
       return {
@@ -62,6 +76,15 @@ function fakeSupabase(cacheRows: any[], capture: { upserts: any[] }) {
         upsert(rows: any[]) {
           capture.upserts.push(...rows);
           return Promise.resolve({ error: null });
+        },
+        update(row: any) {
+          (capture.updates ||= []).push(row);
+          const query: any = {
+            eq: () => query,
+            is: () => query,
+            then: (resolve: any) => resolve({ error: null }),
+          };
+          return query;
         },
       };
     },
@@ -117,7 +140,15 @@ describe("resolvePlaces", () => {
   it("skips remembered failures (negative cache) without a network call", async () => {
     const capture = { upserts: [] as any[] };
     const sb = fakeSupabase(
-      [{ place_key: "cs:nowhere|zz", lat: 0, lng: 0, source: "failed" }],
+      [
+        {
+          place_key: "cs:nowhere|zz",
+          lat: 0,
+          lng: 0,
+          source: "failed",
+          created_at: new Date().toISOString(),
+        },
+      ],
       capture,
     );
     const fetchImpl = vi.fn();
@@ -144,5 +175,65 @@ describe("resolvePlaces", () => {
       fetchImpl: vi.fn(),
     });
     expect(out.size).toBe(0);
+  });
+
+  it("retries an expired failure and replaces only that failed cache entry", async () => {
+    const capture = { upserts: [] as any[], updates: [] as any[] };
+    const sb = fakeSupabase(
+      [
+        {
+          place_key: "cs:dallas|tx",
+          lat: 0,
+          lng: 0,
+          source: "failed",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      capture,
+    );
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => [{ lat: "32.78", lon: "-96.8" }],
+    }));
+    const out = await resolvePlaces(sb, [{ city: "Dallas", state: "TX" }], {
+      fetchImpl,
+    });
+    expect(out.get("cs:dallas|tx")).toEqual({ lat: 32.78, lng: -96.8 });
+    expect(capture.upserts).toEqual([]);
+    expect(capture.updates).toMatchObject([
+      { source: "nominatim", lat: 32.78 },
+    ]);
+  });
+
+  it.each([429, 500, 503])(
+    "does not cache transient HTTP %s as a missing location",
+    async (status) => {
+      const capture = { upserts: [] as any[] };
+      await resolvePlaces(fakeSupabase([], capture), [{ zip: "75201" }], {
+        fetchImpl: vi.fn(async () => ({
+          ok: false,
+          status,
+          json: async () => ({}),
+        })),
+      });
+      expect(capture.upserts).toEqual([]);
+    },
+  );
+
+  it("does not cache a network exception or malformed success response", async () => {
+    const capture = { upserts: [] as any[] };
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("timeout"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ error: "gateway" }),
+      });
+    await resolvePlaces(
+      fakeSupabase([], capture),
+      [{ zip: "75201" }, { city: "Dallas", state: "TX" }],
+      { fetchImpl },
+    );
+    expect(capture.upserts).toEqual([]);
   });
 });
