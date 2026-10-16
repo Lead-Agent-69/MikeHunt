@@ -68,6 +68,17 @@ function validCoords(lat: any, lng: any): LatLng | null {
   return { lat: la, lng: lo };
 }
 
+/** Precise listing coordinates take precedence over a cached ZIP/city center. */
+export function coordinatesForPlace(
+  place: PlaceInput & { lat?: unknown; lng?: unknown },
+  cache: ReadonlyMap<string, LatLng> = new Map(),
+): LatLng | null {
+  const source = validCoords(place.lat, place.lng);
+  if (source) return source;
+  const key = placeKey(place);
+  return key ? (cache.get(key) ?? null) : null;
+}
+
 /** Parse api.zippopotam.us response → coords. */
 export function parseZippopotam(body: any): LatLng | null {
   const place = body?.places?.[0];
