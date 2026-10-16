@@ -526,7 +526,7 @@ export default function DiscoverPage() {
                 <button
                   type="submit"
                   disabled={!discoverReady}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--blue)] px-3 py-2.5 text-xs font-bold text-white sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--blue)] px-3 py-2.5 text-sm font-bold text-white"
                 >
                   Search cars
                 </button>
@@ -535,7 +535,7 @@ export default function DiscoverPage() {
                     href={`/scan${scopeQuery}`}
                     prefetch={false}
                     aria-label="All filters & results"
-                    className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--blue)] sm:text-sm"
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
                   >
                     All filters
                   </Link>
@@ -546,7 +546,7 @@ export default function DiscoverPage() {
                   aria-expanded={showInsights}
                   aria-controls="discovery-market-insights"
                   onClick={() => setShowInsights(!showInsights)}
-                  className="inline-flex min-h-11 items-center text-xs font-semibold text-[var(--blue)] sm:text-sm"
+                  className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
                 >
                   Insights
                 </button>

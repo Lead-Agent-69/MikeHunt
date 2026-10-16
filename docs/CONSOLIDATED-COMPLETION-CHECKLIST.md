@@ -74,6 +74,12 @@ Walkthrough acceptance checks:
   actual grants/RLS, forged ownership, modification denial, daily quota, report
   survival, evidence-qualified margins, cross-border/dateline radius and later
   inventory-column compatibility. It never targets the hosted database.
+- Core bookmark checks block service workers, consistent with the other isolated
+  persistence tests. Playwright supports worker automation only on Chromium;
+  `e2e/pwa-registration.spec.ts` separately allows the real worker and checks
+  activation, private-cache exclusion, offline navigation and recovery there.
+  Real Safari/iOS PWA and alert delivery remain hosted device gates. This is test
+  isolation, not a production feature toggle or an ignored page-error assertion.
 
 Manual hosted acceptance after the gated rollout:
 
