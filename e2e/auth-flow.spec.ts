@@ -11,7 +11,7 @@ import { localOnly } from "./support/target";
 test.describe("signup, login, onboarding (local only)", () => {
   localOnly();
 
-  test("signup -> onboarding desk choice -> Discover, then log out/in", async ({
+  test("signup -> unified buying setup -> Discover, then log out/in", async ({
     page,
     context,
   }) => {
@@ -19,7 +19,7 @@ test.describe("signup, login, onboarding (local only)", () => {
     const email = uniqueEmail("flow");
     await registerViaUi(page, email);
     await expect(
-      page.getByRole("heading", { name: "What are you buying for?" }),
+      page.getByRole("heading", { name: "What vehicles are you looking for?" }),
     ).toBeVisible();
     for (const label of [
       /Personal buyer/,
@@ -28,11 +28,13 @@ test.describe("signup, login, onboarding (local only)", () => {
       /Independent reseller/,
       /Dealer\/team/,
     ]) {
-      await expect(page.getByRole("button", { name: label })).toBeVisible();
+      await expect(page.getByRole("button", { name: label })).toHaveCount(0);
     }
     await completeOnboarding(page, "reseller");
     await expect(page).toHaveURL(/mode=reseller/);
-    await expect(page.getByText(/BUYING FOR/i).first()).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Quick filters" }),
+    ).toBeVisible();
     await expectHealthy(page, h);
 
     // Fresh session: sign in with the same account; onboarded users skip setup.

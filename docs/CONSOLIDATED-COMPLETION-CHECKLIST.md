@@ -6,6 +6,73 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Recorded Walkthrough Follow-Through (October 15, 2026)
+
+Branch: `codex/walkthrough-search-acceptance`, based on main after #424.
+This section supersedes the earlier multi-persona product direction for the
+buying interface. It does not grant admin access or remove account isolation.
+
+Implemented in modular commits:
+
+- One buying setup and preference form, with the old persona choice archived
+  when the user confirms a save. No dealer/personal role selector or purchase
+  upgrade requirement. Existing accounts and protected administration remain.
+- Always-visible inventory view links and quick filters, prominent primary save
+  actions, plus directly reachable model, mileage, multiple sources, ZIP and
+  radius controls. Secondary insights mount only when requested.
+- Cross-border radius filtering runs in PostgreSQL before sorting, counting and
+  pagination. Scan, facets, Feed and Map share the same location scope; a ZIP is
+  not also treated as an exact postal-code filter. Unresolved locations fail
+  clearly rather than silently widening the search. Listings without coordinates
+  cannot be placed inside a radius. Map's All view is distinct from Review/GO/HOLD.
+- Sort choices now survive the Scan response normalization. Qualified price gap
+  is explicitly before costs, separate from net profit; unverified asking amounts
+  and unsupported valuations cannot qualify for this new sort.
+- Why shown exposes recorded reference values, comp type/count/scope, mileage
+  and title multipliers, evidence flags and genuine calculation timestamps.
+  Missing inputs and unretained individual comparable IDs stay explicit, not
+  invented. This is not proof of valuation accuracy against completed sales.
+- Listing issue reports use the signed-in account's RLS client, bounded text,
+  owner isolation, immutable records, daily limits and idempotent receipts.
+  Failed submissions retain their text. Reports survive removal of the listing.
+
+Required release order: independent review of this exact code/SQL head, current
+primary-project storage/compute headroom, targeted application of the following
+three migrations to `qupzqpezslsbobhugswp`, then app deployment and hosted QA:
+
+1. `20261016005413_listing_feedback.sql`
+2. `20261016005724_qualified_listing_margin.sql`
+3. `20261016011958_radius_inventory_search.sql`
+
+Do not use a blanket database push: unrelated unapplied migrations need their own
+review. The new schema has been exercised only on guarded local Docker databases;
+no production apply, full rescore, cleanup or worker recreation is implied.
+The radius function uses an active-coordinate partial index internally and a
+whole-row return so later inventory columns do not break it. Production execution
+plans and latency still require measurement; do not describe it as planner-inlined.
+
+Walkthrough acceptance checks:
+
+- `e2e/walkthrough-feedback.spec.ts`: visible search/view controls, actual
+  St. Louis/Belleville radius results excluding Chicago across inventory APIs,
+  qualified gap order, preference save/reload and database-confirmed reports.
+- `e2e/discovery-priority.spec.ts`: first vehicle price remains above navigation
+  on desktop, narrow phones and both tablet orientations; tapping it opens that
+  vehicle. Legacy account data is compatibility coverage, not new persona UI.
+- `node scripts/test-listing-feedback.mjs`: disposable local PostgreSQL tests
+  actual grants/RLS, forged ownership, modification denial, daily quota, report
+  survival, evidence-qualified margins, cross-border/dateline radius and later
+  inventory-column compatibility. It never targets the hosted database.
+
+Still open beyond this branch: source-wide corrected-price/gallery ingestion,
+Zeus rollout receipts, held-out valuation outcomes, independently reviewed safe
+retention, measured hosted free-tier capacity, actual email/push delivery and
+physical-device performance. Browser access to the signed-in hosted account is
+currently unavailable; local synthetic-account QA is not a substitute for it.
+Local security advisors also report five existing unrelated errors: the
+`source_health` definer view and RLS-disabled `spatial_ref_sys`, `price_history`,
+`scraper_runs`, `source_url_cache`. These need scoped review, not blind RLS changes.
+
 ### October 14 Release And Inventory Integrity
 
 - #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree

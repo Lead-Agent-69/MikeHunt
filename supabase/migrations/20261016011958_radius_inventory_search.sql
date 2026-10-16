@@ -19,8 +19,10 @@ begin atomic
     and d.active = true and d.lat is not null and d.lng is not null
     and d.lat between -90 and 90 and d.lng between -180 and 180
     and d.lat between p_lat - p_radius / 68.0 and p_lat + p_radius / 68.0
-    and least(abs(d.lng - p_lng), 360 - abs(d.lng - p_lng))
-      <= p_radius / (68.0 * greatest(0.01, pg_catalog.cos(pg_catalog.radians(p_lat))))
+    and (abs(p_lat) + p_radius / 68.0 >= 90 or
+      least(abs(d.lng - p_lng), 360 - abs(d.lng - p_lng))
+      <= p_radius / (68.0 * greatest(0.000001,
+        pg_catalog.cos(pg_catalog.radians(abs(p_lat) + p_radius / 68.0)))))
     and 7917.5226 * pg_catalog.asin(pg_catalog.sqrt(least(1.0, greatest(0.0,
       pg_catalog.power(pg_catalog.sin(pg_catalog.radians(d.lat - p_lat) / 2), 2)
       + pg_catalog.cos(pg_catalog.radians(p_lat)) * pg_catalog.cos(pg_catalog.radians(d.lat))

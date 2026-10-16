@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DESK_LABEL, storagePath, type Desk } from "./support/accounts";
+import { storagePath, type Desk } from "./support/accounts";
 import { pickDeal } from "./support/deals";
 import { expectHealthy, watchHealth } from "./support/health";
 import { localOnly } from "./support/target";
@@ -27,10 +27,15 @@ for (const desk of [
     test(`Discover is scoped to the ${desk} desk`, async ({ page }) => {
       const h = watchHealth(page);
       await page.goto("/discover");
-      await expect(page.getByText(/BUYING FOR/i).first()).toBeVisible({
+      await expect(
+        page.getByRole("heading", { name: "Quick filters" }),
+      ).toBeVisible({
         timeout: 30_000,
       });
-      await expect(page.getByText(DESK_LABEL[desk]).first()).toBeVisible();
+      await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
+      await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(
+        0,
+      );
       await expectHealthy(page, h);
     });
 

@@ -29,10 +29,12 @@ try {
     ('55555555-5555-4555-8555-555555555551',38.63,-90.2),
     ('55555555-5555-4555-8555-555555555552',38.52,-89.98),
     ('55555555-5555-4555-8555-555555555553',41.88,-87.63),
-    ('55555555-5555-4555-8555-555555555554',0,-179.9);
+    ('55555555-5555-4555-8555-555555555554',0,-179.9),
+    ('55555555-5555-4555-8555-555555555555',89.9,-179.9);
     do $$ begin
       if (select count(*) from public.inventory_within_radius(38.63,-90.2,50)) <> 2 then raise exception 'CROSS BORDER RADIUS FAILED'; end if;
       if (select count(*) from public.inventory_within_radius(0,179.9,50)) <> 1 then raise exception 'DATELINE RADIUS FAILED'; end if;
+      if (select count(*) from public.inventory_within_radius(89.9,0,50)) <> 1 then raise exception 'POLAR RADIUS FAILED'; end if;
       if has_function_privilege('anon','public.inventory_within_radius(double precision,double precision,double precision)','execute') or has_function_privilege('authenticated','public.inventory_within_radius(double precision,double precision,double precision)','execute') then raise exception 'PUBLIC RADIUS RPC'; end if;
     end $$;`);
   sql(database, `insert into deals(id,ask_price,sell_estimate,options,deal_analysis)

@@ -77,7 +77,8 @@ test.describe("recorded user walkthrough acceptance", () => {
     expect((await feed.json()).items.map((row: any) => row.id).sort()).toEqual(
       expectedIds,
     );
-    const map = await page.request.get(`/api/deals/map?${scope}`);
+    // Match Map's visible default: All inventory, not the legacy actionable-only API default.
+    const map = await page.request.get(`/api/deals/map?${scope}&verdict=all`);
     expect(map.ok()).toBe(true);
     expect((await map.json()).points.map((row: any) => row.id).sort()).toEqual(
       expectedIds,
@@ -96,35 +97,53 @@ test.describe("recorded user walkthrough acceptance", () => {
     page,
   }, info) => {
     const health = watchHealth(page);
-    await page.goto("/settings");
-    await expect(
-      page.getByRole("button", {
-        name: "Save buying preferences",
-        exact: true,
-      }),
-    ).toBeEnabled();
-    await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(0);
-    await page.getByLabel("Maximum price ($)", { exact: true }).fill("20000");
-    await page
-      .getByRole("button", { name: "Save buying preferences", exact: true })
-      .click();
-    await expect(
-      page.getByText("Buying preferences saved to your account.", {
-        exact: true,
-      }),
-    ).toBeVisible();
-    await page.reload();
-    await expect(
-      page.getByLabel("Maximum price ($)", { exact: true }),
-    ).toHaveValue("20000");
-    const prefs = await (await page.request.get("/api/preferences")).json();
-    expect(prefs.prefs.buyerScope.buyerMode).toBe("reseller");
-    expect(prefs.prefs).not.toHaveProperty("role");
-    await expectHealthy(page, health);
-    await page.screenshot({
-      path: info.outputPath("buying-preferences.png"),
-      fullPage: false,
-    });
+    const original =
+      (await (await page.request.get("/api/preferences")).json()).prefs
+        ?.buyerScope || {};
+    try {
+      await page.goto("/settings");
+      await expect(
+        page.getByRole("button", {
+          name: "Save buying preferences",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(
+        0,
+      );
+      await page.getByLabel("Maximum price ($)", { exact: true }).fill("20000");
+      await page
+        .getByRole("button", { name: "Save buying preferences", exact: true })
+        .click();
+      await expect(
+        page.getByText("Buying preferences saved to your account.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.reload();
+      await expect(
+        page.getByLabel("Maximum price ($)", { exact: true }),
+      ).toHaveValue("20000");
+      const prefs = await (await page.request.get("/api/preferences")).json();
+      expect(prefs.prefs.buyerScope.buyerMode).toBe("reseller");
+      expect(prefs.prefs).not.toHaveProperty("role");
+      await expectHealthy(page, health);
+      await page.screenshot({
+        path: info.outputPath("buying-preferences.png"),
+        fullPage: false,
+      });
+    } finally {
+      const restored = await page.request.put("/api/preferences", {
+        data: {
+          buyerScope: {
+            ...original,
+            maxPrice: original.maxPrice ?? null,
+            legacyBuyerMode: original.legacyBuyerMode ?? null,
+          },
+        },
+      });
+      expect(restored.ok()).toBe(true);
+    }
   });
 
   test("listing feedback gets a database-confirmed receipt and survives reload", async ({
