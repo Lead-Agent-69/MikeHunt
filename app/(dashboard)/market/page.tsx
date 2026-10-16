@@ -908,7 +908,11 @@ export default function MarketPage() {
           {error ? (
             <ErrorState
               title="Market data unavailable"
-              message="Could not load market listings. Your filters have been kept."
+              message={
+                f.zip
+                  ? "Could not load nearby listings. Check your ZIP code or try again. Your filters have been kept."
+                  : "Could not load market listings. Your filters have been kept."
+              }
               onRetry={() => void mutate()}
             />
           ) : rows.length > 0 ? (
