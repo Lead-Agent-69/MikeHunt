@@ -31,6 +31,12 @@ export interface SourceMeta {
 // Brand-appropriate accents. Mid-saturation hues so the same value reads on light AND dark surfaces
 // (badges render as solid `color` text on a low-alpha tint of the same color).
 const META: Record<string, SourceMeta> = {
+  "4cdg_drivenation_com": {
+    label: "DriveNation",
+    short: "DriveNation",
+    color: "#64748b",
+    channel: "dealer",
+  },
   autovada: {
     label: "AutoVada",
     short: "AutoVada",
@@ -277,6 +283,7 @@ const FALLBACK: SourceMeta = {
 };
 
 export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
+  "4cdg-drivenation-com": ["drivenation.com"],
   "ae-of-miami": ["aeofmiami.com"],
   "damage-com": ["damage.com"],
   "dg-auto": ["dgautollc.com"],
