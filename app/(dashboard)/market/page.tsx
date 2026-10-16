@@ -377,7 +377,7 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 sm:gap-4">
+    <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--b1)] pb-2 sm:pb-3">
         <div className="min-w-0">
           <h1 className="text-xl font-extrabold text-[var(--t1)] md:text-3xl">

@@ -55,7 +55,7 @@ export function MarketLocation({
   return (
     <section
       aria-label="Location and radius"
-      className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-3 sm:p-4"
+      className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-2.5 sm:p-4"
     >
       <form
         onSubmit={(event) => {
@@ -63,17 +63,17 @@ export function MarketLocation({
           if (near.trim()) searchArea(near);
           else if (value.lat) onChange({ radius });
         }}
-        className={`grid grid-cols-[minmax(0,1fr)_7rem] items-end gap-2 sm:gap-3 ${search ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_8rem_auto] sm:grid-cols-2" : "sm:grid-cols-[minmax(0,1fr)_8rem_auto]"}`}
+        className={`grid grid-cols-[minmax(0,1fr)_8rem] items-end gap-2 sm:gap-3 ${search ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_8rem_auto] sm:grid-cols-2" : "sm:grid-cols-[minmax(0,1fr)_8rem_auto]"}`}
       >
         {search && (
-          <label className="col-span-2 min-w-0 text-xs font-semibold text-[var(--t3)] sm:col-span-1">
+          <label className="col-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs font-semibold text-[var(--t3)] sm:col-span-1 sm:grid-cols-1 sm:gap-0">
             Vehicle or VIN
             <input
               aria-label="Search make, model or VIN"
               placeholder="Make, model or VIN"
               value={search.value}
               onChange={(event) => search.onChange(event.target.value)}
-              className="field mt-1 min-h-11 !w-full"
+              className="field min-h-11 min-w-0 !w-full sm:mt-1"
             />
           </label>
         )}
