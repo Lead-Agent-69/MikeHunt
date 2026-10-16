@@ -23,6 +23,7 @@ export async function preserveExistingDealerListingIds(
     source: string | undefined;
     source_url: string | undefined;
     source_deal_id: string;
+    vin?: string | null;
     options?: Record<string, any> | null;
   }>,
 ) {
@@ -75,8 +76,14 @@ export async function preserveExistingDealerListingIds(
       const correction = corrections.get(
         `${row.source_url}|${row.source_deal_id}`,
       );
-      if (correction)
+      if (
+        correction &&
+        (!row.vin || !correction.vin || row.vin === correction.vin)
+      ) {
         row.options = { ...(row.options || {}), sourceCorrection: correction };
+        if (!row.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(correction.vin || ""))
+          row.vin = correction.vin;
+      }
     }
   }
 }

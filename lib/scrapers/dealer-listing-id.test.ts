@@ -109,10 +109,12 @@ it("preserves correction provenance for the actual DriveNation CMS identity with
     version: "drivenation-price-odometer-v1",
     sourceUrl,
     checkedAt: "2026-10-15T22:00:00Z",
+    vin: "5XXG14J25PG166770",
   };
   const current = {
     ...row(sourceUrl),
     source_deal_id: "4cdg-drivenation-com-1539",
+    vin: null as string | null,
     options: {} as Record<string, any>,
   };
   const c = client([
@@ -125,6 +127,14 @@ it("preserves correction provenance for the actual DriveNation CMS identity with
   await preserveExistingDealerListingIds(c.sb, [current]);
   expect(current.source_deal_id).toBe("4cdg-drivenation-com-1539");
   expect(current.options.sourceCorrection).toEqual(correction);
+  expect(current.vin).toBe(correction.vin);
+  const conflicting = {
+    ...current,
+    vin: "1HGCM82633A004352",
+    options: {} as Record<string, any>,
+  };
+  await preserveExistingDealerListingIds(c.sb, [conflicting]);
+  expect(conflicting.options.sourceCorrection).toBeUndefined();
   const different = {
     ...current,
     source_deal_id: "4cdg-drivenation-com-9999",
