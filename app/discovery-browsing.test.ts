@@ -54,6 +54,11 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).toContain('aria-controls="discovery-market-insights"');
     expect(page).toContain("Market insights and saved interests");
   });
+  it("keeps late activity recommendations below the main inventory", () => {
+    expect(page.indexOf("<ForYouRail")).toBeGreaterThan(
+      page.indexOf("visibleRails.map"),
+    );
+  });
   it("does not submit or navigate an incomplete account scope during hydration", () => {
     expect(page).toContain("if (!discoverReady) return;");
     expect(page).toContain("disabled={!discoverReady}");

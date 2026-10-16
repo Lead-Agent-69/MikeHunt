@@ -652,11 +652,6 @@ export default function DiscoverPage() {
           </div>
         </div>
       </section>
-      {/* For You: personal reco rail, hidden unless the backend is personalizing */}
-      {!isValidating && !error && hasRankingChoices && (
-        <ForYouRail flipDesk={flipDesk} eligibleDeals={eligibleDeals} />
-      )}
-
       {/* Body */}
       {(!discoverReady || isLoading) && !data ? (
         <div className="grid min-w-0 grid-cols-1 items-start gap-8 lg:grid-cols-2">
@@ -720,6 +715,10 @@ export default function DiscoverPage() {
             <Rail key={rail.key} rail={rail} />
           ))}
         </div>
+      )}
+      {/* Secondary recommendations must not shift the first inventory card while loading. */}
+      {!isValidating && !error && hasRankingChoices && (
+        <ForYouRail flipDesk={flipDesk} eligibleDeals={eligibleDeals} />
       )}
     </div>
   );

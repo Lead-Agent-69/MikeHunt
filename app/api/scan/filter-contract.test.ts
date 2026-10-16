@@ -60,7 +60,16 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
-  createServerComponentClient: () => ({ from: () => query() }),
+  createServerComponentClient: () => ({
+    from: () => query(),
+    rpc: (...args: unknown[]) => {
+      calls.push(["rpc", ...args]);
+      return query();
+    },
+  }),
+}));
+vi.mock("@/lib/geo/geocode", () => ({
+  geocodeZip: async () => ({ lat: 30.26, lng: -97.74 }),
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ from: () => query() }),
@@ -131,7 +140,13 @@ describe("Scan and facets query parity", () => {
         "2026-10-09T00:00:00.000Z",
       ]);
       expect(calls).toContainEqual(["neq", "images", "{}"]);
-      expect(calls).toContainEqual(["eq", "location_zip", "78701"]);
+      expect(calls).not.toContainEqual(["eq", "location_zip", "78701"]);
+      expect(calls).toContainEqual([
+        "rpc",
+        "inventory_within_radius",
+        { p_lat: 30.26, p_lng: -97.74, p_radius: 100 },
+        expect.any(Object),
+      ]);
       expect(
         calls.some((call) => call[0] === "not" && call[1] === "source"),
       ).toBe(false);

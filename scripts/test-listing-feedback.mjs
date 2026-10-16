@@ -36,6 +36,7 @@ try {
       if (select count(*) from public.inventory_within_radius(0,179.9,50)) <> 1 then raise exception 'DATELINE RADIUS FAILED'; end if;
       if (select count(*) from public.inventory_within_radius(89.9,0,50)) <> 1 then raise exception 'POLAR RADIUS FAILED'; end if;
       if has_function_privilege('anon','public.inventory_within_radius(double precision,double precision,double precision)','execute') or has_function_privilege('authenticated','public.inventory_within_radius(double precision,double precision,double precision)','execute') then raise exception 'PUBLIC RADIUS RPC'; end if;
+      if has_column_privilege('anon','public.deals','deal_margin','select') or has_column_privilege('authenticated','public.deals','deal_margin','select') then raise exception 'PUBLIC MARGIN COLUMN'; end if;
     end $$;`);
   sql(database, `insert into deals(id,ask_price,sell_estimate,options,deal_analysis)
     select gen_random_uuid(),10000,15000,'{"priceEvidence":{"kind":"asking","askingPrice":10000}}', '{"valuation":{"source":"comparables","resaleEvidence":true}}';

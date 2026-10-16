@@ -18,6 +18,6 @@ alter table public.deals add column deal_margin numeric generated always as (
 
 create index deals_active_margin_idx on public.deals (deal_margin desc nulls last, id)
   where active = true and deal_margin is not null;
-grant select (deal_margin) on public.deals to anon, authenticated, service_role;
+grant select (deal_margin) on public.deals to service_role;
 comment on column public.deals.deal_margin is 'Qualified estimate minus recorded cash asking price, before repair, fees, transport, tax or holding costs. Not net profit or a guaranteed resale value.';
 commit;
