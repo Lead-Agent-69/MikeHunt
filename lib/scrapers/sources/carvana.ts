@@ -83,6 +83,7 @@ async function fetchCarvanaPage(
   pageSize: number,
 ): Promise<any | null> {
   const res = await fetch(CARVANA_API, {
+    signal: AbortSignal.timeout(15000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,8 +105,11 @@ async function fetchCarvanaPage(
 // different make/model/year buckets instead of re-fetching the same 1000 cars.
 export async function scrapeCarvana(
   maxPages = 15,
-  pageSize = 50,
+  pageSize = 24,
 ): Promise<number> {
+  // The API echoes larger requested sizes in pagination but returns at most 24 cars. Using that
+  // echoed size as the next offset skips cars between pages. Keep the request within its real cap.
+  pageSize = Math.max(1, Math.min(24, Math.floor(pageSize) || 24));
   console.log("[Carvana] Starting API scrape...");
   const all: Partial<Deal>[] = [];
 
