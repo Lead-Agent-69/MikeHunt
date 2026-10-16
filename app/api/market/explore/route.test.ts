@@ -307,6 +307,51 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.summary.medianAsk).toBeNull();
   });
 
+  it("returns real interactive facets, a price-mileage cell and privacy-rounded map points", async () => {
+    state.rows = [
+      {
+        id: "facet-car",
+        source: "independent_dealer",
+        title: "2024 Ford Maverick",
+        make: "Ford",
+        model: "Maverick",
+        year: 2024,
+        ask_price: 14_999,
+        mileage: 32_000,
+        body_class: "Pickup truck",
+        fuel_type: "Gasoline",
+        transmission: "Automatic 8-speed",
+        drivetrain: "AWD",
+        color: "Blue",
+        condition: "clean_title",
+        seller_type: "dealer",
+        assembly_country: "United States",
+        availability_status: "on_lot",
+        lat: 38.6274,
+        lng: -90.1982,
+        last_seen_at: new Date().toISOString(),
+      },
+    ];
+    const body = await (await request("mode=all")).json();
+    expect(body.rows[0]).toMatchObject({
+      mapLat: 38.6,
+      mapLng: -90.2,
+      bodyClass: "Pickup truck",
+      fuelType: "Gasoline",
+    });
+    expect(body.facets.topModels).toContainEqual({ value: "Maverick", n: 1 });
+    expect(body.facets.bodyClasses).toContainEqual({ value: "Pickup", n: 1 });
+    expect(body.facets.fuelTypes).toContainEqual({ value: "Gas", n: 1 });
+    expect(body.facets.mapped).toBe(1);
+    expect(body.facets.priceMileageMatrix).toContainEqual({
+      priceFrom: 10_000,
+      priceTo: 19_999,
+      mileageFrom: 25_000,
+      mileageTo: 49_999,
+      n: 1,
+    });
+  });
+
   it("compares a cash budget to the disclosed full price, excluding deposits, payments and references", async () => {
     state.rows = [
       {

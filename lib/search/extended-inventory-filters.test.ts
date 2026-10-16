@@ -102,6 +102,12 @@ describe("shared extended inventory filters", () => {
       "engine",
       "%2.0%",
     ]);
+    expect(
+      record("availability=on_lot&assemblyCountry=United%20States"),
+    ).toEqual([
+      ["ilike", "assembly_country", "%United States%"],
+      ["ilike", "availability_status", "%on_lot%"],
+    ]);
   });
 
   it("recognizes explicit auction intent but not ordinary vehicle attributes", () => {

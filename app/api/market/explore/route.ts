@@ -30,6 +30,8 @@ import {
   marketDistance,
   summarizeMarket,
   MARKET_PRICE_KINDS,
+  type MarketPriceMileageCell,
+  type MarketRangeBand,
 } from "@/lib/market/explorer";
 import { geocodeZip } from "@/lib/geo/geocode";
 import { boundingBox } from "@/lib/geo/distance";
@@ -53,6 +55,64 @@ function csv(p: string | null): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+const MARKET_PRICE_BANDS: MarketRangeBand[] = [
+  { from: 1, to: 9_999, label: "Under $10k" },
+  { from: 10_000, to: 19_999, label: "$10k–$20k" },
+  { from: 20_000, to: 29_999, label: "$20k–$30k" },
+  { from: 30_000, to: 49_999, label: "$30k–$50k" },
+  { from: 50_000, to: 74_999, label: "$50k–$75k" },
+  { from: 75_000, to: null, label: "$75k+" },
+];
+
+const MARKET_MILEAGE_BANDS: MarketRangeBand[] = [
+  { from: 0, to: 24_999, label: "Under 25k" },
+  { from: 25_000, to: 49_999, label: "25k–50k" },
+  { from: 50_000, to: 74_999, label: "50k–75k" },
+  { from: 75_000, to: 99_999, label: "75k–100k" },
+  { from: 100_000, to: 149_999, label: "100k–150k" },
+  { from: 150_000, to: null, label: "150k+" },
+];
+
+function normalizedFacet(
+  value: unknown,
+  choices: readonly string[],
+): string | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const lower = value.toLowerCase();
+  return choices.find((choice) => lower.includes(choice.toLowerCase()));
+}
+
+function bodyFacet(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const lower = value.toLowerCase();
+  if (lower.includes("suv") || lower.includes("utility")) return "SUV";
+  if (lower.includes("pickup") || lower.includes("truck")) return "Pickup";
+  return normalizedFacet(value, [
+    "Sedan",
+    "Coupe",
+    "Convertible",
+    "Van",
+    "Wagon",
+    "Motorcycle",
+  ]);
+}
+
+function roundedMapPoint(latValue: unknown, lngValue: unknown) {
+  const lat = Number(latValue);
+  const lng = Number(lngValue);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  )
+    return null;
+  // One decimal is enough for a nationwide market view and avoids publishing a seller's raw pin.
+  return { lat: Number(lat.toFixed(1)), lng: Number(lng.toFixed(1)) };
 }
 
 export async function GET(req: NextRequest) {
@@ -208,7 +268,7 @@ export async function GET(req: NextRequest) {
           let q = supabase
             .from("deals")
             .select(
-              `id, year, make, model, trim, body_class, fuel_type, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
+              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
             )
             .eq("active", true);
           q = applyLiveAuctionWindow(applyCustomerInventory(q));
@@ -266,62 +326,73 @@ export async function GET(req: NextRequest) {
         );
         const capped = false;
 
-        let rows = (data || []).map((d: any) => ({
-          id: d.id,
-          title:
-            d.title ||
-            `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
-          source: d.source,
-          sourceUrl: vendorIdentity(d.source, d.source_url).href,
-          vin: d.vin || undefined,
-          images: Array.isArray(d.images)
-            ? d.images
-                .filter(
-                  (url: unknown) =>
-                    typeof url === "string" && /^https?:\/\//i.test(url),
-                )
-                .slice(0, 30)
-            : [],
-          imageUrl: d.images?.find(
-            (url: unknown) =>
-              typeof url === "string" && /^https?:\/\//i.test(url),
-          ),
-          locationCity: d.location_city || undefined,
-          firstSeenAt: d.first_seen_at || undefined,
-          lastSeenAt: d.last_seen_at || undefined,
-          auctionEndAt: d.auction_end_at || undefined,
-          price: sourcePriceContext(d),
-          distanceMiles: center
-            ? (marketDistance(center, d) ?? undefined)
-            : undefined,
-          year: d.year,
-          make: d.make,
-          model: d.model,
-          trim: d.trim,
-          askPrice: Number(d.ask_price || 0),
-          buyNowPrice:
-            d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
-          bodyClass: d.body_class || undefined,
-          mileage: d.mileage ?? undefined,
-          sellEstimate:
-            d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
-          profitEstimate: Number(d.true_net_profit || 0),
-          profitScore: Number(d.profit_score || 0),
-          dealVerdict: d.deal_verdict || undefined,
-          recommendedMaxBid:
-            d.recommended_max_bid != null
-              ? Number(d.recommended_max_bid)
+        let rows = (data || []).map((d: any) => {
+          const mapPoint = roundedMapPoint(d.lat, d.lng);
+          return {
+            id: d.id,
+            title:
+              d.title ||
+              `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
+            source: d.source,
+            sourceUrl: vendorIdentity(d.source, d.source_url).href,
+            vin: d.vin || undefined,
+            images: Array.isArray(d.images)
+              ? d.images
+                  .filter(
+                    (url: unknown) =>
+                      typeof url === "string" && /^https?:\/\//i.test(url),
+                  )
+                  .slice(0, 30)
+              : [],
+            imageUrl: d.images?.find(
+              (url: unknown) =>
+                typeof url === "string" && /^https?:\/\//i.test(url),
+            ),
+            locationCity: d.location_city || undefined,
+            mapLat: mapPoint?.lat,
+            mapLng: mapPoint?.lng,
+            firstSeenAt: d.first_seen_at || undefined,
+            lastSeenAt: d.last_seen_at || undefined,
+            auctionEndAt: d.auction_end_at || undefined,
+            price: sourcePriceContext(d),
+            distanceMiles: center
+              ? (marketDistance(center, d) ?? undefined)
               : undefined,
-          locationState: d.location_state || undefined,
-          condition: d.condition || undefined,
-          damageType: d.damage_type || undefined,
-          sellerType: d.seller_type || undefined,
-          roi:
-            d.deal_analysis?.roi != null
-              ? Number(d.deal_analysis.roi)
-              : undefined,
-          lane: dealLane(d),
-        }));
+            year: d.year,
+            make: d.make,
+            model: d.model,
+            trim: d.trim,
+            askPrice: Number(d.ask_price || 0),
+            buyNowPrice:
+              d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
+            bodyClass: d.body_class || undefined,
+            fuelType: d.fuel_type || undefined,
+            transmission: d.transmission || undefined,
+            drivetrain: d.drivetrain || undefined,
+            color: d.color || undefined,
+            assemblyCountry: d.assembly_country || undefined,
+            availabilityStatus: d.availability_status || undefined,
+            mileage: d.mileage ?? undefined,
+            sellEstimate:
+              d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
+            profitEstimate: Number(d.true_net_profit || 0),
+            profitScore: Number(d.profit_score || 0),
+            dealVerdict: d.deal_verdict || undefined,
+            recommendedMaxBid:
+              d.recommended_max_bid != null
+                ? Number(d.recommended_max_bid)
+                : undefined,
+            locationState: d.location_state || undefined,
+            condition: d.condition || undefined,
+            damageType: d.damage_type || undefined,
+            sellerType: d.seller_type || undefined,
+            roi:
+              d.deal_analysis?.roi != null
+                ? Number(d.deal_analysis.roi)
+                : undefined,
+            lane: dealLane(d),
+          };
+        });
 
         // Lane filter (computed, so done here).
         if (priceBasis === "cash")
@@ -361,6 +432,31 @@ export async function GET(req: NextRequest) {
         const laneCounts = count((r) => r.lane);
         const sellerCounts = count((r) => r.sellerType);
         const makeCounts = count((r) => r.make);
+        const modelCounts = count((r) => r.model);
+        const yearCounts = count((r) =>
+          Number.isFinite(Number(r.year)) ? String(r.year) : undefined,
+        );
+        const bodyCounts = count((r) => bodyFacet(r.bodyClass));
+        const fuelCounts = count((r) =>
+          normalizedFacet(r.fuelType, ["Gas", "Diesel", "Hybrid", "Electric"]),
+        );
+        const transmissionCounts = count((r) =>
+          normalizedFacet(r.transmission, ["Automatic", "Manual"]),
+        );
+        const drivetrainCounts = count((r) =>
+          normalizedFacet(r.drivetrain, ["AWD", "4WD", "FWD", "RWD"]),
+        );
+        const conditionCounts = count((r) => r.condition);
+        const sourceCounts = count((r) => r.source);
+        const colorCounts = count((r) => r.color);
+        const assemblyCounts = count((r) => r.assemblyCountry);
+        const availabilityCounts = count((r) => r.availabilityStatus);
+        const priceKindCounts = count((r) => r.price.kind);
+        const ranked = (counts: Record<string, number>, limit = 8) =>
+          Object.entries(counts)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .slice(0, limit)
+            .map(([value, n]) => ({ value, n }));
         const topMakes = Object.entries(makeCounts)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 25)
@@ -383,6 +479,65 @@ export async function GET(req: NextRequest) {
           const idx = Math.min(11, Math.floor(p / bw));
           priceHistogram[idx].n++;
         }
+        const mileages = rows
+          .map((r) => Number(r.mileage))
+          .filter((m) => Number.isFinite(m) && m >= 0);
+        const hiM = mileages.length ? Math.max(...mileages) : 0;
+        const mw =
+          hiM > 0
+            ? Math.max(25_000, Math.ceil(hiM / 10 / 25_000) * 25_000)
+            : 25_000;
+        const mileageHistogram: { from: number; to: number; n: number }[] = [];
+        for (let i = 0; i < 10; i++) {
+          const from = i * mw;
+          mileageHistogram.push({ from, to: from + mw - 1, n: 0 });
+        }
+        for (const mileage of mileages) {
+          const idx = Math.min(9, Math.floor(mileage / mw));
+          mileageHistogram[idx].n++;
+        }
+
+        const priceMileageMatrix: MarketPriceMileageCell[] =
+          MARKET_PRICE_BANDS.flatMap((priceBand) =>
+            MARKET_MILEAGE_BANDS.map((mileageBand) => ({
+              priceFrom: priceBand.from,
+              priceTo: priceBand.to,
+              mileageFrom: mileageBand.from,
+              mileageTo: mileageBand.to,
+              n: 0,
+            })),
+          );
+        for (const row of rows) {
+          const price = Number(row.askPrice);
+          const mileage = Number(row.mileage);
+          if (!(price > 0) || !Number.isFinite(mileage) || mileage < 0)
+            continue;
+          const priceIndex = MARKET_PRICE_BANDS.findIndex(
+            (band) =>
+              price >= band.from && (band.to == null || price <= band.to),
+          );
+          const mileageIndex = MARKET_MILEAGE_BANDS.findIndex(
+            (band) =>
+              mileage >= band.from && (band.to == null || mileage <= band.to),
+          );
+          if (priceIndex >= 0 && mileageIndex >= 0)
+            priceMileageMatrix[
+              priceIndex * MARKET_MILEAGE_BANDS.length + mileageIndex
+            ].n++;
+        }
+
+        const now = Date.now();
+        const freshness = [1, 7, 30].map((days) => ({
+          value: String(days),
+          n: rows.filter((row) => {
+            const seen = row.lastSeenAt ? Date.parse(row.lastSeenAt) : NaN;
+            return (
+              Number.isFinite(seen) &&
+              seen <= now + 300_000 &&
+              seen >= now - days * 86_400_000
+            );
+          }).length,
+        }));
         // Median profit per lane — a "where's the money by channel" bar for the viz.
         const profitByLane: Record<string, number[]> = {};
         for (const r of rows)
@@ -452,7 +607,37 @@ export async function GET(req: NextRequest) {
             lanes: laneCounts,
             sellerTypes: sellerCounts,
             topMakes,
+            topModels: ranked(modelCounts, 12),
+            years: Object.entries(yearCounts)
+              .sort((a, b) => Number(b[0]) - Number(a[0]))
+              .slice(0, 12)
+              .map(([value, n]) => ({ value, n })),
+            bodyClasses: ranked(bodyCounts),
+            fuelTypes: ranked(fuelCounts),
+            transmissions: ranked(transmissionCounts),
+            drivetrains: ranked(drivetrainCounts),
+            conditions: ranked(conditionCounts),
+            sources: ranked(sourceCounts, 12),
+            colors: ranked(colorCounts),
+            assemblyCountries: ranked(assemblyCounts),
+            availability: ranked(availabilityCounts),
+            freshness,
+            priceKinds: ranked(priceKindCounts),
             priceHistogram,
+            mileageHistogram,
+            priceBands: MARKET_PRICE_BANDS,
+            mileageBands: MARKET_MILEAGE_BANDS,
+            priceMileageMatrix,
+            missingPrice: rows.filter((row) => !(Number(row.askPrice) > 0))
+              .length,
+            missingMileage: rows.filter(
+              (row) =>
+                !Number.isFinite(Number(row.mileage)) ||
+                Number(row.mileage) < 0,
+            ).length,
+            mapped: rows.filter(
+              (row) => row.mapLat != null && row.mapLng != null,
+            ).length,
             laneProfit,
             laneColors: LANE_COLORS,
           },

@@ -8,6 +8,11 @@ import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
 import { USHeatmap } from "@/components/market/USHeatmap";
 import { MarketVisualizers } from "@/components/market/MarketVisualizers";
+import {
+  MarketFacetStudio,
+  type MarketFacetKey,
+} from "@/components/market/MarketFacetStudio";
+import { MarketResultsMap } from "@/components/market/MarketResultsMap";
 import { MarketListingCard } from "@/components/market/MarketListingCard";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { MarketLocation } from "@/components/market/MarketLocation";
@@ -30,6 +35,7 @@ import {
   X,
   LayoutGrid,
   List,
+  Map as MapIcon,
   ArrowUpRight,
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
@@ -171,6 +177,7 @@ export default function MarketPage() {
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "table">("grid");
+  const [showMap, setShowMap] = React.useState(true);
   const set = (patch: Partial<Filters>) => {
     setPage(0);
     setF((p) => ({
@@ -375,6 +382,59 @@ export default function MarketPage() {
     priceKind: "Price type",
   };
 
+  const selectFacet = (key: MarketFacetKey, value: string) => {
+    const selectDetail = (detailKey: string) => {
+      setPage(0);
+      setDetails((current) => ({
+        ...current,
+        [detailKey]: current[detailKey] === value ? "" : value,
+      }));
+    };
+    if (key === "make") {
+      set({ makes: toggle(f.makes, value), model: "" });
+      return;
+    }
+    if (key === "model") {
+      set({ model: f.model === value ? "" : value });
+      return;
+    }
+    if (key === "year") {
+      const active = f.yearMin === value && f.yearMax === value;
+      set({ yearMin: active ? "" : value, yearMax: active ? "" : value });
+      return;
+    }
+    if (key === "condition") {
+      set({ conditions: toggle(f.conditions, value) });
+      return;
+    }
+    if (key === "source") {
+      set({ sources: toggle(f.sources, value) });
+      return;
+    }
+    if (key === "sellerType") {
+      set({ sellerTypes: toggle(f.sellerTypes, value) });
+      return;
+    }
+    if (key === "priceKind") {
+      set({ priceKind: f.priceKind === value ? "" : value });
+      return;
+    }
+    const detailKeys: Partial<Record<MarketFacetKey, string>> = {
+      body: "body",
+      fuelType: "fuelType",
+      transmission: "transmission",
+      drivetrain: "drivetrain",
+      color: "color",
+      assemblyCountry: "assemblyCountry",
+      availability: "availability",
+      freshness: "seenWithin",
+      priceAvailability: "pricePolicy",
+      mileageAvailability: "mileagePolicy",
+    };
+    const detailKey = detailKeys[key];
+    if (detailKey) selectDetail(detailKey);
+  };
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
@@ -520,6 +580,51 @@ export default function MarketPage() {
           value={f}
           onChange={set}
           search={{ value: f.q, onChange: (q) => set({ q }) }}
+        />
+      )}
+      {ready && !error && (
+        <MarketFacetStudio
+          facets={facets}
+          total={total}
+          busy={busy}
+          selected={{
+            make: f.makes,
+            model: f.model,
+            year: f.yearMin && f.yearMin === f.yearMax ? f.yearMin : undefined,
+            body: details.body,
+            fuelType: details.fuelType,
+            transmission: details.transmission,
+            drivetrain: details.drivetrain,
+            condition: f.conditions,
+            source: f.sources,
+            color: details.color,
+            sellerType: f.sellerTypes,
+            assemblyCountry: details.assemblyCountry,
+            availability: details.availability,
+            freshness: details.seenWithin,
+            priceKind: f.priceKind,
+            priceAvailability: details.pricePolicy,
+            mileageAvailability: details.mileagePolicy,
+            priceMin: f.priceMin,
+            priceMax: f.priceMax,
+            mileageMin: f.minMileage,
+            mileageMax: f.mileageMax,
+          }}
+          onFacetSelect={selectFacet}
+          onMatrixSelect={(priceFrom, priceTo, mileageFrom, mileageTo) => {
+            const active =
+              f.priceMin === String(priceFrom) &&
+              f.priceMax === (priceTo == null ? "" : String(priceTo)) &&
+              f.minMileage === String(mileageFrom) &&
+              f.mileageMax === (mileageTo == null ? "" : String(mileageTo));
+            set({
+              priceBasis: "advertised",
+              priceMin: active ? "" : String(priceFrom),
+              priceMax: active || priceTo == null ? "" : String(priceTo),
+              minMileage: active ? "" : String(mileageFrom),
+              mileageMax: active || mileageTo == null ? "" : String(mileageTo),
+            });
+          }}
         />
       )}
       <button
@@ -909,6 +1014,15 @@ export default function MarketPage() {
               >
                 <List className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                aria-label="Toggle results map"
+                aria-pressed={showMap}
+                onClick={() => setShowMap((current) => !current)}
+                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${showMap ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+              >
+                <MapIcon className="h-4 w-4" />
+              </button>
             </div>
             <select
               aria-label="Sort market results"
@@ -965,6 +1079,9 @@ export default function MarketPage() {
                   </summary>
                   <USHeatmap />
                 </details>
+              )}
+              {showMap && rows.length > 0 && (
+                <MarketResultsMap rows={rows} flipDesk={flipDesk} />
               )}
             </div>
           )}

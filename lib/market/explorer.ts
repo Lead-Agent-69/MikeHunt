@@ -22,7 +22,17 @@ export type MarketListing = {
   imageUrl?: string;
   locationCity?: string;
   locationState?: string;
+  /** Rounded source coordinates for the market map; never expose the raw seller pin. */
+  mapLat?: number;
+  mapLng?: number;
   distanceMiles?: number;
+  bodyClass?: string;
+  fuelType?: string;
+  transmission?: string;
+  drivetrain?: string;
+  color?: string;
+  assemblyCountry?: string;
+  availabilityStatus?: string;
   condition?: string;
   damageType?: string;
   sellerType?: string;
@@ -35,6 +45,49 @@ export type MarketListing = {
   profitScore: number;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;
+};
+
+export type MarketFacetCount = { value: string; n: number };
+export type MarketRangeBand = {
+  from: number;
+  to: number | null;
+  label: string;
+};
+export type MarketPriceMileageCell = {
+  priceFrom: number;
+  priceTo: number | null;
+  mileageFrom: number;
+  mileageTo: number | null;
+  n: number;
+};
+export type MarketFacets = {
+  states?: Record<string, number>;
+  lanes?: Record<string, number>;
+  sellerTypes?: Record<string, number>;
+  topMakes?: { make: string; n: number }[];
+  topModels?: MarketFacetCount[];
+  years?: MarketFacetCount[];
+  bodyClasses?: MarketFacetCount[];
+  fuelTypes?: MarketFacetCount[];
+  transmissions?: MarketFacetCount[];
+  drivetrains?: MarketFacetCount[];
+  conditions?: MarketFacetCount[];
+  sources?: MarketFacetCount[];
+  colors?: MarketFacetCount[];
+  assemblyCountries?: MarketFacetCount[];
+  availability?: MarketFacetCount[];
+  freshness?: MarketFacetCount[];
+  priceKinds?: MarketFacetCount[];
+  priceHistogram?: { from: number; to: number; n: number }[];
+  mileageHistogram?: { from: number; to: number; n: number }[];
+  priceBands?: MarketRangeBand[];
+  mileageBands?: MarketRangeBand[];
+  priceMileageMatrix?: MarketPriceMileageCell[];
+  missingPrice?: number;
+  missingMileage?: number;
+  mapped?: number;
+  laneProfit?: Record<string, number>;
+  laneColors?: Record<string, string>;
 };
 
 export function marketDistance(

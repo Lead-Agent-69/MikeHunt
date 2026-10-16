@@ -2,13 +2,7 @@
 
 import React from "react";
 import { Mono } from "@/components/shared/Mono";
-
-export interface MarketFacets {
-  priceHistogram?: { from: number; to: number; n: number }[];
-  lanes?: Record<string, number>;
-  laneProfit?: Record<string, number>;
-  laneColors?: Record<string, string>;
-}
+import type { MarketFacets } from "@/lib/market/explorer";
 
 interface MarketVisualizersProps {
   facets?: MarketFacets;
