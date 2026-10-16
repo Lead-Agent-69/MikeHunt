@@ -1149,6 +1149,15 @@ storage slugs, and source/mileage selections no longer inflate the additional
 filter count. Desktop Discover collections share two columns rather than giving
 a sparse one-card collection an entire row; mobile retains its horizontal rails.
 
+Dealer target continuity: map DriveNation's real hostname to its CMS identity and
+human label. A requested dealer host now chooses only the curated runner, and
+the curated worker filters explicit hosts/IDs before fetching, including hosts
+not present in the older short identity map. Unresolved targets match no catalog
+sites instead of falling back to all dealers. Preserve a verified sourceCorrection
+receipt when reusing an existing dealer record, but never copy its old price
+evidence into a new observation. Source collection receipts still distinguish
+parsed, accepted and current matching listings; no statewide completeness claim.
+
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.
    A configured adapter or a stored row count is not verified unique-car coverage.
