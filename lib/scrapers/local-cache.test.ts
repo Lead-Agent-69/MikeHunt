@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createStorageBudgetChecker } from "./storage-budget";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
   LocalScraperCache,
@@ -9,9 +10,40 @@ import {
   listingHash,
   touchIsDue,
   listingIdBatches,
+  compactCacheEntries,
 } from "./local-cache";
 
 const tempDirs: string[] = [];
+describe("local cache compaction", () => {
+  it("expires previews and stale synced fingerprints but keeps unsynced inventory and sold evidence", () => {
+    const now = Date.parse("2026-10-11T00:00:00Z");
+    const old = {
+      hash: "h",
+      synced: false,
+      lastSeenAt: "2025-01-01T00:00:00Z",
+      data: { vin: "queued" },
+    };
+    const entries = {
+      "scan-preview|old": { ...old },
+      "dealer|synced": { ...old, synced: true },
+      "dealer|queued": { ...old },
+      "ebay-sold|old": { ...old },
+      "dealer|recent": {
+        ...old,
+        synced: true,
+        lastSeenAt: "2026-10-10T00:00:00Z",
+      },
+      "dealer|invalid": { ...old, synced: true, lastSeenAt: "unknown" },
+    };
+    expect(compactCacheEntries(entries, now)).toBe(2);
+    expect(Object.keys(entries)).toEqual([
+      "dealer|queued",
+      "ebay-sold|old",
+      "dealer|recent",
+      "dealer|invalid",
+    ]);
+  });
+});
 afterEach(async () => {
   vi.useRealTimers();
   await Promise.all(
@@ -416,6 +448,69 @@ describe("LocalScraperCache", () => {
     expect(cache.getQuota().updates).toBe(0);
   });
 
+  it("releases the serialized writer after a hanging size probe and preserves buffered observations", async () => {
+    let clock = 0;
+    const check = createStorageBudgetChecker(() => clock);
+    const { cache, dir } = await makeCache({
+      allowInsert: async (client) => (await check(client)).allowInsert,
+    });
+    const sb = fakeSupabase();
+    const abortSignal = vi.fn().mockReturnValue(new Promise(() => {}));
+    const rpc = vi
+      .fn()
+      .mockReturnValueOnce({ abortSignal })
+      .mockReturnValue({
+        abortSignal: vi
+          .fn()
+          .mockResolvedValue({ data: 100_000_000, error: null }),
+      });
+    const client = { ...sb.client, rpc } as any;
+    vi.useFakeTimers();
+    const first = cache.persistRows([row("hung-first")], client, "*");
+    await vi.waitFor(() => expect(abortSignal).toHaveBeenCalledTimes(1));
+    const second = cache.persistRows([row("queued-second")], client, "*");
+    await vi.advanceTimersByTimeAsync(5000);
+    await Promise.all([first, second]);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|hung-first"].synced).toBe(false);
+    expect(disk.entries["test|queued-second"].synced).toBe(false);
+    expect(cache.getQuota().inserts).toBe(0);
+    expect(abortSignal.mock.calls[0][0].aborted).toBe(true);
+    clock = 60_000;
+    await cache.persistRows(
+      [row("hung-first"), row("queued-second")],
+      client,
+      "*",
+    );
+    expect(cache.getQuota().inserts).toBe(2);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("buffers size-blocked inserts without losing newer observations, while existing updates continue", async () => {
+    let allow = false;
+    const { cache, dir } = await makeCache({ allowInsert: async () => allow });
+    const sb = fakeSupabase([row("existing")]);
+    const first = await cache.persistRows(
+      [row("existing", 9000), row("new")],
+      sb.client,
+      "id",
+    );
+    expect(first.inserts).toBe(0);
+    expect(first.updates).toBe(1);
+    expect(sb.rows.has("test|new")).toBe(false);
+    await cache.persistRows([row("new", 8000)], sb.client, "id");
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|new"].synced).toBe(false);
+    expect(disk.entries["test|new"].data.ask_price).toBe(8000);
+    allow = true;
+    expect(
+      (await cache.persistRows([row("new", 8000)], sb.client, "id")).inserts,
+    ).toBe(1);
+  });
   it("bounds long listing-ID reads by encoded URL size and persists all accepted rows", async () => {
     const { cache } = await makeCache({ maxDailyInserts: 1000 });
     const db = fakeSupabase();

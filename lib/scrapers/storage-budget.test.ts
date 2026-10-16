@@ -1,0 +1,88 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createStorageBudgetChecker } from "./storage-budget";
+afterEach(() => vi.useRealTimers());
+const result = (value: unknown) => ({
+  abortSignal: vi.fn().mockResolvedValue(value),
+});
+describe("database size budget", () => {
+  it("warns at 350 MB and stops new inserts at 450 MB", async () => {
+    for (const [bytes, state, allowInsert] of [
+      [349_000_000, "normal", true],
+      [350_000_000, "warning", true],
+      [450_000_000, "critical", false],
+    ] as const) {
+      const rpc = vi
+        .fn()
+        .mockReturnValue(result({ data: String(bytes), error: null }));
+      expect(await createStorageBudgetChecker()({ rpc } as any)).toEqual({
+        bytes,
+        state,
+        allowInsert,
+      });
+    }
+  });
+  it("fails closed on missing RPC/errors/malformed measurements", async () => {
+    for (const response of [
+      { data: null, error: null },
+      { data: {}, error: null },
+      { data: 0.5, error: null },
+      { data: "12.5", error: null },
+      { data: 64, error: { message: "denied" } },
+    ]) {
+      expect(
+        (
+          await createStorageBudgetChecker()({
+            rpc: vi.fn().mockReturnValue(result(response)),
+          } as any)
+        ).allowInsert,
+      ).toBe(false);
+    }
+  });
+  it("caches successful measurements and retries failed ones sooner", async () => {
+    let now = 0;
+    const check = createStorageBudgetChecker(() => now);
+    const rpc = vi
+      .fn()
+      .mockReturnValueOnce(result({ data: null, error: {} }))
+      .mockReturnValue(result({ data: 100_000_000, error: null }));
+    const client = { rpc } as any;
+    await check(client);
+    await check(client);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    now = 60_000;
+    expect((await check(client)).allowInsert).toBe(true);
+    now = 120_000;
+    await check(client);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+  it("fails closed after five seconds even if a transport ignores abort, then recovers", async () => {
+    vi.useFakeTimers();
+    let now = 0;
+    let finish!: (value: unknown) => void;
+    const pending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const abortSignal = vi.fn().mockReturnValue(pending);
+    const rpc = vi
+      .fn()
+      .mockReturnValueOnce({ abortSignal })
+      .mockReturnValue(result({ data: 100_000_000, error: null }));
+    const check = createStorageBudgetChecker(() => now);
+    const first = check({ rpc } as any);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await first).toEqual({
+      bytes: null,
+      state: "unknown",
+      allowInsert: false,
+    });
+    expect(abortSignal.mock.calls[0][0].aborted).toBe(true);
+    expect((await check({ rpc } as any)).allowInsert).toBe(false);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    now = 60_000;
+    expect((await check({ rpc } as any)).allowInsert).toBe(true);
+    finish({ data: 490_000_000, error: null });
+    await Promise.resolve();
+    expect((await check({ rpc } as any)).bytes).toBe(100_000_000);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+});

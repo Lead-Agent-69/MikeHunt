@@ -536,11 +536,12 @@ It does not close the remaining acceptance items below.
 ### 1. Protect Ownership And Release Operations (P0)
 
 - [ ] Obtain exact-head Ren review for #360 and sensitive security changes.
-      Apply the reviewed retention migration before its dependent web rollout.
+      Apply the reviewed retention migration before its dependent storage-guard worker rollout.
 - [ ] Verify all six owner references: Saved, watchlist, inventory, outcomes,
       dealer purchases and alert matches. Prove unavailable Saved survives pruning.
 - [ ] Replace/disable the two unsafe legacy deletion jobs through the approved
-      change path. They were active on inspection; no pause or migration is claimed.
+      change path. Earlier active-job inspection was superseded by their October 13
+      safety pause; a reviewed replacement and hosted survival proof remain open.
 - [ ] Verify hosted migration history, grants, RLS and authorization against the
       dependency queue. Repair failed checks on current main before any merge.
 - [ ] Recheck advisor findings, hosted password minimum 12, compromised-password
@@ -804,6 +805,24 @@ Related evidence:
 - Current live push status reports `configured=false`. Security advisor returned 11 findings.
   No new login was created when the newer Vercel dry-run CLI lacked existing credentials; upload
   exclusions are tested, but a CLI manifest receipt is not claimed.
+
+## Protected Retention Refresh (October 12)
+
+- #360 refreshed against main #384 without replacing its stronger logger, tests or upload guards.
+- Reproduced four lost-observation regressions before fixing them: already-synced vehicles blocked
+  by pause/update budget, classification failures and failed upserts. New/changed payloads now reach
+  atomic local storage before any remote request. Confirmed quota counters are not reset.
+- Malformed fractional size readings now fail closed. Missing Supabase configuration returns
+  cron 503, not misleading HTTP 200. No raw-delete fallback is added.
+- Removed unconditional VIN-price-history aging from the replacement cron to preserve research.
+  A bounded owner-aware history archive/purge policy remains a separate design and capacity gate.
+- Forty-seven focused regressions passed. The real local schema migration/tests ran inside
+  BEGIN/ROLLBACK. Service-only grants and two-session save/prune/direct-delete races passed on a
+  uniquely named disposable database, which was removed. No hosted migration/pruning performed.
+- All six reference-table lookup indexes already exist on hosted; do not add duplicate indexes.
+- Exact-head independent database review, approved hosted apply before dependent web release,
+  operator worker rollout and real cron/Saved/usage receipts remain mandatory. These local tests
+  do not certify production load, provider limits or every transaction isolation level.
 
 ## Local Collector Rollout Receipt (October 12)
 
@@ -1311,3 +1330,38 @@ parsed, accepted and current matching listings; no statewide completeness claim.
    quotas is not permission for a commercial launch. Confirm the intended launch
    qualifies or choose compliant hosting before business rollout; do not silently
    upgrade a paid plan or describe free-tier headroom as commercial readiness.
+
+## Worker And Retention Review Preparation (October 13)
+
+- Zeus scraper now runs exact reviewed main `c6c63d5`, healthy, using a tracked-file
+  archive and the already-installed runtime. Code/lock hashes match the archive;
+  no local credentials or untracked operations scripts were baked into the image.
+  Original F: cache/profile/log mounts, quota state and source permissions remain.
+  Docker logs remain bounded to three 10 MB files. Other services were untouched.
+- Persisted counters survived restart: 1,000 inserts / 550 updates / zero touches.
+  The 80% guard pauses at 1,000 of 1,250 permitted daily inserts. No forced sweep,
+  quota reset or budget increase was used. Fresh writes from the new revision
+  after a natural budget reset remain an acceptance requirement.
+- Read-only hosted inventory: 9,433 stored / 8,266 active rows, 396 with multiple
+  distinct photo URLs, 32 repeated VIN groups. Repeated VIN groups are candidates
+  for investigation, not permission to merge or delete referenced vehicles.
+  Cars.com and Autotrader reported successful empty runs; several historical
+  large-source rows have no recent observation. Run-found counts are not saves,
+  advertised amounts are not necessarily cash prices, and URL count is not
+  source-gallery completeness. Source coverage is not certified by this audit.
+- Hosted size: 109,563,027 bytes. Protected prune/storage RPCs remain absent; both
+  unsafe legacy deletion jobs remain inactive, market aggregation active. No
+  hosted migration, grant change or pruning performed.
+- #360 refreshed against current main, retaining newer observation durability,
+  exact freshness-count recovery, worker logging, and UI changes. Thirty-six
+  focused regressions passed on Node 24. Actual local schema/reference/grant/cron
+  tests rolled back; service-role and two-session races passed on a disposable
+  database that was removed. Independent exact-head review is still required.
+- Production dependency audit reports zero vulnerabilities. Full dependency
+  audit reports 11 high findings in development-tool chains; record the worker's
+  include-dev installation and examine reachability before choosing surgical
+  fixes. Do not use automatic major downgrades or the parked mega update.
+- Full gate and exact refreshed-head CI receipts belong on #360. Do not merge or
+  apply its dependent cleanup until independent sign-off and targeted hosted
+  migration verification. A local F: rollout does not expand cloud free-tier
+  allowances or resolve licensed-feed/dealer permission requirements.
