@@ -68,6 +68,33 @@ FROM donors
 ON CONFLICT (source, source_deal_id) DO UPDATE
 SET last_seen_at = now(), active = true
 WHERE deals.options->>'qa_fixture' = 'local-qa-v1';
+WITH donor AS (
+  SELECT images FROM public.deals WHERE cardinality(images) > 0
+  ORDER BY id LIMIT 1
+)
+INSERT INTO public.deals
+  (source, source_deal_id, source_url, title, year, make, model, condition,
+   ask_price, sell_estimate, mileage, images, location_state, location_city,
+   lat, lng, active, options, deal_analysis, first_seen_at, last_seen_at)
+SELECT 'independent_dealer', 'local-qa-v1-radius-' || sample.code,
+  'https://example.test/local-qa/radius/' || sample.code,
+  '[Local QA fixture] WalkthroughRadius ' || sample.city,
+  2021, 'Ford', 'Escape', 'clean_title', sample.ask, 16000, 45000, donor.images,
+  sample.state, sample.city, sample.lat, sample.lng, true,
+  jsonb_build_object('qa_fixture','local-qa-v1','priceEvidence',
+    jsonb_build_object('kind','asking','askingPrice',sample.ask)),
+  '{"valuation":{"source":"comparables","compCount":3,"compKind":"ask","compScope":"state","cleanComp":16000,"mileageMult":1,"titleMult":1,"resaleEvidence":true}}'::jsonb,
+  now(), now()
+FROM donor CROSS JOIN (VALUES
+  ('mo','St. Louis','MO',38.63,-90.20,12000),
+  ('il','Belleville','IL',38.52,-89.98,10000),
+  ('far','Chicago','IL',41.88,-87.63,9000)
+) sample(code,city,state,lat,lng,ask)
+ON CONFLICT (source, source_deal_id) DO UPDATE
+SET last_seen_at=now(), active=true, ask_price=excluded.ask_price,
+    sell_estimate=excluded.sell_estimate, options=excluded.options,
+    deal_analysis=excluded.deal_analysis
+WHERE deals.options->>'qa_fixture'='local-qa-v1';
 SELECT count(*) AS synthetic_local_qa_vehicles FROM public.deals
 WHERE options->>'qa_fixture' = 'local-qa-v1';
 COMMIT;

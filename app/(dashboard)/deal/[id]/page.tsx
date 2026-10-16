@@ -52,6 +52,7 @@ import { useDealDwellSignal } from "@/hooks/useDealDwellSignal";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
+import { ReportListing } from "@/components/deal/ReportListing";
 import { ForecastPanel } from "@/components/deal/ForecastPanel";
 import { ScoreBreakdown } from "@/components/deal/ScoreBreakdown";
 import { PriceSparkline } from "@/components/deal/PriceSparkline";
@@ -1020,6 +1021,7 @@ export default function DealPage({
               Find similar
             </Button>
           </div>
+          <ReportListing key={id} listingId={id} />
         </div>
       </div>
 

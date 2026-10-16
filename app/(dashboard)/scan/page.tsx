@@ -5295,6 +5295,14 @@ function ScanPageInner() {
 
       <MarketSearchHandoff query={swrKey.split("?")[1] || ""} />
 
+      {sort === "margin" && (
+        <p className="text-sm text-[var(--t2)]" role="status">
+          Price gap = recorded estimate minus cash asking price. Repairs, fees,
+          taxes and transport are not deducted. Unverified prices and valuations
+          are excluded.
+        </p>
+      )}
+
       {/* ── Results grid ── */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
