@@ -16,10 +16,13 @@ test.describe("Market Explorer home", () => {
     await expect(
       page.getByRole("heading", { name: "Market Explorer", exact: true }),
     ).toBeVisible();
+    await expect(page.locator("article").first()).toBeVisible();
+    await page
+      .getByText("Market intelligence & AI · current search", { exact: true })
+      .click();
     await expect(
       page.getByRole("region", { name: "Market intelligence" }),
     ).toBeVisible();
-    await expect(page.locator("article").first()).toBeVisible();
     const nav = page.getByRole("navigation", {
       name: testInfo.project.name.startsWith("mobile")
         ? "Primary mobile navigation"

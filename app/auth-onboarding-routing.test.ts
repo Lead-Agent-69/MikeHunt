@@ -17,7 +17,7 @@ describe("new-account onboarding routes", () => {
 
     expect(login).toContain("new URLSearchParams(window.location.search)");
     expect(login).toContain('useState("/market")');
-    expect(login).toContain('safeNextPath(params.get("next"))');
+    expect(login).toContain('safeNextPath(params.get("next"), "/market")');
     expect(login).toContain(
       "postLoginDestination(account.onboarded === true, next)",
     );

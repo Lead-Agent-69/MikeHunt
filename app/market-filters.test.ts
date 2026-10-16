@@ -108,7 +108,11 @@ describe("Market filter journey", () => {
   });
 
   it("offers mobile filter disclosure, removable filters and reachable result pages", async () => {
-    window.history.replaceState(null, "", "/market?zip=78701&sources=copart");
+    window.history.replaceState(
+      null,
+      "",
+      "/market?listingZip=78701&sources=copart",
+    );
     await render();
     const toggle = host.querySelector<HTMLButtonElement>(
       '[aria-controls="market-filter-panel"]',
@@ -125,11 +129,11 @@ describe("Market filter journey", () => {
     act(() =>
       host
         .querySelector<HTMLButtonElement>(
-          '[aria-label="Remove ZIP code filter"]',
+          '[aria-label="Remove Listing ZIP filter"]',
         )!
         .click(),
     );
-    expect(window.location.search).not.toContain("zip=");
+    expect(window.location.search).not.toContain("listingZip=");
     expect(window.location.search).toContain("page=0");
     act(() =>
       host

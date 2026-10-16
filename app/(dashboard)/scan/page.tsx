@@ -506,6 +506,7 @@ function StatusStrip({
   results,
   lastScan,
   hasData,
+  approximate = false,
 }: {
   loading: boolean;
   error: string | null;
@@ -513,6 +514,7 @@ function StatusStrip({
   results: ScanResult[];
   lastScan: Date | null;
   hasData: boolean;
+  approximate?: boolean;
 }) {
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -564,7 +566,9 @@ function StatusStrip({
             <span style={{ color: "var(--amber)" }}>{copy.count}</span>{" "}
           </>
         )}
-        {copy.countLabel}
+        {approximate && copy.count !== null
+          ? "area candidates"
+          : copy.countLabel}
       </span>
 
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
@@ -4639,6 +4643,7 @@ function ScanPageInner() {
         results={results}
         lastScan={lastScan}
         hasData={swrData !== undefined}
+        approximate={Boolean(swrData?.totalIsApproximate)}
       />
 
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4965,7 +4970,7 @@ function ScanPageInner() {
             <div className="ml-auto flex items-center gap-3 shrink-0">
               <span className="text-xs text-[var(--t3)] font-mono">
                 {filteredResults.length} shown / {total.toLocaleString()}{" "}
-                matching
+                {swrData?.totalIsApproximate ? "area candidates" : "matching"}
               </span>
               <div
                 className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"

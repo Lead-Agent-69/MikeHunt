@@ -94,6 +94,11 @@ export function MarketListingCard({
         <span className="absolute left-3 top-3 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white">
           {vendor.label}
         </span>
+        {photos[index]?.includes("carvana.io/stockimages/") && (
+          <span className="absolute bottom-3 left-3 rounded-md bg-black/75 px-2 py-1 text-[10px] text-white">
+            Source stock photo
+          </span>
+        )}
         <button
           type="button"
           disabled={saved.busy}

@@ -95,6 +95,19 @@ SET last_seen_at=now(), active=true, ask_price=excluded.ask_price,
     sell_estimate=excluded.sell_estimate, options=excluded.options,
     deal_analysis=excluded.deal_analysis
 WHERE deals.options->>'qa_fixture'='local-qa-v1';
+INSERT INTO public.deals
+  (source,source_deal_id,source_url,title,year,make,model,condition,ask_price,
+   images,location_state,location_city,lat,lng,active,options,first_seen_at,last_seen_at,auction_end_at)
+SELECT 'copart','local-qa-v1-current-bid','https://example.test/local-qa/current-bid',
+  '[Local QA fixture] 2021 Ford Escape auction',2021,'Ford','Escape','repairable',7500,
+  images,'MO','St. Louis',38.63,-90.20,true,
+  jsonb_build_object('qa_fixture','local-qa-v1','priceEvidence',
+    jsonb_build_object('kind','current_bid','currentBid',7500,'listedAmount',7500)),
+  now(),now(),now()+interval '2 days'
+FROM public.deals WHERE cardinality(images)>0 ORDER BY id LIMIT 1
+ON CONFLICT (source,source_deal_id) DO UPDATE
+SET last_seen_at=now(), active=true,auction_end_at=excluded.auction_end_at
+WHERE deals.options->>'qa_fixture'='local-qa-v1';
 SELECT count(*) AS synthetic_local_qa_vehicles FROM public.deals
 WHERE options->>'qa_fixture' = 'local-qa-v1';
 COMMIT;

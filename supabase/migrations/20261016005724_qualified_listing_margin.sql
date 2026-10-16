@@ -1,6 +1,6 @@
 begin;
 set local lock_timeout = '2s';
-set local statement_timeout = '15s';
+set local statement_timeout = '60s';
 
 -- Only a recorded cash asking price plus independent valuation evidence can form this gap.
 alter table public.deals add column deal_margin numeric generated always as (

@@ -14,6 +14,13 @@ import {
 import { normalizeVin } from "@/lib/vehicle/vin";
 import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
+import {
+  resolveZipRadius,
+  parseZipRadius,
+  applyZipRadiusBox,
+  filterZipRadiusRows,
+  ZIP_LOOKUP_ERROR,
+} from "@/lib/search/zip-radius";
 
 // GET /api/deals/lane?vins=VIN1,VIN2 — deals for the auction lane / run-list offline cache.
 // Replaces the browser's direct anon-key select("*") on deals (column privileges now block that).
@@ -102,10 +109,18 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createServerComponentClient();
+    const zipRadius = await resolveZipRadius(supabase, scope);
+    if (parseZipRadius(scope) && !zipRadius)
+      return withNoStore(
+        NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 }),
+      );
     let q = applyInventoryViewScope(
-      supabase.from("deals").select(LANE_COLUMNS),
+      supabase
+        .from("deals")
+        .select(zipRadius ? `${LANE_COLUMNS}, lat, lng` : LANE_COLUMNS),
       scope,
     );
+    if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
     q = vins
       ? q.in("vin", vins)
       : q
@@ -118,7 +133,9 @@ export async function GET(req: NextRequest) {
     return withNoStore(
       NextResponse.json({
         deals: listingsForDesk(
-          (data || []) as unknown as Record<string, unknown>[],
+          filterZipRadiusRows(data || [], zipRadius).map(
+            ({ lat: _lat, lng: _lng, ...row }: any) => row,
+          ) as Record<string, unknown>[],
           flipDesk,
         ),
         deskAccess: flipDesk ? "flip" : "personal",

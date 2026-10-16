@@ -59,7 +59,9 @@ export const MARKET_PRICE_KINDS = [
 ] as const;
 
 export function parseMarketLocation(params: URLSearchParams) {
-  const near = (params.get("near") || "").trim().slice(0, 100);
+  const near = (params.get("near") || params.get("zip") || "")
+    .trim()
+    .slice(0, 100);
   const rawRadius = params.get("radius");
   const radius =
     rawRadius == null || rawRadius === "" ? null : Number(rawRadius);

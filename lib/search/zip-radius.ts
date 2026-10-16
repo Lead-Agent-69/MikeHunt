@@ -16,6 +16,26 @@ export interface ZipRadius {
   box: ReturnType<typeof boundingBox>;
 }
 
+export const ZIP_LOOKUP_ERROR =
+  "We couldn't locate that ZIP code. Check it and try again; your search has not been broadened.";
+
+/** Test the circle before redacting coordinates; SQL only narrows to its bounding box. */
+export function filterZipRadiusRows<T extends { lat?: unknown; lng?: unknown }>(
+  rows: T[],
+  zr: ZipRadius | null,
+): T[] {
+  if (!zr) return rows;
+  return rows.filter((row) => {
+    if (row.lat == null || row.lng == null) return false;
+    const lat = Number(row.lat);
+    const lng = Number(row.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return false;
+    const distance = haversineMiles(zr.lat, zr.lng, lat, lng);
+    return distance != null && distance <= zr.radius;
+  });
+}
+
 /** Geocode the ZIP (cache-first, one lookup at most) and build the SQL pre-filter box. */
 export async function resolveZipRadius(
   supabase: SupabaseClient,

@@ -58,6 +58,10 @@ vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: true }),
   tooManyRequests: vi.fn(),
 }));
+vi.mock("@/lib/geo/geocode", () => ({
+  geocodeZip: async (_db: unknown, place: { zip: string }) =>
+    place.zip === "00000" ? null : { lat: 38.63, lng: -90.2 },
+}));
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
@@ -67,9 +71,6 @@ vi.mock("@/lib/supabase", () => ({
       return query();
     },
   }),
-}));
-vi.mock("@/lib/geo/geocode", () => ({
-  geocodeZip: async () => ({ lat: 30.26, lng: -97.74 }),
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({ from: () => query() }),
@@ -84,6 +85,33 @@ import { GET as facets } from "./facets/route";
 import { invalidate } from "@/lib/cache";
 
 describe("Scan and facets query parity", () => {
+  it("never broadens an unresolved nearby search", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      const response = await handler(
+        new NextRequest("https://example.test/api/scan?zip=00000&radius=50"),
+      );
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toBeTruthy();
+      expect(calls.some((call) => call[0] === "range")).toBe(false);
+    }
+  });
+  it("applies the exact radius in SQL before pagination", async () => {
+    for (const handler of [scan, facets]) {
+      calls.splice(0);
+      const response = await handler(
+        new NextRequest("https://example.test/api/scan?zip=63101&radius=50"),
+      );
+      expect(response.status).toBe(200);
+      expect(calls).toContainEqual([
+        "rpc",
+        "inventory_within_radius",
+        { p_lat: 38.63, p_lng: -90.2, p_radius: 50 },
+        expect.any(Object),
+      ]);
+      expect(calls).not.toContainEqual(["eq", "location_zip", "63101"]);
+    }
+  });
   beforeEach(() => {
     calls.splice(0);
     invalidate("scan-category:");
@@ -125,7 +153,7 @@ describe("Scan and facets query parity", () => {
 
   it("shares extended filters and enables auction inventory for auction dates", async () => {
     const search =
-      "auctionFrom=2026-10-07&auctionTo=2026-10-08&minBuyNow=500&runDrive=unknown&hasPhotos=yes&zip=78701";
+      "auctionFrom=2026-10-07&auctionTo=2026-10-08&minBuyNow=500&runDrive=unknown&hasPhotos=yes&listingZip=78701";
     for (const handler of [scan, facets]) {
       calls.splice(0);
       const response = await handler(
@@ -140,13 +168,7 @@ describe("Scan and facets query parity", () => {
         "2026-10-09T00:00:00.000Z",
       ]);
       expect(calls).toContainEqual(["neq", "images", "{}"]);
-      expect(calls).not.toContainEqual(["eq", "location_zip", "78701"]);
-      expect(calls).toContainEqual([
-        "rpc",
-        "inventory_within_radius",
-        { p_lat: 30.26, p_lng: -97.74, p_radius: 100 },
-        expect.any(Object),
-      ]);
+      expect(calls).toContainEqual(["eq", "location_zip", "78701"]);
       expect(
         calls.some((call) => call[0] === "not" && call[1] === "source"),
       ).toBe(false);

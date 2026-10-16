@@ -103,6 +103,51 @@ it("prefers its canonical identity and never guesses between duplicate legacy re
   await preserveExistingDealerListingIds(canonical.sb, rows);
   expect(rows[0]).toEqual(original);
 });
+it("preserves correction provenance for the actual DriveNation CMS identity without remapping it", async () => {
+  const sourceUrl = "https://www.drivenation.com/vehiclesDetail.php?1539";
+  const correction = {
+    version: "drivenation-price-odometer-v1",
+    sourceUrl,
+    checkedAt: "2026-10-15T22:00:00Z",
+    vin: "5XXG14J25PG166770",
+    condition: "clean_title",
+  };
+  const current = {
+    ...row(sourceUrl),
+    source_deal_id: "4cdg-drivenation-com-1539",
+    vin: null as string | null,
+    condition: null as string | null,
+    options: {} as Record<string, any>,
+  };
+  const c = client([
+    {
+      source_url: sourceUrl,
+      source_deal_id: current.source_deal_id,
+      options: { sourceCorrection: correction },
+    },
+  ]);
+  await preserveExistingDealerListingIds(c.sb, [current]);
+  expect(current.source_deal_id).toBe("4cdg-drivenation-com-1539");
+  expect(current.options.sourceCorrection).toEqual(correction);
+  expect(current.vin).toBe(correction.vin);
+  expect(current.condition).toBe("clean_title");
+  expect(current.options.titleSource).toBe("listing");
+  const conflicting = {
+    ...current,
+    vin: "1HGCM82633A004352",
+    options: {} as Record<string, any>,
+  };
+  await preserveExistingDealerListingIds(c.sb, [conflicting]);
+  expect(conflicting.options.sourceCorrection).toBeUndefined();
+  const different = {
+    ...current,
+    source_deal_id: "4cdg-drivenation-com-9999",
+    options: {} as Record<string, any>,
+  };
+  await preserveExistingDealerListingIds(c.sb, [different]);
+  expect(different.source_deal_id).toBe("4cdg-drivenation-com-9999");
+  expect(different.options.sourceCorrection).toBeUndefined();
+});
 it("fails closed on lookup errors or truncated evidence and does not query unrelated adapters", async () => {
   const failed = client([], { message: "offline" });
   await expect(

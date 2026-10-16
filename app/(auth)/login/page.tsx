@@ -35,7 +35,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNext(safeNextPath(params.get("next")));
+    setNext(safeNextPath(params.get("next"), "/market"));
     setError(authCallbackMessage(params.get("error")));
   }, []);
 

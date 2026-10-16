@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { usePreferences } from "@/hooks/usePreferences";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import {
   PriceRangeSelector,
@@ -161,6 +162,7 @@ function toggle(arr: string[], v: string): string[] {
 
 export default function MarketPage() {
   const { intent } = useBuyerIntent();
+  const { prefs, isLoading: prefsLoading } = usePreferences();
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [f, setF] = React.useState<Filters>(EMPTY);
   const [details, setDetails] = React.useState<Record<string, string>>({});
@@ -185,9 +187,26 @@ export default function MarketPage() {
     setDetails({});
   };
   React.useEffect(() => {
+    if (prefsLoading) return;
     const restore = () => {
       const params = new URLSearchParams(window.location.search);
       const next = { ...EMPTY };
+      if (!params.toString()) {
+        if (/^\d{5}$/.test(prefs.homeLocation?.zip || "")) {
+          next.near = prefs.homeLocation!.zip!;
+          next.radius = String(prefs.homeLocation?.radiusMi || 100);
+        } else {
+          next.states = prefs.carsStates?.length
+            ? prefs.carsStates
+            : prefs.carsState
+              ? [prefs.carsState]
+              : [];
+        }
+      }
+      if (params.has("zip") && !params.has("near")) {
+        next.near = params.get("zip") || "";
+        params.delete("zip");
+      }
       for (const key of Object.keys(EMPTY) as (keyof Filters)[]) {
         const value = params.get(key);
         if (value == null) continue;
@@ -222,7 +241,7 @@ export default function MarketPage() {
       window.removeEventListener("popstate", restore);
       window.removeEventListener("inventory-scope-change", restore);
     };
-  }, []);
+  }, [prefsLoading, prefs.homeLocation, prefs.carsStates, prefs.carsState]);
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
@@ -496,25 +515,12 @@ export default function MarketPage() {
           )}
         </div>
       )}
-      <MarketLocation
-        value={f}
-        onChange={set}
-        search={{ value: f.q, onChange: (q) => set({ q }) }}
-      />
-      {!busy && !error && (
-        <MarketIntelligence
-          summary={data?.summary}
-          query={qs}
-          capped={data?.capped}
+      {ready && (
+        <MarketLocation
+          value={f}
+          onChange={set}
+          search={{ value: f.q, onChange: (q) => set({ q }) }}
         />
-      )}
-      {flipDesk && (
-        <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-          <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">
-            National opportunity map · independent of search filters
-          </summary>
-          <USHeatmap />
-        </details>
       )}
       <button
         type="button"
@@ -839,15 +845,6 @@ export default function MarketPage() {
 
         {/* ── Results ── */}
         <section aria-label="Market results" className="min-w-0 flex-1">
-          {!busy && !error && (
-            <details className="mb-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">
-                Market charts · current search
-              </summary>
-              <MarketVisualizers facets={facets} />
-            </details>
-          )}
-
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-[var(--t4)]">
@@ -915,6 +912,27 @@ export default function MarketPage() {
             </select>
           </div>
 
+          {!busy && !error && (
+            <details className="mb-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+                Market intelligence & AI · current search
+              </summary>
+              <MarketIntelligence
+                summary={data?.summary}
+                query={qs}
+                capped={data?.capped}
+              />
+              <MarketVisualizers facets={facets} />
+              {flipDesk && (
+                <details className="my-3">
+                  <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
+                    National opportunity map · independent of search filters
+                  </summary>
+                  <USHeatmap />
+                </details>
+              )}
+            </details>
+          )}
           {error || data?.configured === false ? (
             <ErrorState
               title="Market data unavailable"
@@ -926,7 +944,13 @@ export default function MarketPage() {
             />
           ) : rows.length > 0 ? (
             view === "grid" ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div
+                className="grid gap-4"
+                style={{
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(min(100%, 19rem), 1fr))",
+                }}
+              >
                 {rows.map((row) => (
                   <MarketListingCard
                     key={row.id}

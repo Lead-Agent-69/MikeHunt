@@ -146,16 +146,34 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.rows[0].id).toBe("car-1100");
   });
 
-  it("reports the bounded inventory sample honestly", async () => {
-    state.size = 8001;
+  it("includes inventory beyond the former 8000-row ceiling", async () => {
+    state.size = 8005;
     const body = await (await request("mode=all")).json();
-    expect(body.capped).toBe(true);
-    expect(body.total).toBe(8000);
+    expect(body.capped).toBe(false);
+    expect(body.total).toBe(8005);
+    expect(state.calls).toContainEqual(["range", 8000, 8499]);
+  });
+
+  it("keeps photo, freshness and live-auction eligibility before pagination", async () => {
+    await request("mode=all");
+    expect(state.calls).toContainEqual(["not", "images", "is", null]);
+    expect(state.calls).toContainEqual(["neq", "images", "{}"]);
+    expect(
+      state.calls.some(
+        ([method, column]) => method === "gte" && column === "last_seen_at",
+      ),
+    ).toBe(true);
+    expect(
+      state.calls.some(
+        ([method, filter]) =>
+          method === "or" && String(filter).includes("auction_end_at.gt."),
+      ),
+    ).toBe(true);
   });
 
   it("applies categories, provider URLs, and extended filters to the database", async () => {
     const response = await request(
-      "mode=all&categories=trucks&sources=govdeals&runDrive=no&maxBuyNow=20000&auctionTo=2026-10-07&zip=78701&hasPhotos=yes",
+      "mode=all&categories=trucks&sources=govdeals&runDrive=no&maxBuyNow=20000&auctionTo=2026-10-07&listingZip=78701&hasPhotos=yes",
     );
     expect(response.status).toBe(200);
     expect(state.calls).toContainEqual(["eq", "run_drive", false]);

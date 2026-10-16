@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from "next/server";
 import { internalError } from "@/lib/api/http-error";
@@ -18,6 +19,8 @@ import {
 } from "@/lib/discovery/categorize";
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
 import {
   SOURCE_PRICE_FIELDS,
   sourcePriceContext,
@@ -43,9 +46,7 @@ import {
 // channel/lane, price, year, mileage, make, condition, verdict, and source — and chooses CURATED (the
 // deals worth acting on) vs WHOLE MARKET (everything active). Returns the filtered rows PLUS facet
 // counts (states, lanes, makes) so the UI can show live counts next to every filter. Lane is computed,
-// not stored, so we pull the SQL-filtered set (capped) and finish lane filtering + faceting in JS.
-
-const CAP = 8000; // hard ceiling on rows pulled before in-memory lane filter/facet (keeps it fast)
+// not stored, so page through the eligible SQL-filtered set before lane filtering and faceting.
 
 function csv(p: string | null): string[] {
   return (p || "")
@@ -111,6 +112,7 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     const detailParams = new URLSearchParams(sp);
+    if (location.radius != null) detailParams.delete("zip");
     for (const [oldKey, key] of [
       ["priceMin", "minPrice"],
       ["priceMax", "maxPrice"],
@@ -209,6 +211,7 @@ export async function GET(req: NextRequest) {
               `id, year, make, model, trim, body_class, fuel_type, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
             )
             .eq("active", true);
+          q = applyLiveAuctionWindow(applyCustomerInventory(q));
 
           // SQL-able filters (push down what we can).
           if (states.length && !bounds) q = q.in("location_state", states);
@@ -257,12 +260,11 @@ export async function GET(req: NextRequest) {
 
           return q.order("id", { ascending: true });
         };
-        const observed = await fetchAllRows<any>(
+        const data = await fetchAllRows<any>(
           (from, to) => build().range(from, to),
-          { pageSize: 500, max: CAP + 1 },
+          { pageSize: 500 },
         );
-        const capped = observed.length > CAP;
-        const data = observed.slice(0, CAP);
+        const capped = false;
 
         let rows = (data || []).map((d: any) => ({
           id: d.id,
