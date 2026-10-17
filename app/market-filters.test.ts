@@ -14,7 +14,17 @@ vi.mock("swr", () => ({
     state.keys.push(key);
     return {
       data: key
-        ? { rows: [{ id: "car" }], total: 1105, mode: "all", facets: {} }
+        ? {
+            rows: [{ id: "car" }],
+            total: 1105,
+            mode: "all",
+            facets: {
+              sources: [
+                { value: "copart", n: 640 },
+                { value: "iaa", n: 310 },
+              ],
+            },
+          }
         : undefined,
       isLoading: false,
       mutate: vi.fn(),
@@ -160,6 +170,46 @@ describe("Market filter journey", () => {
     expect(
       state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("offers working quick filters while keeping exact controls collapsed", async () => {
+    await render();
+    const filterToggle = host.querySelector<HTMLButtonElement>(
+      '[aria-controls="market-filter-panel"]',
+    )!;
+    act(() => filterToggle.click());
+    const exact = host.querySelector<HTMLDetailsElement>(
+      '[data-testid="exact-market-filters"]',
+    )!;
+    expect(exact.open).toBe(false);
+
+    const runDrive = Array.from(
+      host.querySelectorAll<HTMLButtonElement>(
+        '[aria-label="Quick market filters"] button',
+      ),
+    ).find((button) => button.textContent === "Run & drive")!;
+    act(() => runDrive.click());
+    expect(new URLSearchParams(window.location.search).get("runDrive")).toBe(
+      "yes",
+    );
+    expect(runDrive.getAttribute("aria-pressed")).toBe("true");
+    act(() => runDrive.click());
+    expect(new URLSearchParams(window.location.search).has("runDrive")).toBe(
+      false,
+    );
+  });
+  it("shows source inventory counts and filters directly from results", async () => {
+    await render();
+    const sourceStrip = host.querySelector(
+      '[aria-label="Browse results by source"]',
+    )!;
+    expect(sourceStrip.textContent).toContain("Copart · 640");
+    const copart = Array.from(
+      sourceStrip.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("Copart"))!;
+    act(() => copart.click());
+    expect(new URLSearchParams(window.location.search).get("sources")).toBe(
+      "copart",
+    );
   });
   it("saves the exact Market Explorer query for reopening", async () => {
     window.history.replaceState(

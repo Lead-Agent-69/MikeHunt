@@ -52,8 +52,23 @@ type Props = {
   ) => void;
 };
 
-const TABS = ["Overview", "Vehicle", "Specs", "Market"] as const;
+const TABS = [
+  "Price & miles",
+  "Vehicle",
+  "Powertrain",
+  "Auction",
+  "Sources",
+  "Evidence",
+] as const;
 type Tab = (typeof TABS)[number];
+
+function selectionCount(...values: (string | string[] | undefined)[]): number {
+  return values.reduce<number>(
+    (count, value) =>
+      count + (Array.isArray(value) ? value.length : value ? 1 : 0),
+    0,
+  );
+}
 
 export function MarketFacetStudio({
   facets,
@@ -64,11 +79,46 @@ export function MarketFacetStudio({
   onMatrixSelect,
 }: Props) {
   const [open, setOpen] = React.useState(true);
-  const [tab, setTab] = React.useState<Tab>("Overview");
+  const [tab, setTab] = React.useState<Tab>("Price & miles");
   const makes = (facets?.topMakes || []).map(({ make, n }) => ({
     value: make,
     n,
   }));
+  const tabCounts: Record<Tab, number> = {
+    "Price & miles": selectionCount(
+      selected.priceMin,
+      selected.priceMax,
+      selected.mileageMin,
+      selected.mileageMax,
+    ),
+    Vehicle: selectionCount(
+      selected.make,
+      selected.model,
+      selected.year,
+      selected.body,
+      selected.color,
+    ),
+    Powertrain: selectionCount(
+      selected.fuelType,
+      selected.transmission,
+      selected.drivetrain,
+    ),
+    Auction: selectionCount(
+      selected.condition,
+      selected.availability,
+      selected.priceKind,
+    ),
+    Sources: selectionCount(
+      selected.source,
+      selected.sellerType,
+      selected.freshness,
+      selected.assemblyCountry,
+    ),
+    Evidence: selectionCount(
+      selected.priceAvailability,
+      selected.mileageAvailability,
+    ),
+  };
 
   return (
     <section
@@ -121,31 +171,25 @@ export function MarketFacetStudio({
                     : "text-[var(--t3)] hover:bg-[var(--s2)]"
                 }`}
               >
-                {name}
+                <span>{name}</span>
+                {tabCounts[name] > 0 && (
+                  <span className="ml-1.5 rounded-full bg-[var(--blue)] px-1.5 py-0.5 text-[9px] leading-none text-white">
+                    {tabCounts[name]}
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
           <div className="p-3 md:p-4">
-            {tab === "Overview" && (
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(16rem,0.8fr)]">
-                <PriceMileageMatrix
-                  priceBands={facets?.priceBands || []}
-                  mileageBands={facets?.mileageBands || []}
-                  cells={facets?.priceMileageMatrix || []}
-                  selected={selected}
-                  onSelect={onMatrixSelect}
-                />
-                <EvidenceCard
-                  total={total}
-                  missingPrice={facets?.missingPrice || 0}
-                  missingMileage={facets?.missingMileage || 0}
-                  mapped={facets?.mapped || 0}
-                  priceKinds={facets?.priceKinds || []}
-                  selected={selected}
-                  onSelect={onFacetSelect}
-                />
-              </div>
+            {tab === "Price & miles" && (
+              <PriceMileageMatrix
+                priceBands={facets?.priceBands || []}
+                mileageBands={facets?.mileageBands || []}
+                cells={facets?.priceMileageMatrix || []}
+                selected={selected}
+                onSelect={onMatrixSelect}
+              />
             )}
 
             {tab === "Vehicle" && (
@@ -168,17 +212,23 @@ export function MarketFacetStudio({
                   active={selected.year}
                   onSelect={(value) => onFacetSelect("year", value)}
                 />
-              </FacetGrid>
-            )}
-
-            {tab === "Specs" && (
-              <FacetGrid>
                 <FacetCard
                   title="Body style"
                   entries={facets?.bodyClasses || []}
                   active={selected.body}
                   onSelect={(value) => onFacetSelect("body", value)}
                 />
+                <FacetCard
+                  title="Exterior color"
+                  entries={facets?.colors || []}
+                  active={selected.color}
+                  onSelect={(value) => onFacetSelect("color", value)}
+                />
+              </FacetGrid>
+            )}
+
+            {tab === "Powertrain" && (
+              <FacetGrid>
                 <FacetCard
                   title="Fuel"
                   entries={facets?.fuelTypes || []}
@@ -197,23 +247,34 @@ export function MarketFacetStudio({
                   active={selected.drivetrain}
                   onSelect={(value) => onFacetSelect("drivetrain", value)}
                 />
-                <FacetCard
-                  title="Exterior color"
-                  entries={facets?.colors || []}
-                  active={selected.color}
-                  onSelect={(value) => onFacetSelect("color", value)}
-                />
               </FacetGrid>
             )}
 
-            {tab === "Market" && (
+            {tab === "Auction" && (
               <FacetGrid>
                 <FacetCard
-                  title="Condition"
+                  title="Title & condition"
                   entries={facets?.conditions || []}
                   active={selected.condition}
                   onSelect={(value) => onFacetSelect("condition", value)}
                 />
+                <FacetCard
+                  title="Availability"
+                  entries={facets?.availability || []}
+                  active={selected.availability}
+                  onSelect={(value) => onFacetSelect("availability", value)}
+                />
+                <FacetCard
+                  title="Price type"
+                  entries={facets?.priceKinds || []}
+                  active={selected.priceKind}
+                  onSelect={(value) => onFacetSelect("priceKind", value)}
+                />
+              </FacetGrid>
+            )}
+
+            {tab === "Sources" && (
+              <FacetGrid>
                 <FacetCard
                   title="Source"
                   entries={facets?.sources || []}
@@ -238,18 +299,24 @@ export function MarketFacetStudio({
                   }
                 />
                 <FacetCard
-                  title="Availability"
-                  entries={facets?.availability || []}
-                  active={selected.availability}
-                  onSelect={(value) => onFacetSelect("availability", value)}
-                />
-                <FacetCard
                   title="Assembly country"
                   entries={facets?.assemblyCountries || []}
                   active={selected.assemblyCountry}
                   onSelect={(value) => onFacetSelect("assemblyCountry", value)}
                 />
               </FacetGrid>
+            )}
+
+            {tab === "Evidence" && (
+              <EvidenceCard
+                total={total}
+                missingPrice={facets?.missingPrice || 0}
+                missingMileage={facets?.missingMileage || 0}
+                mapped={facets?.mapped || 0}
+                priceKinds={facets?.priceKinds || []}
+                selected={selected}
+                onSelect={onFacetSelect}
+              />
             )}
           </div>
         </div>
@@ -281,7 +348,7 @@ function FacetCard({
   const isActive = (value: string) =>
     Array.isArray(active) ? active.includes(value) : active === value;
   return (
-    <div className="min-h-56 rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-3">
+    <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-3">
       <div className="mb-3 flex items-center gap-2">
         <BarChart3
           className="h-3.5 w-3.5 text-[var(--t4)]"
@@ -326,7 +393,7 @@ function FacetCard({
           })}
         </div>
       ) : (
-        <p className="grid min-h-36 place-items-center text-center text-xs text-[var(--t4)]">
+        <p className="grid min-h-24 place-items-center text-center text-xs text-[var(--t4)]">
           No reported evidence in this scope
         </p>
       )}

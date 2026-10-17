@@ -132,6 +132,25 @@ test.describe("Market Explorer home", () => {
     await expect(
       page.getByRole("region", { name: "Smart market filters" }),
     ).toBeVisible();
+    const quickFilters = page.getByRole("region", {
+      name: "Quick market filters",
+    });
+    await expect(quickFilters).toBeVisible();
+    const exactFilters = page.getByTestId("exact-market-filters");
+    await expect(exactFilters).not.toHaveAttribute("open", "");
+    const runDrive = quickFilters.getByRole("button", {
+      name: "Run & drive",
+      exact: true,
+    });
+    await runDrive.click();
+    await expect(page).toHaveURL(/runDrive=yes/);
+    await expect(runDrive).toHaveAttribute("aria-pressed", "true");
+    await runDrive.click();
+    await expect(page).not.toHaveURL(/runDrive=/);
+    await page.getByRole("tab", { name: "Auction", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Title & condition" }),
+    ).toBeVisible();
     await page
       .getByRole("region", { name: "Smart market filters" })
       .scrollIntoViewIfNeeded();
@@ -141,6 +160,7 @@ test.describe("Market Explorer home", () => {
       .first()
       .click();
     await expect(page.locator("article").first()).toBeVisible();
+    await expect(page.getByLabel("Browse results by source")).toBeVisible();
     const nav = page
       .getByRole("navigation", {
         name: /^Primary (mobile|desktop) navigation$/,

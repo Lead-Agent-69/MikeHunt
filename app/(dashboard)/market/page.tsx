@@ -16,7 +16,7 @@ import { MarketListingCard } from "@/components/market/MarketListingCard";
 import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { MarketLocation } from "@/components/market/MarketLocation";
-import type { MarketListing } from "@/lib/market/explorer";
+import type { MarketFacetCount, MarketListing } from "@/lib/market/explorer";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import {
   readInventoryDetails,
@@ -185,6 +185,10 @@ export default function MarketPage() {
         ? { sort: "lastSeenAt", sortDir: "desc" as const }
         : {}),
     }));
+  };
+  const setDetail = (key: string, value: string) => {
+    setPage(0);
+    setDetails((current) => ({ ...current, [key]: value }));
   };
   const reset = () => {
     setPage(0);
@@ -421,11 +425,7 @@ export default function MarketPage() {
 
   const selectFacet = (key: MarketFacetKey, value: string) => {
     const selectDetail = (detailKey: string) => {
-      setPage(0);
-      setDetails((current) => ({
-        ...current,
-        [detailKey]: current[detailKey] === value ? "" : value,
-      }));
+      setDetail(detailKey, details[detailKey] === value ? "" : value);
     };
     if (key === "make") {
       set({ makes: toggle(f.makes, value), model: "" });
@@ -471,6 +471,68 @@ export default function MarketPage() {
     const detailKey = detailKeys[key];
     if (detailKey) selectDetail(detailKey);
   };
+
+  const quickFilters: QuickFilterOption[] = [
+    {
+      key: "auction",
+      label: "Auction lots",
+      active: f.lanes.includes("auction"),
+      onToggle: () => set({ lanes: toggle(f.lanes, "auction") }),
+    },
+    {
+      key: "clean-title",
+      label: "Clean title",
+      active: f.conditions.includes("clean_title"),
+      onToggle: () => set({ conditions: toggle(f.conditions, "clean_title") }),
+    },
+    {
+      key: "run-drive",
+      label: "Run & drive",
+      active: details.runDrive === "yes",
+      onToggle: () =>
+        setDetail("runDrive", details.runDrive === "yes" ? "" : "yes"),
+    },
+    {
+      key: "buy-now",
+      label: "Buy now",
+      active: details.buyNow === "1",
+      onToggle: () => setDetail("buyNow", details.buyNow === "1" ? "" : "1"),
+    },
+    {
+      key: "seen-today",
+      label: "Seen today",
+      active: details.seenWithin === "1",
+      onToggle: () =>
+        setDetail("seenWithin", details.seenWithin === "1" ? "" : "1"),
+    },
+    {
+      key: "photos",
+      label: "Has photos",
+      active: details.hasPhotos === "yes",
+      onToggle: () =>
+        setDetail("hasPhotos", details.hasPhotos === "yes" ? "" : "yes"),
+    },
+    {
+      key: "complete-data",
+      label: "Price + miles reported",
+      active:
+        details.pricePolicy === "reported" &&
+        details.mileagePolicy === "reported",
+      onToggle: () => {
+        const value =
+          details.pricePolicy === "reported" &&
+          details.mileagePolicy === "reported"
+            ? ""
+            : "reported";
+        setPage(0);
+        setDetails((current) => ({
+          ...current,
+          pricePolicy: value,
+          mileagePolicy: value,
+        }));
+      },
+    },
+  ];
 
   return (
     <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
@@ -691,6 +753,8 @@ export default function MarketPage() {
           </div>
         </div>
 
+        <QuickFilterStrip options={quickFilters} />
+
         {ready && !error && (
           <MarketFacetStudio
             facets={facets}
@@ -739,287 +803,320 @@ export default function MarketPage() {
           />
         )}
 
-        <div className="grid gap-4 xl:grid-cols-3">
-          <FilterPanel
-            title="Scope & sources"
-            description="Where the listing comes from and where it is located."
-          >
-            {flipDesk && (
-              <div className="flex rounded-lg border border-[var(--b1)] p-1">
-                {(["curated", "all"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={f.mode === mode}
-                    onClick={() => set({ mode })}
-                    className="flex-1 rounded-md px-3 py-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
-                  >
-                    {mode === "curated" ? "Curated buys" : "Whole market"}
-                  </button>
-                ))}
-              </div>
-            )}
-            <ChipGroup
-              title="Channel"
-              options={LANES.map((lane) => ({
-                key: lane.key,
-                label: lane.label,
-                count: facets.lanes?.[lane.key],
-                color: facets.laneColors?.[lane.key],
-              }))}
-              selected={f.lanes}
-              onToggle={(key) => set({ lanes: toggle(f.lanes, key) })}
-            />
-            <StateGroup
-              selected={f.states}
-              counts={facets.states || {}}
-              onToggle={(key) =>
-                set({
-                  states: toggle(f.states, key),
-                  near: "",
-                  radius: "",
-                  lat: "",
-                  lng: "",
-                })
-              }
-              onClear={() => set({ states: [] })}
-            />
-            <details className="rounded-xl border border-[var(--b1)] px-3">
-              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
-                All indexed sources ({f.sources.length || "Any"})
-              </summary>
-              <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pb-3">
-                {INVENTORY_SOURCE_FILTERS.map((source) => (
-                  <label
-                    key={source.id}
-                    className="flex min-h-10 items-center gap-2 text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={f.sources.includes(source.id)}
-                      onChange={() =>
-                        set({ sources: toggle(f.sources, source.id) })
-                      }
-                    />
-                    {source.name}
-                  </label>
-                ))}
-              </div>
-            </details>
-          </FilterPanel>
-
-          <FilterPanel
-            title="Vehicle precision"
-            description="Use exact entries for rare models or multiple makes."
-          >
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
-              Makes
-              <input
-                aria-label="Makes"
-                list="market-makes"
-                placeholder="Ford, Toyota"
-                maxLength={250}
-                value={f.makes.join(",")}
-                onChange={(event) =>
-                  set({ makes: event.target.value.split(","), model: "" })
-                }
-                className="field min-h-11 !w-full"
-              />
-              <datalist id="market-makes">
-                {Array.from(
-                  new Set<string>([
-                    ...f.makes,
-                    ...(facets.topMakes || []).map(
-                      (entry: { make: string }) => entry.make,
-                    ),
-                  ]),
-                ).map((make) => (
-                  <option key={make} value={make} />
-                ))}
-              </datalist>
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
-              Model
-              <input
-                aria-label="Model"
-                value={f.model}
-                onChange={(event) => set({ model: event.target.value })}
-                maxLength={60}
-                placeholder="Any model"
-                className="field min-h-11 !w-full"
-              />
-            </label>
-            <details className="rounded-xl border border-[var(--b1)] px-3">
-              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
-                Vehicle types ({f.categories.length || "Any"})
-              </summary>
-              <div className="grid grid-cols-2 gap-1 pb-3">
-                {Object.entries(VEHICLE_CATEGORY_FILTERS).map(
-                  ([key, category]) => (
-                    <label
-                      key={key}
-                      className="flex min-h-10 items-center gap-2 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={f.categories.includes(key)}
-                        onChange={() =>
-                          set({ categories: toggle(f.categories, key) })
-                        }
-                      />
-                      {category.label}
-                    </label>
-                  ),
-                )}
-              </div>
-            </details>
-            <ChipGroup
-              title="Title / condition"
-              options={CONDITIONS.map((condition) => ({
-                key: condition,
-                label: condition.replace(/_/g, " "),
-              }))}
-              selected={f.conditions}
-              onToggle={(key) => set({ conditions: toggle(f.conditions, key) })}
-            />
-          </FilterPanel>
-
-          <FilterPanel
-            title="Price, year & economics"
-            description="Exact ranges override broad smart-matrix selections."
-          >
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
-                Price type
-                <select
-                  aria-label="Price type"
-                  value={f.priceKind}
-                  onChange={(event) => set({ priceKind: event.target.value })}
-                  className="field min-h-11 !w-full"
-                >
-                  <option value="">All reported types</option>
-                  <option value="asking">Cash asking price</option>
-                  <option value="current_bid">Current bid</option>
-                  <option value="buy_now">Buy-now price</option>
-                  <option value="down_payment">Down payment</option>
-                  <option value="monthly_payment">Monthly payment</option>
-                  <option value="finance_teaser">Finance teaser</option>
-                  <option value="reference">Reference value</option>
-                  <option value="unknown">Unverified amount</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
-                Budget compares
-                <select
-                  aria-label="Price comparison basis"
-                  value={f.priceBasis}
-                  onChange={(event) => set({ priceBasis: event.target.value })}
-                  className="field min-h-11 !w-full"
-                >
-                  <option value="cash">Full cash / buy-now</option>
-                  <option value="advertised">Advertised amount</option>
-                </select>
-              </label>
-            </div>
-            <PriceRangeSelector
-              minPrice={f.priceMin}
-              maxPrice={f.priceMax}
-              onMinChange={(value) => set({ priceMin: value })}
-              onMaxChange={(value) => set({ priceMax: value })}
-              onClear={() => set({ priceMin: "", priceMax: "" })}
-            />
-            <YearRangeSelector
-              minYear={f.yearMin}
-              maxYear={f.yearMax}
-              onMinChange={(value) => set({ yearMin: value })}
-              onMaxChange={(value) => set({ yearMax: value })}
-              onClear={() => set({ yearMin: "", yearMax: "" })}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <NumIn
-                ph="miles ≥"
-                v={f.minMileage}
-                on={(value) => set({ minMileage: value })}
-              />
-              <NumIn
-                ph="miles ≤"
-                v={f.mileageMax}
-                on={(value) => set({ mileageMax: value })}
-              />
-              {flipDesk && (
-                <NumIn
-                  ph="profit ≥"
-                  v={f.minProfit}
-                  on={(value) => set({ minProfit: value })}
-                  full
-                />
-              )}
-            </div>
-            {flipDesk && (
-              <>
-                <ChipGroup
-                  title="Verdict"
-                  options={VERDICTS.map((verdict) => ({
-                    key: verdict.key,
-                    label: verdict.label,
-                  }))}
-                  selected={f.verdicts}
-                  onToggle={(key) => set({ verdicts: toggle(f.verdicts, key) })}
-                />
-                <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-                    Minimum ROI
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {["", "10", "25", "50", "100"].map((value) => (
+        <details
+          className="group overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)]"
+          data-testid="exact-market-filters"
+        >
+          <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-[var(--t1)]">
+                Exact filters
+              </span>
+              <span className="block text-[11px] text-[var(--t4)]">
+                Location scope, exact ranges, auction timing and listing
+                evidence
+              </span>
+            </span>
+            <span className="shrink-0 rounded-full bg-[var(--s2)] px-2 py-1 text-[10px] font-bold text-[var(--t3)]">
+              {activeCount ? `${activeCount} active` : "Optional"}
+            </span>
+          </summary>
+          <div className="space-y-4 border-t border-[var(--b1)] p-3 md:p-4">
+            <div className="grid gap-4 xl:grid-cols-3">
+              <FilterPanel
+                title="Scope & sources"
+                description="Where the listing comes from and where it is located."
+              >
+                {flipDesk && (
+                  <div className="flex rounded-lg border border-[var(--b1)] p-1">
+                    {(["curated", "all"] as const).map((mode) => (
                       <button
-                        key={value || "any"}
+                        key={mode}
                         type="button"
-                        aria-pressed={f.minRoi === value}
-                        onClick={() => set({ minRoi: value })}
-                        className="min-h-9 rounded-full border border-[var(--b1)] px-3 text-[11px] font-bold aria-pressed:border-[var(--blue)] aria-pressed:text-[var(--blue)]"
+                        aria-pressed={f.mode === mode}
+                        onClick={() => set({ mode })}
+                        className="flex-1 rounded-md px-3 py-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
                       >
-                        {value ? `${value}%+` : "Any"}
+                        {mode === "curated" ? "Curated buys" : "Whole market"}
                       </button>
                     ))}
                   </div>
-                </div>
-              </>
-            )}
-          </FilterPanel>
-        </div>
+                )}
+                <ChipGroup
+                  title="Channel"
+                  options={LANES.map((lane) => ({
+                    key: lane.key,
+                    label: lane.label,
+                    count: facets.lanes?.[lane.key],
+                    color: facets.laneColors?.[lane.key],
+                  }))}
+                  selected={f.lanes}
+                  onToggle={(key) => set({ lanes: toggle(f.lanes, key) })}
+                />
+                <StateGroup
+                  selected={f.states}
+                  counts={facets.states || {}}
+                  onToggle={(key) =>
+                    set({
+                      states: toggle(f.states, key),
+                      near: "",
+                      radius: "",
+                      lat: "",
+                      lng: "",
+                    })
+                  }
+                  onClear={() => set({ states: [] })}
+                />
+                <details className="rounded-xl border border-[var(--b1)] px-3">
+                  <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
+                    All indexed sources ({f.sources.length || "Any"})
+                  </summary>
+                  <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pb-3">
+                    {INVENTORY_SOURCE_FILTERS.map((source) => (
+                      <label
+                        key={source.id}
+                        className="flex min-h-10 items-center gap-2 text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={f.sources.includes(source.id)}
+                          onChange={() =>
+                            set({ sources: toggle(f.sources, source.id) })
+                          }
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          {source.name}
+                        </span>
+                        {facets.sources?.find(
+                          (entry: { value: string }) =>
+                            entry.value === source.id,
+                        )?.n != null && (
+                          <span className="shrink-0 text-[10px] tabular-nums text-[var(--t4)]">
+                            {facets.sources
+                              .find(
+                                (entry: { value: string }) =>
+                                  entry.value === source.id,
+                              )!
+                              .n.toLocaleString()}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              </FilterPanel>
 
-        <details className="rounded-2xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-          <summary className="flex min-h-14 cursor-pointer items-center justify-between text-sm font-bold">
-            Advanced listing evidence
-            <span className="text-[10px] font-normal text-[var(--t4)]">
-              Auction timing, keys, photos, VIN and exact listing location
-            </span>
-          </summary>
-          <div className="border-t border-[var(--b1)] py-4">
-            <InventoryDetailFilters
-              values={details}
-              keys={[
-                "trim",
-                "engine",
-                "damage",
-                "keys",
-                "runDrive",
-                "buyNow",
-                "minBuyNow",
-                "maxBuyNow",
-                "auctionFrom",
-                "auctionTo",
-                "city",
-                "listingZip",
-                "hasVin",
-                "hasPhotos",
-              ]}
-              onChange={(key, value) => {
-                setPage(0);
-                setDetails((current) => ({ ...current, [key]: value }));
-              }}
-            />
+              <FilterPanel
+                title="Vehicle precision"
+                description="Use exact entries for rare models or multiple makes."
+              >
+                <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                  Makes
+                  <input
+                    aria-label="Makes"
+                    list="market-makes"
+                    placeholder="Ford, Toyota"
+                    maxLength={250}
+                    value={f.makes.join(",")}
+                    onChange={(event) =>
+                      set({ makes: event.target.value.split(","), model: "" })
+                    }
+                    className="field min-h-11 !w-full"
+                  />
+                  <datalist id="market-makes">
+                    {Array.from(
+                      new Set<string>([
+                        ...f.makes,
+                        ...(facets.topMakes || []).map(
+                          (entry: { make: string }) => entry.make,
+                        ),
+                      ]),
+                    ).map((make) => (
+                      <option key={make} value={make} />
+                    ))}
+                  </datalist>
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                  Model
+                  <input
+                    aria-label="Model"
+                    value={f.model}
+                    onChange={(event) => set({ model: event.target.value })}
+                    maxLength={60}
+                    placeholder="Any model"
+                    className="field min-h-11 !w-full"
+                  />
+                </label>
+                <details className="rounded-xl border border-[var(--b1)] px-3">
+                  <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
+                    Vehicle types ({f.categories.length || "Any"})
+                  </summary>
+                  <div className="grid grid-cols-2 gap-1 pb-3">
+                    {Object.entries(VEHICLE_CATEGORY_FILTERS).map(
+                      ([key, category]) => (
+                        <label
+                          key={key}
+                          className="flex min-h-10 items-center gap-2 text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={f.categories.includes(key)}
+                            onChange={() =>
+                              set({ categories: toggle(f.categories, key) })
+                            }
+                          />
+                          {category.label}
+                        </label>
+                      ),
+                    )}
+                  </div>
+                </details>
+                <ChipGroup
+                  title="Title / condition"
+                  options={CONDITIONS.map((condition) => ({
+                    key: condition,
+                    label: condition.replace(/_/g, " "),
+                  }))}
+                  selected={f.conditions}
+                  onToggle={(key) =>
+                    set({ conditions: toggle(f.conditions, key) })
+                  }
+                />
+              </FilterPanel>
+
+              <FilterPanel
+                title="Price, year & economics"
+                description="Exact ranges override broad smart-matrix selections."
+              >
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                    Price type
+                    <select
+                      aria-label="Price type"
+                      value={f.priceKind}
+                      onChange={(event) =>
+                        set({ priceKind: event.target.value })
+                      }
+                      className="field min-h-11 !w-full"
+                    >
+                      <option value="">All reported types</option>
+                      <option value="asking">Cash asking price</option>
+                      <option value="current_bid">Current bid</option>
+                      <option value="buy_now">Buy-now price</option>
+                      <option value="down_payment">Down payment</option>
+                      <option value="monthly_payment">Monthly payment</option>
+                      <option value="finance_teaser">Finance teaser</option>
+                      <option value="reference">Reference value</option>
+                      <option value="unknown">Unverified amount</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                    Budget compares
+                    <select
+                      aria-label="Price comparison basis"
+                      value={f.priceBasis}
+                      onChange={(event) =>
+                        set({ priceBasis: event.target.value })
+                      }
+                      className="field min-h-11 !w-full"
+                    >
+                      <option value="cash">Full cash / buy-now</option>
+                      <option value="advertised">Advertised amount</option>
+                    </select>
+                  </label>
+                </div>
+                <PriceRangeSelector
+                  minPrice={f.priceMin}
+                  maxPrice={f.priceMax}
+                  onMinChange={(value) => set({ priceMin: value })}
+                  onMaxChange={(value) => set({ priceMax: value })}
+                  onClear={() => set({ priceMin: "", priceMax: "" })}
+                />
+                <YearRangeSelector
+                  minYear={f.yearMin}
+                  maxYear={f.yearMax}
+                  onMinChange={(value) => set({ yearMin: value })}
+                  onMaxChange={(value) => set({ yearMax: value })}
+                  onClear={() => set({ yearMin: "", yearMax: "" })}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <NumIn
+                    ph="miles ≥"
+                    v={f.minMileage}
+                    on={(value) => set({ minMileage: value })}
+                  />
+                  <NumIn
+                    ph="miles ≤"
+                    v={f.mileageMax}
+                    on={(value) => set({ mileageMax: value })}
+                  />
+                  {flipDesk && (
+                    <NumIn
+                      ph="profit ≥"
+                      v={f.minProfit}
+                      on={(value) => set({ minProfit: value })}
+                      full
+                    />
+                  )}
+                </div>
+                {flipDesk && (
+                  <>
+                    <ChipGroup
+                      title="Verdict"
+                      options={VERDICTS.map((verdict) => ({
+                        key: verdict.key,
+                        label: verdict.label,
+                      }))}
+                      selected={f.verdicts}
+                      onToggle={(key) =>
+                        set({ verdicts: toggle(f.verdicts, key) })
+                      }
+                    />
+                    <div>
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+                        Minimum ROI
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {["", "10", "25", "50", "100"].map((value) => (
+                          <button
+                            key={value || "any"}
+                            type="button"
+                            aria-pressed={f.minRoi === value}
+                            onClick={() => set({ minRoi: value })}
+                            className="min-h-9 rounded-full border border-[var(--b1)] px-3 text-[11px] font-bold aria-pressed:border-[var(--blue)] aria-pressed:text-[var(--blue)]"
+                          >
+                            {value ? `${value}%+` : "Any"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </FilterPanel>
+            </div>
+
+            <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] px-4">
+              <InventoryDetailFilters
+                values={details}
+                keys={[
+                  "trim",
+                  "engine",
+                  "damage",
+                  "keys",
+                  "runDrive",
+                  "buyNow",
+                  "minBuyNow",
+                  "maxBuyNow",
+                  "auctionFrom",
+                  "auctionTo",
+                  "city",
+                  "listingZip",
+                  "hasVin",
+                  "hasPhotos",
+                ]}
+                onChange={setDetail}
+              />
+            </div>
           </div>
         </details>
 
@@ -1155,6 +1252,15 @@ export default function MarketPage() {
             </select>
           </div>
 
+          {!busy && !error && (facets.sources?.length || 0) > 0 && (
+            <SourceResultStrip
+              entries={facets.sources}
+              selected={f.sources}
+              onSelect={(source) => set({ sources: toggle(f.sources, source) })}
+              onClear={() => set({ sources: [] })}
+            />
+          )}
+
           {!busy && !error && showMap && rows.length > 0 && (
             <div className="mb-4">
               <MarketResultsMap rows={rows} flipDesk={flipDesk} />
@@ -1263,6 +1369,86 @@ export default function MarketPage() {
 }
 
 // ── small building blocks ──
+type QuickFilterOption = {
+  key: string;
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+};
+
+function QuickFilterStrip({ options }: { options: QuickFilterOption[] }) {
+  return (
+    <section
+      aria-label="Quick market filters"
+      className="overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)]"
+    >
+      <div className="flex items-center gap-2 overflow-x-auto p-2">
+        <span className="shrink-0 px-2 text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+          Quick filters
+        </span>
+        {options.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            aria-pressed={option.active}
+            onClick={option.onToggle}
+            className="min-h-9 shrink-0 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 text-[11px] font-semibold text-[var(--t2)] transition-colors aria-pressed:border-[var(--blue)] aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SourceResultStrip({
+  entries,
+  selected,
+  onSelect,
+  onClear,
+}: {
+  entries: MarketFacetCount[];
+  selected: string[];
+  onSelect: (source: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div
+      aria-label="Browse results by source"
+      className="mb-3 flex items-center gap-2 overflow-x-auto rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2"
+    >
+      <span className="shrink-0 px-2 text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+        Sources
+      </span>
+      <button
+        type="button"
+        aria-pressed={selected.length === 0}
+        onClick={onClear}
+        className="min-h-9 shrink-0 rounded-full border border-[var(--b1)] px-3 text-[11px] font-semibold aria-pressed:border-[var(--blue)] aria-pressed:text-[var(--blue)]"
+      >
+        All
+      </button>
+      {entries.slice(0, 10).map((entry) => {
+        const label =
+          INVENTORY_SOURCE_FILTERS.find((source) => source.id === entry.value)
+            ?.name || entry.value.replace(/_/g, " ");
+        return (
+          <button
+            key={entry.value}
+            type="button"
+            aria-pressed={selected.includes(entry.value)}
+            onClick={() => onSelect(entry.value)}
+            className="min-h-9 shrink-0 rounded-full border border-[var(--b1)] px-3 text-[11px] font-semibold aria-pressed:border-[var(--blue)] aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+          >
+            {label} · {entry.n.toLocaleString()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FilterPanel({
   title,
   description,

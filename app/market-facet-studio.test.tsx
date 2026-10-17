@@ -83,7 +83,7 @@ describe("smart market exploration", () => {
 
     act(() =>
       Array.from(host.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
-        .find((button) => button.textContent === "Market")!
+        .find((button) => button.textContent === "Auction")!
         .click(),
     );
     act(() =>
