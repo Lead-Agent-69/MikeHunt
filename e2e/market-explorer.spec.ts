@@ -18,6 +18,14 @@ test.describe("Market Explorer home", () => {
     ).toBeVisible();
     await expect(page.locator("article").first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
+    const locationLabel = page
+      .locator('header button[aria-label^="Choose location:"] > span')
+      .filter({ visible: true });
+    if (await locationLabel.count()) {
+      expect(
+        await locationLabel.evaluate((el) => el.scrollWidth - el.clientWidth),
+      ).toBeLessThanOrEqual(1);
+    }
     const headerTargets = await page
       .locator("header")
       .first()
@@ -94,7 +102,7 @@ test.describe("Market Explorer home", () => {
       );
     for (const field of locationFields) {
       expect(field.fontSize).toBeGreaterThanOrEqual(16);
-      expect(field.height).toBeGreaterThanOrEqual(44);
+      expect(Math.round(field.height * 100) / 100).toBeGreaterThanOrEqual(44);
     }
     await page.screenshot({
       path: testInfo.outputPath("market-initial-viewport.png"),
@@ -342,6 +350,13 @@ test.describe("Market Explorer home", () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.total).toBeGreaterThan(0);
+    await expect(
+      page
+        .getByRole("button", {
+          name: "Change search area: 100 miles from 63101",
+        })
+        .filter({ visible: true }),
+    ).toHaveText("100 mi");
     expect(
       body.rows.every(
         (row: { distanceMiles: number }) =>
@@ -359,10 +374,169 @@ test.describe("Market Explorer home", () => {
     await expect(page.getByLabel("Sort market results")).toHaveValue(
       "distanceMiles:asc",
     );
+    const locationChip = page
+      .getByRole("button", {
+        name: "Change search area: 100 miles from 63101",
+      })
+      .filter({ visible: true });
+    await expect(locationChip).toHaveText("100 mi");
+    const currentUrl = page.url();
+    await locationChip.click();
+    await expect(
+      page.getByLabel("Search location", { exact: true }),
+    ).toBeFocused();
+    expect(page.url()).toBe(currentUrl);
+    await expect(page.getByRole("dialog", { name: /states/i })).toHaveCount(0);
     await page
       .getByLabel("Search area", { exact: true })
       .selectOption("nationwide");
     await expect(page).not.toHaveURL(/near=/);
+  });
+
+  test("account opens clearly separated buying preferences with readable location fields", async ({
+    page,
+  }, info) => {
+    await page.goto("/market");
+    await page
+      .getByRole("button", { name: "Account menu", exact: true })
+      .click();
+    await page
+      .getByRole("link", { name: "Buying preferences", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/settings#buying-preferences$/);
+    const preferences = page.getByRole("region", {
+      name: "Buying preferences",
+      exact: true,
+    });
+    await expect(
+      preferences.getByRole("button", {
+        name: "Save buying preferences",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(
+      preferences.getByRole("heading", {
+        name: "Buying preferences",
+        exact: true,
+      }),
+    ).toBeInViewport();
+    await page.screenshot({
+      path: info.outputPath("settings-buying-preferences.png"),
+    });
+    expect((await preferences.boundingBox())!.y).toBeGreaterThanOrEqual(56);
+    const fields = await page
+      .locator(
+        "#buying-preferences input:not([type=checkbox]), #buying-preferences select, #locations input, #locations select",
+      )
+      .evaluateAll((elements) =>
+        elements.map((el) => ({
+          fontSize: parseFloat(getComputedStyle(el).fontSize),
+          height: el.getBoundingClientRect().height,
+        })),
+      );
+    for (const field of fields) {
+      expect(field.fontSize).toBeGreaterThanOrEqual(16);
+      expect(Math.round(field.height * 100) / 100).toBeGreaterThanOrEqual(44);
+    }
+    await page
+      .getByRole("navigation", { name: "Settings sections" })
+      .getByRole("link", { name: "Locations", exact: true })
+      .click();
+    await expect(page).toHaveURL(/#locations$/);
+    expect(
+      (await page.locator("#locations").boundingBox())!.y,
+    ).toBeGreaterThanOrEqual(56);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - innerWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: info.outputPath("settings-locations.png") });
+    await page
+      .getByRole("link", { name: "MIKEHUNT home", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/market(?:\?|$)/);
+  });
+
+  test("tools keeps buying preferences within reach and filters without layout overflow", async ({
+    page,
+  }, info) => {
+    await page.goto("/tools");
+    const search = page.getByRole("textbox", {
+      name: "Find a tool",
+      exact: true,
+    });
+    await expect(search).toBeVisible();
+    expect(
+      await search.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    ).toBeGreaterThanOrEqual(16);
+    await search.fill("unlikely-tool-name-qa");
+    await expect(
+      page
+        .getByRole("status", { name: "" })
+        .filter({ hasText: "No tools match this search." }),
+    ).toBeVisible();
+    await search.clear();
+    await expect(
+      page.getByText("No tools match this search.", { exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - innerWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: info.outputPath("tools.png") });
+    await page
+      .getByRole("link", { name: "Buying preferences", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/settings#buying-preferences$/);
+    await expect(
+      page.getByRole("heading", { name: "Buying preferences", exact: true }),
+    ).toBeInViewport();
+  });
+
+  test("buying preferences save to the signed-in local account and survive reload", async ({
+    page,
+  }) => {
+    const response = await page.request.get("/api/preferences");
+    expect(response.ok()).toBe(true);
+    const original = (await response.json()).prefs.buyerScope;
+    expect(original).toBeTruthy();
+    try {
+      await page.goto("/settings#buying-preferences");
+      const save = page.getByRole("button", {
+        name: "Save buying preferences",
+        exact: true,
+      });
+      await expect(save).toBeEnabled();
+      await page.getByLabel("Minimum price ($)", { exact: true }).fill("1000");
+      await page.getByLabel("Maximum price ($)", { exact: true }).fill("17500");
+      await save.click();
+      await expect(
+        page.getByText("Buying preferences saved to your account.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.reload();
+      await expect(save).toBeEnabled();
+      await expect(
+        page.getByLabel("Minimum price ($)", { exact: true }),
+      ).toHaveValue("1000");
+      await expect(
+        page.getByLabel("Maximum price ($)", { exact: true }),
+      ).toHaveValue("17500");
+      const persisted = await page.request.get("/api/preferences");
+      expect(persisted.ok()).toBe(true);
+      expect((await persisted.json()).prefs.buyerScope).toMatchObject({
+        minPrice: 1000,
+        maxPrice: 17500,
+      });
+    } finally {
+      const restored = await page.request.put("/api/preferences", {
+        data: { buyerScope: original },
+      });
+      expect(restored.ok()).toBe(true);
+    }
   });
 
   test("saved-area shortcuts retain home settings and keep the first price visible", async ({

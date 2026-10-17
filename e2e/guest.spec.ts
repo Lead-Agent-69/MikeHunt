@@ -51,9 +51,36 @@ test.describe("guest (read-only, prod-safe)", () => {
       await expect(
         page.locator("main, [role=main], body").first(),
       ).toBeVisible();
+      if (path === "/tools") {
+        const search = page.getByRole("textbox", {
+          name: "Find a tool",
+          exact: true,
+        });
+        await search.fill("unlikely-tool-name-qa");
+        await expect(
+          page.getByText("No tools match this search.", { exact: true }),
+        ).toBeVisible();
+        await search.clear();
+        await expect(
+          page.getByText("No tools match this search.", { exact: true }),
+        ).toHaveCount(0);
+      }
       await expectHealthy(page, h);
     });
   }
+
+  test("Market shared search preserves its destination through sign-in", async ({
+    page,
+  }) => {
+    const health = watchHealth(page);
+    await page.goto("/market?near=63101&radius=50&pageSize=1");
+    await expect(page).toHaveURL(/\/login\?next=/);
+    expect(new URL(page.url()).searchParams.get("next")).toBe(
+      "/market?near=63101&radius=50&pageSize=1",
+    );
+    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expectHealthy(page, health);
+  });
 
   // Signed-out visitors must be sent to /login?next=… (never a 500 or a blank app shell).
   const PROTECTED = [

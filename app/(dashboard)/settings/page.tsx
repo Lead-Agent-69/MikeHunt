@@ -28,15 +28,51 @@ function CarsViewPrefs() {
   const { isLoading } = usePreferences();
   if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
-    <div className="glass-panel p-6 animate-popIn">
-      <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-        Locations
-      </h2>
-      <LocationPrefs />
+    <div className="space-y-6">
+      <nav
+        aria-label="Settings sections"
+        className="flex flex-wrap gap-2 border-b border-[var(--b1)] pb-4"
+      >
+        {[
+          ["Buying preferences", "buying-preferences"],
+          ["Locations", "locations"],
+          ["Deal alerts", "deal-alerts"],
+        ].map(([label, id]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
       <BuyingProfilePrefs />
-      <div className="mt-6 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4">
+      <section
+        id="locations"
+        aria-labelledby="locations-title"
+        className="scroll-mt-20 border-t border-[var(--b1)] pt-6"
+      >
+        <h2
+          id="locations-title"
+          className="mb-4 text-sm font-bold text-[var(--t1)]"
+        >
+          Locations
+        </h2>
+        <LocationPrefs />
+      </section>
+      <section
+        id="deal-alerts"
+        aria-labelledby="deal-alerts-title"
+        className="scroll-mt-20 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4"
+      >
         <div className="min-w-0">
-          <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
+          <h2
+            id="deal-alerts-title"
+            className="text-sm font-bold text-[var(--t1)]"
+          >
+            Deal alerts
+          </h2>
           <p className="text-[12px] text-[var(--t4)]">
             Enable notifications for changes to your saved searches and
             vehicles.
@@ -45,7 +81,7 @@ function CarsViewPrefs() {
         <div className="min-w-0 max-w-full">
           <EnablePush />
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -243,9 +279,6 @@ export default function SettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-[var(--t1)]">Settings</h1>
-          <p className="text-sm text-[var(--t4)] mt-1">
-            Your viewing preferences, workspace profile, and source connections.
-          </p>
         </div>
       </div>
 

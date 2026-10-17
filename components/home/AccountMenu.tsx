@@ -251,7 +251,10 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
                 <MenuLink key={entry.href} entry={entry} />
               ))}
               <MenuLink
-                entry={{ name: "Buying profile", href: "/onboarding?edit=1" }}
+                entry={{
+                  name: "Buying preferences",
+                  href: "/settings#buying-preferences",
+                }}
                 icon={Settings}
               />
               <div className="my-1 border-t border-[var(--b1)]" />

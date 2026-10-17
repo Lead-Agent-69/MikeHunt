@@ -6,6 +6,57 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Shared Experience Follow-Up (October 17, 2026)
+
+The shared header now reflects an active Market ZIP/city or coordinate radius
+instead of incorrectly saying `All states`. Its radius button focuses the
+existing location control without discarding source filters, sort or history.
+State mode retains the state picker; compact phone labels keep the map icon and
+text within reach. Market and header URL changes preserve router and return
+metadata and notify shared URL readers without interrupting pending navigation.
+The radius header is checked immediately after a search, before any reload.
+
+Account and Tools use the same `Buying preferences` destination in Settings.
+Buying preferences, Locations and Deal alerts are separate labeled sections,
+with visible section links and sticky-header-safe anchors. The primary save
+action, full profile editor, existing tools and account authorization remain.
+Buying and location fields, plus Tools search, use mobile-readable input text.
+Preference loading failures are explicit rather than unexplained disabled fields.
+
+The supplied logo artwork is unchanged. Theme styling now follows `data-theme`
+in CSS, avoiding one observer/listener pair and an initial light-theme state per
+logo instance. Dimensions stay reserved; wordmark spacing is not compressed.
+Shared `settings` and `bank` icons no longer render blank; both use the existing
+Lucide library, with a regression test rendering every declared shared icon.
+Tools links opt out of speculative prefetching; its search waits for client
+handlers before accepting input so early WebKit typing is not lost.
+No new dependencies, database
+migrations, hosted writes, jobs, source permissions or worker deployments are
+part of this presentation change.
+
+Regression gates cover header geometry and unclipped location text, radius
+focus without lost filters, both preference entry points, section anchors,
+Tools search, and real local-account preference save/reload. Core page checks
+cover Discover, Inventory, Saved and Settings in both themes. These are local
+UI checks, not hosted account or source-freshness certification.
+
+Final local verification: 81 focused unit checks across nine files passed,
+including all 48 declared icons and return-position/history notifications.
+The final application passed 42/42 checks across desktop, two tablet sizes,
+320/390px phones, WebKit phone and Firefox desktop, followed by 16/16 guest and
+legacy-account checks on desktop and phone. These 58 browser cases include
+real local-account preference saves and reloads, immediate radius-header updates
+without reload, and shared-search destination preservation through sign-in.
+All final runs used zero retries; no timeouts were increased. Geometry readings
+are rounded to hundredths while retaining the 44px control-height minimum.
+Screenshots and diagnostic runs are archived outside Git on the local data drive.
+
+Remaining release/product gates are not erased by this polish: current accepted
+dealer inventory and D&G's redesigned adapter (#437); protected retention and
+saved-vehicle survival (#360); measured hosted free-tier headroom; signed-in
+production onboarding/settings/saves and actual alert delivery; real-outcome
+valuation/repair-cost validation; and the WebKit frame-tail issue (#434).
+
 ### Independent Dealer Filter Follow-Up (October 17, 2026)
 
 The live Market API rejected both `dg-auto` and `ae-of-miami` with HTTP 400

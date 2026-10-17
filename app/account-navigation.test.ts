@@ -85,12 +85,15 @@ describe("Account navigation", () => {
       "Settings",
       "Upgrade",
       "Help & updates",
-      "Buying profile",
+      "Buying preferences",
       "Saved",
       "Saved searches",
       "Alerts",
       "All tools",
     ]);
+    expect(
+      host.querySelector('a[href="/settings#buying-preferences"]'),
+    ).not.toBeNull();
     expect(document.activeElement).toBe(
       host.querySelector('a[href="/settings"]'),
     );

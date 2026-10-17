@@ -37,6 +37,7 @@ import {
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
+import { replaceInventoryHistory } from "@/lib/search/inventory-history";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import {
   PriceRangeSelector,
@@ -300,8 +301,7 @@ export default function MarketPage() {
   const debouncedQs = useDebouncedValue(qs, 350);
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready)
-      window.history.replaceState(window.history.state, "", `/market?${qs}`);
+    if (ready) replaceInventoryHistory(`/market?${qs}`);
   }, [qs, ready]);
 
   const { data, error, isLoading, mutate } = useSWR(
