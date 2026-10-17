@@ -3,7 +3,11 @@ import {
   validateExtendedFilters,
 } from "./extended-inventory-filters";
 import { ALL_VEHICLE_SOURCES } from "@/lib/utils/sources";
-import { DEALER_SOURCE_DOMAINS, sourceMeta } from "@/lib/sources/source-meta";
+import {
+  DEALER_SOURCE_DOMAINS,
+  dealerSourceOptions,
+  sourceMeta,
+} from "@/lib/sources/source-meta";
 import type { Database } from "@/types/supabase";
 
 const STORED_SOURCE_IDS = [
@@ -306,7 +310,13 @@ export const INVENTORY_SOURCE_FILTERS = Array.from(
   new Map(
     [
       ...STORED_SOURCE_IDS.map((id) => ({ id, name: sourceMeta(id).label })),
-      ...["govdeals", "allsurplus", "municibid", "salvagezone"].map((id) => ({
+      ...[
+        "govdeals",
+        "allsurplus",
+        "municibid",
+        "gsa_auctions",
+        "salvagezone",
+      ].map((id) => ({
         id,
         name: sourceMeta(id).label,
       })),
@@ -315,6 +325,7 @@ export const INVENTORY_SOURCE_FILTERS = Array.from(
           (STORED_SOURCE_IDS as string[]).includes(id),
         ),
       ).map(({ id, name }) => ({ id, name })),
+      ...dealerSourceOptions().map(({ id, label }) => ({ id, name: label })),
     ].map((source) => [source.id, source]),
   ).values(),
 ).sort((a, b) => a.name.localeCompare(b.name));

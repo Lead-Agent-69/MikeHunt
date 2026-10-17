@@ -10,7 +10,15 @@ import {
   applyInventoryNumericFilters,
   sellerTypeSourceValues,
   validateInventoryRanges,
+  INVENTORY_SOURCE_FILTERS,
+  applySelectedSources,
+  sourceUrlNeedles,
 } from "./inventory-filters";
+import { CURATED_SITES } from "@/lib/scrapers/curated-sites";
+import {
+  dealerSourceIdFromUrl,
+  sourceFromUrl,
+} from "@/lib/sources/source-meta";
 
 function query() {
   const builder = {
@@ -30,6 +38,26 @@ function query() {
 }
 
 describe("inventory filter contract", () => {
+  it("exposes every registered dealer without widening selection to all independent dealers", () => {
+    for (const site of CURATED_SITES) {
+      const id = dealerSourceIdFromUrl(site.url) || sourceFromUrl(site.url)!;
+      expect(INVENTORY_SOURCE_FILTERS.some((option) => option.id === id)).toBe(
+        true,
+      );
+      const q = query();
+      applySelectedSources(q, [id]);
+      const filter = q.or.mock.calls[0][0];
+      expect(filter).toContain(
+        `and(source.eq.${dealerSourceIdFromUrl(site.url) ? "independent_dealer" : "gov_auction"},or(source_url.ilike.`,
+      );
+      const host = new URL(site.url).hostname.replace(/^www\./, "");
+      expect(
+        sourceUrlNeedles(id).some(
+          (domain) => host === domain || host.endsWith(`.${domain}`),
+        ),
+      ).toBe(true);
+    }
+  });
   it("keeps Scan policies when switching to Feed or Map without adding strict duplicate bounds", () => {
     const params = inventoryViewParams(
       new URLSearchParams(

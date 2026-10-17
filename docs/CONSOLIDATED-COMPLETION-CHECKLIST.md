@@ -6,6 +6,29 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Independent Dealer Filter Follow-Up (October 17, 2026)
+
+The live Market API rejected both `dg-auto` and `ae-of-miami` with HTTP 400
+(`Choose a valid inventory source`) despite their existing registry identities.
+The filter follow-up derives named dealer identities from `CURATED_SITES`, keeps
+historical IDs and aliases stable, and feeds the shared inventory filter catalog.
+Government entries retain their government channel rather than becoming dealers.
+The Market source picker supports searching by dealer name or website.
+
+Registry scope is 187 entries with explicit state labels in 34 states, plus
+untagged networks. This is not 50-state accepted-inventory coverage. Identity and
+filter support do not certify current yield, complete photos, valid prices,
+source permission or per-vehicle coordinates. No source permission, operator
+override, worker quota, schedule, database schema or deployment is changed here.
+AE of Miami publishes Miami and Denver locations: never substitute headquarters
+coordinates for an individual vehicle's location. Preserve its recorded terms
+review and the existing operator override separately from permission evidence.
+
+Regression coverage includes every registered dealer's filter identity, exact
+historical IDs, deceptive host rejection, SQL source narrowing, and combined
+D&G source plus ZIP radius queries crossing state borders. Unknown coordinates
+remain excluded from distance-qualified results rather than assigned zero miles.
+
 ### Embedding Coverage Reporting Follow-Up (October 16, 2026)
 
 PR #431 is merged as `35b6ce2b553dad154a6c68ca8f3c33c4f32cd705` and its

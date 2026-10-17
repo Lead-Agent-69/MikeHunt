@@ -286,6 +286,45 @@ test.describe("Market Explorer home", () => {
     );
   });
 
+  test("finds independent dealers by name or website and preserves source plus radius", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/market?near=63101&radius=250");
+    const search = page.getByRole("searchbox", {
+      name: "Find a source or dealer",
+    });
+    const filters = page.getByRole("button", { name: /^Filters/ });
+    if (!(await search.isVisible()) && (await filters.isVisible()))
+      await filters.click();
+    await page.getByText(/^Sources \(/).click();
+    await search.fill("dgautollc.com");
+    await page.getByRole("checkbox", { name: "D&G Auto", exact: true }).check();
+    await search.fill("aeofmiami");
+    await page
+      .getByRole("checkbox", { name: "AE of Miami", exact: true })
+      .check();
+    await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
+    await expect(page).toHaveURL(/near=63101/);
+    await expect(page).toHaveURL(/radius=250/);
+    await search.scrollIntoViewIfNeeded();
+    await expect(search).toHaveCSS("font-size", "16px");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await page.screenshot({
+      path: testInfo.outputPath("dealer-source-radius.png"),
+    });
+    await search.fill("no-such-source-example");
+    await expect(
+      page.getByRole("status").filter({ hasText: "No matching source." }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
+    await expect(page.getByLabel("Search radius", { exact: true })).toHaveValue(
+      "250",
+    );
+  });
+
   test("runs a ZIP radius search, sorts by distance and restores its shareable URL", async ({
     page,
   }) => {
