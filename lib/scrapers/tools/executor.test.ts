@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { ScraperExecutor } from "./executor";
 import { ScraperRegistry } from "./registry";
+import { getScrapeSourceId } from "../source-run-context";
 
 describe("ScraperExecutor", () => {
   it("aborts timed-out work without starting overlapping retries", async () => {
@@ -50,6 +51,34 @@ describe("ScraperExecutor", () => {
     expect(result.success).toBe(true);
     expect(result.dealsFound).toBe(42);
     expect(result.dealsSaved).toBe(42);
+  });
+
+  it("makes the registered adapter id available to persistence work", async () => {
+    let observedSourceId: string | undefined;
+    const scraper = new ScraperRegistry().register({
+      id: "govdeals",
+      name: "GovDeals",
+      type: "auction",
+      priority: "high",
+      frequencyMinutes: 60,
+      requiresAuth: false,
+      stealthRequired: false,
+      fn: async () => {
+        await Promise.resolve();
+        observedSourceId = getScrapeSourceId();
+        return 1;
+      },
+      enabled: true,
+      estimatedDealsPerRun: 1,
+    });
+
+    const result = await new ScraperExecutor().execute(scraper, {
+      timeoutMs: 1000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(observedSourceId).toBe("govdeals");
+    expect(getScrapeSourceId()).toBeUndefined();
   });
 
   it("returns error after exhausting retries", async () => {

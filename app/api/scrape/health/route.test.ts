@@ -681,3 +681,50 @@ describe("buildLiveCoverage (Decision guide 'working markets')", () => {
     expect(c.topSites[0]).toEqual({ host: "alanjay.com", activeRows: 2 });
   });
 });
+
+describe("healthSourceIdForDeal", () => {
+  it("uses persisted adapter proof before a shared government source enum", async () => {
+    const { healthSourceIdForDeal } = await import("./route");
+    expect(
+      healthSourceIdForDeal(
+        {
+          source: "gov_auction",
+          source_url: "https://www.govdeals.com/legacy-url",
+          options: { sourceAdapterId: "allsurplus" },
+        },
+        ["govdeals", "allsurplus"],
+      ),
+    ).toBe("allsurplus");
+  });
+
+  it("recognizes already-stored AutoTempest aggregator attribution", async () => {
+    const { healthSourceIdForDeal } = await import("./route");
+    expect(
+      healthSourceIdForDeal(
+        {
+          source: "cars_com",
+          source_url: "https://www.cars.com/vehicledetail/example",
+          options: { aggregator: "autotempest" },
+        },
+        ["cars_com", "autotempest"],
+      ),
+    ).toBe("autotempest");
+  });
+
+  it("keeps a known dealer host more specific than its shared importer", async () => {
+    const { healthSourceIdForDeal } = await import("./route");
+    const [dealerId, domains] = Object.entries(DEALER_SOURCE_DOMAINS).find(
+      ([, values]) => values.length > 0,
+    )!;
+    expect(
+      healthSourceIdForDeal(
+        {
+          source: "independent_dealer",
+          source_url: `https://${domains[0]}/inventory/1`,
+          options: { sourceAdapterId: "curated_dealers" },
+        },
+        [dealerId, "curated_dealers"],
+      ),
+    ).toBe(dealerId);
+  });
+});

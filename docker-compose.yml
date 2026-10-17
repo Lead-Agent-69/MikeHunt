@@ -36,7 +36,7 @@ services:
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - REDIS_URL=redis://redis:6379
-      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      - FLARESOLVERR_URL=http://flaresolverr:8191
     depends_on:
       redis:
         condition: service_healthy
@@ -70,7 +70,7 @@ services:
       # - AI_CRAWL_VDP_CAP=12
       # - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
       # Reserve tier — smartFetch falls to FlareSolverr only after static→stealth→headed all fail.
-      - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      - FLARESOLVERR_URL=http://flaresolverr:8191
       # Dedicate a worker to the walled trio by uncommenting (else it runs the full enabled set):
       # - SCRAPE_SOURCES=cars_com,autotrader,truecar
     depends_on:
@@ -89,8 +89,11 @@ services:
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8191:8191"
+    # Scraper/worker reach this service over the Compose network. Do not bind 8191 on the host:
+    # operators commonly run a standalone diagnostic FlareSolverr there, and the duplicate bind
+    # prevents the production scraper from restarting.
+    expose:
+      - "8191"
     environment:
       - LOG_LEVEL=warning
       - TZ=America/Chicago

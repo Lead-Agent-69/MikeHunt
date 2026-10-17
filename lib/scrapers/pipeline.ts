@@ -50,9 +50,50 @@ import {
   columnsExist,
   stripColumns,
 } from "@/lib/data-quality/optional-columns";
+import { getScrapeSourceId } from "./source-run-context";
 
 /** Columns added by 20261010210000 (Ren sign pending). Stripped until hosted has them. */
 export const QUALITY_COLUMNS = ["quality_flags", "completeness"] as const;
+
+export type PipelineStageCounts = {
+  input: number;
+  normalized: number;
+  scoped: number;
+  qualityAccepted: number;
+  vehicleAccepted: number;
+  fieldAccepted: number;
+  photoAccepted: number;
+  persisted: number;
+};
+
+export function pipelineRejectionBreakdown(counts: PipelineStageCounts) {
+  const rejected = (before: number, after: number) =>
+    Math.max(0, before - after);
+  return {
+    normalization: rejected(counts.input, counts.normalized),
+    buyerScope: rejected(counts.normalized, counts.scoped),
+    quality: rejected(counts.scoped, counts.qualityAccepted),
+    vehicleScope: rejected(counts.qualityAccepted, counts.vehicleAccepted),
+    requiredFields: rejected(counts.vehicleAccepted, counts.fieldAccepted),
+    photos: rejected(counts.fieldAccepted, counts.photoAccepted),
+    persistence: rejected(counts.photoAccepted, counts.persisted),
+  };
+}
+
+function logPipelineOutcome(
+  adapterId: string,
+  storedSource: string,
+  counts: PipelineStageCounts,
+) {
+  console.info(
+    `[Pipeline] intake ${JSON.stringify({
+      adapterId,
+      storedSource,
+      ...counts,
+      rejected: pipelineRejectionBreakdown(counts),
+    })}`,
+  );
+}
 
 function text(value: unknown) {
   return String(value || "").trim();
@@ -176,6 +217,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!localContext?.cacheOnly) await loadMarketIndex(getSupabase());
 
   const source = deals[0]?.source || "unknown";
+  const sourceAdapterId = getScrapeSourceId() || source;
   const runScope = getScrapeRunScope();
   // Normalize listing make/model before applying buyer eligibility, just as search does.
   const candidates = normalizeDeals(deals);
@@ -187,7 +229,19 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       `[Pipeline] scoped ${source}: kept ${scopedDeals.length}/${deals.length} rows for buyer intent`,
     );
   }
-  if (scopedDeals.length === 0) return 0;
+  if (scopedDeals.length === 0) {
+    logPipelineOutcome(sourceAdapterId, source, {
+      input: deals.length,
+      normalized: candidates.length,
+      scoped: 0,
+      qualityAccepted: 0,
+      vehicleAccepted: 0,
+      fieldAccepted: 0,
+      photoAccepted: 0,
+      persisted: 0,
+    });
+    return 0;
+  }
 
   const normalized = scopedDeals;
   // Authoritative make/model/year from the VIN (cache-first, vPIC for misses) BEFORE quality-control +
@@ -306,6 +360,9 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           ),
           // Let scrapers contribute structured options (e.g. AutoTrader's free KBB price rating).
           ...scraperOptions,
+          // The DB source enum intentionally groups some sources (for example every government
+          // auction as `gov_auction`). Keep the exact registered adapter for truthful health proof.
+          sourceAdapterId,
           seller: sellerName || scraperOptions.seller,
           // Stated on the listing vs assumed from the source (salvage yard, ReCar, CPO-less retail).
           ...(titleSource ? { titleSource } : {}),
@@ -431,7 +488,20 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
       };
     });
 
-  if (rows.length === 0) return 0;
+  const fieldAccepted = rows.length;
+  if (rows.length === 0) {
+    logPipelineOutcome(sourceAdapterId, source, {
+      input: deals.length,
+      normalized: candidates.length,
+      scoped: scopedDeals.length,
+      qualityAccepted: report.validDeals.length,
+      vehicleAccepted: inScopeDeals.length,
+      fieldAccepted,
+      photoAccepted: 0,
+      persisted: 0,
+    });
+    return 0;
+  }
 
   if (!localContext?.cacheOnly) {
     await preserveExistingDealerListingIds(getSupabase(), rows);
@@ -452,7 +522,20 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     console.info(
       `[upsertDeals] ${beforePhotoGate - rows.length} listings deferred: no usable photo URL`,
     );
-  if (!rows.length) return 0;
+  const photoAccepted = rows.length;
+  if (!rows.length) {
+    logPipelineOutcome(sourceAdapterId, source, {
+      input: deals.length,
+      normalized: candidates.length,
+      scoped: scopedDeals.length,
+      qualityAccepted: report.validDeals.length,
+      vehicleAccepted: inScopeDeals.length,
+      fieldAccepted,
+      photoAccepted,
+      persisted: 0,
+    });
+    return 0;
+  }
 
   // Geocode each deal's location (cached + free) so the map and saved-search radius matching work.
   // Best-effort: any failure leaves lat/lng null and the upsert proceeds unchanged. A DB trigger
@@ -604,6 +687,17 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   }
 
   const returnedRows = upsertedRows || [];
+
+  logPipelineOutcome(sourceAdapterId, source, {
+    input: deals.length,
+    normalized: candidates.length,
+    scoped: scopedDeals.length,
+    qualityAccepted: report.validDeals.length,
+    vehicleAccepted: inScopeDeals.length,
+    fieldAccepted,
+    photoAccepted,
+    persisted: returnedRows.length,
+  });
 
   // Insert price history for deals that have a price
   const priceHistoryRows = returnedRows
