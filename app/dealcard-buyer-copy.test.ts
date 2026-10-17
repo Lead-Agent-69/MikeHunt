@@ -88,3 +88,22 @@ describe("dealCardCopy", () => {
     for (const s of strings) expect(s).not.toMatch(/resale|\bbid(ding)?\b/i);
   });
 });
+
+describe("DealCard compact actions", () => {
+  it("consolidates seller contact methods instead of overflowing the footer", () => {
+    const html = renderToStaticMarkup(
+      createElement(DealCard, {
+        ...lot,
+        sourceUrl: "https://inventory.example/vehicle",
+        sellerContactUrl: "https://inventory.example/contact",
+        sellerEmail: "sales@example.test",
+        sellerPhone: "5551234567",
+        onSave: () => {},
+      }),
+    );
+    expect(html).toContain('aria-label="Open original listing source"');
+    expect(html).toContain('aria-label="Contact seller"');
+    expect(html).not.toContain(">Call<");
+    expect(html).not.toContain(">Email<");
+  });
+});

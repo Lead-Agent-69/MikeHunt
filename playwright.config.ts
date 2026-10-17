@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
 import { isLocalE2ETarget } from "./e2e/support/is-local-target";
+
+// Keep the browser fixtures on the same admin identity and runtime configuration as Next.
+// Playwright does not load Next's .env files on its own.
+loadEnvConfig(process.cwd(), process.env.NODE_ENV !== "production");
 
 /**
  * E2E config. Not wired into CI: run with `npm run e2e` (local build) or `npm run e2e:prod`.

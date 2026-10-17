@@ -33,4 +33,16 @@ describe("vehicle map preview", () => {
       "Not reported",
     );
   });
+  it.each(["-$1,500", "$0", "Unavailable"])(
+    "preserves an explicit net-profit value: %s",
+    (valueText) => {
+      const html = vehiclePopup({
+        name: "Vehicle",
+        priceLabel: "Estimated net profit",
+        valueText,
+      });
+      expect(html).toContain("Estimated net profit");
+      expect(html).toContain(valueText);
+    },
+  );
 });

@@ -93,9 +93,11 @@ describe("listing photo preview", () => {
     const dialog = open();
     expect(dialog.parentElement).toBe(document.body);
     expect(host.contains(dialog)).toBe(false);
-    expect(dialog.className).toContain("fixed inset-0");
+    expect(dialog.className).toContain("fixed inset-y-0 left-0");
+    expect(dialog.className).toContain("w-[100dvw]");
     expect(dialog.className).toContain("overflow-hidden");
-    expect(dialog.querySelector("img")!.className).toContain("h-full");
+    expect(dialog.querySelector("img")!.className).toContain("max-h-full");
+    expect(dialog.querySelector("img")!.className).toContain("max-w-full");
     expect(dialog.querySelector("img")!.className).toContain("object-contain");
     expect(document.body.style.overflow).toBe("hidden");
   });

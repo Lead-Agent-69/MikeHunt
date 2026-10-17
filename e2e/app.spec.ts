@@ -177,6 +177,7 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await expect(page.getByText("Home location").first()).toBeVisible();
     await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(0);
+    await page.getByRole("tab", { name: "Buying", exact: true }).click();
     await expect(
       page.getByRole("button", {
         name: "Save buying preferences",
@@ -186,11 +187,11 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expectHealthy(page, h);
   });
 
-  test("/status is admin-only: a regular user is bounced to Discover", async ({
+  test("/status is admin-only: a regular user is bounced to Market", async ({
     page,
   }) => {
     await page.goto("/status");
-    await expect(page).toHaveURL(/\/discover/);
+    await expect(page).toHaveURL(/\/market/);
   });
 });
 

@@ -427,9 +427,9 @@ export default function DiscoverPage() {
         <button
           type="button"
           disabled={!discoverReady}
-          onClick={() => router.push(`/scan${scopeQuery}`)}
-          aria-label="Browse inventory"
-          title="Browse inventory"
+          onClick={() => router.push(`/market${scopeQuery}`)}
+          aria-label="Open Market Explorer"
+          title="Open Market Explorer"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--b2)] bg-[var(--s0)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
         >
           <ScanSearch size={20} aria-hidden="true" />
@@ -532,12 +532,12 @@ export default function DiscoverPage() {
                 </button>
                 {discoverReady && (
                   <Link
-                    href={`/scan${scopeQuery}`}
+                    href={`/market${scopeQuery}`}
                     prefetch={false}
-                    aria-label="All filters & results"
+                    aria-label="All market filters and results"
                     className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
                   >
-                    All filters
+                    Market Explorer
                   </Link>
                 )}
                 <button

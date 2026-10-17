@@ -53,7 +53,9 @@ describe("global photo previews", () => {
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(host.contains(dialog)).toBe(false);
     expect(dialog.className).toContain("h-[100dvh]");
+    expect(dialog.className).toContain("w-[100dvw]");
     expect(dialog.className).toContain("safe-area-inset-bottom");
+    expect(dialog.querySelector("img")!.className).toContain("max-w-full");
     expect(dialog.querySelector("img")!.className).toContain("object-contain");
     act(() =>
       dialog.dispatchEvent(

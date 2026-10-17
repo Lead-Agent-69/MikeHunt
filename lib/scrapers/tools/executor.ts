@@ -8,6 +8,7 @@ import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
 } from "./circuit-breaker";
+import { withScrapeSourceId } from "../source-run-context";
 
 export interface ExecutorOptions {
   maxRetries?: number;
@@ -176,11 +177,13 @@ export class ScraperExecutor {
         stopped,
         Promise.resolve().then(() => {
           controller.signal.throwIfAborted();
-          return scraper.fn({
-            ...scraper.args,
-            abortSignal: controller.signal,
-            deadlineAt: Date.now() + timeoutMs,
-          });
+          return withScrapeSourceId(scraper.id, () =>
+            scraper.fn({
+              ...scraper.args,
+              abortSignal: controller.signal,
+              deadlineAt: Date.now() + timeoutMs,
+            }),
+          );
         }),
       ]);
     } finally {

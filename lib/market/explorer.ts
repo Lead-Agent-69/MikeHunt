@@ -2,6 +2,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { haversineMiles } from "@/lib/geo/distance";
 import { validCoords } from "@/lib/geo/buyer-home";
 import { US_STATES } from "@/lib/geo/us-states";
+import type { MarketValuation } from "./valuation";
 
 export type MarketPrice = ReturnType<typeof sourcePriceContext>;
 export type MarketListing = {
@@ -22,7 +23,17 @@ export type MarketListing = {
   imageUrl?: string;
   locationCity?: string;
   locationState?: string;
+  /** Rounded source coordinates for the market map; never expose the raw seller pin. */
+  mapLat?: number;
+  mapLng?: number;
   distanceMiles?: number;
+  bodyClass?: string;
+  fuelType?: string;
+  transmission?: string;
+  drivetrain?: string;
+  color?: string;
+  assemblyCountry?: string;
+  availabilityStatus?: string;
   condition?: string;
   damageType?: string;
   sellerType?: string;
@@ -31,10 +42,54 @@ export type MarketListing = {
   firstSeenAt?: string;
   auctionEndAt?: string;
   sellEstimate?: number;
-  profitEstimate: number;
-  profitScore: number;
+  valuationEvidence?: MarketValuation;
+  profitEstimate?: number;
+  profitScore?: number;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;
+};
+
+export type MarketFacetCount = { value: string; n: number };
+export type MarketRangeBand = {
+  from: number;
+  to: number | null;
+  label: string;
+};
+export type MarketPriceMileageCell = {
+  priceFrom: number;
+  priceTo: number | null;
+  mileageFrom: number;
+  mileageTo: number | null;
+  n: number;
+};
+export type MarketFacets = {
+  states?: Record<string, number>;
+  lanes?: Record<string, number>;
+  sellerTypes?: Record<string, number>;
+  topMakes?: { make: string; n: number }[];
+  topModels?: MarketFacetCount[];
+  years?: MarketFacetCount[];
+  bodyClasses?: MarketFacetCount[];
+  fuelTypes?: MarketFacetCount[];
+  transmissions?: MarketFacetCount[];
+  drivetrains?: MarketFacetCount[];
+  conditions?: MarketFacetCount[];
+  sources?: MarketFacetCount[];
+  colors?: MarketFacetCount[];
+  assemblyCountries?: MarketFacetCount[];
+  availability?: MarketFacetCount[];
+  freshness?: MarketFacetCount[];
+  priceKinds?: MarketFacetCount[];
+  priceHistogram?: { from: number; to: number; n: number }[];
+  mileageHistogram?: { from: number; to: number; n: number }[];
+  priceBands?: MarketRangeBand[];
+  mileageBands?: MarketRangeBand[];
+  priceMileageMatrix?: MarketPriceMileageCell[];
+  missingPrice?: number;
+  missingMileage?: number;
+  mapped?: number;
+  laneProfit?: Record<string, number>;
+  laneColors?: Record<string, string>;
 };
 
 export function marketDistance(
@@ -57,6 +112,27 @@ export const MARKET_PRICE_KINDS = [
   "reference",
   "unknown",
 ] as const;
+
+/** Collapse common source spellings before faceting so one make never appears as two filters. */
+export function canonicalMarketMake(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const key = raw
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+  const aliases: Record<string, string> = {
+    gm: "GMC",
+    gmc: "GMC",
+    chevy: "Chevrolet",
+    vw: "Volkswagen",
+    mercedes: "Mercedes-Benz",
+    "mercedes benz": "Mercedes-Benz",
+  };
+  if (aliases[key]) return aliases[key];
+  if (/^[a-z]{2,4}$/i.test(raw) && raw === raw.toUpperCase()) return raw;
+  return raw.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
 export function parseMarketLocation(params: URLSearchParams) {
   const near = (params.get("near") || params.get("zip") || "")

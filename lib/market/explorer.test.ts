@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalMarketMake,
   marketDistance,
   parseMarketLocation,
   summarizeMarket,
   type MarketListing,
 } from "./explorer";
+
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { surroundingStates } from "@/lib/geo/bordering-states";
+
+describe("canonicalMarketMake", () => {
+  it("merges common source spellings into one make facet", () => {
+    expect(canonicalMarketMake("Gm")).toBe("GMC");
+    expect(canonicalMarketMake("gmc")).toBe("GMC");
+    expect(canonicalMarketMake("chevy")).toBe("Chevrolet");
+    expect(canonicalMarketMake("mercedes benz")).toBe("Mercedes-Benz");
+  });
+});
 
 const now = Date.parse("2026-10-16T12:00:00Z");
 function listing(amount: number, kind: string, age = 0): MarketListing {

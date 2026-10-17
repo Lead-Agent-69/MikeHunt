@@ -30,12 +30,11 @@ describe("account menu", () => {
     }
     expect(workspaceGroupsForMode("parts")[0].group).toBe("Plan");
   });
-  it("personal: Saved, Saved searches, Alerts, Tools (Scan), Settings, Help", () => {
+  it("personal: Saved, Alerts, one market workspace, Settings, and Help", () => {
     const menu = accountMenuForMode("personal");
     expect(names(menu.primary)).toEqual(["Saved", "Saved searches", "Alerts"]);
     expect(names(menu.tools)).toEqual([
       "Market Explorer",
-      "Search cars",
       "Feed",
       "Map",
       "Swipe",
@@ -78,19 +77,16 @@ describe("account menu", () => {
     }
   });
 
-  it("reseller and dealer add Feed/Map/Swipe/Auctions plus flip tools", () => {
+  it("reseller and dealer add market intelligence without duplicate auction workspaces", () => {
     for (const mode of ["reseller", "dealer"]) {
       const tools = accountMenuForMode(mode).tools;
       expect(tools.map((t) => t.href)).toEqual(
         expect.arrayContaining([
-          "/scan?sort=profit",
           "/parts",
           "/feed",
           "/map",
           "/swipe",
-          "/auctions",
           "/dealer-network",
-          "/lane",
           "/market",
           "/arbitrage",
           "/find",
@@ -102,6 +98,9 @@ describe("account menu", () => {
           "/fleet",
           "/deal-check",
         ]),
+      );
+      expect(tools.map((tool) => tool.href)).not.toEqual(
+        expect.arrayContaining(["/scan", "/lane", "/auctions"]),
       );
       expect(new Set(tools.map((tool) => tool.href)).size).toBe(tools.length);
     }

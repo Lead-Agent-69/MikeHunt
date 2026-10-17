@@ -64,9 +64,9 @@ export function MarketListingCard({
     <article
       ref={cardRef}
       data-market-vehicle={row.id}
-      className="relative min-w-0 overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
+      className="relative min-w-0 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
     >
-      <div className="relative z-20 aspect-[16/10] overflow-hidden bg-[var(--s2)]">
+      <div className="relative z-20 aspect-[16/9] overflow-hidden bg-[var(--s2)]">
         {photos.length ? (
           <Link
             href={`/deal/${row.id}`}
@@ -178,7 +178,7 @@ export function MarketListingCard({
           </div>
         )}
       </div>
-      <div className="space-y-3 p-4">
+      <div className="space-y-2.5 p-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t3)]">
             {row.sellerType ||
@@ -197,7 +197,7 @@ export function MarketListingCard({
           </h3>
           {row.trim && <p className="text-xs text-[var(--t3)]">{row.trim}</p>}
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-2 border-y border-[var(--b1)] py-3">
+        <div className="flex flex-wrap items-end justify-between gap-2 border-t border-[var(--b1)] pt-2.5">
           <div>
             <p className="text-[10px] font-semibold text-[var(--t3)]">
               {price?.label || "Unverified advertised amount"}
@@ -229,7 +229,7 @@ export function MarketListingCard({
               : "Full purchase price needs confirmation at the source."}
           </p>
         )}
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-[var(--s2)] p-2.5 text-xs">
           <div>
             <dt className="text-[var(--t3)]">Mileage</dt>
             <dd className="font-semibold">
@@ -272,7 +272,13 @@ export function MarketListingCard({
             <span className="font-semibold">
               {reportedPrice(row.sellEstimate)}
             </span>{" "}
-            · model estimate
+            · {row.valuationEvidence?.label || "Estimate basis not recorded"}
+          </p>
+        )}
+        {flipDesk && row.valuationEvidence?.supported === false && (
+          <p className="text-xs text-[var(--t3)]">
+            {row.valuationEvidence.label}. Review market evidence in listing
+            details.
           </p>
         )}
         <p className="flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
@@ -291,6 +297,7 @@ export function MarketListingCard({
             href={`/deal/${row.id}`}
             prefetch={false}
             className="relative z-20 inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
+            onNavigate={rememberPosition}
           >
             Review listing →
           </Link>

@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
 describe("assessDecisionEvidence", () => {
+  it("treats both IAA source spellings as auction evidence", () => {
+    for (const source of ["iaa", "iaai"]) {
+      const result = assessDecisionEvidence({
+        source,
+        askPrice: 5000,
+        priceEvidence: { kind: "current_bid" },
+      });
+      expect(result.state).toBe("auction_watch");
+      expect(result.acquisitionReady).toBe(false);
+    }
+  });
   it("does not call an unknown amount a current auction price", () => {
     const result = assessDecisionEvidence({ source: "copart", askPrice: 0 });
     expect(result.summary).toContain("acquisition price is not reported");

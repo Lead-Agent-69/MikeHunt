@@ -1,6 +1,12 @@
 // lib/scrapers/bypass/flaresolverr.ts
 // FlareSolverr integration for bypassing Cloudflare protection
 
+import {
+  flareSolverrApiUrl,
+  flareSolverrHealthUrl,
+  normalizeFlareSolverrBaseUrl,
+} from "../flaresolverr-endpoint";
+
 interface FlareSolverrRequest {
   cmd: "request.get" | "request.post";
   url: string;
@@ -30,8 +36,9 @@ export class FlareSolverr {
   private timeout: number;
 
   constructor(baseUrl?: string, timeout = 60000) {
-    this.baseUrl =
-      baseUrl || process.env.FLARESOLVERR_URL || "http://localhost:8191";
+    this.baseUrl = normalizeFlareSolverrBaseUrl(
+      baseUrl || process.env.FLARESOLVERR_URL || "http://localhost:8191",
+    );
     this.timeout = timeout;
   }
 
@@ -55,7 +62,7 @@ export class FlareSolverr {
     };
 
     try {
-      const response = await fetch(`${this.baseUrl}/v1`, {
+      const response = await fetch(flareSolverrApiUrl(this.baseUrl), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,7 +97,7 @@ export class FlareSolverr {
    */
   async isAvailable(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`, {
+      const response = await fetch(flareSolverrHealthUrl(this.baseUrl), {
         method: "GET",
         signal: AbortSignal.timeout(5000),
       });

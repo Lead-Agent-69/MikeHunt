@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_SAVED_SEARCH_KEY } from "@/hooks/useLocalSavedSearches";
 
 const state = vi.hoisted(() => ({
   mode: "personal",
@@ -13,7 +14,17 @@ vi.mock("swr", () => ({
     state.keys.push(key);
     return {
       data: key
-        ? { rows: [{ id: "car" }], total: 1105, mode: "all", facets: {} }
+        ? {
+            rows: [{ id: "car" }],
+            total: 1105,
+            mode: "all",
+            facets: {
+              sources: [
+                { value: "copart", n: 640 },
+                { value: "iaa", n: 310 },
+              ],
+            },
+          }
         : undefined,
       isLoading: false,
       mutate: vi.fn(),
@@ -54,6 +65,7 @@ beforeEach(() => {
   state.mode = "personal";
   state.pending = false;
   state.keys = [];
+  localStorage.clear();
   host = document.createElement("div");
   root = createRoot(host);
 });
@@ -121,6 +133,11 @@ describe("Market filter journey", () => {
     act(() => toggle.click());
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("Listings"))!
+        .click(),
+    );
+    act(() =>
       host
         .querySelector<HTMLButtonElement>('[aria-label="Next results page"]')!
         .click(),
@@ -153,6 +170,67 @@ describe("Market filter journey", () => {
     expect(
       state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("offers working quick filters while keeping exact controls collapsed", async () => {
+    await render();
+    const filterToggle = host.querySelector<HTMLButtonElement>(
+      '[aria-controls="market-filter-panel"]',
+    )!;
+    act(() => filterToggle.click());
+    const exact = host.querySelector<HTMLDetailsElement>(
+      '[data-testid="exact-market-filters"]',
+    )!;
+    expect(exact.open).toBe(false);
+
+    const runDrive = Array.from(
+      host.querySelectorAll<HTMLButtonElement>(
+        '[aria-label="Quick market filters"] button',
+      ),
+    ).find((button) => button.textContent === "Run & drive")!;
+    act(() => runDrive.click());
+    expect(new URLSearchParams(window.location.search).get("runDrive")).toBe(
+      "yes",
+    );
+    expect(runDrive.getAttribute("aria-pressed")).toBe("true");
+    act(() => runDrive.click());
+    expect(new URLSearchParams(window.location.search).has("runDrive")).toBe(
+      false,
+    );
+  });
+  it("shows source inventory counts and filters directly from results", async () => {
+    await render();
+    const sourceStrip = host.querySelector(
+      '[aria-label="Browse results by source"]',
+    )!;
+    expect(sourceStrip.textContent).toContain("Copart · 640");
+    const copart = Array.from(
+      sourceStrip.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("Copart"))!;
+    act(() => copart.click());
+    expect(new URLSearchParams(window.location.search).get("sources")).toBe(
+      "copart",
+    );
+  });
+  it("saves the exact Market Explorer query for reopening", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?makes=Ford&priceMin=10000&page=2",
+    );
+    await render();
+    act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("Save search"))!
+        .click(),
+    );
+    const saved = JSON.parse(
+      localStorage.getItem(LOCAL_SAVED_SEARCH_KEY) || "[]",
+    );
+    expect(saved).toHaveLength(1);
+    const params = new URLSearchParams(saved[0].market_params);
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.get("priceMin")).toBe("10000");
+    expect(params.has("page")).toBe(false);
   });
   it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
     window.history.replaceState(null, "", "/market?states=MO");
@@ -203,26 +281,36 @@ describe("Market filter journey", () => {
     );
   });
 
-  it("keeps result controls and inventory before secondary insights in reading order", async () => {
+  it("keeps listings, filters, and intelligence in separate focused workspaces", async () => {
     await render();
-    const sort = host.querySelector('[aria-label="Sort market results"]')!;
-    const views = host.querySelector('[aria-label="Result view"]')!;
-    const inventory = Array.from(host.querySelectorAll("p")).find(
-      (node) => node.textContent === "Inventory results",
+    const workspace = host.querySelector('nav[aria-label="Market workspace"]')!;
+    const results = host.querySelector('[aria-label="Market results"]')!;
+    expect(
+      workspace.compareDocumentPosition(results) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).toBeNull();
+    expect(host.querySelector('nav[aria-label="Market tools"]')).toBeNull();
+
+    const buttons = Array.from(workspace.querySelectorAll("button"));
+    const insights = buttons.find((button) =>
+      button.textContent?.includes("Market insights"),
     )!;
-    const insights = host.querySelector("#market-intelligence")!;
-    const tools = host.querySelector('nav[aria-label="Market tools"]')!;
-    for (const [first, second] of [
-      [sort, views],
-      [inventory, insights],
-      [insights, tools],
-    ]) {
-      expect(
-        first.compareDocumentPosition(second) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-    }
-    expect(insights.className).not.toMatch(/\border-/);
-    expect(tools.className).not.toMatch(/\border-/);
+    act(() => Simulate.click(insights));
+    expect(host.querySelector('[aria-label="Market results"]')).toBeNull();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).not.toBeNull();
+
+    const listings = buttons.find((button) =>
+      button.textContent?.includes("Listings"),
+    )!;
+    act(() => Simulate.click(listings));
+    expect(host.querySelector('[aria-label="Market results"]')).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).toBeNull();
   });
 });

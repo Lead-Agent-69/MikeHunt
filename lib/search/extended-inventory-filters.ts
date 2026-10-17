@@ -115,6 +115,8 @@ export const INVENTORY_DETAIL_GROUPS: {
     fields: [
       { key: "city", label: "City" },
       { key: "listingZip", label: "Listing ZIP" },
+      { key: "assemblyCountry", label: "Assembly country" },
+      { key: "availability", label: "Availability" },
       {
         key: "hasVin",
         label: "VIN",
@@ -238,9 +240,11 @@ export function applyExtendedFilters(
     ["color", "color"],
     ["engine", "engine"],
     ["city", "location_city"],
+    ["assemblyCountry", "assembly_country"],
+    ["availability", "availability_status"],
   ]) {
     const value = (params.get(key) || "")
-      .replace(/[^a-zA-Z0-9 .-]/g, "")
+      .replace(/[^a-zA-Z0-9 _.-]/g, "")
       .trim()
       .slice(0, 60);
     if (value && value !== "all") q = q.ilike(column, `%${value}%`);

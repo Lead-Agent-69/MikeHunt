@@ -225,6 +225,71 @@ describe("Market inventory filtering and pagination", () => {
     expect(state.calls.some((call) => call[1] === "deal_verdict")).toBe(false);
   });
 
+  it("withholds baseline economics and excludes them from profit filters and lane medians", async () => {
+    const common = {
+      source: "independent_dealer",
+      make: "Ford",
+      model: "F-150",
+      year: 2020,
+      ask_price: 12000,
+      sell_estimate: 15000,
+      true_net_profit: 2500,
+      profit_score: 80,
+      recommended_max_bid: 11000,
+      deal_verdict: "go",
+    };
+    state.rows = [
+      {
+        ...common,
+        id: "baseline",
+        deal_analysis: {
+          roi: 50,
+          valuation: { source: "baseline", resaleEvidence: false },
+        },
+      },
+      {
+        ...common,
+        id: "comparisons",
+        deal_analysis: {
+          roi: 20,
+          valuation: {
+            source: "comparables",
+            resaleEvidence: true,
+            compCount: 8,
+            confidence: "medium",
+            compKind: "ask",
+          },
+        },
+      },
+    ];
+    const body = await (
+      await request("mode=all&sort=profitEstimate&sortDir=desc")
+    ).json();
+    expect(body.total).toBe(2);
+    expect(body.rows[0].id).toBe("comparisons");
+    expect(body.rows[0].valuationEvidence.label).toContain(
+      "8 asking-price comparisons",
+    );
+    for (const key of [
+      "sellEstimate",
+      "profitEstimate",
+      "profitScore",
+      "recommendedMaxBid",
+      "dealVerdict",
+      "roi",
+    ])
+      expect(body.rows[1]).not.toHaveProperty(key);
+    expect(Object.values(body.facets.laneProfit)).toEqual([2500]);
+    const filtered = await (await request("mode=all&minProfit=1000")).json();
+    expect(filtered.rows.map((row: { id: string }) => row.id)).toEqual([
+      "comparisons",
+    ]);
+    const curated = await (await request("mode=curated")).json();
+    expect(curated.rows.map((row: { id: string }) => row.id)).toEqual([
+      "comparisons",
+    ]);
+  });
+
   it("does not exclude unpriced inventory unless a price range is requested", async () => {
     await request("mode=all&q=Ford");
     expect(state.calls).not.toContainEqual(["gt", "ask_price", 0]);
@@ -311,6 +376,51 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.summary.withPhotos).toBe(1);
     expect(body.summary.askingSample).toBe(0);
     expect(body.summary.medianAsk).toBeNull();
+  });
+
+  it("returns real interactive facets, a price-mileage cell and privacy-rounded map points", async () => {
+    state.rows = [
+      {
+        id: "facet-car",
+        source: "independent_dealer",
+        title: "2024 Ford Maverick",
+        make: "Ford",
+        model: "Maverick",
+        year: 2024,
+        ask_price: 14_999,
+        mileage: 32_000,
+        body_class: "Pickup truck",
+        fuel_type: "Gasoline",
+        transmission: "Automatic 8-speed",
+        drivetrain: "AWD",
+        color: "Blue",
+        condition: "clean_title",
+        seller_type: "dealer",
+        assembly_country: "United States",
+        availability_status: "on_lot",
+        lat: 38.6274,
+        lng: -90.1982,
+        last_seen_at: new Date().toISOString(),
+      },
+    ];
+    const body = await (await request("mode=all")).json();
+    expect(body.rows[0]).toMatchObject({
+      mapLat: 38.6,
+      mapLng: -90.2,
+      bodyClass: "Pickup truck",
+      fuelType: "Gasoline",
+    });
+    expect(body.facets.topModels).toContainEqual({ value: "Maverick", n: 1 });
+    expect(body.facets.bodyClasses).toContainEqual({ value: "Pickup", n: 1 });
+    expect(body.facets.fuelTypes).toContainEqual({ value: "Gas", n: 1 });
+    expect(body.facets.mapped).toBe(1);
+    expect(body.facets.priceMileageMatrix).toContainEqual({
+      priceFrom: 10_000,
+      priceTo: 19_999,
+      mileageFrom: 25_000,
+      mileageTo: 49_999,
+      n: 1,
+    });
   });
 
   it("compares a cash budget to the disclosed full price, excluding deposits, payments and references", async () => {

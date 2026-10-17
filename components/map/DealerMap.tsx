@@ -49,6 +49,7 @@ export interface MapPoint {
   // Rich listing fields (housing) → Zillow/Redfin-style price-pill markers + photo-card popups.
   price?: number;
   priceLabel?: string; // "Starting bid" / "Asking" / "Assessed value" …
+  valueText?: string; // Explicit display for a signed metric, such as estimated net profit.
   score?: number;
   tier?: string; // hot | warm | standard
   image?: string;
@@ -111,11 +112,12 @@ const fmtPrice = (n: number) =>
 function pillIcon(p: MapPoint): L.DivIcon {
   const color = TIER_HEX[p.tier ?? ""] || TYPE_HEX[p.type ?? ""] || "#2563eb";
   const text =
-    p.price && p.price > 0
+    p.valueText ??
+    (p.price && p.price > 0
       ? fmtPrice(p.price)
       : p.score != null
         ? String(p.score)
-        : "•";
+        : "•");
   return new L.DivIcon({
     className: "deal-pin",
     html: `<div style="background:${color};color:#fff;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">${esc(text)}</div>`,

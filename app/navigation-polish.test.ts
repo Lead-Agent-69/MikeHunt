@@ -10,7 +10,11 @@ describe("navigation usability", () => {
   it("uses tablet-safe breakpoints and reserves space for the bottom bar", () => {
     expect(top).toContain('aria-label="Primary desktop navigation"');
     expect(top).toContain("hidden lg:flex");
-    expect(bottom).toContain("lg:hidden fixed bottom-0");
+    expect(bottom).toContain("fixed bottom-0");
+    expect(bottom).toContain("w-[100dvw] max-w-[100dvw]");
+    expect(bottom).toContain(
+      'top: "calc(100dvh - 58px - env(safe-area-inset-bottom))"',
+    );
     expect(layout).toContain("md:pb-[calc(5rem+env(safe-area-inset-bottom))]");
     expect(layout).toContain("lg:pb-6");
   });

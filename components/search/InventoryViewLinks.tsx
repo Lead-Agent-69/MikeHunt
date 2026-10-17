@@ -7,7 +7,7 @@ import { INVENTORY_DETAIL_FIELDS } from "@/lib/search/extended-inventory-filters
 import { inventoryViewParams } from "@/lib/search/inventory-view-scope";
 
 const VIEWS = [
-  { path: "/scan", label: "Results", Icon: ListFilter },
+  { path: "/market", label: "Results", Icon: ListFilter },
   { path: "/map", label: "Map", Icon: Map },
   { path: "/feed", label: "Feed", Icon: Film },
   { path: "/swipe", label: "Swipe", Icon: Layers },
@@ -36,7 +36,7 @@ export function InventoryViewLinks({
   const params = inventoryViewParams(new URLSearchParams(query));
   params.set("scope", "explicit");
   // Empty explicit values prevent saved defaults from silently changing a shared search.
-  if (current === "/scan") {
+  if (current === "/market") {
     for (const key of [
       "state",
       "makes",
@@ -81,7 +81,7 @@ export function InventoryViewLinks({
       </nav>
       {current !== "/discover" && (
         <form
-          action={current === "/discover" ? "/scan" : current}
+          action={current === "/discover" ? "/market" : current}
           method="get"
           className="flex min-w-0 items-center gap-1"
         >
@@ -121,7 +121,7 @@ export function InventoryViewLinks({
         <div className="flex w-full flex-wrap items-center gap-2 text-xs text-[var(--t2)]">
           <p>Body style is not reported for every listing.</p>
           <form
-            action={current === "/discover" ? "/scan" : current}
+            action={current === "/discover" ? "/market" : current}
             method="get"
           >
             {Array.from(params.entries())
