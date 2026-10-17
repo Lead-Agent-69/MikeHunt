@@ -1632,13 +1632,13 @@ function parseJsonLdCars($: any) {
       const parsed = JSON.parse(raw);
       const nodes = Array.isArray(parsed) ? parsed : [parsed];
       for (const node of nodes) {
-        if (node?.["@type"] === "Car") cars.push(node);
+        const isVehicle = (entry: any) =>
+          [entry?.["@type"]]
+            .flat()
+            .some((type) => ["Car", "Vehicle"].includes(type));
+        if (isVehicle(node)) cars.push(node);
         if (Array.isArray(node?.["@graph"])) {
-          cars.push(
-            ...node["@graph"].filter(
-              (entry: any) => entry?.["@type"] === "Car",
-            ),
-          );
+          cars.push(...node["@graph"].filter(isVehicle));
         }
       }
     } catch {

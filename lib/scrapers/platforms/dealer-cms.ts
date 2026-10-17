@@ -1,7 +1,8 @@
 /**
  * One parser for the small-dealer CMS family most rebuildable/salvage lots run on:
  *  - Creative Design Group (4cdg.com) sites: list pages link to `vehiclesDetail.php?<id>`
- *    (Damage.com / 74 Auto, D&G Auto, AutoVada, Polecats, Elite Sikeston, St. James, ...).
+ *    (Damage.com / 74 Auto, AutoVada, Polecats, Elite Sikeston, St. James, ...).
+ *  - D&G's native all-inventory grid after its October 2026 redesign.
  *  - SalvageZone's custom CMS: detail links `/inventory/salvage/<kind>/<year>/<make>/<id>`.
  *
  * Every template wraps a vehicle differently, so we don't use per-site CSS selectors. We anchor on
@@ -15,6 +16,7 @@
  */
 import type { CheerioAPI } from "cheerio";
 import type { Deal } from "@/types";
+import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
 
 export interface DealerCmsSite {
   sourceId: string;
@@ -39,7 +41,7 @@ export interface DealerCmsSite {
    * "cards" (default): one linked card per vehicle. "text-lines": the inventory is plain text lines
    * like "2021 Kia Forte LXS Salvage Title 47k / Front / $5,450" (Gary's Google Site).
    */
-  layout?: "cards" | "text-lines";
+  layout?: "cards" | "text-lines" | "dg-native";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
@@ -56,8 +58,10 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
   {
     sourceId: "dg-auto",
     name: "D&G Auto LLC",
-    baseUrl: "https://www.dgautollc.com",
-    inventoryUrl: "https://www.dgautollc.com/vehicles.php",
+    baseUrl: "https://dgautollc.com",
+    inventoryUrl: "https://dgautollc.com/inventory/",
+    layout: "dg-native",
+    singlePage: true,
     city: "Poplar Bluff",
     state: "MO",
     defaultCondition: "salvage_title",
@@ -296,7 +300,9 @@ export interface ParsedCard {
   price?: number;
   mileage?: number;
   condition?: string;
+  damage?: string;
   stock?: string;
+  vin?: string;
   image?: string;
   sold: boolean;
 }
@@ -307,6 +313,78 @@ export interface ParsedPage {
   total: number | null;
   /** "page 1 of 6", or the highest page number linked. */
   lastPage: number | null;
+}
+
+/** D&G's October 2026 redesign publishes its entire inventory as native cards. */
+export function parseDgInventory($: CheerioAPI, pageUrl: string) {
+  const cards: ParsedCard[] = [];
+  const seen = new Set<string>();
+  const inventory = $("[data-inv-grid] a.card[href]");
+  let excluded = 0;
+  let duplicates = 0;
+  inventory.each((_, el) => {
+    const card = $(el);
+    if (card.attr("data-type") === "recreational") {
+      excluded++;
+      return;
+    }
+    const url = abs(card.attr("href")!, pageUrl);
+    if (!isSameSiteHref(url, pageUrl)) return;
+    const path = new URL(url).pathname;
+    const rawVin = path.match(/-([a-hj-npr-z0-9]{17})(?:-|\/)/i)?.[1];
+    const vin = rawVin && isValidVin(rawVin) ? normalizeVin(rawVin) : undefined;
+    // A VIN is stable when the dealer edits the descriptive slug.
+    const id = vin?.toLowerCase() || path.replace(/^\/+|\/+$/g, "");
+    if (!id) return;
+    if (seen.has(id)) {
+      duplicates++;
+      return;
+    }
+    seen.add(id);
+    const title = clean(card.find("img[alt]").first().attr("alt"));
+    const parts = splitTitle(title);
+    const text = spacedText($, card);
+    const price = parsePrice(text);
+    const declaredPrice = Number(card.attr("data-price"));
+    const validPrice =
+      price !== undefined && price === declaredPrice ? price : undefined;
+    const miles = card.attr("data-miles");
+    const mileage = miles && /^\d+$/.test(miles) ? Number(miles) : undefined;
+    const image = card.find("img[src]").first().attr("src");
+    if (
+      !parts.year ||
+      !parts.model ||
+      String(parts.year) !== card.attr("data-year") ||
+      parts.make?.toLowerCase() !== card.attr("data-make")?.toLowerCase()
+    )
+      return;
+    cards.push({
+      id,
+      url,
+      title,
+      ...parts,
+      vin,
+      price: validPrice,
+      mileage:
+        mileage !== undefined && mileage < 1_000_000 ? mileage : undefined,
+      condition: titleBrand(card.attr("data-title") || ""),
+      damage: clean(card.attr("data-damage")) || undefined,
+      stock: text.match(/#\s*([A-Z0-9-]+)/i)?.[1],
+      image: image ? abs(image, pageUrl) : undefined,
+      sold: SOLD_RE.test(badgeText($, card)),
+    });
+  });
+  const count = clean($("[data-inv-count]").first().text()).match(
+    /\bof\s+([\d,]+)\s+vehicles\b/i,
+  );
+  return {
+    cards,
+    observed: inventory.length,
+    excluded,
+    duplicates,
+    total: count ? Number(count[1].replace(/,/g, "")) : null,
+    lastPage: 1,
+  };
 }
 
 function abs(href: string, base: string) {
@@ -553,9 +631,10 @@ export function cardToDeal(
     model: card.model,
     ask_price: card.price,
     mileage: card.mileage,
+    ...(card.vin ? { vin: card.vin } : {}),
     condition: card.condition ?? site.defaultCondition,
     title_source: card.condition ? "listing" : "source_default",
-    damage_type: site.defaultDamage,
+    damage_type: site.layout === "dg-native" ? card.damage : site.defaultDamage,
     seller_type: "dealer",
     location_city: site.city,
     location_state: site.state,
@@ -715,10 +794,35 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     const patterns = site.detailPattern
       ? [site.detailPattern]
       : DETAIL_PATTERNS;
+    const native =
+      site.layout === "dg-native"
+        ? parseDgInventory(deps.load(res.body), url)
+        : null;
     const parsed =
-      site.layout === "text-lines"
+      native ??
+      (site.layout === "text-lines"
         ? parseTextListing(deps.load(res.body), url, patterns)
-        : parseListingPage(deps.load(res.body), url, patterns);
+        : parseListingPage(deps.load(res.body), url, patterns));
+    if (
+      native &&
+      (native.total === null ||
+        native.observed !== native.total ||
+        native.cards.length + native.excluded + native.duplicates !==
+          native.observed)
+    )
+      throw new Error(
+        `${site.name} incomplete inventory: parsed ${parsed.cards.length}, expected ${parsed.total ?? "unknown"}`,
+      );
+    if (native) {
+      const eligibleOrSold = native.cards.filter(
+        (card) => card.sold || cardToDeal(card, site),
+      ).length;
+      const rejected =
+        native.observed - native.excluded - native.duplicates - eligibleOrSold;
+      log(
+        `[DealerCMS] ${site.name}: observed ${native.observed}, expected ${native.total}, parsed ${native.cards.length}, excluded ${native.excluded}, duplicates ${native.duplicates}, rejected ${rejected}`,
+      );
+    }
     if (n === 1)
       pages = site.singlePage ? 1 : plannedPages(parsed, site.maxPages ?? 15);
     let fresh = 0;

@@ -6,6 +6,47 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### D&G Native Inventory Repair (October 17, 2026)
+
+Issue #437: D&G moved from `vehicles.php` to a native `/inventory/` page.
+The adapter now reads the self-contained vehicle cards and preserves asking
+price, checked VIN, mileage, stated title, vehicle-level damage, native URL
+and Poplar Bluff location. Visible and machine-readable prices must agree;
+savings, zero/call-for-price and mismatched values are not usable asking prices.
+No dealer-wide run/drive claim is added. Stable VIN identities deduplicate edited
+slugs within the current inventory. The source's full gallery is read rather than
+stopping at its abbreviated structured images; hidden gallery thumbnails remain
+usable evidence and unrelated page images are excluded.
+
+Read-only source observation via the existing polite fetch path returned HTTP
+200 for inventory and one native detail page, with no retries or challenge
+escalation. The captured inventory accounts for all 156 advertised items:
+155 eligible car/truck records with validated VINs and one explicitly excluded
+recreational golf cart. The sample detail has 18 gallery photos, not just the five
+published in JSON-LD. These are parse receipts, **not accepted hosted writes**.
+Counts and captured HTML are retained outside Git in
+`F:/MikeHunt/docker/dg-native-parse-receipt-20261017.json` and adjacent HTML files.
+
+The importer logs observed, expected, parsed, excluded, duplicate and rejected
+counts separately; missing inventory-count/template evidence or incomplete
+card coverage fails instead of reporting a healthy empty scrape. Existing
+ingestion still reports its actual accepted-write count. No timestamps,
+permissions, quotas, database schema, stored rows or deployment settings are
+changed by the repair. Native IDs replace the old numeric page IDs; existing
+VIN duplicate detection remains in the ingestion pipeline, but old rows without
+VINs need operator review. Do not delete legacy/saved rows to force continuity.
+
+The repair passed 64 focused checks across eight test files, including legacy
+CMS pagination, source lookup, accepted-write receipts, current D&G card and
+gallery fixtures, and array-typed Vehicle detail enrichment. Broader release
+verification and worker acceptance remain separate gates.
+
+Release gates still include the operator-controlled Zeus rollout, accepted-run
+and freshness receipts, saved-reference-safe legacy reconciliation, broader
+detail-photo coverage under existing budgets, and live source/radius lookup.
+The agent does not SSH, recreate containers or reset quota state. This repair
+does not enable AE of Miami or any source awaiting access permission.
+
 ### Shared Experience Follow-Up (October 17, 2026)
 
 The shared header now reflects an active Market ZIP/city or coordinate radius
