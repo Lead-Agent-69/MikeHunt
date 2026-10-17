@@ -296,6 +296,7 @@ test.describe("Market Explorer home", () => {
     const filters = page.getByRole("button", { name: /^Filters/ });
     if (!(await search.isVisible()) && (await filters.isVisible()))
       await filters.click();
+    await expect(page.getByLabel("Model", { exact: true })).toBeEnabled();
     await page.getByText(/^Sources \(/).click();
     await search.fill("dgautollc.com");
     await page.getByRole("checkbox", { name: "D&G Auto", exact: true }).check();

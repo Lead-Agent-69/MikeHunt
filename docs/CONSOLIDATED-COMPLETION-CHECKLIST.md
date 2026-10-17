@@ -29,6 +29,18 @@ historical IDs, deceptive host rejection, SQL source narrowing, and combined
 D&G source plus ZIP radius queries crossing state borders. Unknown coordinates
 remain excluded from distance-qualified results rather than assigned zero miles.
 
+Local verification: 65 focused unit/route/worker-targeting tests passed, followed
+by 14/14 source-and-radius browser checks across desktop, two tablet sizes,
+320/390px phones, WebKit phone and Firefox desktop. Six local account setup
+checks passed earlier in the same QA build. The final browser rerun reused those
+accounts after fixing a pre-initialization interaction; no timeouts or assertions
+were relaxed. Screenshots include the source picker with two selected dealers.
+This is local functional QA, not proof of hosted source inventory or permissions.
+
+Explicit state-label discovery gaps: CT, DE, HI, ID, ME, MD, MA, MS, NM, RI, SC,
+TN, VT, WA, WV, WY. National networks may serve them, but independent dealer
+coverage needs permission review and accepted-listing receipts before claiming it.
+
 ### Embedding Coverage Reporting Follow-Up (October 16, 2026)
 
 PR #431 is merged as `35b6ce2b553dad154a6c68ca8f3c33c4f32cd705` and its
