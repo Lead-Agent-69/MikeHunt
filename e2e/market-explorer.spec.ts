@@ -385,6 +385,18 @@ test.describe("Market Explorer home", () => {
     await expect(page).toHaveURL(/radius=250/);
     await search.scrollIntoViewIfNeeded();
     await expect(search).toHaveCSS("font-size", "16px");
+    const resultsAction = page
+      .getByRole("button", { name: /^Show .* listings$/ })
+      .last();
+    const mobileNav = page.getByRole("navigation", {
+      name: "Primary mobile navigation",
+    });
+    if (await mobileNav.isVisible()) {
+      const actionBox = await resultsAction.boundingBox();
+      const navBox = await mobileNav.boundingBox();
+      expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(navBox!.y);
+      expect(actionBox!.y).toBeGreaterThanOrEqual(56);
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(page.viewportSize()!.width);

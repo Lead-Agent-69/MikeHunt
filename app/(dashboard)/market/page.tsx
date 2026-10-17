@@ -1207,7 +1207,7 @@ export default function MarketPage() {
           </div>
         </details>
 
-        <div className="sticky bottom-3 z-20 flex justify-end rounded-xl border border-[var(--b1)] bg-[var(--s0)]/95 p-3 shadow-lg backdrop-blur">
+        <div className="sticky bottom-[calc(70px+env(safe-area-inset-bottom))] z-20 flex justify-end rounded-xl border border-[var(--b1)] bg-[var(--s0)]/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
           <button
             type="button"
             onClick={() => {
