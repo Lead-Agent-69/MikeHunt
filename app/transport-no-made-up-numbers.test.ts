@@ -28,8 +28,14 @@ describe("transport card", () => {
     expect(source).toContain("Get a transport quote");
   });
 
-  it("the deal page passes the real listing state and the buyer's home state", () => {
+  it("the deal page sends the listing state to the focused transport planner", () => {
+    const move = readFileSync("app/(dashboard)/move/page.tsx", "utf8");
     expect(page).not.toContain('buyState={serverDeal.locationState ?? "TX"}');
-    expect(page).toContain("homeState={effectiveHome(prefs)?.state}");
+    expect(page).not.toContain("<FreightAndTaxCalculator");
+    expect(page).toContain('params.set("from", serverDeal.locationState)');
+    expect(page).toContain("router.push(`/move?${params.toString()}`)");
+    expect(move).toContain(
+      "discoverHomeState(prefs.homeLocation, prefs.carsState)",
+    );
   });
 });
