@@ -711,15 +711,12 @@ export default function MarketPage() {
                   value={sourceSearch}
                   onChange={(event) => setSourceSearch(event.target.value)}
                   placeholder="Dealer name or website"
-                  className="mt-1 min-h-11 w-full rounded border border-[var(--border)] bg-[var(--bg)] px-3 text-base"
+                  className="mt-1 min-h-11 w-full rounded border border-[var(--b1)] bg-[var(--s0)] px-3 text-base"
                 />
               </label>
               <div className="max-h-64 overflow-y-auto">
                 {matchingSources.length === 0 && (
-                  <p
-                    role="status"
-                    className="py-3 text-sm text-[var(--text-muted)]"
-                  >
+                  <p role="status" className="py-3 text-sm text-[var(--t3)]">
                     No matching source.
                   </p>
                 )}
