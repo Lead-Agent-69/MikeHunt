@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
+import logoStyles from "@/components/brand/MikeHuntLogo.module.css";
 
 let root: Root;
 let host: HTMLDivElement;
+let logoSheet: HTMLStyleElement;
 
 beforeEach(() => {
   localStorage.clear();
@@ -20,11 +22,22 @@ beforeEach(() => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
+  // Model CSS-module scoping in JSDOM using the shipped declarations.
+  logoSheet = document.createElement("style");
+  logoSheet.textContent = readFileSync(
+    "components/brand/MikeHuntLogo.module.css",
+    "utf8",
+  ).replace(
+    ':global([data-theme="dark"]) .mark',
+    `[data-theme="dark"] .${logoStyles.mark}`,
+  );
+  document.head.append(logoSheet);
 });
 
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  logoSheet.remove();
   vi.unstubAllGlobals();
 });
 
@@ -89,7 +102,7 @@ describe("appearance preference", () => {
       css.indexOf("Premium acquisition skin"),
       css.indexOf("/* Dark theme */"),
     );
-    expect(lightGroup).not.toContain("[data-theme=\"dark\"]");
+    expect(lightGroup).not.toContain('[data-theme="dark"]');
     expect(lightGroup).toContain("--s1: #f6f8fb");
     expect(lightGroup).toContain("--t1: #0b1220");
   });
@@ -100,15 +113,23 @@ describe("appearance preference", () => {
     expect(host.textContent).toContain("MIKEHUNT");
     const mark = host.querySelector("img");
     expect(mark?.getAttribute("src")).toBe("/brand/MIKEHUNT-M.svg");
-    expect(mark?.parentElement?.className).toContain("bg-white");
+    expect(getComputedStyle(mark!.parentElement!).backgroundColor).toBe(
+      "rgb(255, 255, 255)",
+    );
+    expect(getComputedStyle(mark!.parentElement!).padding).toBe("3px");
   });
 
-  it("leaves the cobalt mark unplated on light", () => {
+  it("switches plating through CSS without changing logo markup", () => {
     document.documentElement.setAttribute("data-theme", "light");
     act(() => root.render(React.createElement(MikeHuntLogo, { size: "sm" })));
     expect(host.textContent).toContain("MIKEHUNT");
-    expect(host.querySelector("img")?.parentElement?.className ?? "").not.toContain(
-      "bg-white",
-    );
+    const plate = host.querySelector("img")!.parentElement!;
+    const markup = host.innerHTML;
+    expect(getComputedStyle(plate).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    document.documentElement.setAttribute("data-theme", "dark");
+    expect(getComputedStyle(plate).backgroundColor).toBe("rgb(255, 255, 255)");
+    document.documentElement.setAttribute("data-theme", "light");
+    expect(getComputedStyle(plate).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(host.innerHTML).toBe(markup);
   });
 });

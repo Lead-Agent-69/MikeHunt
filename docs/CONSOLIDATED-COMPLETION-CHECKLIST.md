@@ -40,8 +40,9 @@ Tools search, and real local-account preference save/reload. Core page checks
 cover Discover, Inventory, Saved and Settings in both themes. These are local
 UI checks, not hosted account or source-freshness certification.
 
-Final local verification: 81 focused unit checks across nine files passed,
-including all 48 declared icons and return-position/history notifications.
+Final local verification: 87 focused unit checks across ten files passed,
+including all 48 declared icons, computed light/dark logo styles, and
+return-position/history notifications.
 The final application passed 42/42 checks across desktop, two tablet sizes,
 320/390px phones, WebKit phone and Firefox desktop, followed by 16/16 guest and
 legacy-account checks on desktop and phone. These 58 browser cases include
