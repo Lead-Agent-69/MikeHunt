@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
@@ -31,12 +30,13 @@ import {
   ChevronRight,
   Copy,
   RotateCcw,
-  Filter,
   X,
   LayoutGrid,
   List,
   Map as MapIcon,
-  ArrowUpRight,
+  BarChart3,
+  BookmarkPlus,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -46,6 +46,7 @@ import {
   PriceRangeSelector,
   YearRangeSelector,
 } from "@/components/shared/PriceRangeSelector";
+import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -141,12 +142,6 @@ const EMPTY: Filters = {
   sortDir: "desc",
 };
 
-const SELLERS = [
-  { key: "dealer", label: "Dealer" },
-  { key: "auction", label: "Auction" },
-  { key: "private", label: "Private" },
-];
-
 async function fetchMarket(url: string) {
   // Preserve the shared retry policy while surfacing actionable location validation.
   const response = await fetch(url);
@@ -175,7 +170,9 @@ export default function MarketPage() {
   const [page, setPage] = React.useState(0);
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
+  const [saveStatus, setSaveStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [showInsights, setShowInsights] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "table">("grid");
   const [showMap, setShowMap] = React.useState(true);
   const set = (patch: Partial<Filters>) => {
@@ -295,6 +292,44 @@ export default function MarketPage() {
     return p.toString();
   }, [f, details, page, flipDesk]);
   const debouncedQs = useDebouncedValue(qs, 350);
+  const saveCurrentSearch = () => {
+    try {
+      const params = new URLSearchParams(qs);
+      params.delete("page");
+      params.delete("pageSize");
+      const vehicle = [f.makes.filter(Boolean).join(" + "), f.model]
+        .filter(Boolean)
+        .join(" ");
+      const location =
+        f.near || (f.states.length ? f.states.join(" + ") : "Nationwide");
+      const saved = saveLocalSavedSearch({
+        name: [vehicle || f.q.trim() || "All vehicles", location]
+          .filter(Boolean)
+          .join(" · ")
+          .slice(0, 80),
+        q: f.q.trim() || null,
+        makes: f.makes.map((make) => make.trim()).filter(Boolean),
+        model: f.model.trim() || null,
+        state: f.states.length === 1 ? f.states[0] : null,
+        lane: f.lanes.length === 1 ? f.lanes[0] : null,
+        seller_type: f.sellerTypes.length === 1 ? f.sellerTypes[0] : null,
+        min_year: Number(f.yearMin) || null,
+        max_year: Number(f.yearMax) || null,
+        min_price: Number(f.priceMin) || null,
+        max_price: Number(f.priceMax) || null,
+        target_profit: flipDesk ? Number(f.minProfit) || null : null,
+        require_go: flipDesk && f.verdicts.includes("go"),
+        notify_email: false,
+        notify_sms: false,
+        market_params: params.toString(),
+      });
+      setSaveStatus(`Saved “${saved.name}” on this device`);
+    } catch (error) {
+      setSaveStatus(
+        error instanceof Error ? error.message : "Search could not be saved.",
+      );
+    }
+  };
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
     if (ready) window.history.replaceState(null, "", `/market?${qs}`);
@@ -443,15 +478,23 @@ export default function MarketPage() {
             Market Explorer
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-[var(--t3)]">
-            Find the vehicle. Understand the price. Check the evidence.
+            Search the market, refine the evidence, then inspect the listing.
           </p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--blue)] px-3 text-xs font-semibold text-white"
+            onClick={saveCurrentSearch}
+          >
+            <BookmarkPlus className="h-4 w-4" />
+            <span>Save search</span>
+          </button>
+          <button
+            type="button"
             title="Copy filtered search link"
             aria-label="Copy filtered search link"
-            className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(window.location.href);
@@ -462,64 +505,91 @@ export default function MarketPage() {
             }}
           >
             <Copy className="h-4 w-4" />
+            <span className="hidden sm:inline">Copy search</span>
           </button>
           <button
             type="button"
             title="Reset filters"
             aria-label="Reset filters"
-            className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold"
             onClick={reset}
           >
             <RotateCcw className="h-4 w-4" />
+            <span className="hidden sm:inline">Reset</span>
           </button>
         </div>
-        {copyStatus && (
+        {(copyStatus || saveStatus) && (
           <p role="status" className="w-full text-xs text-[var(--t3)]">
-            {copyStatus}
+            {saveStatus || copyStatus}
           </p>
         )}
       </header>
+      {ready && (
+        <MarketLocation
+          value={f}
+          onChange={set}
+          search={{ value: f.q, onChange: (q) => set({ q }) }}
+        />
+      )}
       <nav
-        aria-label="Market tools"
-        className="flex gap-2 overflow-x-auto pb-1"
+        aria-label="Market workspace"
+        className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2"
       >
-        {[
-          { label: "Discover picks", href: "/discover" },
-          { label: "Map search", href: "/map" },
-          { label: "Deal Check", href: "/deal-check" },
-          { label: "Compare", href: "/compare" },
-          ...(flipDesk
-            ? [
-                { label: "Auction Lane", href: "/lane" },
-                { label: "Outcomes & intelligence", href: "/insights" },
-              ]
-            : []),
-          { label: "All tools", href: "/tools" },
-        ].map((tool) => (
-          <Link
-            key={tool.href}
-            href={tool.href}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s1)] px-4 text-xs font-semibold"
-          >
-            {tool.label}
-            <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        ))}
-      </nav>
-      {baseChips.length > 0 && (
-        <div
-          className="flex flex-wrap gap-2"
-          aria-label="Applied inventory filters"
+        <button
+          type="button"
+          aria-pressed={!showFilters}
+          onClick={() => setShowFilters(false)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
         >
+          <LayoutGrid className="h-4 w-4" /> Listings
+          {!busy && (
+            <span className="text-[var(--t4)]">{total.toLocaleString()}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          aria-expanded={showFilters}
+          aria-controls="market-filter-panel"
+          onClick={() => setShowFilters(true)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)]"
+        >
+          <SlidersHorizontal className="h-4 w-4" /> Filters
+          {activeCount > 0 && (
+            <span className="rounded-full bg-[var(--blue)] px-1.5 py-0.5 text-[9px] text-white">
+              {activeCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          aria-pressed={showInsights}
+          disabled={showFilters}
+          onClick={() => setShowInsights((current) => !current)}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] disabled:opacity-40"
+        >
+          <BarChart3 className="h-4 w-4" /> Market insights
+        </button>
+        <p className="ml-auto px-2 text-[10px] text-[var(--t4)]">
+          {busy ? "Updating inventory…" : `${rows.length} shown on this page`}
+        </p>
+      </nav>
+      {activeCount > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2"
+          aria-label="Applied market filters"
+        >
+          <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+            Applied
+          </span>
           {baseChips.map(([key, value]) => (
             <button
               key={key}
               type="button"
               aria-label={`Remove ${baseLabels[key] || key} filter`}
-              className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs"
+              className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 text-[11px]"
               onClick={() => set({ [key]: Array.isArray(value) ? [] : "" })}
             >
-              <span className="break-words">
+              <span className="max-w-52 truncate">
                 {baseLabels[key] || key}:{" "}
                 {Array.isArray(value)
                   ? value
@@ -544,26 +614,19 @@ export default function MarketPage() {
               <X className="h-3 w-3 shrink-0" />
             </button>
           ))}
-        </div>
-      )}
-      {Object.entries(details).some(([, value]) => value) && (
-        <div
-          className="flex flex-wrap gap-2"
-          aria-label="Applied detail filters"
-        >
           {INVENTORY_DETAIL_FIELDS.filter((field) => details[field.key]).map(
             (field) => (
               <button
                 type="button"
                 key={field.key}
                 aria-label={`Remove ${field.label} filter`}
-                className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs"
+                className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 text-[11px]"
                 onClick={() => {
                   setPage(0);
                   setDetails((current) => ({ ...current, [field.key]: "" }));
                 }}
               >
-                <span className="break-words">
+                <span className="max-w-52 truncate">
                   {field.label}:{" "}
                   {field.options?.find(
                     (option) => option.value === details[field.key],
@@ -573,202 +636,179 @@ export default function MarketPage() {
               </button>
             ),
           )}
+          <button
+            type="button"
+            onClick={reset}
+            className="ml-auto min-h-9 rounded-lg px-3 text-[11px] font-bold text-[var(--blue)]"
+          >
+            Clear all
+          </button>
         </div>
       )}
-      {ready && (
-        <MarketLocation
-          value={f}
-          onChange={set}
-          search={{ value: f.q, onChange: (q) => set({ q }) }}
-        />
-      )}
-      {ready && !error && (
-        <MarketFacetStudio
-          facets={facets}
-          total={total}
-          busy={busy}
-          selected={{
-            make: f.makes,
-            model: f.model,
-            year: f.yearMin && f.yearMin === f.yearMax ? f.yearMin : undefined,
-            body: details.body,
-            fuelType: details.fuelType,
-            transmission: details.transmission,
-            drivetrain: details.drivetrain,
-            condition: f.conditions,
-            source: f.sources,
-            color: details.color,
-            sellerType: f.sellerTypes,
-            assemblyCountry: details.assemblyCountry,
-            availability: details.availability,
-            freshness: details.seenWithin,
-            priceKind: f.priceKind,
-            priceAvailability: details.pricePolicy,
-            mileageAvailability: details.mileagePolicy,
-            priceMin: f.priceMin,
-            priceMax: f.priceMax,
-            mileageMin: f.minMileage,
-            mileageMax: f.mileageMax,
-          }}
-          onFacetSelect={selectFacet}
-          onMatrixSelect={(priceFrom, priceTo, mileageFrom, mileageTo) => {
-            const active =
-              f.priceMin === String(priceFrom) &&
-              f.priceMax === (priceTo == null ? "" : String(priceTo)) &&
-              f.minMileage === String(mileageFrom) &&
-              f.mileageMax === (mileageTo == null ? "" : String(mileageTo));
-            set({
-              priceBasis: "advertised",
-              priceMin: active ? "" : String(priceFrom),
-              priceMax: active || priceTo == null ? "" : String(priceTo),
-              minMileage: active ? "" : String(mileageFrom),
-              mileageMax: active || mileageTo == null ? "" : String(mileageTo),
-            });
-          }}
-        />
-      )}
-      <button
-        type="button"
-        aria-expanded={showFilters}
-        aria-controls="market-filter-panel"
-        onClick={() => setShowFilters((current) => !current)}
-        className="inline-flex min-h-11 items-center gap-2 self-start rounded-lg border border-[var(--b1)] px-3 text-sm md:hidden"
+      <section
+        id="market-filter-panel"
+        aria-label="Market filters"
+        className={showFilters ? "space-y-4" : "hidden"}
       >
-        <Filter className="h-4 w-4" /> Filters{" "}
-        {activeCount > 0 && `(${activeCount})`}
-      </button>
-      <div className="flex flex-col gap-4 md:flex-row">
-        {/* ── Filter rail ── */}
-        <aside
-          id="market-filter-panel"
-          aria-label="Market filters"
-          className={`${showFilters ? "flex" : "hidden"} md:flex md:w-64 md:shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto flex-col gap-2.5 md:pr-1`}
-        >
-          <div className="sticky top-0 z-10 flex items-center justify-between rounded-lg border border-[var(--b1)] bg-[var(--s0)]/95 px-3 py-2 backdrop-blur">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--t2)]">
-                Filters
-              </p>
-              <p className="text-[10px] text-[var(--t4)]">
-                {activeCount
-                  ? `${activeCount} applied`
-                  : "Showing all inventory"}
-              </p>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+          <div>
+            <h2 className="text-lg font-extrabold">Build one precise search</h2>
+            <p className="mt-1 text-xs text-[var(--t3)]">
+              Choose live facets first, then use exact controls only when
+              needed.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             {activeCount > 0 && (
               <button
                 type="button"
                 onClick={reset}
-                className="min-h-8 rounded-md px-2 text-[11px] font-semibold text-[var(--blue)] hover:bg-[var(--s2)]"
+                className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-xs font-bold"
               >
-                Clear all
+                Clear {activeCount}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => setShowFilters(false)}
+              className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-xs font-bold text-white"
+            >
+              Show {busy ? "updated" : total.toLocaleString()} listings
+            </button>
           </div>
-          {/* Curated ⟷ whole market */}
-          {flipDesk && (
-            <div
-              className="flex rounded-[var(--r2)] p-1"
-              style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-            >
-              {(["curated", "all"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => set({ mode: m })}
-                  className="flex-1 rounded-[var(--r1)] px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all"
-                  style={
-                    f.mode === m
-                      ? { background: "var(--grad)", color: "#fff" }
-                      : { color: "var(--t4)" }
-                  }
-                >
-                  {m === "curated" ? "Curated" : "Whole market"}
-                </button>
-              ))}
-            </div>
-          )}
+        </div>
 
-          <ChipGroup
-            title="Channel"
-            options={LANES.map((l) => ({
-              key: l.key,
-              label: l.label,
-              count: facets.lanes?.[l.key],
-              color: facets.laneColors?.[l.key],
-            }))}
-            selected={f.lanes}
-            onToggle={(k) => set({ lanes: toggle(f.lanes, k) })}
-          />
-
-          <StateGroup
-            selected={f.states}
-            counts={facets.states || {}}
-            onToggle={(k) =>
+        {ready && !error && (
+          <MarketFacetStudio
+            facets={facets}
+            total={total}
+            busy={busy}
+            selected={{
+              make: f.makes,
+              model: f.model,
+              year:
+                f.yearMin && f.yearMin === f.yearMax ? f.yearMin : undefined,
+              body: details.body,
+              fuelType: details.fuelType,
+              transmission: details.transmission,
+              drivetrain: details.drivetrain,
+              condition: f.conditions,
+              source: f.sources,
+              color: details.color,
+              sellerType: f.sellerTypes,
+              assemblyCountry: details.assemblyCountry,
+              availability: details.availability,
+              freshness: details.seenWithin,
+              priceKind: f.priceKind,
+              priceAvailability: details.pricePolicy,
+              mileageAvailability: details.mileagePolicy,
+              priceMin: f.priceMin,
+              priceMax: f.priceMax,
+              mileageMin: f.minMileage,
+              mileageMax: f.mileageMax,
+            }}
+            onFacetSelect={selectFacet}
+            onMatrixSelect={(priceFrom, priceTo, mileageFrom, mileageTo) => {
+              const active =
+                f.priceMin === String(priceFrom) &&
+                f.priceMax === (priceTo == null ? "" : String(priceTo)) &&
+                f.minMileage === String(mileageFrom) &&
+                f.mileageMax === (mileageTo == null ? "" : String(mileageTo));
               set({
-                states: toggle(f.states, k),
-                near: "",
-                radius: "",
-                lat: "",
-                lng: "",
-              })
-            }
-            onClear={() => set({ states: [] })}
+                priceBasis: "advertised",
+                priceMin: active ? "" : String(priceFrom),
+                priceMax: active || priceTo == null ? "" : String(priceTo),
+                minMileage: active ? "" : String(mileageFrom),
+                mileageMax:
+                  active || mileageTo == null ? "" : String(mileageTo),
+              });
+            }}
           />
-          <label className="flex flex-col gap-1 rounded-xl bg-[var(--s1)] p-3 text-xs font-semibold text-[var(--t3)]">
-            Price type
-            <select
-              aria-label="Price type"
-              value={f.priceKind}
-              onChange={(event) => set({ priceKind: event.target.value })}
-              className="field min-h-11 !w-full"
-            >
-              <option value="">All reported types</option>
-              <option value="asking">Cash asking price</option>
-              <option value="current_bid">Current bid</option>
-              <option value="buy_now">Buy-now price</option>
-              <option value="down_payment">Possible down payment</option>
-              <option value="monthly_payment">Monthly payment</option>
-              <option value="finance_teaser">Payment amount</option>
-              <option value="reference">Reference value</option>
-              <option value="unknown">Unverified amount</option>
-            </select>
-            <span className="mt-1 text-[10px] font-normal">
-              Cash budgets use a reported full asking or buy-now price. Payments
-              and reference values never qualify.
-            </span>
-          </label>
+        )}
 
-          <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
-            Budget compares
-            <select
-              aria-label="Price comparison basis"
-              value={f.priceBasis}
-              onChange={(event) => set({ priceBasis: event.target.value })}
-              className="field min-h-11 !w-full"
-            >
-              <option value="cash">Full cash / buy-now price</option>
-              <option value="advertised">
-                Advertised amount (includes bids)
-              </option>
-            </select>
-          </label>
-          <fieldset className="min-w-0 space-y-3 border-t border-[var(--b1)] pt-3">
-            <legend className="text-xs font-bold text-[var(--t3)]">
-              Vehicle & sources
-            </legend>
-            <label className="flex flex-col gap-1 text-xs text-[var(--t3)]">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <FilterPanel
+            title="Scope & sources"
+            description="Where the listing comes from and where it is located."
+          >
+            {flipDesk && (
+              <div className="flex rounded-lg border border-[var(--b1)] p-1">
+                {(["curated", "all"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={f.mode === mode}
+                    onClick={() => set({ mode })}
+                    className="flex-1 rounded-md px-3 py-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+                  >
+                    {mode === "curated" ? "Curated buys" : "Whole market"}
+                  </button>
+                ))}
+              </div>
+            )}
+            <ChipGroup
+              title="Channel"
+              options={LANES.map((lane) => ({
+                key: lane.key,
+                label: lane.label,
+                count: facets.lanes?.[lane.key],
+                color: facets.laneColors?.[lane.key],
+              }))}
+              selected={f.lanes}
+              onToggle={(key) => set({ lanes: toggle(f.lanes, key) })}
+            />
+            <StateGroup
+              selected={f.states}
+              counts={facets.states || {}}
+              onToggle={(key) =>
+                set({
+                  states: toggle(f.states, key),
+                  near: "",
+                  radius: "",
+                  lat: "",
+                  lng: "",
+                })
+              }
+              onClear={() => set({ states: [] })}
+            />
+            <details className="rounded-xl border border-[var(--b1)] px-3">
+              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
+                All indexed sources ({f.sources.length || "Any"})
+              </summary>
+              <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pb-3">
+                {INVENTORY_SOURCE_FILTERS.map((source) => (
+                  <label
+                    key={source.id}
+                    className="flex min-h-10 items-center gap-2 text-xs"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={f.sources.includes(source.id)}
+                      onChange={() =>
+                        set({ sources: toggle(f.sources, source.id) })
+                      }
+                    />
+                    {source.name}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </FilterPanel>
+
+          <FilterPanel
+            title="Vehicle precision"
+            description="Use exact entries for rare models or multiple makes."
+          >
+            <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
               Makes
               <input
                 aria-label="Makes"
                 list="market-makes"
-                placeholder="Any make"
+                placeholder="Ford, Toyota"
                 maxLength={250}
                 value={f.makes.join(",")}
                 onChange={(event) =>
-                  set({
-                    makes: event.target.value.split(","),
-                    model: "",
-                  })
+                  set({ makes: event.target.value.split(","), model: "" })
                 }
                 className="field min-h-11 !w-full"
               />
@@ -781,32 +821,31 @@ export default function MarketPage() {
                     ),
                   ]),
                 ).map((make) => (
-                  <option key={make} value={make}>
-                    {make}
-                  </option>
+                  <option key={make} value={make} />
                 ))}
               </datalist>
             </label>
-            <label className="flex flex-col gap-1 text-xs text-[var(--t3)]">
+            <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
               Model
               <input
                 aria-label="Model"
                 value={f.model}
                 onChange={(event) => set({ model: event.target.value })}
                 maxLength={60}
+                placeholder="Any model"
                 className="field min-h-11 !w-full"
               />
             </label>
-            <details>
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
+            <details className="rounded-xl border border-[var(--b1)] px-3">
+              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
                 Vehicle types ({f.categories.length || "Any"})
               </summary>
-              <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-1 pb-3">
                 {Object.entries(VEHICLE_CATEGORY_FILTERS).map(
                   ([key, category]) => (
                     <label
                       key={key}
-                      className="flex min-h-11 items-center gap-2 text-sm"
+                      className="flex min-h-10 items-center gap-2 text-xs"
                     >
                       <input
                         type="checkbox"
@@ -821,157 +860,169 @@ export default function MarketPage() {
                 )}
               </div>
             </details>
-            <details>
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
-                Sources ({f.sources.length || "All"})
-              </summary>
-              <div className="max-h-64 overflow-y-auto">
-                {INVENTORY_SOURCE_FILTERS.map((source) => (
-                  <label
-                    key={source.id}
-                    className="flex min-h-11 items-center gap-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={f.sources.includes(source.id)}
-                      onChange={() =>
-                        set({ sources: toggle(f.sources, source.id) })
-                      }
-                    />
-                    {source.name}
-                  </label>
-                ))}
-              </div>
-            </details>
-          </fieldset>
-          <InventoryDetailFilters
-            compact
-            values={details}
-            onChange={(key, value) => {
-              setPage(0);
-              setDetails((current) => ({ ...current, [key]: value }));
-            }}
-          />
-
-          <ChipGroup
-            title="Title / condition"
-            options={CONDITIONS.map((c) => ({
-              key: c,
-              label: c.replace(/_/g, " "),
-            }))}
-            selected={f.conditions}
-            onToggle={(k) => set({ conditions: toggle(f.conditions, k) })}
-          />
-
-          {flipDesk && (
             <ChipGroup
-              title="Verdict"
-              options={VERDICTS.map((v) => ({ key: v.key, label: v.label }))}
-              selected={f.verdicts}
-              onToggle={(k) => set({ verdicts: toggle(f.verdicts, k) })}
+              title="Title / condition"
+              options={CONDITIONS.map((condition) => ({
+                key: condition,
+                label: condition.replace(/_/g, " "),
+              }))}
+              selected={f.conditions}
+              onToggle={(key) => set({ conditions: toggle(f.conditions, key) })}
             />
-          )}
+          </FilterPanel>
 
-          <ChipGroup
-            title="Seller type"
-            options={SELLERS.map((s) => ({
-              key: s.key,
-              label: s.label,
-              count: facets.sellerTypes?.[s.key],
-            }))}
-            selected={f.sellerTypes}
-            onToggle={(k) => set({ sellerTypes: toggle(f.sellerTypes, k) })}
-          />
-
-          {/* Min ROI — chop low-yield flips fast (Visor-style) */}
-          {flipDesk && (
-            <div
-              className="rounded-[var(--r3)] p-3"
-              style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
-            >
-              <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-                Min ROI
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["", "10", "25", "50", "100"].map((v) => (
-                  <button
-                    key={v || "any"}
-                    onClick={() => set({ minRoi: v })}
-                    className="rounded-full px-2.5 py-1 text-[11px] font-bold transition-all"
-                    style={
-                      f.minRoi === v
-                        ? { background: "var(--grad)", color: "#fff" }
-                        : { background: "var(--s2)", color: "var(--t3)" }
-                    }
-                  >
-                    {v ? `${v}%+` : "Any"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Enhanced Price Range Selector */}
-          <PriceRangeSelector
-            minPrice={f.priceMin}
-            maxPrice={f.priceMax}
-            onMinChange={(v) => set({ priceMin: v })}
-            onMaxChange={(v) => set({ priceMax: v })}
-            onClear={() => set({ priceMin: "", priceMax: "" })}
-          />
-
-          {/* Enhanced Year Range Selector */}
-          <YearRangeSelector
-            minYear={f.yearMin}
-            maxYear={f.yearMax}
-            onMinChange={(v) => set({ yearMin: v })}
-            onMaxChange={(v) => set({ yearMax: v })}
-            onClear={() => set({ yearMin: "", yearMax: "" })}
-          />
-
-          {/* Miles and Profit - Keep existing simple inputs */}
-          <div
-            className="rounded-[var(--r3)] p-3"
-            style={{ background: "var(--s1)", boxShadow: "var(--shadow)" }}
+          <FilterPanel
+            title="Price, year & economics"
+            description="Exact ranges override broad smart-matrix selections."
           >
-            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-              Miles / profit
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                Price type
+                <select
+                  aria-label="Price type"
+                  value={f.priceKind}
+                  onChange={(event) => set({ priceKind: event.target.value })}
+                  className="field min-h-11 !w-full"
+                >
+                  <option value="">All reported types</option>
+                  <option value="asking">Cash asking price</option>
+                  <option value="current_bid">Current bid</option>
+                  <option value="buy_now">Buy-now price</option>
+                  <option value="down_payment">Down payment</option>
+                  <option value="monthly_payment">Monthly payment</option>
+                  <option value="finance_teaser">Finance teaser</option>
+                  <option value="reference">Reference value</option>
+                  <option value="unknown">Unverified amount</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-semibold text-[var(--t3)]">
+                Budget compares
+                <select
+                  aria-label="Price comparison basis"
+                  value={f.priceBasis}
+                  onChange={(event) => set({ priceBasis: event.target.value })}
+                  className="field min-h-11 !w-full"
+                >
+                  <option value="cash">Full cash / buy-now</option>
+                  <option value="advertised">Advertised amount</option>
+                </select>
+              </label>
             </div>
+            <PriceRangeSelector
+              minPrice={f.priceMin}
+              maxPrice={f.priceMax}
+              onMinChange={(value) => set({ priceMin: value })}
+              onMaxChange={(value) => set({ priceMax: value })}
+              onClear={() => set({ priceMin: "", priceMax: "" })}
+            />
+            <YearRangeSelector
+              minYear={f.yearMin}
+              maxYear={f.yearMax}
+              onMinChange={(value) => set({ yearMin: value })}
+              onMaxChange={(value) => set({ yearMax: value })}
+              onClear={() => set({ yearMin: "", yearMax: "" })}
+            />
             <div className="grid grid-cols-2 gap-2">
               <NumIn
                 ph="miles ≥"
                 v={f.minMileage}
-                on={(v) => set({ minMileage: v })}
+                on={(value) => set({ minMileage: value })}
               />
               <NumIn
                 ph="miles ≤"
                 v={f.mileageMax}
-                on={(v) => set({ mileageMax: v })}
+                on={(value) => set({ mileageMax: value })}
               />
               {flipDesk && (
                 <NumIn
                   ph="profit ≥"
                   v={f.minProfit}
-                  on={(v) => set({ minProfit: v })}
+                  on={(value) => set({ minProfit: value })}
                   full
                 />
               )}
             </div>
+            {flipDesk && (
+              <>
+                <ChipGroup
+                  title="Verdict"
+                  options={VERDICTS.map((verdict) => ({
+                    key: verdict.key,
+                    label: verdict.label,
+                  }))}
+                  selected={f.verdicts}
+                  onToggle={(key) => set({ verdicts: toggle(f.verdicts, key) })}
+                />
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+                    Minimum ROI
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["", "10", "25", "50", "100"].map((value) => (
+                      <button
+                        key={value || "any"}
+                        type="button"
+                        aria-pressed={f.minRoi === value}
+                        onClick={() => set({ minRoi: value })}
+                        className="min-h-9 rounded-full border border-[var(--b1)] px-3 text-[11px] font-bold aria-pressed:border-[var(--blue)] aria-pressed:text-[var(--blue)]"
+                      >
+                        {value ? `${value}%+` : "Any"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </FilterPanel>
+        </div>
+
+        <details className="rounded-2xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+          <summary className="flex min-h-14 cursor-pointer items-center justify-between text-sm font-bold">
+            Advanced listing evidence
+            <span className="text-[10px] font-normal text-[var(--t4)]">
+              Auction timing, keys, photos, VIN and exact listing location
+            </span>
+          </summary>
+          <div className="border-t border-[var(--b1)] py-4">
+            <InventoryDetailFilters
+              values={details}
+              keys={[
+                "trim",
+                "engine",
+                "damage",
+                "keys",
+                "runDrive",
+                "buyNow",
+                "minBuyNow",
+                "maxBuyNow",
+                "auctionFrom",
+                "auctionTo",
+                "city",
+                "listingZip",
+                "hasVin",
+                "hasPhotos",
+              ]}
+              onChange={(key, value) => {
+                setPage(0);
+                setDetails((current) => ({ ...current, [key]: value }));
+              }}
+            />
           </div>
+        </details>
 
-          {activeCount > 0 && (
-            <button
-              onClick={reset}
-              className="rounded-[var(--r2)] px-3 py-2 text-xs font-bold text-[var(--t3)] transition-colors hover:text-[var(--t1)]"
-              style={{ background: "var(--s1)" }}
-            >
-              Clear {activeCount} filter{activeCount > 1 ? "s" : ""}
-            </button>
-          )}
-        </aside>
+        <div className="sticky bottom-3 z-20 flex justify-end rounded-xl border border-[var(--b1)] bg-[var(--s0)]/95 p-3 shadow-lg backdrop-blur">
+          <button
+            type="button"
+            onClick={() => setShowFilters(false)}
+            className="min-h-11 rounded-lg bg-[var(--blue)] px-5 text-sm font-bold text-white"
+          >
+            Show {busy ? "updated" : total.toLocaleString()} listings
+          </button>
+        </div>
+      </section>
 
-        {/* ── Results ── */}
-        <section aria-label="Market results" className="min-w-0 flex-1">
+      {!showFilters && (
+        <section aria-label="Market results" className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-[var(--t4)]">
@@ -1048,7 +1099,7 @@ export default function MarketPage() {
             </select>
           </div>
 
-          {!busy && !error && (
+          {!busy && !error && showInsights && (
             <div
               className="mb-4 space-y-3"
               data-testid="market-intelligence-dashboard"
@@ -1080,9 +1131,11 @@ export default function MarketPage() {
                   <USHeatmap />
                 </details>
               )}
-              {showMap && rows.length > 0 && (
-                <MarketResultsMap rows={rows} flipDesk={flipDesk} />
-              )}
+            </div>
+          )}
+          {!busy && !error && showMap && rows.length > 0 && (
+            <div className="mb-4">
+              <MarketResultsMap rows={rows} flipDesk={flipDesk} />
             </div>
           )}
           {error || data?.configured === false ? (
@@ -1181,12 +1234,34 @@ export default function MarketPage() {
             </nav>
           )}
         </section>
-      </div>
+      )}
     </div>
   );
 }
 
 // ── small building blocks ──
+function FilterPanel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="min-w-0 space-y-3 rounded-2xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+      <div className="border-b border-[var(--b1)] pb-3">
+        <h3 className="text-sm font-extrabold text-[var(--t1)]">{title}</h3>
+        <p className="mt-1 text-[10px] leading-relaxed text-[var(--t4)]">
+          {description}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function NumIn({
   ph,
   v,

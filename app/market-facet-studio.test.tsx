@@ -138,11 +138,13 @@ describe("smart market exploration", () => {
         />,
       ),
     );
-    act(() =>
-      host
-        .querySelector<SVGGElement>('[aria-label^="Second truck"]')!
-        .dispatchEvent(new MouseEvent("click", { bubbles: true })),
-    );
+    act(() => {
+      const select = host.querySelector<HTMLSelectElement>(
+        '[aria-label="Inspect mapped listing"]',
+      )!;
+      select.value = "two";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     const link = host.querySelector<HTMLAnchorElement>('a[href="/deal/two"]');
     expect(link?.textContent).toContain("Review listing");
     expect(host.textContent).toContain("Second truck");

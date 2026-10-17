@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   scanHrefForSavedSearch,
+  savedSearchHref,
   searchParamsForSavedSearch,
   sourceProofHrefForSavedSearch,
   saveLocalSavedSearch,
@@ -54,6 +55,19 @@ describe("local saved searches", () => {
       expect(params.get(key)).toBe(value),
     );
     expect(params.get("reset")).toBe("1");
+  });
+  it("reopens Market Explorer searches on the market surface", () => {
+    const href = savedSearchHref({
+      market_params:
+        "makes=Ford&near=63101&radius=100&priceMin=10000&page=3&pageSize=50",
+    });
+    expect(href).toContain("/market?");
+    const params = new URL(href, "https://example.test").searchParams;
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.get("near")).toBe("63101");
+    expect(params.get("priceMin")).toBe("10000");
+    expect(params.has("page")).toBe(false);
+    expect(params.has("pageSize")).toBe(false);
   });
   it("builds scan and source-proof links from the saved buyer scope", () => {
     const search = {

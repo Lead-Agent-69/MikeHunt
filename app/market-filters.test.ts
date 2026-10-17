@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LOCAL_SAVED_SEARCH_KEY } from "@/hooks/useLocalSavedSearches";
 
 const state = vi.hoisted(() => ({
   mode: "personal",
@@ -54,6 +55,7 @@ beforeEach(() => {
   state.mode = "personal";
   state.pending = false;
   state.keys = [];
+  localStorage.clear();
   host = document.createElement("div");
   root = createRoot(host);
 });
@@ -121,6 +123,11 @@ describe("Market filter journey", () => {
     act(() => toggle.click());
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("Listings"))!
+        .click(),
+    );
+    act(() =>
       host
         .querySelector<HTMLButtonElement>('[aria-label="Next results page"]')!
         .click(),
@@ -153,6 +160,27 @@ describe("Market filter journey", () => {
     expect(
       state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("saves the exact Market Explorer query for reopening", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?makes=Ford&priceMin=10000&page=2",
+    );
+    await render();
+    act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.includes("Save search"))!
+        .click(),
+    );
+    const saved = JSON.parse(
+      localStorage.getItem(LOCAL_SAVED_SEARCH_KEY) || "[]",
+    );
+    expect(saved).toHaveLength(1);
+    const params = new URLSearchParams(saved[0].market_params);
+    expect(params.get("makes")).toBe("Ford");
+    expect(params.get("priceMin")).toBe("10000");
+    expect(params.has("page")).toBe(false);
   });
   it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
     window.history.replaceState(null, "", "/market?states=MO");

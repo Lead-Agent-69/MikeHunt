@@ -18,11 +18,35 @@ test.describe("Market Explorer home", () => {
     ).toBeVisible();
     await expect(page.locator("article").first()).toBeVisible();
     await expect(
+      page.getByRole("region", { name: "Interactive results map" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Market intelligence" }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Market insights" }).click();
+    await expect(
       page.getByRole("region", { name: "Market intelligence" }),
     ).toBeVisible();
     await expect(
       page.getByRole("region", { name: "Interactive market charts" }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "Market insights" }).click();
+    await expect(
+      page.getByRole("region", { name: "Market intelligence" }),
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: /Filters/ }).click();
+    await expect(
+      page.getByRole("region", { name: "Smart market filters" }),
+    ).toBeVisible();
+    await page
+      .getByRole("region", { name: "Smart market filters" })
+      .scrollIntoViewIfNeeded();
+    await page.screenshot({ path: testInfo.outputPath("market-filters.png") });
+    await page
+      .getByRole("button", { name: /Show .* listings/ })
+      .first()
+      .click();
+    await expect(page.locator("article").first()).toBeVisible();
     const nav = page.getByRole("navigation", {
       name: testInfo.project.name.startsWith("mobile")
         ? "Primary mobile navigation"
@@ -56,6 +80,7 @@ test.describe("Market Explorer home", () => {
       ),
     ).toBeLessThanOrEqual(1);
     expect(errors).toEqual([]);
+    await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({ path: testInfo.outputPath("market-listings.png") });
   });
 

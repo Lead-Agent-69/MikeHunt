@@ -9,8 +9,8 @@ import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
   readLocalSavedSearches,
+  savedSearchHref,
   saveLocalSavedSearch,
-  scanHrefForSavedSearch,
   sourceProofHrefForSavedSearch,
   toggleLocalSavedSearch,
   writeLocalSavedSearches,
@@ -664,11 +664,11 @@ export default function SearchesPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Link
-                  href={scanHrefForSavedSearch(search)}
+                  href={savedSearchHref(search)}
                   prefetch={false}
                   className="inline-flex min-h-11 items-center px-3 py-1.5 text-sm font-semibold rounded bg-[var(--s2)] text-[var(--t2)] hover:text-[var(--t1)] border border-[var(--b2)]"
                 >
-                  Open Scan
+                  {search.market_params ? "Open Market" : "Open Scan"}
                 </Link>
                 <Link
                   href={sourceProofHrefForSavedSearch(search)}

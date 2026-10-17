@@ -56,8 +56,8 @@ export function MarketListingCard({
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
   return (
-    <article className="min-w-0 overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm">
-      <div className="relative aspect-[16/10] overflow-hidden bg-[var(--s2)]">
+    <article className="min-w-0 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm">
+      <div className="relative aspect-[16/9] overflow-hidden bg-[var(--s2)]">
         {photos.length ? (
           <button
             type="button"
@@ -138,7 +138,7 @@ export function MarketListingCard({
           </div>
         )}
       </div>
-      <div className="space-y-3 p-4">
+      <div className="space-y-2.5 p-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t3)]">
             {row.sellerType ||
@@ -152,7 +152,7 @@ export function MarketListingCard({
           </h3>
           {row.trim && <p className="text-xs text-[var(--t3)]">{row.trim}</p>}
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-2 border-y border-[var(--b1)] py-3">
+        <div className="flex flex-wrap items-end justify-between gap-2 border-t border-[var(--b1)] pt-2.5">
           <div>
             <p className="text-[10px] font-semibold text-[var(--t3)]">
               {price?.label || "Unverified advertised amount"}
@@ -184,7 +184,7 @@ export function MarketListingCard({
               : "Full purchase price needs confirmation at the source."}
           </p>
         )}
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-[var(--s2)] p-2.5 text-xs">
           <div>
             <dt className="text-[var(--t3)]">Mileage</dt>
             <dd className="font-semibold">

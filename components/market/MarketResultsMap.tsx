@@ -1,30 +1,68 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { LocateFixed, Minus, Plus } from "lucide-react";
+import { LocateFixed } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
+import type { MapPoint } from "@/components/map/DealerMap";
 import type { MarketListing } from "@/lib/market/explorer";
 
-const WIDTH = 960;
-const HEIGHT = 500;
-const MIN_LNG = -125;
-const MAX_LNG = -66;
-const MIN_LAT = 24;
-const MAX_LAT = 50;
+const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="grid min-h-[26rem] place-items-center bg-[var(--s0)] text-xs text-[var(--t4)]">
+      Loading interactive map…
+    </div>
+  ),
+});
 
-function project(lat: number, lng: number) {
-  return {
-    x: ((lng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * WIDTH,
-    y: ((MAX_LAT - lat) / (MAX_LAT - MIN_LAT)) * HEIGHT,
-  };
-}
+type MapMetric = "inventory" | "profit";
 
-function jitter(id: string) {
-  let hash = 0;
-  for (let index = 0; index < id.length; index++)
-    hash = (hash * 31 + id.charCodeAt(index)) | 0;
-  return { x: (hash % 9) - 4, y: ((hash >> 3) % 9) - 4 };
+export function marketMapPoints(
+  rows: MarketListing[],
+  metric: MapMetric = "inventory",
+): MapPoint[] {
+  return rows
+    .filter(
+      (row) =>
+        Number.isFinite(row.mapLat) &&
+        Number.isFinite(row.mapLng) &&
+        Math.abs(row.mapLat!) <= 90 &&
+        Math.abs(row.mapLng!) <= 180,
+    )
+    .map((row) => ({
+      id: row.id,
+      name:
+        row.title ||
+        `${row.year || ""} ${row.make || ""} ${row.model || ""}`.trim(),
+      lat: row.mapLat!,
+      lng: row.mapLng!,
+      type:
+        row.sellerType === "private"
+          ? "private"
+          : row.lane === "auction" || row.sellerType === "auction"
+            ? "auction"
+            : "dealer",
+      label: [
+        [row.locationCity, row.locationState].filter(Boolean).join(", "),
+        row.mileage != null ? `${row.mileage.toLocaleString()} mi` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      approx: true,
+      price:
+        metric === "profit"
+          ? Math.max(0, row.profitEstimate || 0)
+          : row.price?.amount || row.askPrice || undefined,
+      priceLabel:
+        metric === "profit" ? "Estimated gross profit" : row.price?.label,
+      image: row.images?.[0],
+      source: row.source,
+      url: `/deal/${encodeURIComponent(row.id)}`,
+      condition: row.condition,
+      damageType: row.damageType,
+    }));
 }
 
 export function MarketResultsMap({
@@ -34,45 +72,17 @@ export function MarketResultsMap({
   rows: MarketListing[];
   flipDesk: boolean;
 }) {
+  const [metric, setMetric] = React.useState<MapMetric>("inventory");
   const points = React.useMemo(
-    () =>
-      rows
-        .filter(
-          (row) =>
-            row.mapLat != null &&
-            row.mapLng != null &&
-            row.mapLat >= MIN_LAT &&
-            row.mapLat <= MAX_LAT &&
-            row.mapLng >= MIN_LNG &&
-            row.mapLng <= MAX_LNG,
-        )
-        .map((row) => ({ row, ...project(row.mapLat!, row.mapLng!) })),
-    [rows],
+    () => marketMapPoints(rows, metric),
+    [rows, metric],
   );
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
-  const [metric, setMetric] = React.useState<"inventory" | "profit">(
-    "inventory",
-  );
-  const [zoom, setZoom] = React.useState(1);
+  const [selectedId, setSelectedId] = React.useState("");
   React.useEffect(() => {
-    if (selectedId && !points.some(({ row }) => row.id === selectedId))
-      setSelectedId(null);
+    if (!points.some((point) => String(point.id) === selectedId))
+      setSelectedId(points[0] ? String(points[0].id) : "");
   }, [points, selectedId]);
-  const selected =
-    points.find(({ row }) => row.id === selectedId)?.row || points[0]?.row;
-  const center = selected
-    ? project(selected.mapLat!, selected.mapLng!)
-    : { x: WIDTH / 2, y: HEIGHT / 2 };
-  const viewWidth = WIDTH / zoom;
-  const viewHeight = HEIGHT / zoom;
-  const viewX = Math.max(
-    0,
-    Math.min(WIDTH - viewWidth, center.x - viewWidth / 2),
-  );
-  const viewY = Math.max(
-    0,
-    Math.min(HEIGHT - viewHeight, center.y - viewHeight / 2),
-  );
+  const selected = rows.find((row) => row.id === selectedId) || rows[0];
 
   return (
     <section
@@ -84,12 +94,26 @@ export function MarketResultsMap({
           <h3 className="text-sm font-bold text-[var(--t1)]">Results map</h3>
           <p className="text-[10px] text-[var(--t4)]">
             {points.length.toLocaleString()} of {rows.length.toLocaleString()}{" "}
-            listings on this page have approximate coordinates
+            current-page listings are mapped
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {points.length > 0 && (
+            <select
+              aria-label="Inspect mapped listing"
+              value={selectedId}
+              onChange={(event) => setSelectedId(event.target.value)}
+              className="field min-h-10 !w-auto max-w-[14rem] text-xs"
+            >
+              {points.map((point) => (
+                <option key={point.id} value={String(point.id)}>
+                  {point.name}
+                </option>
+              ))}
+            </select>
+          )}
           {flipDesk && (
-            <div className="mr-1 flex rounded-lg border border-[var(--b1)] p-1">
+            <div className="flex rounded-lg border border-[var(--b1)] p-1">
               {(["inventory", "profit"] as const).map((value) => (
                 <button
                   key={value}
@@ -98,132 +122,31 @@ export function MarketResultsMap({
                   onClick={() => setMetric(value)}
                   className="min-h-8 rounded-md px-2 text-[10px] font-semibold capitalize aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
                 >
-                  {value}
+                  {value === "inventory" ? "Asking price" : "Profit"}
                 </button>
               ))}
             </div>
           )}
-          <button
-            type="button"
-            aria-label="Zoom map out"
-            disabled={zoom === 1}
-            onClick={() => setZoom((value) => Math.max(1, value - 0.5))}
-            className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--b1)] disabled:opacity-40"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom map in"
-            disabled={zoom === 2.5}
-            onClick={() => setZoom((value) => Math.min(2.5, value + 0.5))}
-            className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--b1)] disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
         </div>
       </div>
 
-      <div className="relative min-h-[18rem] bg-[var(--s0)]">
-        <svg
-          viewBox={`${viewX} ${viewY} ${viewWidth} ${viewHeight}`}
-          className="h-[clamp(18rem,38vw,30rem)] w-full"
-          role="img"
-          aria-label="Map of current market result locations"
-        >
-          <defs>
-            <pattern
-              id="market-map-grid"
-              width="80"
-              height="80"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 80 0 L 0 0 0 80"
-                fill="none"
-                stroke="var(--b1)"
-                strokeWidth="1"
-              />
-            </pattern>
-          </defs>
-          <rect width={WIDTH} height={HEIGHT} fill="url(#market-map-grid)" />
-          <path
-            d="M48 72 L113 48 L195 62 L240 48 L320 71 L390 69 L455 87 L535 73 L606 86 L670 74 L728 92 L791 89 L836 116 L881 124 L908 171 L889 204 L902 237 L876 273 L850 279 L831 320 L798 336 L769 376 L733 407 L683 423 L638 413 L596 384 L545 393 L501 371 L451 383 L402 361 L354 371 L315 347 L267 355 L226 327 L177 319 L155 282 L121 271 L105 226 L76 205 L65 160 Z"
-            fill="var(--s2)"
-            stroke="var(--b2)"
-            strokeWidth="3"
-          />
-          {points.map(({ row, x, y }) => {
-            const offset = jitter(row.id);
-            const selectedPoint = selected?.id === row.id;
-            const radius =
-              metric === "profit"
-                ? Math.max(
-                    5,
-                    Math.min(
-                      13,
-                      5 + Math.max(0, row.profitEstimate || 0) / 1200,
-                    ),
-                  )
-                : 7;
-            return (
-              <g
-                key={row.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`${row.title}, ${row.locationCity || "location"} ${row.locationState || ""}`}
-                onClick={() => setSelectedId(row.id)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedId(row.id);
-                  }
-                }}
-                className="cursor-pointer focus:outline-none"
-              >
-                {selectedPoint && (
-                  <circle
-                    cx={x + offset.x}
-                    cy={y + offset.y}
-                    r={radius + 7}
-                    fill="none"
-                    stroke="var(--blue)"
-                    strokeWidth="3"
-                  />
-                )}
-                <circle
-                  cx={x + offset.x}
-                  cy={y + offset.y}
-                  r={radius}
-                  fill={
-                    metric === "profit" && row.profitEstimate < 0
-                      ? "var(--red)"
-                      : metric === "profit"
-                        ? "var(--green)"
-                        : "var(--blue)"
-                  }
-                  stroke="var(--s0)"
-                  strokeWidth="2"
-                  opacity={selectedPoint ? 1 : 0.82}
-                />
-              </g>
-            );
-          })}
-        </svg>
-        {!points.length && (
-          <div className="absolute inset-0 grid place-items-center p-6 text-center">
-            <div>
-              <LocateFixed className="mx-auto h-7 w-7 text-[var(--t5)]" />
-              <p className="mt-2 text-sm font-semibold text-[var(--t2)]">
-                No mapped listings on this page
-              </p>
-              <p className="mt-1 text-xs text-[var(--t4)]">
-                Try another page or narrow the search to a location.
-              </p>
-            </div>
+      {points.length ? (
+        <div className="h-[clamp(22rem,35vw,30rem)] min-h-0">
+          <DealerMap points={points} />
+        </div>
+      ) : (
+        <div className="grid min-h-[26rem] place-items-center bg-[var(--s0)] p-6 text-center">
+          <div>
+            <LocateFixed className="mx-auto h-7 w-7 text-[var(--t5)]" />
+            <p className="mt-2 text-sm font-semibold text-[var(--t2)]">
+              No mapped listings on this page
+            </p>
+            <p className="mt-1 text-xs text-[var(--t4)]">
+              Try another result page or narrow the search to a location.
+            </p>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {selected && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] px-4 py-3">
@@ -247,7 +170,7 @@ export function MarketResultsMap({
                 : "Price not reported"}
             </Mono>
             <Link
-              href={`/deal/${selected.id}`}
+              href={`/deal/${encodeURIComponent(selected.id)}`}
               className="inline-flex min-h-10 items-center rounded-lg bg-[var(--blue)] px-3 text-xs font-bold text-white"
             >
               Review listing
@@ -256,8 +179,8 @@ export function MarketResultsMap({
         </div>
       )}
       <p className="border-t border-[var(--b1)] px-4 py-2 text-[9px] text-[var(--t5)]">
-        Approximate source locations only. Select a marker to inspect its
-        listing.
+        Approximate source locations only. Select a marker for its listing
+        preview; verify the seller address before travel.
       </p>
     </section>
   );

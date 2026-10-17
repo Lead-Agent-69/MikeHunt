@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Ico } from "./Ico";
 
 // Visual price range selector with presets and custom range
@@ -15,6 +15,7 @@ const PRICE_PRESETS = [
   { label: "$30k - $50k", min: 30000, max: 50000 },
   { label: "$50k+", min: 50000, max: null },
 ];
+const PRICE_SLIDER_MAX = 100_000;
 
 interface PriceRangeSelectorProps {
   minPrice: string;
@@ -39,15 +40,15 @@ export function PriceRangeSelector({
   useEffect(() => {
     const min = parseInt(minPrice) || 0;
     const max = parseInt(maxPrice) || 0;
-    
+
     const matchingPreset = PRICE_PRESETS.find((preset) => {
       return preset.min === min && preset.max === max;
     });
-    
+
     setActivePreset(matchingPreset ? matchingPreset.label : null);
   }, [minPrice, maxPrice]);
 
-  const applyPreset = (preset: typeof PRICE_PRESETS[0]) => {
+  const applyPreset = (preset: (typeof PRICE_PRESETS)[0]) => {
     onMinChange(preset.min.toString());
     onMaxChange(preset.max?.toString() || "");
     setActivePreset(preset.label);
@@ -69,6 +70,7 @@ export function PriceRangeSelector({
         </div>
         {hasActiveFilter && (
           <button
+            type="button"
             onClick={onClear}
             className="text-xs font-bold text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
           >
@@ -84,6 +86,7 @@ export function PriceRangeSelector({
           return (
             <button
               key={preset.label}
+              type="button"
               onClick={() => applyPreset(preset)}
               className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                 isActive
@@ -103,7 +106,9 @@ export function PriceRangeSelector({
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] text-sm">
+                $
+              </span>
               <input
                 type="number"
                 placeholder="Min"
@@ -121,7 +126,9 @@ export function PriceRangeSelector({
           </div>
           <div className="flex-1">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] text-sm">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] text-sm">
+                $
+              </span>
               <input
                 type="number"
                 placeholder="Max"
@@ -137,24 +144,53 @@ export function PriceRangeSelector({
         </div>
       </div>
 
-      {/* Visual Range Bar */}
-      {hasActiveFilter && (
-        <div className="pt-2">
-          <div className="h-2 bg-[var(--s2)] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[var(--brand)] transition-all"
-              style={{
-                width: "100%",
-                background: `linear-gradient(90deg, var(--brand) 0%, var(--brand) 100%)`,
-              }}
-            />
-          </div>
-          <div className="flex justify-between mt-1 text-[10px] text-[var(--t4)]">
-            <span>${parseInt(minPrice || "0").toLocaleString()}</span>
-            <span>{maxPrice ? `$${parseInt(maxPrice).toLocaleString()}` : "No limit"}</span>
-          </div>
-        </div>
-      )}
+      <div className="grid gap-3 rounded-xl bg-[var(--s2)] p-3 sm:grid-cols-2">
+        <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+          Minimum · $
+          {Math.min(Number(minPrice) || 0, PRICE_SLIDER_MAX).toLocaleString()}
+          <input
+            aria-label="Minimum price slider"
+            type="range"
+            min="0"
+            max={PRICE_SLIDER_MAX}
+            step="1000"
+            value={Math.min(Number(minPrice) || 0, PRICE_SLIDER_MAX)}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              const currentMax = Number(maxPrice) || PRICE_SLIDER_MAX;
+              onMinChange(next === 0 ? "" : String(next));
+              if (next > currentMax) onMaxChange(String(next));
+              setActivePreset(null);
+            }}
+            className="mt-2 w-full accent-[var(--blue)]"
+          />
+        </label>
+        <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+          Maximum ·{" "}
+          {maxPrice
+            ? `$${Math.min(Number(maxPrice), PRICE_SLIDER_MAX).toLocaleString()}`
+            : "$100k+"}
+          <input
+            aria-label="Maximum price slider"
+            type="range"
+            min="0"
+            max={PRICE_SLIDER_MAX}
+            step="1000"
+            value={Math.min(
+              Number(maxPrice) || PRICE_SLIDER_MAX,
+              PRICE_SLIDER_MAX,
+            )}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              const currentMin = Number(minPrice) || 0;
+              onMaxChange(next === PRICE_SLIDER_MAX ? "" : String(next));
+              if (next < currentMin) onMinChange(String(next));
+              setActivePreset(null);
+            }}
+            className="mt-2 w-full accent-[var(--blue)]"
+          />
+        </label>
+      </div>
     </div>
   );
 }
@@ -178,27 +214,30 @@ export function YearRangeSelector({
   className = "",
 }: YearRangeSelectorProps) {
   const currentYear = new Date().getFullYear();
-  const YEAR_PRESETS = [
-    { label: "Newer (2020+)", min: 2020, max: currentYear },
-    { label: "2015-2019", min: 2015, max: 2019 },
-    { label: "2010-2014", min: 2010, max: 2014 },
-    { label: "Older (<2010)", min: 0, max: 2009 },
-  ];
+  const YEAR_PRESETS = useMemo(
+    () => [
+      { label: "Newer (2020+)", min: 2020, max: currentYear },
+      { label: "2015-2019", min: 2015, max: 2019 },
+      { label: "2010-2014", min: 2010, max: 2014 },
+      { label: "Older (<2010)", min: 0, max: 2009 },
+    ],
+    [currentYear],
+  );
 
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
   useEffect(() => {
     const min = parseInt(minYear) || 0;
     const max = parseInt(maxYear) || currentYear;
-    
+
     const matchingPreset = YEAR_PRESETS.find((preset) => {
       return preset.min === min && preset.max === max;
     });
-    
-    setActivePreset(matchingPreset ? matchingPreset.label : null);
-  }, [minYear, maxYear, currentYear]);
 
-  const applyPreset = (preset: typeof YEAR_PRESETS[0]) => {
+    setActivePreset(matchingPreset ? matchingPreset.label : null);
+  }, [minYear, maxYear, currentYear, YEAR_PRESETS]);
+
+  const applyPreset = (preset: (typeof YEAR_PRESETS)[0]) => {
     onMinChange(preset.min === 0 ? "" : preset.min.toString());
     onMaxChange(preset.max.toString());
     setActivePreset(preset.label);
@@ -220,6 +259,7 @@ export function YearRangeSelector({
         </div>
         {hasActiveFilter && (
           <button
+            type="button"
             onClick={onClear}
             className="text-xs font-bold text-[var(--t4)] hover:text-[var(--t1)] transition-colors"
           >
@@ -235,6 +275,7 @@ export function YearRangeSelector({
           return (
             <button
               key={preset.label}
+              type="button"
               onClick={() => applyPreset(preset)}
               className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                 isActive
@@ -280,6 +321,52 @@ export function YearRangeSelector({
             />
           </div>
         </div>
+      </div>
+      <div className="grid gap-3 rounded-xl bg-[var(--s2)] p-3 sm:grid-cols-2">
+        <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+          From · {minYear || "1980"}
+          <input
+            aria-label="Minimum year slider"
+            type="range"
+            min="1980"
+            max={currentYear}
+            step="1"
+            value={Math.max(
+              1980,
+              Math.min(Number(minYear) || 1980, currentYear),
+            )}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              const currentMax = Number(maxYear) || currentYear;
+              onMinChange(next === 1980 ? "" : String(next));
+              if (next > currentMax) onMaxChange(String(next));
+              setActivePreset(null);
+            }}
+            className="mt-2 w-full accent-[var(--blue)]"
+          />
+        </label>
+        <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
+          To · {maxYear || currentYear}
+          <input
+            aria-label="Maximum year slider"
+            type="range"
+            min="1980"
+            max={currentYear}
+            step="1"
+            value={Math.max(
+              1980,
+              Math.min(Number(maxYear) || currentYear, currentYear),
+            )}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              const currentMin = Number(minYear) || 1980;
+              onMaxChange(next === currentYear ? "" : String(next));
+              if (next < currentMin) onMinChange(String(next));
+              setActivePreset(null);
+            }}
+            className="mt-2 w-full accent-[var(--blue)]"
+          />
+        </label>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { Ico } from "@/components/shared/Ico";
 import { DealCard } from "@/components/shared/DealCard";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import {
-  scanHrefForSavedSearch,
+  savedSearchHref,
   sourceProofHrefForSavedSearch,
   useLocalSavedSearches,
 } from "@/hooks/useLocalSavedSearches";
@@ -412,10 +412,10 @@ function LocalSearchInbox({
               </div>
               <div className="flex flex-wrap gap-2">
                 <Link
-                  href={scanHrefForSavedSearch(search)}
+                  href={savedSearchHref(search)}
                   className="rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-2 text-xs font-black text-[var(--t2)]"
                 >
-                  Open Scan
+                  {search.market_params ? "Open Market" : "Open Scan"}
                 </Link>
                 <Link
                   href={sourceProofHrefForSavedSearch(search)}
