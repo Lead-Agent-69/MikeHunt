@@ -242,14 +242,16 @@ describe("Market inventory filtering and pagination", () => {
     state.rows = [
       {
         id: "missouri",
-        source: "copart",
+        source: "independent_dealer",
+        source_url: "https://www.dgautollc.com/vehiclesDetail.php?1",
         lat: 38.63,
         lng: -90.2,
         location_state: "MO",
       },
       {
         id: "illinois",
-        source: "copart",
+        source: "independent_dealer",
+        source_url: "https://www.dgautollc.com/vehiclesDetail.php?2",
         lat: 38.62,
         lng: -90.15,
         location_state: "IL",
@@ -265,7 +267,7 @@ describe("Market inventory filtering and pagination", () => {
     ];
     const body = await (
       await request(
-        "near=63101&radius=25&states=MO&sort=distanceMiles&sortDir=asc",
+        "near=63101&radius=25&states=MO&sources=dg-auto&sort=distanceMiles&sortDir=asc",
       )
     ).json();
     expect(body.rows.map((row: any) => row.id)).toEqual([
@@ -274,6 +276,10 @@ describe("Market inventory filtering and pagination", () => {
     ]);
     expect(body.rows[0].distanceMiles).toBe(0);
     expect(body.location.radius).toBe(25);
+    expect(state.calls).toContainEqual([
+      "or",
+      "and(source.eq.independent_dealer,or(source_url.ilike.%dgautollc.com%))",
+    ]);
     expect(state.calls).not.toContainEqual(["in", "location_state", ["MO"]]);
     expect(
       state.calls.some((call) => call[0] === "gte" && call[1] === "lat"),

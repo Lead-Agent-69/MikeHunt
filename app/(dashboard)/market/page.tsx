@@ -20,6 +20,7 @@ import {
 } from "@/lib/search/extended-inventory-filters";
 import {
   INVENTORY_SOURCE_FILTERS,
+  sourceUrlNeedles,
   VEHICLE_CATEGORY_FILTERS,
 } from "@/lib/search/inventory-filters";
 import {
@@ -171,6 +172,13 @@ export default function MarketPage() {
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [sourceSearch, setSourceSearch] = React.useState("");
+  const matchingSources = INVENTORY_SOURCE_FILTERS.filter((source) =>
+    `${source.name} ${source.id} ${sourceUrlNeedles(source.id).join(" ")}`
+      .replace(/[^a-z0-9]/gi, "")
+      .toLowerCase()
+      .includes(sourceSearch.replace(/[^a-z0-9]/gi, "").toLowerCase()),
+  );
   const intelligenceRef = React.useRef<HTMLDetailsElement>(null);
   const [view, setView] = React.useState<"grid" | "table">("grid");
   const set = (patch: Partial<Filters>) => {
@@ -620,7 +628,10 @@ export default function MarketPage() {
               </option>
             </select>
           </label>
-          <fieldset className="min-w-0 space-y-3 border-t border-[var(--b1)] pt-3">
+          <fieldset
+            disabled={!ready}
+            className="min-w-0 space-y-3 border-t border-[var(--b1)] pt-3"
+          >
             <legend className="text-xs font-bold text-[var(--t3)]">
               Vehicle & sources
             </legend>
@@ -693,8 +704,23 @@ export default function MarketPage() {
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold">
                 Sources ({f.sources.length || "All"})
               </summary>
+              <label className="mb-2 block text-sm">
+                Find a source or dealer
+                <input
+                  type="search"
+                  value={sourceSearch}
+                  onChange={(event) => setSourceSearch(event.target.value)}
+                  placeholder="Dealer name or website"
+                  className="mt-1 min-h-11 w-full rounded border border-[var(--b1)] bg-[var(--s0)] px-3 text-base"
+                />
+              </label>
               <div className="max-h-64 overflow-y-auto">
-                {INVENTORY_SOURCE_FILTERS.map((source) => (
+                {matchingSources.length === 0 && (
+                  <p role="status" className="py-3 text-sm text-[var(--t3)]">
+                    No matching source.
+                  </p>
+                )}
+                {matchingSources.map((source) => (
                   <label
                     key={source.id}
                     className="flex min-h-11 items-center gap-2 text-sm"
