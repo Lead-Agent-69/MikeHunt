@@ -5,7 +5,10 @@ import {
   MarketFacetStudio,
   type MarketFacetKey,
 } from "@/components/market/MarketFacetStudio";
-import { MarketResultsMap } from "@/components/market/MarketResultsMap";
+import {
+  MarketResultsMap,
+  marketMapPoints,
+} from "@/components/market/MarketResultsMap";
 import type { MarketListing } from "@/lib/market/explorer";
 
 describe("smart market exploration", () => {
@@ -127,6 +130,27 @@ describe("smart market exploration", () => {
       profitEstimate: 2_000,
       profitScore: 70,
     });
+    const negative = {
+      ...listing("loss", "Loss", -90.2),
+      profitEstimate: -1500,
+    };
+    const zero = { ...listing("zero", "Zero", -90.2), profitEstimate: 0 };
+    const unknown = {
+      ...listing("unknown", "Unknown", -90.2),
+      profitEstimate: undefined,
+    };
+    const profitPoints = marketMapPoints([negative, zero, unknown], "profit");
+    expect(profitPoints.map((point) => point.valueText)).toEqual([
+      "-$1,500",
+      "$0",
+      "Unavailable",
+    ]);
+    expect(profitPoints.every((point) => point.price == null)).toBe(true);
+    expect(
+      profitPoints.every(
+        (point) => point.priceLabel === "Estimated net profit",
+      ),
+    ).toBe(true);
     act(() =>
       root.render(
         <MarketResultsMap

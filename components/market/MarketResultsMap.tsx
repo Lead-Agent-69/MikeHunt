@@ -18,6 +18,14 @@ const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
 });
 
 type MapMetric = "inventory" | "profit";
+const profitText = (amount?: number) =>
+  amount != null && Number.isFinite(amount)
+    ? amount.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 0,
+      })
+    : "Unavailable";
 
 export function marketMapPoints(
   rows: MarketListing[],
@@ -53,10 +61,12 @@ export function marketMapPoints(
       approx: true,
       price:
         metric === "profit"
-          ? Math.max(0, row.profitEstimate || 0)
+          ? undefined
           : row.price?.amount || row.askPrice || undefined,
+      valueText:
+        metric === "profit" ? profitText(row.profitEstimate) : undefined,
       priceLabel:
-        metric === "profit" ? "Estimated gross profit" : row.price?.label,
+        metric === "profit" ? "Estimated net profit" : row.price?.label,
       image: row.images?.[0],
       source: row.source,
       url: `/deal/${encodeURIComponent(row.id)}`,
@@ -122,7 +132,7 @@ export function MarketResultsMap({
                   onClick={() => setMetric(value)}
                   className="min-h-8 rounded-md px-2 text-[10px] font-semibold capitalize aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
                 >
-                  {value === "inventory" ? "Asking price" : "Profit"}
+                  {value === "inventory" ? "Source price" : "Net profit"}
                 </button>
               ))}
             </div>
@@ -164,11 +174,20 @@ export function MarketResultsMap({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Mono className="text-sm font-black text-[var(--t1)]">
-              {selected.price?.amount != null
-                ? `$${selected.price.amount.toLocaleString()}`
-                : "Price not reported"}
-            </Mono>
+            <div className="text-right">
+              <p className="text-[10px] text-[var(--t4)]">
+                {metric === "profit"
+                  ? "Estimated net profit"
+                  : selected.price?.label || "Advertised amount"}
+              </p>
+              <Mono className="text-sm font-black text-[var(--t1)]">
+                {metric === "profit"
+                  ? profitText(selected.profitEstimate)
+                  : selected.price?.amount != null
+                    ? `$${selected.price.amount.toLocaleString()}`
+                    : "Price not reported"}
+              </Mono>
+            </div>
             <Link
               href={`/deal/${encodeURIComponent(selected.id)}`}
               className="inline-flex min-h-10 items-center rounded-lg bg-[var(--blue)] px-3 text-xs font-bold text-white"
