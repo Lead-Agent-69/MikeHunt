@@ -19,12 +19,12 @@ describe("discovery browsing presentation safeguards", () => {
   it("uses the header location scope and offers the complete matching inventory", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
-    expect(page).toContain("Browse inventory");
+    expect(page).toContain("Open Market Explorer");
     expect(page).toContain("Quick filters");
     expect(page).toContain("Search cars");
-    expect(page).toContain("All filters & results");
-    expect(page).toContain('aria-label="Browse inventory"');
-    expect(page).toContain("href={`/scan${scopeQuery}`}");
+    expect(page).toContain("All market filters and results");
+    expect(page).toContain('aria-label="Open Market Explorer"');
+    expect(page).toContain("href={`/market${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
   });
   it("keeps mileage and source controls outside the additional filters disclosure", () => {

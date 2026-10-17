@@ -20,6 +20,7 @@ export type DecisionEvidence = {
 const AUCTION_SOURCES = new Set([
   "copart",
   "iaa",
+  "iaai",
   "manheim",
   "adesa",
   "acv",

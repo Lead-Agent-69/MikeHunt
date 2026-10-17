@@ -18,7 +18,7 @@ describe("intentional workspace", () => {
     expect(hrefs("personal", false)).toEqual(
       expect.arrayContaining([
         "/discover",
-        "/scan",
+        "/market",
         "/map",
         "/saved",
         "/compare",

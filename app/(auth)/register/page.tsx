@@ -188,14 +188,14 @@ export default function RegisterPage() {
               className="text-base"
             />
 
-            <div className="flex items-start gap-2 text-xs text-[var(--t4)]">
+            <div className="flex items-start gap-2 text-xs text-[var(--t3)]">
               <Ico name="check-circle" size={14} className="shrink-0 mt-0.5" />
               <span>
                 By creating an account, you agree to our{" "}
                 <Link
                   href="/tos"
                   prefetch={false}
-                  className="text-[var(--amber-d)] hover:underline"
+                  className="font-medium text-[var(--amber-d)] underline underline-offset-2"
                 >
                   Terms of Service
                 </Link>{" "}
@@ -203,7 +203,7 @@ export default function RegisterPage() {
                 <Link
                   href="/privacy"
                   prefetch={false}
-                  className="text-[var(--amber-d)] hover:underline"
+                  className="font-medium text-[var(--amber-d)] underline underline-offset-2"
                 >
                   Privacy Policy
                 </Link>
@@ -221,17 +221,17 @@ export default function RegisterPage() {
 
           {/* Footer */}
           <div className="text-center pt-4 border-t border-[var(--b1)]">
-            <p className="text-sm text-[var(--t4)] mb-2">
+            <p className="mb-2 text-sm text-[var(--t3)]">
               Already have an account?{" "}
               <Link
                 href="/login"
                 prefetch={false}
-                className="font-semibold text-[var(--amber-d)] hover:underline"
+                className="font-semibold text-[var(--amber-d)] underline underline-offset-2"
               >
                 Sign in
               </Link>
             </p>
-            <p className="text-xs text-[var(--t5)]">
+            <p className="text-xs text-[var(--t3)]">
               Free to start. No credit card required.
             </p>
           </div>

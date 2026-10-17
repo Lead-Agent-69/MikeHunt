@@ -17,7 +17,7 @@ import {
 } from "@/components/layout/nav-items";
 
 describe("primaryJobForPath", () => {
-  it("keeps navigation accessible and exposes mobile auction and activity entry points", () => {
+  it("keeps navigation accessible and exposes activity without duplicate auction workspaces", () => {
     const top = readFileSync("components/layout/TopNav.tsx", "utf8");
     const dock = readFileSync("components/BottomNav.tsx", "utf8");
     const account = readFileSync("components/home/AccountMenu.tsx", "utf8");
@@ -30,15 +30,18 @@ describe("primaryJobForPath", () => {
     ).toContain("/alerts");
     expect(
       accountMenuForMode("dealer").tools.map((entry) => entry.href),
-    ).toContain("/lane");
+    ).toContain("/market");
+    expect(
+      accountMenuForMode("dealer").tools.map((entry) => entry.href),
+    ).not.toContain("/lane");
   });
   it("keeps secondary pages under the five main jobs", () => {
     expect(primaryJobForPath("/")).toBe("Market Explorer");
     expect(primaryJobForPath("/feed")).toBe("Discover");
     expect(primaryJobForPath("/find")).toBe("Discover");
-    expect(primaryJobForPath("/scan")).toBe("Discover");
+    expect(primaryJobForPath("/scan")).toBe("Market Explorer");
     expect(primaryJobForPath("/deal/abc")).toBe("Discover");
-    expect(primaryJobForPath("/overview/toyota/camry")).toBe("Discover");
+    expect(primaryJobForPath("/overview/toyota/camry")).toBe("Market Explorer");
     expect(primaryJobForPath("/dealer-network")).toBe("Discover");
     expect(primaryJobForPath("/dealer-network/aeofmiami.com")).toBe("Discover");
     expect(primaryJobForPath("/compare")).toBe("Saved");
@@ -53,8 +56,8 @@ describe("primaryJobForPath", () => {
     expect(primaryJobForPath("/best-buy")).toBe("Discover");
     expect(primaryJobForPath("/market")).toBe("Market Explorer");
     expect(primaryJobForPath("/deal-check")).toBe("Deal Check");
-    expect(primaryJobForPath("/lane")).toBe("Auction Lane");
-    expect(primaryJobForPath("/auctions")).toBe("Auction Lane");
+    expect(primaryJobForPath("/lane")).toBe("Market Explorer");
+    expect(primaryJobForPath("/auctions")).toBe("Market Explorer");
   });
 
   it("matches nested nav item routes for active menu state", () => {
@@ -96,7 +99,6 @@ describe("primaryJobForPath", () => {
       "Discover",
       "Saved",
       "Pipeline",
-      "Auction Lane",
     ]);
     expect(MOBILE_PRIMARY.map((item) => item.name)).toEqual([
       "Market",
@@ -108,7 +110,6 @@ describe("primaryJobForPath", () => {
 
     const coverage = navJobCoverage();
     expect(Array.from(coverage.keys()).sort()).toEqual([
-      "Auction Lane",
       "Deal Check",
       "Discover",
       "Market Explorer",
@@ -116,7 +117,7 @@ describe("primaryJobForPath", () => {
       "Saved",
     ]);
     expect(coverage.get("Discover")?.length).toBeGreaterThan(1);
-    expect(coverage.get("Auction Lane")?.length).toBeGreaterThan(1);
+    expect(coverage.get("Market Explorer")?.length).toBeGreaterThan(1);
     expect(coverage.get("Pipeline")?.length).toBeGreaterThan(1);
     expect(coverage.get("Saved")?.length).toBeGreaterThan(1);
     expect(coverage.get("Deal Check")?.length).toBe(1);
@@ -140,7 +141,6 @@ describe("primaryJobForPath", () => {
       "Discover",
       "Discover collections",
       "Market",
-      "Auction Lane",
       "Pipeline",
       "Saved",
       "Account",
@@ -198,7 +198,7 @@ describe("primaryJobForPath", () => {
     );
 
     expect(discoverPage).toContain("Buying for");
-    expect(discoverPage).toContain("Browse inventory");
+    expect(discoverPage).toContain("Open Market Explorer");
     expect(discoverPage).not.toContain("<BuyerScopeBuilder");
     expect(discoverPage).not.toContain("<SetupStatusPanel");
   });
@@ -263,8 +263,15 @@ describe("primaryJobForPath", () => {
     expect(bottom).not.toContain("{MOBILE_PRIMARY.map(");
   });
 
-  it("keeps the account menu's Auction Lane shortcut off non-flip desks", () => {
-    for (const mode of ["personal", "diy", "parts", undefined]) {
+  it("keeps standalone Auction Lane shortcuts out of every desk", () => {
+    for (const mode of [
+      "personal",
+      "diy",
+      "parts",
+      "reseller",
+      "dealer",
+      undefined,
+    ]) {
       expect(
         accountMenuForMode(mode).tools.map((entry) => entry.href),
       ).not.toContain("/lane");
@@ -273,11 +280,17 @@ describe("primaryJobForPath", () => {
 });
 
 describe("scanHrefForMode", () => {
-  it("sorts Scan by profit only for flip desks", () => {
-    expect(scanHrefForMode("reseller")).toBe("/scan?sort=profit");
-    expect(scanHrefForMode("dealer")).toBe("/scan?sort=profit");
+  it("opens the consolidated market with a role-appropriate sort", () => {
+    expect(scanHrefForMode("reseller")).toBe(
+      "/market?mode=curated&sort=profitEstimate&sortDir=desc",
+    );
+    expect(scanHrefForMode("dealer")).toBe(
+      "/market?mode=curated&sort=profitEstimate&sortDir=desc",
+    );
     for (const mode of ["personal", "diy", "parts", undefined, ""]) {
-      expect(scanHrefForMode(mode)).toBe("/scan?sort=score");
+      expect(scanHrefForMode(mode)).toBe(
+        "/market?mode=all&sort=lastSeenAt&sortDir=desc",
+      );
     }
   });
 });
@@ -291,7 +304,7 @@ describe("alerts page", () => {
     expect(source).toMatch(/No alerts yet/);
   });
 
-  it("routes Scan by buyer mode and hides profit targets for non-flip desks", () => {
+  it("routes Market Explorer by buyer mode and hides profit targets for non-flip desks", () => {
     expect(source).not.toContain('href="/scan?sort=profit"');
     expect(source).toContain("scanHrefForMode(intent?.buyerMode)");
     expect(source).toContain("showProfitTarget && search.target_profit");

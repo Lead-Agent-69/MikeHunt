@@ -69,11 +69,11 @@ describe("role-aware keyboard navigation", () => {
   it("retains sourcing and decision destinations, not retired tools, and dismisses on Escape", async () => {
     state.mode = "dealer";
     await open();
-    expect(host.textContent).toContain("Auction Lane");
+    expect(host.textContent).not.toContain("Auction Lane");
     expect(host.textContent).not.toContain("Finance");
     expect(host.textContent).not.toContain("List vehicles");
     expect(host.textContent).not.toContain("Volume sourcing");
-    expect(host.textContent).toContain("Search cars");
+    expect(host.textContent).toContain("Market Explorer");
     expect(host.textContent).toContain("Outcomes & intelligence");
     await act(async () =>
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })),

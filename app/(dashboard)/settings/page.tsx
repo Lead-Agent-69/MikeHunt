@@ -26,24 +26,56 @@ const fetcher = (url: string) =>
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function CarsViewPrefs() {
   const { isLoading } = usePreferences();
+  const [panel, setPanel] = useState<"locations" | "buying" | "alerts">(
+    "locations",
+  );
   if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
     <div className="glass-panel p-6 animate-popIn">
-      <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
-        Locations
+      <h2 className="text-sm font-black uppercase tracking-widest text-[var(--t4)]">
+        Market preferences
       </h2>
-      <LocationPrefs />
-      <BuyingProfilePrefs />
-      <div className="mt-6 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0">
-          <div className="text-sm font-black text-[var(--t1)]">Deal alerts</div>
-          <p className="text-[12px] text-[var(--t4)]">
-            Enable notifications for changes to your saved searches and
-            vehicles.
-          </p>
-        </div>
-        <div className="min-w-0 max-w-full">
-          <EnablePush />
+      <div
+        role="tablist"
+        aria-label="Market preference sections"
+        className="my-4 grid grid-cols-3 gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1"
+      >
+        {[
+          ["locations", "Locations"],
+          ["buying", "Buying"],
+          ["alerts", "Alerts"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={panel === value}
+            onClick={() => setPanel(value as "locations" | "buying" | "alerts")}
+            className="min-h-11 rounded-lg px-2 text-xs font-bold text-[var(--t3)] aria-selected:bg-[var(--s2)] aria-selected:text-[var(--blue)]"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" hidden={panel !== "locations"}>
+        <LocationPrefs />
+      </div>
+      <div role="tabpanel" hidden={panel !== "buying"}>
+        <BuyingProfilePrefs />
+      </div>
+      <div role="tabpanel" hidden={panel !== "alerts"}>
+        <div className="flex flex-wrap items-center justify-between gap-4 py-2">
+          <div className="min-w-0">
+            <div className="text-sm font-black text-[var(--t1)]">
+              Browser alerts
+            </div>
+            <p className="text-[12px] text-[var(--t4)]">
+              Changes to saved searches and vehicles on this device.
+            </p>
+          </div>
+          <div className="min-w-0 max-w-full">
+            <EnablePush />
+          </div>
         </div>
       </div>
     </div>

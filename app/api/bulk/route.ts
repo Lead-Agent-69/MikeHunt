@@ -5,7 +5,7 @@ export function GET() {
     {
       error:
         "Bulk sourcing has been retired. Use car search and saved searches.",
-      replacement: "/scan",
+      replacement: "/market",
     },
     { status: 410, headers: { "Cache-Control": "no-store" } },
   );

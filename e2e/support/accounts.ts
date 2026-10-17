@@ -11,7 +11,9 @@ export const DESK_LABEL: Record<Desk, RegExp> = {
 };
 export const PASSWORD = "LocalOnly-e2e-1234";
 export const ADMIN_EMAIL =
-  process.env.E2E_ADMIN_EMAIL || "e2e-admin@local.test";
+  process.env.E2E_ADMIN_EMAIL ||
+  process.env.ADMIN_EMAIL ||
+  "e2e-admin@local.test";
 export const storagePath = (name: string) => `e2e/.auth/${name}.json`;
 
 export function uniqueEmail(tag: string) {

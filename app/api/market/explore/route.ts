@@ -29,6 +29,7 @@ import {
   parseMarketLocation,
   marketDistance,
   summarizeMarket,
+  canonicalMarketMake,
   MARKET_PRICE_KINDS,
   type MarketPriceMileageCell,
   type MarketRangeBand,
@@ -359,7 +360,7 @@ export async function GET(req: NextRequest) {
               ? (marketDistance(center, d) ?? undefined)
               : undefined,
             year: d.year,
-            make: d.make,
+            make: canonicalMarketMake(d.make),
             model: d.model,
             trim: d.trim,
             askPrice: Number(d.ask_price || 0),

@@ -92,12 +92,27 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      { source: "/deals", destination: "/scan", permanent: false },
-      { source: "/scanner", destination: "/scan", permanent: false },
+      // Market Explorer is the single inventory workspace. Keep these legacy URLs working while
+      // removing the duplicate, high-DOM Scan and auction workspaces from the product surface.
+      // Next preserves unmatched incoming query parameters, so saved/shared searches keep their
+      // scope while /market translates the legacy parameter names.
+      { source: "/scan", destination: "/market", permanent: false },
+      { source: "/deals", destination: "/market", permanent: false },
+      { source: "/scanner", destination: "/market", permanent: false },
+      {
+        source: "/lane",
+        destination: "/market?lanes=auction",
+        permanent: false,
+      },
+      {
+        source: "/auctions",
+        destination: "/market?lanes=auction",
+        permanent: false,
+      },
       { source: "/syndicate", destination: "/fleet", permanent: false },
       { source: "/list", destination: "/fleet", permanent: false },
       { source: "/finance", destination: "/fleet", permanent: false },
-      { source: "/bulk", destination: "/scan", permanent: false },
+      { source: "/bulk", destination: "/market", permanent: false },
       { source: "/watchlist", destination: "/fleet", permanent: false },
     ];
   },

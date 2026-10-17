@@ -12,7 +12,6 @@ import {
   FileCheck,
   FileText,
   Flame,
-  Gavel,
   Hammer,
   Layers,
   MapPin,
@@ -41,7 +40,6 @@ export type PrimaryJob =
   | "Market Explorer"
   | "Discover"
   | "Deal Check"
-  | "Auction Lane"
   | "Pipeline"
   | "Saved";
 
@@ -55,7 +53,6 @@ export const PRIMARY: NavItem[] = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "Saved", href: "/saved", icon: Bookmark },
   { name: "Pipeline", href: "/fleet", icon: Clock },
-  { name: "Auction Lane", href: "/lane", icon: Gavel },
 ];
 
 /** Market first, Discover second, followed by saved vehicles, planning and Tools. */
@@ -77,8 +74,6 @@ export const MOBILE_PRIMARY: NavItem[] = [
  * other desks get an in-page notice. Pipeline has a personal purchase checklist.
  */
 export const FLIP_ONLY_HREFS: readonly string[] = [
-  "/lane",
-  "/auctions",
   "/arbitrage",
   "/find",
   "/best-buy",
@@ -191,7 +186,9 @@ export function mobileNavForMode(buyerMode: unknown): NavItem[] {
  * desks sort by trust score, since profit is not their goal.
  */
 export function scanHrefForMode(buyerMode: unknown): string {
-  return hidesFlipNav(buyerMode) ? "/scan?sort=score" : "/scan?sort=profit";
+  return hidesFlipNav(buyerMode)
+    ? "/market?mode=all&sort=lastSeenAt&sortDir=desc"
+    : "/market?mode=curated&sort=profitEstimate&sortDir=desc";
 }
 
 /** Grouped "More" routes for the saved buyer mode. */
@@ -238,12 +235,6 @@ export const MORE_GROUPS: NavGroup[] = [
   {
     group: "Discover collections",
     items: [
-      {
-        name: "Search cars",
-        href: "/scan",
-        icon: Search,
-        description: "Run the full search workflow against matching sources.",
-      },
       {
         name: "Ranked picks",
         href: "/best-buy",
@@ -315,17 +306,6 @@ export const MORE_GROUPS: NavGroup[] = [
         href: "/dealer-network",
         icon: Store,
         description: "Small shops, watched dealers, and catalog proof.",
-      },
-    ],
-  },
-  {
-    group: "Auction Lane",
-    items: [
-      {
-        name: "Auctions",
-        href: "/auctions",
-        icon: Gavel,
-        description: "Auction calendar, bids, and ending lots.",
       },
     ],
   },
@@ -404,7 +384,6 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
         "Discover",
         "Discover collections",
         "Deal Check",
-        "Auction Lane",
         "Pipeline",
         "Saved",
       ].includes(group.group)
@@ -427,7 +406,6 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
     return "Saved";
   }
   if (
-    normalized.startsWith("/scan") ||
     normalized.startsWith("/best-buy") ||
     normalized.startsWith("/feed") ||
     normalized.startsWith("/flash-deals") ||
@@ -439,9 +417,14 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
     return "Discover";
   }
   if (normalized.startsWith("/deal-check")) return "Deal Check";
-  if (normalized.startsWith("/lane") || normalized.startsWith("/auctions")) {
-    return "Auction Lane";
-  }
+  if (
+    normalized.startsWith("/scan") ||
+    normalized.startsWith("/lane") ||
+    normalized.startsWith("/auctions") ||
+    normalized.startsWith("/arbitrage") ||
+    normalized.startsWith("/overview")
+  )
+    return "Market Explorer";
   if (
     normalized.startsWith("/fleet") ||
     normalized.startsWith("/move") ||
@@ -451,8 +434,6 @@ export function primaryJobForPath(pathname: string): PrimaryJob | null {
   }
   if (
     normalized.startsWith("/market") ||
-    normalized.startsWith("/arbitrage") ||
-    normalized.startsWith("/overview") ||
     normalized.startsWith("/compare") ||
     normalized.startsWith("/insights") ||
     normalized.startsWith("/parts")
@@ -540,11 +521,6 @@ export function accountMenuForMode(buyerMode: unknown): {
   const partsDesk = flip || mode === "parts" || mode === "diy";
   const tools: AccountMenuEntry[] = [
     { name: "Market Explorer", href: "/market", group: "Browse" },
-    {
-      name: "Search cars",
-      href: scanHrefForMode(buyerMode),
-      group: "Browse",
-    },
     { name: "Feed", href: "/feed", group: "Search views" },
     { name: "Map", href: "/map", group: "Search views" },
     { name: "Swipe", href: "/swipe", group: "Search views" },
@@ -574,8 +550,6 @@ export function accountMenuForMode(buyerMode: unknown): {
   if (flip) {
     tools.push(
       { name: "Outcomes & intelligence", href: "/insights", group: "Business" },
-      { name: "Auctions", href: "/auctions", group: "Business" },
-      { name: "Auction Lane", href: "/lane", group: "Business" },
       { name: "Arbitrage", href: "/arbitrage", group: "Business" },
       { name: "Arbitrage routes", href: "/find", group: "Business" },
       { name: "Ranked picks", href: "/best-buy", group: "Business" },

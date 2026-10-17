@@ -162,6 +162,70 @@ function toggle(arr: string[], v: string): string[] {
   return arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 }
 
+/** Keep shared legacy Scan/Discover links useful while Market Explorer becomes the one workspace. */
+function normalizeLegacyMarketParams(params: URLSearchParams) {
+  const copy = (legacy: string, current: string) => {
+    const value = params.get(legacy);
+    if (value != null && !params.has(current)) params.set(current, value);
+  };
+  copy("zip", "near");
+  copy("make", "makes");
+  copy("source", "sources");
+  copy("sellerType", "sellerTypes");
+  copy("minPrice", "priceMin");
+  copy("maxPrice", "priceMax");
+  copy("minYear", "yearMin");
+  copy("maxYear", "yearMax");
+  copy("maxMileage", "mileageMax");
+
+  if (!params.has("states")) {
+    const state = (params.get("state") || "").trim().toUpperCase();
+    if (/^[A-Z]{2}$/.test(state)) params.set("states", state);
+  }
+  if (!params.has("lanes")) {
+    const lane = (params.get("lane") || "").trim().toLowerCase();
+    if (["auction", "government"].includes(lane))
+      params.set("lanes", "auction");
+    else if (["damaged", "salvage"].includes(lane))
+      params.set("lanes", "salvage,repairable");
+    else if (["private", "clean-retail"].includes(lane))
+      params.set("lanes", lane);
+  }
+  if (!params.has("conditions")) {
+    const conditions = (params.get("titleType") || "")
+      .split(",")
+      .map(
+        (value) =>
+          ({
+            clean: "clean_title",
+            rebuilt: "rebuilt_title",
+            salvage: "salvage_title",
+            rebuildable: "repairable",
+          })[value.trim().toLowerCase()],
+      )
+      .filter(Boolean);
+    if (conditions.length) params.set("conditions", conditions.join(","));
+  }
+
+  const legacySort = params.get("sort");
+  const sortMap: Record<string, [string, "asc" | "desc"]> = {
+    price: ["askPrice", "asc"],
+    "price-asc": ["askPrice", "asc"],
+    "price-desc": ["askPrice", "desc"],
+    newest: ["lastSeenAt", "desc"],
+    profit: ["profitEstimate", "desc"],
+    margin: ["profitEstimate", "desc"],
+    score: ["profitScore", "desc"],
+    mileage: ["mileage", "asc"],
+    year: ["year", "desc"],
+  };
+  if (legacySort && legacySort in sortMap) {
+    const [sort, sortDir] = sortMap[legacySort];
+    params.set("sort", sort);
+    if (!params.has("sortDir")) params.set("sortDir", sortDir);
+  }
+}
+
 export default function MarketPage() {
   const { intent } = useBuyerIntent();
   const { prefs, isLoading: prefsLoading } = usePreferences();
@@ -199,6 +263,7 @@ export default function MarketPage() {
     if (prefsLoading) return;
     const restore = () => {
       const params = new URLSearchParams(window.location.search);
+      normalizeLegacyMarketParams(params);
       const next = { ...EMPTY };
       if (!params.toString()) {
         if (/^\d{5}$/.test(prefs.homeLocation?.zip || "")) {
@@ -211,10 +276,6 @@ export default function MarketPage() {
               ? [prefs.carsState]
               : [];
         }
-      }
-      if (params.has("zip") && !params.has("near")) {
-        next.near = params.get("zip") || "";
-        params.delete("zip");
       }
       for (const key of Object.keys(EMPTY) as (keyof Filters)[]) {
         const value = params.get(key);
@@ -536,9 +597,9 @@ export default function MarketPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--b1)] pb-2 sm:pb-3">
+      <header className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[var(--b1)] pb-1.5 sm:gap-2 sm:pb-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-extrabold text-[var(--t1)] md:text-3xl">
+          <h1 className="text-lg font-extrabold text-[var(--t1)] sm:text-xl md:text-3xl">
             Market Explorer
           </h1>
           <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] md:block">
@@ -548,11 +609,11 @@ export default function MarketPage() {
         <div className="flex gap-2">
           <button
             type="button"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--blue)] px-3 text-xs font-semibold text-white"
+            className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white sm:px-3"
             onClick={saveCurrentSearch}
           >
             <BookmarkPlus className="h-4 w-4" />
-            <span>Save search</span>
+            <span className="hidden sm:inline">Save search</span>
           </button>
           <button
             type="button"
@@ -597,7 +658,7 @@ export default function MarketPage() {
       )}
       <nav
         aria-label="Market workspace"
-        className="flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 sm:gap-2"
+        className="flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1 sm:gap-2 sm:p-2"
       >
         <button
           type="button"
@@ -606,7 +667,7 @@ export default function MarketPage() {
             setShowFilters(false);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <LayoutGrid className="h-4 w-4" /> Listings
           {!busy && (
@@ -621,7 +682,7 @@ export default function MarketPage() {
             setShowFilters(true);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)]"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <SlidersHorizontal className="h-4 w-4" /> Filters
           {activeCount > 0 && (
@@ -637,7 +698,7 @@ export default function MarketPage() {
             setShowFilters(false);
             setShowInsights(true);
           }}
-          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <BarChart3 className="h-4 w-4" /> Market insights
         </button>
@@ -647,7 +708,7 @@ export default function MarketPage() {
       </nav>
       {activeCount > 0 && (
         <div
-          className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2"
+          className="hidden flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 sm:flex"
           aria-label="Applied market filters"
         >
           <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">

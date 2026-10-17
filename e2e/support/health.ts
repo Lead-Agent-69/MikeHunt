@@ -26,7 +26,8 @@ export function watchHealth(page: Page): Health {
 /** Common post-conditions for any rendered page. */
 export async function expectHealthy(page: Page, h: Health) {
   await expect(page.locator("text=Something went wrong")).toHaveCount(0);
-  await expect(page.locator("nextjs-portal")).toHaveCount(0);
+  // Next 16 mounts nextjs-portal in normal development even when there is no error. Page errors,
+  // console errors, and the rendered fatal-error copy above are the actual health signals.
   expect(h.pageErrors, `uncaught page errors on ${page.url()}`).toEqual([]);
   expect(h.consoleErrors, `unexpected console errors on ${page.url()}`).toEqual(
     [],

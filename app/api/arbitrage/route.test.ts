@@ -236,6 +236,27 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
     source: "carscom",
     locationState: "KS",
     dealVerdict: "go",
+    vin: "1HGCM82633A123456",
+    mileage: 65000,
+    askPrice: 10000,
+    priceEvidence: { kind: "asking" },
+    dealAnalysis: {
+      evidenceGates: {
+        priceMeaningConfirmed: true,
+        titleReviewed: true,
+        conditionInspected: true,
+        costsConfirmed: true,
+      },
+      valuation: {
+        source: "comparables",
+        confidence: "high",
+        compCount: 4,
+        soldCount: 4,
+        soldLane: "clean",
+        soldAnchored: true,
+        soldAt: daysAgo(10),
+      },
+    },
     lastSeenAt: hoursAgo(2),
     ...over,
   });
@@ -341,12 +362,11 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
     const needs = Object.fromEntries(
       body.needsComps.map((o: any) => [o.deal.id, o]),
     );
-    expect(Object.keys(needs).sort()).toEqual(["nocomps", "token"]);
+    expect(Object.keys(needs)).toEqual(["nocomps"]);
     expect(needs.nocomps.spread.net).toBeNull();
     expect(needs.nocomps.spread.compKind).toBe("none");
     expect(needs.nocomps.spread.confidence).toBe("none");
     expect(needs.nocomps.arbitrage.excludedReason).toBe("needs_comps");
-    expect(needs.token.arbitrage.excludedReason).toBe("placeholder_bid");
     for (const o of body.needsComps) {
       expect(o.spread.net).toBeNull();
       expect(o.arbitrage.arbitrage.potentialProfit).toBeNull();
@@ -354,8 +374,43 @@ describe("GET /api/arbitrage v2 engine spreads", () => {
     }
     // Ranked list: every scored row before any needs-comps row.
     const statuses = body.opportunities.map((o: any) => o.spread.net === null);
-    expect(statuses).toEqual([false, true, true]);
-    expect(body.summary.needsComps).toBe(2);
+    expect(statuses).toEqual([false, true]);
+    expect(body.summary.needsComps).toBe(1);
+    expect(body.summary.evidenceBlocked).toBe(1);
+  });
+
+  it("never publishes profit when the canonical deal dossier says research first", async () => {
+    resolveFlip.mockResolvedValue(true);
+    getDeals.mockResolvedValueOnce({
+      deals: [
+        deal({
+          id: "unsafe",
+          askPrice: 5500,
+          vin: undefined,
+          mileage: undefined,
+          dealAnalysis: {
+            valuation: {
+              source: "comparables",
+              confidence: "high",
+              compCount: 4,
+              soldCount: 4,
+              soldLane: "clean",
+              soldAnchored: true,
+              soldAt: daysAgo(10),
+            },
+          },
+        }),
+      ],
+    });
+    const body = await (
+      await GET(new NextRequest("https://x.test/api/arbitrage?homeState=MO"))
+    ).json();
+    expect(body.summary.bestProfit).toBe(0);
+    expect(body.summary.evidenceBlocked).toBe(1);
+    expect(body.evidenceState).toBe("market_evidence_not_ready");
+    expect(body.regionalArbitrage).toEqual([]);
+    expect(body.nationalArbitrage).toEqual([]);
+    expect(body.opportunities).toEqual([]);
   });
 
   it("stale / frozen rows are excluded everywhere and counted", async () => {

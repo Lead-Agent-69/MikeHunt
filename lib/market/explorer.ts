@@ -111,6 +111,27 @@ export const MARKET_PRICE_KINDS = [
   "unknown",
 ] as const;
 
+/** Collapse common source spellings before faceting so one make never appears as two filters. */
+export function canonicalMarketMake(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const key = raw
+    .toLowerCase()
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ");
+  const aliases: Record<string, string> = {
+    gm: "GMC",
+    gmc: "GMC",
+    chevy: "Chevrolet",
+    vw: "Volkswagen",
+    mercedes: "Mercedes-Benz",
+    "mercedes benz": "Mercedes-Benz",
+  };
+  if (aliases[key]) return aliases[key];
+  if (/^[a-z]{2,4}$/i.test(raw) && raw === raw.toUpperCase()) return raw;
+  return raw.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 export function parseMarketLocation(params: URLSearchParams) {
   const near = (params.get("near") || params.get("zip") || "")
     .trim()

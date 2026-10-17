@@ -212,41 +212,56 @@ export function MarketFacetStudio({
                   active={selected.year}
                   onSelect={(value) => onFacetSelect("year", value)}
                 />
-                <FacetCard
-                  title="Body style"
-                  entries={facets?.bodyClasses || []}
-                  active={selected.body}
-                  onSelect={(value) => onFacetSelect("body", value)}
-                />
-                <FacetCard
-                  title="Exterior color"
-                  entries={facets?.colors || []}
-                  active={selected.color}
-                  onSelect={(value) => onFacetSelect("color", value)}
-                />
+                {!!facets?.bodyClasses?.length && (
+                  <FacetCard
+                    title="Body style"
+                    entries={facets.bodyClasses}
+                    active={selected.body}
+                    onSelect={(value) => onFacetSelect("body", value)}
+                  />
+                )}
+                {!!facets?.colors?.length && (
+                  <FacetCard
+                    title="Exterior color"
+                    entries={facets.colors}
+                    active={selected.color}
+                    onSelect={(value) => onFacetSelect("color", value)}
+                  />
+                )}
               </FacetGrid>
             )}
 
             {tab === "Powertrain" && (
               <FacetGrid>
-                <FacetCard
-                  title="Fuel"
-                  entries={facets?.fuelTypes || []}
-                  active={selected.fuelType}
-                  onSelect={(value) => onFacetSelect("fuelType", value)}
-                />
-                <FacetCard
-                  title="Transmission"
-                  entries={facets?.transmissions || []}
-                  active={selected.transmission}
-                  onSelect={(value) => onFacetSelect("transmission", value)}
-                />
-                <FacetCard
-                  title="Drivetrain"
-                  entries={facets?.drivetrains || []}
-                  active={selected.drivetrain}
-                  onSelect={(value) => onFacetSelect("drivetrain", value)}
-                />
+                {!!facets?.fuelTypes?.length && (
+                  <FacetCard
+                    title="Fuel"
+                    entries={facets.fuelTypes}
+                    active={selected.fuelType}
+                    onSelect={(value) => onFacetSelect("fuelType", value)}
+                  />
+                )}
+                {!!facets?.transmissions?.length && (
+                  <FacetCard
+                    title="Transmission"
+                    entries={facets.transmissions}
+                    active={selected.transmission}
+                    onSelect={(value) => onFacetSelect("transmission", value)}
+                  />
+                )}
+                {!!facets?.drivetrains?.length && (
+                  <FacetCard
+                    title="Drivetrain"
+                    entries={facets.drivetrains}
+                    active={selected.drivetrain}
+                    onSelect={(value) => onFacetSelect("drivetrain", value)}
+                  />
+                )}
+                {!facets?.fuelTypes?.length &&
+                  !facets?.transmissions?.length &&
+                  !facets?.drivetrains?.length && (
+                    <FacetUnavailable label="Powertrain details" />
+                  )}
               </FacetGrid>
             )}
 
@@ -258,12 +273,14 @@ export function MarketFacetStudio({
                   active={selected.condition}
                   onSelect={(value) => onFacetSelect("condition", value)}
                 />
-                <FacetCard
-                  title="Availability"
-                  entries={facets?.availability || []}
-                  active={selected.availability}
-                  onSelect={(value) => onFacetSelect("availability", value)}
-                />
+                {!!facets?.availability?.length && (
+                  <FacetCard
+                    title="Availability"
+                    entries={facets.availability}
+                    active={selected.availability}
+                    onSelect={(value) => onFacetSelect("availability", value)}
+                  />
+                )}
                 <FacetCard
                   title="Price type"
                   entries={facets?.priceKinds || []}
@@ -298,12 +315,16 @@ export function MarketFacetStudio({
                     value === "1" ? "Past 24 hours" : `Past ${value} days`
                   }
                 />
-                <FacetCard
-                  title="Assembly country"
-                  entries={facets?.assemblyCountries || []}
-                  active={selected.assemblyCountry}
-                  onSelect={(value) => onFacetSelect("assemblyCountry", value)}
-                />
+                {!!facets?.assemblyCountries?.length && (
+                  <FacetCard
+                    title="Assembly country"
+                    entries={facets.assemblyCountries}
+                    active={selected.assemblyCountry}
+                    onSelect={(value) =>
+                      onFacetSelect("assemblyCountry", value)
+                    }
+                  />
+                )}
               </FacetGrid>
             )}
 
@@ -328,6 +349,19 @@ export function MarketFacetStudio({
 function FacetGrid({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{children}</div>
+  );
+}
+
+function FacetUnavailable({ label }: { label: string }) {
+  return (
+    <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-[var(--b1)] bg-[var(--s0)] p-4 text-center">
+      <div>
+        <p className="text-xs font-bold text-[var(--t2)]">{label}</p>
+        <p className="mt-1 text-[11px] text-[var(--t4)]">
+          No source has reported these fields in the current scope yet.
+        </p>
+      </div>
+    </div>
   );
 }
 

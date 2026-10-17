@@ -82,6 +82,12 @@ test.describe("Market Explorer home", () => {
     const mobileNav = (await mobileNavigation.count())
       ? await mobileNavigation.boundingBox()
       : null;
+    if (mobileNav) {
+      expect(mobileNav.x).toBeGreaterThanOrEqual(0);
+      expect(mobileNav.x + mobileNav.width).toBeLessThanOrEqual(
+        page.viewportSize()!.width,
+      );
+    }
     const visibleBottom = mobileNav?.y ?? page.viewportSize()!.height;
     expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(
       visibleBottom,
@@ -305,9 +311,20 @@ test.describe("Market Explorer home", () => {
   test("Back restores a vehicle farther down the results without losing filters", async ({
     page,
   }) => {
+    const marketResponse = page.waitForResponse((response) => {
+      if (!response.url().includes("/api/market/explore?")) return false;
+      const params = new URL(response.url()).searchParams;
+      return (
+        params.get("sort") === "askPrice" && params.get("sortDir") === "asc"
+      );
+    });
     await page.goto("/market?mode=all&sort=askPrice&sortDir=asc");
+    expect((await marketResponse).ok()).toBeTruthy();
+    await expect(page.getByLabel("Sort market results")).toHaveValue(
+      "askPrice:asc",
+    );
     const card = page.locator("article").nth(8);
-    const link = card.locator('a[aria-label^="Open details for"]');
+    const link = card.locator("h3 a");
     await expect(link).toBeVisible();
     await link.scrollIntoViewIfNeeded();
     const before = await card.boundingBox();

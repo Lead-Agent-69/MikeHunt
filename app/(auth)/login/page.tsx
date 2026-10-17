@@ -246,7 +246,7 @@ export default function LoginPage() {
               <Link
                 href="/forgot-password"
                 prefetch={false}
-                className="text-[var(--amber-d)] hover:underline font-medium"
+                className="font-medium text-[var(--amber-d)] underline underline-offset-2"
               >
                 Forgot password?
               </Link>
@@ -269,22 +269,22 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="text-center pt-4 border-t border-[var(--b1)]">
-            <p className="text-sm text-[var(--t4)] mb-2">
+            <p className="mb-2 text-sm text-[var(--t3)]">
               New to MikeHunt?{" "}
               <Link
                 href="/register"
                 prefetch={false}
-                className="font-semibold text-[var(--amber-d)] hover:underline"
+                className="font-semibold text-[var(--amber-d)] underline underline-offset-2"
               >
                 Create your free account
               </Link>
             </p>
-            <p className="text-xs text-[var(--t5)]">
+            <p className="text-xs text-[var(--t3)]">
               By signing in, you agree to our{" "}
               <Link
                 href="/tos"
                 prefetch={false}
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                className="font-medium text-[var(--t2)] underline underline-offset-2"
               >
                 Terms
               </Link>{" "}
@@ -292,7 +292,7 @@ export default function LoginPage() {
               <Link
                 href="/privacy"
                 prefetch={false}
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                className="font-medium text-[var(--t2)] underline underline-offset-2"
               >
                 Privacy Policy
               </Link>

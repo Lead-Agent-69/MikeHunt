@@ -1150,6 +1150,7 @@ export default function DealPage({
               <ValuationBreakdown
                 v={dealData.deal.dealAnalysis.valuation}
                 sellEstimate={Number(dealData.deal.sellEstimate)}
+                mileage={dealData.deal.mileage}
               />
             )}
           <MarketTiming
