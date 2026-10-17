@@ -686,11 +686,12 @@ export default function MarketPage() {
           type="button"
           aria-expanded={showFilters}
           aria-controls="market-filter-panel"
+          disabled={!ready}
           onClick={() => {
             setShowFilters(true);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] disabled:opacity-50 sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <SlidersHorizontal className="h-4 w-4" /> Filters
           {activeCount > 0 && (

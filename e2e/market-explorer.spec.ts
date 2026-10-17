@@ -360,11 +360,21 @@ test.describe("Market Explorer home", () => {
   test("finds independent dealers by name or website and preserves source plus radius", async ({
     page,
   }, testInfo) => {
+    let releasePreferences = () => {};
+    const preferencesReady = new Promise<void>((resolve) => {
+      releasePreferences = resolve;
+    });
+    await page.route("**/api/preferences", async (route) => {
+      await preferencesReady;
+      await route.continue();
+    });
     await page.goto("/market?near=63101&radius=250");
+    const filters = page.getByRole("button", { name: /^Filters/ });
+    await expect(filters).toBeDisabled();
+    releasePreferences();
     const search = page.getByRole("searchbox", {
       name: "Find a source or dealer",
     });
-    const filters = page.getByRole("button", { name: /^Filters/ });
     if (!(await search.isVisible()) && (await filters.isVisible()))
       await filters.click();
     await page
