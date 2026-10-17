@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { THEME_EVENT } from "@/components/shared/ThemeToggle";
+import styles from "./MikeHuntLogo.module.css";
 
 type LogoSize = "sm" | "md" | "lg";
 
@@ -18,33 +17,6 @@ const WORDMARK_SIZES: Record<LogoSize, string> = {
   lg: "text-2xl",
 };
 
-function useAppliedTheme(): "light" | "dark" {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const read = () => {
-      setTheme(
-        document.documentElement.getAttribute("data-theme") === "dark"
-          ? "dark"
-          : "light",
-      );
-    };
-    read();
-    window.addEventListener(THEME_EVENT, read);
-    const obs = new MutationObserver(read);
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => {
-      window.removeEventListener(THEME_EVENT, read);
-      obs.disconnect();
-    };
-  }, []);
-
-  return theme;
-}
-
 export function MikeHuntMark({
   size = "sm",
   className,
@@ -53,14 +25,12 @@ export function MikeHuntMark({
   className?: string;
   tile?: boolean;
 }) {
-  const surface = useAppliedTheme();
   return (
     <span
       className={cn(
         MARK_SIZES[size],
         "inline-flex shrink-0 items-center justify-center",
-        surface === "dark" &&
-          "rounded-[5px] bg-white p-[3px] shadow-[0_0_0_1px_rgba(15,23,42,0.12)]",
+        styles.mark,
         className,
       )}
     >
@@ -70,6 +40,8 @@ export function MikeHuntMark({
         src="/brand/MIKEHUNT-M.svg"
         alt=""
         aria-hidden="true"
+        width={56}
+        height={56}
         className="h-full w-full object-contain"
       />
     </span>
@@ -94,7 +66,7 @@ export function MikeHuntLogo({
       {showWordmark && (
         <span
           className={cn(
-            "font-black uppercase leading-none tracking-tight text-[var(--t1)]",
+            "font-black uppercase leading-none tracking-normal text-[var(--t1)]",
             WORDMARK_SIZES[size],
             wordmarkClassName,
           )}

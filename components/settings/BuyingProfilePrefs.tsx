@@ -8,7 +8,7 @@ import { buyingWorkspaceScope } from "@/lib/buyer/workspace-scope";
 
 type Scope = NonNullable<Prefs["buyerScope"]>;
 const field =
-  "w-full min-w-0 min-h-11 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)]";
+  "w-full min-w-0 min-h-11 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-base text-[var(--t1)]";
 
 export function BuyingProfilePrefs() {
   const { prefs, save, isLoading, authed, error } = usePreferences();
@@ -75,15 +75,21 @@ export function BuyingProfilePrefs() {
 
   return (
     <section
-      className="mt-5 border-t border-[var(--b1)] pt-5"
+      id="buying-preferences"
+      className="scroll-mt-20"
       aria-labelledby="buying-preferences-title"
     >
-      <h3
+      <h2
         id="buying-preferences-title"
         className="text-sm font-bold text-[var(--t1)]"
       >
         Buying preferences
-      </h3>
+      </h2>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-[var(--red)]">
+          Could not load buying preferences. Refresh before making changes.
+        </p>
+      )}
       <fieldset
         disabled={busy || isLoading || Boolean(error)}
         className="mt-3 min-w-0 space-y-3"

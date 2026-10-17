@@ -16,10 +16,12 @@ export function MyStatesButton({
   onChange,
   className,
   statesOverride,
+  compact = false,
 }: {
   onChange?: (states: string[]) => void;
   className?: string;
   statesOverride?: string[];
+  compact?: boolean;
 }) {
   const { prefs, isLoading: prefsLoading } = usePreferences();
   const [open, setOpen] = useState(false);
@@ -68,8 +70,10 @@ export function MyStatesButton({
         aria-expanded={open}
         style={{ minHeight: 44, minWidth: 44 }}
       >
-        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
+        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">
+          {compact && states.length === 0 && !prefsLoading ? "All US" : label}
+        </span>
       </button>
       <StatePicker
         open={open}

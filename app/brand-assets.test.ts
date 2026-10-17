@@ -42,4 +42,27 @@ describe("MikeHunt brand assets", () => {
       "data:image/png;base64",
     );
   });
+
+  it("keeps theme styling in CSS without per-logo observers or compressed lettering", () => {
+    const logo = read("components/brand/MikeHuntLogo.tsx");
+    expect(logo).not.toContain("MutationObserver");
+    expect(logo).not.toContain("useEffect");
+    expect(logo).not.toContain("tracking-tight");
+    expect(logo).toContain("width={56}");
+    expect(logo).toContain("height={56}");
+    expect(read("components/brand/MikeHuntLogo.module.css")).toContain(
+      '[data-theme="dark"]',
+    );
+  });
+
+  it("uses the same preferences destination from account and tools without speculative tool prefetches", () => {
+    const tools = read("app/(dashboard)/tools/page.tsx");
+    expect(tools).toContain('href="/settings#buying-preferences"');
+    expect(read("components/home/AccountMenu.tsx")).toContain(
+      'href: "/settings#buying-preferences"',
+    );
+    expect(tools).toMatch(/href=\{entry.href\}\s+prefetch=\{false\}/);
+    expect(tools).toContain('aria-label="Buying preferences"');
+    expect(tools).toContain("disabled={!ready}");
+  });
 });
