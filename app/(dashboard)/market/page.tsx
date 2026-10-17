@@ -80,7 +80,7 @@ const CONDITIONS = [
 ];
 
 const VERDICTS = [
-  { key: "go", label: "BUY" },
+  { key: "go", label: "Research candidate" },
   { key: "hold", label: "Hold" },
   { key: "pass", label: "Pass" },
 ];

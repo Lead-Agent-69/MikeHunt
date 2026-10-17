@@ -367,8 +367,13 @@ test.describe("Market Explorer home", () => {
     const filters = page.getByRole("button", { name: /^Filters/ });
     if (!(await search.isVisible()) && (await filters.isVisible()))
       await filters.click();
+    await page
+      .getByTestId("exact-market-filters")
+      .locator("summary")
+      .first()
+      .click();
     await expect(page.getByLabel("Model", { exact: true })).toBeEnabled();
-    await page.getByText(/^Sources \(/).click();
+    await page.getByText(/^All indexed sources \(/).click();
     await search.fill("dgautollc.com");
     await page.getByRole("checkbox", { name: "D&G Auto", exact: true }).check();
     await search.fill("aeofmiami");
@@ -489,7 +494,7 @@ test.describe("Market Explorer home", () => {
     expect((await preferences.boundingBox())!.y).toBeGreaterThanOrEqual(56);
     const fields = await page
       .locator(
-        "#buying-preferences input:not([type=checkbox]), #buying-preferences select, #locations input, #locations select",
+        "#buying-preferences input:not([type=checkbox]):not([type=radio]), #buying-preferences select, #locations input, #locations select",
       )
       .evaluateAll((elements) =>
         elements.map((el) => ({

@@ -35,7 +35,7 @@ function Choice<T extends string>({
 }) {
   return (
     <label
-      className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${checked ? "border-[var(--blue)] bg-[var(--blue)]/10 text-[var(--t1)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t3)]"}`}
+      className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${checked ? "border-[var(--blue)] bg-[var(--blue)]/10 text-[var(--t1)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t3)]"}`}
     >
       <input
         type="radio"
@@ -265,7 +265,7 @@ export function BuyingProfilePrefs() {
               .map((label) => (
                 <label
                   key={label}
-                  className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${
+                  className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${
                     (
                       draft.vehicles || (draft.vehicle ? [draft.vehicle] : [])
                     ).includes(label)
@@ -321,7 +321,7 @@ export function BuyingProfilePrefs() {
               return (
                 <label
                   key={make}
-                  className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${selected ? "border-[var(--blue)] bg-[var(--blue)]/10" : "border-[var(--b1)] bg-[var(--s1)]"}`}
+                  className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${selected ? "border-[var(--blue)] bg-[var(--blue)]/10" : "border-[var(--b1)] bg-[var(--s1)]"}`}
                 >
                   <input
                     type="checkbox"
