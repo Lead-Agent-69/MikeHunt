@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Landmark, Settings } from "lucide-react";
 
 type IconName =
   | "search"
@@ -62,6 +63,10 @@ export function Ico({ name, className = "", size = 20 }: IcoProps) {
   const shared = { width: size, height: size, className };
 
   switch (name) {
+    case "bank":
+      return <Landmark {...shared} aria-hidden="true" />;
+    case "settings":
+      return <Settings {...shared} aria-hidden="true" />;
     case "search":
       return (
         <svg

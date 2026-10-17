@@ -4,9 +4,35 @@ import {
   dealerSourceIdFromUrl,
   displaySource,
   sourceMeta,
+  dealerSourceOptions,
+  sourceFromUrl,
 } from "./source-meta";
+import { CURATED_SITES } from "@/lib/scrapers/curated-sites";
 
 describe("source display metadata", () => {
+  it("gives every nationwide registered dealer a stable, named filter identity", () => {
+    const options = dealerSourceOptions();
+    for (const site of CURATED_SITES) {
+      if (sourceMeta(sourceFromUrl(site.url)).channel === "gov") continue;
+      const id = dealerSourceIdFromUrl(site.url);
+      expect(id, site.url).toBeTruthy();
+      expect(options.some((option) => option.id === id)).toBe(true);
+      expect(sourceMeta(id).channel).not.toBe("marketplace");
+      expect(sourceMeta(id).label).not.toMatch(/^Dealer /);
+    }
+    expect(new Set(options.map((option) => option.id)).size).toBe(
+      options.length,
+    );
+  });
+
+  it("does not mistake lookalike or query-string hosts for a dealer", () => {
+    expect(
+      dealerSourceIdFromUrl("https://dgautollc.com.example.org/car"),
+    ).toBeNull();
+    expect(
+      dealerSourceIdFromUrl("https://example.org/?url=aeofmiami.com"),
+    ).toBeNull();
+  });
   it("uses listing URLs to show the real government source", () => {
     const source = displaySource(
       "gov_auction",

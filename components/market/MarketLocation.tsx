@@ -83,6 +83,7 @@ export function MarketLocation({
             ZIP or city, state
           </span>
           <input
+            id="market-search-location"
             aria-label="Search location"
             list="market-city-anchors"
             placeholder="ZIP or city, state"

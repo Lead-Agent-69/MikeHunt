@@ -225,6 +225,71 @@ describe("Market inventory filtering and pagination", () => {
     expect(state.calls.some((call) => call[1] === "deal_verdict")).toBe(false);
   });
 
+  it("withholds baseline economics and excludes them from profit filters and lane medians", async () => {
+    const common = {
+      source: "independent_dealer",
+      make: "Ford",
+      model: "F-150",
+      year: 2020,
+      ask_price: 12000,
+      sell_estimate: 15000,
+      true_net_profit: 2500,
+      profit_score: 80,
+      recommended_max_bid: 11000,
+      deal_verdict: "go",
+    };
+    state.rows = [
+      {
+        ...common,
+        id: "baseline",
+        deal_analysis: {
+          roi: 50,
+          valuation: { source: "baseline", resaleEvidence: false },
+        },
+      },
+      {
+        ...common,
+        id: "comparisons",
+        deal_analysis: {
+          roi: 20,
+          valuation: {
+            source: "comparables",
+            resaleEvidence: true,
+            compCount: 8,
+            confidence: "medium",
+            compKind: "ask",
+          },
+        },
+      },
+    ];
+    const body = await (
+      await request("mode=all&sort=profitEstimate&sortDir=desc")
+    ).json();
+    expect(body.total).toBe(2);
+    expect(body.rows[0].id).toBe("comparisons");
+    expect(body.rows[0].valuationEvidence.label).toContain(
+      "8 asking-price comparisons",
+    );
+    for (const key of [
+      "sellEstimate",
+      "profitEstimate",
+      "profitScore",
+      "recommendedMaxBid",
+      "dealVerdict",
+      "roi",
+    ])
+      expect(body.rows[1]).not.toHaveProperty(key);
+    expect(Object.values(body.facets.laneProfit)).toEqual([2500]);
+    const filtered = await (await request("mode=all&minProfit=1000")).json();
+    expect(filtered.rows.map((row: { id: string }) => row.id)).toEqual([
+      "comparisons",
+    ]);
+    const curated = await (await request("mode=curated")).json();
+    expect(curated.rows.map((row: { id: string }) => row.id)).toEqual([
+      "comparisons",
+    ]);
+  });
+
   it("does not exclude unpriced inventory unless a price range is requested", async () => {
     await request("mode=all&q=Ford");
     expect(state.calls).not.toContainEqual(["gt", "ask_price", 0]);
@@ -242,14 +307,16 @@ describe("Market inventory filtering and pagination", () => {
     state.rows = [
       {
         id: "missouri",
-        source: "copart",
+        source: "independent_dealer",
+        source_url: "https://www.dgautollc.com/vehiclesDetail.php?1",
         lat: 38.63,
         lng: -90.2,
         location_state: "MO",
       },
       {
         id: "illinois",
-        source: "copart",
+        source: "independent_dealer",
+        source_url: "https://www.dgautollc.com/vehiclesDetail.php?2",
         lat: 38.62,
         lng: -90.15,
         location_state: "IL",
@@ -265,7 +332,7 @@ describe("Market inventory filtering and pagination", () => {
     ];
     const body = await (
       await request(
-        "near=63101&radius=25&states=MO&sort=distanceMiles&sortDir=asc",
+        "near=63101&radius=25&states=MO&sources=dg-auto&sort=distanceMiles&sortDir=asc",
       )
     ).json();
     expect(body.rows.map((row: any) => row.id)).toEqual([
@@ -274,6 +341,10 @@ describe("Market inventory filtering and pagination", () => {
     ]);
     expect(body.rows[0].distanceMiles).toBe(0);
     expect(body.location.radius).toBe(25);
+    expect(state.calls).toContainEqual([
+      "or",
+      "and(source.eq.independent_dealer,or(source_url.ilike.%dgautollc.com%))",
+    ]);
     expect(state.calls).not.toContainEqual(["in", "location_state", ["MO"]]);
     expect(
       state.calls.some((call) => call[0] === "gte" && call[1] === "lat"),

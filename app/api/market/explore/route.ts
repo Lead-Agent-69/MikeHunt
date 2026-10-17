@@ -37,6 +37,7 @@ import {
 import { geocodeZip } from "@/lib/geo/geocode";
 import { boundingBox } from "@/lib/geo/distance";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
+import { marketValuation } from "@/lib/market/valuation";
 import {
   applyVehicleDetails,
   applySelectedSources,
@@ -329,6 +330,16 @@ export async function GET(req: NextRequest) {
 
         let rows = (data || []).map((d: any) => {
           const mapPoint = roundedMapPoint(d.lat, d.lng);
+          const valuation = marketValuation(
+            d.deal_analysis?.valuation,
+            d.sell_estimate,
+          );
+          const economicsNumber = (value: unknown) =>
+            valuation.supported &&
+            typeof value === "number" &&
+            Number.isFinite(value)
+              ? value
+              : undefined;
           return {
             id: d.id,
             title:
@@ -374,23 +385,19 @@ export async function GET(req: NextRequest) {
             assemblyCountry: d.assembly_country || undefined,
             availabilityStatus: d.availability_status || undefined,
             mileage: d.mileage ?? undefined,
-            sellEstimate:
-              d.sell_estimate != null ? Number(d.sell_estimate) : undefined,
-            profitEstimate: Number(d.true_net_profit || 0),
-            profitScore: Number(d.profit_score || 0),
-            dealVerdict: d.deal_verdict || undefined,
-            recommendedMaxBid:
-              d.recommended_max_bid != null
-                ? Number(d.recommended_max_bid)
-                : undefined,
+            valuationEvidence: valuation,
+            sellEstimate: economicsNumber(d.sell_estimate),
+            profitEstimate: economicsNumber(d.true_net_profit),
+            profitScore: economicsNumber(d.profit_score),
+            dealVerdict: valuation.supported
+              ? d.deal_verdict || undefined
+              : undefined,
+            recommendedMaxBid: economicsNumber(d.recommended_max_bid),
             locationState: d.location_state || undefined,
             condition: d.condition || undefined,
             damageType: d.damage_type || undefined,
             sellerType: d.seller_type || undefined,
-            roi:
-              d.deal_analysis?.roi != null
-                ? Number(d.deal_analysis.roi)
-                : undefined,
+            roi: economicsNumber(d.deal_analysis?.roi),
             lane: dealLane(d),
           };
         });
@@ -414,6 +421,14 @@ export async function GET(req: NextRequest) {
           );
         if (priceKind) rows = rows.filter((r) => r.price.kind === priceKind);
         if (lanes.length) rows = rows.filter((r) => lanes.includes(r.lane));
+        if (minProfit > 0)
+          rows = rows.filter(
+            (r) => (r.profitEstimate ?? -Infinity) >= minProfit,
+          );
+        if (verdicts.length)
+          rows = rows.filter((r) => verdicts.includes(r.dealVerdict));
+        if (mode === "curated")
+          rows = rows.filter((r) => ["go", "hold"].includes(r.dealVerdict));
         // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
         if (minRoi > 0)
           rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
@@ -542,7 +557,8 @@ export async function GET(req: NextRequest) {
         // Median profit per lane — a "where's the money by channel" bar for the viz.
         const profitByLane: Record<string, number[]> = {};
         for (const r of rows)
-          (profitByLane[r.lane] ??= []).push(r.profitEstimate || 0);
+          if (r.profitEstimate != null)
+            (profitByLane[r.lane] ??= []).push(r.profitEstimate);
         const laneProfit: Record<string, number> = {};
         for (const [lane, arr] of Object.entries(profitByLane)) {
           const s = arr.slice().sort((a, b) => a - b);

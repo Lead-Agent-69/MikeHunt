@@ -2,6 +2,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { haversineMiles } from "@/lib/geo/distance";
 import { validCoords } from "@/lib/geo/buyer-home";
 import { US_STATES } from "@/lib/geo/us-states";
+import type { MarketValuation } from "./valuation";
 
 export type MarketPrice = ReturnType<typeof sourcePriceContext>;
 export type MarketListing = {
@@ -41,8 +42,9 @@ export type MarketListing = {
   firstSeenAt?: string;
   auctionEndAt?: string;
   sellEstimate?: number;
-  profitEstimate: number;
-  profitScore: number;
+  valuationEvidence?: MarketValuation;
+  profitEstimate?: number;
+  profitScore?: number;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;
 };

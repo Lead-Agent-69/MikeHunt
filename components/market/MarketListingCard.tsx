@@ -272,7 +272,13 @@ export function MarketListingCard({
             <span className="font-semibold">
               {reportedPrice(row.sellEstimate)}
             </span>{" "}
-            · model estimate
+            · {row.valuationEvidence?.label || "Estimate basis not recorded"}
+          </p>
+        )}
+        {flipDesk && row.valuationEvidence?.supported === false && (
+          <p className="text-xs text-[var(--t3)]">
+            {row.valuationEvidence.label}. Review market evidence in listing
+            details.
           </p>
         )}
         <p className="flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
@@ -291,6 +297,7 @@ export function MarketListingCard({
             href={`/deal/${row.id}`}
             prefetch={false}
             className="relative z-20 inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
+            onNavigate={rememberPosition}
           >
             Review listing →
           </Link>

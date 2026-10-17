@@ -32,9 +32,17 @@ describe("mobile location regression protections", () => {
   it("keeps Discover's location control in the header and avoids filter-only server navigation", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     const header = readFileSync("components/layout/TopNav.tsx", "utf8");
+    const history = readFileSync("lib/search/inventory-history.ts", "utf8");
     expect(page).not.toContain("<SelectField");
     expect(page).not.toContain("<MarketPicker");
-    expect(header).toContain("window.history.replaceState");
+    expect(header).toContain("replaceInventoryHistory(");
+    expect(history).toContain(
+      "window.history.replaceState(window.history.state",
+    );
+    expect(history).toContain(
+      "window.dispatchEvent(new Event(INVENTORY_URL_EVENT))",
+    );
+    expect(history).not.toMatch(/router\.(replace|push|refresh)/);
     expect(header).toContain("[pathname, searchParams]");
     expect(header).toMatch(/<Suspense\s+fallback=/);
     expect(header).toContain("<TopNavContent />");

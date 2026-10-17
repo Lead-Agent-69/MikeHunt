@@ -26,58 +26,62 @@ const fetcher = (url: string) =>
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function CarsViewPrefs() {
   const { isLoading } = usePreferences();
-  const [panel, setPanel] = useState<"locations" | "buying" | "alerts">(
-    "locations",
-  );
   if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
-    <div className="glass-panel p-6 animate-popIn">
-      <h2 className="text-sm font-black uppercase tracking-widest text-[var(--t4)]">
-        Market preferences
-      </h2>
-      <div
-        role="tablist"
-        aria-label="Market preference sections"
-        className="my-4 grid grid-cols-3 gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1"
+    <div className="space-y-6">
+      <nav
+        aria-label="Settings sections"
+        className="flex flex-wrap gap-2 border-b border-[var(--b1)] pb-4"
       >
         {[
-          ["locations", "Locations"],
-          ["buying", "Buying"],
-          ["alerts", "Alerts"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={panel === value}
-            onClick={() => setPanel(value as "locations" | "buying" | "alerts")}
-            className="min-h-11 rounded-lg px-2 text-xs font-bold text-[var(--t3)] aria-selected:bg-[var(--s2)] aria-selected:text-[var(--blue)]"
+          ["Buying preferences", "buying-preferences"],
+          ["Locations", "locations"],
+          ["Deal alerts", "deal-alerts"],
+        ].map(([label, id]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
           >
             {label}
-          </button>
+          </a>
         ))}
-      </div>
-      <div role="tabpanel" hidden={panel !== "locations"}>
+      </nav>
+      <BuyingProfilePrefs />
+      <section
+        id="locations"
+        aria-labelledby="locations-title"
+        className="scroll-mt-20 border-t border-[var(--b1)] pt-6"
+      >
+        <h2
+          id="locations-title"
+          className="mb-4 text-sm font-bold text-[var(--t1)]"
+        >
+          Locations
+        </h2>
         <LocationPrefs />
-      </div>
-      <div role="tabpanel" hidden={panel !== "buying"}>
-        <BuyingProfilePrefs />
-      </div>
-      <div role="tabpanel" hidden={panel !== "alerts"}>
-        <div className="flex flex-wrap items-center justify-between gap-4 py-2">
-          <div className="min-w-0">
-            <div className="text-sm font-black text-[var(--t1)]">
-              Browser alerts
-            </div>
-            <p className="text-[12px] text-[var(--t4)]">
-              Changes to saved searches and vehicles on this device.
-            </p>
-          </div>
-          <div className="min-w-0 max-w-full">
-            <EnablePush />
-          </div>
+      </section>
+      <section
+        id="deal-alerts"
+        aria-labelledby="deal-alerts-title"
+        className="scroll-mt-20 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4"
+      >
+        <div className="min-w-0">
+          <h2
+            id="deal-alerts-title"
+            className="text-sm font-bold text-[var(--t1)]"
+          >
+            Deal alerts
+          </h2>
+          <p className="text-[12px] text-[var(--t4)]">
+            Enable notifications for changes to your saved searches and
+            vehicles.
+          </p>
         </div>
-      </div>
+        <div className="min-w-0 max-w-full">
+          <EnablePush />
+        </div>
+      </section>
     </div>
   );
 }
@@ -275,9 +279,6 @@ export default function SettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-[var(--t1)]">Settings</h1>
-          <p className="text-sm text-[var(--t4)] mt-1">
-            Your viewing preferences, workspace profile, and source connections.
-          </p>
         </div>
       </div>
 

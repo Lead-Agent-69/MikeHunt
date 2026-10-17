@@ -24,6 +24,7 @@ import {
 } from "@/lib/search/extended-inventory-filters";
 import {
   INVENTORY_SOURCE_FILTERS,
+  sourceUrlNeedles,
   VEHICLE_CATEGORY_FILTERS,
 } from "@/lib/search/inventory-filters";
 import {
@@ -42,6 +43,7 @@ import {
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { usePreferences } from "@/hooks/usePreferences";
+import { replaceInventoryHistory } from "@/lib/search/inventory-history";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import {
   PriceRangeSelector,
@@ -237,6 +239,13 @@ export default function MarketPage() {
   const [copyStatus, setCopyStatus] = React.useState("");
   const [saveStatus, setSaveStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [sourceSearch, setSourceSearch] = React.useState("");
+  const matchingSources = INVENTORY_SOURCE_FILTERS.filter((source) =>
+    `${source.name} ${source.id} ${sourceUrlNeedles(source.id).join(" ")}`
+      .replace(/[^a-z0-9]/gi, "")
+      .toLowerCase()
+      .includes(sourceSearch.replace(/[^a-z0-9]/gi, "").toLowerCase()),
+  );
   const [showInsights, setShowInsights] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "table">("grid");
   const [showMap, setShowMap] = React.useState(false);
@@ -398,8 +407,7 @@ export default function MarketPage() {
   };
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready)
-      window.history.replaceState(window.history.state, "", `/market?${qs}`);
+    if (ready) replaceInventoryHistory(`/market?${qs}`);
   }, [qs, ready]);
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -932,8 +940,26 @@ export default function MarketPage() {
                   <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
                     All indexed sources ({f.sources.length || "Any"})
                   </summary>
+                  <label className="mb-2 block text-sm">
+                    Find a source or dealer
+                    <input
+                      type="search"
+                      value={sourceSearch}
+                      onChange={(event) => setSourceSearch(event.target.value)}
+                      placeholder="Dealer name or website"
+                      className="mt-1 min-h-11 w-full rounded border border-[var(--b1)] bg-[var(--s0)] px-3 text-base"
+                    />
+                  </label>
                   <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pb-3">
-                    {INVENTORY_SOURCE_FILTERS.map((source) => (
+                    {matchingSources.length === 0 && (
+                      <p
+                        role="status"
+                        className="col-span-2 py-3 text-sm text-[var(--t3)]"
+                      >
+                        No matching source.
+                      </p>
+                    )}
+                    {matchingSources.map((source) => (
                       <label
                         key={source.id}
                         className="flex min-h-10 items-center gap-2 text-xs"
