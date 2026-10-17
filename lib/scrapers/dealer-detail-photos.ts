@@ -33,11 +33,15 @@ export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
     row.images?.forEach(add);
   }
   const gallery = $(
-    ".car-details .flexslider, .single-car .flexslider, .vehicle-gallery, #vehicle-gallery, .vehicle-photos, .product-gallery",
+    ".car-details .flexslider, .single-car .flexslider, .vehicle-gallery, #vehicle-gallery, .vehicle-photos, .product-gallery, [data-gallery]",
   );
+  gallery.find("[data-full]").each((_, node) => {
+    add($(node).attr("data-full"));
+  });
   gallery.find("img").each((_, node) => {
     // Slider clones are navigation artefacts, not extra views.
     if ($(node).closest(".clone").length) return;
+    if ($(node).closest("[data-full]").length) return;
     add($(node).attr("data-src") || $(node).attr("src"));
   });
   gallery.find("a[href]").each((_, node) => {

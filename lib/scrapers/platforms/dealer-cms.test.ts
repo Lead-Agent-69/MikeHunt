@@ -180,10 +180,9 @@ describe("pagination (D&G showed 264, we stored 29)", () => {
 
   it("builds page URLs per platform", () => {
     const dg = dealerCmsSiteFor("https://dgautollc.com/")!;
-    expect(pageUrlFor(dg, 1)).toBe("https://www.dgautollc.com/vehicles.php");
-    expect(pageUrlFor(dg, 3)).toBe(
-      "https://www.dgautollc.com/vehicles.php?page=3",
-    );
+    expect(pageUrlFor(dg, 1)).toBe("https://dgautollc.com/inventory/");
+    expect(dg.singlePage).toBe(true);
+    expect(dg.layout).toBe("dg-native");
     const sz = dealerCmsSiteFor("https://www.salvagezone.com")!;
     expect(pageUrlFor(sz, 4)).toBe(
       "https://www.salvagezone.com/repairable/salvage/rebuildables/4",
@@ -191,7 +190,12 @@ describe("pagination (D&G showed 264, we stored 29)", () => {
   });
 
   it("walks every page and stops if the site ignores ?page=", async () => {
-    const dg = dealerCmsSiteFor("https://www.dgautollc.com")!;
+    // Legacy CDG pagination remains supported for other sites after D&G's redesign.
+    const dg = {
+      ...dealerCmsSiteFor("https://www.dgautollc.com")!,
+      layout: "cards" as const,
+      singlePage: false,
+    };
     const requested: string[] = [];
     const deals = await crawlDealerCms(dg, {
       load: (html) => cheerio.load(html),
