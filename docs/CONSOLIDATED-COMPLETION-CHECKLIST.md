@@ -6,6 +6,103 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Embedding Coverage Reporting Follow-Up (October 16, 2026)
+
+PR #431 is merged as `35b6ce2b553dad154a6c68ca8f3c33c4f32cd705` and its
+canonical production deployment is verified. The exact tested tree passed
+4,125 unit tests, 160 local browser checks and 18 read-only hosted guest checks.
+The six hosted account-setup checks were intentionally skipped; this does not
+certify signed-in hosted flows or real alert delivery.
+
+One capped production embedding attempt failed closed at the budget read;
+a separate limit=1 attempt succeeded with one generated/stored embedding and
+zero failures. Intermittent budget-read reliability remains tracked in #432.
+No quotas were reset or increased. Reported active embedding coverage was 23.1%,
+not complete intelligence or outcome validation.
+
+The coverage audit also found that the old `coverage.fresh` count measured only
+non-null recorded source hashes, not their match with current listing content.
+The follow-up for #433 adds `sourceHashTracked`, marks current content freshness
+as `not_measured`, and keeps the legacy nullable `fresh` field as null rather
+than certifying stale hashes. The existing workflow and runtime log use the
+accurate label. This is additive metadata with an explicit unknown, not a new
+query, schema change, provider request, quota policy or valuation algorithm.
+Actual current-content freshness and outcome validation still need proof.
+
+### Market Release QA Follow-Up (October 16, 2026)
+
+PR #426 is merged as `7283c7f239375d3e4bc27798ccfbda6baf6a6f38`.
+Market Explorer, not Discover, is now the signed-in home. Its code CI passed
+run `38889038286`. The older pending/local-only statements below are historical;
+#426 records the targeted migration rollout and inventory repair receipts.
+This follow-up does not repeat those operations or certify their capacity gates.
+Main also includes #429 as `128faf20d38131d23c433fc7366e7504c00c33e1`, with
+successful production deployment record `7127558555`. Preserve its source
+identity, location-cache and photo-host repairs when integrating this follow-up.
+
+The first refreshed browser run exposed outdated onboarding and navigation test
+contracts. After correcting them, 97 local account/Market/core-page checks passed
+across seven browser/viewport projects. That was not sufficient visual proof:
+a separate unscrolled 320px screenshot showed the first car below the viewport.
+The follow-up therefore adds actual first-photo/price viewport checks, including
+saved-home searches, rather than scrolling to a card before asserting visibility.
+
+The phone layout groups location controls, keeps filters and insights explicit,
+and moves secondary tools after inventory. A native area selector retains
+Nationwide, saved home and surrounding-state choices. Cards keep the recorded
+price meaning visible over the photo; the body and photo open details, while a
+separate enlarge control, photo arrows, saves and source links stay independent.
+The gallery, its close/focus behavior and return to the same search are exercised.
+DOM reading and keyboard order follow the visual order. Insights have an explicit
+shortcut and a Back to results link rather than a visually reordered focus target.
+Exact final browser and full verification receipts belong in this follow-up PR.
+
+Later visual review exposed a 1024px header collision despite passing geometry
+checks on the inventory. Desktop action groups now retain their actual widths;
+the browser check also measures every visible header target for overlap.
+WebKit exposed a gallery focus-return failure after its price/photo checks passed.
+The shared preview accepts an explicit return target and captures fallback focus
+before modal autofocus. Auth forms avoid speculative link requests and cancel
+their provider-status read on cleanup; canceled WebKit navigation reads are not
+blanket-ignored by the health assertions. Preserve these diagnostic failures.
+Main #430 source-coordinate and pagination fixes are integrated separately.
+
+The final dark-mode visual pass also found white labels on the pale-blue action
+color. Eight affected controls now use the established accent/on-accent pair,
+including Market search, buying-preference save, source links and listing reports.
+The existing contrast regression suite covers those controls and both palettes.
+This is a foreground-token correction, not a new theme or a change in behavior.
+
+A deeper return-navigation check then found that Back lost the ninth vehicle's
+position on both desktop and phone. Market cards now record their viewport
+anchor in the current browser-history entry only for same-tab detail navigation.
+Results restore that anchor after mounting, retain native router state and
+consume the marker without changing filters or writing account preferences.
+The browser suite now exercises a later result rather than only the first card.
+
+Production status returned HTTP 200 with `decisionReady=false`; this public
+inventory-only response intentionally does not certify private valuations. The separate
+Embeddings backfill workflow `38950436875` failed before provider work: the
+runtime log identifies its budget-count read, with an empty upstream message.
+One read-only recheck returned HTTP 200 in 620 ms and a count of 500 for that
+Pacific day. This is evidence of intermittent failure, not an index diagnosis.
+The fix bounds that read to five seconds, permits only one transient retry and
+refuses provider work if a successful response has no valid count. It does not
+retry model writes, bypass permission/rate failures or reset quotas. The existing
+known-missing-schema compatibility path remains separate and unchanged.
+
+No hosted application migrations, cleanup, scraper recreation or source-permission expansion is part
+of this follow-up. Signed-in hosted browser discovery still times out; local
+synthetic accounts are not a substitute. The local fixture also lacks the scrape
+queue's `requested_by` column, so saved-location UI checks do not prove collection
+jobs run. A bounded read confirmed that column is present in the primary hosted
+database; do not apply a production migration based on the local fixture warning.
+The hosted preference-to-queue-to-listing path remains unverified.
+Real alert delivery, retention/reference survival, hosted capacity,
+valuation outcomes and physical-device performance remain release gates.
+The current Vercel usage command still reports billing data unavailable, not zero
+consumption. This change adds no schedule, provider-plan change or quota reset.
+
 ### Recorded Walkthrough Follow-Through (October 15, 2026)
 
 Branch: `codex/walkthrough-search-acceptance`, including main through #425.

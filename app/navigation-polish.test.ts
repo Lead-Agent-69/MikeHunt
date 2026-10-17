@@ -25,6 +25,12 @@ describe("navigation usability", () => {
     expect(bottom).toContain("aria-label={");
   });
 
+  it("reserves desktop action widths instead of squeezing them into equal sides", () => {
+    expect(top.match(/min-w-0 lg:flex-none/g)).toHaveLength(2);
+    expect(top).toContain("shrink-0 lg:mx-auto");
+    expect(top).toContain("gap-1.5 whitespace-nowrap");
+  });
+
   it("respects reduced motion and keeps keyboard focus visible", () => {
     expect(top).toContain(
       'layoutId={reducedMotion ? undefined : "topnav-pill"}',

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 const generate = vi.hoisted(() => vi.fn());
 vi.mock("./embeddings", () => ({ generateEmbeddings: generate }));
 import { backfillEmbeddings, dealEmbeddingText } from "./deal-embeddings";
@@ -9,9 +10,19 @@ interface Fixture {
   missing?: any[];
   embedded?: any[];
   usedToday?: number;
-  counts?: { active: number; embedded: number; missing: number; fresh: number };
+  counts?: {
+    active: number;
+    embedded: number;
+    missing: number;
+    hashTracked: number;
+  };
   readError?: { message: string } | null;
   budgetError?: { message: string; code?: string } | null;
+  budgetResponses?: {
+    count: number | null;
+    error: { message: string; code?: string } | null;
+    status: number;
+  }[];
   writeError?: { message: string } | null;
 }
 
@@ -19,6 +30,7 @@ interface Fixture {
 function database(f: Fixture = {}) {
   const writes: { id: string; patch: any }[] = [];
   const reads: Op[][] = [];
+  let budgetReads = 0;
   const has = (ops: Op[], ...m: any[]) =>
     ops.some((o) => m.every((v, i) => o[i] === v));
   function resolve(ops: Op[]) {
@@ -30,14 +42,24 @@ function database(f: Fixture = {}) {
     }
     reads.push(ops);
     const sel = ops.find((o) => o[0] === "select")!;
-    const c = f.counts ?? { active: 10, embedded: 4, missing: 6, fresh: 2 };
+    const c = f.counts ?? {
+      active: 10,
+      embedded: 4,
+      missing: 6,
+      hashTracked: 2,
+    };
     if (sel[2]?.head) {
-      if (has(ops, "gte", "embedded_at"))
+      if (has(ops, "gte", "embedded_at")) {
+        if (f.budgetResponses)
+          return f.budgetResponses[
+            Math.min(budgetReads++, f.budgetResponses.length - 1)
+          ];
         return f.budgetError
           ? { count: null, error: f.budgetError }
           : { count: f.usedToday ?? 0, error: null };
+      }
       if (has(ops, "not", "embedding_source_hash"))
-        return { count: c.fresh, error: null };
+        return { count: c.hashTracked, error: null };
       if (has(ops, "is", "embedding")) return { count: c.missing, error: null };
       if (has(ops, "not", "embedding"))
         return { count: c.embedded, error: null };
@@ -67,6 +89,7 @@ function database(f: Fixture = {}) {
       "limit",
       "range",
       "update",
+      "abortSignal",
     ])
       b[m] = (...args: any[]) => builder([...ops, [m, ...args]]);
     b.then = (ok: any, bad: any) => Promise.resolve(resolve(ops)).then(ok, bad);
@@ -89,11 +112,99 @@ const deal = (id: string, created_at: string, extra: any = {}) => ({
 beforeEach(() => vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "test"));
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   generate.mockReset();
   sleep.mockClear();
 });
 
 describe("Embedding backfill proof", () => {
+  it("retries one transient budget HEAD failure without duplicating provider work", async () => {
+    generate.mockResolvedValue([vec()]);
+    const db = database({
+      missing: [deal("one", "2026-10-16")],
+      budgetResponses: [
+        { count: null, error: { message: "" }, status: 503 },
+        { count: 899, error: null, status: 200 },
+      ],
+    });
+    const result = await backfillEmbeddings(db.client, 250, { sleep });
+    expect(result.budget).toEqual({ dailyCap: 900, usedToday: 899, runCap: 1 });
+    expect(sleep).toHaveBeenCalledExactlyOnceWith(250);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(db.writes).toHaveLength(1);
+    const budgetReads = db.reads.filter((ops) =>
+      ops.some(([op]) => op === "gte"),
+    );
+    expect(budgetReads).toHaveLength(2);
+    for (const ops of budgetReads)
+      expect(
+        ops.some(
+          ([op, signal]) =>
+            op === "abortSignal" && signal instanceof AbortSignal,
+        ),
+      ).toBe(true);
+  });
+
+  it("stops after two failed budget reads without spending quota or writing vectors", async () => {
+    const db = database({
+      budgetResponses: [{ count: null, error: { message: "" }, status: 504 }],
+    });
+    await expect(backfillEmbeddings(db.client, 250, { sleep })).rejects.toThrow(
+      "budget read failed",
+    );
+    expect(db.reads).toHaveLength(2);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("honors an exhausted daily cap after recovering the count", async () => {
+    const db = database({
+      budgetResponses: [
+        { count: null, error: { message: "" }, status: 503 },
+        { count: 900, error: null, status: 200 },
+      ],
+    });
+    const result = await backfillEmbeddings(db.client, 250, { sleep });
+    expect(result.budgetExhausted).toBe(true);
+    expect(result.budget?.runCap).toBe(0);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("does not retry rate limits or exceed a short run deadline", async () => {
+    for (const [status, timeBudgetMs] of [
+      [429, 240000],
+      [503, 5000],
+    ]) {
+      const db = database({
+        budgetResponses: [{ count: null, error: { message: "" }, status }],
+      });
+      await expect(
+        backfillEmbeddings(db.client, 250, { sleep, timeBudgetMs }),
+      ).rejects.toThrow("budget read failed");
+      expect(db.reads).toHaveLength(1);
+      expect(generate).not.toHaveBeenCalled();
+    }
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("does not retry permission failures or pretend a missing count is zero", async () => {
+    for (const response of [
+      { count: null, error: { message: "denied", code: "42501" }, status: 403 },
+      { count: null, error: null, status: 200 },
+      { count: -1, error: null, status: 200 },
+    ]) {
+      const db = database({ budgetResponses: [response] });
+      await expect(
+        backfillEmbeddings(db.client, 250, { sleep }),
+      ).rejects.toThrow("no provider work started");
+      expect(db.reads).toHaveLength(1);
+      expect(generate).not.toHaveBeenCalled();
+      expect(db.writes).toHaveLength(0);
+    }
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it("reports a database failure rather than successful zero work", async () => {
     await expect(
       backfillEmbeddings(
@@ -131,13 +242,72 @@ describe("Embedding backfill proof", () => {
       skipped: false,
       schemaReady: true,
       byTier: { missing: 1, changed: 0, legacy: 0 },
-      coverage: { active: 10, embedded: 4, fresh: 2, pct: 40 },
+      coverage: {
+        active: 10,
+        embedded: 4,
+        fresh: null,
+        sourceHashTracked: 2,
+        currentContentFreshness: "not_measured",
+        pct: 40,
+      },
     });
     expect(db.writes[0].id).toBe("one");
     expect(db.writes[0].patch.embedding_source_hash).toBe(
       embeddingSourceHash(dealEmbeddingText(d)),
     );
     expect(Date.parse(db.writes[0].patch.embedded_at)).not.toBeNaN();
+  });
+
+  it("does not certify a changed listing as fresh just because its old source hash exists", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const previous = deal("changed", "2026-10-09", { mileage: 50000 });
+    const changed = {
+      ...previous,
+      mileage: 80000,
+      embedding_source_hash: embeddingSourceHash(dealEmbeddingText(previous)),
+    };
+    expect(changed.embedding_source_hash).not.toBe(
+      embeddingSourceHash(dealEmbeddingText(changed)),
+    );
+    const db = database({
+      embedded: [changed],
+      usedToday: 900,
+      counts: { active: 1, embedded: 1, missing: 0, hashTracked: 1 },
+    });
+    const result = await backfillEmbeddings(db.client, 1, {
+      dailyCap: 900,
+      sleep,
+    });
+    expect(result.coverage).toEqual({
+      active: 1,
+      embedded: 1,
+      pct: 100,
+      sourceHashTracked: 1,
+      fresh: null,
+      currentContentFreshness: "not_measured",
+    });
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toEqual([]);
+    const message = log.mock.calls.flat().join(" ");
+    expect(message).toContain("source hash recorded 1");
+    expect(message).toContain("current content freshness not measured");
+    expect(message).not.toContain("hash-verified");
+    expect(
+      db.reads.filter((ops) =>
+        ops.some((o) => o[0] === "select" && o[2]?.head),
+      ),
+    ).toHaveLength(5);
+  });
+
+  it("keeps the workflow consumer explicit about unmeasured content freshness", () => {
+    const workflow = readFileSync(
+      ".github/workflows/embeddings-backfill.yml",
+      "utf8",
+    );
+    expect(workflow).toContain("$c.sourceHashTracked");
+    expect(workflow).toContain("current content freshness not measured");
+    expect(workflow).not.toContain("$c.fresh");
+    expect(workflow).not.toContain("hash-verified fresh");
   });
 });
 
@@ -200,6 +370,8 @@ describe("needs-embedding selection", () => {
       { id: "a", patch: { embedding: expect.any(String) } },
     ]);
     expect(r.coverage?.fresh).toBeNull();
+    expect(r.coverage?.sourceHashTracked).toBeNull();
+    expect(r.coverage?.currentContentFreshness).toBe("not_measured");
   });
 });
 

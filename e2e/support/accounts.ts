@@ -39,7 +39,7 @@ export async function loginViaUi(
   password = PASSWORD,
 ) {
   assertLocalTarget("sign in");
-  await page.goto("/login");
+  if (new URL(page.url()).pathname !== "/login") await page.goto("/login");
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
@@ -69,7 +69,7 @@ export async function completeOnboarding(page: Page, desk: Desk) {
     }
     await page.getByRole("button", { name: /^Continue/ }).click();
   }
-  await page.waitForURL(/\/(market|discover)/, { timeout: 30_000 });
+  await page.waitForURL(/\/market(?:\?|$)/, { timeout: 30_000 });
   if (desk !== "reseller") {
     const legacy = await page.request.put("/api/preferences", {
       data: { buyerScope: { buyerMode: desk } },

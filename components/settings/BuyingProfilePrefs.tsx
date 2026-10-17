@@ -351,7 +351,7 @@ export function BuyingProfilePrefs() {
         <button
           type="button"
           onClick={() => void submit()}
-          className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)] disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)] disabled:opacity-50"
         >
           {busy ? "Saving..." : "Save buying preferences"}
         </button>

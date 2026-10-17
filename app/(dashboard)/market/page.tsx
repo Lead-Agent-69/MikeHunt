@@ -13,6 +13,7 @@ import {
 } from "@/components/market/MarketFacetStudio";
 import { MarketResultsMap } from "@/components/market/MarketResultsMap";
 import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { MarketLocation } from "@/components/market/MarketLocation";
 import type { MarketListing } from "@/lib/market/explorer";
@@ -174,7 +175,7 @@ export default function MarketPage() {
   const [showFilters, setShowFilters] = React.useState(false);
   const [showInsights, setShowInsights] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "table">("grid");
-  const [showMap, setShowMap] = React.useState(true);
+  const [showMap, setShowMap] = React.useState(false);
   const set = (patch: Partial<Filters>) => {
     setPage(0);
     setF((p) => ({
@@ -332,7 +333,8 @@ export default function MarketPage() {
   };
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready) window.history.replaceState(null, "", `/market?${qs}`);
+    if (ready)
+      window.history.replaceState(window.history.state, "", `/market?${qs}`);
   }, [qs, ready]);
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -471,13 +473,13 @@ export default function MarketPage() {
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[var(--t1)] md:text-3xl">
+    <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--b1)] pb-2 sm:pb-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-extrabold text-[var(--t1)] md:text-3xl">
             Market Explorer
           </h1>
-          <p className="mt-1 max-w-2xl text-sm text-[var(--t3)]">
+          <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] md:block">
             Search the market, refine the evidence, then inspect the listing.
           </p>
         </div>
@@ -533,13 +535,16 @@ export default function MarketPage() {
       )}
       <nav
         aria-label="Market workspace"
-        className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2"
+        className="flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 sm:gap-2"
       >
         <button
           type="button"
-          aria-pressed={!showFilters}
-          onClick={() => setShowFilters(false)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
+          aria-pressed={!showFilters && !showInsights}
+          onClick={() => {
+            setShowFilters(false);
+            setShowInsights(false);
+          }}
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
         >
           <LayoutGrid className="h-4 w-4" /> Listings
           {!busy && (
@@ -550,8 +555,11 @@ export default function MarketPage() {
           type="button"
           aria-expanded={showFilters}
           aria-controls="market-filter-panel"
-          onClick={() => setShowFilters(true)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)]"
+          onClick={() => {
+            setShowFilters(true);
+            setShowInsights(false);
+          }}
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)]"
         >
           <SlidersHorizontal className="h-4 w-4" /> Filters
           {activeCount > 0 && (
@@ -563,13 +571,15 @@ export default function MarketPage() {
         <button
           type="button"
           aria-pressed={showInsights}
-          disabled={showFilters}
-          onClick={() => setShowInsights((current) => !current)}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] disabled:opacity-40"
+          onClick={() => {
+            setShowFilters(false);
+            setShowInsights(true);
+          }}
+          className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
         >
           <BarChart3 className="h-4 w-4" /> Market insights
         </button>
-        <p className="ml-auto px-2 text-[10px] text-[var(--t4)]">
+        <p className="ml-auto hidden px-2 text-[10px] text-[var(--t4)] sm:block">
           {busy ? "Updating inventory…" : `${rows.length} shown on this page`}
         </p>
       </nav>
@@ -670,7 +680,10 @@ export default function MarketPage() {
             )}
             <button
               type="button"
-              onClick={() => setShowFilters(false)}
+              onClick={() => {
+                setShowFilters(false);
+                setShowInsights(false);
+              }}
               className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-xs font-bold text-white"
             >
               Show {busy ? "updated" : total.toLocaleString()} listings
@@ -1013,7 +1026,10 @@ export default function MarketPage() {
         <div className="sticky bottom-3 z-20 flex justify-end rounded-xl border border-[var(--b1)] bg-[var(--s0)]/95 p-3 shadow-lg backdrop-blur">
           <button
             type="button"
-            onClick={() => setShowFilters(false)}
+            onClick={() => {
+              setShowFilters(false);
+              setShowInsights(false);
+            }}
             className="min-h-11 rounded-lg bg-[var(--blue)] px-5 text-sm font-bold text-white"
           >
             Show {busy ? "updated" : total.toLocaleString()} listings
@@ -1021,8 +1037,48 @@ export default function MarketPage() {
         </div>
       </section>
 
-      {!showFilters && (
-        <section aria-label="Market results" className="min-w-0">
+      {!showFilters && showInsights && !busy && !error && (
+        <section
+          aria-label="Market insights workspace"
+          className="space-y-3"
+          data-testid="market-intelligence-dashboard"
+        >
+          <MarketIntelligence
+            summary={data?.summary}
+            query={qs}
+            capped={data?.capped}
+          />
+          <MarketVisualizers
+            facets={facets}
+            selectedLanes={f.lanes}
+            selectedPrice={{ min: f.priceMin, max: f.priceMax }}
+            onLaneToggle={(lane) => set({ lanes: toggle(f.lanes, lane) })}
+            onPriceRangeSelect={(from, to) => {
+              const alreadySelected =
+                f.priceMin === String(from) && f.priceMax === String(to);
+              set({
+                priceMin: alreadySelected ? "" : String(from),
+                priceMax: alreadySelected ? "" : String(to),
+              });
+            }}
+          />
+          {flipDesk && (
+            <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+              <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
+                National opportunity map · independent of search filters
+              </summary>
+              <USHeatmap />
+            </details>
+          )}
+        </section>
+      )}
+
+      {!showFilters && !showInsights && (
+        <section
+          id="market-results"
+          aria-label="Market results"
+          className="min-w-0 scroll-mt-20"
+        >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-[var(--t4)]">
@@ -1099,40 +1155,6 @@ export default function MarketPage() {
             </select>
           </div>
 
-          {!busy && !error && showInsights && (
-            <div
-              className="mb-4 space-y-3"
-              data-testid="market-intelligence-dashboard"
-            >
-              <MarketIntelligence
-                summary={data?.summary}
-                query={qs}
-                capped={data?.capped}
-              />
-              <MarketVisualizers
-                facets={facets}
-                selectedLanes={f.lanes}
-                selectedPrice={{ min: f.priceMin, max: f.priceMax }}
-                onLaneToggle={(lane) => set({ lanes: toggle(f.lanes, lane) })}
-                onPriceRangeSelect={(from, to) => {
-                  const alreadySelected =
-                    f.priceMin === String(from) && f.priceMax === String(to);
-                  set({
-                    priceMin: alreadySelected ? "" : String(from),
-                    priceMax: alreadySelected ? "" : String(to),
-                  });
-                }}
-              />
-              {flipDesk && (
-                <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-                  <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
-                    National opportunity map · independent of search filters
-                  </summary>
-                  <USHeatmap />
-                </details>
-              )}
-            </div>
-          )}
           {!busy && !error && showMap && rows.length > 0 && (
             <div className="mb-4">
               <MarketResultsMap rows={rows} flipDesk={flipDesk} />
@@ -1156,6 +1178,7 @@ export default function MarketPage() {
                     "repeat(auto-fit, minmax(min(100%, 19rem), 1fr))",
                 }}
               >
+                <MarketReturnPosition />
                 {rows.map((row) => (
                   <MarketListingCard
                     key={row.id}

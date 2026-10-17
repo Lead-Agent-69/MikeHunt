@@ -295,7 +295,7 @@ export default function ReconPage() {
           </div>
           <button
             onClick={() => router.push("/fleet")}
-            className="mt-2 px-6 py-2.5 rounded-[var(--r3)] text-sm font-bold bg-[var(--blue)] text-white shadow-lg transition-transform hover:-translate-y-0.5"
+            className="mt-2 px-6 py-2.5 rounded-[var(--r3)] text-sm font-bold bg-[var(--accent)] text-[var(--on-accent)] shadow-lg transition-transform hover:-translate-y-0.5"
           >
             {flipDesk ? "View Fleet" : "View vehicles"}
           </button>

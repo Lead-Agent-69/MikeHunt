@@ -32,4 +32,21 @@ describe("inventory primary-action contrast", () => {
     expect(source).toContain("text-[var(--on-accent)]");
     expect(source).not.toContain("bg-[var(--blue)]");
   });
+  it.each([
+    "components/market/MarketLocation.tsx",
+    "components/deal/VehicleSourceAction.tsx",
+    "components/reco/SimilarInterestPrompt.tsx",
+    "app/(dashboard)/discover/page.tsx",
+    "components/discovery/DiscoveryCard.tsx",
+    "components/settings/BuyingProfilePrefs.tsx",
+    "app/(dashboard)/recon/page.tsx",
+    "components/deal/ReportListing.tsx",
+  ])("%s keeps primary controls readable in both themes", (path) => {
+    const source = readFileSync(path, "utf8");
+    expect(source).toContain("bg-[var(--accent)]");
+    expect(source).toContain("text-[var(--on-accent)]");
+    expect(source).not.toMatch(
+      /bg-\[var\(--blue\)\][^"]*text-white|text-white[^"]*bg-\[var\(--blue\)\]/,
+    );
+  });
 });

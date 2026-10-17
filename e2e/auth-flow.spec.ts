@@ -15,7 +15,7 @@ test.describe("signup, login, onboarding (local only)", () => {
   // The real worker has separate Chromium integration and hosted-device gates.
   test.use({ serviceWorkers: "block" });
 
-  test("signup -> unified buying setup -> Discover, then log out/in", async ({
+  test("signup -> unified buying setup -> Market, then log out/in", async ({
     page,
   }) => {
     const h = watchHealth(page);
@@ -34,19 +34,17 @@ test.describe("signup, login, onboarding (local only)", () => {
       await expect(page.getByRole("button", { name: label })).toHaveCount(0);
     }
     await completeOnboarding(page, "reseller");
-    await expect(page).toHaveURL(/mode=reseller/);
+    await expect(page).toHaveURL(/\/market(?:\?|$)/);
     await expect(
-      page.getByRole("heading", { name: "Quick filters" }),
+      page.getByRole("heading", { name: "Market Explorer", exact: true }),
     ).toBeVisible();
     await expectHealthy(page, h);
 
     // Fresh session: sign in with the same account; onboarded users skip setup.
-    await expect(
-      page.getByRole("region", { name: /vehicles$/ }).first(),
-    ).toBeVisible();
+    await expect(page.locator("article").first()).toBeVisible();
     await logoutViaUi(page);
     await loginViaUi(page, email);
-    await page.waitForURL(/\/discover/, { timeout: 30_000 });
+    await page.waitForURL(/\/market(?:\?|$)/, { timeout: 30_000 });
   });
 
   test("wrong password shows an error and stays on /login", async ({

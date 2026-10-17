@@ -29,7 +29,7 @@ setup("create admin account", async ({ page }) => {
   await loginViaUi(page, ADMIN_EMAIL);
   const landed = await Promise.race([
     page
-      .waitForURL(/\/(onboarding|discover)/, { timeout: 15_000 })
+      .waitForURL(/\/(onboarding|market)(?:\?|$)/, { timeout: 15_000 })
       .then(() => true),
     page
       .getByText(/Invalid|incorrect|couldn.t sign/i)

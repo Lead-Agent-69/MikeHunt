@@ -30,15 +30,14 @@ test.describe("Auth Flow", () => {
     const email = uniqueEmail("smoke");
     await registerViaUi(page, email);
     await completeOnboarding(page, "reseller");
-    await expect(
-      page.getByRole("region", { name: /vehicles$/ }).first(),
-    ).toBeVisible();
+    await expect(page.locator("article").first()).toBeVisible();
     await logoutViaUi(page);
     await loginViaUi(page, email);
-    await expect(page).toHaveURL(/\/discover/);
+    await expect(page).toHaveURL(/\/market(?:\?|$)/);
     await expect(
-      page.getByRole("heading", { name: "Discover", exact: true }),
+      page.getByRole("heading", { name: "Market Explorer", exact: true }),
     ).toBeVisible();
+    await expect(page.locator("article").first()).toBeVisible();
     await expectHealthy(page, health);
   });
 });

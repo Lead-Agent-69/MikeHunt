@@ -107,6 +107,7 @@ export default function RegisterPage() {
       <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link
           href="/"
+          prefetch={false}
           aria-label="MIKEHUNT home"
           className="inline-flex items-center gap-2.5"
         >
@@ -193,6 +194,7 @@ export default function RegisterPage() {
                 By creating an account, you agree to our{" "}
                 <Link
                   href="/tos"
+                  prefetch={false}
                   className="text-[var(--amber-d)] hover:underline"
                 >
                   Terms of Service
@@ -200,6 +202,7 @@ export default function RegisterPage() {
                 and{" "}
                 <Link
                   href="/privacy"
+                  prefetch={false}
                   className="text-[var(--amber-d)] hover:underline"
                 >
                   Privacy Policy
@@ -222,6 +225,7 @@ export default function RegisterPage() {
               Already have an account?{" "}
               <Link
                 href="/login"
+                prefetch={false}
                 className="font-semibold text-[var(--amber-d)] hover:underline"
               >
                 Sign in

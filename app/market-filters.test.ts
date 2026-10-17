@@ -220,13 +220,47 @@ describe("Market filter journey", () => {
       ),
     );
     act(() =>
-      Array.from(host.querySelectorAll("button"))
-        .find((button) => button.textContent === "Nationwide")!
-        .click(),
+      Simulate.change(
+        host.querySelector<HTMLSelectElement>('[aria-label="Search area"]')!,
+        { target: { value: "nationwide" } } as any,
+      ),
     );
     expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
     expect(new URLSearchParams(window.location.search).get("sort")).toBe(
       "lastSeenAt",
     );
+  });
+
+  it("keeps listings, filters, and intelligence in separate focused workspaces", async () => {
+    await render();
+    const workspace = host.querySelector('nav[aria-label="Market workspace"]')!;
+    const results = host.querySelector('[aria-label="Market results"]')!;
+    expect(
+      workspace.compareDocumentPosition(results) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).toBeNull();
+    expect(host.querySelector('nav[aria-label="Market tools"]')).toBeNull();
+
+    const buttons = Array.from(workspace.querySelectorAll("button"));
+    const insights = buttons.find((button) =>
+      button.textContent?.includes("Market insights"),
+    )!;
+    act(() => Simulate.click(insights));
+    expect(host.querySelector('[aria-label="Market results"]')).toBeNull();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).not.toBeNull();
+
+    const listings = buttons.find((button) =>
+      button.textContent?.includes("Listings"),
+    )!;
+    act(() => Simulate.click(listings));
+    expect(host.querySelector('[aria-label="Market results"]')).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="market-intelligence-dashboard"]'),
+    ).toBeNull();
   });
 });
