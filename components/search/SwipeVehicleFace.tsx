@@ -10,6 +10,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { reportedPrice } from "@/lib/deals/reported-price";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 export type SwipeVehicle = {
   id: string;
   title?: string;
@@ -57,10 +58,17 @@ export function SwipeVehicleFace({
   function changePhoto(next: number) {
     gallery.select(next);
   }
+  const photoNavigation = usePhotoNavigation(
+    (offset) => changePhoto((photo + offset + images.length) % images.length),
+    { enabled: images.length > 1 },
+  );
   if (gallery.exhausted) return null;
   return (
     <div className="flex h-full flex-col">
-      <div className="relative h-[46%] w-full shrink-0 overflow-hidden bg-[var(--s2)]">
+      <div
+        className="relative h-[46%] w-full shrink-0 overflow-hidden bg-[var(--s2)]"
+        {...photoNavigation}
+      >
         {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -89,8 +97,9 @@ export function SwipeVehicleFace({
             <button
               type="button"
               onPointerDown={(event) => event.stopPropagation()}
-              disabled={photo === 0}
-              onClick={() => changePhoto(photo - 1)}
+              onClick={() =>
+                changePhoto((photo + images.length - 1) % images.length)
+              }
               title="Previous photo"
               aria-label="Previous photo"
               className="grid h-11 w-11 place-items-center rounded-full bg-black/70 text-white disabled:opacity-20"
@@ -100,8 +109,7 @@ export function SwipeVehicleFace({
             <button
               type="button"
               onPointerDown={(event) => event.stopPropagation()}
-              disabled={photo === images.length - 1}
-              onClick={() => changePhoto(photo + 1)}
+              onClick={() => changePhoto((photo + 1) % images.length)}
               title="Next photo"
               aria-label="Next photo"
               className="grid h-11 w-11 place-items-center rounded-full bg-black/70 text-white disabled:opacity-20"

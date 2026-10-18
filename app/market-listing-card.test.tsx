@@ -83,6 +83,39 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("uses photo halves to browse while retaining the separate detail and save actions", async () => {
+  const row = listing([
+    "https://images.test/front.jpg",
+    "https://images.test/rear.jpg",
+  ]);
+  await act(async () =>
+    root.render(<MarketListingCard row={row} flipDesk={false} />),
+  );
+  const link = host.querySelector<HTMLAnchorElement>(
+    'a[aria-label^="Open details for"]',
+  )!;
+  vi.spyOn(link, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 400, 300),
+  );
+  const click = new MouseEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    detail: 1,
+    clientX: 350,
+  });
+  await act(async () => link.dispatchEvent(click));
+  expect(click.defaultPrevented).toBe(true);
+  expect(host.querySelector("img")!.src).toBe(row.images![1]);
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label^="Previous photo"]')!
+      .click(),
+  );
+  expect(host.querySelector("img")!.src).toBe(row.images![0]);
+  expect(host.querySelector(`h3 a[href="/deal/${row.id}"]`)).not.toBeNull();
+  expect(controls.toggle).not.toHaveBeenCalled();
+});
+
 it("keeps vehicle identity and bid meaning in the photo preview, with separate detail and save actions", async () => {
   const row = listing(["https://images.test/vehicle.jpg"]);
   await act(async () =>

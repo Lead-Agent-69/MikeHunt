@@ -11,6 +11,7 @@ import { reportedPrice } from "@/lib/deals/reported-price";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { QuickVehicleReview } from "@/components/search/QuickVehicleReview";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 
 export interface FeedVehicle {
   id: string;
@@ -91,6 +92,11 @@ export function FeedVehicleCard({
             className="absolute inset-0 h-full w-full object-contain"
           />
         )}
+        <PhotoPreviewButton
+          images={gallery.images}
+          title={item.title}
+          className="absolute right-2 top-2 z-20"
+        />
         <div className="absolute inset-x-0 bottom-0 bg-black/80 px-4 py-3 text-white">
           <span className="text-xs">
             {sourceLabel(item.source, item.sourceUrl)}

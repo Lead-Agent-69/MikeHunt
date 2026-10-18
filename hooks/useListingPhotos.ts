@@ -6,7 +6,9 @@ import { listingPhotos } from "@/lib/search/customer-inventory";
 export function useListingPhotos(urls: unknown) {
   const [failed, setFailed] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const images = listingPhotos(urls).filter((url) => !failed.includes(url));
+  const images = listingPhotos(urls, Infinity).filter(
+    (url) => !failed.includes(url),
+  );
   const image = selected && images.includes(selected) ? selected : images[0];
   return {
     images,

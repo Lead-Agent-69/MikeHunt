@@ -16,7 +16,7 @@ export function applyCustomerInventory<T>(query: T, now = Date.now()): T {
 }
 
 /** Syntax validation only: an accepted URL is not proof that its image still loads. */
-export function listingPhotos(value: unknown): string[] {
+export function listingPhotos(value: unknown, limit = 20): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(
     new Set(
@@ -33,7 +33,7 @@ export function listingPhotos(value: unknown): string[] {
         }
       }),
     ),
-  ).slice(0, 20);
+  ).slice(0, limit);
 }
 
 export function isCustomerInventory(

@@ -53,7 +53,10 @@ describe("local saved vehicle snapshots", () => {
       transportEstimate: 1045,
       locationCity: "Miami",
       locationState: "FL",
-      images: ["https://example.com/x3.jpg"],
+      images: [
+        "https://example.com/x3.jpg",
+        "https://example.com/x3-interior.jpg",
+      ],
       dataQuality: {
         score: 72,
         label: "Good",
@@ -90,6 +93,10 @@ describe("local saved vehicle snapshots", () => {
       transportEstimate: 1045,
       sourceUrl: "https://aeofmiami.com/product/1",
       image: "https://example.com/x3.jpg",
+      images: [
+        "https://example.com/x3.jpg",
+        "https://example.com/x3-interior.jpg",
+      ],
       dataQuality: {
         score: 72,
         label: "Good",

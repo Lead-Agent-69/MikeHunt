@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DiscoveryDeal } from "@/components/discovery/types";
+import { listingPhotos } from "@/lib/search/customer-inventory";
 
 export interface LocalSavedVehicle {
   id: string;
@@ -26,6 +27,7 @@ export interface LocalSavedVehicle {
   sellerEmail?: string;
   sellerContactUrl?: string;
   image?: string;
+  images?: string[];
   locationCity?: string;
   locationState?: string;
   dataQuality?: DiscoveryDeal["dataQuality"];
@@ -89,6 +91,7 @@ export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
     sellerEmail: deal.sellerEmail,
     sellerContactUrl: deal.sellerContactUrl,
     image: deal.images?.[0],
+    images: listingPhotos(deal.images, 30),
     locationCity: deal.locationCity,
     locationState: deal.locationState,
     dataQuality: deal.dataQuality,

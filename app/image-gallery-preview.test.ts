@@ -126,4 +126,24 @@ describe("listing photo preview", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.body.style.overflow).toBe("auto");
   });
+  it("cycles through both photo halves without closing the listing viewer", () => {
+    const dialog = open();
+    const area = dialog.querySelector<HTMLElement>("[data-photo-navigation]")!;
+    vi.spyOn(area, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 400, 300),
+    );
+    const tap = (x: number) =>
+      act(() =>
+        area.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, detail: 1, clientX: x }),
+        ),
+      );
+    tap(350);
+    expect(dialog.querySelector("img")!.alt).toBe("GMC Sierra - View 2");
+    tap(50);
+    expect(dialog.querySelector("img")!.alt).toBe("GMC Sierra - View 1");
+    tap(50);
+    expect(dialog.querySelector("img")!.alt).toBe("GMC Sierra - View 2");
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  });
 });

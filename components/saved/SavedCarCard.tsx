@@ -23,6 +23,7 @@ import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta, sellerTypeLabel } from "@/lib/sources/source-meta";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { TitleBadge } from "@/components/shared/TitleBadge";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
 import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
 import { priceEvidenceLabel } from "@/lib/deals/acquisition-price";
@@ -354,26 +355,33 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             </div>
 
             {snapshot.images?.[0] && (
-              <a
-                href={
-                  save.deal_id
-                    ? `/deal/${save.deal_id}`
-                    : sourceHref || undefined
-                }
-                className="relative block aspect-[16/9] w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:aspect-auto lg:h-32 lg:w-44"
-                aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={snapshot.images[0]}
-                  alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-                  className="h-full w-full object-contain"
+              <div className="relative block aspect-[16/9] w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:aspect-auto lg:h-32 lg:w-44">
+                <a
+                  href={
+                    save.deal_id
+                      ? `/deal/${save.deal_id}`
+                      : sourceHref || undefined
+                  }
+                  className="block h-full w-full"
+                  aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={snapshot.images[0]}
+                    alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
+                    className="h-full w-full object-contain"
+                  />
+                  <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+                    {snapshot.images.length} photo
+                    {snapshot.images.length === 1 ? "" : "s"}
+                  </div>
+                </a>
+                <PhotoPreviewButton
+                  images={snapshot.images}
+                  title={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
+                  className="absolute right-2 top-2 z-20"
                 />
-                <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
-                  {snapshot.images.length} photo
-                  {snapshot.images.length === 1 ? "" : "s"}
-                </div>
-              </a>
+              </div>
             )}
             <p className="break-words text-xs text-[var(--t4)]">
               {snapshot.odometer != null && Number.isFinite(snapshot.odometer)
