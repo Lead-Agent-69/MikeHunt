@@ -6,6 +6,7 @@ import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
 let root: Root;
 let host: HTMLDivElement;
 beforeEach(() => {
+  sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
   document.body.append(host);
@@ -24,7 +25,9 @@ it("does not offer dead navigation on a single captured photo", () => {
       }),
     ),
   );
-  expect(host.querySelector("button")).toBeNull();
+  expect(host.querySelector('[aria-label="Next photo"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Previous photo"]')).toBeNull();
+  expect(host.querySelector('[aria-label^="Enlarge photos"]')).not.toBeNull();
   expect(host.textContent).toContain("original listing may have more");
   expect(host.textContent).toContain("has not analyzed these photos");
 });

@@ -18,27 +18,37 @@ import { vehicleLocation } from "@/lib/search/vehicle-location";
 import type { MarketListing } from "@/lib/market/explorer";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
-import { photoEvidence } from "@/lib/images/photo-evidence";
 
-export function MarketListingCard({
+export function MarketListingCard(props: {
+  row: MarketListing;
+  flipDesk: boolean;
+}) {
+  return (
+    <ListingCard
+      key={`${props.row.id}:${JSON.stringify(props.row.images || [])}`}
+      {...props}
+    />
+  );
+}
+
+function ListingCard({
   row,
   flipDesk,
 }: {
   row: MarketListing;
   flipDesk: boolean;
 }) {
-  const [photo, setPhoto] = useState(0);
-  const [failed, setFailed] = useState<string[]>([]);
-  const [preview, setPreview] = useState<number | null>(null);
+  const gallery = useListingPhotos(row.images);
+  const setPhoto = gallery.select;
+  const [preview, setPreview] = useState(false);
   const previewTrigger = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLElement>(null);
   const rememberPosition = () => rememberMarketPosition(cardRef.current);
-  const photos = photoEvidence(row.images).images.filter(
-    (url) => !failed.includes(url),
-  );
-  const index = photo % Math.max(photos.length, 1);
+  const photos = gallery.images;
+  const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),
     { enabled: photos.length > 1 },
@@ -112,7 +122,7 @@ export function MarketListingCard({
               loading="lazy"
               decoding="async"
               className="h-full w-full object-cover"
-              onError={() => setFailed((all) => [...all, photos[index]])}
+              onError={gallery.reject}
             />
           </Link>
         ) : (
@@ -133,13 +143,13 @@ export function MarketListingCard({
         >
           {vendor.label}
         </span>
-        {photos.length > 0 && (
+        {gallery.sourceImages.length > 0 && (
           <button
             ref={previewTrigger}
             type="button"
             title={`Enlarge photos of ${row.title}`}
             aria-label={`Enlarge photos of ${row.title}`}
-            onClick={() => setPreview(index)}
+            onClick={() => setPreview(true)}
             className="absolute bottom-2 left-2 grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white"
           >
             <ZoomIn className="h-4 w-4" aria-hidden="true" />
@@ -345,13 +355,22 @@ export function MarketListingCard({
         </div>
       </div>
       <PhotoPreview
-        images={photos.map((src) => ({
+        images={gallery.sourceImages.map((src) => ({
           src: proxiedImage(src),
           alt: row.title,
         }))}
-        selectedIndex={preview}
-        onSelect={setPreview}
+        selectedIndex={preview ? gallery.sourceIndex : null}
+        onSelect={(next) => {
+          if (next === null) setPreview(false);
+          else gallery.selectSource(next);
+        }}
         returnFocusRef={previewTrigger}
+        onPhotoLoad={(src) => {
+          const original = gallery.sourceImages.find(
+            (url) => proxiedImage(url) === src,
+          );
+          if (original) gallery.restore(original);
+        }}
       />
     </article>
   );

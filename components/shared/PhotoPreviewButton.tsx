@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ZoomIn } from "lucide-react";
 import { galleryImageSrc } from "@/lib/image-url";
 import { listingPhotos } from "@/lib/search/customer-inventory";
+import { usePhotoSelection } from "@/hooks/usePhotoSelection";
 import { PhotoPreview } from "./PhotoPreview";
 
 /** Give listing thumbnails the same full-photo viewer without hijacking their detail links. */
@@ -16,10 +17,30 @@ export function PhotoPreviewButton({
   title: string;
   className?: string;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
   const photos = listingPhotos(images, Infinity);
   if (!photos.length) return null;
+  return (
+    <AvailablePreview
+      key={JSON.stringify(photos)}
+      photos={photos}
+      title={title}
+      className={className}
+    />
+  );
+}
+
+function AvailablePreview({
+  photos,
+  title,
+  className,
+}: {
+  photos: string[];
+  title: string;
+  className: string;
+}) {
+  const selection = usePhotoSelection(photos);
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <>
       <button
@@ -32,7 +53,7 @@ export function PhotoPreviewButton({
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
-          setSelected(0);
+          setOpen(true);
         }}
       >
         <ZoomIn className="h-4 w-4" aria-hidden="true" />
@@ -42,8 +63,11 @@ export function PhotoPreviewButton({
           src: galleryImageSrc(src, index),
           alt: title,
         }))}
-        selectedIndex={selected}
-        onSelect={setSelected}
+        selectedIndex={open ? selection.index : null}
+        onSelect={(index) => {
+          if (index === null) setOpen(false);
+          else selection.select(index);
+        }}
         returnFocusRef={trigger}
       />
     </>

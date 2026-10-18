@@ -2,14 +2,15 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useRef, useState, type RefObject } from "react";
-import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
+import { useEffect, useRef, type RefObject } from "react";
+import { ZoomablePhoto } from "./ZoomablePhoto";
 
 interface PhotoPreviewProps {
   images: Array<{ src: string; alt: string }>;
   selectedIndex: number | null;
   onSelect: (index: number | null) => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  onPhotoLoad?: (src: string) => void;
 }
 
 export function PhotoPreview({
@@ -17,20 +18,18 @@ export function PhotoPreview({
   selectedIndex,
   onSelect,
   returnFocusRef,
+  onPhotoLoad,
 }: PhotoPreviewProps) {
   const image = selectedIndex === null ? undefined : images[selectedIndex];
   const previousFocus = useRef<HTMLElement | null>(null);
-  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
-  const [loadedPhoto, setLoadedPhoto] = useState<string | null>(null);
   const move = (offset: number) => {
     if (selectedIndex !== null && images.length) {
       onSelect((selectedIndex + offset + images.length) % images.length);
     }
   };
-  const navigation = usePhotoNavigation(move, {
-    enabled: images.length > 1,
-    swipe: true,
-  });
+  useEffect(() => {
+    if (selectedIndex !== null && !image) onSelect(null);
+  }, [selectedIndex, image, onSelect]);
   if (!image) return null;
   const controls =
     "flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20";
@@ -73,58 +72,14 @@ export function PhotoPreview({
           <Dialog.Title className="sr-only">
             {image?.alt || "Photo preview"}
           </Dialog.Title>
-          <div
-            data-photo-navigation
-            className="relative flex h-full min-h-0 w-full max-w-full items-center justify-center overflow-hidden"
-            style={{ touchAction: "pan-y pinch-zoom" }}
-            {...navigation}
-            onClick={(event) => {
-              navigation.onClick(event);
-              if (
-                !event.defaultPrevented &&
-                images.length === 1 &&
-                event.target === event.currentTarget
-              )
-                onSelect(null);
-            }}
-          >
-            {failedPhoto !== image.src && loadedPhoto !== image.src && (
-              <div
-                role="status"
-                className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-white/75"
-              >
-                Loading photo…
-              </div>
-            )}
-            {image && failedPhoto === image.src ? (
-              <div
-                role="status"
-                className="space-y-3 text-center text-sm text-white"
-              >
-                <p>This photo could not load.</p>
-                <button
-                  type="button"
-                  className="min-h-11 rounded-lg border border-white/30 px-4"
-                  onClick={() => setFailedPhoto(null)}
-                >
-                  Retry photo
-                </button>
-              </div>
-            ) : (
-              image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={image.src}
-                  src={image.src}
-                  alt={image.alt}
-                  className={`block h-auto max-h-full w-auto max-w-full object-contain ${loadedPhoto === image.src ? "opacity-100" : "opacity-0"}`}
-                  draggable={false}
-                  onLoad={() => setLoadedPhoto(image.src)}
-                  onError={() => setFailedPhoto(image.src)}
-                />
-              )
-            )}
-          </div>
+          <ZoomablePhoto
+            src={image.src}
+            alt={image.alt}
+            move={move}
+            multiple={images.length > 1}
+            onDismiss={() => onSelect(null)}
+            onPhotoLoad={() => onPhotoLoad?.(image.src)}
+          />
           <span
             className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))] text-sm text-white"
             aria-live="polite"
@@ -148,8 +103,8 @@ export function PhotoPreview({
               >
                 <ChevronLeft size={24} />
               </button>
-              <span className="text-center text-xs text-white/75">
-                Tap left / right
+              <span className="whitespace-nowrap text-center text-xs text-white/75">
+                Browse photos
               </span>
               <button
                 aria-label="Next image"

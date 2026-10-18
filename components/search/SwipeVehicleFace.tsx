@@ -10,6 +10,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { reportedPrice } from "@/lib/deals/reported-price";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 export type SwipeVehicle = {
   id: string;
@@ -79,6 +80,11 @@ export function SwipeVehicleFace({
             className="absolute inset-0 h-full w-full object-contain"
           />
         )}
+        <PhotoPreviewButton
+          images={gallery.sourceImages}
+          title={title}
+          className="absolute right-2 bottom-11 z-20"
+        />
         {images.length > 1 && images.length <= 8 && (
           <div
             className="absolute inset-x-3 top-3 flex gap-1"

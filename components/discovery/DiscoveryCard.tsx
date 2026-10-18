@@ -164,7 +164,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           </Link>
 
           <PhotoPreviewButton
-            images={gallery.images}
+            images={gallery.sourceImages}
             title={title}
             className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2"
           />

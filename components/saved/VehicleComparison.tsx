@@ -8,7 +8,7 @@ import {
   ChevronRight,
   RotateCcw,
 } from "lucide-react";
-import { proxiedImage } from "@/lib/image-url";
+import { ListingThumbnail } from "@/components/shared/ListingThumbnail";
 import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
@@ -457,19 +457,10 @@ export function VehicleComparison({
                       images={c.images}
                       title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
                     />
-                    {c.images?.[0] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={proxiedImage(c.images[0])}
-                        alt={`${c.year || ""} ${c.make || ""} ${c.model || ""}`}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-full items-center justify-center text-xs text-[var(--t3)]">
-                        Photo unavailable
-                      </span>
-                    )}
+                    <ListingThumbnail
+                      images={c.images}
+                      title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
+                    />
                   </div>
                   <Link
                     href={`/deal/${c.id}`}

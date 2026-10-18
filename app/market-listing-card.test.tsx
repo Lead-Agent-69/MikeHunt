@@ -42,6 +42,7 @@ const listing = (images: string[]): MarketListing => ({
   profitScore: 0,
 });
 beforeEach(() => {
+  sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   controls.toggle.mockClear();
   controls.save.mockClear();
@@ -177,4 +178,43 @@ it("falls back safely when every supplied photo fails, retaining identity and so
     host.querySelector('[data-testid="market-identity-preview"]')?.textContent,
   ).toBe("2020 Ford Mustang");
   expect(host.querySelector('a[target="_blank"]')).not.toBeNull();
+});
+
+it("keeps the inspected photo stable when its inline thumbnail fails and closes a replaced gallery", () => {
+  const row = listing([
+    "https://images.test/a.jpg",
+    "https://images.test/b.jpg",
+  ]);
+  act(() => root.render(<MarketListingCard row={row} flipDesk={false} />));
+  act(() =>
+    host
+      .querySelector<HTMLButtonElement>('[aria-label^="Enlarge photos"]')!
+      .click(),
+  );
+  act(() =>
+    document
+      .querySelector<HTMLButtonElement>('[aria-label="Next image"]')!
+      .click(),
+  );
+  act(() => host.querySelector("img")!.dispatchEvent(new Event("error")));
+  expect(
+    document.querySelector('[role="dialog"] img')?.getAttribute("src"),
+  ).toBe(row.images![1]);
+  act(() =>
+    document
+      .querySelector('[role="dialog"] img')!
+      .dispatchEvent(new Event("load")),
+  );
+  expect(host.querySelector("img")?.src).toBe(row.images![1]);
+  act(() =>
+    root.render(
+      <MarketListingCard
+        row={{ ...row, images: ["https://images.test/new.jpg"] }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  act(() => root.render(<MarketListingCard row={row} flipDesk={false} />));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
 });

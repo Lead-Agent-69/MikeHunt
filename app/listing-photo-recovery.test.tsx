@@ -27,6 +27,7 @@ function Harness({ urls }: { urls: unknown }) {
   );
 }
 beforeEach(() => {
+  sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
   root = createRoot(host);
@@ -76,7 +77,7 @@ it("keeps the full supplied gallery available beyond 20 captured photos", async 
   );
   expect(host.querySelector("img")?.src).toBe(urls[24]);
 });
-it("tries another captured Discovery photo before replacing the card photo with a placeholder", async () => {
+it("tries another captured Discovery photo and keeps retry access after all covers fail", async () => {
   const deal = {
     id: "photo-recovery",
     title: "Gallery vehicle",
@@ -112,5 +113,5 @@ it("tries another captured Discovery photo before replacing the card photo with 
     host.querySelector(
       'button[aria-label="Enlarge photos of Gallery vehicle"]',
     ),
-  ).toBeNull();
+  ).not.toBeNull();
 });

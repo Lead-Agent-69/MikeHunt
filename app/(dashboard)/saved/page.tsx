@@ -7,6 +7,7 @@ import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { savedGroup } from "@/lib/saved/collection";
 import { savedPricePresentation } from "@/lib/saved/price-presentation";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { ListingThumbnail } from "@/components/shared/ListingThumbnail";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
@@ -828,9 +829,8 @@ function LocalSavedSection({
           const contactHref = item.sellerContactUrl || item.sourceUrl;
           const images = photoEvidence([
             item.image,
-            ...(item.images || []),
+            ...(Array.isArray(item.images) ? item.images : []),
           ]).images;
-          const image = images[0];
           const price = savedPricePresentation(
             item.askPrice,
             item.priceEvidence,
@@ -845,18 +845,7 @@ function LocalSavedSection({
                 <div className="flex min-w-0 flex-col-reverse gap-3 sm:flex-row">
                   <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--s1)]">
                     <PhotoPreviewButton images={images} title={item.title} />
-                    {image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={image}
-                        alt={item.title}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-[var(--t4)]">
-                        No photo
-                      </div>
-                    )}
+                    <ListingThumbnail images={images} title={item.title} />
                   </div>
                   <div className="min-w-0 space-y-1">
                     <Badge

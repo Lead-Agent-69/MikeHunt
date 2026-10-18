@@ -467,7 +467,7 @@ export const DealCard = memo(function DealCard({
       : confidenceScore >= 62
         ? copy.confidenceReview
         : copy.confidenceThin);
-  const cover = requirePhoto ? gallery.image : imageUrl;
+  const cover = gallery.image;
   const proxiedUrl = proxiedImage(cover) || cover;
   if (requirePhoto && gallery.exhausted) return null;
 
@@ -510,24 +510,22 @@ export const DealCard = memo(function DealCard({
       {/* Image Header */}
       <div className="relative w-full h-40 bg-[var(--s2)] overflow-hidden shrink-0">
         <PhotoPreviewButton
-          images={gallery.images}
+          images={gallery.sourceImages}
           title={`${year} ${make} ${model}`}
           className="absolute right-2 top-2 z-20"
         />
-        <img
-          src={proxiedUrl || "/images/car-placeholder.jpg"}
-          alt={`${year} ${make} ${model}`}
-          className="h-full w-full object-cover opacity-100 transition-transform duration-300 group-hover:scale-[1.02]"
-          onError={(e) => {
-            if (requirePhoto) {
-              gallery.reject();
-              return;
-            }
-            if (e.currentTarget.src.endsWith("/images/car-placeholder.jpg"))
-              return;
-            e.currentTarget.src = "/images/car-placeholder.jpg";
-          }}
-        />
+        {proxiedUrl ? (
+          <img
+            src={proxiedUrl}
+            alt={`${year} ${make} ${model}`}
+            className="h-full w-full object-cover opacity-100 transition-transform duration-300 group-hover:scale-[1.02]"
+            onError={gallery.reject}
+          />
+        ) : (
+          <div className="flex h-full items-start justify-center pt-6 text-xs text-[var(--t3)]">
+            Photo unavailable
+          </div>
+        )}
         {/* Gradient overlay for premium feel */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--s1)] via-transparent to-transparent opacity-35" />
         <div
