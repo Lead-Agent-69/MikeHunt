@@ -630,6 +630,17 @@ export function cardToDeal(
     make: card.make,
     model: card.model,
     ask_price: card.price,
+    ...(site.layout === "dg-native"
+      ? {
+          options: {
+            priceEvidence: {
+              kind: "asking" as const,
+              askingPrice: card.price,
+              evidenceText: `${site.name} inventory card price $${card.price}`,
+            },
+          },
+        }
+      : {}),
     mileage: card.mileage,
     ...(card.vin ? { vin: card.vin } : {}),
     condition: card.condition ?? site.defaultCondition,

@@ -1363,7 +1363,7 @@ export async function scrapeCuratedSites(
       const n = urlHostMatches(site.url, ["aeofmiami.com"])
         ? await scrapeAeOfMiami(scope)
         : dealerCms
-          ? await scrapeDealerCms(dealerCms, scope)
+          ? await scrapeDealerCms(dealerCms, scope, execution)
           : cdgDealer
             ? await scrapeCdgDealer(cdgDealer)
             : await autoDiscoverAndCrawl(
@@ -1791,12 +1791,16 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
 async function enrichCdgDetail(
   deal: Partial<Deal>,
   config: Pick<DealerCmsSite, "baseUrl" | "defaultCondition">,
+  signal?: AbortSignal,
 ) {
   const sourceUrl = deal.source_url;
   // Only ever fetch detail pages on the dealer's own host (crawlDealerCms already drops others).
   if (!sourceUrl || !isSameSiteHref(sourceUrl, config.baseUrl)) return deal;
   try {
-    const res = await politeFetch(sourceUrl, { freshForMs: 24 * 3600_000 });
+    const res = await politeFetch(sourceUrl, {
+      freshForMs: 24 * 3600_000,
+      ...(signal ? { signal } : {}),
+    });
     if (!res.ok) return deal;
     const cheerio = await import("cheerio");
     const html = res.body;
@@ -1844,10 +1848,18 @@ async function enrichCdgDetail(
 export async function scrapeDealerCms(
   site: DealerCmsSite,
   scope = getScrapeRunScope(),
+  execution?: { abortSignal?: AbortSignal; deadlineAt?: number },
 ) {
+  execution?.abortSignal?.throwIfAborted();
   const cheerio = await import("cheerio");
   const deals = await crawlDealerCms(site, {
-    fetchHtml: (url) => politeFetch(url, { freshForMs: 30 * 60_000 }),
+    fetchHtml: (url) => {
+      execution?.abortSignal?.throwIfAborted();
+      return politeFetch(url, {
+        freshForMs: 30 * 60_000,
+        ...(execution?.abortSignal ? { signal: execution.abortSignal } : {}),
+      });
+    },
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
   });
@@ -1867,13 +1879,23 @@ export async function scrapeDealerCms(
     ),
   );
   let enriched = 0;
+  let attemptedDetails = 0;
   const detailOffset =
     deals.length && enrichLimit
       ? (Math.floor(Date.now() / 3600_000) * enrichLimit) % deals.length
       : 0;
   for (let i = 0; i < enrichLimit; i++) {
+    execution?.abortSignal?.throwIfAborted();
+    // Save the complete inventory within this job. Gallery requests are paced and can take
+    // longer than the executor's deadline; cached details make later refreshes progress.
+    if (Date.now() >= (execution?.deadlineAt ?? Infinity) - 60_000) break;
     const index = (detailOffset + i) % deals.length;
-    const next = await enrichCdgDetail(deals[index], site);
+    const next = await enrichCdgDetail(
+      deals[index],
+      site,
+      execution?.abortSignal,
+    );
+    attemptedDetails++;
     if (
       (next.vin && next.vin !== deals[index].vin) ||
       (next.images?.length || 0) > (deals[index].images?.length || 0) ||
@@ -1885,8 +1907,11 @@ export async function scrapeDealerCms(
   }
   if (enrichLimit)
     console.log(
-      `[CuratedSites] ${site.name} detail enriched ${enriched}/${enrichLimit}`,
+      `[CuratedSites] ${site.name} detail enriched ${enriched}/${attemptedDetails}; ${enrichLimit - attemptedDetails} deferred`,
     );
+  execution?.abortSignal?.throwIfAborted();
+  if (Date.now() >= (execution?.deadlineAt ?? Infinity))
+    throw new Error("Dealer crawl deadline elapsed before persistence");
   return deals.length ? await upsertDeals(deals) : 0;
 }
 

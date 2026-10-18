@@ -36,6 +36,7 @@ import {
 } from "@/lib/market/explorer";
 import { geocodeZip } from "@/lib/geo/geocode";
 import { boundingBox } from "@/lib/geo/distance";
+import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import {
@@ -102,19 +103,13 @@ function bodyFacet(value: unknown) {
 }
 
 function roundedMapPoint(latValue: unknown, lngValue: unknown) {
-  const lat = Number(latValue);
-  const lng = Number(lngValue);
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    lat < -90 ||
-    lat > 90 ||
-    lng < -180 ||
-    lng > 180
-  )
-    return null;
+  const point = validCoords(latValue, lngValue);
+  if (!point) return null;
   // One decimal is enough for a nationwide market view and avoids publishing a seller's raw pin.
-  return { lat: Number(lat.toFixed(1)), lng: Number(lng.toFixed(1)) };
+  return {
+    lat: Number(point.lat.toFixed(1)),
+    lng: Number(point.lng.toFixed(1)),
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -334,8 +329,33 @@ export async function GET(req: NextRequest) {
             d.deal_analysis?.valuation,
             d.sell_estimate,
           );
+          const price = sourcePriceContext(d);
+          const bidCheckedAt = d.price_evidence?.checkedAt;
+          const bidCheckedTime =
+            bidCheckedAt == null ? null : Date.parse(bidCheckedAt);
+          const bidEvidenceCurrent =
+            bidCheckedTime == null ||
+            (Number.isFinite(bidCheckedTime) &&
+              bidCheckedTime >= Date.now() - 30 * 86400_000 &&
+              bidCheckedTime <= Date.now() + 300_000);
+          // Stored profit math must use the same acquisition amount as the displayed quote.
+          // Deposits, payments, references, unverified amounts, and corrected teaser prices
+          // cannot inherit an old GO/profit simply because the resale estimate has comps.
+          const acquisitionSupported =
+            ((["asking", "buy_now"].includes(price.kind) &&
+              price.comparisonEligible) ||
+              (price.kind === "current_bid" &&
+                d.price_evidence?.kind === "current_bid" &&
+                d.price_evidence.currentBid === price.amount &&
+                bidEvidenceCurrent &&
+                price.observationCurrent)) &&
+            price.amount != null &&
+            price.amount === Number(d.ask_price) &&
+            d.deal_analysis?.acquisitionPriceMissing !== true;
+          const economicsSupported =
+            valuation.supported && acquisitionSupported;
           const economicsNumber = (value: unknown) =>
-            valuation.supported &&
+            economicsSupported &&
             typeof value === "number" &&
             Number.isFinite(value)
               ? value
@@ -366,7 +386,7 @@ export async function GET(req: NextRequest) {
             firstSeenAt: d.first_seen_at || undefined,
             lastSeenAt: d.last_seen_at || undefined,
             auctionEndAt: d.auction_end_at || undefined,
-            price: sourcePriceContext(d),
+            price,
             distanceMiles: center
               ? (marketDistance(center, d) ?? undefined)
               : undefined,
@@ -386,10 +406,10 @@ export async function GET(req: NextRequest) {
             availabilityStatus: d.availability_status || undefined,
             mileage: d.mileage ?? undefined,
             valuationEvidence: valuation,
-            sellEstimate: economicsNumber(d.sell_estimate),
+            sellEstimate: valuation.supported ? d.sell_estimate : undefined,
             profitEstimate: economicsNumber(d.true_net_profit),
             profitScore: economicsNumber(d.profit_score),
-            dealVerdict: valuation.supported
+            dealVerdict: economicsSupported
               ? d.deal_verdict || undefined
               : undefined,
             recommendedMaxBid: economicsNumber(d.recommended_max_bid),

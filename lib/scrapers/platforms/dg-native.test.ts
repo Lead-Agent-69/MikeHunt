@@ -7,6 +7,7 @@ import {
   parseDgInventory,
 } from "./dealer-cms";
 import { dealerDetailPhotos } from "../dealer-detail-photos";
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
 
 const site = dealerCmsSiteFor("https://dgautollc.com")!;
 const slug = "/2022-ford-f250-platinum-fx4-4x4-1ft7w2bt3nec06696/";
@@ -52,6 +53,27 @@ describe("D&G native inventory", () => {
     );
     expect(page.cards).toHaveLength(1);
     expect(page.duplicates).toBe(1);
+  });
+  it("carries the verified native asking amount through to customer price classification", () => {
+    const deal = cardToDeal(parse(inventory()).cards[0], site)!;
+    const price = sourcePriceContext({
+      source: deal.source,
+      source_url: deal.source_url,
+      ask_price: deal.ask_price,
+      price_evidence: deal.options?.priceEvidence,
+    });
+    expect(price).toMatchObject({
+      kind: "asking",
+      amount: 38_900,
+      cashPrice: 38_900,
+      label: "Asking price",
+    });
+    // Other CMS layouts do not establish what their headline price means.
+    const unverified = cardToDeal(parse(inventory()).cards[0], {
+      ...site,
+      layout: "cards",
+    })!;
+    expect(unverified.options?.priceEvidence).toBeUndefined();
   });
 
   it("excludes recreational carts rather than counting them as car coverage", () => {
