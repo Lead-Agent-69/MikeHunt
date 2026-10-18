@@ -40,6 +40,7 @@ export type MarketFacetSelection = Partial<
 };
 
 type Props = {
+  collapsible?: boolean;
   facets?: MarketFacets;
   total: number;
   busy?: boolean;
@@ -72,6 +73,7 @@ function selectionCount(...values: (string | string[] | undefined)[]): number {
 }
 
 export function MarketFacetStudio({
+  collapsible = true,
   facets,
   total,
   busy = false,
@@ -127,37 +129,39 @@ export function MarketFacetStudio({
       aria-busy={busy}
       className="overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)]"
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
-      >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--s2)] text-[var(--blue)]">
-          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-[var(--t1)]">
-            Smart filter studio
+      {collapsible && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+          className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--s2)] text-[var(--blue)]">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           </span>
-          <span className="block text-[11px] text-[var(--t4)]">
-            {busy
-              ? "Updating live facets…"
-              : `Explore live facets from ${total.toLocaleString()} matching listings`}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-[var(--t1)]">
+              Smart filter studio
+            </span>
+            <span className="block text-[11px] text-[var(--t4)]">
+              {busy
+                ? "Updating live facets…"
+                : `Explore live facets from ${total.toLocaleString()} matching listings`}
+            </span>
           </span>
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 text-[var(--t4)] transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
+          <ChevronDown
+            className={`h-4 w-4 text-[var(--t4)] transition-transform ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+      )}
 
-      {open && (
+      {(open || !collapsible) && (
         <div className="border-t border-[var(--b1)]">
           <div
             role="tablist"
             aria-label="Market filter categories"
-            className="flex gap-1 overflow-x-auto border-b border-[var(--b1)] px-3 py-2"
+            className="grid grid-cols-2 gap-1 border-b border-[var(--b1)] p-2 sm:flex sm:overflow-x-auto"
           >
             {TABS.map((name) => (
               <button
@@ -459,7 +463,7 @@ function PriceMileageMatrix({
   );
   if (!priceBands.length || !mileageBands.length) {
     return (
-      <div className="grid min-h-72 place-items-center rounded-xl border border-[var(--b1)] bg-[var(--s0)] text-xs text-[var(--t4)]">
+      <div className="grid min-h-24 place-items-center rounded-xl border border-[var(--b1)] bg-[var(--s0)] text-xs text-[var(--t4)]">
         Price and mileage evidence is not available yet.
       </div>
     );
@@ -470,12 +474,85 @@ function PriceMileageMatrix({
         <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t2)]">
           Price × mileage
         </h3>
-        <p className="mt-1 text-[10px] text-[var(--t4)]">
+        <p className="mt-1 hidden text-[10px] text-[var(--t4)] sm:block">
           Select a cell to filter both ranges. Cells use reported advertised
           price and mileage; unreported values stay separate.
         </p>
       </div>
-      <div className="overflow-x-auto pb-1">
+      <div className="space-y-3 sm:hidden">
+        <p className="text-xs text-[var(--t3)]">
+          Choose ranges for reported price and mileage. Check Evidence for
+          unreported values.
+        </p>
+        {(
+          [
+            {
+              key: "price",
+              label: "Advertised price range",
+              bands: priceBands,
+              from: selected.priceMin,
+              to: selected.priceMax,
+            },
+            {
+              key: "mileage",
+              label: "Mileage range",
+              bands: mileageBands,
+              from: selected.mileageMin,
+              to: selected.mileageMax,
+            },
+          ] as const
+        ).map((axis) => {
+          const active = axis.bands.find(
+            (band) =>
+              String(band.from) === axis.from &&
+              (band.to == null ? "" : String(band.to)) === (axis.to || ""),
+          );
+          return (
+            <label
+              key={axis.key}
+              className="block text-xs font-semibold text-[var(--t3)]"
+            >
+              {axis.label}
+              <select
+                className="field mt-1 min-h-11 !w-full"
+                value={active ? String(active.from) : ""}
+                onChange={(event) => {
+                  const band = axis.bands.find(
+                    (entry) => String(entry.from) === event.target.value,
+                  );
+                  if (!band) return;
+                  if (axis.key === "price")
+                    onSelect(
+                      band.from,
+                      band.to,
+                      Number(selected.mileageMin) || 0,
+                      selected.mileageMax ? Number(selected.mileageMax) : null,
+                    );
+                  else
+                    onSelect(
+                      Number(selected.priceMin) || 0,
+                      selected.priceMax ? Number(selected.priceMax) : null,
+                      band.from,
+                      band.to,
+                    );
+                }}
+              >
+                <option value="" disabled>
+                  {axis.from || axis.to
+                    ? "Custom range (see exact filters)"
+                    : "Choose a range"}
+                </option>
+                {axis.bands.map((band) => (
+                  <option key={band.from} value={band.from}>
+                    {band.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+      <div className="hidden overflow-x-auto pb-1 sm:block">
         <div
           className="grid min-w-[42rem] gap-1"
           style={{

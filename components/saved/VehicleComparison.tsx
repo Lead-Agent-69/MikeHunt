@@ -163,16 +163,29 @@ export function VehicleComparison({
     0,
     data.findIndex((candidate) => candidate.id === selectedId),
   );
+  function visibleColumns(region: HTMLDivElement) {
+    const mobile = Array.from(
+      region.querySelectorAll<HTMLElement>('[data-comparison-column="mobile"]'),
+    );
+    const isMobile = !!mobile[0]?.getBoundingClientRect().width;
+    return {
+      columns: isMobile
+        ? mobile
+        : Array.from(
+            region.querySelectorAll<HTMLElement>('thead th[scope="col"]'),
+          ),
+      labelWidth: isMobile
+        ? 0
+        : region.querySelector("thead th")?.getBoundingClientRect().width || 0,
+    };
+  }
   function showColumn(index: number) {
     const region = comparisonRef.current;
-    const column = region?.querySelectorAll<HTMLTableCellElement>(
-      'thead th[scope="col"]',
-    )[index];
-    if (!region || !column || !data?.[index]) return;
+    if (!region || !data?.[index]) return;
+    const { columns, labelWidth } = visibleColumns(region);
+    const column = columns[index];
+    if (!column) return;
     setSelectedId(data[index].id);
-    const labelWidth = region
-      .querySelector("thead th")!
-      .getBoundingClientRect().width;
     region.scrollTo({
       left: Math.max(
         0,
@@ -316,9 +329,72 @@ export function VehicleComparison({
     },
   ];
 
+  const visibleRows = rows
+    .filter((row) => row.visible !== false)
+    .filter(
+      (row) =>
+        !differencesOnly ||
+        [
+          "Price type",
+          "Reported amount",
+          "Buy-now price",
+          "Known-cost subtotal",
+          "Availability",
+          "All-in cost",
+          "Next check",
+        ].includes(row.label) ||
+        new Set(data.map(row.value)).size > 1,
+    );
+
+  const candidateHeader = (c: Candidate) => (
+    <>
+      <div className="relative aspect-[4/3] max-h-44 w-full overflow-hidden rounded bg-[var(--s2)]">
+        <PhotoPreviewButton
+          images={c.images}
+          title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
+        />
+        <ListingThumbnail
+          images={c.images}
+          title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
+        />
+      </div>
+      <Link
+        href={`/deal/${c.id}`}
+        prefetch={false}
+        className="inline-flex min-h-11 items-center text-[var(--blue)]"
+      >
+        {c.year} {c.make} {c.model}
+      </Link>
+      <p className="text-lg text-[var(--t1)]">
+        {prices.get(c.id)!.amount != null
+          ? money(prices.get(c.id)!.amount!)
+          : "Price not reported"}
+      </p>
+      <p className="text-xs font-normal text-[var(--t3)]">
+        {prices.get(c.id)!.label} · {sourceMeta(c.source || "").label}
+      </p>
+      {prices.get(c.id)!.advertisedAmount != null &&
+        prices.get(c.id)!.advertisedAmount !== prices.get(c.id)!.amount && (
+          <p className="text-xs font-normal text-[var(--t3)]">
+            Advertised amount {money(prices.get(c.id)!.advertisedAmount!)}
+          </p>
+        )}
+      {vendorIdentity(c.source, c.sourceUrl).href && (
+        <a
+          href={vendorIdentity(c.source, c.sourceUrl).href!}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-11 items-center text-xs font-medium text-[var(--blue)]"
+        >
+          Original listing
+        </a>
+      )}
+    </>
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0">
         <Link
           href={returnLink.href}
           prefetch={false}
@@ -353,7 +429,7 @@ export function VehicleComparison({
           </button>
         </div>
       )}
-      <p id="comparison-cost-note" className="text-sm text-[var(--t3)]">
+      <p id="comparison-cost-note" className="text-xs text-[var(--t3)]">
         Listing claims and estimated costs. A lower subtotal alone does not
         establish a better vehicle.
       </p>
@@ -414,17 +490,39 @@ export function VehicleComparison({
         role="region"
         aria-label="Selected vehicle comparison"
         tabIndex={0}
+        aria-describedby="comparison-cost-note"
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+            event.preventDefault();
+            showColumn(
+              Math.max(
+                0,
+                Math.min(
+                  data.length - 1,
+                  selectedIndex + (event.key === "ArrowRight" ? 1 : -1),
+                ),
+              ),
+            );
+          }
+        }}
         onScroll={(event) => {
           const region = event.currentTarget;
-          const labelWidth = region
-            .querySelector("thead th")!
-            .getBoundingClientRect().width;
-          const left = region.getBoundingClientRect().left + labelWidth;
-          const columns = Array.from(
-            region.querySelectorAll<HTMLTableCellElement>(
-              'thead th[scope="col"]',
-            ),
-          );
+          const { columns, labelWidth } = visibleColumns(region);
+          if (!columns.length) return;
+          const bounds = region.getBoundingClientRect();
+          const selectedColumn =
+            columns[data.findIndex((candidate) => candidate.id === selectedId)];
+          const selectedBounds = selectedColumn?.getBoundingClientRect();
+          // At the end of a two-column phone viewport the last vehicle sits on the right.
+          // Keep the user's explicit selection while it is fully visible.
+          if (
+            selectedBounds &&
+            selectedBounds.left >= bounds.left + labelWidth - 1 &&
+            selectedBounds.right <= bounds.right + 1
+          )
+            return;
+          const left = bounds.left + labelWidth;
           const nearest = columns.reduce(
             (best, column, index) =>
               Math.abs(column.getBoundingClientRect().left - left) <
@@ -437,7 +535,55 @@ export function VehicleComparison({
         }}
         className="overflow-x-auto border border-[var(--b1)] rounded-lg"
       >
-        <table className="w-full text-sm [overflow-wrap:anywhere]">
+        <div
+          className="sm:hidden"
+          style={{
+            width: `${(data.length / Math.min(data.length, 2)) * 100}%`,
+          }}
+        >
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {data.map((c) => (
+              <div
+                key={c.id}
+                data-comparison-column="mobile"
+                className="min-w-0 border-r border-[var(--b1)] p-2 text-sm font-semibold [overflow-wrap:anywhere]"
+              >
+                {candidateHeader(c)}
+              </div>
+            ))}
+          </div>
+          {visibleRows.map((row) => (
+            <section key={row.label} className="border-t border-[var(--b1)]">
+              <h2 className="sticky left-0 w-fit max-w-[calc(100vw-24px)] px-2 pt-2 text-xs font-bold text-[var(--t3)]">
+                {row.label}
+              </h2>
+              <dl
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {data.map((c) => (
+                  <div
+                    key={c.id}
+                    className="min-w-0 border-r border-[var(--b1)] px-2 pb-3 pt-1 text-sm [overflow-wrap:anywhere]"
+                  >
+                    <dt className="sr-only">
+                      {c.year} {c.make} {c.model}: {row.label}
+                    </dt>
+                    <dd>{row.value(c)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
+        <table className="hidden w-full text-sm [overflow-wrap:anywhere] sm:table">
           <caption className="sr-only">
             Selected vehicles: prices, condition and costs
           </caption>
@@ -450,88 +596,29 @@ export function VehicleComparison({
                 <th
                   key={c.id}
                   scope="col"
-                  className="min-w-[calc(100vw-160px)] w-[calc(100vw-160px)] sm:min-w-52 sm:w-64 p-3 text-left align-top"
+                  className="min-w-52 w-64 p-3 text-left align-top"
                 >
-                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded bg-[var(--s2)]">
-                    <PhotoPreviewButton
-                      images={c.images}
-                      title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
-                    />
-                    <ListingThumbnail
-                      images={c.images}
-                      title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
-                    />
-                  </div>
-                  <Link
-                    href={`/deal/${c.id}`}
-                    prefetch={false}
-                    className="inline-flex min-h-11 items-center text-[var(--blue)]"
-                  >
-                    {c.year} {c.make} {c.model}
-                  </Link>
-                  <p className="text-lg text-[var(--t1)]">
-                    {prices.get(c.id)!.amount != null
-                      ? money(prices.get(c.id)!.amount!)
-                      : "Price not reported"}
-                  </p>
-                  <p className="text-xs font-normal text-[var(--t3)]">
-                    {prices.get(c.id)!.label} ·{" "}
-                    {sourceMeta(c.source || "").label}
-                  </p>
-                  {prices.get(c.id)!.advertisedAmount != null &&
-                    prices.get(c.id)!.advertisedAmount !==
-                      prices.get(c.id)!.amount && (
-                      <p className="text-xs font-normal text-[var(--t3)]">
-                        Advertised amount{" "}
-                        {money(prices.get(c.id)!.advertisedAmount!)}
-                      </p>
-                    )}
-                  {vendorIdentity(c.source, c.sourceUrl).href && (
-                    <a
-                      href={vendorIdentity(c.source, c.sourceUrl).href!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex min-h-11 items-center text-xs font-medium text-[var(--blue)]"
-                    >
-                      Original listing
-                    </a>
-                  )}
+                  {candidateHeader(c)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows
-              .filter((row) => row.visible !== false)
-              .filter(
-                (row) =>
-                  !differencesOnly ||
-                  [
-                    "Price type",
-                    "Reported amount",
-                    "Buy-now price",
-                    "Known-cost subtotal",
-                    "Availability",
-                    "All-in cost",
-                    "Next check",
-                  ].includes(row.label) ||
-                  new Set(data.map(row.value)).size > 1,
-              )
-              .map((row) => (
-                <tr key={row.label} className="border-t border-[var(--b1)]">
-                  <th
-                    scope="row"
-                    className="sticky left-0 z-10 min-w-24 w-24 bg-[var(--s0)] p-3 text-left text-xs font-medium text-[var(--t3)]"
-                  >
-                    {row.label}
-                  </th>
-                  {data.map((c) => (
-                    <td key={c.id} className="p-3 align-top">
-                      {row.value(c)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+            {visibleRows.map((row) => (
+              <tr key={row.label} className="border-t border-[var(--b1)]">
+                <th
+                  scope="row"
+                  className="sticky left-0 z-10 min-w-24 w-24 bg-[var(--s0)] p-3 text-left text-xs font-medium text-[var(--t3)]"
+                >
+                  {row.label}
+                </th>
+                {data.map((c) => (
+                  <td key={c.id} className="p-3 align-top">
+                    {row.value(c)}
+                  </td>
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
