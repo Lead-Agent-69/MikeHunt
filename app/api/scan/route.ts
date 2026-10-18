@@ -48,7 +48,7 @@ import {
 import {
   uniqueDbSources,
   applySelectedSources,
-  sellerTypeSourceValues,
+  applySellerTypes,
   sourceUrlNeedles,
   applyVehicleDetails,
   applyInventoryLane,
@@ -1192,7 +1192,12 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
-  query = applyLiveAuctionWindow(applyCustomerInventory(query));
+  query = applyLiveAuctionWindow(
+    applyCustomerInventory(query, Date.now(), {
+      includeWithoutPhotos: searchParams.get("hasPhotos") === "no",
+      observedDays: Number(searchParams.get("seenWithin")),
+    }),
+  );
 
   if (
     !hasAuctionDetailFilters(searchParams) &&
@@ -1291,8 +1296,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (sellerType && sellerType !== "all") {
-    const sellerSources = sellerTypeSourceValues(sellerType);
-    if (sellerSources.length) query = query.in("source", sellerSources);
+    query = applySellerTypes(query, [sellerType]);
   }
 
   // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.

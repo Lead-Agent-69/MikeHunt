@@ -11,7 +11,7 @@ import {
   applyRepairEligibility,
   applySelectedSources,
   applyVehicleDetails,
-  sellerTypeSourceValues,
+  applySellerTypes,
 } from "./inventory-filters";
 
 export const INVENTORY_SEARCH_KEYS = Array.from(
@@ -71,7 +71,12 @@ export function inventoryScopeStates(
 
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   let q = applyVehicleDetails(
-    applyLiveAuctionWindow(applyCustomerInventory(query)),
+    applyLiveAuctionWindow(
+      applyCustomerInventory(query, Date.now(), {
+        includeWithoutPhotos: params.get("hasPhotos") === "no",
+        observedDays: Number(params.get("seenWithin")),
+      }),
+    ),
     params,
   );
   q = applyInventoryLane(q, params.get("lane") || "all");
@@ -128,8 +133,7 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     ["maxYear", "year", "lte"],
   ])
     if (params.get(key)) q = q[method](column, Number(params.get(key)));
-  const sellers = sellerTypeSourceValues(params.get("sellerType") || "");
-  if (sellers.length) q = q.in("source", sellers);
+  q = applySellerTypes(q, [params.get("sellerType") || ""]);
   // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
   const titleFilter = titleCategoryOrFilter(
     parseTitleTypes(params.get("titleType")),

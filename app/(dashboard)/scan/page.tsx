@@ -2911,6 +2911,11 @@ function ScanPageInner() {
     if (scopedSellerType) setSellerTypeFilter(scopedSellerType);
     if (scopedMaxPrice) setMaxPrice(normalizeMaxPriceFilter(scopedMaxPrice));
     if (scopedMinPrice) setMinPrice(scopedMinPrice);
+    if (savedParams.has("model")) setModel(savedParams.get("model")!);
+    if (savedParams.has("maxMileage"))
+      setMaxMileage(savedParams.get("maxMileage")!);
+    if (savedParams.has("minYear")) setMinYear(savedParams.get("minYear")!);
+    if (savedParams.has("maxYear")) setMaxYear(savedParams.get("maxYear")!);
     if (scopedDealerSourceIds) {
       setDealerSourceIdsFilter(
         scopedDealerSourceIds

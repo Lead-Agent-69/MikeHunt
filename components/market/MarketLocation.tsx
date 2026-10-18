@@ -70,7 +70,7 @@ export function MarketLocation({
             <span className="sr-only lg:not-sr-only">Vehicle or VIN</span>
             <input
               aria-label="Search make, model or VIN"
-              placeholder="Make, model or VIN"
+              placeholder="Vehicle or VIN"
               value={search.value}
               onChange={(event) => search.onChange(event.target.value)}
               className="field min-h-11 min-w-0 !w-full !py-2 !text-base lg:mt-1"
@@ -86,14 +86,14 @@ export function MarketLocation({
             id="market-search-location"
             aria-label="Search location"
             list="market-city-anchors"
-            placeholder="ZIP or city, state"
+            placeholder="ZIP or city"
             value={near}
             onChange={(event) => setNear(event.target.value)}
             maxLength={100}
             className="field min-h-11 !w-full !py-2 !text-base"
           />
         </label>
-        <div className="col-span-2 grid min-w-0 grid-cols-[5.75rem_2.75rem_2.75rem_minmax(0,1fr)] gap-2 lg:contents">
+        <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] gap-2 min-[360px]:grid-cols-[6.75rem_2.75rem_2.75rem_minmax(0,1fr)] lg:contents">
           <label className="min-w-0 text-xs font-semibold text-[var(--t3)]">
             <span className="sr-only lg:not-sr-only">Radius</span>
             <select
@@ -104,7 +104,7 @@ export function MarketLocation({
             >
               {[25, 50, 100, 150, 200, 250, 500, 1000].map((miles) => (
                 <option key={miles} value={miles}>
-                  {miles.toLocaleString()} miles
+                  {miles.toLocaleString()} mi
                 </option>
               ))}
             </select>
@@ -158,7 +158,7 @@ export function MarketLocation({
                 className={`h-4 w-4 ${locating ? "animate-pulse" : ""}`}
               />
             </button>
-            <label className="min-w-0 lg:w-auto lg:flex-1">
+            <label className="col-span-3 min-w-0 min-[360px]:col-span-1 lg:w-auto lg:flex-1">
               <span className="sr-only">Search area</span>
               <select
                 aria-label="Search area"

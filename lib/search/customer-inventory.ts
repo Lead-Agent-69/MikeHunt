@@ -1,11 +1,11 @@
 import { STALE_AFTER_HOURS } from "@/lib/deals/freshness";
 import { photoEvidence } from "@/lib/images/photo-evidence";
 
-/** Apply before count/range so empty galleries and stale rows cannot consume a page. */
+/** Default to current photo-backed inventory; explicit research may widen to at most 30 days. */
 export function applyCustomerInventory<T>(
   query: T,
   now = Date.now(),
-  options: { includeWithoutPhotos?: boolean } = {},
+  options: { includeWithoutPhotos?: boolean; observedDays?: number } = {},
 ): T {
   let scoped = query as any;
   if (!options.includeWithoutPhotos)
@@ -18,7 +18,13 @@ export function applyCustomerInventory<T>(
   return scoped
     .gte(
       "last_seen_at",
-      new Date(now - STALE_AFTER_HOURS * 3_600_000).toISOString(),
+      new Date(
+        now -
+          ([1, 7, 30].includes(options.observedDays ?? 0)
+            ? options.observedDays! * 24
+            : STALE_AFTER_HOURS) *
+            3_600_000,
+      ).toISOString(),
     )
     .lte("last_seen_at", new Date(now).toISOString());
 }

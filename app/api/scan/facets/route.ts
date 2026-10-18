@@ -30,7 +30,7 @@ import {
   applyVehicleDetails,
   uniqueDbSources,
   applySelectedSources,
-  sellerTypeSourceValues,
+  applySellerTypes,
   sourceUrlNeedles,
   validateInventoryRanges,
 } from "@/lib/search/inventory-filters";
@@ -61,7 +61,13 @@ function topCounts(map: Map<string, number>, limit = 40) {
     .map(([value, count]) => ({ value, count }));
 }
 
-function sellerBucket(source?: string | null, sourceUrl?: string | null) {
+function sellerBucket(
+  source?: string | null,
+  sourceUrl?: string | null,
+  reported?: string | null,
+) {
+  if (reported && ["dealer", "private", "auction"].includes(reported))
+    return reported;
   const s = String(source || "").toLowerCase();
   const url = String(sourceUrl || "").toLowerCase();
   if (["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"].includes(s)) {
@@ -70,12 +76,9 @@ function sellerBucket(source?: string | null, sourceUrl?: string | null) {
   if (
     s === "independent_dealer" ||
     Boolean(dealerSourceIdFromUrl(url)) ||
-    sellerTypeSourceValues("dealer").includes(s)
+    ["craigslist_dealer", "carvana", "vroom", "carmax"].includes(s)
   ) {
     return "dealer";
-  }
-  if (["craigslist", "facebook_marketplace", "offerup"].includes(s)) {
-    return "private";
   }
   return null;
 }
@@ -88,6 +91,7 @@ export function buildScanFacetSummary(
     condition?: string | null;
     source?: string | null;
     source_url?: string | null;
+    seller_type?: string | null;
   }>,
 ) {
   const makes = new Map<string, number>();
@@ -99,7 +103,7 @@ export function buildScanFacetSummary(
     if (r.make) makes.set(r.make, (makes.get(r.make) || 0) + 1);
     if (r.location_state) states.add(r.location_state);
     if (r.year) years.add(Number(r.year));
-    inc(sellerTypes, sellerBucket(r.source, r.source_url));
+    inc(sellerTypes, sellerBucket(r.source, r.source_url, r.seller_type));
     const sourceId =
       dealerSourceIdFromUrl(r.source_url) ||
       displaySource(r.source, r.source_url) ||
@@ -195,9 +199,14 @@ export async function GET(req: NextRequest) {
       location,
       cascade
         ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
-        : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url",
+        : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url,seller_type:options->>sellerType",
     ).eq("active", true);
-    query = applyLiveAuctionWindow(applyCustomerInventory(query));
+    query = applyLiveAuctionWindow(
+      applyCustomerInventory(query, Date.now(), {
+        includeWithoutPhotos: params.get("hasPhotos") === "no",
+        observedDays: Number(params.get("seenWithin")),
+      }),
+    );
     if (
       !hasAuctionDetailFilters(params) &&
       !wantsAuctionInventory({
@@ -250,8 +259,7 @@ export async function GET(req: NextRequest) {
     if (source && source !== "all") {
       query = applySelectedSources(query, selectedSourceIds(source));
     }
-    const sellers = sellerTypeSourceValues(seller);
-    if (sellers.length) query = query.in("source", sellers);
+    query = applySellerTypes(query, [seller]);
     const titleFilter = applyTitleInDb
       ? titleCategoryOrFilter(titleTypes)
       : null;

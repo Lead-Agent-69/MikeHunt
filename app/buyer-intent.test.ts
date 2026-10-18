@@ -11,6 +11,26 @@ import {
 import { dealerSourceIdForHost } from "@/lib/sources/source-meta";
 
 describe("buyer intent profile", () => {
+  it("retains and projects saved model, zero mileage and year limits", () => {
+    const intent = normalizeBuyerIntent({
+      model: " Bronco ",
+      maxMileage: 0,
+      minYear: 2020,
+      maxYear: 2026,
+    });
+    expect(intent).toMatchObject({
+      model: "Bronco",
+      maxMileage: 0,
+      minYear: 2020,
+      maxYear: 2026,
+    });
+    const params = buildBuyerIntentQuery(intent);
+    expect(params.get("model")).toBe("Bronco");
+    expect(params.get("maxMileage")).toBe("0");
+    expect(params.get("minYear")).toBe("2020");
+    expect(params.get("maxYear")).toBe("2026");
+    expect(normalizeBuyerIntent({ maxMileage: -1, minYear: 12 })).toBeNull();
+  });
   it("uses account preferences over an older browser profile, including explicit repair inclusion", () => {
     const local = normalizeBuyerIntent({
       buyerMode: "personal",

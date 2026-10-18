@@ -71,6 +71,19 @@ export function InventoryViewLinks({
             key={path}
             href={`${path}?${params.toString()}`}
             prefetch={false}
+            aria-disabled={
+              params.get("hasPhotos") === "no" &&
+              ["/feed", "/swipe"].includes(path)
+                ? true
+                : undefined
+            }
+            onClick={(event) => {
+              if (
+                params.get("hasPhotos") === "no" &&
+                ["/feed", "/swipe"].includes(path)
+              )
+                event.preventDefault();
+            }}
             title={label}
             aria-current={path === current ? "page" : undefined}
             className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
@@ -79,6 +92,18 @@ export function InventoryViewLinks({
           </Link>
         ))}
       </nav>
+      {params.get("hasPhotos") === "no" && (
+        <p role="status" className="w-full text-xs text-[var(--t2)]">
+          Listings without photos are available in Results and Map. Feed and
+          Swipe require photos.
+        </p>
+      )}
+      {["7", "30"].includes(params.get("seenWithin") || "") && (
+        <p role="status" className="w-full text-xs text-[var(--t2)]">
+          Includes older observations. Confirm current price and availability
+          with the seller.
+        </p>
+      )}
       {current !== "/discover" && (
         <form
           action={current === "/discover" ? "/market" : current}

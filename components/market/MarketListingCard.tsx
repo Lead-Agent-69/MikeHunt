@@ -315,6 +315,17 @@ function ListingCard({
             · {row.valuationEvidence?.label || "Estimate basis not recorded"}
           </p>
         )}
+        {row.priceGap != null && (
+          <p className="text-xs text-[var(--t3)]">
+            Estimate minus asking:{" "}
+            {row.priceGap.toLocaleString("en-US", {
+              style: "currency",
+              currency: "USD",
+              maximumFractionDigits: 0,
+            })}{" "}
+            before repairs, fees and other costs.
+          </p>
+        )}
         {flipDesk && row.valuationEvidence?.supported === false && (
           <p className="text-xs text-[var(--t3)]">
             {row.valuationEvidence.label}. Review market evidence in listing

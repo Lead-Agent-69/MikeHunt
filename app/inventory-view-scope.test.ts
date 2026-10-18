@@ -38,6 +38,14 @@ afterEach(() => {
 });
 
 describe("cross-view scope preservation", () => {
+  it("explains photo-only views without silently removing the no-photo constraint", async () => {
+    window.history.replaceState(null, "", "/map?scope=explicit&hasPhotos=no");
+    await act(async () => root.render(React.createElement(Surface)));
+    const feed = host.querySelector('a[href^="/feed"]')!;
+    expect(feed.getAttribute("aria-disabled")).toBe("true");
+    expect(feed.getAttribute("href")).toContain("hasPhotos=no");
+    expect(host.textContent).toContain("Feed and Swipe require photos");
+  });
   it("preserves every selected market rather than just the onboarding state", async () => {
     saved.states = ["MO", "TX", "IL", "FL"];
     await act(async () => root.render(React.createElement(Surface)));

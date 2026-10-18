@@ -21,6 +21,10 @@ export type BuyerIntent = {
   sellerType?: string;
   minPrice?: number;
   maxPrice?: number;
+  maxMileage?: number | null;
+  minYear?: number | null;
+  maxYear?: number | null;
+  model?: string;
   targetProfit?: number;
   timeline?: "now" | "month" | "research";
   repairCapability?: "none" | "basic" | "advanced";
@@ -210,6 +214,24 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
     sellerType: typeof raw.sellerType === "string" ? raw.sellerType : undefined,
     minPrice: Number.isFinite(minPrice) && minPrice > 0 ? minPrice : undefined,
     maxPrice: Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : undefined,
+    ...Object.fromEntries(
+      ["maxMileage", "minYear", "maxYear"].map((key) => {
+        const value = Number(raw[key]);
+        return [
+          key,
+          raw[key] != null &&
+          raw[key] !== "" &&
+          Number.isSafeInteger(value) &&
+          value >= (key === "maxMileage" ? 0 : 1886)
+            ? value
+            : undefined,
+        ];
+      }),
+    ),
+    model:
+      typeof raw.model === "string"
+        ? raw.model.trim().slice(0, 60) || undefined
+        : undefined,
     targetProfit:
       Number.isFinite(targetProfit) && targetProfit > 0
         ? targetProfit
@@ -247,6 +269,10 @@ export function normalizeBuyerIntent(value: unknown): BuyerIntent | null {
     normalized.sellerType ||
     normalized.minPrice ||
     normalized.maxPrice ||
+    normalized.maxMileage != null ||
+    normalized.minYear ||
+    normalized.maxYear ||
+    normalized.model ||
     normalized.targetProfit ||
     normalized.preferredMakes?.length ||
     normalized.makes?.length ||
@@ -305,6 +331,11 @@ export function buildBuyerIntentQuery(
     params.set("includeRepairable", includesRepairable(intent) ? "1" : "0");
   if (intent?.minPrice) params.set("minPrice", String(intent.minPrice));
   if (intent?.maxPrice) params.set("maxPrice", String(intent.maxPrice));
+  if (intent?.maxMileage != null)
+    params.set("maxMileage", String(intent.maxMileage));
+  if (intent?.minYear) params.set("minYear", String(intent.minYear));
+  if (intent?.maxYear) params.set("maxYear", String(intent.maxYear));
+  if (intent?.model) params.set("model", intent.model);
   if (laneValue && laneValue !== "all") params.set("lane", laneValue);
   if (intent?.sellerType && intent.sellerType !== "all") {
     params.set("sellerType", intent.sellerType);

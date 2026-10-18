@@ -138,6 +138,42 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("applies model, year and mileage limits to every rail, rejecting unknown mileage", async () => {
+    const row = {
+      ...baseRow,
+      source: "independent_dealer",
+      source_url: "https://dealer.example/car",
+      auction_end_at: null,
+      condition: "clean_title",
+      damage_type: null,
+      model: "Escape",
+      year: 2021,
+      mileage: 45000,
+    };
+    rpc.mockResolvedValue({
+      data: [
+        row,
+        { ...row, id: "high-miles", mileage: 80000 },
+        { ...row, id: "unknown-miles", mileage: null },
+        { ...row, id: "old", year: 2010 },
+        { ...row, id: "wrong-model", model: "Bronco" },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const body = await (
+      await GET(
+        req(
+          "/api/discover?model=Escape&minYear=2020&maxYear=2026&maxMileage=50000",
+        ),
+      )
+    ).json();
+    expect(body.uniqueVehicles).toBe(1);
+    for (const rail of body.rails)
+      for (const deal of rail.deals) expect(deal.id).toBe("deal-1");
+    const invalid = await GET(req("/api/discover?minYear=2026&maxYear=2020"));
+    expect(invalid.status).toBe(400);
+  });
   it("preserves unknown aggregator seller types and keeps explicit bids out of ordinary feeds", async () => {
     const row = {
       ...baseRow,

@@ -352,6 +352,26 @@ describe("Scan and facets query parity", () => {
     expect(calls).toContainEqual(["eq", "location_state", "TX"]);
   });
 
+  it("uses matching no-photo and observation eligibility for results and facets", async () => {
+    for (const endpoint of [scan, facets]) {
+      calls.length = 0;
+      const response = await endpoint(
+        new NextRequest(
+          "https://example.test/api/scan?hasPhotos=no&seenWithin=7",
+        ),
+      );
+      expect(response.status).toBe(200);
+      expect(calls).not.toContainEqual(["not", "images", "is", null]);
+      const earliest = calls.filter(
+        ([method, field]) => method === "gte" && field === "last_seen_at",
+      );
+      expect(earliest.length).toBeGreaterThan(0);
+      for (const [, , cutoff] of earliest)
+        expect(Date.now() - Date.parse(String(cutoff))).toBeGreaterThan(
+          6 * 86400000,
+        );
+    }
+  });
   it("scan rows expose options.titleSource only", async () => {
     const body = await (
       await scan(new NextRequest("https://example.test/api/scan?state=TX"))

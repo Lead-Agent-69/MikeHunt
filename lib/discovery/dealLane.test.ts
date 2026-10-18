@@ -53,16 +53,39 @@ describe("dealLane — curated-site type defaults map to the right channel", () 
     ).toBe("repairable");
   });
 
-  it("independent_dealer default (run_drive) → private", () => {
+  it("keeps independent dealers in retail rather than private", () => {
     expect(
       dealLane({ source: "independent_dealer", condition: "run_drive" }),
-    ).toBe("private");
+    ).toBe("clean-retail");
   });
 
-  it("clean_retail default (clean) on a dealer site → private (no retail source)", () => {
+  it("keeps clean-title independent dealer inventory in retail", () => {
     expect(dealLane({ source: "independent_dealer", condition: "clean" })).toBe(
-      "private",
+      "clean-retail",
     );
+  });
+  it("honors explicit marketplace seller evidence without replacing repair condition", () => {
+    expect(
+      dealLane({
+        source: "ebay_motors",
+        condition: "clean_title",
+        seller_type: "private",
+      }),
+    ).toBe("private");
+    expect(
+      dealLane({
+        source: "facebook_marketplace",
+        condition: "clean_title",
+        options: { sellerType: "dealer" },
+      }),
+    ).toBe("clean-retail");
+    expect(
+      dealLane({
+        source: "independent_dealer",
+        condition: "salvage_title",
+        seller_type: "dealer",
+      }),
+    ).toBe("salvage");
   });
 
   it("auction sources still take the auction lane regardless of condition", () => {

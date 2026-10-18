@@ -9,6 +9,7 @@ import {
   applyVehicleDetails,
   applyInventoryNumericFilters,
   sellerTypeSourceValues,
+  applySellerTypes,
   validateInventoryRanges,
   INVENTORY_SOURCE_FILTERS,
   applySelectedSources,
@@ -217,7 +218,19 @@ describe("inventory filter contract", () => {
     expect(sellerTypeSourceValues("dealer")).toContain("craigslist_dealer");
     const q = query();
     applyInventoryLane(q, "private");
-    expect(q.in).toHaveBeenCalledWith("source", privateSources);
+    expect(q.or).toHaveBeenCalledWith("options->>sellerType.eq.private");
+    expect(q.in).not.toHaveBeenCalled();
+  });
+  it("requires seller evidence on mixed platforms and uses only dedicated dealer defaults", () => {
+    const q = query();
+    applySellerTypes(q, ["dealer"]);
+    const filter = q.or.mock.calls[0][0];
+    expect(filter).toContain("options->>sellerType.eq.dealer");
+    expect(filter).toContain(
+      "options->>sellerType.is.null,source.in.(independent_dealer",
+    );
+    expect(filter).not.toContain("cargurus");
+    expect(filter).not.toContain("ebay_motors");
   });
 
   it("details filter stored fields and only known parsed spec enums", () => {

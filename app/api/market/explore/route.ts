@@ -42,7 +42,13 @@ import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import { marketSourceCoverage } from "@/lib/market/source-coverage";
 import {
+  parseTitleTypes,
+  titleCategoryOrFilter,
+} from "@/lib/deals/title-category";
+import {
   applyVehicleDetails,
+  applyRepairEligibility,
+  applySellerTypes,
   applySelectedSources,
   validateInventoryRanges,
   VEHICLE_CATEGORY_FILTERS,
@@ -276,6 +282,7 @@ export async function GET(req: NextRequest) {
           q = applyLiveAuctionWindow(
             applyCustomerInventory(q, Date.now(), {
               includeWithoutPhotos: true,
+              observedDays: Number(sp.get("seenWithin")),
             }),
           );
 
@@ -297,6 +304,11 @@ export async function GET(req: NextRequest) {
           if (verdicts.length) q = q.in("deal_verdict", verdicts);
           q = applySelectedSources(q, sources);
           q = applyVehicleDetails(q, detailParams);
+          q = applyRepairEligibility(q, detailParams.get("includeRepairable"));
+          const titleFilter = titleCategoryOrFilter(
+            parseTitleTypes(detailParams.get("titleType")),
+          );
+          if (titleFilter) q = q.or(titleFilter);
           if (categories.length)
             q = q.or(
               categories
@@ -315,7 +327,7 @@ export async function GET(req: NextRequest) {
           if (model) q = q.ilike("model", `%${model}%`);
           // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
           // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
-          if (sellerTypes.length) q = q.in("options->>sellerType", sellerTypes);
+          q = applySellerTypes(q, sellerTypes);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
@@ -415,6 +427,12 @@ export async function GET(req: NextRequest) {
             mileage: d.mileage ?? undefined,
             valuationEvidence: valuation,
             sellEstimate: valuation.supported ? d.sell_estimate : undefined,
+            priceGap:
+              economicsSupported &&
+              price.kind === "asking" &&
+              d.deal_analysis?.priceImplausible !== true
+                ? d.sell_estimate - Number(d.ask_price)
+                : undefined,
             profitEstimate: economicsNumber(d.true_net_profit),
             profitScore: economicsNumber(d.profit_score),
             dealVerdict: economicsSupported
@@ -607,6 +625,7 @@ export async function GET(req: NextRequest) {
             mileage: "mileage",
             sellEstimate: "sellEstimate",
             profitEstimate: "profitEstimate",
+            priceGap: "priceGap",
             profitScore: "profitScore",
             year: "year",
             distanceMiles: "distanceMiles",

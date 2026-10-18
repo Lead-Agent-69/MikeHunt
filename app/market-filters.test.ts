@@ -3,11 +3,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_SAVED_SEARCH_KEY } from "@/hooks/useLocalSavedSearches";
+import type { Prefs } from "@/hooks/usePreferences";
 
 const state = vi.hoisted(() => ({
   mode: "personal",
   pending: false,
   keys: [] as (string | null)[],
+  prefs: {} as Prefs,
 }));
 vi.mock("swr", () => ({
   default: (key: string | null) => {
@@ -54,7 +56,7 @@ vi.mock("@/components/market/MarketListingCard", () => ({
   MarketListingCard: () => React.createElement("p", null, "Inventory results"),
 }));
 vi.mock("@/hooks/usePreferences", () => ({
-  usePreferences: () => ({ prefs: {} }),
+  usePreferences: () => ({ prefs: state.prefs }),
 }));
 import MarketPage from "./(dashboard)/market/page";
 let root: Root;
@@ -65,6 +67,7 @@ beforeEach(() => {
   state.mode = "personal";
   state.pending = false;
   state.keys = [];
+  state.prefs = {};
   localStorage.clear();
   host = document.createElement("div");
   root = createRoot(host);
@@ -79,6 +82,116 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("normalizes legacy all-source and all-make links rather than requesting an invalid source", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?source=all&make=all&scope=explicit",
+    );
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.has("sources")).toBe(false);
+    expect(params.has("makes")).toBe(false);
+  });
+  it("replaces a legacy unknown-title constraint when the user chooses clean title", async () => {
+    window.history.replaceState(null, "", "/market?titleType=unknown");
+    await render();
+    const toggle = host.querySelector<HTMLButtonElement>(
+      '[aria-controls="market-filter-panel"]',
+    )!;
+    act(() => toggle.click());
+    const clean = Array.from(
+      host.querySelectorAll<HTMLButtonElement>(
+        '[aria-label="Quick market filters"] button',
+      ),
+    ).find((button) => button.textContent === "Clean title")!;
+    act(() => clean.click());
+    const params = new URLSearchParams(window.location.search);
+    expect(params.has("titleType")).toBe(false);
+    expect(params.get("conditions")).toBe("clean_title");
+  });
+  it("uses saved buying limits only for a fresh search, not an explicit shared search", async () => {
+    state.prefs = {
+      buyerScope: {
+        model: "Bronco",
+        maxMileage: 50000,
+        minYear: 2020,
+        maxYear: 2026,
+        maxPrice: 30000,
+        includeRepairable: false,
+      },
+    };
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("model")).toBe("Bronco");
+    expect(params.get("mileageMax")).toBe("50000");
+    expect(params.get("yearMin")).toBe("2020");
+    expect(params.get("priceMax")).toBe("30000");
+    expect(params.get("includeRepairable")).toBe("0");
+    act(() => {
+      window.history.replaceState(
+        null,
+        "",
+        "/market?scope=explicit&model=Civic",
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    const explicit = new URLSearchParams(window.location.search);
+    expect(explicit.get("model")).toBe("Civic");
+    expect(explicit.has("mileageMax")).toBe(false);
+  });
+  it("does not turn legacy zero budgets into an invalid maximum-price filter", async () => {
+    state.prefs = { buyerScope: { minPrice: 0, maxPrice: 0, maxMileage: 0 } };
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.has("priceMin")).toBe(false);
+    expect(params.has("priceMax")).toBe(false);
+    expect(params.get("mileageMax")).toBe("0");
+  });
+  it("applies the visible source selector without opening advanced controls", async () => {
+    await render();
+    const source = host.querySelector<HTMLSelectElement>(
+      '[aria-label="Quick source or dealer"]',
+    )!;
+    act(() => Simulate.change(source, { target: { value: "copart" } } as any));
+    expect(new URLSearchParams(window.location.search).get("sources")).toBe(
+      "copart",
+    );
+  });
+  it("retains unknown title, repair exclusion and price-gap sort from other views", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?titleType=unknown&includeRepairable=0&sort=margin&maxMileage=50000",
+    );
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("titleType")).toBe("unknown");
+    expect(params.get("includeRepairable")).toBe("0");
+    expect(params.get("sort")).toBe("priceGap");
+    expect(params.get("mileageMax")).toBe("50000");
+    expect(
+      host.querySelector('[aria-label="Save search on this device"]'),
+    ).not.toBeNull();
+  });
+  it("exposes and applies everyday mileage controls before opening advanced filters", async () => {
+    await render();
+    const controls = host.querySelector(
+      '[aria-label="Everyday search filters"]',
+    )!;
+    const mileage = controls.querySelector<HTMLInputElement>(
+      '[aria-label="Quick maximum mileage"]',
+    )!;
+    act(() => Simulate.change(mileage, { target: { value: "50000" } } as any));
+    expect(new URLSearchParams(window.location.search).get("mileageMax")).toBe(
+      "50000",
+    );
+    expect(
+      host
+        .querySelector('[aria-controls="market-filter-panel"]')!
+        .getAttribute("aria-expanded"),
+    ).toBe("false");
+  });
   it("preserves a typed comma so users can enter multiple makes", async () => {
     await render();
     const input = host.querySelector<HTMLInputElement>('[aria-label="Makes"]')!;

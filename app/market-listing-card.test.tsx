@@ -51,6 +51,24 @@ beforeEach(() => {
   root = createRoot(host);
 });
 
+it.each([0, -1500, 2500])(
+  "labels a %s price gap as before-cost evidence, never profit",
+  async (gap) => {
+    await act(async () =>
+      root.render(
+        <MarketListingCard
+          row={{ ...listing([]), priceGap: gap }}
+          flipDesk={false}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain(
+      `Estimate minus asking: ${gap.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`,
+    );
+    expect(host.textContent).toContain("before repairs, fees and other costs");
+  },
+);
+
 it.each([
   ["asking", "Asking price"],
   ["current_bid", "Current bid"],

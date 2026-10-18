@@ -194,22 +194,6 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
     else if (["private", "clean-retail"].includes(lane))
       params.set("lanes", lane);
   }
-  if (!params.has("conditions")) {
-    const conditions = (params.get("titleType") || "")
-      .split(",")
-      .map(
-        (value) =>
-          ({
-            clean: "clean_title",
-            rebuilt: "rebuilt_title",
-            salvage: "salvage_title",
-            rebuildable: "repairable",
-          })[value.trim().toLowerCase()],
-      )
-      .filter(Boolean);
-    if (conditions.length) params.set("conditions", conditions.join(","));
-  }
-
   const legacySort = params.get("sort");
   const sortMap: Record<string, [string, "asc" | "desc"]> = {
     price: ["askPrice", "asc"],
@@ -217,7 +201,7 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
     "price-desc": ["askPrice", "desc"],
     newest: ["lastSeenAt", "desc"],
     profit: ["profitEstimate", "desc"],
-    margin: ["profitEstimate", "desc"],
+    margin: ["priceGap", "desc"],
     score: ["profitScore", "desc"],
     mileage: ["mileage", "asc"],
     year: ["year", "desc"],
@@ -252,6 +236,8 @@ export default function MarketPage() {
   const [showMap, setShowMap] = React.useState(false);
   const set = (patch: Partial<Filters>) => {
     setPage(0);
+    if (patch.conditions)
+      setDetails((current) => ({ ...current, titleType: "" }));
     setF((p) => ({
       ...p,
       ...patch,
@@ -262,6 +248,8 @@ export default function MarketPage() {
   };
   const setDetail = (key: string, value: string) => {
     setPage(0);
+    if (key === "titleType")
+      setF((current) => ({ ...current, conditions: [] }));
     setDetails((current) => ({ ...current, [key]: value }));
   };
   const reset = () => {
@@ -276,6 +264,30 @@ export default function MarketPage() {
       normalizeLegacyMarketParams(params);
       const next = { ...EMPTY };
       if (!params.toString()) {
+        const buying = prefs.buyerScope;
+        for (const key of [
+          "minPrice",
+          "maxPrice",
+          "maxMileage",
+          "minYear",
+          "maxYear",
+        ] as const) {
+          const value = buying?.[key];
+          if (
+            value != null &&
+            Number.isFinite(value) &&
+            value >= (key === "maxMileage" ? 0 : 1)
+          )
+            params.set(key, String(value));
+        }
+        if (buying?.model) params.set("model", buying.model);
+        if (buying?.titleType) params.set("titleType", buying.titleType);
+        if (buying?.sellerType) params.set("sellerType", buying.sellerType);
+        const makes = buying?.makes || buying?.preferredMakes;
+        if (makes?.length) params.set("makes", makes.join(","));
+        if (typeof buying?.includeRepairable === "boolean")
+          params.set("includeRepairable", buying.includeRepairable ? "1" : "0");
+        normalizeLegacyMarketParams(params);
         if (/^\d{5}$/.test(prefs.homeLocation?.zip || "")) {
           next.near = prefs.homeLocation!.zip!;
           next.radius = String(prefs.homeLocation?.radiusMi || 100);
@@ -291,7 +303,14 @@ export default function MarketPage() {
         const value = params.get(key);
         if (value == null) continue;
         if (Array.isArray(EMPTY[key]))
-          (next as any)[key] = value.split(",").filter(Boolean);
+          (next as any)[key] = value
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(
+              (entry) =>
+                entry &&
+                !["all", "any", "nationwide"].includes(entry.toLowerCase()),
+            );
         else (next as any)[key] = value;
       }
       next.mode = next.mode === "curated" ? "curated" : "all";
@@ -300,6 +319,7 @@ export default function MarketPage() {
         ![
           "askPrice",
           "profitEstimate",
+          "priceGap",
           "profitScore",
           "sellEstimate",
           "mileage",
@@ -321,7 +341,13 @@ export default function MarketPage() {
       window.removeEventListener("popstate", restore);
       window.removeEventListener("inventory-scope-change", restore);
     };
-  }, [prefsLoading, prefs.homeLocation, prefs.carsStates, prefs.carsState]);
+  }, [
+    prefsLoading,
+    prefs.homeLocation,
+    prefs.carsStates,
+    prefs.carsState,
+    prefs.buyerScope,
+  ]);
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
@@ -618,11 +644,13 @@ export default function MarketPage() {
         <div className="flex gap-2">
           <button
             type="button"
+            aria-label="Save search on this device"
+            title="Save search on this device"
             className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white sm:px-3"
             onClick={saveCurrentSearch}
           >
             <BookmarkPlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Save search</span>
+            <span className="hidden sm:inline">Save search on device</span>
           </button>
           <button
             type="button"
@@ -664,6 +692,89 @@ export default function MarketPage() {
           onChange={set}
           search={{ value: f.q, onChange: (q) => set({ q }) }}
         />
+      )}
+      <section
+        aria-label="Everyday search filters"
+        className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-3 lg:grid-cols-6"
+      >
+        {(
+          [
+            ["makes", "Make", f.makes.join(","), "Any make"],
+            ["model", "Model", f.model, "Any model"],
+            ["priceMax", "Maximum price ($)", f.priceMax, "No maximum"],
+            ["mileageMax", "Maximum mileage", f.mileageMax, "No maximum"],
+          ] as const
+        ).map(([key, label, value, placeholder]) => (
+          <label
+            key={key}
+            className="min-w-0 text-xs font-semibold text-[var(--t2)]"
+          >
+            {label}
+            <input
+              aria-label={`Quick ${label.toLowerCase()}`}
+              value={value}
+              placeholder={placeholder}
+              type={
+                key === "priceMax" || key === "mileageMax" ? "number" : "text"
+              }
+              min={key === "priceMax" || key === "mileageMax" ? "0" : undefined}
+              className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+              onChange={(event) =>
+                set({
+                  [key]:
+                    key === "makes"
+                      ? event.target.value.split(",")
+                      : event.target.value,
+                })
+              }
+            />
+          </label>
+        ))}
+        <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+          Source or dealer
+          <select
+            aria-label="Quick source or dealer"
+            value={f.sources.length === 1 ? f.sources[0] : ""}
+            onChange={(event) =>
+              set({ sources: event.target.value ? [event.target.value] : [] })
+            }
+            className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+          >
+            <option value="">
+              {f.sources.length > 1
+                ? `${f.sources.length} selected sources`
+                : "All sources"}
+            </option>
+            {INVENTORY_SOURCE_FILTERS.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.name} -{" "}
+                {sourceMatchLabel(source.id, data?.sourceCoverage, {
+                  busy,
+                  error: !!error,
+                })}
+                {data?.sourceCoverage?.accessReviewIds?.includes(source.id)
+                  ? " - Access review"
+                  : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setShowFilters(true);
+            setShowInsights(false);
+          }}
+          className="min-h-11 self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
+        >
+          All filters
+        </button>
+      </section>
+      {["7", "30"].includes(details.seenWithin) && (
+        <p role="status" className="text-xs text-[var(--t3)]">
+          Includes older observations. Confirm current price and availability
+          with the seller.
+        </p>
       )}
       <nav
         aria-label="Market workspace"
@@ -1334,6 +1445,9 @@ export default function MarketPage() {
               className="field !w-auto text-xs"
             >
               <option value="lastSeenAt:desc">Recently seen</option>
+              <option value="priceGap:desc">
+                Largest price gap (before costs)
+              </option>
               {(f.near || f.lat) && (
                 <option value="distanceMiles:asc">Nearest first</option>
               )}

@@ -7,6 +7,7 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
   isCustomerInventory,
   listingPhotos,
@@ -567,6 +568,44 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
     const minPrice = parseInt(searchParams.get("minPrice") || "0");
+    const vehicleLimits = new URLSearchParams();
+    for (const key of ["minYear", "maxYear", "maxMileage"]) {
+      if (searchParams.has(key)) vehicleLimits.set(key, searchParams.get(key)!);
+    }
+    const rangeError = validateInventoryRanges(vehicleLimits);
+    if (rangeError)
+      return NextResponse.json({ error: rangeError }, { status: 400 });
+    const requestedModel = normalizeQuery(searchParams.get("model"));
+    vehicleLimits.set("model", requestedModel);
+    const matchesLimits = (row: any) => {
+      if (
+        requestedModel &&
+        !normalizeQuery(String(row.model || "")).includes(requestedModel)
+      )
+        return false;
+      for (const [key, field, minimum] of [
+        ["minYear", "year", true],
+        ["maxYear", "year", false],
+        ["maxMileage", "mileage", false],
+      ] as const) {
+        if (!vehicleLimits.has(key)) continue;
+        const value = row[field];
+        if (
+          value == null ||
+          value === "" ||
+          !Number.isFinite(Number(value)) ||
+          Number(value) < 0
+        )
+          return false;
+        if (
+          minimum
+            ? Number(value) < Number(vehicleLimits.get(key))
+            : Number(value) > Number(vehicleLimits.get(key))
+        )
+          return false;
+      }
+      return true;
+    };
     // Discover is an entry point, not an export. Keep the first response focused and let callers
     // opt into a slightly deeper rail without serializing the same vehicle hundreds of times.
     const requestedRailDepth = parseInt(searchParams.get("railDepth") || "12");
@@ -591,7 +630,7 @@ export async function GET(request: NextRequest) {
 
     if (!isSupabaseConfigured()) {
       const previewDeals = await cached(
-        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
+        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:${vehicleLimits}`,
         60_000,
         () =>
           publicPreviewDeals(
@@ -606,8 +645,9 @@ export async function GET(request: NextRequest) {
       );
       const eligiblePreview = previewDeals.deals.filter(
         (row: any) =>
-          !excludeRepairable ||
-          !hasReportedRepairRisk(row.condition, row.damageType, row.title),
+          matchesLimits(row) &&
+          (!excludeRepairable ||
+            !hasReportedRepairRisk(row.condition, row.damageType, row.title)),
       );
       return NextResponse.json({
         rails: eligiblePreview.length
@@ -652,7 +692,7 @@ export async function GET(request: NextRequest) {
     // per-request below from this cached, graded set (cheap), so it stays current.
     const DISCOVER_ROW_CAP = 2000;
     const { merged, rowCount, marketListingCount, coverage } = await cached(
-      `discover:recent-2000:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}`,
+      `discover:recent-2000:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}:${vehicleLimits}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -681,6 +721,7 @@ export async function GET(request: NextRequest) {
             )
           : [];
         const rows: any[] = marketRows.filter((row: any) => {
+          if (!matchesLimits(row)) return false;
           if (
             excludeRepairable &&
             hasReportedRepairRisk(row.condition, row.damage_type, row.title)

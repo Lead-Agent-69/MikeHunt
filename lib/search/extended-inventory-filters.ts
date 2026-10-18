@@ -1,3 +1,5 @@
+import { parseTitleTypes } from "@/lib/deals/title-category";
+
 export type InventoryFilterField = {
   key: string;
   label: string;
@@ -74,6 +76,25 @@ export const INVENTORY_DETAIL_GROUPS: {
   {
     label: "Condition & auction",
     fields: [
+      {
+        key: "titleType",
+        label: "Title status",
+        options: options(
+          "clean",
+          "rebuilt",
+          "salvage",
+          "rebuildable",
+          "unknown",
+        ),
+      },
+      {
+        key: "includeRepairable",
+        label: "Reported repair needs",
+        options: [
+          { value: "0", label: "Exclude reported repair needs" },
+          { value: "1", label: "Include reported repair needs" },
+        ],
+      },
       {
         key: "damage",
         label: "Damage",
@@ -191,6 +212,11 @@ export function validateExtendedFilters(
   for (const field of INVENTORY_DETAIL_FIELDS) {
     const value = params.get(field.key);
     if (!value || value === "all") continue;
+    if (
+      field.key === "titleType" &&
+      value.split(",").every((part) => parseTitleTypes(part).length === 1)
+    )
+      continue;
     if (
       field.options &&
       !field.options.some((option) => option.value === value)
