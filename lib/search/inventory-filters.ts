@@ -103,14 +103,11 @@ export function sellerTypeSourceValues(sellerType: string) {
 
 /** A mixed marketplace is not seller evidence. Explicit listing data wins over source defaults. */
 export function applySellerTypes(query: any, types: string[]) {
-  const defaults: Record<string, string[]> = {
-    dealer: [
-      "independent_dealer",
-      "craigslist_dealer",
-      "carvana",
-      "vroom",
-      "carmax",
-    ],
+  const defaults: Record<
+    string,
+    import("@/types/supabase").Database["public"]["Enums"]["deal_source"][]
+  > = {
+    dealer: ["independent_dealer", "craigslist_dealer", "carvana", "vroom"],
     auction: ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"],
     private: [],
   };

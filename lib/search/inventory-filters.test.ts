@@ -231,6 +231,7 @@ describe("inventory filter contract", () => {
     );
     expect(filter).not.toContain("cargurus");
     expect(filter).not.toContain("ebay_motors");
+    expect(filter).not.toContain("carmax");
   });
 
   it("details filter stored fields and only known parsed spec enums", () => {
