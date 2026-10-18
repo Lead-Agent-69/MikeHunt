@@ -13,7 +13,7 @@ import { gradeDataQuality } from "@/lib/data-quality";
 import { completenessScore, missingFields } from "@/lib/data-quality/sanity";
 
 const placeholder =
-  "https://thumb.autotempest.com/cgu/1HGCM82633A004352_461748235_725a472cc3c53688563f3c07811b3cc0_3_0647371b4de74ad3c65a580fb9d44269.webp";
+  "https://thumb.autotempest.com/cgu/1FDBF2AN6VEC67291_461748235_725a472cc3c53688563f3c07811b3cc0_3_0647371b4de74ad3c65a580fb9d44269.webp";
 const vehicle = "https://dealer.test/one-vehicle-photo.jpg";
 
 describe("known placeholder evidence", () => {
@@ -38,6 +38,9 @@ describe("known placeholder evidence", () => {
       ),
     ).toBe(false);
     expect(isPlaceholderPhotoUrl(vehicle)).toBe(false);
+    expect(
+      isPlaceholderPhotoUrl(placeholder.replace("461748235", "461748236")),
+    ).toBe(false);
     expect(isPlaceholderPhotoUrl("broken URL")).toBe(false);
     expect(isPlaceholderPhotoUrl("/api/image/proxy?url=/api/image/proxy")).toBe(
       false,

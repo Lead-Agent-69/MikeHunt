@@ -1,7 +1,9 @@
 // Observed on two distinct source listings on 2026-10-18; downloaded bytes matched
 // ef3211bbb7d87a7725d5b7123e1e9282a3187c1851c77d0ef57d9623753f78ab.
-const KNOWN_PLACEHOLDER_ASSET =
-  /^\/cgu\/[A-HJ-NPR-Z0-9]{17}_\d+_725a472cc3c53688563f3c07811b3cc0_3_[a-f0-9]{32}\.webp$/i;
+const KNOWN_PLACEHOLDER_PATHS = new Set([
+  "/cgu/1FDBF2AN6VEC67291_461748235_725a472cc3c53688563f3c07811b3cc0_3_0647371b4de74ad3c65a580fb9d44269.webp",
+  "/cgu/1FDBF2AN8VEC67325_461748242_725a472cc3c53688563f3c07811b3cc0_3_6a9a895bf26baab285a37fbd5a11eb14.webp",
+]);
 
 /** Known source identifiers only; an unrecognized image is not visually verified. */
 export function isPlaceholderPhotoUrl(value: string): boolean {
@@ -11,7 +13,7 @@ export function isPlaceholderPhotoUrl(value: string): boolean {
       url = new URL(url.searchParams.get("url")!, "https://local.invalid");
     if (
       url.hostname === "thumb.autotempest.com" &&
-      KNOWN_PLACEHOLDER_ASSET.test(url.pathname)
+      KNOWN_PLACEHOLDER_PATHS.has(url.pathname)
     )
       return true;
     return /(?:^|\/)(?:no[-_]?image|no[-_]?photo|car-placeholder|placeholder)(?:[-_]?\d+)?\.(?:jpe?g|png|webp|gif)$/i.test(
