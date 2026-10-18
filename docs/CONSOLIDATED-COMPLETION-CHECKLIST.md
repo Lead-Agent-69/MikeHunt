@@ -17,13 +17,18 @@ Legacy/invalid metadata remains unknown, with no runtime-env or checkout fallbac
 Verification checks the expected commit, actual image IDs, labels, loopback
 binding, container start and fresh worker status without dumping private payloads.
 
-The first 29 focused tests pass, including baked-file writing, unknown/partial
+The first 30 focused tests pass, including baked-file writing, unknown/partial
 builds, archive contents and stale/mismatched evidence. The CLI plan was checked
 against a real commit with no image build, and the read-only verifier correctly
 returned nonzero for the current unlabeled local Windows image. That negative
 check is not a deployment certification. No worker, mounts, env, quotas or hosted
 data changed. The worker's normal UTC-day rollover subsequently restored local
 write capacity without an agent reset; this is not provider usage/headroom proof.
+The first full push caught inherited Git-hook variables reaching temporary test
+repositories. That run was stopped, the fixture's Git config effects restored,
+and all Git subprocesses now strip inherited repo/index/config overrides. The
+42 focused provenance plus D&G checks pass normally and under simulated hook
+overrides; the full unmodified release gate must pass again before publication.
 
 An approved real image build/rollout, positive image/status receipt and D&G's
 accepted/freshness/source-radius checks remain open. Keep #440/#437 open until

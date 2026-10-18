@@ -3,6 +3,15 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
+/** Hooks export repo/index/config overrides; child Git commands must stay scoped to cwd. */
+export function scraperGitEnv(env: NodeJS.ProcessEnv = process.env) {
+  const clean = { ...env };
+  for (const key of Object.keys(clean)) {
+    if (key.toUpperCase().startsWith("GIT_")) delete clean[key];
+  }
+  return clean;
+}
+
 export function scraperBuildPlan(
   revision: string,
   tag: string,
@@ -27,6 +36,7 @@ export function scraperBuildPlan(
       cwd,
       encoding: "utf8",
       windowsHide: true,
+      env: scraperGitEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   if (git(["rev-parse", "--verify", `${revision}^{commit}`]) !== revision)
@@ -80,11 +90,13 @@ export async function buildScraperImage(
 ) {
   const archive = spawn("git", plan.archiveArgs, {
     cwd,
+    env: scraperGitEnv(),
     windowsHide: true,
     stdio: ["ignore", "pipe", "inherit"],
   });
   const docker = spawn("docker", plan.dockerArgs, {
     cwd,
+    env: scraperGitEnv(),
     windowsHide: true,
     stdio: ["pipe", "inherit", "inherit"],
   });
