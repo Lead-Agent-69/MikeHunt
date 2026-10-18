@@ -500,10 +500,10 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     },
   );
 
-  // Live valuation accuracy — out-of-sample backtest vs real retail prices. Heavy (loads the comp
-  // index + scores a held-out slice), so cache it an hour. Null until there's enough data.
+  // In-sample asking-price proxy; this cannot certify transaction or resale accuracy.
+  // Cache the index load and sampled scoring for an hour.
   const valuationAccuracy = await cached(
-    "status:valuation-accuracy",
+    "status:asking-price-proxy:v2",
     3600_000,
     () => computeValuationAccuracy(sb).catch(() => null),
   );
