@@ -6,23 +6,40 @@ import { readFileSync } from "node:fs";
 // Intentionally no --linked, URL, target or credential arguments.
 if (process.argv.length > 2)
   throw new Error("This test accepts no target arguments");
+if (process.env.DOCKER_HOST)
+  throw new Error(
+    "DOCKER_HOST override is not allowed in local retention tests",
+  );
 const container = "supabase_db_MikeHunt";
+let verifiedContext;
 const exec = (args, input) =>
-  execFileSync("docker", args, {
-    input,
-    encoding: "utf8",
-    timeout: 30_000,
-    maxBuffer: 1024 * 1024,
-    stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
+  execFileSync(
+    "docker",
+    verifiedContext ? ["--context", verifiedContext, ...args] : args,
+    {
+      input,
+      encoding: "utf8",
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  ).trim();
+const selectedContext = exec(["context", "show"]);
 const endpoint = JSON.parse(
-  exec(["context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"]),
+  exec([
+    "context",
+    "inspect",
+    selectedContext,
+    "--format",
+    "{{json .Endpoints.docker.Host}}",
+  ]),
 );
 assert.match(
   endpoint,
   /^(npipe:|unix:)/,
   "Only a local Docker endpoint is allowed",
 );
+verifiedContext = selectedContext;
 assert.equal(
   exec([
     "inspect",
@@ -86,7 +103,11 @@ function session(sql, singleCommand = false) {
   const command = `SET statement_timeout='12s';\n${sql}`;
   const child = spawn(
     "docker",
-    singleCommand ? [...args(database), "-c", command] : args(database),
+    [
+      "--context",
+      verifiedContext,
+      ...(singleCommand ? [...args(database), "-c", command] : args(database)),
+    ],
     {
       stdio: ["pipe", "pipe", "pipe"],
     },

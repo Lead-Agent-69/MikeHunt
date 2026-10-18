@@ -82,11 +82,14 @@ BEGIN
     RAISE EXCEPTION 'Fresh URL cache row deleted';
   END IF;
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname='cleanup-dead-deals') THEN RAISE EXCEPTION 'Unsafe legacy cron survived'; END IF;
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals' AND active) THEN
+    RAISE EXCEPTION 'Retention must remain paused after installation';
+  END IF;
   IF EXISTS (SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals' AND command ILIKE '%DELETE%vin_price_history%') THEN
     RAISE EXCEPTION 'Unprotected VIN history purge survived';
   END IF;
   IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals' AND command ILIKE '%DELETE%')
-    OR NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals'
+    OR NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='cleanup-expired-deals' AND active = false
       AND command LIKE 'SET statement_timeout = ''15s''; SET lock_timeout = ''2s''; SELECT public.prune_inventory_retention(1000);') THEN
     RAISE EXCEPTION 'Cron execution boundary or bounded owner changed';
   END IF;

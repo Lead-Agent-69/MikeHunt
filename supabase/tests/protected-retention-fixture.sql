@@ -47,6 +47,9 @@ $$;
 CREATE FUNCTION cron.schedule(text,text,text) RETURNS bigint LANGUAGE sql AS $$
   INSERT INTO cron.job(jobname,schedule,command) VALUES($1,$2,$3) RETURNING jobid;
 $$;
+CREATE FUNCTION cron.alter_job(job_id bigint, active boolean) RETURNS void LANGUAGE sql AS $$
+  UPDATE cron.job SET active = $2 WHERE jobid = $1;
+$$;
 INSERT INTO cron.job(jobname,schedule,command) VALUES
   ('cleanup-dead-deals','0 2 * * *','DELETE FROM public.deals'),
   ('cleanup-expired-deals','0 2 * * *','DELETE FROM public.deals');

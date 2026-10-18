@@ -5,8 +5,10 @@
 This candidate incorporates main #443, including pinned worker release metadata,
 queued-job local write budgets, bounded dealer-detail work, acquisition-price
 evidence and confirmed telemetry-cleanup receipts. It does not activate listing
-retention. The protected migration is unchanged from the earlier reviewed
-candidate; review and test the combined head before merge or hosted apply.
+retention. Review found that installation previously created an active deletion
+schedule. The replacement job now installs paused, with a SQL regression requiring
+`active=false`. This changes the migration from the earlier reviewed candidate;
+review and test the new exact head before merge or hosted apply.
 
 The live local worker is the separately released #443 image, not this storage-guard
 candidate. The storage-meter RPC must be installed through an approved targeted
@@ -78,7 +80,12 @@ service-only INVOKER RPC and a BEFORE DELETE guard; removes both conflicting leg
 and reuses `cleanup-expired-deals` as the sole routine listing-retention executor. It sets
 `statement_timeout=15s` and `lock_timeout=2s` BEFORE the cleanup SELECT. The function bounds each
 demotion, unreferenced-listing deletion and expired URL-cache batch to the requested limit (default
-1,000, maximum 2,000). URL-cache rows use ordered `FOR UPDATE SKIP LOCKED` and return a separate
+1,000, maximum 2,000). The replacement job is installed with `active=false` in the
+same transaction. Approved installation of the storage-meter function and guard
+does not authorize enabling the cleanup job. Activation requires separately
+approved off-device backup/restore proof and permanent-deletion approval, followed
+by operator verification of the exact job, owner, command and monitored run.
+URL-cache rows use ordered `FOR UPDATE SKIP LOCKED` and return a separate
 `url_cache_deleted` count; there is no unbounded raw DELETE after the function.
 
 Scraper cycles no longer delete listings, directly or through PostgREST. The Vercel cron handles
@@ -109,6 +116,18 @@ recorded multi-command job through one psql `-c` request with a shortened deadli
 timeout during deletion rolls back an earlier demotion. It also rejects unbounded configuration
 before mutation and checks a 1,205-row expired cache backlog stays batched while fresh rows survive.
 This is not a hosted-apply receipt, proof of arbitrary isolation levels or production-load certification.
+
+Run `node scripts/test-retention-restore.mjs` for a separate synthetic PostgreSQL
+archive/restore rehearsal. It creates two uniquely named disposable databases,
+uses the retention fixture and regressions, verifies all eleven fixture tables,
+six reference types, saved snapshots and service-only grants after a real
+`pg_dump`/`pg_restore`, and removes both databases. The archive is memory-only and
+bounded to 16 MiB; a modified archive fails the expected-hash check before restore.
+Both rehearsals reject target arguments and Docker host overrides, verify the
+local endpoint/project label, and pin the inspected context for every command.
+This tests representative fixture data, not the complete production schema or
+user records, encryption, off-device durability, source photo preservation or
+production recovery time. Production backup and restore approval remains separate.
 
 The replacement job no longer age-purges `vin_price_history`. Those observations can support saved
 research and are not disposable cache entries. Owner-aware history archival/retention needs its

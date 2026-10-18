@@ -130,9 +130,17 @@ END $$;
 -- Keep disposable URL-cache cleanup, without raw listing/history deletes.
 -- VIN price observations can back saved research; do not age-purge them until
 -- an owner-aware archival policy is reviewed and tested independently.
-DO $$ BEGIN
+DO $$
+DECLARE replacement_job_id bigint;
+BEGIN
   IF to_regclass('cron.job') IS NOT NULL THEN
-    PERFORM cron.schedule('cleanup-expired-deals', '0 2 * * *',
-      'SET statement_timeout = ''15s''; SET lock_timeout = ''2s''; SELECT public.prune_inventory_retention(1000);');
+    SELECT cron.schedule('cleanup-expired-deals', '0 2 * * *',
+      'SET statement_timeout = ''15s''; SET lock_timeout = ''2s''; SELECT public.prune_inventory_retention(1000);')
+      INTO replacement_job_id;
+    -- Installation must not activate permanent deletion before backup/restore approval.
+    PERFORM cron.alter_job(job_id := replacement_job_id, active := false);
+    IF NOT EXISTS (SELECT 1 FROM cron.job WHERE jobid = replacement_job_id AND active = false) THEN
+      RAISE EXCEPTION 'Retention replacement must install paused';
+    END IF;
   END IF;
 END $$;
