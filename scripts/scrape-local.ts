@@ -4,6 +4,10 @@ import path from "node:path";
 import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { RotatingLog } from "../lib/scrapers/rotating-log";
+import {
+  readScraperRelease,
+  type ScraperRelease,
+} from "../lib/scrapers/release-provenance";
 import { format } from "node:util";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
@@ -89,6 +93,7 @@ const LOG_PATH = path.resolve(
 const PORT = Math.max(1, Number(process.env.STATUS_PORT || 8787));
 
 interface Status {
+  release: ScraperRelease;
   state:
     | "starting"
     | "running"
@@ -313,6 +318,7 @@ async function initializeRuntime(): Promise<void> {
   });
   await cache.load();
   currentStatus = {
+    release: readScraperRelease(),
     state: "starting",
     updatedAt: new Date().toISOString(),
     startedAt,
