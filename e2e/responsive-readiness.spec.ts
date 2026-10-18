@@ -31,7 +31,7 @@ for (const desk of [
             (value) => sessionStorage.setItem("responsive-qa-theme", value),
             theme,
           );
-        for (const route of ["discover", "scan", "saved", "settings"]) {
+        for (const route of ["discover", "market", "saved", "settings"]) {
           await page.goto(`/${route}`);
           await expect(page.locator("html")).toHaveAttribute(
             "data-theme",
@@ -42,15 +42,12 @@ for (const desk of [
             await expect(
               page.getByLabel("Phone", { exact: true }),
             ).toBeVisible();
-          if (route === "scan") {
+          if (route === "market") {
             await expect(
-              page.getByRole("button", {
-                name: "Search inventory",
-                exact: true,
-              }),
+              page.getByRole("textbox", { name: "Search make, model or VIN" }),
             ).toBeEnabled();
             await expect(
-              page.locator('main a[href^="/deal/"]').first(),
+              page.locator("[data-market-vehicle]").first(),
             ).toBeVisible();
           }
           if (route === "saved")

@@ -23,7 +23,7 @@ export function DealTicker() {
   });
   if (items.length === 0) return null;
   return (
-    <div className="relative overflow-hidden py-1.5 border-y border-[var(--b1)] -mx-4 md:-mx-6">
+    <div className="relative overflow-hidden py-1.5 border-y border-[var(--b1)] [margin-inline:calc(-1*var(--workspace-gutter,1rem))]">
       <div className="ticker-inner flex flex-wrap items-center gap-x-4 gap-y-1 px-4 md:px-6">
         {items.map((it, i) => (
           <span

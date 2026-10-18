@@ -138,14 +138,14 @@ function CompareContent() {
 
   return (
     <div
-      className="max-w-4xl mx-auto px-4 py-8 space-y-6"
+      className="min-w-0 w-full space-y-3 sm:space-y-5"
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <div>
-        <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
+        <h1 className="text-xl font-black sm:text-2xl text-[var(--t1)] mb-1">
           Compare Vehicles
         </h1>
-        <p className="text-[var(--t3)]">
+        <p className="text-xs text-[var(--t3)] sm:text-sm">
           Compare costs, listing claims and outstanding checks for selected
           vehicles.
         </p>

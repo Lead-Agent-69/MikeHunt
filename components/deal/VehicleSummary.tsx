@@ -50,7 +50,13 @@ const reportedStatus = (value?: boolean | null) =>
       ? "Reported no"
       : "Not reported";
 
-export function VehicleSummary({ deal }: { deal: ListingFacts }) {
+export function VehicleSummary({
+  deal,
+  showFacts = true,
+}: {
+  deal: ListingFacts;
+  showFacts?: boolean;
+}) {
   const reportedTitle =
     typeof deal.title === "string"
       ? deal.title.replace(/\s+/g, " ").trim()
@@ -59,42 +65,12 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
     reportedTitle ||
     [deal.year, deal.make, deal.model, deal.trim].filter(Boolean).join(" ") ||
     "Vehicle listing";
-  const auctionFacts = needsOperabilityFacts(deal);
   const price = sourcePriceContext({
     source: deal.source,
     title,
     ask_price: deal.askPrice,
     price_evidence: deal.priceEvidence,
   });
-  const facts = [
-    ["Location", vehicleLocation(deal.locationCity, deal.locationState)],
-    [
-      "Mileage",
-      typeof deal.mileage === "number" &&
-      Number.isFinite(deal.mileage) &&
-      deal.mileage >= 0
-        ? `${deal.mileage.toLocaleString()} mi`
-        : "Not reported",
-    ],
-    [
-      "Title / condition",
-      (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
-    ],
-    ...(auctionFacts || deal.damageType
-      ? [["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"]]
-      : []),
-    ...(auctionFacts || typeof deal.runAndDrive === "boolean"
-      ? [["Run and drive", reportedStatus(deal.runAndDrive)]]
-      : []),
-    ...(auctionFacts || typeof deal.hasKeys === "boolean"
-      ? [["Keys", reportedStatus(deal.hasKeys)]]
-      : []),
-    ["VIN", deal.vin || "Not reported"],
-    ["Last seen", reportedDate(deal.lastSeenAt)],
-    ...(deal.auctionEndAt
-      ? [["Auction ends", reportedDate(deal.auctionEndAt)]]
-      : []),
-  ];
   return (
     <section aria-label="Vehicle summary" className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -127,16 +103,61 @@ export function VehicleSummary({ deal }: { deal: ListingFacts }) {
           before purchase.
         </p>
       )}
-      <dl className="grid grid-cols-2 gap-x-5 gap-y-2 text-xs sm:grid-cols-4">
-        {facts.map(([label, value]) => (
-          <div key={label} className="min-w-0">
-            <dt className="text-[var(--t4)]">{label}</dt>
-            <dd className="mt-0.5 break-words font-semibold text-[var(--t2)]">
-              {value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {showFacts && <VehicleFacts deal={deal} />}
     </section>
+  );
+}
+
+export function VehicleFacts({
+  deal,
+  compact = false,
+}: {
+  deal: ListingFacts;
+  compact?: boolean;
+}) {
+  const auctionFacts = needsOperabilityFacts(deal);
+  const facts = [
+    ["Location", vehicleLocation(deal.locationCity, deal.locationState)],
+    [
+      "Mileage",
+      typeof deal.mileage === "number" &&
+      Number.isFinite(deal.mileage) &&
+      deal.mileage >= 0
+        ? `${deal.mileage.toLocaleString()} mi`
+        : "Not reported",
+    ],
+    [
+      "Title / condition",
+      (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
+    ],
+    ...(auctionFacts || deal.damageType
+      ? [["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"]]
+      : []),
+    ...(auctionFacts || typeof deal.runAndDrive === "boolean"
+      ? [["Run and drive", reportedStatus(deal.runAndDrive)]]
+      : []),
+    ...(auctionFacts || typeof deal.hasKeys === "boolean"
+      ? [["Keys", reportedStatus(deal.hasKeys)]]
+      : []),
+    ["VIN", deal.vin || "Not reported"],
+    ["Last seen", reportedDate(deal.lastSeenAt)],
+    ...(deal.auctionEndAt
+      ? [["Auction ends", reportedDate(deal.auctionEndAt)]]
+      : []),
+  ];
+  return (
+    <dl
+      aria-label="Vehicle facts"
+      className={`grid grid-cols-2 gap-x-5 gap-y-3 text-xs ${compact ? "" : "sm:grid-cols-4"}`}
+    >
+      {facts.map(([label, value]) => (
+        <div key={label} className="min-w-0">
+          <dt className="text-[var(--t4)]">{label}</dt>
+          <dd className="mt-0.5 break-words font-semibold text-[var(--t2)]">
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

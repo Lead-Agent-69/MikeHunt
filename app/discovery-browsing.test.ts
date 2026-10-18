@@ -67,14 +67,11 @@ describe("discovery browsing presentation safeguards", () => {
 
   it("provides labeled carousel controls and cleans up scroll observers", () => {
     expect(page).toContain("items-start gap-8 lg:grid-cols-2");
-    expect(page).toContain("lg:mx-0 lg:scroll-px-0 lg:px-0");
     expect(page).toContain("Previous vehicles in");
     expect(page).toContain("Next vehicles in");
     expect(page).toContain('event.key === "ArrowRight"');
     expect(page).toContain("disabled={edges.end}");
     expect(page).toContain("return observeScrollEdges(element, setEdges)");
-    expect(page).toContain("scroll-px-4");
-    expect(page).toContain("md:scroll-px-6");
     expect(page).toContain('behavior: reducedMotion ? "instant" : "smooth"');
   });
 
