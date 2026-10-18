@@ -11,6 +11,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import type { DiscoveryDeal } from "./types";
 import { toast } from "sonner";
 import { signalUnsave } from "@/components/reco/deal-signals";
+import { invalidateSavedCollections } from "@/lib/saved/invalidate-collections";
 
 type SavedRow = { id: string; deal_id: string; user_id: string };
 type SaveControl = {
@@ -153,6 +154,9 @@ export function DiscoverySaveProvider({
               }
               if (currentOwner.current !== owner) return;
               // Refresh other Saved views, but do not turn a refresh failure into a failed mutation.
+              void invalidateSavedCollections(invalidate, owner).catch(
+                () => undefined,
+              );
               void invalidate(
                 (key) =>
                   typeof key === "string" &&

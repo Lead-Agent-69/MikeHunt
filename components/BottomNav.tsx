@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { Lock } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
-import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import {
   mobileNavForMode,
@@ -17,7 +16,6 @@ import {
 export function BottomNav() {
   const pathname = usePathname();
   const reducedMotion = useReducedMotion();
-  const localSaved = useLocalSavedVehicles();
 
   const { intent } = useBuyerIntent();
   const { dealerId, loading: authLoading } = useDealerId();
@@ -25,7 +23,6 @@ export function BottomNav() {
   const tabs = mobileNavForMode(intent?.buyerMode).map((item) =>
     navItemForViewer(item, signedOut),
   );
-  const watchScopeCount = localSaved.count;
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -69,13 +66,7 @@ export function BottomNav() {
               WebkitTapHighlightColor: "transparent",
             }}
             title={
-              item.signInRequired
-                ? `Sign in to use ${item.name}`
-                : item.name === "Saved" && watchScopeCount
-                  ? `${watchScopeCount} vehicle${
-                      watchScopeCount === 1 ? "" : "s"
-                    } saved on this device`
-                  : item.name
+              item.signInRequired ? `Sign in to use ${item.name}` : item.name
             }
           >
             {isActive && (
@@ -123,17 +114,6 @@ export function BottomNav() {
                 <Lock style={{ width: 10, height: 10 }} strokeWidth={2.5} />
               </span>
             )}
-            {!item.signInRequired &&
-              item.name === "Saved" &&
-              watchScopeCount > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="absolute top-1.5 left-1/2 ml-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-black text-white"
-                  style={{ background: "var(--accent)", lineHeight: 1 }}
-                >
-                  {watchScopeCount > 99 ? "99+" : watchScopeCount}
-                </span>
-              )}
             <span
               className="relative z-10"
               style={{

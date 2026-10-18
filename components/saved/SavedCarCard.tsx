@@ -282,27 +282,9 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           </div>
         )}
 
-        <CardContent className="p-5 flex flex-col sm:flex-row justify-between gap-4">
-          {snapshot.images?.[0] && (
-            <a
-              href={
-                save.deal_id ? `/deal/${save.deal_id}` : sourceHref || undefined
-              }
-              className="relative h-28 w-full shrink-0 overflow-hidden rounded-[var(--r3)] bg-[var(--s1)] sm:h-32 sm:w-44"
-              aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={snapshot.images[0]}
-                alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-                className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-              />
-              <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
-                {snapshot.images.length} photo
-                {snapshot.images.length === 1 ? "" : "s"}
-              </div>
-            </a>
-          )}
+        <CardContent
+          className={`relative p-4 sm:p-5 flex flex-col lg:flex-row justify-between gap-4 ${snapshot.images?.[0] ? "lg:pl-[13.25rem]" : ""}`}
+        >
           {/* Main Info */}
           <div className="min-w-0 space-y-2 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -371,6 +353,28 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               </span>
             </div>
 
+            {snapshot.images?.[0] && (
+              <a
+                href={
+                  save.deal_id
+                    ? `/deal/${save.deal_id}`
+                    : sourceHref || undefined
+                }
+                className="relative block h-32 w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:w-44"
+                aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={snapshot.images[0]}
+                  alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
+                  {snapshot.images.length} photo
+                  {snapshot.images.length === 1 ? "" : "s"}
+                </div>
+              </a>
+            )}
             <p className="break-words text-xs text-[var(--t4)]">
               {snapshot.odometer != null && Number.isFinite(snapshot.odometer)
                 ? `${snapshot.odometer.toLocaleString()} mi`
@@ -538,8 +542,8 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           </div>
 
           {/* Pricing & Actions */}
-          <div className="flex flex-col sm:items-end justify-between gap-4 min-w-[160px]">
-            <div className="text-left sm:text-right">
+          <div className="flex flex-col lg:items-end justify-between gap-4 min-w-[160px]">
+            <div className="text-left lg:text-right">
               {status !== "unavailable" &&
                 flipDesk &&
                 financialReady &&
