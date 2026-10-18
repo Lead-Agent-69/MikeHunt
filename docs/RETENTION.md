@@ -101,10 +101,15 @@ through a wrapper that changes the setting mid-statement. Direct PostgREST mutat
 not part of the routine execution path. Do not broadly change service-role defaults to satisfy a
 check. Verify the actual scheduled command, role, cancellation and rollback before hosted rollout.
 
-**Deployment status:** no hosted apply performed. The October 12 observation of active legacy
-jobs predates their October 13 safety pause documented above. Require revised exact-head
-independent database review, approved targeted apply, and cron/Saved-persistence proof before
-deploying dependent worker code. Historical database sizes are not current capacity receipts.
+**Deployment status (2026-10-18):** #360 merged as `b61d867c` after exact-head CI and
+independent agent review. Its targeted migration was applied with operator approval to the
+primary project. Source equality, service-only grants and all six protected-reference
+fingerprints were verified. Legacy jobs 3 and 6 were removed; replacement job 8 remains
+**inactive**. No listing cleanup was run. The local Docker Desktop worker was updated with
+an image-only override, preserving its environment, mounts, source permissions and quotas.
+The live storage meter reported 266,013,843 bytes at verification; this is a point-in-time
+measurement, not a monthly capacity guarantee. Production recovery remains unproven; see
+[the recovery checklist](production-recovery.md). Do not activate cleanup on this receipt alone.
 
 Run `node scripts/test-protected-retention.mjs` against the existing local Supabase Docker stack.
 It rejects remote Docker endpoints/target arguments, verifies the MikeHunt container label, tests
