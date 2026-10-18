@@ -50,6 +50,7 @@ import {
   YearRangeSelector,
 } from "@/components/shared/PriceRangeSelector";
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
+import { sourceMatchLabel } from "@/lib/search/source-coverage";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -939,8 +940,13 @@ export default function MarketPage() {
                 />
                 <details className="rounded-xl border border-[var(--b1)] px-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
-                    All indexed sources ({f.sources.length || "Any"})
+                    Sources & dealers ({f.sources.length || "Any"})
                   </summary>
+                  <p className="mb-3 text-xs leading-relaxed text-[var(--t3)]">
+                    Counts are indexed matches in this search, not total stock
+                    or live source health. Access review means new collection
+                    needs review; existing listings remain searchable.
+                  </p>
                   <label className="mb-2 block text-sm">
                     Find a source or dealer
                     <input
@@ -951,7 +957,7 @@ export default function MarketPage() {
                       className="mt-1 min-h-11 w-full rounded border border-[var(--b1)] bg-[var(--s0)] px-3 text-base"
                     />
                   </label>
-                  <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pb-3">
+                  <div className="grid max-h-80 grid-cols-1 gap-1 overflow-y-auto pb-3 sm:grid-cols-2">
                     {matchingSources.length === 0 && (
                       <p
                         role="status"
@@ -963,7 +969,7 @@ export default function MarketPage() {
                     {matchingSources.map((source) => (
                       <label
                         key={source.id}
-                        className="flex min-h-10 items-center gap-2 text-xs"
+                        className="flex min-h-11 items-center gap-2 py-2 text-xs"
                       >
                         <input
                           type="checkbox"
@@ -972,22 +978,24 @@ export default function MarketPage() {
                             set({ sources: toggle(f.sources, source.id) })
                           }
                         />
-                        <span className="min-w-0 flex-1 truncate">
-                          {source.name}
-                        </span>
-                        {facets.sources?.find(
-                          (entry: { value: string }) =>
-                            entry.value === source.id,
-                        )?.n != null && (
-                          <span className="shrink-0 text-[10px] tabular-nums text-[var(--t4)]">
-                            {facets.sources
-                              .find(
-                                (entry: { value: string }) =>
-                                  entry.value === source.id,
-                              )!
-                              .n.toLocaleString()}
+                        <span className="min-w-0 flex-1 break-words">
+                          <span className="block font-semibold">
+                            {source.name}
                           </span>
-                        )}
+                          <span className="mt-0.5 block text-[var(--t4)]">
+                            {sourceMatchLabel(source.id, data?.sourceCoverage, {
+                              busy,
+                              error: !!error,
+                            })}
+                          </span>
+                          {data?.sourceCoverage?.accessReviewIds?.includes(
+                            source.id,
+                          ) && (
+                            <span className="mt-0.5 block font-semibold text-[var(--amber-d)]">
+                              Access review
+                            </span>
+                          )}
+                        </span>
                       </label>
                     ))}
                   </div>

@@ -63,6 +63,7 @@ function write(list: LocalSavedVehicle[]) {
 }
 
 export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
+  const images = listingPhotos(deal.images, 30);
   const title =
     deal.title ||
     `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim() ||
@@ -90,8 +91,8 @@ export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
     sellerPhone: deal.sellerPhone,
     sellerEmail: deal.sellerEmail,
     sellerContactUrl: deal.sellerContactUrl,
-    image: deal.images?.[0],
-    images: listingPhotos(deal.images, 30),
+    image: images[0],
+    images,
     locationCity: deal.locationCity,
     locationState: deal.locationState,
     dataQuality: deal.dataQuality,

@@ -54,6 +54,7 @@ describe("local saved vehicle snapshots", () => {
       locationCity: "Miami",
       locationState: "FL",
       images: [
+        "https://example.com/no-photo.jpg",
         "https://example.com/x3.jpg",
         "https://example.com/x3-interior.jpg",
       ],

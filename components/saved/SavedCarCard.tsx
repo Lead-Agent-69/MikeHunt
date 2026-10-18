@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { qualityFieldLabel } from "@/lib/data-quality";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { sourceMeta, sellerTypeLabel } from "@/lib/sources/source-meta";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { TitleBadge } from "@/components/shared/TitleBadge";
@@ -123,8 +124,15 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   onUpdateStatus,
 }: SavedCarCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const { snapshot, status, price_at_save, last_price_seen, profit_at_save } =
-    save;
+  const {
+    snapshot: storedSnapshot,
+    status,
+    price_at_save,
+    last_price_seen,
+    profit_at_save,
+  } = save;
+  const photos = photoEvidence(storedSnapshot.images);
+  const snapshot = { ...storedSnapshot, images: photos.images };
   const originalPrice = Number(price_at_save || 0);
   const currentPrice = Number(last_price_seen || 0);
   const priceDiff = currentPrice - originalPrice;
@@ -153,8 +161,10 @@ export const SavedCarCard = React.memo(function SavedCarCard({
     snapshot.sellerPhone || snapshot.sellerEmail || contactHref,
   );
   const trustSummary =
-    snapshot.trustExplanation?.summary ||
-    snapshot.trustExplanation?.reasons?.slice(0, 3).join(" · ");
+    photos.placeholderCount && !photos.images.length
+      ? "The source image is a placeholder; vehicle photos are still needed."
+      : snapshot.trustExplanation?.summary ||
+        snapshot.trustExplanation?.reasons?.slice(0, 3).join(" · ");
   const auctionListing = ["auction", "salvage", "wholesale", "gov"].includes(
     sourceMeta(save.source_name).channel,
   );
@@ -165,6 +175,9 @@ export const SavedCarCard = React.memo(function SavedCarCard({
     (field) => auctionListing || !/auction/i.test(field),
   );
   const trustIssues = [
+    photos.placeholderCount && !photos.images.length
+      ? "vehicle photos missing"
+      : null,
     weakQuality ? "listing details incomplete" : null,
     staleListing
       ? freshnessHours == null

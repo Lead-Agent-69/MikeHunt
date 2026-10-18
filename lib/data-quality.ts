@@ -1,4 +1,5 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 
 export type DataQualityField =
   | "photo"
@@ -17,6 +18,7 @@ export interface DataQualityInput {
   source?: string | null;
   images?: unknown;
   imageUrl?: string | null;
+  photoAudit?: unknown;
   vin?: string | null;
   titleType?: string | null;
   condition?: string | null;
@@ -64,13 +66,19 @@ export function qualityFieldLabel(field: string) {
 }
 
 export function gradeDataQuality(input: DataQualityInput): DataQualityGrade {
-  const images = Array.isArray(input.images) ? input.images : [];
+  const images = photoEvidence(
+    [
+      ...(Array.isArray(input.images) ? input.images : []),
+      ...(input.imageUrl ? [input.imageUrl] : []),
+    ],
+    input.photoAudit,
+  ).images;
   const sellerType = String(input.sellerType || "").toLowerCase();
   const auctionDateExpected = input.source
     ? isAuctionChannel(input.source) || sellerType === "auction"
     : !["dealer", "private", "retail"].includes(sellerType);
   const checks: Array<[DataQualityField, boolean]> = [
-    ["photo", images.length > 0 || Boolean(input.imageUrl)],
+    ["photo", images.length > 0],
     ["vin", Boolean(input.vin)],
     ["title", Boolean(input.titleType)],
     ["damage", Boolean(input.condition || input.damageType)],

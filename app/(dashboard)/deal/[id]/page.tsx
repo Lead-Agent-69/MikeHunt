@@ -982,8 +982,9 @@ export default function DealPage({
           role="status"
           className="border-y border-[var(--b1)] py-4 text-sm text-[var(--t3)]"
         >
-          No listing photos reported. Check the original listing for condition
-          evidence.
+          {serverDeal?.photoEvidence?.placeholderCount
+            ? "The source supplied a placeholder, not vehicle photos. Check the original listing for updated photos."
+            : "No listing photos reported. Check the original listing for condition evidence."}
         </p>
       )}
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (

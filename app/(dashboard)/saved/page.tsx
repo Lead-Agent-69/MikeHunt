@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { savedGroup } from "@/lib/saved/collection";
 import { savedPricePresentation } from "@/lib/saved/price-presentation";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
@@ -825,6 +826,11 @@ function LocalSavedSection({
         {items.map((item) => {
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           const contactHref = item.sellerContactUrl || item.sourceUrl;
+          const images = photoEvidence([
+            item.image,
+            ...(item.images || []),
+          ]).images;
+          const image = images[0];
           const price = savedPricePresentation(
             item.askPrice,
             item.priceEvidence,
@@ -838,14 +844,11 @@ function LocalSavedSection({
               <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-w-0 flex-col-reverse gap-3 sm:flex-row">
                   <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--s1)]">
-                    <PhotoPreviewButton
-                      images={[item.image, ...(item.images || [])]}
-                      title={item.title}
-                    />
-                    {item.image ? (
+                    <PhotoPreviewButton images={images} title={item.title} />
+                    {image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={item.image}
+                        src={image}
                         alt={item.title}
                         className="h-full w-full object-contain"
                       />

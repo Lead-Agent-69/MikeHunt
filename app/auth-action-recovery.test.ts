@@ -105,6 +105,17 @@ it("cancels the auth-provider status request when its form leaves the page", asy
   await act(async () => root.render(null));
   expect(signal?.aborted).toBe(true);
 });
+it("offers email recovery without advertising a protected guest preview", async () => {
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ authProviders: { reachable: true, google: false } }),
+  } as Response);
+  await render(GoogleButton);
+  expect(host.querySelector("button")?.disabled).toBe(true);
+  expect(host.textContent).toContain("Use the email form below to continue");
+  expect(host.querySelector("a")).toBeNull();
+  expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+});
 it("exposes admin navigation only for the server-verified current identity", async () => {
   vi.stubGlobal(
     "fetch",

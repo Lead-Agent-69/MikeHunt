@@ -97,6 +97,35 @@ it("previews by default without any writes", async () => {
   });
   expect(mocks.update).not.toHaveBeenCalled();
 });
+it("records placeholder status with original URLs and an optimistic write guard", async () => {
+  mocks.inspect.mockResolvedValueOnce({
+    state: "placeholder",
+    checkedAt: "now",
+    verifiedUrl: null,
+    placeholderUrls: row.images,
+    checks: [{ url: row.images[0], state: "placeholder" }],
+    images: row.images,
+  });
+  const response = await POST(request({ dryRun: false, ids: [row.id] }));
+  expect(await response.json()).toMatchObject({
+    placeholder: 1,
+    unavailable: 0,
+    written: 1,
+  });
+  expect(mocks.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      images: row.images,
+      options: expect.objectContaining({
+        photoAudit: expect.objectContaining({
+          state: "placeholder",
+          originalImages: row.images,
+          placeholderUrls: row.images,
+        }),
+      }),
+    }),
+  );
+  expect(mocks.filters).toContainEqual(["eq", "updated_at", row.updated_at]);
+});
 it("retains original URLs and price evidence while quarantining with a concurrent-write guard", async () => {
   const response = await POST(request({ dryRun: false, ids: [row.id] }));
   expect(await response.json()).toMatchObject({ written: 1, partial: false });

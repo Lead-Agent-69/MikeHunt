@@ -20,6 +20,7 @@ import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 
 export function MarketListingCard({
   row,
@@ -34,7 +35,9 @@ export function MarketListingCard({
   const previewTrigger = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLElement>(null);
   const rememberPosition = () => rememberMarketPosition(cardRef.current);
-  const photos = (row.images || []).filter((url) => !failed.includes(url));
+  const photos = photoEvidence(row.images).images.filter(
+    (url) => !failed.includes(url),
+  );
   const index = photo % Math.max(photos.length, 1);
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),

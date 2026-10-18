@@ -19,6 +19,7 @@ import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
 import { galleryImageSrc } from "@/lib/image-url";
 import { sourceLinkLabel } from "@/lib/sources/listing-link";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 
 // Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
@@ -56,8 +57,8 @@ export function ImageGallery({
   // (and only the hero when the host does not block). Never next/image.
   const images = useMemo(
     () =>
-      Array.from(new Set(rawImages || []))
-        .map((url, index) => galleryImageSrc(url, index))
+      photoEvidence(rawImages)
+        .images.map((url, index) => galleryImageSrc(url, index))
         .filter(Boolean),
     [rawImages],
   );

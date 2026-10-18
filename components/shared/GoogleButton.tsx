@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   createClientComponentClient,
   isSupabaseConfigured,
@@ -14,13 +13,9 @@ import { safeNextPath } from "@/lib/auth/safe-next-path";
 export function GoogleButton({
   next = "/discover",
   label = "Continue with Google",
-  setupHref = "/login",
-  previewHref = "/scan?sort=score",
 }: {
   next?: string;
   label?: string;
-  setupHref?: string;
-  previewHref?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +65,7 @@ export function GoogleButton({
     }
     if (googleReady === false) {
       setError(
-        "Google sign-in is still being verified. Continue with email for now.",
+        "Google sign-in is unavailable right now. Continue with email instead.",
       );
       return;
     }
@@ -113,7 +108,7 @@ export function GoogleButton({
         {loading
           ? "Connecting…"
           : googleReady === false
-            ? "Google sign-in being verified"
+            ? "Google sign-in unavailable"
             : canUseGoogle
               ? label
               : "Google sign-in not configured"}
@@ -126,30 +121,13 @@ export function GoogleButton({
       {(!configured || googleReady === false) && (
         <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">
           <p className="text-xs font-bold text-[var(--t2)]">
-            {configured
-              ? "Google sign-in is almost ready"
-              : "Account sync is in preview mode"}
+            Continue with email
           </p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
             {configured
-              ? "Email sign-in still works. The team is finishing Google account verification for synced searches and watchlists."
-              : "Local preview still works with email below."}
+              ? "Google sign-in is unavailable right now. Use the email form below to continue."
+              : "Use the email form below in this local preview."}
           </p>
-          <Link
-            href={setupHref}
-            prefetch={false}
-            className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
-          >
-            Return to sign in
-          </Link>
-          <span className="mx-2 text-xs text-[var(--t5)]">·</span>
-          <Link
-            href={previewHref}
-            prefetch={false}
-            className="mt-1 inline-flex text-xs font-black text-[var(--amber-d)] hover:underline"
-          >
-            Preview live Scan
-          </Link>
         </div>
       )}
     </div>

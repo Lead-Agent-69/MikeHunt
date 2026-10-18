@@ -97,6 +97,50 @@ describe("Market inventory filtering and pagination", () => {
     state.rows = null;
     state.center = { lat: 38.63, lng: -90.2 };
   });
+  it("keeps photo-less and placeholder listings researchable but out of usable-photo matches", async () => {
+    state.rows = [
+      {
+        id: "placeholder",
+        source: "independent_dealer",
+        images: ["https://dealer.test/no-photo.jpg"],
+      },
+      {
+        id: "vehicle",
+        source: "independent_dealer",
+        images: ["https://dealer.test/vehicle.jpg"],
+      },
+      { id: "no-photo", source: "independent_dealer", images: [] },
+      {
+        id: "unavailable",
+        source: "independent_dealer",
+        images: ["https://dealer.test/expired.jpg"],
+        photo_state: "unavailable",
+      },
+    ].map((row) => ({
+      ...row,
+      make: "Ford",
+      model: "Focus",
+      year: 2020,
+      ask_price: 9000,
+    }));
+    const all = await (await request("mode=all")).json();
+    expect(all.total).toBe(4);
+    expect(
+      all.rows.find((row: any) => row.id === "placeholder").images,
+    ).toEqual([]);
+    expect(state.calls).not.toContainEqual(["not", "images", "is", null]);
+    const withPhotos = await (await request("mode=all&hasPhotos=yes")).json();
+    expect(withPhotos.total).toBe(1);
+    expect(withPhotos.rows[0].id).toBe("vehicle");
+    const without = await (await request("mode=all&hasPhotos=no")).json();
+    expect(without.total).toBe(3);
+    expect(without.rows.map((row: any) => row.id).sort()).toEqual([
+      "no-photo",
+      "placeholder",
+      "unavailable",
+    ]);
+    expect(without.sourceCoverage.counts.independent_dealer).toBe(3);
+  });
   it("uses the same price and mileage policies with legacy Market range aliases", async () => {
     const response = await request(
       "priceMax=10000&mileageMax=0&pricePolicy=include&mileagePolicy=include",
@@ -124,6 +168,9 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.rows).toHaveLength(50);
     expect(body.rows[0].id).toBe("car-1050");
     expect(body.capped).toBe(false);
+    expect(body.sourceCoverage.counts.copart).toBe(1105);
+    expect(body.sourceCoverage.complete).toBe(true);
+    expect(body.sourceCoverage.accessReviewIds).toContain("ae-of-miami");
     expect(state.calls).toContainEqual(["range", 1000, 1999]);
     expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
   });
@@ -154,10 +201,10 @@ describe("Market inventory filtering and pagination", () => {
     expect(state.calls).toContainEqual(["range", 8000, 8999]);
   });
 
-  it("keeps photo, freshness and live-auction eligibility before pagination", async () => {
+  it("keeps freshness and live-auction eligibility without excluding photo-less research", async () => {
     await request("mode=all");
-    expect(state.calls).toContainEqual(["not", "images", "is", null]);
-    expect(state.calls).toContainEqual(["neq", "images", "{}"]);
+    expect(state.calls).not.toContainEqual(["not", "images", "is", null]);
+    expect(state.calls).not.toContainEqual(["neq", "images", "{}"]);
     expect(
       state.calls.some(
         ([method, column]) => method === "gte" && column === "last_seen_at",
