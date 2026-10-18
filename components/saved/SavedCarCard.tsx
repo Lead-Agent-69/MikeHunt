@@ -23,6 +23,7 @@ import { qualityFieldLabel } from "@/lib/data-quality";
 import { sourceMeta, sellerTypeLabel } from "@/lib/sources/source-meta";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { TitleBadge } from "@/components/shared/TitleBadge";
+import { ListingThumbnail } from "@/components/shared/ListingThumbnail";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
 import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
@@ -365,11 +366,9 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                   className="block h-full w-full"
                   aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={snapshot.images[0]}
-                    alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-                    className="h-full w-full object-contain"
+                  <ListingThumbnail
+                    images={snapshot.images}
+                    title={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
                   />
                   <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
                     {snapshot.images.length} photo

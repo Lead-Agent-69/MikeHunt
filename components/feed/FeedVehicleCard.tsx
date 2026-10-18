@@ -93,7 +93,7 @@ export function FeedVehicleCard({
           />
         )}
         <PhotoPreviewButton
-          images={gallery.images}
+          images={gallery.sourceImages}
           title={item.title}
           className="absolute right-2 top-2 z-20"
         />

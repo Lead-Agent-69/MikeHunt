@@ -6,13 +6,9 @@ const images = ["front", "rear", "interior"].map(
   (name) => `https://photos.test/photo-${name}.svg`,
 );
 async function fixture(page: Page, failRearOnce = false) {
-  let rearAttempts = 0;
+  let rearBlocked = failRearOnce;
   await page.route("https://photos.test/**", async (route) => {
-    if (
-      failRearOnce &&
-      route.request().url().includes("rear") &&
-      rearAttempts++ === 0
-    ) {
+    if (rearBlocked && route.request().url().includes("rear")) {
       await route.abort("failed");
       return;
     }
@@ -64,6 +60,11 @@ async function fixture(page: Page, failRearOnce = false) {
       name: "Enlarge photos of Photo navigation QA vehicle",
     }),
   ).toBeVisible();
+  return {
+    allowRear: () => {
+      rearBlocked = false;
+    },
+  };
 }
 
 test.describe("photo navigation", () => {
@@ -145,7 +146,7 @@ test.describe("photo navigation", () => {
   test("failed photos can be retried without advancing the gallery", async ({
     page,
   }) => {
-    await fixture(page, true);
+    const { allowRear } = await fixture(page, true);
     await page
       .getByRole("button", {
         name: "Enlarge photos of Photo navigation QA vehicle",
@@ -156,6 +157,7 @@ test.describe("photo navigation", () => {
     await expect(
       dialog.getByText("This photo could not load.", { exact: true }),
     ).toBeVisible();
+    allowRear();
     await dialog.getByRole("button", { name: "Retry photo" }).click();
     await expect(dialog.getByText("2 / 3", { exact: true })).toBeVisible();
     await expect
@@ -167,5 +169,70 @@ test.describe("photo navigation", () => {
       .toBeGreaterThan(0);
     await dialog.getByRole("button", { name: "Next image" }).click();
     await expect(dialog.getByText("3 / 3", { exact: true })).toBeVisible();
+  });
+
+  test("zoom and pan keep the photo selected, fit resets it, and selection survives a return", async ({
+    page,
+  }, testInfo) => {
+    await fixture(page);
+    const trigger = page.getByRole("button", {
+      name: "Enlarge photos of Photo navigation QA vehicle",
+    });
+    await trigger.click();
+    const dialog = page.getByRole("dialog");
+    const area = dialog.locator("[data-photo-navigation]");
+    await expect(
+      dialog.getByRole("button", { name: "Zoom in", exact: true }),
+    ).toBeEnabled();
+    await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+    await expect(area).toHaveAttribute("data-photo-zoom", "2");
+    const bounds = (await area.boundingBox())!;
+    await page.mouse.move(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      bounds.x + bounds.width / 2 + 80,
+      bounds.y + bounds.height / 2 + 180,
+      { steps: 8 },
+    );
+    await page.mouse.up();
+    await area.click({
+      position: { x: bounds.width * 0.75, y: bounds.height / 2 },
+    });
+    await expect(dialog.getByText("1 / 3", { exact: true })).toBeVisible();
+    await expect(area).toHaveAttribute("data-photo-zoom", "2");
+    await expect(dialog.locator("img")).not.toHaveCSS(
+      "transform",
+      "matrix(2, 0, 0, 2, 0, 0)",
+    );
+    await page.screenshot({ path: testInfo.outputPath("photo-zoom.png") });
+    await dialog.getByRole("button", { name: "Reset photo zoom" }).click();
+    await expect(area).toHaveAttribute("data-photo-zoom", "1");
+    await dialog.getByRole("button", { name: "Next image" }).click();
+    await expect(dialog.getByText("2 / 3", { exact: true })).toBeVisible();
+    await dialog.getByRole("button", { name: "Close photo preview" }).click();
+    const inline = page
+      .getByRole("link", {
+        name: "Open details for Photo navigation QA vehicle",
+      })
+      .locator("img");
+    await expect(inline).toHaveAttribute("src", images[1]);
+    await page.reload();
+    await expect(inline).toHaveAttribute("src", images[1]);
+    await trigger.click();
+    await expect(dialog.getByText("2 / 3", { exact: true })).toBeVisible();
+    await expect(area).toHaveAttribute("data-photo-zoom", "1");
+    const controls = dialog.getByRole("group", { name: "Photo zoom" });
+    const controlBounds = (await controls.boundingBox())!;
+    const closeBounds = (await dialog
+      .getByRole("button", { name: "Close photo preview" })
+      .boundingBox())!;
+    expect(controlBounds.x).toBeGreaterThanOrEqual(48);
+    expect(controlBounds.x + controlBounds.width).toBeLessThanOrEqual(
+      closeBounds.x,
+    );
   });
 });

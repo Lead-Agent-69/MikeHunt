@@ -7,6 +7,7 @@ import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 let host: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
+  sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   host = document.createElement("div");
   document.body.append(host);

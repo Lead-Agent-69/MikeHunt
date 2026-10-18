@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { savedGroup } from "@/lib/saved/collection";
 import { savedPricePresentation } from "@/lib/saved/price-presentation";
+import { ListingThumbnail } from "@/components/shared/ListingThumbnail";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
@@ -839,21 +840,19 @@ function LocalSavedSection({
                 <div className="flex min-w-0 flex-col-reverse gap-3 sm:flex-row">
                   <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--s1)]">
                     <PhotoPreviewButton
-                      images={[item.image, ...(item.images || [])]}
+                      images={[
+                        item.image,
+                        ...(Array.isArray(item.images) ? item.images : []),
+                      ]}
                       title={item.title}
                     />
-                    {item.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-[var(--t4)]">
-                        No photo
-                      </div>
-                    )}
+                    <ListingThumbnail
+                      images={[
+                        item.image,
+                        ...(Array.isArray(item.images) ? item.images : []),
+                      ]}
+                      title={item.title}
+                    />
                   </div>
                   <div className="min-w-0 space-y-1">
                     <Badge

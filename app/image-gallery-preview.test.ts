@@ -50,6 +50,7 @@ describe("listing photo preview", () => {
   let host: HTMLDivElement;
   let root: Root;
   beforeEach(() => {
+    sessionStorage.clear();
     Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
       configurable: true,
       value: function (this: HTMLDialogElement) {

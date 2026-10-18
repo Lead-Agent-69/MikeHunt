@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { galleryImageSrc } from "@/lib/image-url";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
+import { usePhotoSelection } from "@/hooks/usePhotoSelection";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import {
   Camera,
   ChevronLeft,
@@ -25,7 +27,9 @@ export function VisionDamageInspector({
   const photos = Array.from(
     new Set(images.length ? images : imageUrl ? [imageUrl] : []),
   ).filter(Boolean);
-  const [index, setIndex] = useState(0);
+  const selection = usePhotoSelection(photos);
+  const index = selection.index;
+  const setIndex = selection.select;
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const activeIndex = Math.min(index, Math.max(0, photos.length - 1));
   const move = (offset: number) =>
@@ -80,6 +84,10 @@ export function VisionDamageInspector({
                     onError={() => setFailedPhoto(photos[activeIndex])}
                   />
                 )}
+                <PhotoPreviewButton
+                  images={photos}
+                  title="Listing vehicle photo evidence"
+                />
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 {photos.length > 1 && (

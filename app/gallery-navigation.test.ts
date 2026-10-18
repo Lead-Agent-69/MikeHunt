@@ -6,6 +6,7 @@ import { ImageGallery } from "@/components/shared/ImageGallery";
 let host: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
+  sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,

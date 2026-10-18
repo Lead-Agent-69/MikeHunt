@@ -8,34 +8,13 @@ import React, {
   useMemo,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  motion,
-  animate,
-  useMotionValue,
-  useTransform,
-  AnimatePresence,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
 import { galleryImageSrc } from "@/lib/image-url";
 import { sourceLinkLabel } from "@/lib/sources/listing-link";
-import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
-
-// Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
-// rather than flying in from a side the user didn't ask for.
-const slideVariants = {
-  enter: (dir: number) => ({
-    x: dir === 0 ? 0 : dir > 0 ? 320 : -320,
-    opacity: 0,
-    scale: dir === 0 ? 0.94 : 0.98,
-  }),
-  center: { x: 0, opacity: 1, scale: 1 },
-  exit: (dir: number) => ({
-    x: dir === 0 ? 0 : dir > 0 ? -320 : 320,
-    opacity: 0,
-    scale: 0.94,
-  }),
-};
+import { usePhotoSelection } from "@/hooks/usePhotoSelection";
+import { ZoomablePhoto } from "./ZoomablePhoto";
 
 interface ImageGalleryProps {
   images?: string[];
@@ -46,7 +25,11 @@ interface ImageGalleryProps {
   sourceUrl?: string;
 }
 
-export function ImageGallery({
+export function ImageGallery(props: ImageGalleryProps) {
+  return <ListingGallery key={JSON.stringify(props.images || [])} {...props} />;
+}
+
+function ListingGallery({
   images: rawImages = [],
   title = "Vehicle Image",
   fallbackSrc,
@@ -61,20 +44,18 @@ export function ImageGallery({
         .filter(Boolean),
     [rawImages],
   );
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const rawGallery = useMemo(
+    () => Array.from(new Set(rawImages || [])).filter(Boolean),
+    [rawImages],
+  );
+  const selection = usePhotoSelection(rawGallery);
+  const currentIndex = selection.index;
+  const setCurrentIndex = selection.select;
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const [direction, setDirection] = useState(0);
-  const [imageLoaded, setImageLoaded] = useState<Record<number, boolean>>({});
-  const [imageError, setImageError] = useState<Record<number, boolean>>({});
-  const touchStartX = useRef<number>(0);
-  const touchEndX = useRef<number>(0);
+  const [imageLoaded, setImageLoaded] = useState<Record<string, boolean>>({});
+  const [imageError, setImageError] = useState<Record<string, boolean>>({});
   const lightboxRef = useRef<HTMLDialogElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-
-  // Dragging the photo down dismisses the lightbox; the backdrop fades out in step so the
-  // gesture reads as "pushing the image away" rather than a hard close.
-  const dragY = useMotionValue(0);
-  const backdropOpacity = useTransform(dragY, [0, 220], [1, 0.35]);
 
   const hasImages = images && images.length > 0;
   const currentImage = hasImages ? images[currentIndex] : null;
@@ -87,15 +68,15 @@ export function ImageGallery({
       if (
         index >= 0 &&
         index < images.length &&
-        !imageLoaded[index] &&
-        !imageError[index]
+        !imageLoaded[images[index]] &&
+        !imageError[images[index]]
       ) {
         const img = new Image();
         img.src = images[index];
         img.onload = () =>
-          setImageLoaded((prev) => ({ ...prev, [index]: true }));
+          setImageLoaded((prev) => ({ ...prev, [images[index]]: true }));
         img.onerror = () =>
-          setImageError((prev) => ({ ...prev, [index]: true }));
+          setImageError((prev) => ({ ...prev, [images[index]]: true }));
       }
     };
 
@@ -105,46 +86,24 @@ export function ImageGallery({
     preloadImage(currentIndex - 1);
   }, [currentIndex, hasImages, images, imageLoaded, imageError]);
 
-  // Touch handlers for swipe
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchEndX.current = touchStartX.current;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    if (!hasImages || images.length <= 1) return;
-
-    const swipeThreshold = 50;
-    const diff = touchStartX.current - touchEndX.current;
-
-    if (Math.abs(diff) > swipeThreshold) {
-      if (diff > 0) {
-        // Swipe left - next image
-        setDirection(1);
-        setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
-      } else {
-        // Swipe right - previous image
-        setDirection(-1);
-        setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
-      }
-    }
-  };
-
   // Keyboard navigation
+  const currentSelection = useRef({ currentIndex, select: setCurrentIndex });
+  currentSelection.current = { currentIndex, select: setCurrentIndex };
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!isLightboxOpen || !hasImages) return;
 
       if (e.key === "ArrowLeft") {
-        setDirection(-1);
-        setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+        e.preventDefault();
+        currentSelection.current.select(
+          (currentSelection.current.currentIndex + images.length - 1) %
+            images.length,
+        );
       } else if (e.key === "ArrowRight") {
-        setDirection(1);
-        setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+        e.preventDefault();
+        currentSelection.current.select(
+          (currentSelection.current.currentIndex + 1) % images.length,
+        );
       } else if (e.key === "Escape") {
         setIsLightboxOpen(false);
       }
@@ -190,54 +149,43 @@ export function ImageGallery({
 
   const goToNext = () => {
     if (!hasImages) return;
-    setDirection(1);
-    setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+    setCurrentIndex((currentIndex + 1) % images.length);
   };
 
   const goToPrev = () => {
     if (!hasImages) return;
-    setDirection(-1);
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+    setCurrentIndex((currentIndex + images.length - 1) % images.length);
   };
-  const photoNavigation = usePhotoNavigation(
-    (offset) => (offset > 0 ? goToNext() : goToPrev()),
-    { enabled: images.length > 1 },
-  );
-
   const openLightbox = (index: number) => {
     returnFocus.current = document.activeElement as HTMLElement;
-    // A drag-dismiss leaves the photo offset; clear it so the next open starts centred.
-    dragY.set(0);
-    setDirection(0);
+
     setCurrentIndex(index);
     setIsLightboxOpen(true);
   };
 
   return (
     <>
-      {/* WOW CSS GRID LAYOUT */}
+      {/* Source photo grid */}
       <div className="flex flex-col gap-3">
         {hasImages ? (
           <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-2 md:aspect-[21/9] rounded-[var(--r3)] overflow-hidden">
             {/* HERO IMAGE */}
             <button
               type="button"
-              aria-label={`Open photo 1 of ${images.length}: ${title}`}
+              aria-label={`Open photo ${currentIndex + 1} of ${images.length}: ${title}`}
               className={cn(
                 "relative group cursor-pointer overflow-hidden w-full aspect-[4/3] md:aspect-auto",
                 images.length >= 5
                   ? "md:col-span-2 md:row-span-2"
                   : "md:col-span-4 md:row-span-2 md:aspect-[16/9]",
               )}
-              onClick={() => openLightbox(0)}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              onClick={() => openLightbox(currentIndex)}
             >
-              {!imageLoaded[0] && !imageError[0] && (
-                <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
-              )}
-              {imageError[0] ? (
+              {!imageLoaded[images[currentIndex]] &&
+                !imageError[images[currentIndex]] && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
+                )}
+              {imageError[images[currentIndex]] ? (
                 fallbackSrc ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -260,15 +208,21 @@ export function ImageGallery({
                 )
               ) : (
                 <img
-                  src={images[0]}
-                  alt={`${title} - View 1`}
+                  src={images[currentIndex]}
+                  alt={`${title} - View ${currentIndex + 1}`}
                   className="w-full h-full object-contain bg-[var(--s2)]"
                   loading="eager"
                   onLoad={() =>
-                    setImageLoaded((prev) => ({ ...prev, [0]: true }))
+                    setImageLoaded((prev) => ({
+                      ...prev,
+                      [images[currentIndex]]: true,
+                    }))
                   }
                   onError={() =>
-                    setImageError((prev) => ({ ...prev, [0]: true }))
+                    setImageError((prev) => ({
+                      ...prev,
+                      [images[currentIndex]]: true,
+                    }))
                   }
                 />
               )}
@@ -278,7 +232,7 @@ export function ImageGallery({
                 className="md:hidden absolute bottom-3 right-3 px-3 py-1 rounded-full text-white text-xs font-bold tracking-widest"
                 style={{ background: "rgba(36,28,43,0.7)" }}
               >
-                1 / {images.length}
+                {currentIndex + 1} / {images.length}
               </div>
             </button>
 
@@ -294,10 +248,11 @@ export function ImageGallery({
                     className="hidden md:block relative group cursor-pointer overflow-hidden"
                     onClick={() => openLightbox(realIdx)}
                   >
-                    {!imageLoaded[realIdx] && !imageError[realIdx] && (
-                      <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
-                    )}
-                    {imageError[realIdx] ? (
+                    {!imageLoaded[images[realIdx]] &&
+                      !imageError[images[realIdx]] && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-[var(--s2)] via-[var(--s3)] to-[var(--s2)] animate-pulse" />
+                      )}
+                    {imageError[images[realIdx]] ? (
                       <div className="w-full h-full bg-[var(--s2)] flex items-center justify-center text-[var(--t4)]">
                         <Ico
                           name="alert-triangle"
@@ -314,13 +269,13 @@ export function ImageGallery({
                         onLoad={() =>
                           setImageLoaded((prev) => ({
                             ...prev,
-                            [realIdx]: true,
+                            [images[realIdx]]: true,
                           }))
                         }
                         onError={() =>
                           setImageError((prev) => ({
                             ...prev,
-                            [realIdx]: true,
+                            [images[realIdx]]: true,
                           }))
                         }
                       />
@@ -416,11 +371,11 @@ export function ImageGallery({
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 onClick={() => setIsLightboxOpen(false)}
               >
-                {/* Backdrop sits on its own layer so the drag can fade it independently. */}
+                {/* Backdrop remains behind the photo and its controls. */}
                 <motion.div
                   className="absolute inset-0"
                   style={{
-                    opacity: backdropOpacity,
+                    opacity: 1,
                     background: "rgba(0,0,0,0.95)",
                   }}
                 />
@@ -443,86 +398,25 @@ export function ImageGallery({
                   {currentIndex + 1} / {images.length}
                 </div>
 
-                {/* Main image */}
-                <div
-                  data-photo-navigation
-                  className="relative z-[5] flex h-full min-h-0 w-full max-w-full items-center justify-center overflow-hidden"
-                  {...photoNavigation}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    photoNavigation.onClick(event);
+                {/* Shared gestures, retry and zoom on every full-screen photo viewer. */}
+                <ZoomablePhoto
+                  src={currentImage!}
+                  alt={`${title} - View ${currentIndex + 1}`}
+                  multiple={images.length > 1}
+                  move={(offset) => (offset > 0 ? goToNext() : goToPrev())}
+                  onDismiss={() => setIsLightboxOpen(false)}
+                  onPhotoLoad={() => {
+                    setImageLoaded((previous) => ({
+                      ...previous,
+                      [currentImage!]: true,
+                    }));
+                    setImageError((previous) =>
+                      previous[currentImage!]
+                        ? { ...previous, [currentImage!]: false }
+                        : previous,
+                    );
                   }}
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                >
-                  <AnimatePresence
-                    initial={false}
-                    custom={direction}
-                    mode="popLayout"
-                  >
-                    <motion.div
-                      key={currentIndex}
-                      custom={direction}
-                      variants={slideVariants}
-                      initial="enter"
-                      animate="center"
-                      exit="exit"
-                      transition={{
-                        type: "spring",
-                        stiffness: 320,
-                        damping: 32,
-                      }}
-                      drag="y"
-                      dragConstraints={{ top: 0, bottom: 0 }}
-                      dragElastic={0.55}
-                      style={{ y: dragY }}
-                      className="relative flex h-full min-h-0 w-full max-w-full cursor-grab items-center justify-center overflow-hidden active:cursor-grabbing"
-                      onDragEnd={(_, info) => {
-                        if (
-                          Math.abs(info.offset.y) > 140 ||
-                          Math.abs(info.velocity.y) > 700
-                        ) {
-                          setIsLightboxOpen(false);
-                        } else {
-                          animate(dragY, 0, {
-                            type: "spring",
-                            stiffness: 380,
-                            damping: 30,
-                          });
-                        }
-                      }}
-                    >
-                      {!imageLoaded[currentIndex] &&
-                        !imageError[currentIndex] && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-                          </div>
-                        )}
-
-                      {imageError[currentIndex] ? (
-                        <div className="flex flex-col items-center justify-center text-white">
-                          <Ico
-                            name="alert-triangle"
-                            size={64}
-                            className="opacity-50 mb-4"
-                          />
-                          <span className="text-lg font-bold">
-                            Image Failed to Load
-                          </span>
-                        </div>
-                      ) : (
-                        <img
-                          src={currentImage!}
-                          alt={`${title} - View ${currentIndex + 1}`}
-                          className="block h-auto max-h-full w-auto max-w-full object-contain"
-                          loading="eager"
-                          draggable={false}
-                        />
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
+                />
 
                 {/* Navigation arrows */}
                 {images.length > 1 && (
