@@ -23,8 +23,8 @@ describe("navigation usability", () => {
     expect(top).not.toContain("useLocalSavedSearches");
     expect(top).toContain("undefined : alertCount");
     expect(bottom).not.toContain("useLocalSavedSearches");
-    expect(bottom).toContain("const watchScopeCount = localSaved.count;");
-    expect(bottom).toContain("saved on this device");
+    expect(bottom).not.toContain("watchScopeCount");
+    expect(bottom).not.toContain("useLocalSavedVehicles");
     expect(bottom).toContain('aria-hidden="true"');
     expect(bottom).toContain("aria-label={");
   });

@@ -76,6 +76,9 @@ describe("saved-card actions", () => {
       host.innerHTML.indexOf('aria-label="Saved vehicle price"'),
     ).toBeLessThan(host.innerHTML.indexOf("Source proof:"));
     expect(
+      host.innerHTML.indexOf('aria-label="Saved vehicle price"'),
+    ).toBeLessThan(host.innerHTML.indexOf("<img"));
+    expect(
       host.querySelector('a[href="/deal/vehicle-one"]')?.textContent,
     ).not.toBeUndefined();
     expect(

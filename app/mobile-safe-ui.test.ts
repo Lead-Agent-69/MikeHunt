@@ -2,6 +2,20 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("mobile fixed UI surfaces", () => {
+  it("does not present a device-only Saved count as an account total", () => {
+    const bottomNav = readFileSync("components/BottomNav.tsx", "utf8");
+    expect(bottomNav).not.toContain("useLocalSavedVehicles");
+    expect(bottomNav).not.toContain("watchScopeCount");
+    expect(bottomNav).not.toContain("fetch(");
+    expect(bottomNav).not.toContain("useSWR");
+  });
+
+  it("keeps optional listing import collapsed without hiding saved filters", () => {
+    const saved = readFileSync("app/(dashboard)/saved/page.tsx", "utf8");
+    expect(saved).toMatch(/<details className="w-full md:w-auto">\s*<summary/);
+    expect(saved).toContain("Add a listing link");
+    expect(saved).toContain("aria-pressed={filter === tab}");
+  });
   it("keeps implicit focus scrolling instant and clear of fixed navigation", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const html = css.match(/html \{([^}]+)\}/)![1];
@@ -81,6 +95,8 @@ describe("mobile fixed UI surfaces", () => {
     const links = Array.from(savedCard.matchAll(/<Link\b[\s\S]*?>/g));
     expect(links).toHaveLength(3);
     for (const [link] of links) expect(link).toContain("prefetch={false}");
+    expect(savedCard).toContain("flex flex-col lg:flex-row");
+    expect(savedCard).not.toContain("sm:pl-[13.25rem]");
   });
 
   it("loads bookmarked search destinations only on selection", () => {

@@ -338,7 +338,7 @@ export default function SavedCarsPage() {
     saves?.filter((s) => savedGroup(s.status) === "other") || [];
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-4 pb-20 sm:space-y-6">
       {/* HEADER SECTION */}
       {comparisonIds.length > 0 && (
         <div className="sticky top-16 z-20 flex flex-wrap items-center gap-3 border border-[var(--b1)] bg-[var(--s0)] p-3 rounded-lg">
@@ -373,39 +373,43 @@ export default function SavedCarsPage() {
           </p>
         </div>
 
-        {/* Save form directly inline */}
-        <form
-          onSubmit={handleSaveNewUrl}
-          className="flex gap-2 w-full md:w-auto"
-        >
-          <Input
-            type="url"
-            aria-label="Vehicle listing URL"
-            placeholder="Paste a vehicle listing link..."
-            value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
-            className="text-sm bg-[var(--s0)] border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
-            required
-          />
-          <Button
-            type="submit"
-            disabled={adding}
-            className="text-white text-sm font-bold px-5 h-11 flex items-center gap-1.5 shrink-0 rounded-xl border-none"
-            style={{ background: "var(--grad)" }}
+        <details className="w-full md:w-auto">
+          <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)]">
+            Add a listing link
+          </summary>
+          <form
+            onSubmit={handleSaveNewUrl}
+            className="flex gap-2 w-full md:w-auto"
           >
-            {adding ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-            Add
-          </Button>
-        </form>
+            <Input
+              type="url"
+              aria-label="Vehicle listing URL"
+              placeholder="Paste a vehicle listing link..."
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              className="text-sm bg-[var(--s0)] border-[var(--b2)] focus:border-[var(--amber)] h-11 flex-1 md:w-64"
+              required
+            />
+            <Button
+              type="submit"
+              disabled={adding}
+              className="text-white text-sm font-bold px-5 h-11 flex items-center gap-1.5 shrink-0 rounded-xl border-none"
+              style={{ background: "var(--grad)" }}
+            >
+              {adding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              Add
+            </Button>
+          </form>
+        </details>
       </div>
 
       {/* FILTER BUTTONS */}
       <div
-        className="flex w-full flex-wrap gap-1 p-1 rounded-lg self-start sm:w-auto"
+        className="grid w-full grid-cols-2 min-[360px]:grid-cols-4 sm:flex gap-1 p-1 rounded-lg self-start sm:w-auto"
         style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
       >
         {(["all", "active", "price_drops", "gone"] as const).map((tab) => (
@@ -413,7 +417,7 @@ export default function SavedCarsPage() {
             key={tab}
             aria-pressed={filter === tab}
             onClick={() => setFilter(tab)}
-            className={`min-h-11 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-none ${
+            className={`min-h-11 px-2 sm:px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-none ${
               filter === tab
                 ? "text-white"
                 : "text-[var(--t4)] hover:text-[var(--t1)]"

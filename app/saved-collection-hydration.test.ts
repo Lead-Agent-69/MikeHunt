@@ -1,12 +1,14 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { SWRConfig } from "swr";
+import { SWRConfig, useSWRConfig, type ScopedMutator } from "swr";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
+import { invalidateSavedCollections } from "@/lib/saved/invalidate-collections";
 let root: Root;
 let host: HTMLDivElement;
 let control: ReturnType<typeof useSavedCollection>;
 let cache: Map<any, any>;
+let invalidate: ScopedMutator;
 const id = "00000000-0000-0000-0000-000000000050";
 const cursor = JSON.stringify({ id, savedAt: "2026-10-12T00:00:00Z" });
 const response = (
@@ -15,6 +17,7 @@ const response = (
   nextCursor: string | null = cursor,
 ) => new Response(JSON.stringify({ ownerId, rows, nextCursor }));
 function State({ owner }: { owner: string | null }) {
+  invalidate = useSWRConfig().mutate;
   control = useSavedCollection(owner, "page");
   return React.createElement(
     "span",
@@ -45,6 +48,37 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("account-safe saved paging", () => {
+  it("refreshes a previously visited watchlist after a confirmed Market save without polling", async () => {
+    vi.mocked(fetch).mockResolvedValue(response("one", [], null));
+    await render("one");
+    await vi.waitFor(() => expect(control.data).toEqual([]));
+    await render(null);
+    await act(async () => invalidateSavedCollections(invalidate, "one"));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    vi.mocked(fetch).mockResolvedValue(
+      response("one", [{ id: "new-save" }], null),
+    );
+    await render("one");
+    await vi.waitFor(() => expect(host.textContent).toBe("new-save"));
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves other owners' cached pages untouched during save invalidation", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      response("two", [{ id: "other-save" }], null),
+    );
+    await render("two");
+    await vi.waitFor(() => expect(host.textContent).toBe("other-save"));
+    const before = Array.from(cache.entries()).filter(
+      ([, value]) => value.data,
+    );
+    await act(async () => invalidateSavedCollections(invalidate, "one"));
+    for (const [key, value] of before)
+      expect(cache.get(key)?.data).toBe(value.data);
+    expect(host.textContent).toBe("other-save");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("does not treat a cached empty collection as confirmed after refresh fails", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(response("one", [], null))
