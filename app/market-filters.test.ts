@@ -82,6 +82,28 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("normalizes legacy title aliases and allows clearing multiple sources from the everyday selector", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?titleType=salvage_title&sources=copart,iaa",
+    );
+    await render();
+    expect(new URLSearchParams(window.location.search).get("titleType")).toBe(
+      "salvage",
+    );
+    const source = host.querySelector<HTMLSelectElement>(
+      '[aria-label="Quick source or dealer"]',
+    )!;
+    expect(source.value).toBe("__selected");
+    expect(source.querySelector('option[value=""]')?.textContent).toBe(
+      "All sources",
+    );
+    act(() => Simulate.change(source, { target: { value: "" } } as any));
+    expect(new URLSearchParams(window.location.search).has("sources")).toBe(
+      false,
+    );
+  });
   it("normalizes legacy all-source and all-make links rather than requesting an invalid source", async () => {
     window.history.replaceState(
       null,

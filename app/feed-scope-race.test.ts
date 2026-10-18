@@ -38,6 +38,28 @@ afterEach(() => {
 });
 
 describe("Feed scope request isolation", () => {
+  it.each([
+    "scope=explicit&hasPhotos=no",
+    "scope=explicit&zip=63101&radius=1000",
+  ])(
+    "preserves an incompatible search and offers Results without retrying requests: %s",
+    async (query) => {
+      vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      scopeState.query = query;
+      const host = document.createElement("div");
+      root = createRoot(host);
+      await act(async () => root.render(React.createElement(FeedPage)));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(host.textContent).toContain("Results");
+      expect(host.textContent).not.toContain("Try again");
+      const href = host.querySelector("a")!.getAttribute("href")!;
+      expect(href).toContain(
+        query.includes("hasPhotos") ? "hasPhotos=no" : "radius=1000",
+      );
+    },
+  );
   it("replaces the initial location when a shared header search changes", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal(

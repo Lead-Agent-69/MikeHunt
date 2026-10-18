@@ -1179,7 +1179,9 @@ export async function GET(req: NextRequest) {
   if (location.requested && !location.radius)
     return NextResponse.json(
       {
-        error: "This ZIP location could not be resolved. Try another ZIP code.",
+        error:
+          location.error ||
+          "This ZIP location could not be resolved. Try another ZIP code.",
       },
       { status: 422, headers: SCAN_CACHE_HEADERS },
     );

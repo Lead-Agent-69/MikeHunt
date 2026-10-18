@@ -5,6 +5,15 @@ import { inventoryLocation, inventoryLocationQuery } from "./radius-inventory";
 
 beforeEach(() => resolve.mockReset());
 describe("shared radius inventory", () => {
+  it("refuses to silently reduce a wider Market search to 500 miles", async () => {
+    const location = await inventoryLocation(
+      {},
+      new URLSearchParams("zip=63101&radius=1000"),
+    );
+    expect(location.radius).toBeNull();
+    expect(location.error).toContain("500 miles");
+    expect(resolve).not.toHaveBeenCalled();
+  });
   it("does not apply an exact postal-code filter after resolving a radius", async () => {
     resolve.mockResolvedValue({
       zip: "63101",

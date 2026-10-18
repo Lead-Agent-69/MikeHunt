@@ -372,6 +372,15 @@ describe("Scan and facets query parity", () => {
         );
     }
   });
+  it("rejects unsupported cross-view radii instead of changing the requested search", async () => {
+    for (const endpoint of [scan, facets]) {
+      const response = await endpoint(
+        new NextRequest("https://example.test/api/scan?zip=63101&radius=1000"),
+      );
+      expect(response.status).toBe(422);
+      expect((await response.json()).error).toContain("500 miles");
+    }
+  });
   it("scan rows expose options.titleSource only", async () => {
     const body = await (
       await scan(new NextRequest("https://example.test/api/scan?state=TX"))

@@ -13,6 +13,7 @@ import {
   applyVehicleDetails,
   applySellerTypes,
 } from "./inventory-filters";
+import { DEFAULT_RADIUS_MI, MAX_RADIUS_MI } from "./zip-radius-scope";
 
 export const INVENTORY_SEARCH_KEYS = Array.from(
   new Set([
@@ -67,6 +68,31 @@ export function inventoryScopeStates(
     return /^[A-Z]{2}$/.test(state) ? [state] : [];
   }
   return undefined;
+}
+
+export function inventoryScopeLabel(params: URLSearchParams) {
+  const zip = params.get("zip");
+  const requested = Number(params.get("radius"));
+  const radius =
+    Number.isFinite(requested) && requested > 0
+      ? Math.max(5, Math.round(requested))
+      : DEFAULT_RADIUS_MI;
+  if (zip)
+    return /^\d{5}$/.test(zip)
+      ? `${radius} mi of ${zip}`
+      : "Location needs checking";
+  return inventoryScopeStates(params)?.join(", ") || "Nationwide";
+}
+
+export function inventoryViewUnavailableReason(
+  params: URLSearchParams,
+  photosRequired = false,
+): string | null {
+  if (params.get("zip") && Number(params.get("radius")) > MAX_RADIUS_MI)
+    return `This view supports up to ${MAX_RADIUS_MI} miles. Your full-radius search remains available in Results.`;
+  if (photosRequired && params.get("hasPhotos") === "no")
+    return "This view requires photos. Your search for listings without photos remains available in Results.";
+  return null;
 }
 
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {

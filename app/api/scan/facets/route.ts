@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
   const location = await inventoryLocation(supabase, params);
   if (location.requested && !location.radius)
     return NextResponse.json(
-      { error: "This ZIP location could not be resolved." },
+      { error: location.error || "This ZIP location could not be resolved." },
       { status: 422 },
     );
   const flipDesk = (await resolveCallerDesk()) === "flip";

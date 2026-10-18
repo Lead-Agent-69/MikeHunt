@@ -51,6 +51,7 @@ import {
 } from "@/components/shared/PriceRangeSelector";
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { sourceMatchLabel } from "@/lib/search/source-coverage";
+import { parseTitleTypes } from "@/lib/deals/title-category";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -167,6 +168,8 @@ function toggle(arr: string[], v: string): string[] {
 
 /** Keep shared legacy Scan/Discover links useful while Market Explorer becomes the one workspace. */
 function normalizeLegacyMarketParams(params: URLSearchParams) {
+  const titleTypes = parseTitleTypes(params.get("titleType"));
+  if (titleTypes.length) params.set("titleType", titleTypes.join(","));
   const copy = (legacy: string, current: string) => {
     const value = params.get(legacy);
     if (value != null && !params.has(current)) params.set(current, value);
@@ -645,6 +648,7 @@ export default function MarketPage() {
           <button
             type="button"
             aria-label="Save search on this device"
+            disabled={!ready}
             title="Save search on this device"
             className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white sm:px-3"
             onClick={saveCurrentSearch}
@@ -695,6 +699,7 @@ export default function MarketPage() {
       )}
       <section
         aria-label="Everyday search filters"
+        aria-busy={!ready}
         className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-3 lg:grid-cols-6"
       >
         {(
@@ -712,6 +717,7 @@ export default function MarketPage() {
             {label}
             <input
               aria-label={`Quick ${label.toLowerCase()}`}
+              disabled={!ready}
               value={value}
               placeholder={placeholder}
               type={
@@ -734,17 +740,19 @@ export default function MarketPage() {
           Source or dealer
           <select
             aria-label="Quick source or dealer"
-            value={f.sources.length === 1 ? f.sources[0] : ""}
+            disabled={!ready}
+            value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
             onChange={(event) =>
               set({ sources: event.target.value ? [event.target.value] : [] })
             }
             className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
           >
-            <option value="">
-              {f.sources.length > 1
-                ? `${f.sources.length} selected sources`
-                : "All sources"}
-            </option>
+            {f.sources.length > 1 && (
+              <option value="__selected" disabled>
+                {f.sources.length} selected sources
+              </option>
+            )}
+            <option value="">All sources</option>
             {INVENTORY_SOURCE_FILTERS.map((source) => (
               <option key={source.id} value={source.id}>
                 {source.name} -{" "}
@@ -765,6 +773,7 @@ export default function MarketPage() {
             setShowFilters(true);
             setShowInsights(false);
           }}
+          disabled={!ready}
           className="min-h-11 self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
         >
           All filters

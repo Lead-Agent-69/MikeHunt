@@ -1,11 +1,24 @@
 import { resolveZipRadius } from "./zip-radius";
+import { MAX_RADIUS_MI } from "./zip-radius-scope";
 
 export async function inventoryLocation(db: any, params: URLSearchParams) {
   const requested = Boolean(params.get("zip"));
-  const radius = requested ? await resolveZipRadius(db, params) : null;
+  const unsupportedRadius =
+    requested && Number(params.get("radius")) > MAX_RADIUS_MI;
+  const radius =
+    requested && !unsupportedRadius ? await resolveZipRadius(db, params) : null;
   const details = new URLSearchParams(params);
   if (radius) details.delete("zip");
-  return { requested, radius, details };
+  return {
+    requested,
+    radius,
+    details,
+    ...(unsupportedRadius
+      ? {
+          error: `This view supports a radius up to ${MAX_RADIUS_MI} miles. Keep wider searches in Market Explorer.`,
+        }
+      : {}),
+  };
 }
 
 export type InventoryLocation = Awaited<ReturnType<typeof inventoryLocation>>;
