@@ -423,6 +423,43 @@ describe("Market inventory filtering and pagination", () => {
     });
   });
 
+  it("leaves unlocated listings in results without invented map pins or mapped counts", async () => {
+    const invalid = [
+      [null, null],
+      [undefined, undefined],
+      ["", ""],
+      ["  ", -90],
+      [38, null],
+      [null, -90],
+      [false, -90],
+      [38, []],
+      [0, 0],
+      [91, -90],
+      [38, -181],
+      ["unknown", -90],
+    ];
+    state.rows = [
+      ...invalid.map(([lat, lng], i) => ({
+        id: `unlocated-${i}`,
+        source: "carvana",
+        lat,
+        lng,
+      })),
+      { id: "located", source: "carvana", lat: "38.6274", lng: "-90.1982" },
+    ];
+    const body = await (await request("mode=all")).json();
+    expect(body.total).toBe(invalid.length + 1);
+    expect(body.facets.mapped).toBe(1);
+    expect(body.rows.find((row: any) => row.id === "located")).toMatchObject({
+      mapLat: 38.6,
+      mapLng: -90.2,
+    });
+    for (const row of body.rows.filter((row: any) => row.id !== "located")) {
+      expect(row).not.toHaveProperty("mapLat");
+      expect(row).not.toHaveProperty("mapLng");
+    }
+  });
+
   it("compares a cash budget to the disclosed full price, excluding deposits, payments and references", async () => {
     state.rows = [
       {

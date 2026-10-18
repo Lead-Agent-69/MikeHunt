@@ -36,6 +36,7 @@ import {
 } from "@/lib/market/explorer";
 import { geocodeZip } from "@/lib/geo/geocode";
 import { boundingBox } from "@/lib/geo/distance";
+import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import {
@@ -102,19 +103,13 @@ function bodyFacet(value: unknown) {
 }
 
 function roundedMapPoint(latValue: unknown, lngValue: unknown) {
-  const lat = Number(latValue);
-  const lng = Number(lngValue);
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    lat < -90 ||
-    lat > 90 ||
-    lng < -180 ||
-    lng > 180
-  )
-    return null;
+  const point = validCoords(latValue, lngValue);
+  if (!point) return null;
   // One decimal is enough for a nationwide market view and avoids publishing a seller's raw pin.
-  return { lat: Number(lat.toFixed(1)), lng: Number(lng.toFixed(1)) };
+  return {
+    lat: Number(point.lat.toFixed(1)),
+    lng: Number(point.lng.toFixed(1)),
+  };
 }
 
 export async function GET(req: NextRequest) {
