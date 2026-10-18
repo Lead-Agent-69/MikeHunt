@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { galleryImageSrc } from "@/lib/image-url";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import {
   Camera,
   ChevronLeft,
@@ -27,6 +28,11 @@ export function VisionDamageInspector({
   const [index, setIndex] = useState(0);
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const activeIndex = Math.min(index, Math.max(0, photos.length - 1));
+  const move = (offset: number) =>
+    setIndex((activeIndex + offset + photos.length) % photos.length);
+  const photoNavigation = usePhotoNavigation(move, {
+    enabled: photos.length > 1,
+  });
   return (
     <section
       aria-label="Photo evidence"
@@ -51,7 +57,10 @@ export function VisionDamageInspector({
         <div className="min-w-0">
           {photos.length ? (
             <>
-              <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--s2)]">
+              <div
+                className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--s2)]"
+                {...photoNavigation}
+              >
                 {/* Listing hosts vary; retain the existing direct-image delivery path. */}
                 {failedPhoto === photos[activeIndex] ? (
                   <div
@@ -77,8 +86,7 @@ export function VisionDamageInspector({
                   <button
                     type="button"
                     aria-label="Previous photo"
-                    disabled={activeIndex === 0}
-                    onClick={() => setIndex(activeIndex - 1)}
+                    onClick={() => move(-1)}
                     className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
                   >
                     <ChevronLeft aria-hidden="true" size={18} />
@@ -93,8 +101,7 @@ export function VisionDamageInspector({
                   <button
                     type="button"
                     aria-label="Next photo"
-                    disabled={activeIndex === photos.length - 1}
-                    onClick={() => setIndex(activeIndex + 1)}
+                    onClick={() => move(1)}
                     className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b2)] disabled:opacity-40"
                   >
                     <ChevronRight aria-hidden="true" size={18} />

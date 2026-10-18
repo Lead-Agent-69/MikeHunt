@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DiscoveryDeal } from "@/components/discovery/types";
-import { photoEvidence } from "@/lib/images/photo-evidence";
+import { listingPhotos } from "@/lib/search/customer-inventory";
 
 export interface LocalSavedVehicle {
   id: string;
@@ -27,6 +27,7 @@ export interface LocalSavedVehicle {
   sellerEmail?: string;
   sellerContactUrl?: string;
   image?: string;
+  images?: string[];
   locationCity?: string;
   locationState?: string;
   dataQuality?: DiscoveryDeal["dataQuality"];
@@ -62,6 +63,7 @@ function write(list: LocalSavedVehicle[]) {
 }
 
 export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
+  const images = listingPhotos(deal.images, 30);
   const title =
     deal.title ||
     `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim() ||
@@ -89,7 +91,8 @@ export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
     sellerPhone: deal.sellerPhone,
     sellerEmail: deal.sellerEmail,
     sellerContactUrl: deal.sellerContactUrl,
-    image: photoEvidence(deal.images).images[0],
+    image: images[0],
+    images,
     locationCity: deal.locationCity,
     locationState: deal.locationState,
     dataQuality: deal.dataQuality,

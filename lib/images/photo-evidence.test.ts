@@ -91,6 +91,15 @@ describe("known placeholder evidence", () => {
       vehicle,
     ]);
   });
+  it("retains the expanded device-gallery limit without losing placeholder filtering", () => {
+    const images = Array.from(
+      { length: 30 },
+      (_, index) => `https://dealer.test/vehicle-${index}.jpg`,
+    );
+    expect(listingPhotos(images)).toHaveLength(20);
+    expect(listingPhotos(images, 30)).toEqual(images);
+    expect(listingPhotos([placeholder, vehicle], 30)).toEqual([vehicle]);
+  });
   it("uses exact content fingerprints, not an inferred picture or damage verdict", () => {
     expect(
       isPlaceholderPhotoFingerprint(

@@ -24,7 +24,7 @@ export function applyCustomerInventory<T>(
 }
 
 /** Syntax validation only: an accepted URL is not proof that its image still loads. */
-export function reportedListingPhotos(value: unknown): string[] {
+export function reportedListingPhotos(value: unknown, limit = 20): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(
     new Set(
@@ -38,11 +38,16 @@ export function reportedListingPhotos(value: unknown): string[] {
         }
       }),
     ),
-  ).slice(0, 20);
+  ).slice(0, limit);
 }
 
-export function listingPhotos(value: unknown, audit?: unknown): string[] {
-  return photoEvidence(reportedListingPhotos(value), audit).images;
+export function listingPhotos(
+  value: unknown,
+  auditOrLimit?: unknown,
+): string[] {
+  const limit = typeof auditOrLimit === "number" ? auditOrLimit : 20;
+  const audit = typeof auditOrLimit === "number" ? undefined : auditOrLimit;
+  return photoEvidence(reportedListingPhotos(value, limit), audit).images;
 }
 
 /** Reported placeholders may remain researchable; this is not photo verification. */

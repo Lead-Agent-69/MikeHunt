@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { galleryImageSrc } from "@/lib/image-url";
 import { sourceLinkLabel } from "@/lib/sources/listing-link";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 
 // Direction drives the lightbox slide: 0 means "just opened", so it zooms in place
 // rather than flying in from a side the user didn't ask for.
@@ -199,6 +200,10 @@ export function ImageGallery({
     setDirection(-1);
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
   };
+  const photoNavigation = usePhotoNavigation(
+    (offset) => (offset > 0 ? goToNext() : goToPrev()),
+    { enabled: images.length > 1 },
+  );
 
   const openLightbox = (index: number) => {
     returnFocus.current = document.activeElement as HTMLElement;
@@ -441,8 +446,13 @@ export function ImageGallery({
 
                 {/* Main image */}
                 <div
+                  data-photo-navigation
                   className="relative z-[5] flex h-full min-h-0 w-full max-w-full items-center justify-center overflow-hidden"
-                  onClick={(e) => e.stopPropagation()}
+                  {...photoNavigation}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    photoNavigation.onClick(event);
+                  }}
                   onTouchStart={handleTouchStart}
                   onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
@@ -548,7 +558,7 @@ export function ImageGallery({
                   className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-white text-xs font-medium tracking-wide hidden md:block z-10"
                   style={{ background: "rgba(255,255,255,0.1)" }}
                 >
-                  Arrow keys to navigate • drag down or ESC to close
+                  Tap left / right or use arrow keys • drag down or ESC to close
                 </div>
               </motion.dialog>
             )}

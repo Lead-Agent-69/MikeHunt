@@ -103,7 +103,8 @@ describe("saved-card actions", () => {
     ).toBeLessThan(host.innerHTML.indexOf("<img"));
     expect(host.querySelector("img")?.className).toContain("object-contain");
     expect(
-      host.querySelector('a[aria-label="Analyze 2022 Honda Civic"]')?.className,
+      host.querySelector('a[aria-label="Analyze 2022 Honda Civic"]')
+        ?.parentElement?.className,
     ).toContain("aspect-[16/9]");
     expect(
       host.querySelector('a[href="/deal/vehicle-one"]')?.textContent,
