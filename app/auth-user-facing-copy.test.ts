@@ -17,9 +17,10 @@ describe("auth user-facing copy", () => {
       "SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET",
     );
     expect(googleButton).not.toContain("View system status");
-    expect(googleButton).toContain("Google sign-in is almost ready");
-    expect(googleButton).toContain("Return to sign in");
-    expect(googleButton).toContain("Preview live Scan");
+    expect(googleButton).toContain("Google sign-in is unavailable right now");
+    expect(googleButton).toContain("Use the email form below to continue");
+    expect(googleButton).not.toContain("Return to sign in");
+    expect(googleButton).not.toContain("Preview live Scan");
   });
 
   it("keeps the floating decision guide free of infrastructure language", () => {
