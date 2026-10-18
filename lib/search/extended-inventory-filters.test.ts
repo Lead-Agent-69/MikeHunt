@@ -83,10 +83,17 @@ describe("shared extended inventory filters", () => {
       ["neq", "vin", ""],
       ["not", "images", "is", null],
       ["neq", "images", "{}"],
+      [
+        "or",
+        "options->photoAudit->>state.is.null,options->photoAudit->>state.not.in.(placeholder,unavailable)",
+      ],
     ]);
     expect(record("hasVin=no&hasPhotos=no")).toEqual([
       ["or", 'vin.is.null,vin.eq.""'],
-      ["or", "images.is.null,images.eq.{}"],
+      [
+        "or",
+        "images.is.null,images.eq.{},options->photoAudit->>state.in.(placeholder,unavailable)",
+      ],
     ]);
   });
 

@@ -5,6 +5,7 @@ import { ValuationInputs } from "@/components/deal/ValuationInputs";
 import Link from "next/link";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import {
   sourceMeta,
   buyTerms,
@@ -78,7 +79,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const bookmark = useDiscoverySave(deal);
-  const img = proxiedImage(deal.images?.[0]);
+  const img = proxiedImage(photoEvidence(deal.images).images[0]);
   const showImg = img && !imgFailed;
   const title =
     deal.title ||

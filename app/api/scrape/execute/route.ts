@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { EnhancedScrapingEngine } from "@/lib/scrapers/enhanced-engine";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
-import { listingPhotos } from "@/lib/search/customer-inventory";
+import { reportedListingPhotos } from "@/lib/search/customer-inventory";
 import { SCRAPER_CONFIGS } from "@/lib/scrapers/source-configs";
 import { createClient } from "@supabase/supabase-js";
 import { denyUnauthed } from "@/lib/auth/scrape-gate";
@@ -122,7 +122,7 @@ async function executeScraping(
         // Passenger cars and light/medium trucks only; see lib/vehicle/vehicle-scope.ts.
         const deals = (await scrapingEngine.scrapeSource(config)).filter(
           (deal: any) =>
-            listingPhotos(deal.images).length > 0 &&
+            reportedListingPhotos(deal.images).length > 0 &&
             isInVehicleScope({
               title: deal.title,
               make: deal.make,
@@ -149,7 +149,7 @@ async function executeScraping(
             mileage: deal.mileage,
             location: deal.location,
             description: deal.description,
-            images: listingPhotos(deal.images),
+            images: reportedListingPhotos(deal.images),
             auction_end: deal.auctionEnd?.toISOString(),
             bid_count: deal.bidCount,
             seller: deal.seller,

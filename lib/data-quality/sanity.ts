@@ -8,6 +8,7 @@
 
 import { normalizeVin, isValidVin } from "@/lib/vehicle/vin";
 import { isKnownMake } from "@/lib/scrapers/tools/deal-normalizer";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 
 export const QUALITY_FLAGS = [
   "price_below_300",
@@ -188,9 +189,7 @@ export type CompletenessField = keyof typeof COMPLETENESS_WEIGHTS;
 /** Which fields a listing is missing (location counts as missing unless zip or city+state). */
 export function missingFields(deal: CompletenessInput): CompletenessField[] {
   const out: CompletenessField[] = [];
-  const hasPhoto =
-    Array.isArray(deal.images) &&
-    deal.images.some((u) => typeof u === "string" && u.trim().length > 0);
+  const hasPhoto = photoEvidence(deal.images).images.length > 0;
   if (!hasPhoto) out.push("photo");
   const vin = normalizeVin(String(deal.vin || ""));
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) out.push("vin");

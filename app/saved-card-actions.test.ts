@@ -13,6 +13,7 @@ function card(
   dealId = "vehicle-one",
   sourceName = "independent_dealer",
   status: SavedCarStatus = "active",
+  images = ["https://example.com/photo.jpg"],
 ) {
   const html = renderToStaticMarkup(
     React.createElement(SavedCarCard, {
@@ -26,7 +27,7 @@ function card(
           model: "Civic",
           vin: "",
           sourceUrl: "https://example.com/listing",
-          images: ["https://example.com/photo.jpg"],
+          images,
         },
         source_name: sourceName,
         source_url: "",
@@ -45,6 +46,19 @@ function card(
   return host;
 }
 describe("saved-card actions", () => {
+  it("preserves a saved record and source link without counting a placeholder as a vehicle photo", () => {
+    const host = card("vehicle-one", "independent_dealer", "active", [
+      "https://dealer.test/no-photo.jpg",
+    ]);
+    expect(host.textContent).toContain("Honda");
+    expect(host.querySelector('a[href="/deal/vehicle-one"]')).not.toBeNull();
+    expect(host.querySelector("img")).toBeNull();
+    expect(host.textContent).toContain("vehicle photos");
+    expect(host.textContent).not.toContain("1 photo");
+    expect(
+      host.querySelector('button[aria-label="Remove saved vehicle"]'),
+    ).not.toBeNull();
+  });
   it("uses the snapshot's actual vendor without a nested link or invented branding", () => {
     const host = card();
     const vendor = host.querySelector(

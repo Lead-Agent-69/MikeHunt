@@ -4,7 +4,8 @@
 import { createServerComponentClient } from "@/lib/supabase";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 import { preserveExistingDealerListingIds } from "./dealer-listing-id";
-import { listingPhotos } from "@/lib/search/customer-inventory";
+import { reportedListingPhotos } from "@/lib/search/customer-inventory";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { Deal } from "@/types";
 import { QualityController } from "./tools/quality-control";
 import { normalizeDeals } from "./tools/deal-normalizer";
@@ -515,12 +516,25 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
 
   const beforePhotoGate = rows.length;
   rows = rows.filter((row) => {
-    row.images = listingPhotos(row.images);
+    // Retain the source artifact; a placeholder is not usable photo evidence.
+    row.images = reportedListingPhotos(row.images);
+    const evidence = photoEvidence(row.images);
+    if (evidence.placeholderCount && evidence.images.length === 0)
+      row.options = {
+        ...row.options,
+        photoAudit: {
+          state: "placeholder",
+          method: "known_url_fingerprint",
+          checkedAt: new Date().toISOString(),
+          placeholderUrls: evidence.placeholderUrls,
+          originalImages: row.images,
+        },
+      };
     return row.images.length > 0;
   });
   if (rows.length !== beforePhotoGate)
     console.info(
-      `[upsertDeals] ${beforePhotoGate - rows.length} listings deferred: no usable photo URL`,
+      `[upsertDeals] ${beforePhotoGate - rows.length} listings deferred: no reported photo URL`,
     );
   const photoAccepted = rows.length;
   if (!rows.length) {

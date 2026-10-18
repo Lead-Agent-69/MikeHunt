@@ -7,6 +7,7 @@ export type PhotoMaintenanceReceipt = {
   available: number;
   unavailable: number;
   unknown: number;
+  placeholder: number;
   written: number;
   conflicts: number;
   failed: number;
@@ -36,6 +37,7 @@ export async function maintainListingPhotos(
     available: 0,
     unavailable: 0,
     unknown: 0,
+    placeholder: 0,
     written: 0,
     conflicts: 0,
     failed: 0,
@@ -82,6 +84,7 @@ export async function maintainListingPhotos(
                   state: result.state,
                   checkedAt: result.checkedAt,
                   verifiedUrl: result.verifiedUrl,
+                  placeholderUrls: result.placeholderUrls,
                   checks: result.checks,
                   originalImages:
                     row.options?.photoAudit?.originalImages ?? row.images,

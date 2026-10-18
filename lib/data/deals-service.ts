@@ -4,6 +4,7 @@ import {
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -94,6 +95,7 @@ export type Deal = {
   profitEstimate: number;
   profitScore?: number;
   images: string[];
+  photoEvidence?: { placeholderCount: number; reportedCount: number };
   locationCity?: string;
   locationState?: string;
   locationZip?: string;
@@ -195,6 +197,7 @@ export class DealsService {
   private mapDbToDeal(row: any): Deal {
     const contact = sellerContact(row);
     const options = this.rowOptions(row);
+    const photos = photoEvidence(row.images, options.photoAudit);
     // deals has no bid_count / seller / seller_type columns: these live in options (pipeline.ts).
     const bidCount = options.auction?.bidCount;
     return {
@@ -222,7 +225,11 @@ export class DealsService {
         reportedAcquisitionPrice(row) > 0 && row.profit_score
           ? Number(row.profit_score)
           : undefined,
-      images: row.images || [],
+      images: photos.images,
+      photoEvidence: {
+        placeholderCount: photos.placeholderCount,
+        reportedCount: photos.reportedCount,
+      },
       locationCity: row.location_city,
       locationState: row.location_state,
       locationZip: row.location_zip,

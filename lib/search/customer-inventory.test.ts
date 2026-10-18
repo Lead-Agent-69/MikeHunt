@@ -78,4 +78,23 @@ describe("customer inventory eligibility", () => {
     ).toEqual(["https://dealer.test/car.jpg"]);
     expect(listingPhotos(null)).toEqual([]);
   });
+  it("lets whole-market research include photo-less records without relaxing freshness", () => {
+    const query: any = {};
+    for (const method of ["not", "neq", "gte", "lte", "or"])
+      query[method] = vi.fn(() => query);
+    applyCustomerInventory(query, Date.parse("2026-10-13T12:00:00Z"), {
+      includeWithoutPhotos: true,
+    });
+    expect(query.not).not.toHaveBeenCalled();
+    expect(query.neq).not.toHaveBeenCalled();
+    expect(query.or).not.toHaveBeenCalled();
+    expect(query.gte).toHaveBeenCalledWith(
+      "last_seen_at",
+      "2026-10-10T12:00:00.000Z",
+    );
+    expect(query.lte).toHaveBeenCalledWith(
+      "last_seen_at",
+      "2026-10-13T12:00:00.000Z",
+    );
+  });
 });

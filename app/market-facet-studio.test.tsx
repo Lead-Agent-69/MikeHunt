@@ -97,6 +97,38 @@ describe("smart market exploration", () => {
     expect(onFacetSelect).toHaveBeenCalledWith("condition", "clean_title");
   });
 
+  it("keeps source brands recognizable and their filter values unchanged", () => {
+    const onFacetSelect = vi.fn();
+    act(() =>
+      root.render(
+        <MarketFacetStudio
+          total={3}
+          selected={{}}
+          facets={{
+            sources: [
+              { value: "cargurus", n: 2 },
+              { value: "cars_com", n: 1 },
+            ],
+          }}
+          onFacetSelect={onFacetSelect}
+          onMatrixSelect={vi.fn()}
+        />,
+      ),
+    );
+    act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+        .find((button) => button.textContent === "Sources")!
+        .click(),
+    );
+    const source = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("CarGurus"));
+    expect(source).toBeDefined();
+    expect(host.textContent).toContain("Cars.com");
+    act(() => source!.click());
+    expect(onFacetSelect).toHaveBeenCalledWith("source", "cargurus");
+  });
+
   it("lets a user inspect mapped listings and open the selected result", () => {
     const listing = (
       id: string,

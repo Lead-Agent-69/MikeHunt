@@ -2,7 +2,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 // Explicit synthetic inventory for freshness-aware E2E tests. Never target hosted data.
-const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+const env = readFileSync(
+  process.env.MIKEHUNT_QA_ENV_FILE || new URL("../.env.local", import.meta.url),
+  "utf8",
+);
 const configured = env
   .match(/^NEXT_PUBLIC_SUPABASE_URL\s*=\s*([^\r\n]+)/m)?.[1]
   .trim()
@@ -107,6 +110,31 @@ SELECT 'copart','local-qa-v1-current-bid','https://example.test/local-qa/current
 FROM public.deals WHERE cardinality(images)>0 ORDER BY id LIMIT 1
 ON CONFLICT (source,source_deal_id) DO UPDATE
 SET last_seen_at=now(), active=true,auction_end_at=excluded.auction_end_at
+WHERE deals.options->>'qa_fixture'='local-qa-v1';
+WITH donor AS (
+  SELECT images[1] AS photo FROM public.deals
+  WHERE cardinality(images) > 0 AND options->>'qa_fixture' = 'local-qa-v1'
+  ORDER BY id LIMIT 1
+), placeholder AS (
+  SELECT 'https://thumb.autotempest.com/cgu/1FDBF2AN6VEC67291_461748235_725a472cc3c53688563f3c07811b3cc0_3_0647371b4de74ad3c65a580fb9d44269.webp'::text AS photo
+)
+INSERT INTO public.deals
+  (source,source_deal_id,source_url,title,year,make,model,condition,ask_price,
+   images,location_state,location_city,lat,lng,active,options,first_seen_at,last_seen_at)
+SELECT 'independent_dealer','local-qa-v1-photo-' || sample.code,
+  'https://example.test/local-qa/photo/' || sample.code,
+  '[Local QA fixture] PhotoEvidence ' || sample.code,
+  2021,'Ford','Escape','clean_title',12000,
+  CASE sample.code WHEN 'placeholder' THEN ARRAY[placeholder.photo]
+    WHEN 'mixed' THEN ARRAY[placeholder.photo,donor.photo]
+    ELSE ARRAY[]::text[] END,
+  'MO','St. Louis',38.63,-90.20,true,
+  jsonb_build_object('qa_fixture','local-qa-v1','priceEvidence',
+    jsonb_build_object('kind','asking','askingPrice',12000)),now(),now()
+FROM donor CROSS JOIN placeholder CROSS JOIN
+  (VALUES ('placeholder'),('mixed'),('empty')) sample(code)
+ON CONFLICT (source,source_deal_id) DO UPDATE
+SET images=excluded.images,last_seen_at=now(),active=true
 WHERE deals.options->>'qa_fixture'='local-qa-v1';
 SELECT count(*) AS synthetic_local_qa_vehicles FROM public.deals
 WHERE options->>'qa_fixture' = 'local-qa-v1';

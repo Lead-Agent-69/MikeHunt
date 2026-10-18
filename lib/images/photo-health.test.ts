@@ -47,6 +47,32 @@ describe("gallery verification", () => {
       inspectListingPhotos([a], { signal: controller.signal }),
     ).rejects.toThrow();
   });
+  it("retains placeholder provenance without counting it as available or deleting the listing artifact", async () => {
+    const result = await inspectListingPhotos([a], {
+      probe: async () => ({ state: "placeholder" }),
+    });
+    expect(result.state).toBe("placeholder");
+    expect(result.verifiedUrl).toBeNull();
+    expect(result.placeholderUrls).toEqual([a]);
+    expect(result.images).toEqual([a]);
+    const mixed = await inspectListingPhotos([a, b], {
+      probe: async (url) => ({
+        state: url === a ? "placeholder" : "available",
+      }),
+    });
+    expect(mixed.state).toBe("available");
+    expect(mixed.verifiedUrl).toBe(b);
+    expect(mixed.images).toEqual([b, a]);
+    expect(mixed.placeholderUrls).toEqual([a]);
+    expect(
+      (
+        await inspectListingPhotos([a, b], {
+          maxPhotos: 1,
+          probe: async () => ({ state: "placeholder" }),
+        })
+      ).state,
+    ).toBe("unknown");
+  });
   it("refuses unknown hosts and does not mistake HTTP success HTML for a photo", async () => {
     fetchImage.mockClear();
     expect((await probeListingPhoto("https://unknown.test/a.jpg")).state).toBe(
@@ -60,6 +86,13 @@ describe("gallery verification", () => {
     expect((await probeListingPhoto(a)).state).toBe("unknown");
     fetchImage.mockResolvedValueOnce({ ok: false, status: 403 });
     expect((await probeListingPhoto(a)).state).toBe("unknown");
+  });
+  it("identifies a known placeholder URL without fetching extra bytes", async () => {
+    fetchImage.mockClear();
+    expect(await probeListingPhoto("https://dealer.test/no-photo.jpg")).toEqual(
+      { state: "placeholder" },
+    );
+    expect(fetchImage).not.toHaveBeenCalled();
   });
   it("does not quarantine a gallery when its host returns a temporary non-image response", async () => {
     for (const status of [403, 415, 429, 500, 502, 503]) {

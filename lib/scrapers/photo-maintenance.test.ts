@@ -76,6 +76,7 @@ beforeEach(() => {
     checkedAt: "now",
     verifiedUrl: "photo",
     checks: [],
+    placeholderUrls: [],
     images: ["photo"],
   });
 });
@@ -107,6 +108,7 @@ it("scopes and bounds checks, preserves unrelated evidence, and charges only con
         checkedAt: "now",
         verifiedUrl: "photo",
         checks: [],
+        placeholderUrls: [],
         originalImages: ["old"],
       },
     },
@@ -128,6 +130,28 @@ it("records unknown attempts without removing existing quarantine or changing ph
       photoCheckAttempt: { state: "unknown", checkedAt: "now" },
     },
   });
+});
+it("keeps a placeholder artifact and charges the existing budget only after its metadata write succeeds", async () => {
+  inspect.mockResolvedValue({
+    state: "placeholder",
+    checkedAt: "now",
+    verifiedUrl: null,
+    checks: [{ state: "placeholder", url: row.images[0] }],
+    placeholderUrls: row.images,
+    images: row.images,
+  });
+  const c = client(),
+    opts = options();
+  expect(await maintainListingPhotos(c.sb, opts)).toMatchObject({
+    placeholder: 1,
+    written: 1,
+    unavailable: 0,
+  });
+  expect(c.patches[0].images).toEqual(row.images);
+  expect(c.patches[0].options.photoAudit.placeholderUrls).toEqual(row.images);
+  expect(c.patches[0].options.photoAudit.originalImages).toEqual(["old"]);
+  expect(opts.beforeWrite).toHaveBeenCalledOnce();
+  expect(opts.onWrite).toHaveBeenCalledWith(row);
 });
 it("does not count conflicts or errors as successful updates", async () => {
   for (const mode of [{ conflict: true }, { error: true }]) {

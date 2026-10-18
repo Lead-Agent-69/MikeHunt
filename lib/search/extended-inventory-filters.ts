@@ -275,8 +275,17 @@ export function applyExtendedFilters(
   if (vin === "yes") q = q.not("vin", "is", null).neq("vin", "");
   else if (vin === "no") q = q.or('vin.is.null,vin.eq.""');
   const photos = params.get("hasPhotos");
-  if (photos === "yes") q = q.not("images", "is", null).neq("images", "{}");
-  else if (photos === "no") q = q.or("images.is.null,images.eq.{}");
+  if (photos === "yes")
+    q = q
+      .not("images", "is", null)
+      .neq("images", "{}")
+      .or(
+        "options->photoAudit->>state.is.null,options->photoAudit->>state.not.in.(placeholder,unavailable)",
+      );
+  else if (photos === "no")
+    q = q.or(
+      "images.is.null,images.eq.{},options->photoAudit->>state.in.(placeholder,unavailable)",
+    );
   const days = Number(params.get("seenWithin"));
   if ([1, 7, 30].includes(days))
     q = q.gte("last_seen_at", new Date(now - days * 86400000).toISOString());

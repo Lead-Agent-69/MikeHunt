@@ -1,13 +1,21 @@
 import { STALE_AFTER_HOURS } from "@/lib/deals/freshness";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 
 /** Apply before count/range so empty galleries and stale rows cannot consume a page. */
-export function applyCustomerInventory<T>(query: T, now = Date.now()): T {
-  return (query as any)
-    .not("images", "is", null)
-    .neq("images", "{}")
-    .or(
-      "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
-    )
+export function applyCustomerInventory<T>(
+  query: T,
+  now = Date.now(),
+  options: { includeWithoutPhotos?: boolean } = {},
+): T {
+  let scoped = query as any;
+  if (!options.includeWithoutPhotos)
+    scoped = scoped
+      .not("images", "is", null)
+      .neq("images", "{}")
+      .or(
+        "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+      );
+  return scoped
     .gte(
       "last_seen_at",
       new Date(now - STALE_AFTER_HOURS * 3_600_000).toISOString(),
@@ -16,7 +24,7 @@ export function applyCustomerInventory<T>(query: T, now = Date.now()): T {
 }
 
 /** Syntax validation only: an accepted URL is not proof that its image still loads. */
-export function listingPhotos(value: unknown): string[] {
+export function reportedListingPhotos(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(
     new Set(
@@ -24,10 +32,7 @@ export function listingPhotos(value: unknown): string[] {
         if (typeof item !== "string" || !item.trim()) return false;
         try {
           const url = new URL(item);
-          return (
-            ["https:", "http:"].includes(url.protocol) &&
-            !/(?:no[-_]?image|placeholder|no[-_]?photo)/i.test(url.pathname)
-          );
+          return ["https:", "http:"].includes(url.protocol);
         } catch {
           return false;
         }
@@ -36,6 +41,11 @@ export function listingPhotos(value: unknown): string[] {
   ).slice(0, 20);
 }
 
+export function listingPhotos(value: unknown, audit?: unknown): string[] {
+  return photoEvidence(reportedListingPhotos(value), audit).images;
+}
+
+/** Reported placeholders may remain researchable; this is not photo verification. */
 export function isCustomerInventory(
   row: {
     images?: unknown;
@@ -50,7 +60,7 @@ export function isCustomerInventory(
   return (
     row.active !== false &&
     row.options?.photoAudit?.state !== "unavailable" &&
-    listingPhotos(row.images).length > 0 &&
+    reportedListingPhotos(row.images).length > 0 &&
     Number.isFinite(seen) &&
     seen <= now &&
     now - seen <= STALE_AFTER_HOURS * 3_600_000

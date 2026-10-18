@@ -5,7 +5,7 @@ import pRetry from "p-retry";
 import Redis from "ioredis";
 import { createClient } from "@supabase/supabase-js";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
-import { listingPhotos } from "@/lib/search/customer-inventory";
+import { reportedListingPhotos } from "@/lib/search/customer-inventory";
 
 // Enhanced scraping configuration
 export interface EnhancedScraperConfig {
@@ -498,7 +498,7 @@ export class EnhancedScrapingEngine {
   async saveDeals(input: EnhancedDeal[]): Promise<void> {
     // Passenger cars and light/medium trucks only; see lib/vehicle/vehicle-scope.ts.
     const deals = input
-      .map((deal) => ({ ...deal, images: listingPhotos(deal.images) }))
+      .map((deal) => ({ ...deal, images: reportedListingPhotos(deal.images) }))
       .filter(
         (deal: any) =>
           deal.images.length > 0 &&
