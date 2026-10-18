@@ -5,6 +5,10 @@ import { createServer } from "node:http";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { RotatingLog } from "../lib/scrapers/rotating-log";
 import {
+  createStorageBudgetChecker,
+  type StorageBudget,
+} from "../lib/scrapers/storage-budget";
+import {
   readScraperRelease,
   type ScraperRelease,
 } from "../lib/scrapers/release-provenance";
@@ -118,6 +122,7 @@ interface Status {
     requestedAt: string;
   };
   quota: ReturnType<LocalScraperCache["getQuota"]>;
+  databaseStorage?: StorageBudget;
   writeCapacity?: ReturnType<typeof writeCapacity>;
   photoMaintenance?: NonNullable<
     Awaited<ReturnType<LocalScraperCache["verifyListingPhotos"]>>
@@ -291,6 +296,7 @@ async function initializeRuntime(): Promise<void> {
   await mkdir(statusDir, { recursive: true });
   await mkdir(path.dirname(LOG_PATH), { recursive: true });
   logStream = new RotatingLog(LOG_PATH);
+  const checkStorage = createStorageBudgetChecker();
   for (const level of ["log", "warn", "error"] as const) {
     const original = console[level].bind(console);
     console[level] = (...args: unknown[]) => {
@@ -315,6 +321,19 @@ async function initializeRuntime(): Promise<void> {
       void writeStatus();
     },
     beforeWrite: async () => waitUntilWritable(),
+    allowInsert: async (client) => {
+      const budget = await checkStorage(client);
+      if (
+        currentStatus.databaseStorage?.state !== budget.state &&
+        budget.state !== "normal"
+      ) {
+        console.warn(
+          `[storage-budget] ${budget.state}; new inserts ${budget.allowInsert ? "allowed" : "buffered locally"}`,
+        );
+      }
+      currentStatus.databaseStorage = budget;
+      return budget.allowInsert;
+    },
   });
   await cache.load();
   currentStatus = {

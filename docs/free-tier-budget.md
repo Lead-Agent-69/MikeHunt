@@ -11,6 +11,48 @@ Measured on 2026-10-09 (America/Chicago) against the production project. Plan li
 vercel.com/docs/plans/hobby and supabase.com/pricing, read the same day. Re-run the queries at the
 bottom monthly.
 
+## 2026-10-11 clarification
+
+### October 15 Deployment Retention
+
+With operator approval, MikeHunt project-only preview, canceled and errored
+deployment retention was reduced from 30 to 7 days and re-read through Vercel's
+project API. Production stays at 30 days because the supported duration set does
+not include the requested 14-day option. `deploymentsToKeep=10` was preserved;
+team defaults, aliases, paid plans and other projects were not changed. This
+reduces future accumulation, not already accrued Functions Storage usage. The
+latest CLI billing-usage call returned unavailable data on this Hobby team, so
+it is not a fresh monthly-headroom receipt or proof that another rollout fits.
+
+The measurements below are historical, NOT today's hosted usage. The connector inspection was
+denied on Oct 11, but CLI reads work on Oct 12. Check both provider Usage dashboards before deciding
+more sources fit; successful SQL access does not measure all monthly usage.
+The 2 TB F: scraper disk does not expand Supabase's 500 MB database or Vercel quotas.
+
+Current official limits checked Oct 11:
+
+- [Supabase billing](https://supabase.com/docs/guides/platform/billing-on-supabase): 500 MB database/project,
+  1 GB object storage, 5 GB egress, 50,000 MAU, 2 million realtime messages and 200 peak connections.
+- [Vercel Hobby](https://vercel.com/docs/plans/hobby): 4 active CPU hours, 360 GB-hours memory,
+  1 million invocations, 100 GB fast transfer, 10 GB origin transfer and 5,000 image transformations.
+  Hobby is restricted to non-commercial personal use, even when an app charges users nothing.
+- [GitHub repository limits](https://docs.github.com/en/repositories/creating-and-managing-repositories/repository-limits):
+  10 GB compressed-repository recommendation, 100 MB enforced single-object limit, 2 GB push limit.
+  This is not a 10 GB data-storage entitlement. Generated inventory/photos/caches stay outside Git.
+
+Local audit: Git objects about 57 MiB, no tracked cache/log/profile/attachment/artifact files.
+Deployment and Docker ignores now explicitly exclude local attachments and runtime data.
+See `RETENTION.md` for the protected-cleanup migration and its outstanding hosted apply gate.
+
+At the historical ~8 KB/row, 1,000 new rows/day retained for 90 days is ~720 MB before other tables.
+Daily write caps alone therefore DO NOT make unlimited source expansion safe. The protected-retention
+branch adds a Zeus insertion guard: warning at 350 MB; new rows buffered locally at 450 MB or when
+the size RPC is unverified; existing-row updates and freshness touches continue. The measurement is
+cached five minutes (one minute on failure) and appears in worker status. This requires the reviewed
+service-only size RPC and a Zeus rebuild. It does not cover unrelated API writes, file-storage size,
+or monthly egress/CPU. A permission-approved cold archive and dashboard quota monitoring remain
+required. Never shorten user retention to claim unlimited free capacity.
+
 ## TL;DR
 
 | Resource                    | Free limit               | Today                                                                                                  | Projection                                                                                                                                           | Risk                                                                                |
