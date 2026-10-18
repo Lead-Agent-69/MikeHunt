@@ -45,6 +45,7 @@ describe("local saved vehicle snapshots", () => {
       model: "X3",
       mileage: 82200,
       askPrice: 7900,
+      priceEvidence: { kind: "current_bid", currentBid: 7900 },
       sellEstimate: 13200,
       trueNetProfit: 2100,
       recommendedMaxBid: 6100,
@@ -76,6 +77,7 @@ describe("local saved vehicle snapshots", () => {
 
     expect(saved).toMatchObject({
       id: "deal-1",
+      priceEvidence: { kind: "current_bid", currentBid: 7900 },
       sellerType: "dealer",
       seller: "AE of Miami",
       sellerPhone: "305-555-0100",

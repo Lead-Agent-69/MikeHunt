@@ -360,14 +360,14 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                     ? `/deal/${save.deal_id}`
                     : sourceHref || undefined
                 }
-                className="relative block h-32 w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:w-44"
+                className="relative block aspect-[16/9] w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:aspect-auto lg:h-32 lg:w-44"
                 aria-label={`Analyze ${snapshot.year} ${snapshot.make} ${snapshot.model}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={snapshot.images[0]}
                   alt={`${snapshot.year} ${snapshot.make} ${snapshot.model}`}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
                 <div className="absolute bottom-2 left-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-black uppercase text-white">
                   {snapshot.images.length} photo
