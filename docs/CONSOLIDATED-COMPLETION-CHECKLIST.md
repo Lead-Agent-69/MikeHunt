@@ -6,6 +6,31 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Scraper Release Provenance Follow-Up (October 17, 2026)
+
+Issue #440 adds an exact-commit archive builder, image labels and baked release
+metadata, a read-only runtime verifier, and a `release` field in worker status.
+The plan-only default does not touch Docker; `--build` is explicit. Archive
+fixtures prove a moved HEAD, dirty tracked code and untracked env secrets do not
+enter the chosen commit's context. Tracked runtime secret/cache paths are refused.
+Legacy/invalid metadata remains unknown, with no runtime-env or checkout fallback.
+Verification checks the expected commit, actual image IDs, labels, loopback
+binding, container start and fresh worker status without dumping private payloads.
+
+The first 29 focused tests pass, including baked-file writing, unknown/partial
+builds, archive contents and stale/mismatched evidence. The CLI plan was checked
+against a real commit with no image build, and the read-only verifier correctly
+returned nonzero for the current unlabeled local Windows image. That negative
+check is not a deployment certification. No worker, mounts, env, quotas or hosted
+data changed. The worker's normal UTC-day rollover subsequently restored local
+write capacity without an agent reset; this is not provider usage/headroom proof.
+
+An approved real image build/rollout, positive image/status receipt and D&G's
+accepted/freshness/source-radius checks remain open. Keep #440/#437 open until
+those gates pass. Retention #360, hosted account/alert checks, capacity and source
+permissions remain separate; metadata work does not approve hosted migrations or
+enable additional sources. Existing operator-only Zeus deployment rules remain.
+
 ### D&G Native Inventory Repair (October 17, 2026)
 
 Issue #437: D&G moved from `vehicles.php` to a native `/inventory/` page.
