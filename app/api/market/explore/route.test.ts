@@ -232,6 +232,9 @@ describe("Market inventory filtering and pagination", () => {
       model: "F-150",
       year: 2020,
       ask_price: 12000,
+      price_evidence: { kind: "asking", askingPrice: 12000 },
+      source_url: "https://dealer.test/verified-car",
+      last_seen_at: new Date().toISOString(),
       sell_estimate: 15000,
       true_net_profit: 2500,
       profit_score: 80,
@@ -289,6 +292,122 @@ describe("Market inventory filtering and pagination", () => {
       "comparisons",
     ]);
   });
+
+  it.each([
+    { kind: "monthly_payment", listedAmount: 299 },
+    { kind: "down_payment", listedAmount: 500 },
+    { kind: "finance_teaser", listedAmount: 299 },
+    { kind: "reference", referenceValue: 15000 },
+    { kind: "unknown", listedAmount: 1000 },
+    { kind: "asking", askingPrice: 12000 },
+    { kind: "buy_now", buyNow: 14000 },
+  ])(
+    "keeps supported resale but withholds profit and GO for an unsupported acquisition: $kind",
+    async (priceEvidence) => {
+      state.rows = [
+        {
+          id: "bad-acquisition",
+          source: "independent_dealer",
+          source_url: "https://dealer.test/car",
+          ask_price: 1000,
+          sell_estimate: 15000,
+          true_net_profit: 12000,
+          profit_score: 99,
+          recommended_max_bid: 13000,
+          deal_verdict: "go",
+          last_seen_at: new Date().toISOString(),
+          price_evidence: priceEvidence,
+          deal_analysis: {
+            roi: 1200,
+            valuation: {
+              source: "comparables",
+              resaleEvidence: true,
+              compCount: 8,
+              confidence: "medium",
+              compKind: "ask",
+            },
+          },
+        },
+      ];
+      const body = await (await request("mode=all")).json();
+      expect(body.rows[0].sellEstimate).toBe(15000);
+      for (const key of [
+        "profitEstimate",
+        "profitScore",
+        "recommendedMaxBid",
+        "dealVerdict",
+        "roi",
+      ])
+        expect(body.rows[0]).not.toHaveProperty(key);
+      expect(body.facets.laneProfit).toEqual({});
+      expect((await (await request("mode=curated")).json()).total).toBe(0);
+      expect((await (await request("mode=all&minProfit=1")).json()).total).toBe(
+        0,
+      );
+    },
+  );
+
+  it.each([
+    {
+      evidence: { kind: "current_bid", currentBid: 500 },
+      missing: false,
+      supported: true,
+    },
+    { evidence: { kind: "current_bid" }, missing: false, supported: false },
+    {
+      evidence: {
+        kind: "current_bid",
+        currentBid: 500,
+        checkedAt: "2000-01-01",
+      },
+      missing: false,
+      supported: false,
+    },
+    {
+      evidence: { kind: "asking", askingPrice: 500 },
+      missing: true,
+      supported: false,
+    },
+  ])(
+    "requires a recorded current bid and preserves missing-cost flags: %j",
+    async ({ evidence, missing, supported }) => {
+      state.rows = [
+        {
+          id: "bid",
+          source: "copart",
+          source_url: "https://www.copart.com/lot/123",
+          ask_price: 500,
+          sell_estimate: 15000,
+          true_net_profit: 0,
+          profit_score: 0,
+          deal_verdict: "hold",
+          last_seen_at: new Date().toISOString(),
+          price_evidence: evidence,
+          deal_analysis: {
+            acquisitionPriceMissing: missing,
+            roi: 0,
+            valuation: {
+              source: "comparables",
+              resaleEvidence: true,
+              compCount: 8,
+              confidence: "medium",
+              compKind: "ask",
+            },
+          },
+        },
+      ];
+      const body = await (await request("mode=all")).json();
+      expect(body.rows[0].sellEstimate).toBe(15000);
+      if (supported)
+        expect(body.rows[0]).toMatchObject({
+          profitEstimate: 0,
+          profitScore: 0,
+          roi: 0,
+          dealVerdict: "hold",
+        });
+      else expect(body.rows[0]).not.toHaveProperty("profitEstimate");
+    },
+  );
 
   it("does not exclude unpriced inventory unless a price range is requested", async () => {
     await request("mode=all&q=Ford");
