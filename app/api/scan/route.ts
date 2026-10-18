@@ -448,7 +448,7 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
   const repairEst = toNum(
     r.repair_estimate ?? r.repairEst ?? r.estimated_repair_cost ?? 0,
   );
-  const images = Array.isArray(r.images) ? r.images : r.images || [];
+  const images = listingPhotos(r.images, r.options?.photoAudit);
   const quality = gradeDataQuality({
     source: r.source,
     images,

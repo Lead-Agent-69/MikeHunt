@@ -6,6 +6,7 @@ import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
@@ -108,8 +109,8 @@ export const DealCard = memo(function DealCard({
   bidCount,
   firstSeenAt,
   lastSeenAt,
-  imageUrl,
-  imageUrls,
+  imageUrl: reportedImageUrl,
+  imageUrls: reportedImageUrls,
   requirePhoto = false,
   vin,
   sourceUrl,
@@ -126,6 +127,11 @@ export const DealCard = memo(function DealCard({
   onSave,
   flipDesk = true,
 }: DealCardProps) {
+  const imageUrls = photoEvidence([
+    reportedImageUrl,
+    ...(reportedImageUrls || []),
+  ]).images;
+  const imageUrl = imageUrls[0];
   const gallery = useListingPhotos([imageUrl, ...(imageUrls || [])]);
   const dom = daysOnMarket(firstSeenAt);
   const tier = dom != null ? domTier(dom) : null;

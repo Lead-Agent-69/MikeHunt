@@ -3,6 +3,7 @@
 import React from "react";
 import { BarChart3, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
+import { sourceMeta } from "@/lib/sources/source-meta";
 import type {
   MarketFacetCount,
   MarketFacets,
@@ -295,6 +296,10 @@ export function MarketFacetStudio({
                 <FacetCard
                   title="Source"
                   entries={facets?.sources || []}
+                  format={(value) => {
+                    const label = sourceMeta(value).label;
+                    return label === "Other" ? formatFacet(value) : label;
+                  }}
                   active={selected.source}
                   onSelect={(value) => onFacetSelect("source", value)}
                 />

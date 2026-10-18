@@ -32,6 +32,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("listing photo navigation", () => {
+  it("keeps remembered offsets and the viewer count aligned after placeholder photos are excluded", () => {
+    const src = "https://dealer.test/actual-vehicle.jpg";
+    act(() =>
+      root.render(
+        React.createElement(ImageGallery, {
+          title: "Source vehicle",
+          images: ["https://dealer.test/car-placeholder.jpg", src],
+        }),
+      ),
+    );
+    const opener = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Open photo 1 of 1: Source vehicle"]',
+    )!;
+    expect(opener).not.toBeNull();
+    act(() => opener.click());
+    expect(document.querySelector("dialog img")?.getAttribute("src")).toBe(src);
+    expect(document.querySelector("dialog")?.textContent).toContain("1 / 1");
+    expect(document.querySelector('[aria-label="Next image"]')).toBeNull();
+  });
   it.each([2, 3, 4])(
     "makes every photo visible to navigation for a %s-photo listing",
     async (count) => {

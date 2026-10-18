@@ -74,6 +74,7 @@ export async function POST(request: Request) {
     available: 0,
     unavailable: 0,
     unknown: 0,
+    placeholder: 0,
     written: 0,
     conflicts: 0,
     failed: 0,
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
         state: result.state,
         checkedAt: result.checkedAt,
         verifiedUrl: result.verifiedUrl,
+        placeholderUrls: result.placeholderUrls,
         checks: result.checks,
         originalImages: row.images,
       };
@@ -118,7 +120,13 @@ export async function POST(request: Request) {
     receipt.failed++;
   }
   if (receipt.written)
-    for (const prefix of ["feed:", "discover:", "map:", "state-counts:"])
+    for (const prefix of [
+      "feed:",
+      "discover:",
+      "map:",
+      "state-counts:",
+      "mkt:explore:",
+    ])
       invalidate(prefix);
   return NextResponse.json(
     {

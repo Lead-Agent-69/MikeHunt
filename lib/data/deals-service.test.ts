@@ -135,6 +135,19 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
       listedAmount: 4500,
     });
   });
+  it("keeps a placeholder-only listing but reports no vehicle photos", async () => {
+    const images = ["https://dealer.test/no-photo.jpg"];
+    listChain.__result = { data: [{ ...sampleRow, images }], error: null };
+    const [deal] = await serviceWithListMock().getHotDeals(5);
+    expect(deal.id).toBe(sampleRow.id);
+    expect(deal.images).toEqual([]);
+    expect(deal.photoEvidence).toEqual({
+      placeholderCount: 1,
+      reportedCount: 1,
+    });
+    expect(images).toEqual(["https://dealer.test/no-photo.jpg"]);
+    expect(deal.sourceUrl).toBe(sampleRow.source_url);
+  });
 
   it("retains an explicitly reported cash price for a shared-source dealer listing", async () => {
     listChain.__result = {

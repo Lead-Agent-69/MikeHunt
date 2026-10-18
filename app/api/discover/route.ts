@@ -7,7 +7,10 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
-import { isCustomerInventory } from "@/lib/search/customer-inventory";
+import {
+  isCustomerInventory,
+  listingPhotos,
+} from "@/lib/search/customer-inventory";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -87,6 +90,7 @@ function mapDeal(
   alsoOn: { source: string; askPrice: number; url: string }[],
 ) {
   const options = rowOptions(d);
+  const photos = listingPhotos(d.images, options.photoAudit);
   const contact = sellerContactFields(d);
   const tags = categorize({
     ...d,
@@ -98,7 +102,7 @@ function mapDeal(
   // show a lane chip and the per-lane rails below can group the same way the scan table does.
   const lane = dealLane(d);
   const quality = gradeDataQuality({
-    images: d.images || [],
+    images: photos,
     vin: d.vin,
     titleType: tags.titleClass,
     condition: d.condition,
@@ -185,7 +189,7 @@ function mapDeal(
     warnings: d.deal_analysis?.warnings || [],
     locationCity: d.location_city,
     locationState: d.location_state,
-    images: d.images || [],
+    images: photos,
     dataQuality: {
       score: quality.score,
       label: quality.label,

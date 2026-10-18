@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { galleryImageSrc } from "@/lib/image-url";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { usePhotoSelection } from "@/hooks/usePhotoSelection";
@@ -24,9 +25,9 @@ export function VisionDamageInspector({
   sourceUrl?: string;
   onUpdateRepairEstimate?: (cost: number) => void;
 }) {
-  const photos = Array.from(
-    new Set(images.length ? images : imageUrl ? [imageUrl] : []),
-  ).filter(Boolean);
+  const photos = photoEvidence(
+    images.length ? images : imageUrl ? [imageUrl] : [],
+  ).images;
   const selection = usePhotoSelection(photos);
   const index = selection.index;
   const setIndex = selection.select;

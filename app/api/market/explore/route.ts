@@ -20,6 +20,7 @@ import {
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
 import {
   SOURCE_PRICE_FIELDS,
@@ -39,6 +40,7 @@ import { boundingBox } from "@/lib/geo/distance";
 import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
+import { marketSourceCoverage } from "@/lib/market/source-coverage";
 import {
   applyVehicleDetails,
   applySelectedSources,
@@ -169,6 +171,7 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     const detailParams = new URLSearchParams(sp);
+    const photoFilter = sp.get("hasPhotos");
     if (location.radius != null) detailParams.delete("zip");
     for (const [oldKey, key] of [
       ["priceMin", "minPrice"],
@@ -182,6 +185,8 @@ export async function GET(req: NextRequest) {
     const rangeError = validateInventoryRanges(detailParams);
     if (rangeError)
       return NextResponse.json({ error: rangeError }, { status: 400 });
+    // Historical placeholders may not have an audit yet. Classify before counts/pagination.
+    detailParams.delete("hasPhotos");
     const priceBasis = sp.get("priceBasis") || "advertised";
     if (!["cash", "advertised"].includes(priceBasis))
       return NextResponse.json(
@@ -265,10 +270,14 @@ export async function GET(req: NextRequest) {
           let q = supabase
             .from("deals")
             .select(
-              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
+              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
             )
             .eq("active", true);
-          q = applyLiveAuctionWindow(applyCustomerInventory(q));
+          q = applyLiveAuctionWindow(
+            applyCustomerInventory(q, Date.now(), {
+              includeWithoutPhotos: true,
+            }),
+          );
 
           // SQL-able filters (push down what we can).
           if (states.length && !bounds) q = q.in("location_state", states);
@@ -324,6 +333,15 @@ export async function GET(req: NextRequest) {
         const capped = false;
 
         let rows = (data || []).map((d: any) => {
+          const photos = photoEvidence(d.images, {
+            placeholderUrls: d.placeholder_urls,
+          });
+          const images =
+            d.photo_state === "unavailable"
+              ? []
+              : photos.images
+                  .filter((url) => /^https?:\/\//i.test(url))
+                  .slice(0, 30);
           const mapPoint = roundedMapPoint(d.lat, d.lng);
           const valuation = marketValuation(
             d.deal_analysis?.valuation,
@@ -368,18 +386,8 @@ export async function GET(req: NextRequest) {
             source: d.source,
             sourceUrl: vendorIdentity(d.source, d.source_url).href,
             vin: d.vin || undefined,
-            images: Array.isArray(d.images)
-              ? d.images
-                  .filter(
-                    (url: unknown) =>
-                      typeof url === "string" && /^https?:\/\//i.test(url),
-                  )
-                  .slice(0, 30)
-              : [],
-            imageUrl: d.images?.find(
-              (url: unknown) =>
-                typeof url === "string" && /^https?:\/\//i.test(url),
-            ),
+            images,
+            imageUrl: images[0],
             locationCity: d.location_city || undefined,
             mapLat: mapPoint?.lat,
             mapLng: mapPoint?.lng,
@@ -423,6 +431,10 @@ export async function GET(req: NextRequest) {
         });
 
         // Lane filter (computed, so done here).
+        if (photoFilter === "yes")
+          rows = rows.filter((row) => row.images.length > 0);
+        else if (photoFilter === "no")
+          rows = rows.filter((row) => row.images.length === 0);
         if (priceBasis === "cash")
           rows = rows.filter((r) => {
             const cash = r.price.cashPrice;
@@ -627,6 +639,7 @@ export async function GET(req: NextRequest) {
           total,
           capped,
           mode,
+          sourceCoverage: marketSourceCoverage(rows, capped),
           summary: summarizeMarket(rows),
           location: {
             label:

@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "./Ico";
 import { cn } from "@/lib/utils";
 import { galleryImageSrc } from "@/lib/image-url";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 import { sourceLinkLabel } from "@/lib/sources/listing-link";
 import { usePhotoSelection } from "@/hooks/usePhotoSelection";
 import { ZoomablePhoto } from "./ZoomablePhoto";
@@ -37,16 +38,13 @@ function ListingGallery({
 }: ImageGalleryProps) {
   // Free-tier: direct source URLs for gallery frames; proxy only hotlink hosts
   // (and only the hero when the host does not block). Never next/image.
-  const images = useMemo(
-    () =>
-      Array.from(new Set(rawImages || []))
-        .map((url, index) => galleryImageSrc(url, index))
-        .filter(Boolean),
+  const rawGallery = useMemo(
+    () => photoEvidence(rawImages).images,
     [rawImages],
   );
-  const rawGallery = useMemo(
-    () => Array.from(new Set(rawImages || [])).filter(Boolean),
-    [rawImages],
+  const images = useMemo(
+    () => rawGallery.map((url, index) => galleryImageSrc(url, index)),
+    [rawGallery],
   );
   const selection = usePhotoSelection(rawGallery);
   const currentIndex = selection.index;
@@ -392,6 +390,7 @@ function ListingGallery({
 
                 {/* Image counter */}
                 <div
+                  aria-live="polite"
                   className="absolute top-[max(1rem,env(safe-area-inset-top))] left-4 px-4 py-2 rounded-full text-white text-sm font-bold tracking-widest z-10"
                   style={{ background: "rgba(255,255,255,0.1)" }}
                 >
