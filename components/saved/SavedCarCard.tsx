@@ -159,10 +159,11 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const hasSellerContact = Boolean(
     snapshot.sellerPhone || snapshot.sellerEmail || contactHref,
   );
-  const trustSummary = photos.placeholderCount
-    ? "The source image is a placeholder; vehicle photos are still needed."
-    : snapshot.trustExplanation?.summary ||
-      snapshot.trustExplanation?.reasons?.slice(0, 3).join(" · ");
+  const trustSummary =
+    photos.placeholderCount && !photos.images.length
+      ? "The source image is a placeholder; vehicle photos are still needed."
+      : snapshot.trustExplanation?.summary ||
+        snapshot.trustExplanation?.reasons?.slice(0, 3).join(" · ");
   const auctionListing = ["auction", "salvage", "wholesale", "gov"].includes(
     sourceMeta(save.source_name).channel,
   );

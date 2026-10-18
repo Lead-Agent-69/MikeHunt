@@ -59,6 +59,15 @@ describe("saved-card actions", () => {
       host.querySelector('button[aria-label="Remove saved vehicle"]'),
     ).not.toBeNull();
   });
+  it("does not call a mixed saved gallery photo-less when a real photo remains", () => {
+    const host = card("vehicle-one", "independent_dealer", "active", [
+      "https://dealer.test/no-photo.jpg",
+      "https://example.com/photo.jpg",
+    ]);
+    expect(host.querySelectorAll("img")).toHaveLength(1);
+    expect(host.textContent).not.toContain("vehicle photos are still needed");
+    expect(host.textContent).not.toContain("vehicle photos missing");
+  });
   it("uses the snapshot's actual vendor without a nested link or invented branding", () => {
     const host = card();
     const vendor = host.querySelector(
