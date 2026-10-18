@@ -1,6 +1,7 @@
 "use client";
 
-import React, { memo, useState } from "react";
+import React, { memo } from "react";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { ValuationInputs } from "@/components/deal/ValuationInputs";
 import Link from "next/link";
 import type { DiscoveryDeal } from "./types";
@@ -25,6 +26,7 @@ import {
 } from "./card-evidence";
 import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
@@ -76,10 +78,10 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 }: {
   deal: DiscoveryDeal;
 }) {
-  const [imgFailed, setImgFailed] = useState(false);
+  const gallery = useListingPhotos(deal.images);
   const bookmark = useDiscoverySave(deal);
-  const img = proxiedImage(deal.images?.[0]);
-  const showImg = img && !imgFailed;
+  const img = proxiedImage(gallery.image);
+  const showImg = Boolean(img);
   const title =
     deal.title ||
     `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim();
@@ -153,13 +155,19 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 alt={title}
                 loading="lazy"
                 decoding="async"
-                onError={() => setImgFailed(true)}
+                onError={gallery.reject}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
               />
             ) : (
               <Placeholder />
             )}
           </Link>
+
+          <PhotoPreviewButton
+            images={gallery.images}
+            title={title}
+            className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2"
+          />
 
           <div className="pointer-events-none absolute left-2.5 top-2.5 flex max-w-[calc(100%-4.5rem)] flex-col items-start">
             <span

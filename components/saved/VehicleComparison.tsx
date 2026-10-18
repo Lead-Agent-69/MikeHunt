@@ -11,6 +11,7 @@ import {
 import { proxiedImage } from "@/lib/image-url";
 import useSWR from "swr";
 import { ErrorState } from "@/components/shared/ErrorState";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { sourceMeta } from "@/lib/sources/source-meta";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
@@ -451,7 +452,11 @@ export function VehicleComparison({
                   scope="col"
                   className="min-w-[calc(100vw-160px)] w-[calc(100vw-160px)] sm:min-w-52 sm:w-64 p-3 text-left align-top"
                 >
-                  <div className="aspect-[4/3] w-full overflow-hidden rounded bg-[var(--s2)]">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden rounded bg-[var(--s2)]">
+                    <PhotoPreviewButton
+                      images={c.images}
+                      title={`${c.year || ""} ${c.make || ""} ${c.model || ""}`.trim()}
+                    />
                     {c.images?.[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

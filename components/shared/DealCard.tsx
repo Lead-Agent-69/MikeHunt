@@ -6,6 +6,7 @@ import { Mono } from "./Mono";
 import { cn } from "@/lib/utils";
 import { proxiedImage } from "@/lib/image-url";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
+import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { daysOnMarket, domTier } from "@/lib/intelligence/days-on-market";
 import { type DealCardProps } from "./deal-card/types";
 import { VERDICT_STYLES } from "./deal-card/utils";
@@ -502,6 +503,11 @@ export const DealCard = memo(function DealCard({
     >
       {/* Image Header */}
       <div className="relative w-full h-40 bg-[var(--s2)] overflow-hidden shrink-0">
+        <PhotoPreviewButton
+          images={gallery.images}
+          title={`${year} ${make} ${model}`}
+          className="absolute right-2 top-2 z-20"
+        />
         <img
           src={proxiedUrl || "/images/car-placeholder.jpg"}
           alt={`${year} ${make} ${model}`}

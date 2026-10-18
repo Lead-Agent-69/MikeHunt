@@ -18,6 +18,7 @@ import { vehicleLocation } from "@/lib/search/vehicle-location";
 import type { MarketListing } from "@/lib/market/explorer";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
 
 export function MarketListingCard({
@@ -35,6 +36,10 @@ export function MarketListingCard({
   const rememberPosition = () => rememberMarketPosition(cardRef.current);
   const photos = (row.images || []).filter((url) => !failed.includes(url));
   const index = photo % Math.max(photos.length, 1);
+  const photoNavigation = usePhotoNavigation(
+    (offset) => setPhoto((index + offset + photos.length) % photos.length),
+    { enabled: photos.length > 1 },
+  );
   const vendor = vendorIdentity(row.source, row.sourceUrl);
   const saved = useDiscoverySave({
     ...row,
@@ -89,6 +94,12 @@ export function MarketListingCard({
             prefetch={false}
             onNavigate={rememberPosition}
             aria-label={`Open details for ${row.title}`}
+            {...photoNavigation}
+            title={
+              photos.length > 1
+                ? "Tap left / right to browse photos"
+                : undefined
+            }
             className="block h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
