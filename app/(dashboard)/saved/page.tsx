@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
 import { savedGroup } from "@/lib/saved/collection";
+import { savedPricePresentation } from "@/lib/saved/price-presentation";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
@@ -799,18 +800,6 @@ function LocalSavedSection({
   onRemove: (id: string) => void;
   syncUnavailableMessage?: string;
 }) {
-  const { intent } = useBuyerIntent();
-  const { prefs } = usePreferences();
-  const flipDesk = isFlipBuyerMode(
-    intent?.buyerMode || prefs?.buyerScope?.buyerMode,
-  );
-  const formatMoney = (value: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(value || 0);
-
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -835,21 +824,25 @@ function LocalSavedSection({
         {items.map((item) => {
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           const contactHref = item.sellerContactUrl || item.sourceUrl;
+          const price = savedPricePresentation(
+            item.askPrice,
+            item.priceEvidence,
+          );
           return (
             <Card
               key={item.id}
               className="overflow-hidden border-none bg-[var(--s0)]"
               style={{ boxShadow: "var(--shadow2)", borderRadius: "var(--r4)" }}
             >
-              <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 gap-3">
+              <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 flex-col-reverse gap-3 sm:flex-row">
                   <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-[var(--s1)]">
                     {item.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={item.image}
                         alt={item.title}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-[var(--t4)]">
@@ -868,9 +861,15 @@ function LocalSavedSection({
                         : ""}
                       {item.locationState ? ` · ${item.locationState}` : ""}
                     </Badge>
-                    <h4 className="truncate text-base font-black text-[var(--t1)]">
+                    <h4 className="break-words text-base font-black text-[var(--t1)]">
                       {item.title}
                     </h4>
+                    <div aria-label="Device saved vehicle price">
+                      <p className="text-xs text-[var(--t4)]">{price.label}</p>
+                      <p className="text-lg font-black text-[var(--t1)]">
+                        {price.amount}
+                      </p>
+                    </div>
                     <p className="text-xs text-[var(--t4)]">
                       {item.mileage
                         ? `${item.mileage.toLocaleString()} mi · `
@@ -887,7 +886,7 @@ function LocalSavedSection({
                     ) : null}
                     {nextTrustChecks.length ? (
                       <details className="text-[11px] leading-relaxed text-[var(--t4)]">
-                        <summary className="cursor-pointer">
+                        <summary className="min-h-11 cursor-pointer py-3">
                           Still needs checking
                         </summary>
                         <ul className="list-disc pl-4">
@@ -913,7 +912,7 @@ function LocalSavedSection({
                         {item.sellerPhone ? (
                           <a
                             href={`tel:${item.sellerPhone}`}
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
                           >
                             <Phone className="h-3 w-3" />
                             Call
@@ -922,7 +921,7 @@ function LocalSavedSection({
                         {item.sellerEmail ? (
                           <a
                             href={`mailto:${item.sellerEmail}`}
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
                           >
                             <Mail className="h-3 w-3" />
                             Email
@@ -933,7 +932,7 @@ function LocalSavedSection({
                             href={contactHref}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
+                            className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-[var(--s1)] px-2 py-1 hover:text-[var(--blue)]"
                           >
                             <ExternalLink className="h-3 w-3" />
                             Listing
@@ -953,22 +952,13 @@ function LocalSavedSection({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <div className="mr-2">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t4)]">
-                      Unverified advertised amount
-                    </p>
-                    <p className="font-mono text-lg font-black text-[var(--t1)]">
-                      {formatMoney(item.askPrice)}
-                    </p>
-                  </div>
-
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                   {item.sourceUrl && (
                     <a
                       href={item.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-bold text-[var(--t2)] transition-colors hover:text-[var(--amber)]"
+                      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold text-[var(--t2)] transition-colors hover:text-[var(--amber)]"
                       style={{ background: "var(--s1)" }}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -979,7 +969,8 @@ function LocalSavedSection({
                     size="sm"
                     variant="ghost"
                     onClick={() => onRemove(item.id)}
-                    className="h-9 w-9 rounded-lg border-none p-0 text-[var(--red)] hover:bg-[var(--rlo)]"
+                    className="h-11 w-11 rounded-lg border-none p-0 text-[var(--red)] hover:bg-[var(--rlo)]"
+                    aria-label="Remove device saved vehicle"
                     title="Remove saved vehicle"
                   >
                     <Trash2 className="h-4 w-4" />

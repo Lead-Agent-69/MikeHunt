@@ -3,15 +3,24 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import type { MarketListing } from "@/lib/market/explorer";
+import { toLocalSavedVehicle } from "@/hooks/useLocalSavedVehicles";
+import { savedPricePresentation } from "@/lib/saved/price-presentation";
+import type { DiscoveryDeal } from "@/components/discovery/types";
 
-const controls = vi.hoisted(() => ({ toggle: vi.fn(async () => {}) }));
+const controls = vi.hoisted(() => ({
+  toggle: vi.fn(async () => {}),
+  save: vi.fn(),
+}));
 vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
-  useDiscoverySave: () => ({
-    saved: false,
-    busy: false,
-    label: "Save to account",
-    toggle: controls.toggle,
-  }),
+  useDiscoverySave: (deal: unknown) => {
+    controls.save(deal);
+    return {
+      saved: false,
+      busy: false,
+      label: "Save to account",
+      toggle: controls.toggle,
+    };
+  },
 }));
 vi.mock("@/lib/image-url", () => ({ proxiedImage: (url: string) => url }));
 import { MarketListingCard } from "@/components/market/MarketListingCard";
@@ -35,10 +44,39 @@ const listing = (images: string[]): MarketListing => ({
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   controls.toggle.mockClear();
+  controls.save.mockClear();
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
 });
+
+it.each([
+  ["asking", "Asking price"],
+  ["current_bid", "Current bid"],
+  ["buy_now", "Buy-now price"],
+  ["down_payment", "Possible down payment"],
+  ["monthly_payment", "Monthly payment"],
+  ["finance_teaser", "Payment amount"],
+  ["reference", "Reference value"],
+  ["unknown", "Unverified advertised amount"],
+] as const)(
+  "preserves %s from Market through the device snapshot",
+  async (kind, label) => {
+    const row = listing([]);
+    row.price = { ...row.price, kind, amount: 2180 };
+    await act(async () =>
+      root.render(<MarketListingCard row={row} flipDesk={false} />),
+    );
+    const deal = controls.save.mock.lastCall![0] as DiscoveryDeal;
+    const snapshot = toLocalSavedVehicle(deal);
+    expect(
+      savedPricePresentation(snapshot.askPrice, snapshot.priceEvidence),
+    ).toEqual({
+      label,
+      amount: "$2,180",
+    });
+  },
+);
 afterEach(() => {
   act(() => root.unmount());
   host.remove();

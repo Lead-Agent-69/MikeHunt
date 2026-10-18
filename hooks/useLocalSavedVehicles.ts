@@ -12,6 +12,7 @@ export interface LocalSavedVehicle {
   vin?: string;
   mileage?: number;
   askPrice: number;
+  priceEvidence?: DiscoveryDeal["priceEvidence"];
   estimatedProfit?: number;
   sellEstimate?: number;
   recommendedMaxBid?: number;
@@ -74,6 +75,7 @@ export function toLocalSavedVehicle(deal: DiscoveryDeal): LocalSavedVehicle {
     vin: deal.vin,
     mileage: deal.mileage,
     askPrice: Number(deal.askPrice || 0),
+    priceEvidence: deal.priceEvidence,
     estimatedProfit: deal.trueNetProfit,
     sellEstimate: deal.sellEstimate,
     recommendedMaxBid: deal.recommendedMaxBid,

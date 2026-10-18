@@ -16,6 +16,17 @@ describe("mobile fixed UI surfaces", () => {
     expect(saved).toContain("Add a listing link");
     expect(saved).toContain("aria-pressed={filter === tab}");
   });
+
+  it("keeps legacy device prices honest, titles readable and fallback actions touch-sized", () => {
+    const saved = readFileSync("app/(dashboard)/saved/page.tsx", "utf8");
+    expect(saved).toMatch(
+      /savedPricePresentation\(\s*item\.askPrice,\s*item\.priceEvidence,?\s*\)/,
+    );
+    expect(saved).toContain('aria-label="Device saved vehicle price"');
+    expect(saved).not.toContain('className="truncate text-base font-black');
+    expect(saved).toContain('aria-label="Remove device saved vehicle"');
+    expect(saved).not.toContain(".format(value || 0)");
+  });
   it("keeps implicit focus scrolling instant and clear of fixed navigation", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const html = css.match(/html \{([^}]+)\}/)![1];

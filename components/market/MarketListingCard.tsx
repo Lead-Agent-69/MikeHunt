@@ -38,6 +38,22 @@ export function MarketListingCard({
   const vendor = vendorIdentity(row.source, row.sourceUrl);
   const saved = useDiscoverySave({
     ...row,
+    priceEvidence: {
+      kind: row.price.kind,
+      listedAmount: row.price.amount ?? undefined,
+      ...(row.price.kind === "asking" && {
+        askingPrice: row.price.amount ?? undefined,
+      }),
+      ...(row.price.kind === "current_bid" && {
+        currentBid: row.price.amount ?? undefined,
+      }),
+      ...(row.price.kind === "buy_now" && {
+        buyNow: row.price.amount ?? undefined,
+      }),
+      ...(row.price.kind === "reference" && {
+        referenceValue: row.price.amount ?? undefined,
+      }),
+    },
     grade: "unknown",
     gradeLabel: "",
     discountPct: 0,
