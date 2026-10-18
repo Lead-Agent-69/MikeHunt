@@ -2,112 +2,155 @@
 
 import React from "react";
 import { Mono } from "@/components/shared/Mono";
+import type { MarketFacets } from "@/lib/market/explorer";
 
-export function MarketVisualizers({ facets }: { facets: any }) {
+interface MarketVisualizersProps {
+  facets?: MarketFacets;
+  selectedLanes?: string[];
+  selectedPrice?: { min: string; max: string };
+  onLaneToggle?: (lane: string) => void;
+  onPriceRangeSelect?: (from: number, to: number) => void;
+}
+
+export function MarketVisualizers({
+  facets,
+  selectedLanes = [],
+  selectedPrice,
+  onLaneToggle,
+  onPriceRangeSelect,
+}: MarketVisualizersProps) {
   if (!facets) return null;
-
-  const hasPrices = facets.priceHistogram?.some((h: any) => h.n > 0);
+  const hasPrices = facets.priceHistogram?.some((bin) => bin.n > 0);
   const hasLanes = Object.keys(facets.lanes || {}).length > 0;
   const hasProfit = Object.keys(facets.laneProfit || {}).length > 0;
-
   if (!hasPrices && !hasLanes && !hasProfit) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-      <div className="glass-panel flex flex-col gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Price Distribution
-        </h3>
-        <div className="flex-1 min-h-[120px]">
-          {hasPrices ? (
-            <PriceHistogram histogram={facets.priceHistogram} />
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-[var(--t4)]">
-              No data
-            </div>
-          )}
-        </div>
-      </div>
+    <section
+      aria-label="Interactive market charts"
+      className="grid grid-cols-1 gap-3 xl:grid-cols-3"
+    >
+      <ChartCard
+        title="Comparable cash asking prices"
+        hint="Select a bar to apply its price band"
+      >
+        {hasPrices ? (
+          <PriceHistogram
+            histogram={facets.priceHistogram!}
+            selectedPrice={selectedPrice}
+            onSelect={onPriceRangeSelect}
+          />
+        ) : (
+          <EmptyChart />
+        )}
+      </ChartCard>
+      <ChartCard
+        title="Inventory by channel"
+        hint="Select a channel to filter inventory"
+      >
+        {hasLanes ? (
+          <LaneDonut
+            lanes={facets.lanes!}
+            colors={facets.laneColors || {}}
+            selected={selectedLanes}
+            onToggle={onLaneToggle}
+          />
+        ) : (
+          <EmptyChart />
+        )}
+      </ChartCard>
+      {hasProfit && (
+        <ChartCard
+          title="Estimated median profit by channel"
+          hint="Estimate from the current filtered inventory"
+        >
+          <ProfitWaterfall
+            laneProfit={facets.laneProfit!}
+            colors={facets.laneColors || {}}
+            selected={selectedLanes}
+            onToggle={onLaneToggle}
+          />
+        </ChartCard>
+      )}
+    </section>
+  );
+}
 
-      <div className="glass-panel flex flex-col gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Inventory by Lane
+function ChartCard({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-56 flex-col gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t2)]">
+          {title}
         </h3>
-        <div className="flex-1 min-h-[120px]">
-          {hasLanes ? (
-            <LaneDonut lanes={facets.lanes} colors={facets.laneColors} />
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-[var(--t4)]">
-              No data
-            </div>
-          )}
-        </div>
+        <p className="mt-1 text-[10px] text-[var(--t4)]">{hint}</p>
       </div>
+      <div className="min-h-36 flex-1">{children}</div>
+    </div>
+  );
+}
 
-      <div className="glass-panel flex flex-col gap-3">
-        <h3 className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Median Profit by Lane
-        </h3>
-        <div className="flex-1 min-h-[120px]">
-          {hasProfit ? (
-            <ProfitWaterfall
-              laneProfit={facets.laneProfit}
-              colors={facets.laneColors}
-            />
-          ) : (
-            <div className="h-full flex items-center justify-center text-xs text-[var(--t4)]">
-              No data
-            </div>
-          )}
-        </div>
-      </div>
+function EmptyChart() {
+  return (
+    <div className="grid h-full place-items-center text-xs text-[var(--t4)]">
+      No evidence in this filter scope
     </div>
   );
 }
 
 function PriceHistogram({
   histogram,
+  selectedPrice,
+  onSelect,
 }: {
   histogram: { from: number; to: number; n: number }[];
+  selectedPrice?: { min: string; max: string };
+  onSelect?: (from: number, to: number) => void;
 }) {
-  const maxN = Math.max(...histogram.map((h) => h.n), 1);
-
+  const maxN = Math.max(...histogram.map((bin) => bin.n), 1);
   return (
-    <div className="h-full flex items-end gap-1 pt-4 relative group">
-      {histogram.map((bin, i) => {
-        const heightPct = (bin.n / maxN) * 100;
+    <div className="flex h-full items-end gap-1 pb-6 pt-5">
+      {histogram.map((bin, index) => {
+        const active =
+          selectedPrice?.min === String(bin.from) &&
+          selectedPrice?.max === String(bin.to);
+        const label = `$${Math.round(bin.from / 1000)}k–$${Math.round(bin.to / 1000)}k`;
         return (
-          <div
-            key={i}
-            className="flex-1 flex flex-col justify-end relative h-full group/bar"
+          <button
+            key={`${bin.from}-${bin.to}`}
+            type="button"
+            disabled={!bin.n || !onSelect}
+            aria-pressed={active}
+            aria-label={`${label}: ${bin.n} listings. Apply price band.`}
+            title={`${bin.n} listings · ${label}`}
+            onClick={() => onSelect?.(bin.from, bin.to)}
+            className="group relative flex h-full min-w-0 flex-1 items-end rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)] disabled:cursor-default"
           >
-            {/* Tooltip */}
-            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-opacity z-10 pointer-events-none text-center">
-              <div className="bg-[var(--s1)] border border-[var(--b2)] rounded-md px-2 py-1 shadow-lg text-[10px] whitespace-nowrap">
-                <div className="font-bold text-[var(--t1)]">{bin.n} deals</div>
-                <div className="text-[var(--t4)]">
-                  ${bin.from / 1000}k - ${bin.to / 1000}k
-                </div>
-              </div>
-            </div>
-            {/* Bar */}
-            <div
-              className="w-full rounded-t-sm transition-all duration-300"
+            <span
+              aria-hidden="true"
+              className="w-full rounded-t-sm transition-[height,opacity] duration-200 group-hover:opacity-100"
               style={{
-                height: `${heightPct}%`,
-                background: bin.n > 0 ? "var(--amber)" : "transparent",
-                opacity: 0.8,
+                height: `${Math.max(bin.n ? 7 : 1, (bin.n / maxN) * 100)}%`,
+                background: active ? "var(--blue)" : "var(--amber)",
+                opacity: bin.n ? 0.82 : 0.12,
               }}
             />
-            {/* Base axis label (only show a few) */}
-            {(i === 0 ||
-              i === histogram.length - 1 ||
-              i === Math.floor(histogram.length / 2)) && (
-              <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-[var(--t5)]">
+            {(index === 0 ||
+              index === histogram.length - 1 ||
+              index === Math.floor(histogram.length / 2)) && (
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] text-[var(--t5)]">
                 ${Math.round(bin.from / 1000)}k
-              </div>
+              </span>
             )}
-          </div>
+          </button>
         );
       })}
     </div>
@@ -117,33 +160,34 @@ function PriceHistogram({
 function LaneDonut({
   lanes,
   colors,
+  selected,
+  onToggle,
 }: {
   lanes: Record<string, number>;
   colors: Record<string, string>;
+  selected: string[];
+  onToggle?: (lane: string) => void;
 }) {
-  const total = Object.values(lanes).reduce((a, b) => a + b, 0) || 1;
+  const total =
+    Object.values(lanes).reduce((sum, count) => sum + count, 0) || 1;
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   let currentOffset = 0;
-
   const entries = Object.entries(lanes).sort((a, b) => b[1] - a[1]);
-
   return (
-    <div className="h-full flex items-center justify-center gap-6">
-      <div className="relative w-[100px] h-[100px] shrink-0">
+    <div className="flex h-full items-center justify-center gap-5">
+      <div className="relative h-[108px] w-[108px] shrink-0">
         <svg
-          width="100"
-          height="100"
+          width="108"
+          height="108"
           viewBox="0 0 100 100"
           className="-rotate-90"
         >
-          {entries.map(([lane, count], i) => {
-            const fraction = count / total;
-            const length = fraction * circumference;
-            const strokeDasharray = `${length} ${circumference}`;
+          {entries.map(([lane, count]) => {
+            const length = (count / total) * circumference;
             const strokeDashoffset = -currentOffset;
             currentOffset += length;
-
+            const muted = selected.length > 0 && !selected.includes(lane);
             return (
               <circle
                 key={lane}
@@ -153,36 +197,55 @@ function LaneDonut({
                 fill="none"
                 stroke={colors[lane] || "var(--s3)"}
                 strokeWidth="14"
-                strokeDasharray={strokeDasharray}
+                strokeDasharray={`${length} ${circumference}`}
                 strokeDashoffset={strokeDashoffset}
-                className="transition-all duration-500 ease-out hover:opacity-80"
+                className="cursor-pointer transition-opacity"
+                opacity={muted ? 0.2 : 1}
+                role="button"
+                tabIndex={0}
+                aria-label={`${lane}: ${count} listings`}
+                onClick={() => onToggle?.(lane)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onToggle?.(lane);
+                  }
+                }}
               />
             );
           })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <Mono className="text-sm font-black text-[var(--t1)]">{total}</Mono>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="text-center">
+            <Mono className="block text-sm font-black text-[var(--t1)]">
+              {total}
+            </Mono>
+            <span className="text-[9px] text-[var(--t4)]">listings</span>
+          </div>
         </div>
       </div>
-
-      <div className="flex flex-col gap-1.5 flex-1 max-h-[100px] overflow-y-auto scrollbar-hide">
-        {entries.map(([lane, count]) => (
-          <div
-            key={lane}
-            className="flex items-center justify-between text-[11px]"
-          >
-            <div className="flex items-center gap-1.5 truncate">
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ background: colors[lane] || "var(--s3)" }}
-              />
-              <span className="capitalize text-[var(--t2)] truncate">
-                {lane}
+      <div className="max-h-32 min-w-0 flex-1 overflow-y-auto">
+        {entries.map(([lane, count]) => {
+          const active = selected.includes(lane);
+          return (
+            <button
+              key={lane}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onToggle?.(lane)}
+              className={`flex min-h-8 w-full items-center justify-between gap-2 rounded-md px-2 text-[11px] transition-colors ${active ? "bg-[var(--s2)] text-[var(--t1)]" : "text-[var(--t2)] hover:bg-[var(--s2)]"}`}
+            >
+              <span className="flex min-w-0 items-center gap-1.5 capitalize">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: colors[lane] || "var(--s3)" }}
+                />
+                <span className="truncate">{lane}</span>
               </span>
-            </div>
-            <Mono className="text-[var(--t4)]">{count}</Mono>
-          </div>
-        ))}
+              <Mono className="text-[var(--t4)]">{count}</Mono>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -191,76 +254,55 @@ function LaneDonut({
 function ProfitWaterfall({
   laneProfit,
   colors,
+  selected,
+  onToggle,
 }: {
   laneProfit: Record<string, number>;
   colors: Record<string, string>;
+  selected: string[];
+  onToggle?: (lane: string) => void;
 }) {
-  const entries = Object.entries(laneProfit).sort((a, b) => b[1] - a[1]);
-  const maxAbs = Math.max(...entries.map(([, p]) => Math.abs(p)), 1000);
-
+  const entries = Object.entries(laneProfit)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const maxAbs = Math.max(
+    ...entries.map(([, profit]) => Math.abs(profit)),
+    1000,
+  );
   return (
-    <div className="h-full flex flex-col justify-center gap-2 relative">
-      {/* Zero line */}
-      <div className="absolute top-0 bottom-0 left-[50%] w-px bg-[var(--b2)] z-0" />
-
-      {entries.slice(0, 5).map(([lane, profit]) => {
-        const isPos = profit >= 0;
-        const widthPct = (Math.abs(profit) / maxAbs) * 50;
-
+    <div className="flex h-full flex-col justify-center gap-2">
+      {entries.map(([lane, profit]) => {
+        const width = Math.max(3, (Math.abs(profit) / maxAbs) * 100);
+        const active = selected.includes(lane);
         return (
-          <div
+          <button
             key={lane}
-            className="flex items-center relative z-10 w-full text-[10px]"
+            type="button"
+            aria-pressed={active}
+            onClick={() => onToggle?.(lane)}
+            className={`grid min-h-8 grid-cols-[5.5rem_1fr_auto] items-center gap-2 rounded-md px-2 text-left text-[10px] transition-colors ${active ? "bg-[var(--s2)]" : "hover:bg-[var(--s2)]"}`}
           >
-            {/* Left side (negative) */}
-            <div className="flex-1 flex justify-end pr-2">
-              {!isPos && (
-                <div className="flex items-center gap-2">
-                  <Mono className="text-[var(--red)] font-bold">
-                    -${Math.abs(profit)}
-                  </Mono>
-                  <div
-                    className="h-4 rounded-sm"
-                    style={{
-                      width: `${widthPct}%`,
-                      minWidth: "2px",
-                      background: "var(--red)",
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Lane label centered if no room, or absolute */}
-            <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center gap-1 w-16">
+            <span className="truncate capitalize font-semibold text-[var(--t3)]">
+              {lane}
+            </span>
+            <span className="h-2 overflow-hidden rounded-full bg-[var(--s2)]">
               <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ background: colors[lane] || "var(--s3)" }}
+                className="block h-full rounded-full"
+                style={{
+                  width: `${width}%`,
+                  background:
+                    profit >= 0 ? colors[lane] || "var(--green)" : "var(--red)",
+                }}
               />
-              <span className="capitalize text-[8px] font-bold text-[var(--t3)] truncate w-12 text-center">
-                {lane}
-              </span>
-            </div>
-
-            {/* Right side (positive) */}
-            <div className="flex-1 pl-2">
-              {isPos && (
-                <div className="flex items-center gap-2">
-                  <div
-                    className="h-4 rounded-sm"
-                    style={{
-                      width: `${widthPct}%`,
-                      minWidth: "2px",
-                      background: colors[lane] || "var(--green)",
-                    }}
-                  />
-                  <Mono className="text-[var(--green)] font-bold">
-                    ${profit}
-                  </Mono>
-                </div>
-              )}
-            </div>
-          </div>
+            </span>
+            <Mono
+              className={
+                profit >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"
+              }
+            >
+              {profit < 0 ? "−" : ""}${Math.abs(profit).toLocaleString()}
+            </Mono>
+          </button>
         );
       })}
     </div>

@@ -62,7 +62,7 @@ await check("/manifest.json", async (response) => {
   assert(response.status === 200, `HTTP ${response.status}`);
   const manifest = await response.json();
   assert(
-    manifest.start_url === "/discover",
+    manifest.start_url === "/market",
     "Unexpected installation destination",
   );
   assert(

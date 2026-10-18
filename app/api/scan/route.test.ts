@@ -69,6 +69,13 @@ describe("scan source filtering helpers", () => {
 
   it("maps scan sort options to database order columns", () => {
     expect(normalizeScanSort("price")).toBe("price");
+    expect(normalizeScanSort("margin")).toBe("margin");
+    expect(scanSortForDesk("margin", false)).toBe("margin");
+    expect(scanSortOrder("margin")).toEqual({
+      column: "deal_margin",
+      ascending: false,
+      nullsFirst: false,
+    });
     expect(normalizeScanSort("score")).toBe("score");
     expect(normalizeScanSort("profit")).toBe("profit");
     expect(normalizeScanSort("unknown")).toBe("profit");

@@ -7,6 +7,7 @@
 // dealer glances and instantly knows the source — and we never call a Carvana price a "bid".
 
 import { hostMatches, hostOf } from "@/lib/net/host-match";
+import { CURATED_SITES } from "@/lib/scrapers/curated-sites";
 
 export type Channel =
   | "auction" // live auction — you place a BID (Copart)
@@ -31,6 +32,12 @@ export interface SourceMeta {
 // Brand-appropriate accents. Mid-saturation hues so the same value reads on light AND dark surfaces
 // (badges render as solid `color` text on a low-alpha tint of the same color).
 const META: Record<string, SourceMeta> = {
+  "4cdg_drivenation_com": {
+    label: "DriveNation",
+    short: "DriveNation",
+    color: "#64748b",
+    channel: "dealer",
+  },
   autovada: {
     label: "AutoVada",
     short: "AutoVada",
@@ -277,6 +284,7 @@ const FALLBACK: SourceMeta = {
 };
 
 export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
+  "4cdg-drivenation-com": ["drivenation.com"],
   "ae-of-miami": ["aeofmiami.com"],
   "damage-com": ["damage.com"],
   "dg-auto": ["dgautollc.com"],
@@ -295,6 +303,32 @@ export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
   "garys-auto-ia": ["garysautoia.net"],
 };
 
+// Keep historical IDs stable while making every registered dealer addressable.
+// Registration is identity only: source permission and worker health remain separate gates.
+const CURATED_DEALER_META: Record<string, SourceMeta> = {};
+for (const site of CURATED_SITES) {
+  const host = hostOf(site.url)?.replace(/^www\./, "");
+  if (!host) continue;
+  // These entries use the government ingestion channel, not independent_dealer.
+  if (
+    ["govdeals.com", "municibid.com", "gsaauctions.gov"].some((domain) =>
+      hostMatches(host, domain),
+    )
+  )
+    continue;
+  const existing = Object.entries(DEALER_SOURCE_DOMAINS).find(([, domains]) =>
+    domains.some((domain) => hostMatches(host, domain)),
+  )?.[0];
+  const id = existing || `dealer-${host.replace(/[^a-z0-9]+/g, "-")}`;
+  if (!existing) DEALER_SOURCE_DOMAINS[id] = [host];
+  CURATED_DEALER_META[id.replace(/-/g, "_")] = {
+    label: site.name,
+    short: site.name,
+    color: "#2563eb",
+    channel: "dealer",
+  };
+}
+
 /** Buyer targeting and the worker must use the same supported dealer identities. */
 export function matchesRequestedDealer(
   site: { url: string; inventoryUrl?: string },
@@ -311,7 +345,7 @@ export function matchesRequestedDealer(
 export function dealerSourceOptions() {
   return Object.entries(DEALER_SOURCE_DOMAINS).map(([id, domains]) => ({
     id,
-    label: sourceMeta(id).short,
+    label: sourceMeta(id).label,
     host: domains[0],
   }));
 }
@@ -357,6 +391,7 @@ export function canonicalSource(source?: string | null): string {
     .trim()
     .replace(/[\s-]+/g, "_");
   if (META[k]) return k;
+  if (CURATED_DEALER_META[k]) return k;
   // Alias folding for variants the scrapers may emit.
   if (k.startsWith("craigslist")) return "craigslist";
   if (k.startsWith("ebay")) return "ebay_motors";
@@ -398,7 +433,8 @@ export function displaySource(
 }
 
 export function sourceMeta(source?: string | null): SourceMeta {
-  const meta = META[canonicalSource(source)];
+  const key = canonicalSource(source);
+  const meta = META[key] || CURATED_DEALER_META[key];
   if (meta) return meta;
   const label = source ? humanizeEnumLabel(source) : FALLBACK.label;
   return { ...FALLBACK, label, short: label };

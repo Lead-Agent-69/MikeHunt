@@ -14,17 +14,15 @@ import {
   BadgeDollarSign,
   FileText,
   Gauge,
-  RotateCcw,
   Search,
   ShieldCheck,
   TrendingUp,
 } from "lucide-react";
 import { useDealStore } from "@/lib/store/dealStore";
 import { usePreferences } from "@/hooks/usePreferences";
-import { effectiveHome } from "@/lib/preferences/locations";
 import { readLocalBuyerIntent } from "@/hooks/useBuyerIntent";
 import { userTypeFromSavedBuyerMode } from "@/lib/buyer/saved-buyer-mode";
-import { buyTerm, isAuctionSource } from "@/lib/deal-terms";
+import { isAuctionSource } from "@/lib/deal-terms";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
   dealerSourceIdFromUrl,
@@ -34,9 +32,6 @@ import {
   isSourceLandingPage,
   sourceLinkLabel,
 } from "@/lib/sources/listing-link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/shared/ErrorState";
 import {
   DealFetchError,
@@ -45,21 +40,17 @@ import {
 } from "@/lib/deals/deal-load-error";
 import { Button } from "@/components/ui/button";
 import { Ico } from "@/components/shared/Ico";
-import { Mono } from "@/components/shared/Mono";
 import { useDealerId } from "@/hooks/useDealerId";
 import { SimilarInterestPrompt } from "@/components/reco/SimilarInterestPrompt";
 import { useDealDwellSignal } from "@/hooks/useDealDwellSignal";
 import { Skeleton } from "@/components/shared/Skeleton";
 import { MaxBidWidget } from "@/components/deal/MaxBidWidget";
 import { ValuationBreakdown } from "@/components/deal/ValuationBreakdown";
+import { ReportListing } from "@/components/deal/ReportListing";
 import { ForecastPanel } from "@/components/deal/ForecastPanel";
-import { ScoreBreakdown } from "@/components/deal/ScoreBreakdown";
-import { PriceSparkline } from "@/components/deal/PriceSparkline";
 import { SimilarDeals } from "@/components/deal/SimilarDeals";
 import { FindSimilarModal } from "@/components/saved/FindSimilarModal";
 import { MarketTiming } from "@/components/deal/MarketTiming";
-import { AIBrief } from "@/components/deal/AIBrief";
-import { DealIQCard } from "@/components/deal/DealIQCard";
 import { LogOutcome } from "@/components/deal/LogOutcome";
 import { DealEconomics } from "@/components/deal/DealEconomics";
 import { RecentlySold } from "@/components/deal/RecentlySold";
@@ -73,29 +64,14 @@ import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
-import { VehicleSpecs } from "@/components/deal/VehicleSpecs";
+import { DealResearchWorkspace } from "@/components/deal/DealResearchWorkspace";
 import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
-import { estimateTeardownValue } from "@/lib/intelligence/teardown";
-import {
-  SortableWidgetGrid,
-  type WidgetItem,
-} from "@/components/deal/SortableWidgetGrid";
 import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
-import { AutonomousSellerNegotiator } from "@/components/deal/AutonomousSellerNegotiator";
-import { FreightAndTaxCalculator } from "@/components/deal/FreightAndTaxCalculator";
 import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
-import { MaxBidCalculator } from "@/components/shared/MaxBidCalculator";
-import { FloorPlanCalculator } from "@/components/deal/FloorPlanCalculator";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
-import { dealCardCopy } from "@/lib/deals/deal-card-copy";
-import {
-  detailValuationConfidence,
-  listingChecklistFields,
-  sourceReadinessFallback,
-} from "@/lib/deals/detail-readiness";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 
@@ -138,16 +114,6 @@ function sourceHealthIdForDeal(deal: any, sources: SourceHealthItem[]) {
     if (ids.has("curated_dealers")) return "curated_dealers";
   }
   return "";
-}
-
-function relativeFreshness(value?: string | Date | null) {
-  if (!value) return "freshness unknown";
-  const ms = Date.now() - new Date(value).getTime();
-  if (!Number.isFinite(ms)) return "freshness unknown";
-  const hours = Math.max(0, Math.round(ms / 3_600_000));
-  if (hours < 1) return "seen just now";
-  if (hours < 24) return `seen ${hours}h ago`;
-  return `seen ${Math.round(hours / 24)}d ago`;
 }
 
 function money(value?: number | null) {
@@ -511,7 +477,9 @@ export default function DealPage({
   React.useEffect(() => {
     if (buyerModeSynced.current || prefsLoading) return;
     const saved =
-      readLocalBuyerIntent()?.buyerMode || prefs.buyerScope?.buyerMode;
+      prefs.buyerScope?.legacyBuyerMode ??
+      prefs.buyerScope?.buyerMode ??
+      readLocalBuyerIntent()?.buyerMode;
     store.setUserType(userTypeFromSavedBuyerMode(saved));
     buyerModeSynced.current = true;
   }, [prefs.buyerScope, prefsLoading, store]);
@@ -686,13 +654,6 @@ export default function DealPage({
     }
   }, [dealData, error, id]);
 
-  const formatMoney = (val: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(val);
-
   // Authoritative numbers come from the SERVER decision engine (comps + full cost model).
   // Fall back to the client store only when the engine hasn't produced a verdict.
   const serverDeal = dealData?.deal;
@@ -746,12 +707,7 @@ export default function DealPage({
     }
     return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
   }, [serverDeal]);
-  const {
-    data: sourceHealthData,
-    error: sourceHealthError,
-    isLoading: sourceHealthLoading,
-    mutate: retrySourceHealth,
-  } = useSWR(sourceHealthKey, fetcher, {
+  const { data: sourceHealthData } = useSWR(sourceHealthKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 60000,
   });
@@ -760,11 +716,6 @@ export default function DealPage({
     const healthId = sourceHealthIdForDeal(serverDeal, sources);
     return sources.find((source) => source.id === healthId);
   }, [serverDeal, sourceHealthData?.sources]);
-  const sourceFallback = sourceReadinessFallback(
-    Boolean(sourceHealthLoading),
-    Boolean(sourceHealthError),
-  );
-  const detailCopy = dealCardCopy(store.userType === "dealer");
   const proofLinks = React.useMemo(() => {
     if (!serverDeal) return { scan: "/scan", sources: "/scan" };
     const params = new URLSearchParams();
@@ -1007,19 +958,8 @@ export default function DealPage({
                 <span aria-hidden>↗</span>
               </a>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setFindSimilarOpen(true)}
-              className="min-h-11 rounded-lg inline-flex items-center gap-1.5"
-              data-testid="find-similar-cta"
-              aria-label="Find similar vehicles in collected inventory"
-            >
-              <Search className="w-3.5 h-3.5" />
-              Find similar
-            </Button>
           </div>
+          <ReportListing key={id} listingId={id} />
         </div>
       </div>
 
@@ -1115,136 +1055,6 @@ export default function DealPage({
         </p>
       )}
 
-      {/* ENGINE DECISION — flip desk only. Personal, DIY, and parts buyers do not get net profit,
-          ROI, or a max bid. The API also redacts these fields for non-flip saved modes. */}
-      {store.userType === "dealer" &&
-        dealData?.deal?.dealVerdict &&
-        serverDeal?.decisionEvidence?.acquisitionReady === true &&
-        (() => {
-          const d = dealData.deal;
-          const a = d.dealAnalysis || {};
-          const verdict = String(d.dealVerdict).toUpperCase();
-          const vColor =
-            verdict === "GO"
-              ? "var(--green)"
-              : verdict === "HOLD"
-                ? "var(--amber)"
-                : "var(--red)";
-          const basisLabel =
-            a.sellBasis === "comps"
-              ? "real retail comps"
-              : a.sellBasis === "market"
-                ? "market value"
-                : "estimated markup";
-          return (
-            <Card
-              className="border-none overflow-hidden"
-              style={{ background: "var(--s0)", boxShadow: "var(--shadow)" }}
-            >
-              <div className="h-1 w-full" style={{ background: vColor }} />
-              <CardContent className="p-6 md:p-7">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-4">
-                  The Decision
-                </p>
-                <div className="flex flex-wrap items-center justify-between gap-5">
-                  <div className="flex items-center gap-4 md:gap-5">
-                    <div
-                      className="px-5 py-3 rounded-[var(--r3)] text-white font-black text-2xl tracking-wide leading-none"
-                      style={{ background: vColor }}
-                    >
-                      {verdict === "GO" ? "BUY" : verdict}
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-                        {`Recommended ${buyTerm(d.source ?? serverDeal?.source).label.toLowerCase()}`}
-                      </p>
-                      <Mono className="text-3xl md:text-4xl font-black text-[var(--t1)] leading-none">
-                        {d.recommendedMaxBid != null
-                          ? formatMoney(d.recommendedMaxBid)
-                          : "—"}
-                      </Mono>
-                      <p className="text-xs text-[var(--t3)] font-semibold mt-1.5">
-                        Net profit {formatMoney(d.true_net_profit ?? 0)}
-                        {a.roi != null ? ` · ${a.roi}% ROI` : ""} · score{" "}
-                        {d.profitScore ?? "—"}/130
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
-                      Est. resale
-                    </p>
-                    <Mono className="text-xl font-black text-[var(--t1)]">
-                      {d.sellEstimate != null
-                        ? formatMoney(d.sellEstimate)
-                        : "—"}
-                    </Mono>
-                    <p className="text-[10px] text-[var(--t4)]">
-                      via {basisLabel}
-                    </p>
-                    {(() => {
-                      // Honest confidence from the valuation basis: real comps (sold-anchored) = high;
-                      // comps = good; market aggregate = fair; offline baseline = estimate only.
-                      const conf =
-                        a.sellBasis === "comps" && a.soldAnchored
-                          ? { label: "High", c: "var(--green)" }
-                          : a.sellBasis === "comps"
-                            ? { label: "Good", c: "var(--green)" }
-                            : a.sellBasis === "market"
-                              ? { label: "Fair", c: "var(--amber-d)" }
-                              : { label: "Estimate", c: "var(--t4)" };
-                      return (
-                        <span
-                          className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                          style={{ background: `${conf.c}1f`, color: conf.c }}
-                          title="Confidence = how much real market data backs this number"
-                        >
-                          {conf.label} confidence
-                        </span>
-                      );
-                    })()}
-                    {a.conditionTag && a.conditionTag !== "clean" && (
-                      <p className="text-[10px] font-bold text-[var(--amber-d)] mt-0.5">
-                        {a.conditionTag} pricing
-                        {a.soldAnchored ? " · real-sold anchored" : ""}
-                      </p>
-                    )}
-                    {a.wholesaleEstimate > 0 && (
-                      <p className="text-[10px] text-[var(--t4)] mt-1.5">
-                        Wholesale ~
-                        <span className="font-bold text-[var(--t2)]">
-                          {formatMoney(a.wholesaleEstimate)}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {(a.warnings?.length > 0 || a.recommendations?.length > 0) && (
-                  <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-[var(--b1)]">
-                    {(a.warnings || []).map((w: string, i: number) => (
-                      <span
-                        key={`w${i}`}
-                        className="text-xs font-semibold text-white px-2.5 py-1 rounded-md"
-                        style={{ background: "var(--red)" }}
-                      >
-                        ⚠ {w}
-                      </span>
-                    ))}
-                    {(a.recommendations || []).map((r: string, i: number) => (
-                      <span
-                        key={`r${i}`}
-                        className="text-xs font-semibold text-[var(--t2)] px-2.5 py-1 rounded-md bg-[var(--s1)]"
-                      >
-                        ✓ {r}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })()}
-
       <section aria-label="Current alternatives">
         <button
           type="button"
@@ -1332,7 +1142,7 @@ export default function DealPage({
                 />
               </div>
             )}
-            <PriceSparkline dealId={id} />
+            <PriceTimeline dealId={id} />
           </div>
           {store.userType === "dealer" &&
             dealData?.deal?.dealAnalysis?.valuation &&
@@ -1340,6 +1150,7 @@ export default function DealPage({
               <ValuationBreakdown
                 v={dealData.deal.dealAnalysis.valuation}
                 sellEstimate={Number(dealData.deal.sellEstimate)}
+                mileage={dealData.deal.mileage}
               />
             )}
           <MarketTiming
@@ -1423,417 +1234,15 @@ export default function DealPage({
       </DetailDisclosure>
 
       <DetailDisclosure
-        eyebrow="Advanced workspace"
-        title="Refine assumptions and specialist tools"
-        summary="Optional calculators, negotiation, transport, and deeper vehicle intelligence."
+        eyebrow="Research tools"
+        title="Open one focused tool"
+        summary="Deal IQ, an on-demand AI brief, and vehicle data—without stacking duplicate calculators."
       >
-        {/* TOP READOUT (The 60-Second Decision) — flip desk only. Net profit, ROI, and the deal
-          score are flip economics; personal / DIY / parts stay on verify-list + ask. */}
-        {store.userType === "dealer" && (
-          <motion.div
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0 },
-            }}
-            className="grid grid-cols-1 lg:grid-cols-3 gap-4"
-          >
-            <Card
-              className="col-span-1 lg:col-span-2 border-none bg-[var(--s0)]"
-              style={{ boxShadow: "var(--shadow2)" }}
-            >
-              <CardContent className="p-6 flex flex-col justify-center h-full">
-                <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
-                      Net Profit
-                    </p>
-                    <div className="text-5xl font-bold text-[var(--t1)] flex items-center gap-3 serif">
-                      {formatMoney(engineNetProfit)}
-                      <Badge
-                        className="text-white border-none px-2 py-1 text-sm"
-                        style={{ background: "var(--green)" }}
-                      >
-                        {engineRoi}% ROI
-                      </Badge>
-                    </div>
-                    {/* The interactive ledger below is a what-if sandbox; show its result only as
-                    a secondary "adjusted" figure so it never competes with the engine verdict. */}
-                    {!acquisitionPriceMissing &&
-                      adjustedNetProfit !== engineNetProfit && (
-                        <p className="text-[11px] text-[var(--t4)] mt-1.5">
-                          Your adjusted estimate:{" "}
-                          <span className="font-bold text-[var(--t3)]">
-                            {formatMoney(adjustedNetProfit)}
-                          </span>
-                        </p>
-                      )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-[var(--t4)] uppercase tracking-widest mb-1">
-                      Verdict
-                    </p>
-                    <div
-                      className={`text-4xl font-bold ${engineVerdict === "GO" ? "text-[var(--green)]" : engineVerdict === "HOLD" ? "text-[var(--amber)]" : engineVerdict === "NOT_ENOUGH_DATA" ? "text-[var(--t4)]" : "text-[var(--red)]"}`}
-                    >
-                      {engineVerdict === "GO"
-                        ? "BUY"
-                        : verdictWord(engineVerdict)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* The EDGE Features Row */}
-                <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-[var(--b1)]">
-                  {/* Carrying Cost Clock */}
-                  {store.userType === "dealer" && (
-                    <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
-                      <Ico
-                        name="clock"
-                        size={14}
-                        className="text-[var(--t4)]"
-                      />
-                      Break-even: Day{" "}
-                      {Math.floor(adjustedNetProfit / store.floorRate)} of{" "}
-                      {store.estimatedDaysToSell}-day target
-                    </div>
-                  )}
-                  {/* Geo-Arbitrage */}
-                  {store.transportCost < 1000 &&
-                    adjustedNetProfit > 2500 &&
-                    store.userType === "dealer" && (
-                      <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--purple)] px-3 py-1.5 rounded-md shadow-sm">
-                        <Ico name="trending-up" size={14} />
-                        {dealData?.deal?.locationState
-                          ? `Geo-Arbitrage: low transport from ${dealData.deal.locationState}`
-                          : "Geo-Arbitrage: low transport opportunity"}
-                      </div>
-                    )}
-                  {/* Recalls */}
-                  {store.openRecalls > 0 ? (
-                    <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--red)] px-3 py-1.5 rounded-md shadow-sm">
-                      <Ico name="alert-triangle" size={14} />
-                      {store.openRecalls} Open NHTSA Recalls
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs font-bold text-[var(--t2)] bg-[var(--s1)] px-3 py-1.5 rounded-md">
-                      <Ico
-                        name="check-circle"
-                        size={14}
-                        className="text-[var(--green)]"
-                      />
-                      0 Open Recalls
-                    </div>
-                  )}
-
-                  {/* Salvage Teardown */}
-                  {store.titleType === "salvage" &&
-                    store.marketValue > 0 &&
-                    store.userType === "dealer" && (
-                      <div className="flex items-center gap-2 text-xs font-bold text-white bg-[var(--amber)] px-3 py-1.5 rounded-md shadow-sm">
-                        <Ico name="wrench" size={14} />
-                        Est. Parts Value: $
-                        {estimateTeardownValue(
-                          store.marketValue,
-                          store.make,
-                          store.model,
-                        ).total.toLocaleString()}
-                      </div>
-                    )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* The Algorithm Score */}
-            <Card className="col-span-1 border-[var(--b2)] bg-[var(--s0)] shadow-sm flex flex-col justify-center items-center p-6 text-center">
-              <p className="text-sm font-bold text-[var(--t3)] uppercase tracking-widest mb-2">
-                Deal Score
-              </p>
-              <div className="relative inline-flex items-center justify-center w-32 h-32 mb-2">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke="var(--s2)"
-                    strokeWidth="8"
-                    fill="transparent"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke={
-                      engineScore >= 80
-                        ? "var(--green)"
-                        : engineScore >= 60
-                          ? "var(--amber)"
-                          : "var(--red)"
-                    }
-                    strokeWidth="8"
-                    fill="transparent"
-                    strokeDasharray="351.8"
-                    strokeDashoffset={
-                      351.8 -
-                      (351.8 * Math.max(0, Math.min(100, engineScore))) / 100
-                    }
-                    className="transition-all duration-500 ease-out"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-[var(--t1)]">
-                  {engineScore}
-                </div>
-              </div>
-              <ScoreBreakdown
-                netProfit={engineNetProfit}
-                roi={engineRoi}
-                breakdown={serverDeal?.dealAnalysis?.scoreBreakdown}
-              />
-            </Card>
-          </motion.div>
-        )}
-
-        {/* MIDDLE SECTION (The Interactive Ledger — secondary) */}
-        <div className="pt-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--t4)] px-1 mb-1">
-            Adjust assumptions
-          </p>
-          <p className="text-xs text-[var(--t4)] px-1 mb-3">
-            Fine-tune costs and market value to see how the numbers move. The
-            decision above uses the engine&apos;s estimates.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Left: Value & Ask */}
-          <Card className="border-[var(--b2)] shadow-sm">
-            <CardHeader className="bg-[var(--s1)] border-b border-[var(--b1)] py-4">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest">
-                Market & Acquisition
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-bold text-[var(--t2)] flex-1">
-                  {
-                    buyTerm(dealData?.deal?.source ?? serverDeal?.source)
-                      .priceLabel
-                  }
-                </label>
-                <div className="relative w-32">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t3)] font-bold">
-                    $
-                  </span>
-                  <Input
-                    type="number"
-                    value={store.askPrice || ""}
-                    onChange={(e) =>
-                      store.updateField("askPrice", Number(e.target.value))
-                    }
-                    className="pl-7 font-[var(--fm)] font-bold bg-[var(--s0)] text-right"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center justify-between border-t border-[var(--b1)] pt-4">
-                <div className="flex-1">
-                  <label className="text-sm font-bold text-[var(--t2)]">
-                    {store.userType === "parts"
-                      ? "Est. Parts Value"
-                      : "MMR Market Value"}
-                  </label>
-                  <p className="text-[10px] text-[var(--t4)]">
-                    Editable estimate
-                  </p>
-                </div>
-                <div className="relative w-32">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t3)] font-bold">
-                    $
-                  </span>
-                  <Input
-                    type="number"
-                    value={store.marketValue || ""}
-                    onChange={(e) =>
-                      store.updateField("marketValue", Number(e.target.value))
-                    }
-                    className="pl-7 font-[var(--fm)] font-bold bg-[var(--s1)] text-right border-dashed"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Right: The Costs */}
-          <Card className="border-[var(--b2)] shadow-sm">
-            <CardHeader className="bg-[var(--s1)] border-b border-[var(--b1)] py-4">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest">
-                Cost Breakdown
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-[var(--b1)]">
-                {store.userType !== "private" &&
-                  isAuctionSource(
-                    dealData?.deal?.source ?? serverDeal?.source,
-                  ) && (
-                    <CostRow
-                      label="Auction Fee"
-                      value={store.auctionFee}
-                      onChange={(val) => store.updateField("auctionFee", val)}
-                    />
-                  )}
-                <CostRow
-                  label="Transport"
-                  value={store.transportCost}
-                  onChange={(val) => store.updateField("transportCost", val)}
-                />
-                {store.userType !== "parts" && (
-                  <CostRow
-                    label="Repair Est"
-                    value={store.repairCost}
-                    onChange={(val) => store.updateField("repairCost", val)}
-                  />
-                )}
-                {store.userType === "dealer" && (
-                  <CostRow
-                    label="Recon / Detail"
-                    value={store.reconCost}
-                    onChange={(val) => store.updateField("reconCost", val)}
-                  />
-                )}
-                {store.userType !== "parts" && (
-                  <CostRow
-                    label="Title / Doc"
-                    value={store.titleFee}
-                    onChange={(val) => store.updateField("titleFee", val)}
-                  />
-                )}
-                {store.userType === "dealer" && (
-                  <CostRow
-                    label={`Holding (${store.estimatedDaysToSell} days @ $${store.floorRate})`}
-                    value={store.floorRate * store.estimatedDaysToSell}
-                    readOnly
-                  />
-                )}
-                {store.userType === "private" && (
-                  <>
-                    <CostRow
-                      label="Est. Insurance (1 YR)"
-                      value={store.annualInsurance}
-                      onChange={(val) =>
-                        store.updateField("annualInsurance", val)
-                      }
-                    />
-                    <CostRow
-                      label="Est. Maintenance (1 YR)"
-                      value={store.annualMaintenance}
-                      onChange={(val) =>
-                        store.updateField("annualMaintenance", val)
-                      }
-                    />
-                  </>
-                )}
-              </div>
-              <div className="p-4 bg-[var(--s1)] border-t border-[var(--b1)] flex justify-between items-center rounded-b-[var(--r2)]">
-                <span className="font-bold text-[var(--t2)] uppercase tracking-wider text-sm">
-                  Total Cost Basis
-                </span>
-                <Mono className="text-lg font-black text-[var(--t1)]">
-                  {formatMoney(store.totalCost)}
-                </Mono>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Buyer proof module: cash-offer draft and letter workflow */}
-        {serverDeal && (
-          <AutonomousSellerNegotiator
-            dealId={id}
-            vin={serverDeal?.vin ?? store.vin}
-            locationCity={serverDeal?.locationCity}
-            locationState={serverDeal?.locationState}
-            vehicleTitle={`${serverDeal.year ?? store.year} ${serverDeal.make ?? store.make} ${serverDeal.model ?? store.model}`.trim()}
-            askingPrice={serverDeal.askPrice ?? store.askPrice ?? 0}
-            targetOffer={
-              serverDeal.recommendedMaxBid ??
-              Math.round((serverDeal.askPrice ?? store.askPrice ?? 0) * 0.9)
-            }
-            sellerPhone={serverDeal.contact?.phone}
-          />
-        )}
-
-        {/* Transport: a road-routed quote when the API has one, otherwise no numbers */}
-        {serverDeal && (
-          <FreightAndTaxCalculator
-            buyState={serverDeal.locationState}
-            homeState={effectiveHome(prefs)?.state}
-          />
-        )}
-
-        {/* AI PHASE 5: FLOOR PLAN FINANCING & CARRY COST CALCULATOR — flip desk only */}
-        {store.userType === "dealer" && serverDeal && (
-          <FloorPlanCalculator
-            purchasePrice={serverDeal.askPrice ?? store.askPrice ?? 0}
-            expectedProfit={serverDeal.trueNetProfit ?? adjustedNetProfit ?? 0}
-          />
-        )}
-
-        {/* DRAGGABLE WIDGET GRID */}
-        <SortableWidgetGrid
-          storageKey="deal-dashboard-layout-v1"
-          widgets={[
-            { id: "deal-iq", content: <DealIQCard dealId={id} /> },
-            {
-              id: "vehicle-specs",
-              content: <VehicleSpecs vin={store.vin} make={store.make} />,
-            },
-            { id: "price-timeline", content: <PriceTimeline dealId={id} /> },
-            { id: "ai-brief", content: <AIBrief dealId={id} /> },
-            // Max-bid math and outcome logging are flip-desk tools.
-            ...(store.userType === "dealer"
-              ? [
-                  {
-                    id: "max-bid-calc",
-                    content: (
-                      <MaxBidCalculator
-                        deal={{
-                          year: serverDeal?.year ?? store.year,
-                          make: serverDeal?.make ?? store.make,
-                          model: serverDeal?.model ?? store.model,
-                          askPrice: serverDeal?.askPrice ?? store.askPrice ?? 0,
-                          sellEstimate:
-                            serverDeal?.sellEstimate ?? store.marketValue,
-                          recommendedMaxBid: serverDeal?.recommendedMaxBid,
-                          repairEstimate: store.repairCost,
-                          transportEstimate: store.transportCost,
-                        }}
-                      />
-                    ),
-                  },
-                  {
-                    id: "log-outcome",
-                    content: (
-                      <LogOutcome
-                        dealId={id}
-                        year={serverDeal?.year ?? store.year}
-                        make={serverDeal?.make ?? store.make}
-                        model={serverDeal?.model ?? store.model}
-                        defaultPurchase={
-                          serverDeal?.recommendedMaxBid ??
-                          serverDeal?.askPrice ??
-                          store.askPrice
-                        }
-                        predictedProfit={
-                          serverDeal?.trueNetProfit ?? adjustedNetProfit
-                        }
-                        predictedSell={
-                          serverDeal?.sellEstimate ?? store.marketValue
-                        }
-                        predictedTransport={store.transportCost}
-                        predictedRecon={store.reconCost}
-                      />
-                    ),
-                  },
-                ]
-              : []),
-          ]}
+        <DealResearchWorkspace
+          dealId={id}
+          vin={serverDeal?.vin ?? store.vin}
+          make={serverDeal?.make ?? store.make}
+          dealerMode={store.userType === "dealer"}
         />
       </DetailDisclosure>
 
@@ -1847,20 +1256,6 @@ export default function DealPage({
         }}
       >
         <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setFindSimilarOpen(true)}
-              className="border-[var(--b2)] text-[var(--t2)] font-semibold text-xs md:text-sm min-h-11 rounded-lg inline-flex items-center gap-1.5"
-              data-testid="find-similar-cta-bar"
-              aria-label="Find similar vehicles in collected inventory"
-            >
-              <Search className="w-3.5 h-3.5" />
-              Find similar
-            </Button>
-          </motion.div>
-
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
               variant="outline"
@@ -1981,42 +1376,6 @@ export default function DealPage({
           sellerPhone: serverDeal?.contact?.phone,
         }}
       />
-    </div>
-  );
-}
-
-// Subcomponent for ledger rows
-function CostRow({
-  label,
-  value,
-  onChange,
-  readOnly = false,
-}: {
-  label: string;
-  value: number;
-  onChange?: (val: number) => void;
-  readOnly?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between p-3 px-5 hover:bg-[var(--s1)] transition-colors">
-      <span className="text-sm font-semibold text-[var(--t2)]">{label}</span>
-      <div className="relative w-28">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--t4)] font-bold text-sm">
-          $
-        </span>
-        {readOnly ? (
-          <div className="pl-7 py-2 pr-3 text-right font-[var(--fm)] font-bold text-[var(--t3)]">
-            {value}
-          </div>
-        ) : (
-          <Input
-            type="number"
-            value={value || ""}
-            onChange={(e) => onChange?.(Number(e.target.value))}
-            className="h-8 pl-7 font-[var(--fm)] font-bold bg-transparent border-transparent hover:border-[var(--b2)] focus:border-[var(--amber)] focus:bg-[var(--s0)] text-right text-sm px-2 shadow-none rounded"
-          />
-        )}
-      </div>
     </div>
   );
 }

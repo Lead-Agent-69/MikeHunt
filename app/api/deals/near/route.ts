@@ -15,8 +15,8 @@ import {
 } from "@/lib/deals/deal-desk-access";
 
 // GET /api/deals/near?zip=&radius=&verdict=
-// State-locked. A ZIP or saved home state is required. Miles never cross that
-// state, and a missing radius is not a 150mi net.
+// A selected radius crosses state borders. Without a radius, retain the saved
+// state scope rather than silently searching nationwide.
 //
 // verdict defaults to "all". It used to default to "go", but the analyzer currently
 // grades every active listing "pass" or "hold" (0 "go" rows nationwide on 2026-10-10),
@@ -137,7 +137,10 @@ export async function GET(req: NextRequest) {
       centerLng = c.lng;
     }
   }
-  const canMeasure = centerLat != null && centerLng != null;
+  const canMeasure =
+    centerLat != null &&
+    centerLng != null &&
+    haversineMiles(centerLat, centerLng, centerLat, centerLng) != null;
   if (lock.radius > 0 && !canMeasure)
     return NextResponse.json({ deals: [], needsLocation: true });
 
@@ -147,11 +150,10 @@ export async function GET(req: NextRequest) {
       "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
     )
     .eq("active", true)
-    .eq("location_state", lock.state)
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0);
   if (verdict) q = q.eq("deal_verdict", verdict);
-  // An explicit radius narrows inside the locked state. It never adds neighbor states.
+  if (lock.radius === 0) q = q.eq("location_state", lock.state);
   if (lock.radius > 0 && canMeasure) {
     const bb = boundingBox(
       centerLat as number,
@@ -176,7 +178,11 @@ export async function GET(req: NextRequest) {
 
   const withDist: { d: any; miles: number | null }[] = [];
   for (const r of rows || []) {
-    if (String(r.location_state || "").toUpperCase() !== lock.state) continue;
+    if (
+      lock.radius === 0 &&
+      String(r.location_state || "").toUpperCase() !== lock.state
+    )
+      continue;
     let miles: number | null = null;
     if (canMeasure && r.lat != null && r.lng != null) {
       miles = haversineMiles(
@@ -207,7 +213,13 @@ export async function GET(req: NextRequest) {
     flipDesk,
   );
   return NextResponse.json(
-    { deals, state: lock.state, deskAccess: flipDesk ? "flip" : "personal" },
+    {
+      deals,
+      state: lock.state,
+      scope: lock.radius > 0 ? "radius" : "state",
+      radiusMiles: lock.radius || null,
+      deskAccess: flipDesk ? "flip" : "personal",
+    },
     { headers: { "Cache-Control": "private, no-store" } },
   );
 }

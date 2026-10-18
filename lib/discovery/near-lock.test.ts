@@ -9,11 +9,17 @@ describe("nearQueryLock", () => {
     });
   });
 
-  it("keeps an explicit radius inside the ZIP state", () => {
+  it("retains the center state for an explicit radius", () => {
     expect(nearQueryLock({ zip: "77002", radiusParam: "150" })).toMatchObject({
       state: "TX",
       radius: 150,
     });
+  });
+
+  it("caps an explicit radius at the inventory search's 500-mile maximum", () => {
+    expect(nearQueryLock({ zip: "63101", radiusParam: "999999" }).radius).toBe(
+      500,
+    );
   });
 
   it("does not treat a bad ZIP as a nationwide search", () => {

@@ -14,6 +14,7 @@ import {
 } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 import {
   isPlaceholderBid,
   MAX_HONEST_MARGIN_PCT,
@@ -122,6 +123,7 @@ export function emptyArbitragePayload(
       nationalProfit: 0,
       bestProfit: 0,
       needsComps: 0,
+      evidenceBlocked: 0,
       excluded: {
         unverified_comps: 0,
         placeholder_bid: 0,
@@ -455,273 +457,333 @@ export async function GET(request: NextRequest) {
       sellMarket.lng != null ? Number(sellMarket.lng).toFixed(2) : "",
     ].join(":");
 
-    const payload = await cached(`arb2:${marketKey}`, 60_000, async () => {
-      const now = Date.now();
-      const dealsService = new DealsService();
-      // PostgREST caps a single page at 1000 rows; cap explicitly.
-      const { deals } = await dealsService.getDeals({
-        limit: 1000,
-        sortBy: "profitEstimate",
-        sortOrder: "desc",
-      });
-
-      const excluded: Record<ArbitrageExclusionReason | "stale", number> = {
-        unverified_comps: 0,
-        placeholder_bid: 0,
-        outlier_margin: 0,
-        stale: 0,
-      };
-
-      // 1) Candidates: live, priced, not engine-PASSed.
-      const candidates: any[] = [];
-      for (const deal of deals as any[]) {
-        const src = String(deal.locationState || "").toUpperCase();
-        if (!src) continue;
-        if (!isLiveDeal(deal, now)) {
-          excluded.stale += 1;
-          continue;
-        }
-        if (deal.dealVerdict === "pass") continue;
-        candidates.push(deal);
-      }
-
-      // 2) Batched comp fetch: one paginated query per table per MODEL_BATCH model names.
-      const groups = new Map<
-        string,
-        {
-          make: string;
-          model: string;
-          spellings: Set<string>;
-          minYear: number;
-          maxYear: number;
-        }
-      >();
-      for (const d of candidates) {
-        if (!d.make || !d.model) continue;
-        const k = groupKey(d.make, d.model);
-        const y = Number(d.year) || 0;
-        const g = groups.get(k);
-        if (!g)
-          groups.set(k, {
-            make: String(d.make),
-            model: String(d.model),
-            spellings: new Set([String(d.model)]),
-            minYear: y || 1900,
-            maxYear: y || new Date(now).getFullYear() + 1,
-          });
-        else {
-          g.spellings.add(String(d.model));
-          if (!y) continue;
-          g.minYear = Math.min(g.minYear, y);
-          g.maxYear = Math.max(g.maxYear, y);
-        }
-      }
-      const sb = createServerComponentClient();
-      const { byGroup, activeById, queries } = await loadComps(sb, groups, now);
-
-      // 3) Evaluate each candidate with the engine.
-      const localDeals: any[] = [];
-      const evaluated: { opp: ArbitrageOpportunity; deal: any; src: string }[] =
-        [];
-      for (const deal of candidates) {
-        const src = String(deal.locationState).toUpperCase();
-        const raw = activeById.get(String(deal.id));
-        const toIso = (v: unknown) =>
-          v instanceof Date ? v.toISOString() : ((v as string | null) ?? null);
-        // Freshness fields ride along so the engine's isStale (isLiveDeal) sees ended auctions and
-        // gated source URLs too.
-        const listing: ArbitrageListing & FreshnessInput = {
-          id: String(deal.id),
-          sourceUrl: deal.sourceUrl ?? raw?.source_url ?? null,
-          auctionEndAt: toIso(deal.auctionEndAt ?? raw?.auction_end_at),
-          ask: Number(deal.askPrice) || null,
-          source: deal.source,
-          sourceDealId: raw?.source_deal_id ?? null,
-          title: deal.condition,
-          damageType: deal.damageType,
-          location: {
-            state: src,
-            zip: raw?.location_zip ?? deal.locationZip ?? null,
-            lat: raw?.lat ?? null,
-            lng: raw?.lng ?? null,
-          },
-          lastSeenAt: toIso(deal.lastSeenAt),
-        };
-        const y = Number(deal.year) || null;
-        const pool = (
-          byGroup.get(groupKey(deal.make, deal.model)) || []
-        ).filter(
-          (c) =>
-            y == null ||
-            c.year == null ||
-            Math.abs(Number(c.year) - y) <= COMP_YEAR_BAND,
-        );
-        const r = evaluateOpportunity(listing, pool, {
-          sellMarket,
-          now,
-          isStale: (row) => !isLiveDeal(row as FreshnessInput, now),
+    const payload = await cached(
+      `arb3:evidence-gated:${marketKey}`,
+      60_000,
+      async () => {
+        const now = Date.now();
+        const dealsService = new DealsService();
+        // PostgREST caps a single page at 1000 rows; cap explicitly.
+        const { deals } = await dealsService.getDeals({
+          limit: 1000,
+          sortBy: "profitEstimate",
+          sortOrder: "desc",
         });
-        if (isExcluded(r)) {
-          if (r.reason === "stale") excluded.stale += 1;
-          continue;
-        }
-        if (src === homeState) {
-          // Local tier keeps its raw-deal shape (page reads deal fields); spread rides along.
-          localDeals.push({
-            ...deal,
-            spread: r.spread,
-            arbitrageStatus: r.status,
+
+        const excluded: Record<ArbitrageExclusionReason | "stale", number> = {
+          unverified_comps: 0,
+          placeholder_bid: 0,
+          outlier_margin: 0,
+          stale: 0,
+        };
+
+        // 1) Candidates: live, priced, not engine-PASSed.
+        const candidates: any[] = [];
+        let evidenceBlocked = 0;
+        for (const deal of deals as any[]) {
+          const src = String(deal.locationState || "").toUpperCase();
+          if (!src) continue;
+          if (!isLiveDeal(deal, now)) {
+            excluded.stale += 1;
+            continue;
+          }
+          if (deal.dealVerdict === "pass") continue;
+          const decisionEvidence = assessDecisionEvidence({
+            title: deal.title,
+            source: deal.source,
+            condition: deal.condition,
+            damageType: deal.damageType,
+            vin: deal.vin,
+            mileage: deal.mileage,
+            askPrice: deal.askPrice,
+            buyNowPrice: deal.buyNowPrice,
+            priceEvidence: deal.priceEvidence,
+            dealVerdict: deal.dealVerdict,
+            dealAnalysis: deal.dealAnalysis,
+            valuation: deal.dealAnalysis?.valuation,
           });
-          continue;
+          // The arbitrage desk must never contradict the deal dossier. A vehicle is research-only
+          // until the same canonical evidence guard says it is an acquisition candidate.
+          if (!decisionEvidence.acquisitionReady) {
+            evidenceBlocked += 1;
+            continue;
+          }
+          candidates.push({ ...deal, decisionEvidence });
         }
-        evaluated.push({ opp: r, deal, src });
-      }
 
-      // 4) Rank with the engine (scored by confidence-weighted net, needs-comps after, no profit).
-      const ranked = rankOpportunities(evaluated.map((e) => e.opp));
-      const byId = new Map(evaluated.map((e) => [e.opp.id, e]));
+        // 2) Batched comp fetch: one paginated query per table per MODEL_BATCH model names.
+        const groups = new Map<
+          string,
+          {
+            make: string;
+            model: string;
+            spellings: Set<string>;
+            minYear: number;
+            maxYear: number;
+          }
+        >();
+        for (const d of candidates) {
+          if (!d.make || !d.model) continue;
+          const k = groupKey(d.make, d.model);
+          const y = Number(d.year) || 0;
+          const g = groups.get(k);
+          if (!g)
+            groups.set(k, {
+              make: String(d.make),
+              model: String(d.model),
+              spellings: new Set([String(d.model)]),
+              minYear: y || 1900,
+              maxYear: y || new Date(now).getFullYear() + 1,
+            });
+          else {
+            g.spellings.add(String(d.model));
+            if (!y) continue;
+            g.minYear = Math.min(g.minYear, y);
+            g.maxYear = Math.max(g.maxYear, y);
+          }
+        }
+        const sb = createServerComponentClient();
+        const { byGroup, activeById, queries } = await loadComps(
+          sb,
+          groups,
+          now,
+        );
 
-      const regional: Opp[] = [];
-      const national: Opp[] = [];
-      const needsComps: NeedsCompsOpp[] = [];
-      const routeAgg = new Map<
-        string,
-        { miles: number; cost: number; count: number; profit: number }
-      >();
+        // 3) Evaluate each candidate with the engine.
+        const localDeals: any[] = [];
+        const evaluated: {
+          opp: ArbitrageOpportunity;
+          deal: any;
+          src: string;
+        }[] = [];
+        for (const deal of candidates) {
+          const src = String(deal.locationState).toUpperCase();
+          const raw = activeById.get(String(deal.id));
+          const toIso = (v: unknown) =>
+            v instanceof Date
+              ? v.toISOString()
+              : ((v as string | null) ?? null);
+          // Freshness fields ride along so the engine's isStale (isLiveDeal) sees ended auctions and
+          // gated source URLs too.
+          const listing: ArbitrageListing & FreshnessInput = {
+            id: String(deal.id),
+            sourceUrl: deal.sourceUrl ?? raw?.source_url ?? null,
+            auctionEndAt: toIso(deal.auctionEndAt ?? raw?.auction_end_at),
+            ask: Number(deal.askPrice) || null,
+            source: deal.source,
+            sourceDealId: raw?.source_deal_id ?? null,
+            title: deal.condition,
+            damageType: deal.damageType,
+            location: {
+              state: src,
+              zip: raw?.location_zip ?? deal.locationZip ?? null,
+              lat: raw?.lat ?? null,
+              lng: raw?.lng ?? null,
+            },
+            lastSeenAt: toIso(deal.lastSeenAt),
+          };
+          const y = Number(deal.year) || null;
+          const pool = (
+            byGroup.get(groupKey(deal.make, deal.model)) || []
+          ).filter(
+            (c) =>
+              y == null ||
+              c.year == null ||
+              Math.abs(Number(c.year) - y) <= COMP_YEAR_BAND,
+          );
+          const r = evaluateOpportunity(listing, pool, {
+            sellMarket,
+            now,
+            isStale: (row) => !isLiveDeal(row as FreshnessInput, now),
+          });
+          if (isExcluded(r)) {
+            if (r.reason === "stale") excluded.stale += 1;
+            continue;
+          }
+          if (src === homeState) {
+            // Local economics use the same dated sold-evidence rule as import opportunities.
+            if (
+              r.status === "scored" &&
+              r.spread.compKind === "sold" &&
+              r.spread.net != null &&
+              r.spread.net >= MIN_PROFIT
+            )
+              localDeals.push({
+                ...deal,
+                sellEstimate: r.spread.expectedResale,
+                true_net_profit: r.spread.net,
+                spread: r.spread,
+                arbitrageStatus: r.status,
+              });
+            continue;
+          }
+          evaluated.push({ opp: r, deal, src });
+        }
 
-      for (const opp of ranked) {
-        const { deal, src } = byId.get(opp.id)!;
-        const miles = opp.distance.miles ?? milesBetweenStates(src, homeState);
-        if (miles == null) continue;
-        const s = opp.spread;
-        const extras: RowExtras = {
-          spread: s,
-          status: opp.status,
-          confidence: opp.confidence,
-          assumptions: opp.assumptions,
-        };
-        const base = {
-          targetRegion: { state: homeState },
-          sourceState: src,
-        };
-        const toNeeds = (why: ArbitrageExclusionReason | "needs_comps") => {
-          if (why !== "needs_comps") excluded[why] += 1;
-          needsComps.push({
+        // 4) Rank with the engine (scored by confidence-weighted net, needs-comps after, no profit).
+        const ranked = rankOpportunities(evaluated.map((e) => e.opp));
+        const byId = new Map(evaluated.map((e) => [e.opp.id, e]));
+
+        const regional: Opp[] = [];
+        const national: Opp[] = [];
+        const needsComps: NeedsCompsOpp[] = [];
+        const routeAgg = new Map<
+          string,
+          { miles: number; cost: number; count: number; profit: number }
+        >();
+
+        for (const opp of ranked) {
+          const { deal, src } = byId.get(opp.id)!;
+          const miles =
+            opp.distance.miles ?? milesBetweenStates(src, homeState);
+          if (miles == null) continue;
+          const s = opp.spread;
+          const extras: RowExtras = {
+            spread: s,
+            status: opp.status,
+            confidence: opp.confidence,
+            assumptions: opp.assumptions,
+          };
+          const base = {
+            targetRegion: { state: homeState },
+            sourceState: src,
+          };
+          const toNeeds = (why: ArbitrageExclusionReason | "needs_comps") => {
+            if (why !== "needs_comps") excluded[why] += 1;
+            needsComps.push({
+              deal,
+              ...extras,
+              // A placeholder/outlier row never shows a net, even when comps exist.
+              spread: { ...s, net: null },
+              arbitrage: {
+                ...base,
+                excludedReason: why,
+                arbitrage: {
+                  sourcePrice: s.ask,
+                  targetPrice: s.expectedResale,
+                  transportCost: s.transport,
+                  potentialProfit: null,
+                  profitMargin: null,
+                  distance: miles,
+                },
+              },
+            });
+          };
+
+          if (opp.status === "needs_comps") {
+            toNeeds("needs_comps");
+            continue;
+          }
+          if (s.compKind !== "sold") {
+            toNeeds("unverified_comps");
+            continue;
+          }
+          const net = opp.profit;
+          const profitMargin =
+            s.ask > 0 ? Math.round((net / s.ask) * 100) : null;
+          if (
+            isPlaceholderBid({
+              ...deal,
+              sellEstimate: s.expectedResale ?? undefined,
+            })
+          ) {
+            toNeeds("placeholder_bid");
+            continue;
+          }
+          if (net < MIN_PROFIT || profitMargin == null) continue;
+          if (profitMargin > MAX_HONEST_MARGIN_PCT) {
+            toNeeds("outlier_margin");
+            continue;
+          }
+          const row: Opp = {
             deal,
             ...extras,
-            // A placeholder/outlier row never shows a net, even when comps exist.
-            spread: { ...s, net: null },
             arbitrage: {
               ...base,
-              excludedReason: why,
               arbitrage: {
                 sourcePrice: s.ask,
-                targetPrice: s.expectedResale,
+                targetPrice: s.expectedResale!,
                 transportCost: s.transport,
-                potentialProfit: null,
-                profitMargin: null,
+                potentialProfit: net,
+                profitMargin,
                 distance: miles,
               },
             },
-          });
-        };
-
-        if (opp.status === "needs_comps") {
-          toNeeds("needs_comps");
-          continue;
+          };
+          (miles <= REGIONAL_MILES ? regional : national).push(row);
+          const rAgg = routeAgg.get(src) || {
+            miles,
+            cost: s.transport,
+            count: 0,
+            profit: 0,
+          };
+          rAgg.count += 1;
+          rAgg.profit += net;
+          routeAgg.set(src, rAgg);
         }
-        const net = opp.profit;
-        const profitMargin = s.ask > 0 ? Math.round((net / s.ask) * 100) : null;
-        if (
-          isPlaceholderBid({
-            ...deal,
-            sellEstimate: s.expectedResale ?? undefined,
-          })
-        ) {
-          toNeeds("placeholder_bid");
-          continue;
-        }
-        if (net < MIN_PROFIT || profitMargin == null) continue;
-        if (profitMargin > MAX_HONEST_MARGIN_PCT) {
-          toNeeds("outlier_margin");
-          continue;
-        }
-        const row: Opp = {
-          deal,
-          ...extras,
-          arbitrage: {
-            ...base,
-            arbitrage: {
-              sourcePrice: s.ask,
-              targetPrice: s.expectedResale!,
-              transportCost: s.transport,
-              potentialProfit: net,
-              profitMargin,
-              distance: miles,
-            },
-          },
-        };
-        (miles <= REGIONAL_MILES ? regional : national).push(row);
-        const rAgg = routeAgg.get(src) || {
-          miles,
-          cost: s.transport,
-          count: 0,
-          profit: 0,
-        };
-        rAgg.count += 1;
-        rAgg.profit += net;
-        routeAgg.set(src, rAgg);
-      }
 
-      const topRoutes = Array.from(routeAgg.entries())
-        .map(([state, r]) => ({
-          targetState: state,
-          route: [state, homeState],
-          distance: r.miles,
-          estimatedCost: r.cost,
-          estimatedTime: Math.max(1, Math.round(r.miles / 550)),
-          opportunities: r.count,
-          totalProfit: r.profit,
-          regional: r.miles <= REGIONAL_MILES,
-        }))
-        .sort((a, b) => b.totalProfit - a.totalProfit)
-        .slice(0, 8);
+        const topRoutes = Array.from(routeAgg.entries())
+          .map(([state, r]) => ({
+            targetState: state,
+            route: [state, homeState],
+            distance: r.miles,
+            estimatedCost: r.cost,
+            estimatedTime: Math.max(1, Math.round(r.miles / 550)),
+            opportunities: r.count,
+            totalProfit: r.profit,
+            regional: r.miles <= REGIONAL_MILES,
+          }))
+          .sort((a, b) => b.totalProfit - a.totalProfit)
+          .slice(0, 8);
 
-      const sumProfit = (arr: Opp[]) =>
-        arr.reduce((acc, o) => acc + o.arbitrage.arbitrage.potentialProfit, 0);
-      // One ranked list across tiers: scored (engine order) then needs-comps (no profit).
-      const scoredAll = [...regional, ...national];
-      const order = new Map(ranked.map((o, i) => [o.id, i]));
-      scoredAll.sort(
-        (a, b) => order.get(String(a.deal.id))! - order.get(String(b.deal.id))!,
-      );
-
-      return {
-        homeState,
-        tailored,
-        needsHome: false,
-        summary: {
-          local: localDeals.length,
-          regional: regional.length,
-          national: national.length,
-          regionalProfit: sumProfit(regional),
-          nationalProfit: sumProfit(national),
-          bestProfit: Math.max(
+        const sumProfit = (arr: Opp[]) =>
+          arr.reduce(
+            (acc, o) => acc + o.arbitrage.arbitrage.potentialProfit,
             0,
-            ...scoredAll.map((o) => o.arbitrage.arbitrage.potentialProfit),
-          ),
-          needsComps: needsComps.length,
-          excluded,
-        },
-        topRoutes,
-        localDeals: localDeals.slice(0, 50),
-        regionalArbitrage: regional.slice(0, 25),
-        nationalArbitrage: national.slice(0, 25),
-        needsComps: needsComps.slice(0, 25),
-        opportunities: [...scoredAll.slice(0, 50), ...needsComps.slice(0, 25)],
-        compQueries: queries,
-      };
-    });
+          );
+        // One ranked list across tiers: scored (engine order) then needs-comps (no profit).
+        const scoredAll = [...regional, ...national];
+        const order = new Map(ranked.map((o, i) => [o.id, i]));
+        scoredAll.sort(
+          (a, b) =>
+            order.get(String(a.deal.id))! - order.get(String(b.deal.id))!,
+        );
+
+        return {
+          homeState,
+          tailored,
+          needsHome: false,
+          summary: {
+            local: localDeals.length,
+            regional: regional.length,
+            national: national.length,
+            regionalProfit: sumProfit(regional),
+            nationalProfit: sumProfit(national),
+            bestProfit: Math.max(
+              0,
+              ...scoredAll.map((o) => o.arbitrage.arbitrage.potentialProfit),
+            ),
+            needsComps: needsComps.length,
+            evidenceBlocked,
+            excluded,
+          },
+          topRoutes,
+          localDeals: localDeals.slice(0, 50),
+          regionalArbitrage: regional.slice(0, 25),
+          nationalArbitrage: national.slice(0, 25),
+          needsComps: needsComps.slice(0, 25),
+          opportunities: [
+            ...scoredAll.slice(0, 50),
+            ...needsComps.slice(0, 25),
+          ],
+          evidenceState:
+            scoredAll.length || localDeals.length
+              ? "verified_candidates"
+              : "market_evidence_not_ready",
+          compQueries: queries,
+        };
+      },
+    );
     return NextResponse.json(
       { ...payload, deskAccess: "flip" },
       { headers: NO_STORE },

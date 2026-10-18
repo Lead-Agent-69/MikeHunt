@@ -2,26 +2,23 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useRef, type RefObject } from "react";
 
 interface PhotoPreviewProps {
   images: Array<{ src: string; alt: string }>;
   selectedIndex: number | null;
   onSelect: (index: number | null) => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function PhotoPreview({
   images,
   selectedIndex,
   onSelect,
+  returnFocusRef,
 }: PhotoPreviewProps) {
   const image = selectedIndex === null ? undefined : images[selectedIndex];
   const previousFocus = useRef<HTMLElement | null>(null);
-  const open = Boolean(image);
-  useEffect(() => {
-    if (open)
-      previousFocus.current = document.activeElement as HTMLElement | null;
-  }, [open]);
   const move = (offset: number) => {
     if (selectedIndex !== null && images.length) {
       onSelect((selectedIndex + offset + images.length) % images.length);
@@ -41,11 +38,18 @@ export function PhotoPreview({
         <Dialog.Overlay className="fixed inset-0 z-[1000] bg-black/95" />
         <Dialog.Content
           aria-describedby={undefined}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            previousFocus.current?.focus();
+          onOpenAutoFocus={() => {
+            previousFocus.current =
+              document.activeElement as HTMLElement | null;
           }}
-          className="fixed inset-0 z-[1001] h-[100dvh] overflow-hidden px-4 pt-[max(5rem,env(safe-area-inset-top))] pb-[max(5rem,env(safe-area-inset-bottom))] outline-none"
+          onCloseAutoFocus={(event) => {
+            const trigger = returnFocusRef?.current ?? previousFocus.current;
+            if (trigger?.isConnected) {
+              event.preventDefault();
+              trigger.focus({ preventScroll: true });
+            }
+          }}
+          className="fixed left-0 top-0 z-[1001] h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] overflow-hidden px-4 pt-[max(5rem,env(safe-area-inset-top))] pb-[max(5rem,env(safe-area-inset-bottom))] outline-none"
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
@@ -57,7 +61,7 @@ export function PhotoPreview({
             {image?.alt || "Photo preview"}
           </Dialog.Title>
           <div
-            className="flex h-full min-h-0 items-center justify-center"
+            className="flex h-full min-h-0 w-full max-w-full items-center justify-center overflow-hidden"
             onClick={() => onSelect(null)}
           >
             {image && (
@@ -65,7 +69,7 @@ export function PhotoPreview({
               <img
                 src={image.src}
                 alt={image.alt}
-                className="block h-full w-full max-w-7xl object-contain"
+                className="block h-auto max-h-full w-auto max-w-full object-contain"
                 draggable={false}
                 onClick={(event) => event.stopPropagation()}
               />

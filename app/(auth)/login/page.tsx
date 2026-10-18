@@ -28,14 +28,14 @@ export default function LoginPage() {
   const [resending, setResending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
-  const [next, setNext] = useState("/discover");
+  const [next, setNext] = useState("/market");
   const router = useRouter();
   const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNext(safeNextPath(params.get("next")));
+    setNext(safeNextPath(params.get("next"), "/market"));
     setError(authCallbackMessage(params.get("error")));
   }, []);
 
@@ -147,6 +147,7 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link
           href="/"
+          prefetch={false}
           aria-label="MIKEHUNT home"
           className="inline-flex items-center gap-2.5"
         >
@@ -244,7 +245,8 @@ export default function LoginPage() {
               </span>
               <Link
                 href="/forgot-password"
-                className="text-[var(--amber-d)] hover:underline font-medium"
+                prefetch={false}
+                className="font-medium text-[var(--amber-d)] underline underline-offset-2"
               >
                 Forgot password?
               </Link>
@@ -267,27 +269,30 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="text-center pt-4 border-t border-[var(--b1)]">
-            <p className="text-sm text-[var(--t4)] mb-2">
+            <p className="mb-2 text-sm text-[var(--t3)]">
               New to MikeHunt?{" "}
               <Link
                 href="/register"
-                className="font-semibold text-[var(--amber-d)] hover:underline"
+                prefetch={false}
+                className="font-semibold text-[var(--amber-d)] underline underline-offset-2"
               >
                 Create your free account
               </Link>
             </p>
-            <p className="text-xs text-[var(--t5)]">
+            <p className="text-xs text-[var(--t3)]">
               By signing in, you agree to our{" "}
               <Link
                 href="/tos"
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                prefetch={false}
+                className="font-medium text-[var(--t2)] underline underline-offset-2"
               >
                 Terms
               </Link>{" "}
               and{" "}
               <Link
                 href="/privacy"
-                className="text-[var(--t4)] hover:text-[var(--t1)]"
+                prefetch={false}
+                className="font-medium text-[var(--t2)] underline underline-offset-2"
               >
                 Privacy Policy
               </Link>

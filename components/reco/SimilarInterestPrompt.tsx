@@ -135,7 +135,7 @@ export function SimilarInterestPrompt({
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => answer(true)}
-              className="min-h-11 rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white"
+              className="min-h-11 rounded-lg bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)]"
             >
               Yes, more like these
             </button>

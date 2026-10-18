@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Search, Settings2 } from "lucide-react";
 import { useBuyerIntent, BUYER_MODES } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
-import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   navItemForViewer,
   workspaceGroupsForMode,
@@ -14,10 +13,11 @@ import {
 export default function ToolsPage() {
   const { intent } = useBuyerIntent();
   const { dealerId, loading } = useDealerId();
-  const { expanded } = useWorkspace();
   const [search, setSearch] = useState("");
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
   const term = search.trim().toLowerCase();
-  const groups = workspaceGroupsForMode(intent?.buyerMode, expanded || !!term)
+  const groups = workspaceGroupsForMode(intent?.buyerMode, true)
     .map((group) => ({
       ...group,
       items: group.items.filter((item) =>
@@ -38,9 +38,10 @@ export default function ToolsPage() {
           </p>
         </div>
         <Link
-          href="/onboarding?edit=1"
-          aria-label="Edit buying profile"
-          title="Edit buying profile"
+          href="/settings#buying-preferences"
+          prefetch={false}
+          aria-label="Buying preferences"
+          title="Buying preferences"
           className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--b1)] hover:bg-[var(--s2)]"
         >
           <Settings2 className="h-5 w-5" aria-hidden="true" />
@@ -48,14 +49,15 @@ export default function ToolsPage() {
       </header>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] pb-3 text-sm">
         <span className="text-[var(--t3)]">
-          {expanded ? "Expanded workspace" : "Focused workspace"}
+          All tools for your buying profile
         </span>
         <Link
           href="/upgrade"
+          prefetch={false}
           className="inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--blue)]"
         >
           <Settings2 className="h-4 w-4" aria-hidden="true" />
-          {expanded ? "Workspace options" : "Free workspace upgrade"}
+          Workspace options
         </Link>
       </div>
       <label className="flex min-h-11 items-center gap-3 border-b border-[var(--b2)] px-2">
@@ -67,8 +69,9 @@ export default function ToolsPage() {
           aria-label="Find a tool"
           placeholder="Find a tool"
           value={search}
+          disabled={!ready}
           onChange={(event) => setSearch(event.target.value)}
-          className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none"
+          className="min-w-0 flex-1 bg-transparent py-3 text-base outline-none"
         />
       </label>
       <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -84,6 +87,7 @@ export default function ToolsPage() {
                   <li key={item.href}>
                     <Link
                       href={entry.href}
+                      prefetch={false}
                       className="flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 text-sm font-semibold hover:bg-[var(--s2)]"
                     >
                       <item.icon

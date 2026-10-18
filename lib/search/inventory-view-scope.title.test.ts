@@ -28,6 +28,12 @@ const titleOr = (q: any) =>
     .filter((f: string) => f.startsWith("condition."));
 
 describe("applyInventoryViewScope titleType (feed + map)", () => {
+  it("preserves the radius and both distinct ZIP controls across views", () => {
+    const params = inventoryViewParams(
+      new URLSearchParams("zip=63101&radius=50&listingZip=63102&page=3"),
+    );
+    expect(params.toString()).toBe("zip=63101&radius=50&listingZip=63102");
+  });
   it("preserves repair eligibility when switching inventory views", () => {
     const params = inventoryViewParams(
       new URLSearchParams({

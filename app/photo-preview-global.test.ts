@@ -1,4 +1,4 @@
-import React, { act, useState } from "react";
+import React, { act, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,7 +53,9 @@ describe("global photo previews", () => {
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(host.contains(dialog)).toBe(false);
     expect(dialog.className).toContain("h-[100dvh]");
+    expect(dialog.className).toContain("w-[100dvw]");
     expect(dialog.className).toContain("safe-area-inset-bottom");
+    expect(dialog.querySelector("img")!.className).toContain("max-w-full");
     expect(dialog.querySelector("img")!.className).toContain("object-contain");
     act(() =>
       dialog.dispatchEvent(
@@ -67,5 +69,37 @@ describe("global photo previews", () => {
         .click(),
     );
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("returns focus to an explicit touch trigger even when clicking did not focus it", async () => {
+    function Gallery() {
+      const trigger = useRef<HTMLButtonElement>(null);
+      const [selectedIndex, onSelect] = useState<number | null>(null);
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement(
+          "button",
+          { ref: trigger, onClick: () => onSelect(0) },
+          "Open",
+        ),
+        React.createElement(PhotoPreview, {
+          images: [{ src: "/one.jpg", alt: "Front" }],
+          selectedIndex,
+          onSelect,
+          returnFocusRef: trigger,
+        }),
+      );
+    }
+    act(() => root.render(React.createElement(Gallery)));
+    const trigger = host.querySelector("button")!;
+    expect(document.activeElement).not.toBe(trigger);
+    act(() => trigger.click());
+    act(() =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Close photo preview"]')!
+        .click(),
+    );
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 });

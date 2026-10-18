@@ -71,6 +71,7 @@ export const DEALS_LIST_SELECT = [
 ].join(",");
 
 export type Deal = {
+  dealMargin?: number;
   id: string;
   source: string;
   title: string;

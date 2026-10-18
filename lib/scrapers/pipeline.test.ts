@@ -4,6 +4,7 @@ import {
   ingestCondition,
   matchesBuyerScope,
   normalizeAuctionEndAt,
+  pipelineRejectionBreakdown,
 } from "./pipeline";
 
 describe("buyer-scoped intake", () => {
@@ -220,6 +221,31 @@ describe("scoped persistence receipts", () => {
     expect(pipeline).toContain("return returnedRows.length");
     expect(sources).toContain("const saved = allDeals.length");
     expect(sources).toContain("return saved");
+  });
+});
+
+describe("pipeline intake diagnostics", () => {
+  it("accounts for every row rejected at each stage", () => {
+    expect(
+      pipelineRejectionBreakdown({
+        input: 100,
+        normalized: 98,
+        scoped: 90,
+        qualityAccepted: 80,
+        vehicleAccepted: 65,
+        fieldAccepted: 50,
+        photoAccepted: 40,
+        persisted: 37,
+      }),
+    ).toEqual({
+      normalization: 2,
+      buyerScope: 8,
+      quality: 10,
+      vehicleScope: 15,
+      requiredFields: 15,
+      photos: 10,
+      persistence: 3,
+    });
   });
 });
 

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { milesFrom, parseZipRadius, resolveZipRadius } from "./zip-radius";
+import {
+  filterZipRadiusRows,
+  milesFrom,
+  parseZipRadius,
+  resolveZipRadius,
+} from "./zip-radius";
 
 const p = (qs: string) => new URLSearchParams(qs);
 
@@ -32,9 +37,29 @@ describe("zip + radius search", () => {
     expect(milesFrom(zr!, { lat: null, lng: null })).toBeNull();
   });
 
-  it("an unknown ZIP turns the filter off instead of failing", async () => {
+  it("reports an unresolved ZIP so callers can reject rather than broaden", async () => {
     expect(
       await resolveZipRadius({} as any, p("zip=00000"), async () => null),
     ).toBeNull();
+  });
+
+  it("filters the exact circle without rounding distant candidates into range", async () => {
+    const zr = await resolveZipRadius(
+      {} as any,
+      p("zip=63101&radius=50"),
+      async () => ({ lat: 38.63, lng: -90.2 }),
+    );
+    const rows = [
+      { id: "MO", lat: 38.63, lng: -90.2 },
+      { id: "IL", lat: 38.62, lng: -90.15 },
+      { id: "outside", lat: 39.36, lng: -90.2 },
+      { id: "missing", lat: null, lng: null },
+      { id: "invalid", lat: 999, lng: 0 },
+    ];
+    expect(filterZipRadiusRows(rows, zr).map((row) => row.id)).toEqual([
+      "MO",
+      "IL",
+    ]);
+    expect(filterZipRadiusRows(rows, null)).toBe(rows);
   });
 });

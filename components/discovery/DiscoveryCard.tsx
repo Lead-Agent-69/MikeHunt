@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo, useState } from "react";
+import { ValuationInputs } from "@/components/deal/ValuationInputs";
 import Link from "next/link";
 import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
@@ -418,13 +419,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
-          {deal.matchReasons && deal.matchReasons.length > 0 && (
+          {
             <details className="relative z-20 text-[11px] text-[var(--t3)]">
               <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
                 Why shown
               </summary>
               <div className="mt-1 flex flex-wrap gap-1">
-                {deal.matchReasons.slice(0, 4).map((reason) => (
+                {(deal.matchReasons || []).slice(0, 4).map((reason) => (
                   <span
                     key={reason}
                     className="rounded-full bg-[var(--s2)] px-1.5 py-0.5 font-bold text-[var(--t3)]"
@@ -433,8 +434,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   </span>
                 ))}
               </div>
+              <ValuationInputs valuation={deal.valuation} />
             </details>
-          )}
+          }
 
           <p className="text-[11px] font-semibold text-[var(--t4)]">
             {listingFreshnessLabel(deal)} /{" "}
@@ -622,7 +624,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--blue)] px-3 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>

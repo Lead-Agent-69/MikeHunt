@@ -13,6 +13,10 @@ import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
 import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
+import {
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { coarseCoord, withNoStore } from "@/lib/deals/find-similar-columns";
 import { titleCategory, titleSourceOf } from "@/lib/deals/title-category";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
@@ -61,6 +65,14 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServerComponentClient();
+  const location = await inventoryLocation(supabase, sp);
+  if (location.requested && !location.radius)
+    return withNoStore(
+      NextResponse.json(
+        { error: "This ZIP location could not be resolved." },
+        { status: 422 },
+      ),
+    );
   let flipDesk = false;
   try {
     flipDesk = await resolveCallerFlipDesk();
@@ -74,11 +86,11 @@ export async function GET(req: NextRequest) {
   try {
     data = await fetchAllRows<any>(
       (from, to) => {
-        let q = supabase
-          .from("deals")
-          .select(
-            "id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource",
-          )
+        let q = inventoryLocationQuery(
+          supabase,
+          location,
+          `id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource${flipDesk ? ",profit_score" : ""}`,
+        )
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
           .or("lat.not.is.null,location_state.not.is.null")
@@ -88,7 +100,7 @@ export async function GET(req: NextRequest) {
           })
           .order("id", { ascending: true })
           .range(from, to);
-        q = applyInventoryViewScope(q, sp);
+        q = applyInventoryViewScope(q, location.details);
         if (verdictFilter.mode === "eq") {
           q = q.eq("deal_verdict", verdictFilter.values[0]);
         } else if (verdictFilter.mode === "in") {

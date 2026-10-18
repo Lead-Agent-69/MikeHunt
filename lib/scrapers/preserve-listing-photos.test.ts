@@ -1,6 +1,34 @@
 import { expect, it, vi } from "vitest";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 
+it("retains a known VIN's gallery when its CMS card uses a resized cover, never for another VIN", async () => {
+  const previous = {
+    source_deal_id: "cms-1",
+    source_url: "https://dealer.example/1",
+    vin: "5XXG14J25PG166770",
+    images: ["/large-1.jpg", "/large-2.jpg"],
+  };
+  const q = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockResolvedValue({ data: [previous], error: null }),
+  };
+  const same = {
+    ...previous,
+    source: "independent_dealer",
+    images: ["/thumb-1.jpg"],
+  };
+  await preserveListingPhotos({ from: () => q }, [same]);
+  expect(same.images).toEqual(previous.images);
+  const changed = {
+    ...same,
+    vin: "1HGCM82633A004352",
+    images: ["/thumb-1.jpg"],
+  };
+  await preserveListingPhotos({ from: () => q }, [changed]);
+  expect(changed.images).toEqual(["/thumb-1.jpg"]);
+});
+
 it("retains photo evidence when a source-provided protocol-relative link becomes absolute", async () => {
   const audit = { state: "unavailable" };
   const q = {

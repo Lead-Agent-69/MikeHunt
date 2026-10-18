@@ -17,9 +17,12 @@ import {
 export const INVENTORY_SEARCH_KEYS = Array.from(
   new Set([
     "scope",
+    "radius",
     "q",
     "state",
     "states",
+    "zip",
+    "radius",
     "source",
     "sources",
     "make",

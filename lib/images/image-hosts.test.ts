@@ -26,12 +26,15 @@ describe("listing image host allowlist", () => {
     "https://i.ebayimg.com/images/g/abc/s-l1600.jpg",
     "https://webassets.lqdt1.com/assets/photos/1/2.jpg",
     "https://gsa-prod-ppms-attachments-prod.s3.amazonaws.com/a.jpg",
+    "https://vexgateway.fastly.carvana.io/3006562099/post-large/car.jpg",
+    "https://vexstockimages.fastly.carvana.io/stockimages/car.png",
   ])("allows %s", (u) => expect(isAllowedImageUrl(u)).toBe(true));
 
   it.each([
     "https://evil.example/x.jpg",
     "https://craigslist.org.evil.example/x.jpg",
     "https://notcraigslist.org/x.jpg",
+    "https://vexgateway.fastly.carvana.io.evil.example/car.jpg",
     "https://other-bucket.s3.amazonaws.com/x.jpg",
     "http://169.254.169.254/latest/meta-data/",
     "javascript:alert(1)",

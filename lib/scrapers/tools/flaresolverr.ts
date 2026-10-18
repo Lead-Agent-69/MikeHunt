@@ -1,6 +1,8 @@
 // lib/scrapers/tools/flaresolverr.ts
 // Self-hosted Cloudflare/anti-bot bypass client. Falls back to direct fetch if not configured.
 
+import { flareSolverrApiUrl } from "../flaresolverr-endpoint";
+
 export interface FlareSolverrResponse {
   status: string;
   message: string;
@@ -22,7 +24,7 @@ export class FlareSolverrClient {
   private static readonly SESSION_TTL_MS = 90 * 60_000; // reuse a session 1-2h, then rotate
 
   constructor(url = process.env.FLARESOLVERR_URL) {
-    this.url = url || "";
+    this.url = flareSolverrApiUrl(url);
   }
 
   isConfigured(): boolean {
@@ -65,7 +67,7 @@ export class FlareSolverrClient {
   }
 
   private async cmd<T>(payload: Record<string, unknown>): Promise<T> {
-    const res = await fetch(`${this.url}/v1`, {
+    const res = await fetch(this.url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -86,7 +88,7 @@ export class FlareSolverrClient {
       throw new Error("FlareSolverr not configured. Set FLARESOLVERR_URL.");
     }
 
-    const res = await fetch(`${this.url}/v1`, {
+    const res = await fetch(this.url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       // AbortSignal.timeout gives a REAL timeout — without it a hung FlareSolverr

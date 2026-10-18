@@ -83,6 +83,13 @@ describe("resolveBuyerHome", () => {
 });
 
 describe("validCoords", () => {
+  it.each([null, undefined, "", "  ", false, true, [], {}, NaN, Infinity])(
+    "rejects missing or nonnumeric coordinate inputs: %j",
+    (value) => {
+      expect(validCoords(value, -90)).toBeNull();
+      expect(validCoords(38, value)).toBeNull();
+    },
+  );
   it("rejects null island, out-of-range and blanks", () => {
     expect(validCoords(0, 0)).toBeNull();
     expect(validCoords(91, 10)).toBeNull();

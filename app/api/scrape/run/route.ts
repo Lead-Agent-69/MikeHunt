@@ -2,6 +2,10 @@
 // API endpoint to trigger scraper orchestration runs.
 
 import { NextRequest, NextResponse } from "next/server";
+import {
+  hasRadiusCollectionScope,
+  radiusRefreshMessage,
+} from "@/lib/search/nearby-search-draft";
 import { denyUnauthed, scrapeSecret } from "@/lib/auth/scrape-gate";
 import {
   buildBuyerScopeLinks,
@@ -234,6 +238,11 @@ export async function POST(request: NextRequest) {
     if (denied) return denied;
 
     const body = await request.json().catch(() => ({}));
+    if (hasRadiusCollectionScope(body.scope || body))
+      return NextResponse.json(
+        { error: radiusRefreshMessage },
+        { status: 400 },
+      );
     const orchestrator: OrchestratorType = body.orchestrator || "concurrent";
     const smartPlan = body.scope ? planScrapeForBuyerScope(body.scope) : null;
     const requestedSourceIds: string[] | undefined =

@@ -28,6 +28,8 @@ export interface LocalSavedSearch {
   created_at?: string;
   /** Exact Scan query for local searches, including specifications and sort. */
   scan_params?: string;
+  /** Exact Market Explorer query for searches created from the market workspace. */
+  market_params?: string;
 }
 
 export const LOCAL_SAVED_SEARCH_KEY = "mh-local-saved-searches-v1";
@@ -131,6 +133,16 @@ export function scanHrefForSavedSearch(search: Partial<LocalSavedSearch>) {
     params.set("sort", search.require_go ? "profit" : "score");
   params.set("reset", "1");
   return `/scan?${params.toString()}`;
+}
+
+export function savedSearchHref(search: Partial<LocalSavedSearch>) {
+  if (search.market_params) {
+    const params = new URLSearchParams(search.market_params);
+    params.delete("page");
+    params.delete("pageSize");
+    return `/market?${params.toString()}`;
+  }
+  return scanHrefForSavedSearch(search);
 }
 
 export function sourceProofHrefForSavedSearch(

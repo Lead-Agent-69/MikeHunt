@@ -10,7 +10,11 @@ export function WorkspaceNav() {
   const pathname = usePathname();
   const { intent } = useBuyerIntent();
   const { expanded } = useWorkspace();
-  if (["/", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname))
+  if (
+    ["/", "/market", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(
+      pathname,
+    )
+  )
     return null;
   const groups = workspaceGroupsForMode(intent?.buyerMode, expanded);
   const current = groups.find((group) =>

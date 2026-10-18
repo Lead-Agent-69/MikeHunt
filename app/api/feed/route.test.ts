@@ -61,6 +61,10 @@ function query() {
 }
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
+vi.mock("@/lib/geo/geocode", () => ({
+  geocodeZip: async (_db: unknown, place: { zip: string }) =>
+    place.zip === "00000" ? null : { lat: 38.63, lng: -90.2 },
+}));
 vi.mock("@/lib/cache", () => ({
   cached: (key: string, _t: number, run: () => unknown) => {
     db.cacheKeys.push(key);
@@ -76,6 +80,10 @@ vi.mock("@/lib/intelligence/interest-patterns", () => ({
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
+    rpc: (...args: unknown[]) => {
+      db.calls.push(["rpc", ...args]);
+      return query();
+    },
     from: (table: string) =>
       table === "user_preferences"
         ? {
@@ -108,6 +116,41 @@ async function load(mode: string | null, signedIn = true) {
 }
 
 describe("GET /api/feed desk redaction", () => {
+  it("rejects unknown nearby ZIPs instead of returning nationwide cars", async () => {
+    const response = await GET(
+      new NextRequest("https://app.test/api/feed?zip=00000&radius=50"),
+    );
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toBeTruthy();
+  });
+  it("requests exact SQL radius before paging and never exposes coordinates", async () => {
+    getServerUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    db.rows = [];
+    const response = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?browse=all&zip=63101&radius=50&limit=1",
+      ),
+    );
+    const body = await response.json();
+    expect(body.items).toEqual([]);
+    expect(body.nextOffset).toBeNull();
+    expect(db.calls).toContainEqual([
+      "rpc",
+      "inventory_within_radius",
+      { p_lat: 38.63, p_lng: -90.2, p_radius: 50 },
+      {},
+    ]);
+    db.rows = [{ ...ROW, lat: 38.62, lng: -90.15 }];
+    const inside = await GET(
+      new NextRequest(
+        "https://app.test/api/feed?browse=all&zip=63101&radius=50&limit=1",
+      ),
+    );
+    const card = (await inside.json()).items[0];
+    expect(card.id).toBe(ROW.id);
+    expect(card).not.toHaveProperty("lat");
+    expect(card).not.toHaveProperty("lng");
+  });
   beforeEach(() => {
     getServerUser.mockReset();
     db.calls = [];

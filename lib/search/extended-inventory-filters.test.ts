@@ -31,6 +31,15 @@ function record(search: string, now?: number) {
 }
 
 describe("shared extended inventory filters", () => {
+  it("keeps nearby ZIP separate from exact listing ZIP", () => {
+    expect(record("zip=63101&radius=50")).toEqual([]);
+    expect(record("listingZip=63101")).toEqual([
+      ["eq", "location_zip", "63101"],
+    ]);
+    expect(
+      validateExtendedFilters(new URLSearchParams("listingZip=123")),
+    ).toBeTruthy();
+  });
   it("distinguishes an explicitly false report from an absent report", () => {
     expect(record("runDrive=no")).toEqual([["eq", "run_drive", false]]);
     expect(record("runDrive=unknown")).toEqual([["is", "run_drive", null]]);
@@ -92,6 +101,12 @@ describe("shared extended inventory filters", () => {
       "ilike",
       "engine",
       "%2.0%",
+    ]);
+    expect(
+      record("availability=on_lot&assemblyCountry=United%20States"),
+    ).toEqual([
+      ["ilike", "assembly_country", "%United States%"],
+      ["ilike", "availability_status", "%on_lot%"],
     ]);
   });
 

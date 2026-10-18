@@ -3,15 +3,52 @@
 import { useEffect, useState } from "react";
 import { usePreferences, type Prefs } from "@/hooks/usePreferences";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
-import {
-  BUYER_MODES,
-  VEHICLE_TO_QUERY,
-  type BuyerMode,
-} from "@/hooks/useBuyerIntent";
+import { VEHICLE_TO_QUERY } from "@/hooks/useBuyerIntent";
+import { buyingWorkspaceScope } from "@/lib/buyer/workspace-scope";
 
 type Scope = NonNullable<Prefs["buyerScope"]>;
 const field =
-  "w-full min-w-0 min-h-11 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)]";
+  "w-full min-w-0 min-h-11 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-base text-[var(--t1)]";
+const POPULAR_MAKES = [
+  "Ford",
+  "Chevrolet",
+  "Toyota",
+  "Honda",
+  "Nissan",
+  "Ram",
+  "Jeep",
+  "BMW",
+];
+
+function Choice<T extends string>({
+  name,
+  value,
+  checked,
+  label,
+  onChange,
+}: {
+  name: string;
+  value: T;
+  checked: boolean;
+  label: string;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label
+      className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${checked ? "border-[var(--blue)] bg-[var(--blue)]/10 text-[var(--t1)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t3)]"}`}
+    >
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="accent-[var(--blue)]"
+      />
+      {label}
+    </label>
+  );
+}
 
 export function BuyingProfilePrefs() {
   const { prefs, save, isLoading, authed, error } = usePreferences();
@@ -57,11 +94,11 @@ export function BuyingProfilePrefs() {
         ),
       ).slice(0, 30);
       await save({
-        buyerScope: {
+        buyerScope: buyingWorkspaceScope({
           ...draft,
           makes: selectedMakes,
           preferredMakes: selectedMakes,
-        },
+        }),
       });
       setStatus(
         authed
@@ -78,54 +115,48 @@ export function BuyingProfilePrefs() {
 
   return (
     <section
-      className="mt-5 border-t border-[var(--b1)] pt-5"
+      id="buying-preferences"
+      className="scroll-mt-20"
       aria-labelledby="buying-preferences-title"
     >
-      <h3
+      <h2
         id="buying-preferences-title"
         className="text-sm font-bold text-[var(--t1)]"
       >
         Buying preferences
-      </h3>
+      </h2>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-[var(--red)]">
+          Could not load buying preferences. Refresh before making changes.
+        </p>
+      )}
       <fieldset
         disabled={busy || isLoading || Boolean(error)}
         className="mt-3 min-w-0 space-y-3"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="min-w-0 text-sm text-[var(--t2)]">
-            Buyer mode
-            <select
-              className={field}
-              value={draft.buyerMode || "personal"}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  buyerMode: event.target.value as BuyerMode,
-                })
-              }
-            >
-              {Object.entries(BUYER_MODES).map(([value, mode]) => (
-                <option key={value} value={value}>
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="min-w-0 text-sm text-[var(--t2)]">
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
             Seller type
-            <select
-              className={field}
-              value={draft.sellerType || "all"}
-              onChange={(event) =>
-                setDraft({ ...draft, sellerType: event.target.value })
-              }
-            >
-              <option value="all">Any seller</option>
-              <option value="dealer">Dealers</option>
-              <option value="private">Private sellers</option>
-              <option value="auction">Auctions</option>
-            </select>
-          </label>
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["all", "Any seller"],
+              ["dealer", "Dealers"],
+              ["private", "Private"],
+              ["auction", "Auctions"],
+            ].map(([value, label]) => (
+              <Choice
+                key={value}
+                name="seller-type"
+                value={value}
+                label={label}
+                checked={(draft.sellerType || "all") === value}
+                onChange={(sellerType) => setDraft({ ...draft, sellerType })}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="min-w-0 text-sm text-[var(--t2)]">
             Minimum price ($)
             <input
@@ -140,9 +171,7 @@ export function BuyingProfilePrefs() {
             />
           </label>
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            {draft.buyerMode === "parts"
-              ? "Maximum donor price ($)"
-              : "Maximum price ($)"}
+            Maximum price ($)
             <input
               className={field}
               type="number"
@@ -154,39 +183,52 @@ export function BuyingProfilePrefs() {
               }
             />
           </label>
-          <label className="min-w-0 text-sm text-[var(--t2)]">
-            Title status
-            <select
-              className={field}
-              value={draft.titleType || "all"}
-              onChange={(event) =>
-                setDraft({ ...draft, titleType: event.target.value })
-              }
-            >
-              <option value="all">Any title</option>
-              <option value="clean">Clean title</option>
-              <option value="salvage">Salvage title</option>
-            </select>
-          </label>
-          <label className="min-w-0 text-sm text-[var(--t2)]">
-            Buying timeline
-            <select
-              className={field}
-              value={draft.timeline || "research"}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  timeline: event.target.value as Scope["timeline"],
-                })
-              }
-            >
-              <option value="now">Ready now</option>
-              <option value="month">This month</option>
-              <option value="research">Researching</option>
-            </select>
-          </label>
         </div>
-        {draft.buyerMode === "diy" && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+              Title status
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ["all", "Any"],
+                ["clean", "Clean"],
+                ["salvage", "Salvage"],
+              ].map(([value, label]) => (
+                <Choice
+                  key={value}
+                  name="title-status"
+                  value={value}
+                  label={label}
+                  checked={(draft.titleType || "all") === value}
+                  onChange={(titleType) => setDraft({ ...draft, titleType })}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+              Buying timeline
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ["now", "Ready now"],
+                ["month", "This month"],
+                ["research", "Researching"],
+              ].map(([value, label]) => (
+                <Choice
+                  key={value}
+                  name="buying-timeline"
+                  value={value as NonNullable<Scope["timeline"]>}
+                  label={label}
+                  checked={(draft.timeline || "research") === value}
+                  onChange={(timeline) => setDraft({ ...draft, timeline })}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        {includesRepairable(draft) && (
           <label className="block text-sm text-[var(--t2)]">
             Repair experience
             <select
@@ -206,18 +248,30 @@ export function BuyingProfilePrefs() {
             </select>
           </label>
         )}
-        <details>
-          <summary className="min-h-11 cursor-pointer text-sm font-bold text-[var(--t2)]">
-            Vehicle types
-            {draft.vehicles?.length ? ` (${draft.vehicles.length})` : " (any)"}
-          </summary>
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
+        <div>
+          <div className="mb-2 flex items-end justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+              Vehicle types
+            </p>
+            <span className="text-[10px] text-[var(--t4)]">
+              {draft.vehicles?.length
+                ? `${draft.vehicles.length} selected`
+                : "Any type"}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
             {Object.keys(VEHICLE_TO_QUERY)
               .filter((label) => label !== "All vehicle types")
               .map((label) => (
                 <label
                   key={label}
-                  className="flex min-h-11 items-center gap-2 text-sm text-[var(--t2)]"
+                  className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${
+                    (
+                      draft.vehicles || (draft.vehicle ? [draft.vehicle] : [])
+                    ).includes(label)
+                      ? "border-[var(--blue)] bg-[var(--blue)]/10 text-[var(--t1)]"
+                      : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"
+                  }`}
                 >
                   <input
                     type="checkbox"
@@ -242,9 +296,9 @@ export function BuyingProfilePrefs() {
                 </label>
               ))}
           </div>
-        </details>
+        </div>
         <label className="block text-sm text-[var(--t2)]">
-          Preferred makes
+          Other preferred makes
           <input
             className={field}
             value={makes}
@@ -253,6 +307,42 @@ export function BuyingProfilePrefs() {
             onChange={(event) => setMakes(event.target.value)}
           />
         </label>
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
+            Quick make preferences
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {POPULAR_MAKES.map((make) => {
+              const selected = makes
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean)
+                .includes(make);
+              return (
+                <label
+                  key={make}
+                  className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${selected ? "border-[var(--blue)] bg-[var(--blue)]/10" : "border-[var(--b1)] bg-[var(--s1)]"}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={(event) => {
+                      const current = makes
+                        .split(",")
+                        .map((item) => item.trim())
+                        .filter(Boolean);
+                      const next = event.target.checked
+                        ? [...current, make]
+                        : current.filter((item) => item !== make);
+                      setMakes(Array.from(new Set(next)).join(", "));
+                    }}
+                  />
+                  {make}
+                </label>
+              );
+            })}
+          </div>
+        </div>
         <label className="flex min-h-11 items-center gap-3 text-sm text-[var(--t1)]">
           <input
             type="checkbox"
@@ -264,14 +354,10 @@ export function BuyingProfilePrefs() {
           />
           Include vehicles with reported damage or repair needs
         </label>
-        <p className="-mt-1 text-xs text-[var(--t4)]">
-          On personal and DIY profiles this also shows the Salvage &amp;
-          Rebuildable lane on Discover, for research only.
-        </p>
         <button
           type="button"
           onClick={() => void submit()}
-          className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)] disabled:opacity-50"
+          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)] disabled:opacity-50"
         >
           {busy ? "Saving..." : "Save buying preferences"}
         </button>

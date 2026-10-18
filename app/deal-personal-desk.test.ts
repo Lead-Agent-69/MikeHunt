@@ -12,6 +12,7 @@ describe("deal page personal desk", () => {
 
     expect(page).toContain("userTypeFromSavedBuyerMode");
     expect(page).toContain("readLocalBuyerIntent");
+    expect(page).toContain("prefs.buyerScope?.legacyBuyerMode");
     expect(page).toContain("prefs.buyerScope?.buyerMode");
     expect(page).toContain("PersonalListingLead");
     expect(page).toContain("What to verify");
@@ -26,9 +27,8 @@ describe("deal page personal desk", () => {
       /store\.userType === "dealer" &&[\s\S]{0,450}<ForecastPanel/,
     );
     // Changing a desk uses the saved buying profile, not a disappearing page toggle.
-    expect(page).toContain('data-testid="find-similar-cta"');
-    expect(page).toContain('data-testid="find-similar-cta-bar"');
     expect(page).toContain('data-testid="find-similar-cta-rail"');
+    expect(page.match(/data-testid="find-similar-cta/g)).toHaveLength(1);
     expect(page).not.toContain('(["dealer", "private", "parts"] as const)');
     expect(feed).toContain("/api/discover?dealerSourceIds=");
     expect(feed).toContain("<DiscoveryCard");
@@ -45,14 +45,11 @@ describe("deal page personal desk", () => {
   it("keeps flip economics off personal, DIY, and parts desks (G1/G2)", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
 
-    // G1: the engine decision block (net profit, ROI, score, max bid) is flip-desk only.
+    // G1: the single decision command (net profit, ROI, score, max bid) is flip-desk only.
     expect(page).toMatch(
-      /store\.userType === "dealer" &&\s*dealData\?\.deal\?\.dealVerdict &&[\s\S]{0,1600}The Decision/,
+      /store\.userType === "dealer" \? \([\s\S]{0,350}<DecisionCommandPanel/,
     );
-    // The 60-second readout (Net Profit / ROI / Deal Score) is flip-desk only.
-    expect(page).toMatch(
-      /store\.userType === "dealer" && \(\s*<motion\.div[\s\S]{0,1200}Net Profit/,
-    );
+    expect(page).not.toContain("The Decision");
     expect(page).not.toContain("Savings vs Market");
     expect(page).not.toContain("Part-out ROI");
 
@@ -66,13 +63,11 @@ describe("deal page personal desk", () => {
     expect(page).toMatch(
       /store\.userType === "dealer" && serverDeal && \(\s*<LogOutcome/,
     );
-    expect(page).toMatch(
-      /store\.userType === "dealer" && serverDeal && \(\s*<FloorPlanCalculator/,
-    );
-    // The widget-grid copies of max-bid math and outcome logging are flip-only too.
-    expect(page).toMatch(
-      /\.\.\.\(store\.userType === "dealer"\s*\?\s*\[[\s\S]{0,200}id: "max-bid-calc"[\s\S]{0,1600}id: "log-outcome"[\s\S]{0,1400}: \[\]\)/,
-    );
+    // Duplicate finance / auction widgets are retired from the deal screen.
+    expect(page).not.toContain("<FloorPlanCalculator");
+    expect(page).not.toContain("<MaxBidCalculator");
+    expect(page).not.toContain("<SortableWidgetGrid");
+    expect(page).not.toContain("<AutonomousSellerNegotiator");
 
     // Every MaxBidWidget / ValuationBreakdown / LogOutcome render sits behind a dealer gate.
     for (const tag of ["<MaxBidWidget", "<ValuationBreakdown", "<LogOutcome"]) {
@@ -86,9 +81,9 @@ describe("deal page personal desk", () => {
       }
     }
 
-    // Personal still gets the verify-list lead and price history.
+    // Personal still gets the verify-list lead and interactive price history.
     expect(page).toContain("<PersonalListingLead");
-    expect(page).toContain("<PriceSparkline dealId={id} />");
+    expect(page).toContain("<PriceTimeline dealId={id} />");
   });
 
   it("keeps the initial vehicle read focused and defers deeper investigation", () => {
@@ -98,7 +93,9 @@ describe("deal page personal desk", () => {
     expect(page).toContain("Vehicle examination");
     expect(page).toContain("Market evidence");
     expect(page).toContain("Plan and record");
-    expect(page).toContain("Advanced workspace");
+    expect(page).toContain("Research tools");
+    expect(page).toContain("<DealResearchWorkspace");
+    expect(page).not.toContain("Advanced workspace");
     expect(page).toContain("Expensive children do");
     expect(page).toMatch(/\{expanded \?\s*\(/);
     expect(page).toMatch(

@@ -13,6 +13,8 @@ export async function cached<T>(
   // Optional guard: skip caching when this returns false (e.g. an empty/failed result that must NOT stick
   // for the full TTL and starve every subsequent request — retry it next call instead). Default: cache all.
   shouldCache?: (value: T) => boolean,
+  // Expensive datasets can bound their namespace without evicting unrelated account data.
+  limits?: { prefix: string; maxEntries: number },
 ): Promise<T> {
   const now = Date.now();
   const hit = store.get(key);
@@ -26,6 +28,15 @@ export async function cached<T>(
       if (pending.get(key) === task && (!shouldCache || shouldCache(value))) {
         const completedAt = Date.now();
         store.set(key, { value, expires: completedAt + ttlMs });
+        if (limits && key.startsWith(limits.prefix)) {
+          const group = Array.from(store.keys()).filter((k) =>
+            k.startsWith(limits.prefix),
+          );
+          const excess =
+            group.length - Math.max(1, Math.floor(limits.maxEntries));
+          for (const oldest of group.slice(0, Math.max(0, excess)))
+            store.delete(oldest);
+        }
         if (store.size > 300) {
           for (const [k, e] of Array.from(store.entries()))
             if (e.expires <= completedAt) store.delete(k);

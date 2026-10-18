@@ -5,6 +5,7 @@ import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { valueConfidence, CONFIDENCE_META } from "@/lib/valuation/confidence";
 import type { ValuationBreakdown as VB } from "@/lib/scoring/deal-analyzer";
+import { ValuationInputs } from "./ValuationInputs";
 
 // "How we valued this" — the moat made transparent. Shows the EVIDENCE behind the resale number (real
 // comps, KBB market value, completed sales) and the exact adjustments applied to THIS car (mileage,
@@ -29,15 +30,20 @@ function Pct({ mult }: { mult: number }) {
 export function ValuationBreakdown({
   v,
   sellEstimate,
+  mileage,
 }: {
   v: VB;
   sellEstimate: number;
+  mileage?: number | null;
 }) {
   const conf = valueConfidence(v.basis, v.soldAnchored);
   const cm = CONFIDENCE_META[conf];
   const clean = v.cleanComp ?? v.baseline;
   const hasMileageAdj = Math.abs(v.mileageMult - 1) > 0.005;
   const hasTitleAdj = Math.abs(v.titleMult - 1) > 0.005;
+  const hasReportedMileage =
+    typeof mileage === "number" && Number.isFinite(mileage) && mileage >= 0;
+  const evidenceReady = v.resaleEvidence === true;
 
   // Evidence chips — only what actually backs this number.
   const evidence: { icon: any; label: string }[] = [];
@@ -101,12 +107,18 @@ export function ValuationBreakdown({
       {/* Headline resale estimate */}
       <div className="flex items-baseline justify-between mb-4">
         <span className="text-sm text-[var(--t3)] font-semibold">
-          Resale estimate
+          {evidenceReady ? "Resale estimate" : "Modeled reference"}
         </span>
         <Mono className="text-3xl font-black text-[var(--t1)]">
           {money(sellEstimate)}
         </Mono>
       </div>
+      {!evidenceReady && (
+        <p className="-mt-2 mb-4 text-[11px] leading-relaxed text-[var(--t4)]">
+          Research reference only — not a recommended sale price or purchase
+          decision.
+        </p>
+      )}
 
       {/* Evidence */}
       <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)] mb-2">
@@ -140,7 +152,14 @@ export function ValuationBreakdown({
           >
             <Row label="Clean market value" value={money(clean)} />
             {hasMileageAdj && (
-              <Row label="Mileage" value={<Pct mult={v.mileageMult} />} />
+              <Row
+                label={
+                  hasReportedMileage
+                    ? "Reported mileage"
+                    : "Age-based wear allowance (mileage unreported)"
+                }
+                value={<Pct mult={v.mileageMult} />}
+              />
             )}
             {hasTitleAdj && (
               <Row
@@ -152,7 +171,7 @@ export function ValuationBreakdown({
               <Row
                 label={
                   <span className="font-bold text-[var(--t1)]">
-                    Resale estimate
+                    {evidenceReady ? "Resale estimate" : "Modeled reference"}
                   </span>
                 }
                 value={
@@ -166,10 +185,7 @@ export function ValuationBreakdown({
         </>
       )}
 
-      <p className="mt-3 text-[11px] text-[var(--t4)] leading-relaxed">
-        Built from our own multi-source market data — no paid feed. Sharpens as
-        more comps and real sales come in.
-      </p>
+      <ValuationInputs valuation={v} />
     </div>
   );
 }

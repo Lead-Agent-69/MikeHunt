@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { listingIdBatches } from "./local-cache";
+import { correctedPriceHistoryCutoff } from "@/lib/data-quality/dealer-correction";
 
 /** Dealer-local stock numbers and URL tails are not unique across independent dealers. */
 export function dealerListingId(sourceUrl: string): string {
@@ -22,13 +23,20 @@ export async function preserveExistingDealerListingIds(
     source: string | undefined;
     source_url: string | undefined;
     source_deal_id: string;
+    vin?: string | null;
+    condition?: string | null;
+    options?: Record<string, any> | null;
   }>,
 ) {
   const candidates = rows.filter(
     (row) =>
       row.source === "independent_dealer" &&
       row.source_url &&
-      row.source_deal_id.startsWith("dealer-url:"),
+      (row.source_deal_id.startsWith("dealer-url:") ||
+        (row.source_deal_id.startsWith("4cdg-drivenation-com-") &&
+          row.source_url.startsWith(
+            "https://www.drivenation.com/vehiclesDetail.php?",
+          ))),
   );
   if (!candidates.length) return;
   for (const urls of listingIdBatches(
@@ -36,7 +44,7 @@ export async function preserveExistingDealerListingIds(
   )) {
     const { data, error } = await client
       .from("deals")
-      .select("source_url,source_deal_id")
+      .select("source_url,source_deal_id,options")
       .eq("source", "independent_dealer")
       .in("source_url", urls)
       .limit(1000)
@@ -46,16 +54,46 @@ export async function preserveExistingDealerListingIds(
         "Existing dealer identities could not be verified completely",
       );
     const stored = new Map<string, Set<string>>();
+    const corrections = new Map<string, Record<string, any>>();
     for (const row of data || []) {
       const ids = stored.get(row.source_url) ?? new Set<string>();
       ids.add(row.source_deal_id);
       stored.set(row.source_url, ids);
+      if (correctedPriceHistoryCutoff(row))
+        corrections.set(
+          `${row.source_url}|${row.source_deal_id}`,
+          row.options.sourceCorrection,
+        );
     }
     for (const row of candidates) {
       const ids = stored.get(row.source_url!);
-      if (ids?.has(row.source_deal_id)) continue;
       // Multiple historical records are ambiguous: keep the URL-scoped identity, never guess.
-      if (ids?.size === 1) row.source_deal_id = Array.from(ids)[0];
+      if (
+        row.source_deal_id.startsWith("dealer-url:") &&
+        !ids?.has(row.source_deal_id) &&
+        ids?.size === 1
+      )
+        row.source_deal_id = Array.from(ids)[0];
+      const correction = corrections.get(
+        `${row.source_url}|${row.source_deal_id}`,
+      );
+      if (
+        correction &&
+        (!row.vin || !correction.vin || row.vin === correction.vin)
+      ) {
+        row.options = { ...(row.options || {}), sourceCorrection: correction };
+        if (!row.vin && /^[A-HJ-NPR-Z0-9]{17}$/.test(correction.vin || ""))
+          row.vin = correction.vin;
+        if (
+          row.options?.titleSource !== "listing" &&
+          ["clean_title", "rebuilt_title", "salvage_title"].includes(
+            correction.condition,
+          )
+        ) {
+          row.condition = correction.condition;
+          row.options.titleSource = "listing";
+        }
+      }
     }
   }
 }

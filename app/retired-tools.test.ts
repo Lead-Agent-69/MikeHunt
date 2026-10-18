@@ -15,6 +15,7 @@ import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { FLIP_TOOL_ROUTES } from "@/lib/buyer/flip-tool-access";
 
 const retired = ["/list", "/finance", "/bulk"];
+const consolidated = ["/scan", "/scanner", "/lane", "/auctions", "/deals"];
 
 describe("retired non-sourcing tools", () => {
   it("removes the old screens rather than merely hiding them", () => {
@@ -52,7 +53,9 @@ describe("retired non-sourcing tools", () => {
           expect(hrefs).not.toContain(route);
           expect(workspace).not.toContain(route);
         }
-        expect(workspace).toContain("/scan");
+        expect(workspace).toContain("/market");
+        for (const route of consolidated)
+          expect(workspace).not.toContain(route);
         expect(workspace).toContain("/saved");
         expect(workspace).toContain("/compare");
         expect(workspace.includes("/dealer-network")).toBe(
@@ -85,9 +88,13 @@ describe("retired non-sourcing tools", () => {
     for (const [source, destination] of [
       ["/list", "/fleet"],
       ["/finance", "/fleet"],
-      ["/bulk", "/scan"],
+      ["/bulk", "/market"],
       ["/syndicate", "/fleet"],
-      ["/deals", "/scan"],
+      ["/scan", "/market"],
+      ["/scanner", "/market"],
+      ["/lane", "/market?lanes=auction"],
+      ["/auctions", "/market?lanes=auction"],
+      ["/deals", "/market"],
     ]) {
       expect(redirects.find((r) => r.source === source)?.destination).toBe(
         destination,
@@ -105,7 +112,7 @@ describe("retired non-sourcing tools", () => {
       expect(response.headers.get("Cache-Control")).toBe("no-store");
       expect(await response.json()).toMatchObject({
         error: expect.stringContaining("retired"),
-        replacement: expect.stringMatching(/^\/(scan|fleet)$/),
+        replacement: expect.stringMatching(/^\/(market|fleet)$/),
       });
     },
   );
@@ -119,8 +126,9 @@ describe("retired non-sourcing tools", () => {
     expect(tools.find((i) => i.href === "/find")?.name).toBe(
       "Arbitrage routes",
     );
-    expect(tools.find((i) => i.href.startsWith("/scan?"))?.name).toBe(
-      "Search cars",
+    expect(tools.find((i) => i.href === "/market")?.name).toBe(
+      "Market Explorer",
     );
+    expect(tools.some((i) => consolidated.includes(i.href))).toBe(false);
   });
 });

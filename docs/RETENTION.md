@@ -1,5 +1,21 @@
 # Retention: Vercel Free + Supabase Free + Zeus disk
 
+## October 18 Integration Candidate
+
+This candidate incorporates main #443, including pinned worker release metadata,
+queued-job local write budgets, bounded dealer-detail work, acquisition-price
+evidence and confirmed telemetry-cleanup receipts. It does not activate listing
+retention. The protected migration is unchanged from the earlier reviewed
+candidate; review and test the combined head before merge or hosted apply.
+
+The live local worker is the separately released #443 image, not this storage-guard
+candidate. The storage-meter RPC must be installed through an approved targeted
+migration before this candidate's worker rollout; absent measurements intentionally
+buffer new inventory. Preserve current mounts, overlays, profiles and quota state.
+Earlier measurements and deployment notes below are historical, not current
+provider headroom. Archive/restore proof and permanent-deletion approval remain
+activation gates; a local SQL rehearsal does not satisfy either.
+
 Supabase holds searchable listing metadata, valuations, embeddings, account data and saved snapshots.
 Photos normally remain source URLs, not stored image bytes. Zeus holds scraper fingerprints,
 unsynced records, optional raw-page caches, logs and browser profiles. It is not yet a full durable
@@ -66,7 +82,7 @@ demotion, unreferenced-listing deletion and expired URL-cache batch to the reque
 `url_cache_deleted` count; there is no unbounded raw DELETE after the function.
 
 Scraper cycles no longer delete listings, directly or through PostgREST. The Vercel cron handles
-only telemetry and regenerable VIN/recall caches; #421 separately improves its receipts. It does
+only telemetry and regenerable VIN/recall caches; main #443 includes confirmed completion receipts. It does
 not depend on this listing-retention function. The worker size guard does depend on the reviewed
 storage-meter function: apply the approved migration before deploying that worker candidate.
 
@@ -115,6 +131,21 @@ missing/invalid size measurements do not discard the newest payload or reset con
 counters. Buffered records retain the latest observation; they are not a complete price/event
 archive and require renewed capture/replay after capacity becomes available. Ambiguous remote
 commit receipts are not a global quota guarantee.
+
+### Cron Completion Receipts
+
+The route confirms telemetry cleanup first, then purges expired VIN and recall
+caches with `p_batch=1000` and `p_max_batches=1` (at most 1,000 rows per cache
+table per call). Each request has a 20-second client deadline. This does not
+bound the existing telemetry SQL's row count or guarantee server-side cancellation.
+
+Both steps must return valid, nonnegative integer counts for a successful
+receipt. Missing configuration, RPC failures, deadlines, and malformed receipts
+return HTTP 503 with `completion: "unconfirmed"`, the failed step, and only
+earlier confirmed counts. A timeout or lost receipt is not evidence of rollback;
+do not replay deletion blindly. Raw database errors are not returned or logged.
+Responses are private and not cacheable. This route does not call protected
+inventory cleanup or change the hosted rollout gate above.
 
 Auction expiry uses the worker's existing serialized daily update budget and 80% pause threshold. It does not delete deals, touch saved records, or rewrite their last-seen timestamp. Cache-only and paused workers do not write. Failed passes retry after five minutes; successful passes wait an hour. A missing end time is not proof of expiry. Ingestion marks known-ended lots inactive, excludes them from new-match notifications, and can restore rescheduled lots with a future closing time. Age-based hard deletion belongs only to the reviewed database scheduler described above.
 

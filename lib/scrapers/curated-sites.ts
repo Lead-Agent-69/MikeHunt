@@ -75,6 +75,8 @@ export const SITE_TYPE_META: Record<
 };
 
 // prettier-ignore
+// Keep the source registry compact; city values come from the seller's published location.
+// prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
   // ── National salvage/rebuilder networks (multi-state inventory) ──
   { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard", inventoryUrl: "https://www.damage.com/vehiclesList.php" }, // inventory path verified 2026-10-06 (homepage /inventory 404)
@@ -95,7 +97,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://thepartsfarm.com", name: "The Parts Farm", type: "salvage_yard" }, // parts yard — complete cars for sale (verified)
   { url: "https://revroom.org", name: "ReVroom", type: "auction_proxy" }, // rebuilt / branded-title marketplace (verified)
   { url: "https://www.salvagetrucksauction.com", name: "Salvage Trucks Auction", type: "auction_proxy" }, // Copart reseller (verified)
-  { url: "https://www.ttrepairables.com", name: "T&T Repairables", state: "IN", type: "rebuilder_dealer" }, // Spencer, IN rebuilder (browser-render; 403s curl)
+  { url: "https://www.ttrepairables.com", name: "T&T Repairables", city: "Spencer", state: "IN", type: "rebuilder_dealer" }, // Both published branches are in Spencer, IN.
   { url: "https://brickyardautoparts.com", name: "Brickyard Auto Parts", type: "salvage_yard" }, // parts yard — rebuildable inventory (verified)
   { url: "https://www.ridesafely.com", name: "RideSafely", type: "auction_proxy" }, // salvage auto auction (browser-render; 403s curl)
   { url: "https://www.repairedsalvage.com", name: "Repaired Salvage", type: "rebuilder_dealer" }, // salvage / repaired cars (verified)
@@ -123,12 +125,12 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.salvagezone.com", name: "SalvageZone (Elite Motor Cars)", state: "NY", type: "rebuilder_dealer", inventoryUrl: "https://www.salvagezone.com/inventory" }, // verified 2026-10-06
   { url: "https://www.alpinerebuildablecars.com", name: "Alpine Rebuildable Cars", state: "NJ", type: "rebuilder_dealer" },
   { url: "https://ezfixercars.com", name: "EZ Fixer Cars", state: "NJ", type: "rebuilder_dealer" },
-  { url: "https://route34.com", name: "Route 34 Auto", state: "NJ", type: "rebuilder_dealer" },
-  { url: "https://economynj.com", name: "Economy Auto", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://route34.com", name: "Route 34 Auto", city: "Matawan", state: "NJ", type: "rebuilder_dealer" },
+  { url: "https://economynj.com", name: "Economy Auto", city: "South Amboy", state: "NJ", type: "rebuilder_dealer" },
   { url: "https://www.replicaautosales.net", name: "Replica Auto Sales", state: "PA", type: "rebuilder_dealer" },
   { url: "https://www.alsautopa.com", name: "Al's Auto", state: "PA", type: "rebuilder_dealer" },
   { url: "https://www.novakautoparts.com", name: "Novak Auto Parts", state: "PA", type: "salvage_yard" },
-  { url: "https://www.stoystownautosales.com", name: "Stoystown Auto Sales", state: "PA", type: "rebuilder_dealer" },
+  { url: "https://www.stoystownautosales.com", name: "Stoystown Auto Sales", city: "Stoystown", state: "PA", type: "rebuilder_dealer" },
 
   // ── South / Southeast ──
   { url: "https://www.interautocenter.com", name: "Inter Auto Center", state: "VA", type: "rebuilder_dealer" },
@@ -291,7 +293,7 @@ export const CURATED_SITES: CuratedSite[] = [
   // ── Platform dealers found 2026-10-10 by footprint (one polite fetch each: robots allowed, terms
   //    silent on automated access, priced cars/trucks parsed by the shared dealer-CMS parser) ──
   // Creative Design Group / Smart Marketing ("Website Designed by Creative Design Group", vehiclesDetail.php)
-  { url: "https://www.drivenation.com", name: "DriveNation", state: "MO", city: "Jackson", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.drivenation.com/vehicles.php" },
+  { url: "https://www.drivenation.com", name: "DriveNation", state: "MO", city: "Jackson", type: "independent_dealer", platform: "4cdg", inventoryUrl: "https://www.drivenation.com/vehicles.php" },
   // VehiclesNETWORK / apogeeINVENT independent-dealer sites ("Powered by VehiclesNETWORK", /autos)
   { url: "https://www.usedcarsokc.com", name: "Super Sports & Imports", state: "OK", city: "Oklahoma City", type: "independent_dealer", platform: "vehiclesnetwork" },
   { url: "https://www.usedcarsanchorageak.com", name: "Lyberger's Car & Truck Sales", state: "AK", city: "Anchorage", type: "independent_dealer", platform: "vehiclesnetwork" },

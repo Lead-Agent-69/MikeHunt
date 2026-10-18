@@ -6,7 +6,7 @@
  */
 export function safeNextPath(
   value: string | null | undefined,
-  fallback = "/discover",
+  fallback = "/market",
 ): string {
   if (
     !value ||

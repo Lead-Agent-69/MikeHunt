@@ -36,7 +36,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 grid"
+      className="fixed bottom-0 left-0 z-50 grid w-[100dvw] max-w-[100dvw] overflow-hidden lg:hidden"
       style={{
         background: "var(--glass)",
         gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
@@ -45,6 +45,7 @@ export function BottomNav() {
         borderTop: "1px solid var(--b1)",
         boxShadow: "0 -4px 20px rgba(60,30,60,.07)",
         height: "calc(58px + env(safe-area-inset-bottom))",
+        top: "calc(100dvh - 58px - env(safe-area-inset-bottom))",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
@@ -92,6 +93,7 @@ export function BottomNav() {
             )}
             <motion.span
               className="relative z-10 grid h-6 w-8 place-items-center"
+              tabIndex={-1}
               animate={
                 reducedMotion
                   ? undefined

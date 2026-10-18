@@ -12,6 +12,9 @@ import { dealCardCopy } from "@/lib/deals/deal-card-copy";
 import { SourceBadge } from "@/components/shared/SourceBadge";
 import { gradeDataQuality, qualityFieldLabel } from "@/lib/data-quality";
 import { tableHealthCopy } from "@/lib/sources/table-health-copy";
+import type { MarketPrice } from "@/lib/market/explorer";
+import { proxiedImage } from "@/lib/image-url";
+import { reportedPrice } from "@/lib/deals/reported-price";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
 // sticky header, GPU-only hover transitions, and content-visibility so 500+ rows stay 60fps).
@@ -36,6 +39,7 @@ export interface TableRow {
   titleType?: string;
   vin?: string;
   imageUrl?: string;
+  price?: MarketPrice;
   sourceUrl?: string;
   seller?: string;
   sellerType?: string;
@@ -175,16 +179,18 @@ export function DealTable({
   rows,
   sourceHealthById,
   flipDesk = false,
+  preserveOrder = false,
 }: {
   rows: TableRow[];
   sourceHealthById?: Map<string, TableSourceHealth>;
   /** Reseller/dealer desk (isFlipBuyerMode). Unknown = personal. */
   flipDesk?: boolean;
+  preserveOrder?: boolean;
 }) {
   const router = useRouter();
   // Non-flip desks keep the Scan order (score-first) instead of net profit.
   const [chosenSortKey, setSortKey] = React.useState<SortKey | null>(
-    flipDesk ? "profitEstimate" : null,
+    flipDesk && !preserveOrder ? "profitEstimate" : null,
   );
   const [dir, setDir] = React.useState<"asc" | "desc">("desc");
   // Same desk wording as DealCard: auction "Current bid" reads "Current price" off the flip desk.
@@ -201,7 +207,7 @@ export function DealTable({
         case "vehicle":
           return `${r.make} ${r.model}`.toLowerCase();
         case "askPrice":
-          return r.askPrice || 0;
+          return r.price ? r.price.amount || 0 : r.askPrice || 0;
         case "mileage":
           return r.mileage || 0;
         case "sellEstimate":
@@ -330,6 +336,18 @@ export function DealTable({
                 }}
               >
                 <td className="px-3 py-2.5 max-w-[280px]">
+                  {r.imageUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={proxiedImage(r.imageUrl)}
+                      alt={`${r.year} ${r.make} ${r.model}`}
+                      loading="lazy"
+                      className="mb-2 h-16 w-24 rounded-md object-cover"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  )}
                   <div className="flex items-center gap-1.5 truncate font-semibold text-[var(--t1)]">
                     {(r as any).deal_analysis?.vinFlagSeverity === "high" && (
                       <span
@@ -395,10 +413,14 @@ export function DealTable({
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <Mono className="font-bold text-[var(--t1)]">
-                    {r.askPrice > 0 ? fmt(r.askPrice) : "Not reported"}
+                    {r.price
+                      ? reportedPrice(r.price.amount)
+                      : r.askPrice > 0
+                        ? fmt(r.askPrice)
+                        : "Not reported"}
                   </Mono>
                   <div className="text-[9px] uppercase text-[var(--t5)]">
-                    {priceCopy.priceLabel(r.source)}
+                    {r.price?.label || priceCopy.priceLabel(r.source)}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-right">

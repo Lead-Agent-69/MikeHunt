@@ -21,7 +21,7 @@ import {
 } from "@/lib/preferences/location-form";
 
 const fieldCls =
-  "w-full min-w-0 rounded-lg bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] text-sm font-semibold px-3 py-2 min-h-11 focus:outline-none focus:border-[var(--b3)]";
+  "w-full min-w-0 rounded-lg bg-[var(--s1)] border border-[var(--b2)] text-[var(--t1)] text-base font-semibold px-3 py-2 min-h-11 focus:outline-none focus:border-[var(--b3)]";
 
 const EMPTY_FORM: LocationFormInput = {
   state: "",

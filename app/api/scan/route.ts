@@ -30,11 +30,11 @@ import { isAutomationAllowedSource } from "@/lib/scrapers/sweep-schedule";
 import { displaySource, sourceMeta } from "@/lib/sources/source-meta";
 import { matchesVehicleQuery } from "@/lib/search/vehicle-query";
 import { expandFreeTextQuery } from "@/lib/search/expand-free-text";
+import { milesFrom } from "@/lib/search/zip-radius";
 import {
-  applyZipRadiusBox,
-  milesFrom,
-  resolveZipRadius,
-} from "@/lib/search/zip-radius";
+  inventoryLocation,
+  inventoryLocationQuery,
+} from "@/lib/search/radius-inventory";
 import { hasVehicleCategoryQuery } from "@/lib/discovery/for-you-rank";
 import {
   CATEGORY_PROJECTION,
@@ -47,6 +47,7 @@ import {
 } from "@/lib/search/extended-inventory-filters";
 import {
   uniqueDbSources,
+  applySelectedSources,
   sellerTypeSourceValues,
   sourceUrlNeedles,
   applyVehicleDetails,
@@ -54,6 +55,10 @@ import {
   applyRepairEligibility,
   validateInventoryRanges,
 } from "@/lib/search/inventory-filters";
+import {
+  selectedSourceIds,
+  validSourceSelection,
+} from "@/lib/search/source-selection";
 import {
   AUCTION_DB_SOURCES,
   wantsAuctionInventory,
@@ -259,7 +264,11 @@ export function buildScanMatchExplanation(
   } else if (filters.dealer || filters.dealers?.length) {
     reasons.push("watched dealer target");
   } else if (filters.source && filters.source !== "all") {
-    reasons.push(`${sourceMeta(filters.source).label} source`);
+    reasons.push(
+      `${selectedSourceIds(filters.source)
+        .map((id) => sourceMeta(id).label)
+        .join(", ")} source`,
+    );
   }
   return reasons.slice(0, 7);
 }
@@ -461,6 +470,10 @@ function normalizeRow(r: any, table: "deals" | "vehicles") {
     sourceUrl: r.source_url || r.sourceUrl,
   });
   const normalized = {
+    dealMargin:
+      typeof r.deal_margin === "number" || typeof r.deal_margin === "string"
+        ? Number(r.deal_margin)
+        : undefined,
     id,
     source,
     title: r.title || `${year || ""} ${make} ${model}`.trim(),
@@ -568,6 +581,7 @@ export function normalizePageSize(value: string | null) {
 }
 
 export type ScanSort =
+  | "margin"
   | "profit"
   | "score"
   | "price"
@@ -578,6 +592,7 @@ export type ScanSort =
 
 export function normalizeScanSort(value: string | null): ScanSort {
   if (
+    value === "margin" ||
     value === "score" ||
     value === "price" ||
     value === "price-desc" ||
@@ -598,6 +613,8 @@ export function scanSortForDesk(sort: ScanSort, flipDesk: boolean): ScanSort {
 }
 
 export function scanSortOrder(sort: ScanSort) {
+  if (sort === "margin")
+    return { column: "deal_margin", ascending: false, nullsFirst: false };
   if (sort === "price-desc")
     return { column: "ask_price", ascending: false, nullsFirst: false };
   if (sort === "newest")
@@ -659,16 +676,6 @@ export function isWatchCandidateVerdict(value: string | null) {
   return (value || "").toLowerCase() === "watch";
 }
 
-function applySourceUrlNeedles(query: any, sourceId: string) {
-  const needles = sourceUrlNeedles(sourceId);
-  if (!needles.length) return query;
-  return needles.length === 1
-    ? query.ilike("source_url", `%${needles[0]}%`)
-    : query.or(
-        needles.map((needle) => `source_url.ilike.%${needle}%`).join(","),
-      );
-}
-
 export function sourceUrlNeedleFilter(sourceIds: string[]) {
   const needles = Array.from(
     new Set(sourceIds.flatMap((sourceId) => sourceUrlNeedles(sourceId))),
@@ -689,7 +696,7 @@ function matchesPublicScope(
   if (
     filters.source &&
     filters.source !== "all" &&
-    row.source !== filters.source
+    !selectedSourceIds(filters.source).includes(row.source)
   )
     return false;
   if (
@@ -890,12 +897,13 @@ async function publicPreviewFallback(args: {
       !wantsAuctionInventory({
         lane: args.lane,
         sellerType: args.sellerType,
-        sources: [args.source],
+        sources: selectedSourceIds(args.source),
       })
     )
       return false;
     if (!plan.sourceIds.includes(source.id)) return false;
-    if (args.source && args.source !== "all") return source.id === args.source;
+    if (args.source && args.source !== "all")
+      return selectedSourceIds(args.source).includes(source.id);
     return true;
   });
 
@@ -1084,7 +1092,13 @@ export async function GET(req: NextRequest) {
     .filter(Boolean)
     .slice(0, 12);
   const model = searchParams.get("model") || "";
-  const source = searchParams.get("source") || "";
+  const source =
+    searchParams.get("sources") || searchParams.get("source") || "";
+  if (!validSourceSelection(source))
+    return NextResponse.json(
+      { error: "Choose up to 25 valid listing sources." },
+      { status: 400 },
+    );
   // Per-dealer inventory filter (site host). Host-safe chars only.
   const dealer = (searchParams.get("dealer") || "")
     .toLowerCase()
@@ -1131,6 +1145,14 @@ export async function GET(req: NextRequest) {
   const pageSize = normalizePageSize(searchParams.get("pageSize"));
 
   if (!isSupabaseConfigured()) {
+    if (sort === "margin")
+      return NextResponse.json(
+        {
+          error:
+            "Price-gap sorting needs recorded asking prices and valuation evidence.",
+        },
+        { status: 503, headers: SCAN_CACHE_HEADERS },
+      );
     if (SCAN_EXTRA_KEYS.some((key) => searchParams.get(key)))
       return NextResponse.json(
         { error: "Detailed source inventory is temporarily unavailable" },
@@ -1153,10 +1175,19 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = db();
+  const location = await inventoryLocation(supabase, searchParams);
+  if (location.requested && !location.radius)
+    return NextResponse.json(
+      {
+        error: "This ZIP location could not be resolved. Try another ZIP code.",
+      },
+      { status: 422, headers: SCAN_CACHE_HEADERS },
+    );
+  const zipRadius = location.radius;
+  const scanProjection =
+    sort === "margin" ? `${SCAN_SELECT},deal_margin` : SCAN_SELECT;
 
-  let query = supabase
-    .from("deals")
-    .select(SCAN_SELECT, { count: "exact" })
+  let query = inventoryLocationQuery(supabase, location, scanProjection, true)
     // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
@@ -1168,7 +1199,7 @@ export async function GET(req: NextRequest) {
     !wantsAuctionInventory({
       lane,
       sellerType,
-      sources: [source, category, ...dealerSourceIds],
+      sources: [...selectedSourceIds(source), category, ...dealerSourceIds],
     })
   ) {
     query = query.not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`);
@@ -1201,8 +1232,6 @@ export async function GET(req: NextRequest) {
 
   // Guest-friendly ZIP + radius ("within 50 mi of 60601"). Cache-first geocode, then a lat/lng box in
   // SQL and an exact straight-line check per row below. Rows without coordinates can't be placed.
-  const zipRadius = await resolveZipRadius(supabase, searchParams);
-  if (zipRadius) query = applyZipRadiusBox(query, zipRadius);
 
   if (availability && availability !== "all") {
     query = query.eq("availability_status", availability);
@@ -1236,15 +1265,10 @@ export async function GET(req: NextRequest) {
   }
   if (minYear > 0) query = query.gte("year", minYear);
   if (maxYear > 0) query = query.lte("year", maxYear);
-  query = applyVehicleDetails(query, searchParams);
+  query = applyVehicleDetails(query, location.details);
 
   if (source && source.toLowerCase() !== "all") {
-    const sourceValues = uniqueDbSources([source]);
-    query =
-      sourceValues.length === 1
-        ? query.eq("source", sourceValues[0])
-        : query.in("source", sourceValues);
-    query = applySourceUrlNeedles(query, source);
+    query = applySelectedSources(query, selectedSourceIds(source));
   }
   // Filter to a single curated dealer by its site host (source_url contains it) — powers the per-dealer
   // in-app inventory view. Sanitized to host-safe chars before interpolation.
@@ -1298,6 +1322,7 @@ export async function GET(req: NextRequest) {
   }
 
   const sortOrder = scanSortOrder(sort);
+  if (sort === "margin") query = query.not("deal_margin", "is", null);
   const trustRanked = sort === "score";
   // Page in the database so trust sorting cannot strand inventory beyond a fixed pool.
   const from = page * pageSize;
@@ -1345,7 +1370,7 @@ export async function GET(req: NextRequest) {
         { headers: SCAN_CACHE_HEADERS },
       );
     query = query
-      .select(SCAN_SELECT)
+      .select(scanProjection)
       .in("id", pageIds)
       .range(0, pageSize - 1);
   } else {
@@ -1375,7 +1400,7 @@ export async function GET(req: NextRequest) {
     dealers,
     dealerSourceIds,
   };
-  const inRadius = zipRadius
+  const inRadius: any[] = zipRadius
     ? (data || []).filter((r: any) => {
         const mi = milesFrom(zipRadius, r);
         return mi != null && mi <= zipRadius.radius;

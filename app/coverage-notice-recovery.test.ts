@@ -46,7 +46,7 @@ it("keeps coverage numbers available behind a keyboard-native disclosure", async
   expect(container.textContent).toContain("Limited results for MO");
   expect(container.querySelector("details")?.open).toBe(false);
   expect(container.querySelector("summary")?.textContent).toBe(
-    "About these results",
+    "Limited results for MO.",
   );
   expect(container.textContent).toContain("1 recent listing");
   expect(container.querySelector('a[href="/settings"]')).not.toBeNull();

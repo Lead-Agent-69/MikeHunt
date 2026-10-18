@@ -6,6 +6,387 @@ existing features and evidence; it does not declare the entire app finished.
 
 ## Read This First
 
+### Scraper Release Provenance Follow-Up (October 17, 2026)
+
+Issue #440 adds an exact-commit archive builder, image labels and baked release
+metadata, a read-only runtime verifier, and a `release` field in worker status.
+The plan-only default does not touch Docker; `--build` is explicit. Archive
+fixtures prove a moved HEAD, dirty tracked code and untracked env secrets do not
+enter the chosen commit's context. Tracked runtime secret/cache paths are refused.
+Legacy/invalid metadata remains unknown, with no runtime-env or checkout fallback.
+Verification checks the expected commit, actual image IDs, labels, loopback
+binding, container start and fresh worker status without dumping private payloads.
+
+The first 30 focused tests pass, including baked-file writing, unknown/partial
+builds, archive contents and stale/mismatched evidence. The CLI plan was checked
+against a real commit with no image build, and the read-only verifier correctly
+returned nonzero for the current unlabeled local Windows image. That negative
+check is not a deployment certification. No worker, mounts, env, quotas or hosted
+data changed. The worker's normal UTC-day rollover subsequently restored local
+write capacity without an agent reset; this is not provider usage/headroom proof.
+The first full push caught inherited Git-hook variables reaching temporary test
+repositories. That run was stopped, the fixture's Git config effects restored,
+and all Git subprocesses now strip inherited repo/index/config overrides. The
+42 focused provenance plus D&G checks pass normally and under simulated hook
+overrides; the full unmodified release gate must pass again before publication.
+
+An approved real image build/rollout, positive image/status receipt and D&G's
+accepted/freshness/source-radius checks remain open. Keep #440/#437 open until
+those gates pass. Retention #360, hosted account/alert checks, capacity and source
+permissions remain separate; metadata work does not approve hosted migrations or
+enable additional sources. Existing operator-only Zeus deployment rules remain.
+
+### D&G Native Inventory Repair (October 17, 2026)
+
+Issue #437: D&G moved from `vehicles.php` to a native `/inventory/` page.
+The adapter now reads the self-contained vehicle cards and preserves asking
+price, checked VIN, mileage, stated title, vehicle-level damage, native URL
+and Poplar Bluff location. Visible and machine-readable prices must agree;
+savings, zero/call-for-price and mismatched values are not usable asking prices.
+No dealer-wide run/drive claim is added. Stable VIN identities deduplicate edited
+slugs within the current inventory. The source's full gallery is read rather than
+stopping at its abbreviated structured images; hidden gallery thumbnails remain
+usable evidence and unrelated page images are excluded.
+
+Read-only source observation via the existing polite fetch path returned HTTP
+200 for inventory and one native detail page, with no retries or challenge
+escalation. The captured inventory accounts for all 156 advertised items:
+155 eligible car/truck records with validated VINs and one explicitly excluded
+recreational golf cart. The sample detail has 18 gallery photos, not just the five
+published in JSON-LD. These are parse receipts, **not accepted hosted writes**.
+Counts and captured HTML are retained outside Git in
+`F:/MikeHunt/docker/dg-native-parse-receipt-20261017.json` and adjacent HTML files.
+
+The importer logs observed, expected, parsed, excluded, duplicate and rejected
+counts separately; missing inventory-count/template evidence or incomplete
+card coverage fails instead of reporting a healthy empty scrape. Existing
+ingestion still reports its actual accepted-write count. No timestamps,
+permissions, quotas, database schema, stored rows or deployment settings are
+changed by the repair. Native IDs replace the old numeric page IDs; existing
+VIN duplicate detection remains in the ingestion pipeline, but old rows without
+VINs need operator review. Do not delete legacy/saved rows to force continuity.
+
+The repair passed 64 focused checks across eight test files, including legacy
+CMS pagination, source lookup, accepted-write receipts, current D&G card and
+gallery fixtures, and array-typed Vehicle detail enrichment. Broader release
+verification and worker acceptance remain separate gates.
+
+Release gates still include the operator-controlled Zeus rollout, accepted-run
+and freshness receipts, saved-reference-safe legacy reconciliation, broader
+detail-photo coverage under existing budgets, and live source/radius lookup.
+The agent does not SSH, recreate containers or reset quota state. This repair
+does not enable AE of Miami or any source awaiting access permission.
+
+### Shared Experience Follow-Up (October 17, 2026)
+
+The shared header now reflects an active Market ZIP/city or coordinate radius
+instead of incorrectly saying `All states`. Its radius button focuses the
+existing location control without discarding source filters, sort or history.
+State mode retains the state picker; compact phone labels keep the map icon and
+text within reach. Market and header URL changes preserve router and return
+metadata and notify shared URL readers without interrupting pending navigation.
+The radius header is checked immediately after a search, before any reload.
+
+Account and Tools use the same `Buying preferences` destination in Settings.
+Buying preferences, Locations and Deal alerts are separate labeled sections,
+with visible section links and sticky-header-safe anchors. The primary save
+action, full profile editor, existing tools and account authorization remain.
+Buying and location fields, plus Tools search, use mobile-readable input text.
+Preference loading failures are explicit rather than unexplained disabled fields.
+
+The supplied logo artwork is unchanged. Theme styling now follows `data-theme`
+in CSS, avoiding one observer/listener pair and an initial light-theme state per
+logo instance. Dimensions stay reserved; wordmark spacing is not compressed.
+Shared `settings` and `bank` icons no longer render blank; both use the existing
+Lucide library, with a regression test rendering every declared shared icon.
+Tools links opt out of speculative prefetching; its search waits for client
+handlers before accepting input so early WebKit typing is not lost.
+No new dependencies, database
+migrations, hosted writes, jobs, source permissions or worker deployments are
+part of this presentation change.
+
+Regression gates cover header geometry and unclipped location text, radius
+focus without lost filters, both preference entry points, section anchors,
+Tools search, and real local-account preference save/reload. Core page checks
+cover Discover, Inventory, Saved and Settings in both themes. These are local
+UI checks, not hosted account or source-freshness certification.
+
+Final local verification: 87 focused unit checks across ten files passed,
+including all 48 declared icons, computed light/dark logo styles, and
+return-position/history notifications.
+The final application passed 42/42 checks across desktop, two tablet sizes,
+320/390px phones, WebKit phone and Firefox desktop, followed by 16/16 guest and
+legacy-account checks on desktop and phone. These 58 browser cases include
+real local-account preference saves and reloads, immediate radius-header updates
+without reload, and shared-search destination preservation through sign-in.
+All final runs used zero retries; no timeouts were increased. Geometry readings
+are rounded to hundredths while retaining the 44px control-height minimum.
+Screenshots and diagnostic runs are archived outside Git on the local data drive.
+
+Remaining release/product gates are not erased by this polish: current accepted
+dealer inventory and D&G's redesigned adapter (#437); protected retention and
+saved-vehicle survival (#360); measured hosted free-tier headroom; signed-in
+production onboarding/settings/saves and actual alert delivery; real-outcome
+valuation/repair-cost validation; and the WebKit frame-tail issue (#434).
+
+### Independent Dealer Filter Follow-Up (October 17, 2026)
+
+The live Market API rejected both `dg-auto` and `ae-of-miami` with HTTP 400
+(`Choose a valid inventory source`) despite their existing registry identities.
+The filter follow-up derives named dealer identities from `CURATED_SITES`, keeps
+historical IDs and aliases stable, and feeds the shared inventory filter catalog.
+Government entries retain their government channel rather than becoming dealers.
+The Market source picker supports searching by dealer name or website.
+
+Registry scope is 187 entries with explicit state labels in 34 states, plus
+untagged networks. This is not 50-state accepted-inventory coverage. Identity and
+filter support do not certify current yield, complete photos, valid prices,
+source permission or per-vehicle coordinates. No source permission, operator
+override, worker quota, schedule, database schema or deployment is changed here.
+AE of Miami publishes Miami and Denver locations: never substitute headquarters
+coordinates for an individual vehicle's location. Preserve its recorded terms
+review and the existing operator override separately from permission evidence.
+
+Regression coverage includes every registered dealer's filter identity, exact
+historical IDs, deceptive host rejection, SQL source narrowing, and combined
+D&G source plus ZIP radius queries crossing state borders. Unknown coordinates
+remain excluded from distance-qualified results rather than assigned zero miles.
+
+Local verification: 65 focused unit/route/worker-targeting tests passed, followed
+by 14/14 source-and-radius browser checks across desktop, two tablet sizes,
+320/390px phones, WebKit phone and Firefox desktop. Six local account setup
+checks passed earlier in the same QA build. The final browser rerun reused those
+accounts after fixing a pre-initialization interaction; no timeouts or assertions
+were relaxed. Screenshots include the source picker with two selected dealers.
+This is local functional QA, not proof of hosted source inventory or permissions.
+
+Explicit state-label discovery gaps: CT, DE, HI, ID, ME, MD, MA, MS, NM, RI, SC,
+TN, VT, WA, WV, WY. National networks may serve them, but independent dealer
+coverage needs permission review and accepted-listing receipts before claiming it.
+
+### Embedding Coverage Reporting Follow-Up (October 16, 2026)
+
+PR #431 is merged as `35b6ce2b553dad154a6c68ca8f3c33c4f32cd705` and its
+canonical production deployment is verified. The exact tested tree passed
+4,125 unit tests, 160 local browser checks and 18 read-only hosted guest checks.
+The six hosted account-setup checks were intentionally skipped; this does not
+certify signed-in hosted flows or real alert delivery.
+
+One capped production embedding attempt failed closed at the budget read;
+a separate limit=1 attempt succeeded with one generated/stored embedding and
+zero failures. Intermittent budget-read reliability remains tracked in #432.
+No quotas were reset or increased. Reported active embedding coverage was 23.1%,
+not complete intelligence or outcome validation.
+
+The coverage audit also found that the old `coverage.fresh` count measured only
+non-null recorded source hashes, not their match with current listing content.
+The follow-up for #433 adds `sourceHashTracked`, marks current content freshness
+as `not_measured`, and keeps the legacy nullable `fresh` field as null rather
+than certifying stale hashes. The existing workflow and runtime log use the
+accurate label. This is additive metadata with an explicit unknown, not a new
+query, schema change, provider request, quota policy or valuation algorithm.
+Actual current-content freshness and outcome validation still need proof.
+
+### Market Release QA Follow-Up (October 16, 2026)
+
+PR #426 is merged as `7283c7f239375d3e4bc27798ccfbda6baf6a6f38`.
+Market Explorer, not Discover, is now the signed-in home. Its code CI passed
+run `38889038286`. The older pending/local-only statements below are historical;
+#426 records the targeted migration rollout and inventory repair receipts.
+This follow-up does not repeat those operations or certify their capacity gates.
+Main also includes #429 as `128faf20d38131d23c433fc7366e7504c00c33e1`, with
+successful production deployment record `7127558555`. Preserve its source
+identity, location-cache and photo-host repairs when integrating this follow-up.
+
+The first refreshed browser run exposed outdated onboarding and navigation test
+contracts. After correcting them, 97 local account/Market/core-page checks passed
+across seven browser/viewport projects. That was not sufficient visual proof:
+a separate unscrolled 320px screenshot showed the first car below the viewport.
+The follow-up therefore adds actual first-photo/price viewport checks, including
+saved-home searches, rather than scrolling to a card before asserting visibility.
+
+The phone layout groups location controls, keeps filters and insights explicit,
+and moves secondary tools after inventory. A native area selector retains
+Nationwide, saved home and surrounding-state choices. Cards keep the recorded
+price meaning visible over the photo; the body and photo open details, while a
+separate enlarge control, photo arrows, saves and source links stay independent.
+The gallery, its close/focus behavior and return to the same search are exercised.
+DOM reading and keyboard order follow the visual order. Insights have an explicit
+shortcut and a Back to results link rather than a visually reordered focus target.
+Exact final browser and full verification receipts belong in this follow-up PR.
+
+Later visual review exposed a 1024px header collision despite passing geometry
+checks on the inventory. Desktop action groups now retain their actual widths;
+the browser check also measures every visible header target for overlap.
+WebKit exposed a gallery focus-return failure after its price/photo checks passed.
+The shared preview accepts an explicit return target and captures fallback focus
+before modal autofocus. Auth forms avoid speculative link requests and cancel
+their provider-status read on cleanup; canceled WebKit navigation reads are not
+blanket-ignored by the health assertions. Preserve these diagnostic failures.
+Main #430 source-coordinate and pagination fixes are integrated separately.
+
+The final dark-mode visual pass also found white labels on the pale-blue action
+color. Eight affected controls now use the established accent/on-accent pair,
+including Market search, buying-preference save, source links and listing reports.
+The existing contrast regression suite covers those controls and both palettes.
+This is a foreground-token correction, not a new theme or a change in behavior.
+
+A deeper return-navigation check then found that Back lost the ninth vehicle's
+position on both desktop and phone. Market cards now record their viewport
+anchor in the current browser-history entry only for same-tab detail navigation.
+Results restore that anchor after mounting, retain native router state and
+consume the marker without changing filters or writing account preferences.
+The browser suite now exercises a later result rather than only the first card.
+
+Production status returned HTTP 200 with `decisionReady=false`; this public
+inventory-only response intentionally does not certify private valuations. The separate
+Embeddings backfill workflow `38950436875` failed before provider work: the
+runtime log identifies its budget-count read, with an empty upstream message.
+One read-only recheck returned HTTP 200 in 620 ms and a count of 500 for that
+Pacific day. This is evidence of intermittent failure, not an index diagnosis.
+The fix bounds that read to five seconds, permits only one transient retry and
+refuses provider work if a successful response has no valid count. It does not
+retry model writes, bypass permission/rate failures or reset quotas. The existing
+known-missing-schema compatibility path remains separate and unchanged.
+
+No hosted application migrations, cleanup, scraper recreation or source-permission expansion is part
+of this follow-up. Signed-in hosted browser discovery still times out; local
+synthetic accounts are not a substitute. The local fixture also lacks the scrape
+queue's `requested_by` column, so saved-location UI checks do not prove collection
+jobs run. A bounded read confirmed that column is present in the primary hosted
+database; do not apply a production migration based on the local fixture warning.
+The hosted preference-to-queue-to-listing path remains unverified.
+Real alert delivery, retention/reference survival, hosted capacity,
+valuation outcomes and physical-device performance remain release gates.
+The current Vercel usage command still reports billing data unavailable, not zero
+consumption. This change adds no schedule, provider-plan change or quota reset.
+
+### Recorded Walkthrough Follow-Through (October 15, 2026)
+
+Branch: `codex/walkthrough-search-acceptance`, including main through #425.
+This section supersedes the earlier multi-persona product direction for the
+buying interface. It does not grant admin access or remove account isolation.
+
+Implemented in modular commits:
+
+- One buying setup and preference form, with the old persona choice archived
+  when the user confirms a save. No dealer/personal role selector or purchase
+  upgrade requirement. Existing accounts and protected administration remain.
+- Always-visible inventory view links and quick filters, prominent primary save
+  actions, plus directly reachable model, mileage, multiple sources, ZIP and
+  radius controls. Secondary insights mount only when requested. Late activity
+  recommendations follow the main inventory so they cannot move its first card
+  out from under a click.
+- Cross-border radius filtering runs in PostgreSQL before sorting, counting and
+  pagination. Scan, facets, Feed and Map share the same location scope; a ZIP is
+  not also treated as an exact postal-code filter. Unresolved locations fail
+  clearly rather than silently widening the search. Listings without coordinates
+  cannot be placed inside a radius. Map's All view is distinct from Review/GO/HOLD.
+- Sort choices now survive the Scan response normalization. Qualified price gap
+  is explicitly before costs, separate from net profit; unverified asking amounts
+  and unsupported valuations cannot qualify for this new sort.
+- Why shown exposes recorded reference values, comp type/count/scope, mileage
+  and title multipliers, evidence flags and genuine calculation timestamps.
+  Missing inputs and unretained individual comparable IDs stay explicit, not
+  invented. This is not proof of valuation accuracy against completed sales.
+- Listing issue reports use the signed-in account's RLS client, bounded text,
+  owner isolation, immutable records, daily limits and idempotent receipts.
+  Failed submissions retain their text. Reports survive removal of the listing.
+
+Required release order: independent review of this exact code/SQL head, current
+primary-project storage/compute headroom, targeted application of the following
+three migrations to `qupzqpezslsbobhugswp`, then app deployment and hosted QA:
+
+1. `20261016005413_listing_feedback.sql`
+2. `20261016005724_qualified_listing_margin.sql`
+3. `20261016011958_radius_inventory_search.sql`
+
+Do not use a blanket database push: unrelated unapplied migrations need their own
+review. The new schema has been exercised only on guarded local Docker databases;
+no production apply, full rescore, cleanup or worker recreation is implied.
+The service-only invoker radius function uses schema-qualified references and an
+inlineable SQL text body so later inventory columns do not break it. Local JSON
+execution-plan QA checks for no Function Scan after adding a future column; outer
+filters/order/limits can reach the indexed inventory query. A function SET clause
+would prevent that optimization. Production plans, configured API search path,
+latency and capacity still require independent review and measurement.
+The local advisor flags `inventory_within_radius` with
+`function_search_path_mutable` (WARN) because there is no function SET clause.
+This tradeoff needs exact-head security review of the service-only grant,
+qualified references and configured API search path before production apply;
+do not silence the advisor project-wide. See
+[PostgREST function inlining](https://docs.postgrest.org/en/v14/references/api/functions.html#function-inlining).
+
+Walkthrough acceptance checks:
+
+- `e2e/walkthrough-feedback.spec.ts`: visible search/view controls, actual
+  St. Louis/Belleville radius results excluding Chicago across inventory APIs,
+  qualified gap order, preference save/reload and database-confirmed reports.
+- `e2e/discovery-priority.spec.ts`: first vehicle price remains above navigation
+  on desktop, narrow phones and both tablet orientations; tapping it opens that
+  vehicle. Legacy account data is compatibility coverage, not new persona UI.
+- `node scripts/test-listing-feedback.mjs`: disposable local PostgreSQL tests
+  actual grants/RLS, forged ownership, modification denial, daily quota, report
+  survival, evidence-qualified margins, cross-border/dateline radius and later
+  inventory-column compatibility. It never targets the hosted database.
+- Core account and bookmark checks block service workers, consistent with the other isolated
+  persistence tests. Playwright supports worker automation only on Chromium;
+  `e2e/pwa-registration.spec.ts` separately allows the real worker and checks
+  activation, private-cache exclusion, offline navigation and recovery there.
+  Real Safari/iOS PWA and alert delivery remain hosted device gates. This is test
+  isolation, not a production feature toggle or an ignored page-error assertion.
+  The full affected-flow matrix first passed 173/174: Firefox's automated profile
+  threw `AbortError: Error retrieving push subscription` before Supabase logout.
+  Direct diagnostics reproduced the failure in `pushManager.getSubscription()`.
+  Account tests now isolate that unsupported browser push service; production
+  device-detachment protections remain unchanged and real-device logout with
+  push enabled is still required. The original failure receipt is retained.
+
+Local release receipts (October 15/16):
+
+- Normal pre-push verification passed 619 unit files / 4,041 tests, typecheck,
+  lint (existing warnings, no errors) and the production build. CI also passed
+  for application head `483f55a6`; the following change is test isolation/docs only.
+- The serial seven-project affected-flow run passed 173/174 before account-test
+  worker isolation. All view, first-price/card-click, filter/radius/pagination,
+  bookmark, preferences and report cases passed. The isolated account rerun then
+  passed all 20 checks, including six setup cases, across those seven projects.
+  This is a failure plus a targeted clean rerun, not a claim of 174/174 in one run.
+- The earlier serial WebKit run passed 47/48; its unsupported worker/bookmark
+  case passed in the isolated eight-case rerun. The dedicated Chromium worker
+  integration passed seven checks including six setup cases. A separate manual
+  browser check verified the actual offline Try again button returns to Settings
+  online with no page errors. Its first attempt had gone offline before the page
+  was worker-controlled; the successful check waited for the controller first.
+- Final desktop, 320px phone, landscape tablet and WebKit screenshots were
+  inspected. Receipts, including original failures, remain under the ignored
+  `F:/MikeHunt/docker` QA location, not Git or hosted storage. These use synthetic
+  local accounts and fixtures; they do not certify live inventory or device FPS.
+
+Manual hosted acceptance after the gated rollout:
+
+1. Search ZIP `63101` within 50 miles. Check actual distances and both sides of
+   the state border; no exact-ZIP or home-state constraint should remain.
+2. Choose a make/model, maximum mileage and two sources. Open Results, Feed and
+   Map: the search scope must remain intact. Clear filters to restore inventory.
+3. Choose Highest price gap, then Highest net profit. Confirm the distinction
+   between before-cost gap and after-cost estimates. Open Why shown and compare
+   the recorded inputs with the original seller's actual asking price.
+4. Save buying preferences, reload and sign back in. Confirm the saved values,
+   no persona prompt, and no access to administration from an ordinary account.
+5. Report incorrect data and verify the stored receipt; exercise a failed/retried
+   submission. Tap the first visible car's price on phone/tablet/desktop, then
+   return to the search without losing its filters or hiding controls.
+
+Still open beyond this branch: source-wide corrected-price/gallery ingestion,
+Zeus rollout receipts, held-out valuation outcomes, independently reviewed safe
+retention, measured hosted free-tier capacity, actual email/push delivery and
+physical-device performance. Browser access to the signed-in hosted account is
+currently unavailable; local synthetic-account QA is not a substitute for it.
+Local security advisors also report five existing unrelated errors: the
+`source_health` definer view and RLS-disabled `spatial_ref_sys`, `price_history`,
+`scraper_runs`, `source_url_cache`. These need scoped review, not blind RLS changes.
+
 ### October 14 Release And Inventory Integrity
 
 - #406 merged to `9539614a2fa61c59f744bc23ec186307a0e9f9cd`; its tested code tree
@@ -1143,6 +1524,39 @@ search across state borders; comparable-row provenance and estimate eligibility;
 source-by-source price validation; lightweight feedback with permission-safe
 storage. Test search first; do not equate a parser fixture with a corrected live
 database or a model's comparable count with 20 qualified sold transactions.
+
+DriveNation evidence follow-up: verified the K5 source detail states $19,520 and
+54,124 miles. Its promotional 200-mile shipping radius was being used as the
+odometer by the generic detail fallback. Read explicit `.d-title`/`.d-value`
+fields and bounded JSON-LD mileage; never concatenate arbitrary digits or use
+unlabelled delivery distances. The source registry no longer presumes all
+DriveNation stock is repairable. A bounded dry-run/apply repair script validates
+the project, URL, VIN, explicit all-in price, mileage and title; stores a before
+receipt; compares updated_at before writing; and clears derived estimates instead
+of immediately promising profit. Corrected price history excludes pre-correction
+imports from customer charts without deleting the audit rows. Exact live apply
+and worker rollout receipts must be recorded separately; fixture success is not
+proof those operations ran.
+
+Search clarity follow-up: keep model visible with a choose-make state; put ZIP
+and radius alongside the primary filters; a completed ZIP removes the current
+state boundary for this search only so nearby inventory may cross state borders.
+Named radius collection is not yet supported by BuyerScope, so its source-plan
+and collection actions must stop with a clear message instead of silently
+collecting nationwide. Existing indexed inventory and public previews retain
+their existing ZIP/radius filters. Applied-filter labels must not expose raw
+storage slugs, and source/mileage selections no longer inflate the additional
+filter count. Desktop Discover collections share two columns rather than giving
+a sparse one-card collection an entire row; mobile retains its horizontal rails.
+
+Dealer target continuity: map DriveNation's real hostname to its CMS identity and
+human label. A requested dealer host now chooses only the curated runner, and
+the curated worker filters explicit hosts/IDs before fetching, including hosts
+not present in the older short identity map. Unresolved targets match no catalog
+sites instead of falling back to all dealers. Preserve a verified sourceCorrection
+receipt when reusing an existing dealer record, but never copy its old price
+evidence into a new observation. Source collection receipts still distinguish
+parsed, accepted and current matching listings; no statewide completeness claim.
 
 1. Inventory: permission-backed successful fresh-row receipts, validated price
    meaning, deduplication and authorized multi-photo completeness for each source.

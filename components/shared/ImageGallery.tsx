@@ -404,7 +404,7 @@ export function ImageGallery({
                   event.preventDefault();
                   setIsLightboxOpen(false);
                 }}
-                className="fixed inset-0 z-[1000] m-0 flex h-[100dvh] w-full max-h-none max-w-none items-center justify-center overflow-hidden border-0 bg-transparent px-4 pt-[max(5rem,env(safe-area-inset-top))] pb-[max(5rem,env(safe-area-inset-bottom))]"
+                className="fixed inset-y-0 left-0 z-[1000] m-0 flex h-[100dvh] w-[100dvw] max-h-[100dvh] max-w-[100dvw] items-center justify-center overflow-hidden border-0 bg-transparent px-4 pt-[max(5rem,env(safe-area-inset-top))] pb-[max(5rem,env(safe-area-inset-bottom))]"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -440,7 +440,7 @@ export function ImageGallery({
 
                 {/* Main image */}
                 <div
-                  className="relative max-w-7xl w-full h-full min-h-0 flex items-center justify-center z-[5]"
+                  className="relative z-[5] flex h-full min-h-0 w-full max-w-full items-center justify-center overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                   onTouchStart={handleTouchStart}
                   onTouchMove={handleTouchMove}
@@ -467,7 +467,7 @@ export function ImageGallery({
                       dragConstraints={{ top: 0, bottom: 0 }}
                       dragElastic={0.55}
                       style={{ y: dragY }}
-                      className="relative flex h-full min-h-0 w-full items-center justify-center cursor-grab active:cursor-grabbing"
+                      className="relative flex h-full min-h-0 w-full max-w-full cursor-grab items-center justify-center overflow-hidden active:cursor-grabbing"
                       onDragEnd={(_, info) => {
                         if (
                           Math.abs(info.offset.y) > 140 ||
@@ -505,7 +505,7 @@ export function ImageGallery({
                         <img
                           src={currentImage!}
                           alt={`${title} - View ${currentIndex + 1}`}
-                          className="block w-full h-full min-h-0 object-contain"
+                          className="block h-auto max-h-full w-auto max-w-full object-contain"
                           loading="eager"
                           draggable={false}
                         />

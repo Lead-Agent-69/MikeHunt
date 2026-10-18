@@ -85,7 +85,7 @@ jobs:
           }
           $c = $result.coverage
           if ($c) {
-            Write-Output ("Coverage: {0}/{1} active deals embedded ({2}%); hash-verified fresh: {3}; missing: {4}" -f $c.embedded, $c.active, $c.pct, $c.fresh, $result.remaining)
+            Write-Output ("Coverage: {0}/{1} active deals embedded ({2}%); source hash recorded: {3}; missing: {4}; current content freshness not measured" -f $c.embedded, $c.active, $c.pct, $c.sourceHashTracked, $result.remaining)
           }
           Write-Output ("Updated {0} this run (missing {1}, changed {2}, legacy {3}); today {4}/{5}" -f $result.updated, $result.byTier.missing, $result.byTier.changed, $result.byTier.legacy, $result.budget.usedToday, $result.budget.dailyCap)
           if ($result.schemaReady -eq $false) {

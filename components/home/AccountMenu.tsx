@@ -9,7 +9,6 @@ import {
   Bookmark,
   CircleHelp,
   Flame,
-  Gavel,
   Layers,
   LogIn,
   LogOut,
@@ -54,9 +53,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   "/feed": Flame,
   "/map": MapPin,
   "/swipe": Layers,
-  "/auctions": Gavel,
   "/dealer-network": Store,
-  "/lane": Gavel,
   "/settings": Settings,
   "/changelog": CircleHelp,
   "/deal-check": FileCheck,
@@ -251,7 +248,10 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
                 <MenuLink key={entry.href} entry={entry} />
               ))}
               <MenuLink
-                entry={{ name: "Buying profile", href: "/onboarding?edit=1" }}
+                entry={{
+                  name: "Buying preferences",
+                  href: "/settings#buying-preferences",
+                }}
                 icon={Settings}
               />
               <div className="my-1 border-t border-[var(--b1)]" />

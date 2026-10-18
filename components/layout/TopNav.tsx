@@ -6,12 +6,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell, Grid3X3, Lock } from "lucide-react";
+import { Bell, Grid3X3, Lock, MapPin } from "lucide-react";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { useDealerId } from "@/hooks/useDealerId";
 import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import {
+  INVENTORY_URL_EVENT,
+  replaceInventoryHistory,
+} from "@/lib/search/inventory-history";
+import { parseMarketLocation } from "@/lib/market/explorer";
 import {
   navItemForViewer,
   primaryNavForMode,
@@ -83,7 +88,7 @@ export function TopNav() {
           className="sticky top-0 z-30 flex h-14 items-center px-4 md:px-6"
           style={{ background: "var(--glass)" }}
         >
-          <Link href="/discover" prefetch={false} aria-label="MIKEHUNT home">
+          <Link href="/market" prefetch={false} aria-label="MIKEHUNT home">
             <MikeHuntLogo />
           </Link>
         </header>
@@ -112,10 +117,23 @@ function TopNavContent() {
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [scopedStates, setScopedStates] = useState<string[] | undefined>();
+  const [scopedSearch, setScopedSearch] = useState<string | undefined>();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setScopedStates(inventoryScopeStates(params));
+    const sync = () => {
+      const params = new URLSearchParams(window.location.search);
+      setScopedStates(inventoryScopeStates(params));
+      setScopedSearch(params.toString());
+    };
+    sync();
+    window.addEventListener(INVENTORY_URL_EVENT, sync);
+    window.addEventListener("inventory-scope-change", sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener(INVENTORY_URL_EVENT, sync);
+      window.removeEventListener("inventory-scope-change", sync);
+      window.removeEventListener("popstate", sync);
+    };
   }, [pathname, searchParams]);
 
   // Unread alerts are account data. Poll only once we know there is a session; a signed-out
@@ -166,21 +184,66 @@ function TopNavContent() {
   const totalAlertCount = alertCount;
   const changeLocation = (states: string[]) => {
     setScopedStates(states);
-    if (["/discover", "/scan", "/map", "/feed", "/swipe"].includes(pathname)) {
+    if (
+      ["/market", "/discover", "/scan", "/map", "/feed", "/swipe"].includes(
+        pathname,
+      )
+    ) {
       const params = new URLSearchParams(window.location.search);
       params.delete("state");
       params.delete("states");
-      if (states.length === 1) params.set("state", states[0]);
+      if (pathname === "/market") {
+        for (const key of ["near", "radius", "lat", "lng", "page"])
+          params.delete(key);
+        if (states.length) params.set("states", states.join(","));
+      } else if (states.length === 1) params.set("state", states[0]);
       else if (states.length > 1) params.set("states", states.join(","));
       else params.set("state", "Nationwide");
-      window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
+      replaceInventoryHistory(`${pathname}?${params.toString()}`);
       window.dispatchEvent(new Event("inventory-scope-change"));
     } else router.refresh();
   };
 
+  const marketLocation =
+    pathname === "/market"
+      ? parseMarketLocation(
+          new URLSearchParams(scopedSearch ?? searchParams.toString()),
+        )
+      : null;
+  const radiusScope =
+    marketLocation && !("error" in marketLocation) && marketLocation.radius
+      ? marketLocation
+      : null;
+  const locationButton = (className: string, compact = false) =>
+    radiusScope ? (
+      <button
+        type="button"
+        className={className}
+        style={{ minHeight: 44, minWidth: 44 }}
+        title={`${radiusScope.radius} miles from ${radiusScope.near || "your location"}`}
+        aria-label={`Change search area: ${radiusScope.radius} miles from ${radiusScope.near || "your location"}`}
+        aria-controls="market-search-location"
+        onClick={() => {
+          const input = document.getElementById("market-search-location");
+          input?.scrollIntoView({ block: "center", behavior: "instant" });
+          input?.focus({ preventScroll: true });
+        }}
+      >
+        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="truncate">{radiusScope.radius} mi</span>
+      </button>
+    ) : (
+      <MyStatesButton
+        onChange={changeLocation}
+        statesOverride={scopedStates}
+        compact={compact}
+        className={className}
+      />
+    );
+
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6"
+      className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6 lg:gap-3"
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -207,9 +270,9 @@ function TopNavContent() {
         }}
       />
       {/* LEFT: Logo */}
-      <div className="flex flex-1 items-center gap-2 min-w-0">
+      <div className="flex flex-1 items-center gap-2 min-w-0 lg:flex-none">
         <Link
-          href="/discover"
+          href="/market"
           prefetch={false}
           aria-label="MIKEHUNT home"
           className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
@@ -229,11 +292,10 @@ function TopNavContent() {
         )}
       </div>
 
-      {/* CENTER: Daily buyer workflow — in the flow so it centers between the flex-1 sides and can't
-          overlap them as the window narrows. */}
+      {/* Desktop sides retain their content width; auto margins give navigation the remaining space. */}
       <nav
         aria-label="Primary desktop navigation"
-        className="hidden lg:flex items-center gap-0.5 shrink-0"
+        className="hidden lg:flex items-center gap-0.5 shrink-0 lg:mx-auto"
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);
@@ -278,13 +340,11 @@ function TopNavContent() {
       </nav>
 
       {/* RIGHT: Actions */}
-      <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
+      <div className="flex flex-1 items-center justify-end gap-2 min-w-0 lg:flex-none">
         <div className="hidden items-center justify-end gap-2 lg:flex">
-          <MyStatesButton
-            onChange={changeLocation}
-            statesOverride={scopedStates}
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]"
-          />
+          {locationButton(
+            "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]",
+          )}
           <ThemeToggle />
           <IconBtn
             href={alertsLink.href}
@@ -306,11 +366,10 @@ function TopNavContent() {
         </div>
 
         <div className="flex items-center justify-end gap-2 lg:hidden">
-          <MyStatesButton
-            onChange={changeLocation}
-            statesOverride={scopedStates}
-            className="inline-flex max-w-[88px] items-center gap-1.5 truncate rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]"
-          />
+          {locationButton(
+            "inline-flex max-w-[88px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]",
+            true,
+          )}
           <AccountMenu floating={false} />
         </div>
       </div>

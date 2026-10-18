@@ -27,6 +27,7 @@ import { sellerTypeLabel } from "@/lib/sources/source-meta";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { ValuationInputs } from "@/components/deal/ValuationInputs";
 
 function relativeFreshness(value?: string | Date | null) {
   if (!value) return "Freshness unknown";
@@ -160,6 +161,15 @@ export const DealCard = memo(function DealCard({
   const primaryHref = isLivePreview && sourceUrl ? sourceUrl : `/deal/${id}`;
   const primaryTarget = isLivePreview && sourceUrl ? "_blank" : undefined;
   const primaryRel = isLivePreview && sourceUrl ? "noreferrer" : undefined;
+  const sellerActionHref =
+    sellerContactUrl && sellerContactUrl !== sourceUrl
+      ? sellerContactUrl
+      : sellerEmail
+        ? `mailto:${sellerEmail}`
+        : sellerPhone
+          ? `tel:${sellerPhone}`
+          : null;
+  const sellerActionExternal = sellerActionHref?.startsWith("http");
   const lastSeenText = lastSeenAt
     ? new Date(lastSeenAt).toLocaleDateString()
     : null;
@@ -725,7 +735,7 @@ export const DealCard = memo(function DealCard({
         )}
         <details className="group/details border-t border-[var(--b1)] py-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-xs font-semibold text-[var(--t3)] [&::-webkit-details-marker]:hidden">
-            <span>Costs & evidence</span>
+            <span>Why shown, estimate & costs</span>
             <span aria-hidden="true">+</span>
           </summary>
           <div className="mt-3 space-y-3">
@@ -921,7 +931,7 @@ export const DealCard = memo(function DealCard({
               )}
             </div>
 
-            {explainedWhyShown.length > 0 && (
+            {
               <div className="rounded-[var(--r1)] bg-[var(--s0)] px-2.5 py-2">
                 <div className="text-[10px] font-black uppercase tracking-wider text-[var(--t5)]">
                   Why shown
@@ -930,8 +940,9 @@ export const DealCard = memo(function DealCard({
                   {explainedWhyShown.join(" · ")}
                   {lastSeenText ? ` · seen ${lastSeenText}` : ""}
                 </p>
+                <ValuationInputs valuation={valuation} />
               </div>
-            )}
+            }
 
             <div className="rounded-[var(--r1)] bg-[var(--s0)] px-2.5 py-2">
               <div className="flex items-center justify-between gap-2">
@@ -1083,12 +1094,9 @@ export const DealCard = memo(function DealCard({
 
       {/* Footer CTA */}
       <div
-        className="px-4 py-3 border-t flex items-center justify-between gap-3"
+        className="flex items-center justify-end gap-2 border-t px-3 py-3"
         style={{ borderColor: "var(--b1)", background: "var(--s1)" }}
       >
-        <span className="text-[11px] text-[var(--t4)] font-medium font-mono truncate">
-          #{id.slice(0, 8).toUpperCase()}
-        </span>
         {onSave && (
           <button
             type="button"
@@ -1123,36 +1131,20 @@ export const DealCard = memo(function DealCard({
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="hidden min-w-0 truncate text-[11px] font-bold text-[var(--t4)] hover:text-[var(--t1)] sm:block"
+            aria-label="Open original listing source"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-[var(--r2)] px-2 text-[11px] font-bold text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
           >
             Source
           </a>
         )}
-        {sellerPhone && (
+        {sellerActionHref && (
           <a
-            href={`tel:${sellerPhone}`}
+            href={sellerActionHref}
+            target={sellerActionExternal ? "_blank" : undefined}
+            rel={sellerActionExternal ? "noreferrer" : undefined}
             onClick={(e) => e.stopPropagation()}
-            className="hidden min-w-0 truncate text-[11px] font-bold text-[var(--t4)] hover:text-[var(--t1)] md:block"
-          >
-            Call
-          </a>
-        )}
-        {sellerEmail && (
-          <a
-            href={`mailto:${sellerEmail}`}
-            onClick={(e) => e.stopPropagation()}
-            className="hidden min-w-0 truncate text-[11px] font-bold text-[var(--t4)] hover:text-[var(--t1)] lg:block"
-          >
-            Email
-          </a>
-        )}
-        {sellerContactUrl && (
-          <a
-            href={sellerContactUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="hidden min-w-0 truncate text-[11px] font-bold text-[var(--t4)] hover:text-[var(--t1)] lg:block"
+            aria-label="Contact seller"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-[var(--r2)] px-2 text-[11px] font-bold text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
           >
             Contact
           </a>

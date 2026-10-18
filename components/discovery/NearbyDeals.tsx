@@ -10,10 +10,11 @@ import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
 import { proxiedImage } from "@/lib/image-url";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 
-// State-scoped listings only. A saved state or a ZIP's state is not a mile
-// radius, and the CA dealer default is never treated as "near you".
-
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = async (u: string) => {
+  const response = await fetch(u);
+  if (!response.ok) throw new Error("Nearby inventory unavailable");
+  return response.json();
+};
 const money = (n?: number | null) =>
   n != null ? `$${Math.round(n).toLocaleString()}` : "—";
 
@@ -37,9 +38,13 @@ function placeName(code: string) {
 export function NearbyDeals() {
   const { prefs, authed } = usePreferences();
   // Home location (#66) first; effectiveHome falls back to legacy carsState / buyerScope.state.
-  const home = (effectiveHome(prefs)?.state || "").toUpperCase();
-  const [zip, setZip] = useState("");
-  const zipMode = /^\d{5}$/.test(zip);
+  const savedHome = effectiveHome(prefs);
+  const home = (savedHome?.state || "").toUpperCase();
+  const [zipDraft, setZip] = useState<string | null>(null);
+  const zip = zipDraft ?? savedHome?.zip ?? "";
+  const [radiusDraft, setRadius] = useState<string | null>(null);
+  const radius = radiusDraft ?? String(savedHome?.radiusMi || 50);
+  const zipMode = /^\d{5}$/.test(zip) && Boolean(zipToState(zip));
   const center = (zipMode ? zipToState(zip) : home) || "";
 
   // Profit ranking is flip-desk only (the server also downgrades it). Everyone else gets the
@@ -47,11 +52,14 @@ export function NearbyDeals() {
   const sort = isFlipBuyerMode(prefs?.buyerScope?.buyerMode)
     ? "profit"
     : "score";
-  const key = center ? `/api/scan?states=${center}&sort=${sort}` : null;
-  const { data, isLoading } = useSWR(key, fetcher, {
+  const key = zipMode
+    ? `/api/scan?zip=${zip}&radius=${radius}&sort=${sort}`
+    : center && zip.length === 0
+      ? `/api/scan?states=${center}&sort=${sort}`
+      : null;
+  const { data, isLoading, error, mutate } = useSWR(key, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 120_000,
-    keepPreviousData: true,
   });
 
   const zipBox = (
@@ -61,7 +69,7 @@ export function NearbyDeals() {
       value={zip}
       onChange={(e) => setZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
       placeholder="ZIP"
-      aria-label="Limit listings to a ZIP code's state"
+      aria-label="Nearby ZIP code"
       className="min-h-12 w-24 rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
     />
   );
@@ -72,7 +80,7 @@ export function NearbyDeals() {
         <div className="mb-2 flex items-center gap-2">
           {zipBox}
           <span>
-            Set a home state in Settings, or enter a ZIP to scope listings.
+            Enter a ZIP code to find vehicles within driving distance.
           </span>
         </div>
       </div>
@@ -87,20 +95,56 @@ export function NearbyDeals() {
     <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-black text-[var(--t1)]">{label} only</h2>
+          <h2 className="text-sm font-black text-[var(--t1)]">
+            {zipMode
+              ? `Within ${radius} miles of ${zip}`
+              : `${label} inventory`}
+          </h2>
           <p className="text-xs text-[var(--t4)]">
             City and state from each listing. Miles show only when distance is
             known.
           </p>
         </div>
-        {zipBox}
+        <div className="flex flex-wrap gap-2">
+          {zipBox}
+          <select
+            aria-label="Nearby radius"
+            value={radius}
+            disabled={!zipMode}
+            onChange={(event) => setRadius(event.target.value)}
+            className="min-h-12 rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-2 text-sm text-[var(--t1)]"
+          >
+            {[25, 50, 100, 250, 500].map((miles) => (
+              <option key={miles} value={miles}>
+                {miles} mi
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {isLoading ? (
+      {error ? (
+        <div role="alert" className="py-4 text-sm text-[var(--t2)]">
+          Nearby vehicles could not be loaded.
+          <button
+            type="button"
+            onClick={() => void mutate()}
+            className="ml-2 min-h-11 underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : zip.length > 0 && !zipMode ? (
+        <p className="py-4 text-sm text-[var(--t2)]">
+          Enter a valid five-digit ZIP code.
+        </p>
+      ) : isLoading ? (
         <p className="py-6 text-center text-xs text-[var(--t4)]">Loading…</p>
       ) : deals.length === 0 ? (
         <p className="py-6 text-center text-xs text-[var(--t4)]">
-          No listings in {label} yet.
+          {zipMode
+            ? `No indexed vehicles within ${radius} miles yet.`
+            : `No listings in ${label} yet.`}
         </p>
       ) : (
         <div className="grid gap-2 sm:grid-cols-2">

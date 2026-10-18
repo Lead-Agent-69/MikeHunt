@@ -93,6 +93,14 @@ import {
   SCAN_EXTRA_KEYS,
 } from "@/lib/search/extended-inventory-filters";
 import { scanStatusCopy } from "@/lib/ui/load-state-copy";
+import {
+  nearbySearchDraft,
+  radiusRefreshMessage,
+} from "@/lib/search/nearby-search-draft";
+import { filterDisplayValue } from "@/lib/search/filter-display";
+import { sortInventoryResults } from "@/lib/search/sort-inventory-results";
+import { SourceFilter } from "@/components/search/SourceFilter";
+import { selectedSourceIds as parseSelectedSourceIds } from "@/lib/search/source-selection";
 
 const ProfitSimulatorDrawer = dynamic(
   () =>
@@ -105,6 +113,7 @@ const ProfitSimulatorDrawer = dynamic(
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ScanResult {
+  dealMargin?: number;
   id: string;
   source: string;
   title?: string;
@@ -347,6 +356,7 @@ function mapDealToResult(deal: Deal): ScanResult {
     bodyClass: (deal as any).bodyClass || undefined,
     recallsCount: (deal as any).recallsCount ?? undefined,
     askPrice: deal.askPrice ?? 0,
+    dealMargin: deal.dealMargin,
     mmrValue: deal.mmrValue ?? 0,
     profitEstimate: deal.profitEstimate ?? 0,
     profitScore: deal.profitScore ?? 50,
@@ -496,6 +506,7 @@ function StatusStrip({
   results,
   lastScan,
   hasData,
+  approximate = false,
 }: {
   loading: boolean;
   error: string | null;
@@ -503,6 +514,7 @@ function StatusStrip({
   results: ScanResult[];
   lastScan: Date | null;
   hasData: boolean;
+  approximate?: boolean;
 }) {
   const sourceCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -554,7 +566,9 @@ function StatusStrip({
             <span style={{ color: "var(--amber)" }}>{copy.count}</span>{" "}
           </>
         )}
-        {copy.countLabel}
+        {approximate && copy.count !== null
+          ? "area candidates"
+          : copy.countLabel}
       </span>
 
       <span className="text-[var(--b3)] hidden sm:inline">·</span>
@@ -2450,15 +2464,18 @@ function FilterSelect({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       className="min-h-11 max-w-full text-sm text-[var(--t1)] rounded-[var(--r2)] px-3 py-2 outline-none transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
       style={{
@@ -2560,8 +2577,8 @@ function ScanPageInner() {
   }, []);
   const gridClass =
     density === "compact"
-      ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
-      : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
+      ? "grid items-start grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"
+      : "grid items-start grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4";
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Commit a query to history + apply it immediately (used by Enter, Scan button, recent chips).
@@ -2712,7 +2729,7 @@ function ScanPageInner() {
   useEffect(() => {
     const q = urlParams.get("q");
     setUrlHydrated(true);
-    const source = urlParams.get("source");
+    const source = urlParams.get("sources") || urlParams.get("source");
     const sellerTypeParam = urlParams.get("sellerType");
     const title = urlParams.get("titleType");
     const laneParam = urlParams.get("lane");
@@ -2934,13 +2951,11 @@ function ScanPageInner() {
     if (verdict !== "all") c++;
     if (dealerHostsFilter.length) c++;
     if (dealerSourceIdsFilter.length) c++;
-    if (sourceFilter !== "all") c++;
     if (sellerTypeFilter !== "all") c++;
     if (minPrice !== "any") c++;
     if (minProfit !== "any") c++;
     if (minYear !== "any") c++;
     if (maxYear !== "any") c++;
-    if (maxMileage !== "any") c++;
     if (titleType !== "all") c++;
     if (availability !== "all") c++;
     if (madeInUsa) c++;
@@ -2959,13 +2974,11 @@ function ScanPageInner() {
     extraFilters,
     dealerHostsFilter.length,
     dealerSourceIdsFilter.length,
-    sourceFilter,
     sellerTypeFilter,
     minPrice,
     minProfit,
     minYear,
     maxYear,
-    maxMileage,
     titleType,
     availability,
     madeInUsa,
@@ -3134,7 +3147,29 @@ function ScanPageInner() {
           },
         ]
       : []),
-  ].filter((filter) => filter.value && !["all", "any"].includes(filter.value));
+  ]
+    .filter((filter) => filter.value && !["all", "any"].includes(filter.value))
+    .map((filter) => ({
+      ...filter,
+      value: filterDisplayValue(filter.label, filter.value),
+    }));
+
+  // Primary controls already display their current value. Repeating those as a
+  // second row of removable chips made the toolbar much taller without adding
+  // information. Keep pills only for filters hidden in advanced controls.
+  const appliedDetailFilters = appliedFilters.filter(
+    (filter) =>
+      ![
+        "State",
+        "Make",
+        "Model",
+        "Max price",
+        "Max miles",
+        "Near",
+        "Source",
+        "Verdict",
+      ].includes(filter.label),
+  );
 
   const searchSummary = useMemo(() => {
     const laneLabel: Record<string, string> = {
@@ -3152,7 +3187,9 @@ function ScanPageInner() {
           ? "watch candidates"
           : null,
       laneLabel[lane] || lane,
-      selectedStates || (state !== "all" ? state : "nationwide"),
+      /^\d{5}$/.test(zip)
+        ? `within ${radius} miles of ${zip}`
+        : selectedStates || (state !== "all" ? state : "nationwide"),
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
       make === "all" && makesFilter.length
@@ -3194,6 +3231,8 @@ function ScanPageInner() {
     sellerTypeFilter,
     maxPrice,
     sort,
+    zip,
+    radius,
   ]);
 
   const smartPlan = useMemo(
@@ -3248,6 +3287,10 @@ function ScanPageInner() {
   );
 
   const previewSourcePlan = useCallback(async () => {
+    if (/^\d{5}$/.test(zip)) {
+      setPlanMessage(radiusRefreshMessage);
+      return;
+    }
     const request = planRequests.current.start();
     setPlanPreviewing(true);
     setPlanMessage(null);
@@ -3259,7 +3302,9 @@ function ScanPageInner() {
         body: JSON.stringify({
           scope: smartPlan.scope,
           sourceIds:
-            sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds,
+            sourceFilter !== "all"
+              ? parseSelectedSourceIds(sourceFilter)
+              : smartPlan.sourceIds,
         }),
         signal: request.signal,
       });
@@ -3287,7 +3332,7 @@ function ScanPageInner() {
       if (request.isCurrent()) setPlanPreviewing(false);
       request.finish();
     }
-  }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter]);
+  }, [smartPlan.scope, smartPlan.sourceIds, sourceFilter, zip]);
 
   const fetchLivePreview = useCallback(async () => {
     const request = previewRequests.current.start();
@@ -3778,7 +3823,10 @@ function ScanPageInner() {
     [sourceHealthById],
   );
   const selectedSourceIds = useMemo(
-    () => (sourceFilter !== "all" ? [sourceFilter] : smartPlan.sourceIds),
+    () =>
+      sourceFilter !== "all"
+        ? parseSelectedSourceIds(sourceFilter)
+        : smartPlan.sourceIds,
     [sourceFilter, smartPlan.sourceIds],
   );
   const effectiveSmartPlan = useMemo(
@@ -3789,6 +3837,8 @@ function ScanPageInner() {
   const sourceSearchKey = JSON.stringify({
     scope: smartPlan.scope,
     sourceIds: selectedSourceIds,
+    zip,
+    radius,
   });
   useEffect(() => {
     const runId = sourceRunId;
@@ -3805,6 +3855,10 @@ function ScanPageInner() {
   }, [sourceSearchKey]);
 
   const runMatchingSources = useCallback(async () => {
+    if (/^\d{5}$/.test(zip)) {
+      setPlanMessage(radiusRefreshMessage);
+      return;
+    }
     const runId = ++sourceRunId.current;
     sourceRunController.current?.abort();
     const controller = new AbortController();
@@ -3985,7 +4039,14 @@ function ScanPageInner() {
     } finally {
       if (runId === sourceRunId.current) setRunImporting(false);
     }
-  }, [isAdmin, smartPlan.scope, selectedSourceIds, mutate, mutateScrapeHealth]);
+  }, [
+    isAdmin,
+    smartPlan.scope,
+    selectedSourceIds,
+    mutate,
+    mutateScrapeHealth,
+    zip,
+  ]);
 
   // Client-driven infinite scroll: SWR fetches page 0; "load more" APPENDS further pages so the grid
   // surfaces ALL matching inventory, not just the first screen. `extra` resets when the filter key changes.
@@ -4066,7 +4127,9 @@ function ScanPageInner() {
     ]);
     const canPublicPreview =
       sourceFilter !== "all"
-        ? publicPreviewSourceIds.has(sourceFilter)
+        ? parseSelectedSourceIds(sourceFilter).some((id) =>
+            publicPreviewSourceIds.has(id),
+          )
         : smartPlan.sourceIds.some((sourceId) =>
             publicPreviewSourceIds.has(sourceId),
           );
@@ -4282,12 +4345,16 @@ function ScanPageInner() {
             !wantsAuctionInventory({
               lane,
               sellerType: sellerTypeFilter,
-              sources: [sourceFilter],
+              sources: parseSelectedSourceIds(sourceFilter),
             })
           )
             return;
           if (state !== "all" && d.location_state !== state) return;
-          if (sourceFilter !== "all" && d.source !== sourceFilter) return;
+          if (
+            sourceFilter !== "all" &&
+            !parseSelectedSourceIds(sourceFilter).includes(d.source)
+          )
+            return;
 
           // Realtime only carries the deals columns the browser role is GRANTED (listing facts, no
           // economics: see supabase/migrations/20261010020000_deals_column_grants.sql). So don't
@@ -4350,20 +4417,7 @@ function ScanPageInner() {
         carCategories(r as CarLike).includes(category),
       );
     }
-    const sorted = [...list];
-    if (sort === "score") {
-      sorted.sort(
-        (a, b) =>
-          (b.trustExplanation?.score ?? b.profitScore ?? 0) -
-          (a.trustExplanation?.score ?? a.profitScore ?? 0),
-      );
-    } else if (sort === "price") {
-      sorted.sort((a, b) => (a.askPrice ?? 0) - (b.askPrice ?? 0));
-    } else {
-      // default: profit (descending)
-      sorted.sort((a, b) => (b.profitEstimate ?? 0) - (a.profitEstimate ?? 0));
-    }
-    return sorted;
+    return sortInventoryResults(list, sort);
   }, [results, search, sort, category]);
 
   const tableSourceHealthById = useMemo(() => {
@@ -4395,13 +4449,16 @@ function ScanPageInner() {
       }),
     );
     const seen = new Set(opts.map((option) => option.value));
-    ALL_VEHICLE_SOURCES.slice(0, 20).forEach((s) => {
+    ALL_VEHICLE_SOURCES.forEach((s) => {
       if (seen.has(s.id)) return;
       opts.push({ value: s.id, label: s.name });
       seen.add(s.id);
     });
+    parseSelectedSourceIds(sourceFilter).forEach((id) => {
+      if (!seen.has(id)) opts.push({ value: id, label: sourceMeta(id).label });
+    });
     return opts;
-  }, [facets?.sources]);
+  }, [facets?.sources, sourceFilter]);
 
   const stateOptions = useMemo(() => {
     const opts = [{ value: "all", label: "State: All" }];
@@ -4603,6 +4660,7 @@ function ScanPageInner() {
         results={results}
         lastScan={lastScan}
         hasData={swrData !== undefined}
+        approximate={Boolean(swrData?.totalIsApproximate)}
       />
 
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4720,23 +4778,23 @@ function ScanPageInner() {
         configured={scrapeHealth?.configured}
         onRetry={() => void mutateScrapeHealth()}
       />
-      <details open className="glass-panel px-4 py-3 space-y-3">
-        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+      <details open className="glass-panel px-3 py-1.5">
+        <summary className="flex min-h-10 cursor-pointer items-center py-2 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Filters &amp; view
           {appliedFilters.length ? ` (${appliedFilters.length} applied)` : ""}
         </summary>
-        {appliedFilters.length > 0 && (
+        {appliedDetailFilters.length > 0 && (
           <div
-            className="flex flex-wrap items-center gap-2"
+            className="mb-2 flex flex-wrap items-center gap-1.5"
             aria-label="Applied filters"
           >
-            {appliedFilters.map((filter) => (
+            {appliedDetailFilters.map((filter) => (
               <button
                 key={filter.label}
                 type="button"
                 onClick={filter.clear}
                 aria-label={`Remove ${filter.label} filter`}
-                className="flex min-h-11 max-w-full items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] px-3 text-xs text-[var(--t2)]"
+                className="flex min-h-9 max-w-full items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] px-2.5 text-xs text-[var(--t2)]"
               >
                 <span className="break-words">
                   {filter.label}: {filter.value}
@@ -4744,17 +4802,10 @@ function ScanPageInner() {
                 <X className="h-3 w-3 shrink-0" aria-hidden="true" />
               </button>
             ))}
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="min-h-11 px-3 text-xs font-bold text-[var(--t2)]"
-            >
-              Clear all
-            </button>
           </div>
         )}
         {/* PRIMARY: the dealer's most-used controls, always visible */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
           {/* GO-only — the #1 filter */}
           {flipDesk && (
             <>
@@ -4801,14 +4852,17 @@ function ScanPageInner() {
             options={makeOptions}
           />
           {/* Model cascades off the chosen make (Copart-style) — appears once a make is picked. */}
-          {make !== "all" && (
-            <FilterSelect
-              label="Model"
-              value={model}
-              onChange={setModel}
-              options={modelOptions}
-            />
-          )}
+          <FilterSelect
+            label="Model"
+            value={model}
+            onChange={setModel}
+            disabled={make === "all"}
+            options={
+              make === "all"
+                ? [{ value: "all", label: "Model: Choose make" }]
+                : modelOptions
+            }
+          />
           <FilterSelect
             label="State"
             value={state}
@@ -4825,17 +4879,58 @@ function ScanPageInner() {
             value={maxMileage}
             onChange={setMaxMileage}
           />
-          <FilterSelect
+          <SourceFilter
             label="Source"
             value={sourceFilter}
             onChange={setSourceFilter}
             options={sourceOptions}
           />
+          <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+            Near ZIP
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={5}
+              aria-label="ZIP"
+              placeholder="ZIP code"
+              value={zip}
+              onChange={(event) => {
+                const next = nearbySearchDraft(event.target.value);
+                setZip(next.zip);
+                if (next.clearStateBoundary) {
+                  setState("all");
+                  setSelectedStates("");
+                }
+              }}
+              className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
+            Within
+            <select
+              aria-label="Radius"
+              value={radius}
+              disabled={!/^\d{5}$/.test(zip)}
+              onChange={(event) => setRadius(event.target.value)}
+              className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)] disabled:opacity-50"
+            >
+              {["25", "50", "100", "200", "500"].map((distance) => (
+                <option key={distance} value={distance}>
+                  {distance} mi
+                </option>
+              ))}
+            </select>
+          </label>
           <FilterSelect
             label="Sort"
             value={sort}
             onChange={setSort}
             options={[
+              {
+                value: "margin",
+                label: "Sort: Highest price gap (before costs)",
+              },
               // Profit sort is a flip-desk tool; keep it listed if a URL already picked it.
               ...(flipDesk || sort === "profit"
                 ? [{ value: "profit", label: "Sort: Profit ↓" }]
@@ -4861,7 +4956,7 @@ function ScanPageInner() {
             }}
           >
             <Ico name="filter" size={12} />
-            Year, distance & condition
+            Year & condition
             {advancedCount > 0 ? ` (${advancedCount})` : ""}
             <span className="text-[10px]">{showMore ? "▲" : "▼"}</span>
           </button>
@@ -4880,12 +4975,22 @@ function ScanPageInner() {
             </button>
           )}
 
+          {appliedFilters.length > 0 && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="min-h-9 shrink-0 rounded-[var(--r2)] px-2.5 text-xs font-bold text-[var(--t3)] hover:bg-[var(--s1)] hover:text-[var(--t1)]"
+            >
+              Clear filters
+            </button>
+          )}
+
           {/* Results count + density */}
           {!loading && (
             <div className="ml-auto flex items-center gap-3 shrink-0">
               <span className="text-xs text-[var(--t3)] font-mono">
                 {filteredResults.length} shown / {total.toLocaleString()}{" "}
-                matching
+                {swrData?.totalIsApproximate ? "area candidates" : "matching"}
               </span>
               <div
                 className="flex items-center gap-0.5 p-0.5 rounded-[var(--r2)]"
@@ -4932,7 +5037,7 @@ function ScanPageInner() {
 
         {/* Browsable category chips — one-tap money-relevant slices (only non-empty render). */}
         {CAR_CATEGORIES.some((c) => categoryCounts[c.key]) && (
-          <div className="flex items-center gap-2 overflow-x-auto pt-2 -mx-1 px-1">
+          <div className="-mx-1 flex items-center gap-2 overflow-x-auto px-1 pt-1.5">
             <button
               onClick={() => setCategory("all")}
               className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition-colors"
@@ -5019,39 +5124,6 @@ function ScanPageInner() {
                 value={maxYear}
                 onChange={setMaxYear}
               />
-            </FilterGroup>
-
-            <FilterGroup label="Near">
-              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-                ZIP
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={5}
-                  aria-label="ZIP"
-                  placeholder="Any"
-                  value={zip}
-                  onChange={(e) =>
-                    setZip(e.target.value.replace(/\D/g, "").slice(0, 5))
-                  }
-                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-                Within
-                <select
-                  aria-label="Radius"
-                  value={radius}
-                  onChange={(e) => setRadius(e.target.value)}
-                  className="min-h-11 w-28 max-w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm text-[var(--t1)]"
-                >
-                  {["25", "50", "100", "200", "500"].map((r) => (
-                    <option key={r} value={r}>
-                      {r} mi
-                    </option>
-                  ))}
-                </select>
-              </label>
             </FilterGroup>
 
             <FilterGroup label="Condition">
@@ -5247,6 +5319,14 @@ function ScanPageInner() {
       )}
 
       <MarketSearchHandoff query={swrKey.split("?")[1] || ""} />
+
+      {sort === "margin" && (
+        <p className="text-sm text-[var(--t2)]" role="status">
+          Price gap = recorded estimate minus cash asking price. Repairs, fees,
+          taxes and transport are not deducted. Unverified prices and valuations
+          are excluded.
+        </p>
+      )}
 
       {/* ── Results grid ── */}
       {loading && (

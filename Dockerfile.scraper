@@ -27,6 +27,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 
 COPY . .
 
+# Set only by the pinned git-archive builder. Legacy working-tree builds stay unknown.
+ARG SCRAPER_SOURCE_REVISION=unknown
+ARG SCRAPER_BUILT_AT=unknown
+ARG SCRAPER_BUILD_CONTEXT=unknown
+LABEL org.opencontainers.image.revision=$SCRAPER_SOURCE_REVISION \
+      org.opencontainers.image.created=$SCRAPER_BUILT_AT \
+      io.mikehunt.scraper.context=$SCRAPER_BUILD_CONTEXT
+RUN node node_modules/tsx/dist/cli.mjs scripts/write-scraper-release.ts
+
 ENV NODE_ENV=production
 # Turn on the headed real-Chrome tier; xvfb-run (below) gives it the display it needs.
 ENV ENABLE_HEADED_SCRAPERS=1

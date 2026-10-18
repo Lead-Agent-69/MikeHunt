@@ -20,30 +20,35 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
   const items: Partial<Deal>[] = [];
   for (const v of vehicles) {
     if (!v || typeof v !== "object") continue;
-    const price = Number(
-      v.price?.total ?? v.price?.incentivizedPrice ?? v.price?.msrp ?? 0,
-    );
+    const price = Number(v.price?.total ?? v.price?.incentivizedPrice ?? 0);
     const vin = s(v.vin);
-    if (!price || !vin) continue;
+    const vehicleId = Number(v.vehicleId);
+    if (
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      !vin ||
+      !Number.isSafeInteger(vehicleId) ||
+      vehicleId <= 0
+    )
+      continue;
     const year = Number(v.year) || undefined;
     const make = s(v.make);
     const model = s(v.parentModel) || s(v.model);
     const trim = s(v.trim) || s(v.kbbTrim);
-    // Carvana's `imageUrl` is a RELATIVE path (domain stripped) → renders as a broken image. Prefer any
-    // ABSOLUTE url: the real photo if it's absolute, else the full jellyBean stock image of the same
-    // year/make/model. A correct stock photo beats a broken one. (Was storing the broken relative URL.)
+    // Prefer the API's absolute vehicle photos. Relative imageUrl paths have no published origin;
+    // constructing a URL from them can return 404 even when the standardized hero is available.
     const abs = (u?: string) => (u && /^https?:\/\//i.test(u) ? u : "");
     const img =
       abs(s(v.imageUrl)) ||
+      abs(s(v.standardizedHero)) ||
+      abs(s(v.textlessUrl)) ||
       abs(s(v.jellyBeanDesktopUrl)) ||
       abs(s(v.jellyBeanMobileUrl));
-    const id = String(v.vehicleId ?? v.stockNumber ?? vin);
+    const id = String(vehicleId);
     items.push({
       source: "carvana",
       source_deal_id: vin || id,
-      source_url: v.vdpSlug
-        ? `https://www.carvana.com/vehicle/${v.vdpSlug}`
-        : `https://www.carvana.com/vehicle/${id}`,
+      source_url: `https://www.carvana.com/vehicle/${id}`,
       title: `${year || ""} ${make || ""} ${model || ""} ${trim || ""}`
         .replace(/\s+/g, " ")
         .trim(),
@@ -58,6 +63,14 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
       images: img ? [img] : [],
       seller_type: "dealer",
       seller: "Carvana",
+      options: {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: price,
+          listedAmount: price,
+          checkedAt: new Date().toISOString(),
+        },
+      },
       metadata: { delivery_available: true, seven_day_return: true },
       scraped_at: new Date().toISOString(),
     });
@@ -70,6 +83,7 @@ async function fetchCarvanaPage(
   pageSize: number,
 ): Promise<any | null> {
   const res = await fetch(CARVANA_API, {
+    signal: AbortSignal.timeout(15000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,23 +105,26 @@ async function fetchCarvanaPage(
 // different make/model/year buckets instead of re-fetching the same 1000 cars.
 export async function scrapeCarvana(
   maxPages = 15,
-  pageSize = 50,
+  pageSize = 24,
 ): Promise<number> {
+  // The API echoes larger requested sizes in pagination but returns at most 24 cars. Using that
+  // echoed size as the next offset skips cars between pages. Keep the request within its real cap.
+  pageSize = Math.max(1, Math.min(24, Math.floor(pageSize) || 24));
   console.log("[Carvana] Starting API scrape...");
   const all: Partial<Deal>[] = [];
 
   // Page 1 tells us how many pages exist; pick a random window start from there. The API caps deep
-  // pagination at a ~10k-result offset, so the reachable window is bounded regardless of total.
+  // pagination before the full advertised count. 9,480 is the verified reachable result window.
   const first = await fetchCarvanaPage(1, pageSize);
   if (!first) return 0;
   const totalPages: number = Math.max(
     1,
     Number(first?.inventory?.pagination?.totalMatchedPages) || 1,
   );
-  const maxReachablePage = Math.floor(9900 / pageSize); // offset cap (~page 198 @ size 50)
+  const maxReachablePage = Math.floor(9480 / pageSize);
   const lastStart = Math.max(
     1,
-    Math.min(totalPages, maxReachablePage) - maxPages,
+    Math.min(totalPages, maxReachablePage) - maxPages + 1,
   );
   const startPage =
     lastStart > 1 ? 1 + Math.floor(Math.random() * lastStart) : 1;
@@ -119,7 +136,8 @@ export async function scrapeCarvana(
 
   for (
     let page = startPage;
-    page < startPage + maxPages && page <= totalPages;
+    page < startPage + maxPages &&
+    page <= Math.min(totalPages, maxReachablePage);
     page++
   ) {
     if (page === 1 && startPage === 1) continue; // already captured above

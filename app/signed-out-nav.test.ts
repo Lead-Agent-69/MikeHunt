@@ -28,14 +28,14 @@ describe("signed-out nav", () => {
     });
   });
 
-  it("flags the mobile tabs the same way and keeps four task-focused tabs", () => {
+  it("flags the mobile tabs the same way and keeps five task-focused tabs", () => {
     const tabs = mobileNavForMode(undefined).map((item) =>
       navItemForViewer(item, true),
     );
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(5);
     expect(
       tabs.filter((item) => item.signInRequired).map((item) => item.name),
-    ).toEqual(["Discover", "Saved", "Plan"]);
+    ).toEqual(["Market", "Discover", "Saved", "Plan"]);
   });
 
   it("leaves signed-in (or still checking) visitors untouched", () => {

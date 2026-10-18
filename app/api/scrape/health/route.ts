@@ -145,10 +145,16 @@ function dealerSourceUrlNeedles(sourceId: string) {
 
 export function healthSourceIdForDeal(row: any, sourceIds: string[]) {
   const source = String(row.source || "");
+  const adapterId = String(
+    row?.options?.sourceAdapterId || row?.options?.aggregator || "",
+  )
+    .trim()
+    .toLowerCase();
   if (source === "craigslist_dealer" && sourceIds.includes("craigslist"))
     return "craigslist";
   const url = String(row.source_url || "").toLowerCase();
   if (source === "gov_auction") {
+    if (adapterId && sourceIds.includes(adapterId)) return adapterId;
     const govSource = sourceFromUrl(url);
     if (govSource && sourceIds.includes(govSource)) return govSource;
     return (
@@ -158,11 +164,13 @@ export function healthSourceIdForDeal(row: any, sourceIds: string[]) {
   if (source === "independent_dealer") {
     return (
       dealerSourceIdFromUrl(url, sourceIds) ||
+      (adapterId && sourceIds.includes(adapterId) ? adapterId : null) ||
       (sourceIds.includes("curated_dealers") ? "curated_dealers" : null) ||
       sourceIds.find((id) => dbSourceValues(id).includes(source)) ||
       source
     );
   }
+  if (adapterId && sourceIds.includes(adapterId)) return adapterId;
   return source;
 }
 

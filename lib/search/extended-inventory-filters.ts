@@ -114,7 +114,9 @@ export const INVENTORY_DETAIL_GROUPS: {
     label: "Location & listing evidence",
     fields: [
       { key: "city", label: "City" },
-      { key: "zip", label: "ZIP code" },
+      { key: "listingZip", label: "Listing ZIP" },
+      { key: "assemblyCountry", label: "Assembly country" },
+      { key: "availability", label: "Availability" },
       {
         key: "hasVin",
         label: "VIN",
@@ -154,7 +156,7 @@ export const SCAN_EXTRA_KEYS = [
   "auctionFrom",
   "auctionTo",
   "city",
-  "zip",
+  "listingZip",
   "hasVin",
   "hasPhotos",
   "seenWithin",
@@ -209,6 +211,8 @@ export function validateExtendedFilters(
   }
   if (params.get("zip") && !/^\d{5}$/.test(params.get("zip")!))
     return "ZIP code must contain five digits";
+  if (params.get("listingZip") && !/^\d{5}$/.test(params.get("listingZip")!))
+    return "Listing ZIP must contain five digits";
   if (params.get("maxBuyNow") === "0")
     return "Buy now price maximum must be greater than zero";
   if (
@@ -236,14 +240,17 @@ export function applyExtendedFilters(
     ["color", "color"],
     ["engine", "engine"],
     ["city", "location_city"],
+    ["assemblyCountry", "assembly_country"],
+    ["availability", "availability_status"],
   ]) {
     const value = (params.get(key) || "")
-      .replace(/[^a-zA-Z0-9 .-]/g, "")
+      .replace(/[^a-zA-Z0-9 _.-]/g, "")
       .trim()
       .slice(0, 60);
     if (value && value !== "all") q = q.ilike(column, `%${value}%`);
   }
-  if (params.get("zip")) q = q.eq("location_zip", params.get("zip"));
+  if (params.get("listingZip"))
+    q = q.eq("location_zip", params.get("listingZip"));
   const runDrive = params.get("runDrive");
   if (runDrive === "unknown") q = q.is("run_drive", null);
   else if (runDrive === "yes" || runDrive === "no")

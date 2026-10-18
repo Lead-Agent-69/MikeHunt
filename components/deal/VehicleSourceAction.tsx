@@ -16,7 +16,7 @@ export function VehicleSourceAction({
     // Missing source links must not become fake actions.
   }
   const className =
-    "premium-focus inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-4 text-sm font-semibold text-white";
+    "premium-focus inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)]";
   const label =
     href && isSourceLandingPage(href)
       ? "Seller website"

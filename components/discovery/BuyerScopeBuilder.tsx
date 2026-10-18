@@ -16,22 +16,19 @@ import {
   Sparkles,
   ShieldCheck,
   LockKeyhole,
-  UserRound,
-  BadgeDollarSign,
-  UsersRound,
-  Hammer,
-  Package,
 } from "lucide-react";
 import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { useDealerWatch } from "@/hooks/useDealerWatch";
 import {
-  BUYER_MODES,
-  normalizeBuyerMode,
   readLocalBuyerIntent,
   resolveBuyerIntentScope,
   type BuyerMode,
   writeLocalBuyerIntent,
 } from "@/hooks/useBuyerIntent";
+import {
+  BUYING_WORKSPACE_MODE,
+  buyingWorkspaceScope,
+} from "@/lib/buyer/workspace-scope";
 import { dealerSourceIdForHost, sourceMeta } from "@/lib/sources/source-meta";
 import { laneAllowedForMode } from "@/lib/buyer/lane-access";
 
@@ -190,17 +187,6 @@ const GOAL_RECIPES = [
   },
 ];
 
-const BUYER_MODE_CHOICES: Array<{
-  value: BuyerMode;
-  icon: typeof UserRound;
-}> = [
-  { value: "personal", icon: UserRound },
-  { value: "diy", icon: Hammer },
-  { value: "parts", icon: Package },
-  { value: "reseller", icon: BadgeDollarSign },
-  { value: "dealer", icon: UsersRound },
-];
-
 type SmartRunPlan = {
   canImport: boolean;
   message: string;
@@ -343,7 +329,7 @@ export function BuyerScopeBuilder({
   const [preferenceStatus, setPreferenceStatus] = useState("");
   const [preferenceFailed, setPreferenceFailed] = useState(false);
   const [saveAttempt, setSaveAttempt] = useState(0);
-  const [buyerMode, setBuyerMode] = useState<BuyerMode>("personal");
+  const buyerMode: BuyerMode = BUYING_WORKSPACE_MODE;
   const [vehicle, setVehicle] = useState(VEHICLE_TYPES[0]);
   const [lane, setLane] = useState(LANES[0]);
   const [state, setState] = useState("Nationwide");
@@ -352,6 +338,7 @@ export function BuyerScopeBuilder({
   const [maxPrice, setMaxPrice] = useState("");
   const [makes, setMakes] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const legacyBuyerMode = useRef<unknown>(undefined);
   // Wholesale auctions are a flip-desk lane; personal / DIY / parts never see it or its recipe.
   const visibleLanes = LANES.filter((item) =>
     laneAllowedForMode(item.lane, buyerMode),
@@ -414,6 +401,8 @@ export function BuyerScopeBuilder({
       const localScope = readLocalBuyerIntent();
       const saved =
         resolveBuyerIntentScope(authed, prefs.buyerScope, localScope) || {};
+      legacyBuyerMode.current =
+        prefs.buyerScope?.legacyBuyerMode ?? saved.buyerMode;
       if (cancelled) return;
       if (initialScope) {
         const vehicleNeedle = String(
@@ -433,10 +422,6 @@ export function BuyerScopeBuilder({
         if (initialVehicle) setVehicle(initialVehicle);
         hydratedVehicle.current = initialVehicle?.label || vehicle.label;
         if (initialLane) setLane(initialLane);
-        const initialBuyerMode = normalizeBuyerMode(
-          initialScope.buyerMode || initialScope.mode,
-        );
-        if (initialBuyerMode) setBuyerMode(initialBuyerMode);
         if (
           typeof initialScope.state === "string" &&
           STATES.includes(initialScope.state)
@@ -468,8 +453,6 @@ export function BuyerScopeBuilder({
       if (savedVehicle) setVehicle(savedVehicle);
       hydratedVehicle.current = savedVehicle?.label || vehicle.label;
       if (savedLane) setLane(savedLane);
-      const savedBuyerMode = normalizeBuyerMode(saved.buyerMode);
-      if (savedBuyerMode) setBuyerMode(savedBuyerMode);
       if (typeof saved.state === "string" && STATES.includes(saved.state))
         setState(saved.state);
       if (typeof saved.titleType === "string") setTitleType(saved.titleType);
@@ -506,7 +489,8 @@ export function BuyerScopeBuilder({
       skipInitialSave.current = false;
       return;
     }
-    const buyerScope = {
+    const buyerScope = buyingWorkspaceScope({
+      legacyBuyerMode: legacyBuyerMode.current,
       buyerMode,
       vehicle: vehicle.label,
       vehicles:
@@ -525,7 +509,7 @@ export function BuyerScopeBuilder({
       makes,
       watchedDealers: dealerWatch.hosts,
       watchedDealerSourceIds: dealerSourceIds,
-    };
+    });
     let active = true;
     const timer = window.setTimeout(() => {
       setPreferenceStatus("Saving preferences...");
@@ -947,7 +931,6 @@ export function BuyerScopeBuilder({
     hasNoMatchingSources || scopeStatus?.status === "no_match";
   const hasScopeEmpty = scopeStatus?.status === "empty";
   const stepRail = [
-    { label: "Mode", value: BUYER_MODES[buyerMode].label },
     { label: "Vehicle", value: vehicle.label },
     { label: "Lane", value: lane.label },
     { label: "Market", value: state },
@@ -974,8 +957,7 @@ export function BuyerScopeBuilder({
                 : "Pick what, where, and how you buy"}
           </h2>
           <p className="mt-1 text-sm text-[var(--t4)]">
-            Current scope: {BUYER_MODES[buyerMode].label} · {vehicle.label} ·{" "}
-            {lane.label} · {state}
+            Current scope: {vehicle.label} · {lane.label} · {state}
             {titleType !== "all" ? ` · ${titleType} title` : ""}
             {sellerType !== "all" ? ` · ${sellerType} sellers` : ""}
             {makes.length ? ` · ${makes.slice(0, 2).join("/")}` : ""}
@@ -1548,58 +1530,6 @@ export function BuyerScopeBuilder({
               {recipe.label}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-[var(--t5)]">
-              Buyer mode
-            </div>
-            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[var(--t4)]">
-              One vehicle intelligence engine, different decision lens. Personal
-              buyers should not get a PASS just because resale profit is thin;
-              dealers should still see inventory fit, turnover, and capital.
-            </p>
-          </div>
-          <div className="rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1 text-[11px] font-black text-[var(--t3)]">
-            {BUYER_MODES[buyerMode].question}
-          </div>
-        </div>
-        <div className="grid gap-2 md:grid-cols-4">
-          {BUYER_MODE_CHOICES.map((choice) => {
-            const meta = BUYER_MODES[choice.value];
-            const Icon = choice.icon;
-            const active = buyerMode === choice.value;
-            return (
-              <button
-                key={choice.value}
-                type="button"
-                onClick={() => setBuyerMode(choice.value)}
-                data-active={active}
-                className={`rounded-[var(--r2)] px-3 py-3 text-left ${cx(active)}`}
-              >
-                <div className="flex items-center gap-2 text-sm font-black">
-                  <Icon size={15} />
-                  {meta.label}
-                </div>
-                <p className="mt-1 text-[11px] leading-relaxed opacity-75">
-                  {meta.question}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {meta.priorities.slice(0, 3).map((priority) => (
-                    <span
-                      key={priority}
-                      className="rounded-full bg-[var(--s1)] px-2 py-0.5 text-[9px] font-black uppercase tracking-wide opacity-80"
-                    >
-                      {priority}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
 

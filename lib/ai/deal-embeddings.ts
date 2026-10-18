@@ -109,7 +109,10 @@ export interface BackfillResult {
   coverage?: {
     active: number;
     embedded: number;
-    fresh: number | null;
+    /** @deprecated Current content freshness is not measured; retained as null for compatibility. */
+    fresh: null;
+    sourceHashTracked: number | null;
+    currentContentFreshness: "not_measured";
     pct: number;
   };
 }
@@ -152,21 +155,43 @@ export async function backfillEmbeddings(
   //    Only rows stamped with a hash count, so the migration's embedded_at backfill doesn't.
   let schemaReady = true;
   let usedToday: number | null = 0;
-  const used = await supabase
-    .from("deals")
-    .select("id", { count: "exact", head: true })
-    .not("embedding_source_hash", "is", null)
-    .gte("embedded_at", startOfPacificDay(new Date(now())).toISOString());
+  const readBudget = () =>
+    supabase
+      .from("deals")
+      .select("id", { count: "exact", head: true })
+      .not("embedding_source_hash", "is", null)
+      .gte("embedded_at", startOfPacificDay(new Date(now())).toISOString())
+      .abortSignal(AbortSignal.timeout(5000));
+  let used = await readBudget();
+  // HEAD failures can have an empty body. Retry that read once, never provider
+  // calls or writes, and never assume that an unavailable budget means zero use.
+  if (
+    used.error &&
+    !used.error.code &&
+    [0, 500, 502, 503, 504].includes(used.status ?? 0) &&
+    now() - startedAt + 5250 < timeBudgetMs
+  ) {
+    await sleep(250);
+    used = await readBudget();
+  }
   if (used.error) {
     if (!isMissingFreshnessColumn(used.error))
-      throw new Error(`Embedding budget read failed: ${used.error.message}`);
+      throw new Error("Embedding budget read failed; no provider work started");
     schemaReady = false;
     usedToday = null;
     console.warn(
       "[embeddings] freshness columns missing — apply migration 20261009200000; running missing-only mode",
     );
   } else {
-    usedToday = used.count || 0;
+    if (
+      used.count === null ||
+      !Number.isSafeInteger(used.count) ||
+      used.count < 0
+    )
+      throw new Error(
+        "Embedding budget count unavailable; no provider work started",
+      );
+    usedToday = used.count;
   }
   // Without the ledger we can't see other runs' spend; assume 8 runs/day share the cap.
   const runCap = schemaReady
@@ -332,7 +357,7 @@ export async function backfillEmbeddings(
   // 4. Coverage (embedded / active) so every run reports where the backlog stands.
   const head = () =>
     supabase.from("deals").select("id", { count: "exact", head: true });
-  const [activeQ, embeddedQ, missingQ, freshQ] = await Promise.all([
+  const [activeQ, embeddedQ, missingQ, hashTrackedQ] = await Promise.all([
     head().eq("active", true),
     head().eq("active", true).not("embedding", "is", null),
     head().eq("active", true).is("embedding", null),
@@ -341,7 +366,7 @@ export async function backfillEmbeddings(
       : Promise.resolve({ count: null, error: null }),
   ]);
   const countErr =
-    activeQ.error || embeddedQ.error || missingQ.error || freshQ.error;
+    activeQ.error || embeddedQ.error || missingQ.error || hashTrackedQ.error;
   if (countErr)
     throw new Error(`Embedding backlog read failed: ${countErr.message}`);
   const active = activeQ.count || 0;
@@ -349,13 +374,18 @@ export async function backfillEmbeddings(
   const coverage = {
     active,
     embedded,
-    fresh: schemaReady ? freshQ.count || 0 : null,
+    fresh: null,
+    sourceHashTracked: schemaReady ? hashTrackedQ.count || 0 : null,
+    currentContentFreshness: "not_measured" as const,
     pct: active ? Math.round((embedded / active) * 1000) / 10 : 0,
   };
   const budgetExhausted = runCap === 0;
   console.log(
     `[embeddings] coverage ${embedded}/${active} active (${coverage.pct}%)` +
-      (coverage.fresh != null ? `, hash-verified ${coverage.fresh}` : "") +
+      (coverage.sourceHashTracked != null
+        ? `, source hash recorded ${coverage.sourceHashTracked}`
+        : "") +
+      ", current content freshness not measured" +
       ` | updated ${updated} (missing ${byTier.missing}, changed ${byTier.changed}, legacy ${byTier.legacy})` +
       ` | budget ${usedToday ?? "?"}+${updated}/${dailyCap} today` +
       (quota ? ` | quota:${quota}` : "") +

@@ -280,6 +280,7 @@ function compsFromFeed(agg: CompAggregate): IndexComps | null {
 }
 
 export interface ValuationBreakdown {
+  asOf?: string;
   basis: "comps" | "market" | "baseline";
   source:
     | "comparables"
@@ -851,6 +852,7 @@ export function analyzeDeal(
     // The evidence + adjustments behind the resale number — so the UI can show HOW we valued it.
     // This is the moat made transparent: real comps, KBB, sold prices, and the exact title/mileage cuts.
     valuation: {
+      asOf: new Date().toISOString(),
       basis: sellBasis,
       source: valuationSource,
       // Asking-price comps are a read of what sellers WANT, not what cars sold for: cap at medium.

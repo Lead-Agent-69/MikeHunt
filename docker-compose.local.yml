@@ -24,7 +24,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
-      FLARESOLVERR_URL: http://flaresolverr:8191/v1
+      FLARESOLVERR_URL: http://flaresolverr:8191
       LOCAL_CACHE_PATH: /app/cache
       BROWSER_PROFILE_DIR: /app/profiles
       STATUS_PATH: /app/logs/status.json

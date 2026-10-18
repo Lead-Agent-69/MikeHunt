@@ -8,6 +8,10 @@ import {
   createStorageBudgetChecker,
   type StorageBudget,
 } from "../lib/scrapers/storage-budget";
+import {
+  readScraperRelease,
+  type ScraperRelease,
+} from "../lib/scrapers/release-provenance";
 import { format } from "node:util";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
@@ -93,6 +97,7 @@ const LOG_PATH = path.resolve(
 const PORT = Math.max(1, Number(process.env.STATUS_PORT || 8787));
 
 interface Status {
+  release: ScraperRelease;
   state:
     | "starting"
     | "running"
@@ -332,6 +337,7 @@ async function initializeRuntime(): Promise<void> {
   });
   await cache.load();
   currentStatus = {
+    release: readScraperRelease(),
     state: "starting",
     updatedAt: new Date().toISOString(),
     startedAt,
@@ -855,22 +861,26 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
             ? `Queued job only named terms-restricted sources (${heldBack.join(", ")}); set SCRAPE_SOURCES to opt in or pick terms-safe sources`
             : "Queued job has no source ids",
         );
-      const results = await runScrapers({
-        orchestrator: job.orchestrator || "concurrent",
-        sourceIds,
-        scope: job.scope || {},
-        concurrency: Math.min(3, Math.max(1, Number(job.concurrency || 1))),
-        dryRun: Boolean(job.dry_run),
-        onProgress: (progress) => {
-          currentStatus.completedSources = progress.completed;
-          currentStatus.totalSources = progress.total;
-          currentStatus.progress = progress.percentage;
-          currentStatus.currentSources = progress.currentSource
-            ? [progress.currentSource]
-            : [];
-          void writeStatus();
-        },
-      });
+      const results = await withLocalWriteContext(
+        buildLocalContext(supabase),
+        () =>
+          runScrapers({
+            orchestrator: job.orchestrator || "concurrent",
+            sourceIds,
+            scope: job.scope || {},
+            concurrency: Math.min(3, Math.max(1, Number(job.concurrency || 1))),
+            dryRun: Boolean(job.dry_run),
+            onProgress: (progress) => {
+              currentStatus.completedSources = progress.completed;
+              currentStatus.totalSources = progress.total;
+              currentStatus.progress = progress.percentage;
+              currentStatus.currentSources = progress.currentSource
+                ? [progress.currentSource]
+                : [];
+              void writeStatus();
+            },
+          }),
+      );
       const summary = summarizeScopedScrapeResults(results);
       const succeeded = summary.successful > 0;
       const { data: completedJob, error } = await supabase

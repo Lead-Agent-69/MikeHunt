@@ -24,7 +24,7 @@ describe("personal buyer nav and workspace", () => {
     const onboarding = readFileSync("app/onboarding/page.tsx", "utf8");
     expect(onboarding).toContain("accountMenuForMode(buyerMode)");
     expect(onboarding).toContain(".tools.filter(");
-    expect(onboarding).toContain('buyerMode === "dealer"');
+    expect(onboarding).toContain("BUYING_WORKSPACE_MODE");
     expect(onboarding).toContain("FOCUSED_TOOLS.has(tool.href.split");
   });
 

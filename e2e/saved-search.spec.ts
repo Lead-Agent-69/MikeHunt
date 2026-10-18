@@ -9,7 +9,9 @@ import { localOnly } from "./support/target";
 // migration (desktop + 390px), passes with it. Writes data, so local stack only (never prod).
 test.describe("saved searches (local only)", () => {
   localOnly();
-  test.use({ storageState: storagePath("personal") });
+  // Core bookmark persistence is independent of the worker. PWA behavior has its own
+  // Chromium-only suite: https://playwright.dev/docs/service-workers
+  test.use({ storageState: storagePath("personal"), serviceWorkers: "block" });
 
   test("create a saved search, then see it on /searches", async ({ page }) => {
     const h = watchHealth(page);

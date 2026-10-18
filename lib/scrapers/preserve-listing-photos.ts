@@ -3,6 +3,7 @@ type PhotoRow = {
   source_deal_id: string;
   source_url: string | undefined;
   images: string[];
+  vin?: string | null;
   options?: Record<string, any>;
   photo_audit?: Record<string, any> | null;
   photo_check_attempt?: Record<string, any> | null;
@@ -24,7 +25,7 @@ export async function preserveListingPhotos(
       const { data, error } = await client
         .from("deals")
         .select(
-          "source_deal_id,source_url,images,photo_audit:options->photoAudit,photo_check_attempt:options->photoCheckAttempt",
+          "source_deal_id,source_url,vin,images,photo_audit:options->photoAudit,photo_check_attempt:options->photoCheckAttempt",
         )
         .eq("source", source)
         .in(
@@ -68,10 +69,18 @@ export async function preserveListingPhotos(
           };
           continue;
         }
-        // A different new cover photo may mean the listing has changed: do not revive old views.
+        // CMS cards may use a resized cover URL. An exact VIN match still identifies the gallery;
+        // a different VIN or an unavailable-photo audit must never revive it.
+        const sameVehicle =
+          !!row.vin &&
+          /^[A-HJ-NPR-Z0-9]{17}$/.test(row.vin) &&
+          row.vin === previous.vin;
         if (
           previous.images.length > row.images.length &&
-          row.images.every((image) => previous.images.includes(image))
+          (row.images.every((image) => previous.images.includes(image)) ||
+            (sameVehicle &&
+              row.images.length === 1 &&
+              previous.photo_audit?.state !== "unavailable"))
         ) {
           row.images = [...previous.images].slice(0, 20);
         }

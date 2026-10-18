@@ -49,7 +49,10 @@ export function validCoords(
   lat: unknown,
   lng: unknown,
 ): { lat: number; lng: number } | null {
-  if (lat == null || lng == null || lat === "" || lng === "") return null;
+  const isNumericInput = (value: unknown) =>
+    typeof value === "number" ||
+    (typeof value === "string" && value.trim() !== "");
+  if (!isNumericInput(lat) || !isNumericInput(lng)) return null;
   const a = Number(lat);
   const b = Number(lng);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;

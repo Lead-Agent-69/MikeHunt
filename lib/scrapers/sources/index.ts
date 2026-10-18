@@ -15,6 +15,10 @@ import {
 } from "../engine";
 import { upsertDeals } from "../pipeline";
 import {
+  dealerDetailMileage,
+  parseDealerOdometer,
+} from "../platforms/dealer-detail";
+import {
   normalizeCondition,
   resolveListingCondition,
 } from "../normalize-condition";
@@ -28,7 +32,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
-import { matchesRequestedDealer } from "@/lib/sources/source-meta";
+import { matchesCuratedTarget } from "../curated-targets";
 import {
   crawlDealerCms,
   dealerCmsSiteFor,
@@ -40,6 +44,7 @@ import {
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import { dealerDetailPhotos } from "../dealer-detail-photos";
+import { listingLocation } from "../listing-location";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
@@ -197,6 +202,12 @@ export async function enrichCraigslistDetail(
       extractVin($(".attrgroup").text()) ||
       extractVin($("#postingbody").text());
     if (vin) out.vin = vin;
+    Object.assign(
+      out,
+      listingLocation(fetched.html, fetched.finalUrl || url, vin || null),
+    );
+    if (out.location_state)
+      out.metadata = { ...out.metadata, location_state_source: "listing" };
 
     // Odometer / true mileage.
     const odo = attr("auto_miles") || attr("odometer");
@@ -930,7 +941,9 @@ export async function scrapeIndependentDealer(
     ? Math.max(0, Math.min(25, Math.floor(configuredPhotoLimit)))
     : 12;
   const photoCandidates = allDeals.filter(
-    (deal) => (deal.images?.length || 0) < 2,
+    (deal) =>
+      (deal.images?.length || 0) < 2 ||
+      (!deal.location_city && !deal.location_zip),
   );
   // Advance the bounded batch hourly; stable inventory order must not starve later cars.
   const photoOffset = photoCandidates.length
@@ -957,6 +970,14 @@ export async function scrapeIndependentDealer(
         if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
         const photos = dealerDetailPhotos(response.body, url);
         if (photos.length > (deal.images?.length || 0)) deal.images = photos;
+        const location = listingLocation(response.body, response.url, deal.vin);
+        if (location.lat != null && location.lng != null)
+          Object.assign(deal, location);
+        else {
+          deal.location_city ||= location.location_city;
+          deal.location_state ||= location.location_state;
+          deal.location_zip ||= location.location_zip;
+        }
       } catch (error) {
         abortSignal?.throwIfAborted();
         console.warn(
@@ -1203,10 +1224,12 @@ export async function scrapeCuratedSites(
 ): Promise<number> {
   const scope = getScrapeRunScope();
   const requestedDealers = new Set(scope?.dealerSourceIds || []);
+  const requestedHosts = scope?.dealerHosts || [];
   // Terms/challenge blocks are skipped before any request; see lib/scrapers/source-compliance.ts.
   // Operator-enabled arsenal candidates (ARSENAL_ENABLE) ride the same policy + robots gates.
   const candidates = [...CURATED_SITES, ...arsenalCuratedSites()].filter(
-    (site) => matchesRequestedDealer(site, Array.from(requestedDealers)),
+    (site) =>
+      matchesCuratedTarget(site, Array.from(requestedDealers), requestedHosts),
   );
   const blocked = candidates.filter((site) => policyBlockFor(site.url));
   if (blocked.length)
@@ -1217,7 +1240,10 @@ export async function scrapeCuratedSites(
     );
   // A buyer-demand run (home / saved-search state kick) crawls that state's ring first and only;
   // a plain sweep keeps the rotation: least-recently-attempted dealers lead, demand breaks ties.
-  const demandStates = requestedDealers.size ? [] : scopeDemandStates(scope);
+  const demandStates =
+    requestedDealers.size || requestedHosts.length
+      ? []
+      : scopeDemandStates(scope);
   const plannedStates = demandStates.length
     ? curatedRingStates(demandStates)
     : getSweepPlan()?.states || [];
@@ -1337,7 +1363,7 @@ export async function scrapeCuratedSites(
       const n = urlHostMatches(site.url, ["aeofmiami.com"])
         ? await scrapeAeOfMiami(scope)
         : dealerCms
-          ? await scrapeDealerCms(dealerCms, scope)
+          ? await scrapeDealerCms(dealerCms, scope, execution)
           : cdgDealer
             ? await scrapeCdgDealer(cdgDealer)
             : await autoDiscoverAndCrawl(
@@ -1606,13 +1632,13 @@ function parseJsonLdCars($: any) {
       const parsed = JSON.parse(raw);
       const nodes = Array.isArray(parsed) ? parsed : [parsed];
       for (const node of nodes) {
-        if (node?.["@type"] === "Car") cars.push(node);
+        const isVehicle = (entry: any) =>
+          [entry?.["@type"]]
+            .flat()
+            .some((type) => ["Car", "Vehicle"].includes(type));
+        if (isVehicle(node)) cars.push(node);
         if (Array.isArray(node?.["@graph"])) {
-          cars.push(
-            ...node["@graph"].filter(
-              (entry: any) => entry?.["@type"] === "Car",
-            ),
-          );
+          cars.push(...node["@graph"].filter(isVehicle));
         }
       }
     } catch {
@@ -1624,16 +1650,19 @@ function parseJsonLdCars($: any) {
 
 function detailValueByLabel($: any, labelPattern: RegExp) {
   let value = "";
-  $(".leftview, .config-label, th, dt").each((_: number, el: any) => {
+  $(".leftview, .config-label, .d-title, th, dt").each((_: number, el: any) => {
     if (value) return;
     const label = textClean($(el).text());
     if (!labelPattern.test(label)) return;
     const sibling = $(el).next();
-    const parentValue = $(el).parent().find(".rightview, td, dd").last();
+    const parentValue = $(el)
+      .parent()
+      .find(".rightview, .d-value, td, dd")
+      .last();
     value = textClean(sibling.text()) || textClean(parentValue.text());
   });
   if (value) return value;
-  $("tr, .row, .product-config tr, .leftview").each((_: number, el: any) => {
+  $("tr, .product-config tr").each((_: number, el: any) => {
     if (value) return;
     const text = textClean($(el).text());
     if (!labelPattern.test(text)) return;
@@ -1646,11 +1675,7 @@ function detailValueByLabel($: any, labelPattern: RegExp) {
 }
 
 function parseDetailMileage(value: string) {
-  const fromText = extractMileage(value);
-  if (fromText) return fromText;
-  const digits = value.replace(/[^0-9]/g, "");
-  const n = Number(digits);
-  return n >= 1 && n <= 500000 ? n : undefined;
+  return parseDealerOdometer(value);
 }
 
 export function extractAeOfMiamiVinFromHtml(html: string) {
@@ -1766,12 +1791,16 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
 async function enrichCdgDetail(
   deal: Partial<Deal>,
   config: Pick<DealerCmsSite, "baseUrl" | "defaultCondition">,
+  signal?: AbortSignal,
 ) {
   const sourceUrl = deal.source_url;
   // Only ever fetch detail pages on the dealer's own host (crawlDealerCms already drops others).
   if (!sourceUrl || !isSameSiteHref(sourceUrl, config.baseUrl)) return deal;
   try {
-    const res = await politeFetch(sourceUrl, { freshForMs: 24 * 3600_000 });
+    const res = await politeFetch(sourceUrl, {
+      freshForMs: 24 * 3600_000,
+      ...(signal ? { signal } : {}),
+    });
     if (!res.ok) return deal;
     const cheerio = await import("cheerio");
     const html = res.body;
@@ -1782,10 +1811,7 @@ async function enrichCdgDetail(
       car.vehicleIdentificationNumber ||
       text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
       undefined;
-    const mileage =
-      Number(car.mileageFromOdometer?.value) ||
-      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
-      extractMileage(text);
+    const mileage = dealerDetailMileage($, car.mileageFromOdometer);
     const titleText =
       car.additionalProperty?.find?.((entry: any) =>
         /title/i.test(String(entry?.name || "")),
@@ -1799,7 +1825,7 @@ async function enrichCdgDetail(
     return {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
-      mileage: mileage || deal.mileage,
+      mileage: mileage ?? deal.mileage,
       // A title the detail page states wins; else keep what the card gave us (stated or default).
       ...(conditionFromTitle(titleText)
         ? resolveListingCondition(conditionFromTitle(titleText))
@@ -1822,10 +1848,18 @@ async function enrichCdgDetail(
 export async function scrapeDealerCms(
   site: DealerCmsSite,
   scope = getScrapeRunScope(),
+  execution?: { abortSignal?: AbortSignal; deadlineAt?: number },
 ) {
+  execution?.abortSignal?.throwIfAborted();
   const cheerio = await import("cheerio");
   const deals = await crawlDealerCms(site, {
-    fetchHtml: (url) => politeFetch(url, { freshForMs: 30 * 60_000 }),
+    fetchHtml: (url) => {
+      execution?.abortSignal?.throwIfAborted();
+      return politeFetch(url, {
+        freshForMs: 30 * 60_000,
+        ...(execution?.abortSignal ? { signal: execution.abortSignal } : {}),
+      });
+    },
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
   });
@@ -1845,13 +1879,23 @@ export async function scrapeDealerCms(
     ),
   );
   let enriched = 0;
+  let attemptedDetails = 0;
   const detailOffset =
     deals.length && enrichLimit
       ? (Math.floor(Date.now() / 3600_000) * enrichLimit) % deals.length
       : 0;
   for (let i = 0; i < enrichLimit; i++) {
+    execution?.abortSignal?.throwIfAborted();
+    // Save the complete inventory within this job. Gallery requests are paced and can take
+    // longer than the executor's deadline; cached details make later refreshes progress.
+    if (Date.now() >= (execution?.deadlineAt ?? Infinity) - 60_000) break;
     const index = (detailOffset + i) % deals.length;
-    const next = await enrichCdgDetail(deals[index], site);
+    const next = await enrichCdgDetail(
+      deals[index],
+      site,
+      execution?.abortSignal,
+    );
+    attemptedDetails++;
     if (
       (next.vin && next.vin !== deals[index].vin) ||
       (next.images?.length || 0) > (deals[index].images?.length || 0) ||
@@ -1863,8 +1907,11 @@ export async function scrapeDealerCms(
   }
   if (enrichLimit)
     console.log(
-      `[CuratedSites] ${site.name} detail enriched ${enriched}/${enrichLimit}`,
+      `[CuratedSites] ${site.name} detail enriched ${enriched}/${attemptedDetails}; ${enrichLimit - attemptedDetails} deferred`,
     );
+  execution?.abortSignal?.throwIfAborted();
+  if (Date.now() >= (execution?.deadlineAt ?? Infinity))
+    throw new Error("Dealer crawl deadline elapsed before persistence");
   return deals.length ? await upsertDeals(deals) : 0;
 }
 
@@ -1892,10 +1939,7 @@ async function enrichCdgDetailLegacy(
       car.vehicleIdentificationNumber ||
       text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
       undefined;
-    const mileage =
-      Number(car.mileageFromOdometer?.value) ||
-      parseDetailMileage(detailValueByLabel($, /Mileage:?/i)) ||
-      extractMileage(text);
+    const mileage = dealerDetailMileage($, car.mileageFromOdometer);
     const titleText =
       car.additionalProperty?.find?.((entry: any) =>
         /title/i.test(String(entry?.name || "")),
@@ -1909,7 +1953,7 @@ async function enrichCdgDetailLegacy(
     return {
       ...deal,
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
-      mileage: mileage || deal.mileage,
+      mileage: mileage ?? deal.mileage,
       // A title the detail page states wins; else keep what the card gave us (stated or default).
       ...(conditionFromTitle(titleText)
         ? resolveListingCondition(conditionFromTitle(titleText))

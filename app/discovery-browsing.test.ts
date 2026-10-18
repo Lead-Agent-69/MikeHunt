@@ -19,12 +19,12 @@ describe("discovery browsing presentation safeguards", () => {
   it("uses the header location scope and offers the complete matching inventory", () => {
     expect(page).not.toContain('aria-label="State"');
     expect(page).not.toContain("stateDraft");
-    expect(page).toContain("Browse inventory");
+    expect(page).toContain("Open Market Explorer");
     expect(page).toContain("Quick filters");
     expect(page).toContain("Search cars");
-    expect(page).toContain("All filters & results");
-    expect(page).toContain('aria-label="Browse inventory"');
-    expect(page).toContain("href={`/scan${scopeQuery}`}");
+    expect(page).toContain("All market filters and results");
+    expect(page).toContain('aria-label="Open Market Explorer"');
+    expect(page).toContain("href={`/market${scopeQuery}`}");
     expect(page).toContain("selectedStates,");
   });
   it("keeps mileage and source controls outside the additional filters disclosure", () => {
@@ -36,17 +36,28 @@ describe("discovery browsing presentation safeguards", () => {
     expect(primary).toContain('label="Source"');
     expect(primary).toContain("aria-expanded={showMore}");
     expect(primary).toContain('aria-controls="additional-inventory-filters"');
-    expect(primary).toContain("Year, distance & condition");
+    expect(primary).toContain("Year & condition");
+    expect(primary).toContain('aria-label="ZIP"');
+    expect(primary).toContain('aria-label="Radius"');
+    expect(primary).toContain('disabled={make === "all"}');
+    expect(primary).toContain('setSelectedStates("")');
+    expect(scan).toContain("setPlanMessage(radiusRefreshMessage)");
     expect(scan).toContain(
-      '<details open className="glass-panel px-4 py-3 space-y-3">',
+      '<details open className="glass-panel px-3 py-1.5">',
     );
     expect(scan.match(/label="Max Miles"/g)).toHaveLength(1);
     expect(scan.match(/label="Source"/g)).toHaveLength(1);
   });
   it("mounts secondary market requests only when insights are opened", () => {
     expect(page).toContain("showInsights &&");
-    expect(page).toContain("setShowInsights(event.currentTarget.open)");
+    expect(page).toContain("setShowInsights(!showInsights)");
+    expect(page).toContain('aria-controls="discovery-market-insights"');
     expect(page).toContain("Market insights and saved interests");
+  });
+  it("keeps late activity recommendations below the main inventory", () => {
+    expect(page.indexOf("<ForYouRail")).toBeGreaterThan(
+      page.indexOf("visibleRails.map"),
+    );
   });
   it("does not submit or navigate an incomplete account scope during hydration", () => {
     expect(page).toContain("if (!discoverReady) return;");
@@ -55,6 +66,8 @@ describe("discovery browsing presentation safeguards", () => {
   });
 
   it("provides labeled carousel controls and cleans up scroll observers", () => {
+    expect(page).toContain("items-start gap-8 lg:grid-cols-2");
+    expect(page).toContain("lg:mx-0 lg:scroll-px-0 lg:px-0");
     expect(page).toContain("Previous vehicles in");
     expect(page).toContain("Next vehicles in");
     expect(page).toContain('event.key === "ArrowRight"');

@@ -59,6 +59,14 @@ async function send(
 }
 
 describe("bounded buyer collection requests", () => {
+  it("rejects unsupported radius collection rather than silently discarding its location", async () => {
+    const response = await send({
+      scope: { state: "MO", zip: "63101", radius: 50 },
+      sourceIds: ["craigslist"],
+    });
+    expect(response.status).toBe(400);
+    expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
   it("queues for the verified owner and ignores client runner controls", async () => {
     const response = await send({
       scope: { state: "MO", lane: "clean-retail", q: "Ford Explorer" },

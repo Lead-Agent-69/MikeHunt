@@ -6,6 +6,53 @@ service `scraper`) once they are merged to `main`. Nothing here applies to Verce
 
 ## 0. Order of operations
 
+### Pinned Image Provenance
+
+Worker health alone is not a release receipt. New images support baked metadata
+at `/opt/mikehunt/scraper-release.json` and `release` in `/status.json`. `known`
+means a valid image declaration, not a verified rollout or a signature. Missing,
+invalid or legacy metadata stays `unknown`; runtime env and the mutable checkout
+are never used to invent a live revision.
+
+For an approved commit containing this tooling, the operator can first inspect
+the build plan without changing Docker:
+
+```text
+npx tsx scripts/build-scraper-image.ts <exact-40-character-commit> mikehunt-scraper:<unique-release-tag>
+```
+
+Add `--build` only for an approved build. The builder streams `git archive` of
+that exact commit into Docker, not the working tree, even when checkout HEAD has
+moved or the checkout is dirty. Untracked env, profiles and caches are excluded
+by construction; tracked protected runtime paths are rejected. Example env
+templates are allowed. No protected runtime file is read or hashed for metadata.
+The build has no container restart, env mutation, source enable or quota reset.
+
+Record the built image ID. Inspect the actual target runtime's compose labels,
+mounts, env-file references and quota state before an approved rollout; local
+Docker Desktop evidence is not evidence about remote Zeus. Preserve every active
+overlay and retain the previous image for rollback. Apply the approved image tag
+through an image-only operator override appended to the complete existing compose
+file list, then use `up --no-build --no-deps scraper` with that full list. Do not
+rebuild from a mutable checkout during this step. A bare `up --build` remains an
+unknown-provenance legacy build; a restart alone never updates its baked code.
+Do not combine this rollout with moving C:/F: mounts or changing quota limits.
+
+After rollout, use the actual container's loopback status binding:
+
+```text
+npx tsx scripts/verify-scraper-release.ts <exact-40-character-commit> <built-image-id-or-tag> <container-name> http://127.0.0.1:8787/status.json
+```
+
+This read-only verifier requires matching expected commit, image labels, built
+image ID, running container image ID, and fresh worker metadata after the
+container start. It checks the status port belongs to that container, bounds the
+response/timeouts, and prints only release/identity fields, never full Docker
+inspect or listing/env payloads. Nonzero exit means **not verified**, not permission
+to reset state or restart automatically. Retain the receipt with active mounts,
+quota continuity and source permissions. Positive real worker verification still
+requires the operator-controlled rollout; unit fixtures are not that receipt.
+
 ### Preserve The Active Compose Configuration
 
 Before any operator rollout, inspect the running scraper's
@@ -30,8 +77,11 @@ webhook with `RESEND_WEBHOOK_SECRET`; key presence alone is not delivery proof.
 2. On Zeus: `git pull` in the MikeHunt checkout.
 3. Add or adjust env in `.env.local.scraper` (section 1). Never paste secrets into the compose file or a
    shell argument; edit the env file.
-4. Rebuild and restart only the scraper: `docker compose -f docker-compose.local.yml up -d --build scraper`
-   (the image bakes the code: `Dockerfile.scraper` copies the repo; a restart without `--build` runs old code).
+4. Build the exact approved commit with the pinned archive builder above. Preserve
+   the full active compose file list and use an image-only operator override with
+   `up --no-build --no-deps scraper`. Do not substitute a bare base-file rebuild,
+   drop existing overlays or reuse the old image. Verify the new image/status
+   receipt before declaring the rollout complete.
 5. Check `http://127.0.0.1:8787` (status port) and `/status` on the app for the new per-domain ban-risk
    and polite counters (section 4).
 

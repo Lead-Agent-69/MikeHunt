@@ -25,6 +25,7 @@ let failProfile = false;
 let failRead = false;
 let writes: string[];
 beforeEach(() => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
   mode = "personal";
   guestSave = false;
@@ -89,7 +90,16 @@ describe("onboarding completion", () => {
       await review();
       await click("See my matches");
       expect(writes).toEqual(["/api/preferences", "/api/profile"]);
-      expect(mocks.local.mock.calls[0][0].buyerMode).toBe(buyerMode);
+      expect(mocks.local.mock.calls[0][0].buyerMode).toBe("reseller");
+      const preferenceWrite = vi
+        .mocked(fetch)
+        .mock.calls.find(
+          ([url, options]) =>
+            url === "/api/preferences" && options?.method === "PUT",
+        );
+      const scope = JSON.parse(preferenceWrite![1]!.body as string).buyerScope;
+      expect(scope.legacyBuyerMode).toBe(buyerMode);
+      expect(scope).not.toHaveProperty("role");
       expect(mocks.router.push).toHaveBeenCalledOnce();
       expect(mocks.success).toHaveBeenCalledOnce();
     });

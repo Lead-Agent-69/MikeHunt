@@ -125,6 +125,24 @@ export default function ArbitragePage() {
         </div>
       ) : null}
 
+      {!isLoading && data?.evidenceState === "market_evidence_not_ready" && (
+        <section
+          role="status"
+          className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-4"
+        >
+          <p className="text-sm font-black text-[var(--t1)]">
+            Market evidence not ready
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+            No route currently passes the same VIN, mileage, title, condition,
+            cost, and recent sold-comparison checks used by the deal dossier.
+            {s.evidenceBlocked
+              ? ` ${s.evidenceBlocked.toLocaleString()} listings remain research-only.`
+              : ""}
+          </p>
+        </section>
+      )}
+
       {/* Top routes */}
       {routes.length > 0 && (
         <div
