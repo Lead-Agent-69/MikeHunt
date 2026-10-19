@@ -8,6 +8,12 @@ import {
 } from "./pipeline";
 
 describe("buyer-scoped intake", () => {
+  it("leaves insertion dates to the database instead of replacing them on refresh", () => {
+    const source = readFileSync("lib/scrapers/pipeline.ts", "utf8");
+    expect(source).not.toMatch(/\b(?:created_at|first_seen_at)\s*:/);
+    expect(source).toMatch(/last_seen_at:\s*now/);
+  });
+
   it("keeps title-reported mechanic specials out unless repairs are requested", () => {
     const row = {
       title: "2003 Ford Escape $800 OBO *Mechanic's Special",
