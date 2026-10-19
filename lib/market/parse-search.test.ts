@@ -129,4 +129,26 @@ describe("Market search preview", () => {
   it("does not mistake words containing brand names for brands", () => {
     expect(parseMarketSearch("camping program").filters.makes).toBeUndefined();
   });
+  it.each([
+    ["Ford state: TX", "TX"],
+    ["Ford near Missouri", "MO"],
+    ["FORD IN TX", "TX"],
+    ["FORD IN MISSOURI", "MO"],
+    ["Ford in IN", "IN"],
+    ["Ford in OR", "OR"],
+  ])("treats location prepositions correctly: %s", (query, state) => {
+    const result = parseMarketSearch(query);
+    expect(result.blocked).toBe(false);
+    expect(result.filters.states).toEqual([state]);
+    expect(result.filters.q).toBe("");
+  });
+  it("does not turn a model name into a state or discard conflicting locations", () => {
+    expect(parseMarketSearch("Pontiac Montana").filters).toMatchObject({
+      makes: ["Pontiac"],
+      model: "Montana",
+    });
+    expect(parseMarketSearch("Pontiac Montana").filters.states).toBeUndefined();
+    expect(parseMarketSearch("Ford in TX or CA").blocked).toBe(true);
+    expect(parseMarketSearch("Ford near 63304 in TX").blocked).toBe(true);
+  });
 });

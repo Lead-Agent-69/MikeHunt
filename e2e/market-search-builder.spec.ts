@@ -37,6 +37,10 @@ test.describe("Market search preview and radius", () => {
     ).toBeVisible();
     await words.fill("Ford no accidents");
     await expect(apply).toBeDisabled();
+    await words.fill("FORD IN TX");
+    await expect(apply).toBeEnabled();
+    await expect(dialog.getByText("Texas", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Indiana", { exact: true })).toHaveCount(0);
     await words.fill(
       "Ford F150 2018-2022 flex fuel manual 4WD under $25k near 63304 within 75 miles",
     );

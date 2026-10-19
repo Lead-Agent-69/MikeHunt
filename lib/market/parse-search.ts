@@ -179,6 +179,31 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
     "$1-$2",
   );
   const numeric = parseVehicleQuery(numericSource);
+  // State names can also be model names (Pontiac Montana). Require a location
+  // cue, and never interpret an uppercase preposition such as "IN TX" as Indiana.
+  const states = new Set<string>();
+  for (const [code, [name]] of Object.entries(US_STATES)) {
+    if (
+      new RegExp(
+        `\\b(?:in|state|near)\\s*:?\\s*(?:${code}|${escape(String(name))})\\b`,
+        "i",
+      ).test(numericSource)
+    )
+      states.add(code);
+  }
+  if (states.size) {
+    for (const token of Array.from(numericSource.matchAll(/\b[A-Z]{2}\b/g))) {
+      if (US_STATES[token[0]] && !/^(?:IN|OR|ME|OK|HI)$/.test(token[0]))
+        states.add(token[0]);
+    }
+  }
+  if (states.size > 1) {
+    result.blocked = true;
+    result.warnings.push(
+      "Choose one state for this preview, or use the location controls to select multiple states.",
+    );
+  }
+  numeric.state = Array.from(states)[0];
   numeric.minPrice = low == null ? undefined : String(low);
   numeric.maxPrice = high == null ? undefined : String(high);
   numeric.maxMileage = maxMileage;
@@ -271,6 +296,12 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
       "Label a ZIP with ‘near’ or ‘ZIP’, or use a dollar sign for a budget.",
     );
   }
+  if (numeric.zip && numeric.state) {
+    result.blocked = true;
+    result.warnings.push(
+      "Choose either a ZIP-centered search or a state for this preview.",
+    );
+  }
   if (numeric.zip) {
     result.filters.near = numeric.zip;
     result.filters.lat = "";
@@ -303,6 +334,20 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
     result.blocked = true;
     result.warnings.push("Choose one location: near me, a ZIP, or a state.");
   }
+  if (numeric.state)
+    consume(
+      new RegExp(
+        `\\b(?:in|state|near)\\s*:?\\s*(?:${numeric.state}|${escape(String(US_STATES[numeric.state]?.[0] || ""))})\\b`,
+        "gi",
+      ),
+    );
+  if (numeric.zip)
+    consume(
+      new RegExp(
+        `\\b(?:near|zip|around|in|by|of)\\s*:?\\s*${numeric.zip}\\b`,
+        "gi",
+      ),
+    );
   for (const spec of SPECS) {
     const matches = Array.from(remaining.matchAll(spec.expression));
     const values = new Set(
@@ -402,12 +447,15 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
   );
   if (numeric.zip)
     consume(
-      new RegExp(`\\b(?:near|zip|around|in|by|of)?\\s*${numeric.zip}\\b`, "gi"),
+      new RegExp(
+        `\\b(?:near|zip|around|in|by|of)?\\s*:?\\s*${numeric.zip}\\b`,
+        "gi",
+      ),
     );
   if (numeric.state)
     consume(
       new RegExp(
-        `\\b(?:in\\s+)?(?:${escape(US_STATES[numeric.state]?.[0] || "")}|${numeric.state})\\b`,
+        `\\b(?:(?:in|state|near)\\s*:?\\s*)?(?:${escape(US_STATES[numeric.state]?.[0] || "")}|${numeric.state})\\b`,
         "gi",
       ),
     );
