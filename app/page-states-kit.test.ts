@@ -62,6 +62,7 @@ describe("pages use the shared kit", () => {
     ["feed", ["ErrorState"]],
     ["swipe", ["ErrorState"]],
     ["dealer-network", ["ErrorState", "LoadingState"]],
+    ["status", ["ErrorState", "InlineError", "LoadingState"]],
   ])("%s", (p, names) => {
     const src = page(p);
     expect(src).toContain('from "@/components/shared/PageStates"');
