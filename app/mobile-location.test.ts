@@ -29,15 +29,18 @@ describe("mobile location regression protections", () => {
       'if (!response.ok) throw new Error("Preferences could not be saved")',
     );
   });
-  it("keeps Discover's location control in the header and avoids filter-only server navigation", () => {
+  it("keeps one Market area control, Discover's header control and client-side filter navigation", () => {
     const page = readFileSync("app/(dashboard)/discover/page.tsx", "utf8");
     const header = readFileSync("components/layout/TopNav.tsx", "utf8");
     const history = readFileSync("lib/search/inventory-history.ts", "utf8");
     expect(page).not.toContain("<SelectField");
     expect(page).not.toContain("<MarketPicker");
     expect(header).toContain("replaceInventoryHistory(");
-    expect(header).toContain('getElementById("market-search-area-trigger")');
-    expect(header).toContain('aria-controls="market-area-dialog"');
+    expect(header).toContain('pathname === "/market" ? null');
+    expect(header).not.toContain(
+      'getElementById("market-search-area-trigger")',
+    );
+    expect(header).not.toContain('aria-controls="market-area-dialog"');
     expect(history).toContain(
       "window.history.replaceState(window.history.state",
     );

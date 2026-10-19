@@ -11,7 +11,7 @@ test.describe("consolidated search area", () => {
     actionTimeout: 15_000,
     colorScheme: "dark",
   });
-  test("keeps Nationwide, Nearby and States mutually exclusive across every entry point", async ({
+  test("keeps one clear Market area control with mutually exclusive modes", async ({
     page,
     context,
   }, info) => {
@@ -23,14 +23,7 @@ test.describe("consolidated search area", () => {
     });
     const trigger = page.locator("#market-search-area-trigger");
     await expect(trigger).toHaveText("Nationwide");
-    const header = page.locator("header").first();
-    await header
-      .getByRole("button", {
-        name: "Change search area: Nationwide",
-        exact: true,
-      })
-      .filter({ visible: true })
-      .click();
+    await trigger.click();
     const area = page.getByRole("dialog", { name: "Search area", exact: true });
     await expect(
       area.getByRole("radio", { name: "Nationwide", exact: true }),
@@ -76,12 +69,8 @@ test.describe("consolidated search area", () => {
       .toMatchObject({ near: "63304", radius: "150", q: "Ford", page: "0" });
     await expect(trigger).toHaveText("Within 150 mi of 63304");
     await expect(
-      header
-        .getByRole("button", {
-          name: "Change search area: Within 150 mi of 63304",
-        })
-        .filter({ visible: true }),
-    ).toBeVisible();
+      page.getByRole("button", { name: /^Change search area:/ }),
+    ).toHaveCount(0);
     await page
       .getByLabel("Sort market results")
       .selectOption("distanceMiles:asc");
