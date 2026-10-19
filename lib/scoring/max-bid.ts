@@ -1,7 +1,8 @@
 // lib/scoring/max-bid.ts
 // Inverse of the engine's forward cost build-up: given a resale estimate, a target profit, and the
 // known per-vehicle costs, solve for the most a dealer can bid at auction and still hit that profit.
-// Pure functions — shared by the MaxBidWidget UI and the /api/deal/max-bid route.
+// Legacy modeled fee arithmetic used by the arbitrage engine, not a source fee quote.
+// The active planner and /api/deal/max-bid use explicit inputs in flip-scenario.ts.
 
 export interface MaxBidCosts {
   acquisition?: number | null;

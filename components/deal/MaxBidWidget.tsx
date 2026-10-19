@@ -1,221 +1,435 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Mono } from "@/components/shared/Mono";
-import { Ico } from "@/components/shared/Ico";
-import { computeMaxBid, type MaxBidCosts } from "@/lib/scoring/max-bid";
-import { buyTerm } from "@/lib/deal-terms";
-
-export interface MaxBidCalibration {
-  sellMultiplier: number;
-  transportMultiplier: number;
-  reconMultiplier: number;
-  sampleSize: number;
-}
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
+import type { PriceEvidence } from "@/lib/deals/acquisition-price";
+import { marketValuation } from "@/lib/market/valuation";
+import {
+  calculateFlipScenario,
+  emptyScenario,
+  readScenarioDraft,
+  SCENARIO_FIELDS,
+  scenarioFields,
+  type ScenarioDraft,
+  type ScenarioField,
+} from "@/lib/scoring/flip-scenario";
 
 interface MaxBidWidgetProps {
+  dealId: string;
+  ownerId: string | null;
   sellEstimate?: number | null;
+  valuation?: unknown;
   source?: string | null;
+  sourceUrl?: string | null;
+  lastSeenAt?: string | null;
   askPrice?: number | null;
-  costs?: MaxBidCosts | null;
-  // Smart default for the slider — the dealer's saved target profit (Settings). Falls back to 3000.
+  buyNowPrice?: number | null;
+  priceEvidence?: PriceEvidence;
   defaultTargetProfit?: number | null;
-  // The dealer's learned calibration (from their logged outcomes). When present, the resale and
-  // cost inputs are bent to THEIR actual history before solving for the max bid.
-  calibration?: MaxBidCalibration | null;
 }
 
-const fmt = (val: number) =>
+const money = (value: number) =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Math.round(val));
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+const groups: { title: string; fields: ScenarioField[] }[] = [
+  {
+    title: "Purchase and resale",
+    fields: ["purchase", "resale", "targetProfit"],
+  },
+  {
+    title: "Acquisition and preparation",
+    fields: ["buyerFees", "buyerFeeRate", "taxTitle", "repair", "transport"],
+  },
+  {
+    title: "Holding, selling and reserve",
+    fields: ["holding", "sellingFees", "sellingFeeRate", "otherCosts"],
+  },
+];
 
-export function MaxBidWidget({
-  sellEstimate,
-  source,
-  askPrice,
-  costs,
-  defaultTargetProfit,
-  calibration,
-}: MaxBidWidgetProps) {
-  // Bend the resale + cost inputs to the dealer's own logged history when we have a calibration.
-  const cal = calibration && calibration.sampleSize >= 5 ? calibration : null;
-  const sell = cal
-    ? Math.round((Number(sellEstimate) || 0) * cal.sellMultiplier)
-    : Number(sellEstimate) || 0;
-  const calibratedCosts: MaxBidCosts | null | undefined =
-    cal && costs
-      ? {
-          ...costs,
-          transport: (Number(costs.transport) || 0) * cal.transportMultiplier,
-          repair: (Number(costs.repair) || 0) * cal.reconMultiplier,
-        }
-      : costs;
-  // Default the slider to the dealer's saved target profit, clamped to the slider range.
-  const initialTarget = React.useMemo(() => {
-    const saved = Number(defaultTargetProfit) || 0;
-    const max = Math.max(1000, Math.round(sell * 0.6));
-    if (saved <= 0) return 3000;
-    return Math.min(Math.max(500, saved), max);
-  }, [defaultTargetProfit, sell]);
-  const [targetProfit, setTargetProfit] = React.useState(initialTarget);
-
-  // Re-seed when the resale estimate or saved default resolves (async profile fetch).
+export function MaxBidWidget(props: MaxBidWidgetProps) {
+  const storageKey = props.ownerId
+    ? `mikehunt:flip-scenario:v1:${props.ownerId}:${props.dealId}`
+    : null;
+  const initialTarget = React.useRef(props.defaultTargetProfit);
+  const [draft, setDraft] = React.useState<ScenarioDraft>(() =>
+    emptyScenario(initialTarget.current),
+  );
+  const [savedAt, setSavedAt] = React.useState<string | null>(null);
+  const [dirty, setDirty] = React.useState(false);
+  const [storageError, setStorageError] = React.useState("");
+  const resultRef = React.useRef<HTMLDivElement>(null);
+  const id = React.useId();
   React.useEffect(() => {
-    setTargetProfit(initialTarget);
-  }, [initialTarget]);
-
-  const result = React.useMemo(() => {
-    const { maxBid, marginPct } = computeMaxBid({
-      sellEstimate: sell,
-      targetProfit,
-      costs: calibratedCosts,
-      source,
-    });
-    return { maxBid, impliedRoi: marginPct };
-  }, [sell, targetProfit, calibratedCosts, source]);
-
-  const ask = Number(askPrice) || 0;
-  const headroom = ask > 0 ? result.maxBid - ask : null; // positive = ask below max (good)
-  const hasSell = sell > 0;
-  const term = buyTerm(source); // "Max bid" for auctions, "Max offer" for asking-price listings
-  const maxLabel = term.label.toLowerCase(); // "max bid" | "max offer"
-  const priceWord = term.priceLabel.toLowerCase(); // "current bid" | "asking price"
-
+    setStorageError("");
+    let saved: ReturnType<typeof readScenarioDraft> = null;
+    try {
+      saved = readScenarioDraft(
+        storageKey ? localStorage.getItem(storageKey) : null,
+      );
+    } catch {
+      setStorageError(
+        "Saved drafts are unavailable in this browser. You can still calculate here.",
+      );
+    }
+    setDraft(saved?.draft ?? emptyScenario(initialTarget.current));
+    setSavedAt(saved?.savedAt ?? null);
+    setDirty(false);
+  }, [storageKey]);
+  const result = calculateFlipScenario(draft);
+  const m = result.metrics;
+  const price = sourcePriceContext({
+    source: props.source,
+    source_url: props.sourceUrl,
+    ask_price: props.priceEvidence?.listedAmount ?? props.askPrice,
+    buy_now_price: props.buyNowPrice,
+    price_evidence: props.priceEvidence,
+    last_seen_at: props.lastSeenAt,
+  });
+  const valuation = marketValuation(props.valuation, props.sellEstimate);
+  const canCopyPrice = price.comparisonEligible && price.cashPrice != null;
+  const setField = (field: ScenarioField, value: string) => {
+    setDraft((current) => ({ ...current, [field]: value }));
+    setDirty(true);
+  };
+  const save = () => {
+    if (!storageKey) return;
+    try {
+      const stamp = new Date().toISOString();
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ version: 1, savedAt: stamp, draft }),
+      );
+      setSavedAt(stamp);
+      setDirty(false);
+      setStorageError("");
+    } catch {
+      setStorageError(
+        "This browser could not save the draft. Your entries are still here; keep this panel open.",
+      );
+    }
+  };
+  const clear = () => {
+    try {
+      if (storageKey) localStorage.removeItem(storageKey);
+      setStorageError("");
+    } catch {
+      setStorageError(
+        "The saved draft could not be removed from this browser.",
+      );
+    }
+    setDraft(emptyScenario(initialTarget.current));
+    setSavedAt(null);
+    setDirty(false);
+  };
+  const missing = scenarioFields.filter(
+    (field) => result.missing.includes(field) || result.errors[field],
+  );
   return (
-    <Card
-      className="border-none overflow-hidden glass-panel relative"
-      style={{
-        background: "var(--s0)",
-        backdropFilter: "blur(24px)",
-        boxShadow: "var(--shadow)",
-      }}
+    <section
+      aria-labelledby={`${id}-heading`}
+      data-testid="flip-scenario"
+      className="min-w-0 rounded-xl border border-[var(--b2)] bg-[var(--s0)] p-4 sm:p-5"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--amber-lo)] to-transparent opacity-10 pointer-events-none" />
+      <h3 id={`${id}-heading`} className="text-lg font-bold text-[var(--t1)]">
+        Flip scenario planner
+      </h3>
+      <p className="mt-1 text-sm text-[var(--t3)]">
+        See what is left after the full cost of a flip. These are your
+        assumptions, before income tax; completing this plan does not verify a
+        listing or recommend a purchase.
+      </p>
       <div
-        className="h-1 w-full relative z-10"
-        style={{ background: "var(--grad)" }}
-      />
-      <CardContent className="p-6 md:p-7">
-        <div className="flex items-center gap-2 mb-1">
-          <Ico name="calculator" size={15} className="text-[var(--t4)]" />
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-            Purchase scenario
+        className="mt-4 grid gap-3 rounded-lg bg-[var(--s1)] p-3 sm:grid-cols-2"
+        aria-label="Available evidence"
+      >
+        <div>
+          <p className="text-xs font-semibold text-[var(--t3)]">
+            {price.label}
           </p>
-          {cal && (
-            <span
-              className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold"
-              style={{ background: "var(--amber-lo)", color: "var(--amber-d)" }}
-              title={`Resale ×${cal.sellMultiplier}, transport ×${cal.transportMultiplier}, recon ×${cal.reconMultiplier} from your logged deals`}
+          <p className="mt-1 font-semibold">
+            {price.amount != null ? money(price.amount) : "Price not reported"}
+          </p>
+          {canCopyPrice ? (
+            <button
+              type="button"
+              className="mt-1 min-h-11 text-left text-sm font-semibold text-[var(--blue)] underline underline-offset-4"
+              onClick={() => setField("purchase", String(price.cashPrice))}
             >
-              Calibrated · {cal.sampleSize} deals
-            </span>
+              Use{" "}
+              {price.kind === "current_bid"
+                ? `buy-now amount (${money(price.cashPrice!)})`
+                : price.label.toLowerCase()}
+            </button>
+          ) : (
+            <p className="mt-2 text-xs text-[var(--t3)]">
+              Confirm the full purchase price at the source. Bids, payments and
+              unverified amounts are not copied into purchase costs.
+            </p>
           )}
         </div>
-        <p className="text-sm text-[var(--t3)] mb-5">
-          Adjust your target profit to explore a scenario using the current
-          resale and cost inputs. This is not a verified purchase ceiling or
-          guaranteed return. Confirm condition, title, fees and quotes before
-          deciding.
-        </p>
-
-        {!hasSell ? (
-          <p className="text-sm text-[var(--t4)]">
-            No resale estimate yet — {maxLabel} unavailable.
+        <div>
+          <p className="text-xs font-semibold text-[var(--t3)]">
+            {valuation.label}
           </p>
-        ) : (
-          <>
-            {/* Target profit control */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-[11px] uppercase tracking-widest text-[var(--t4)] font-bold">
-                  Target profit
-                </label>
-                <Mono
-                  className="text-lg font-black text-[var(--t1)]"
-                  style={{ fontFamily: "var(--fm)" }}
-                >
-                  {fmt(targetProfit)}
-                </Mono>
-              </div>
-              <input
-                type="range"
-                min={500}
-                max={Math.max(1000, Math.round(sell * 0.6))}
-                step={100}
-                value={targetProfit}
-                onChange={(e) => setTargetProfit(Number(e.target.value))}
-                className="w-full accent-[var(--amber)] cursor-pointer"
-                style={{ accentColor: "var(--amber)" }}
-                aria-label="Target profit"
-              />
-              <div className="flex justify-between text-[10px] text-[var(--t5)] mt-1 font-semibold">
-                <span>{fmt(500)}</span>
-                <span>{fmt(Math.max(1000, Math.round(sell * 0.6)))}</span>
-              </div>
-            </div>
-
-            {/* Max bid readout */}
-            <div
-              className="relative rounded-[var(--r3)] p-5 overflow-hidden"
-              style={{ background: "var(--s0)" }}
-            >
-              <div className="absolute -inset-4 bg-[var(--green)] blur-[40px] opacity-10 pointer-events-none" />
-              <p className="relative z-10 text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-                Scenario {maxLabel} (unverified)
+          {valuation.supported && props.sellEstimate != null ? (
+            <>
+              <p className="mt-1 font-semibold">
+                {money(props.sellEstimate)} estimate
               </p>
-              <Mono
-                className="relative z-10 text-4xl md:text-5xl font-black text-transparent bg-clip-text leading-none"
-                style={{
-                  fontFamily: "var(--fm)",
-                  backgroundImage:
-                    "linear-gradient(to right, var(--green), #86efac)",
-                }}
+              <button
+                type="button"
+                className="mt-1 min-h-11 text-left text-sm font-semibold text-[var(--blue)] underline underline-offset-4"
+                onClick={() => setField("resale", String(props.sellEstimate))}
               >
-                {fmt(result.maxBid)}
-              </Mono>
-              <p className="relative z-10 text-xs text-[var(--t3)] font-semibold mt-2">
-                Target {fmt(targetProfit)} profit ·{" "}
-                <span className="text-[var(--green)] font-bold">
-                  {result.impliedRoi}% scenario ROI
-                </span>
-              </p>
-            </div>
-
-            {/* Comparison to ask */}
-            {headroom != null && (
-              <div className="mt-4">
-                {headroom >= 0 ? (
-                  <div
-                    className="flex items-center gap-2 text-sm font-bold px-3.5 py-2.5 rounded-[var(--r2)] shadow-sm"
-                    style={{
-                      background: "rgba(34, 197, 94, 0.15)",
-                      color: "var(--green)",
-                      border: "1px solid rgba(34, 197, 94, 0.3)",
-                    }}
-                  >
-                    <Ico name="check-circle" size={16} />
-                    {fmt(headroom)} of headroom — {priceWord} ({fmt(ask)}) is
-                    below the scenario {maxLabel}
-                  </div>
-                ) : (
-                  <div
-                    className="flex items-center gap-2 text-sm font-bold px-3.5 py-2.5 rounded-[var(--r2)]"
-                    style={{ background: "var(--rlo)", color: "var(--red)" }}
-                  >
-                    <Ico name="alert-triangle" size={16} />
-                    {term.priceLabel} is {fmt(Math.abs(headroom))} ABOVE your{" "}
-                    {maxLabel}
-                  </div>
-                )}
+                Use resale estimate
+              </button>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-[var(--t3)]">
+              Enter a researched resale assumption below. A stored reference
+              alone cannot establish resale value.
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-[var(--t3)]">
+        Enter every cost, including 0 where none applies. Percentage fees are
+        added to fixed fees; avoid counting them twice. Recheck fee and tax
+        quotes when the purchase price changes.
+      </p>
+      <div className="mt-4 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-5 lg:order-1">
+          {groups.map((group) => (
+            <fieldset key={group.title} className="min-w-0">
+              <legend className="mb-3 text-sm font-bold">{group.title}</legend>
+              <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+                {group.fields.map((field) => {
+                  const meta = SCENARIO_FIELDS[field];
+                  const percent =
+                    field === "buyerFeeRate" || field === "sellingFeeRate";
+                  return (
+                    <div key={field} className="min-w-0">
+                      <label
+                        htmlFor={`${id}-${field}`}
+                        className="block text-sm font-semibold"
+                      >
+                        {meta.label} {percent ? "(%)" : "($)"}
+                      </label>
+                      <input
+                        id={`${id}-${field}`}
+                        data-scenario-field={field}
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={draft[field]}
+                        onChange={(event) =>
+                          setField(field, event.target.value)
+                        }
+                        aria-invalid={!!result.errors[field]}
+                        aria-describedby={`${id}-${field}-help`}
+                        placeholder="Enter amount"
+                        className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 text-base text-[var(--t1)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      />
+                      <p
+                        id={`${id}-${field}-help`}
+                        className={`mt-1 text-xs ${result.errors[field] ? "text-[var(--red)]" : "text-[var(--t3)]"}`}
+                      >
+                        {result.errors[field] || meta.help}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
+            </fieldset>
+          ))}
+        </div>
+        <div className="order-first min-w-0 lg:order-2">
+          <div
+            ref={resultRef}
+            tabIndex={-1}
+            className="scroll-mt-24 space-y-4 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-4 lg:sticky lg:top-24"
+            data-testid="flip-scenario-result"
+          >
+            {!m ? (
+              <>
+                <p className="font-semibold" role="status">
+                  {result.status === "invalid"
+                    ? "Check your entries"
+                    : `${scenarioFields.length - missing.length} of ${scenarioFields.length} inputs ready`}
+                </p>
+                <p className="text-sm text-[var(--t3)]">
+                  {result.status === "invalid"
+                    ? "Correct the marked fields to calculate."
+                    : "Profit, break-even and a purchase limit appear when every amount is entered."}
+                </p>
+                <a
+                  className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)] underline underline-offset-4"
+                  href={`#${id}-${missing[0]}`}
+                >
+                  Next: {SCENARIO_FIELDS[missing[0]].label}
+                </a>
+                <details>
+                  <summary className="min-h-11 cursor-pointer py-3 text-sm text-[var(--t3)]">
+                    See remaining inputs ({missing.length})
+                  </summary>
+                  <ul className="space-y-1 text-sm">
+                    {missing.map((field) => (
+                      <li key={field}>
+                        <a
+                          className="inline-flex min-h-11 items-center text-[var(--blue)] underline underline-offset-4"
+                          href={`#${id}-${field}`}
+                        >
+                          {SCENARIO_FIELDS[field].label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </>
+            ) : (
+              <>
+                <div>
+                  <p className="text-sm text-[var(--t3)]">
+                    Scenario net {m.profit < 0 ? "loss" : "profit"}
+                  </p>
+                  <p
+                    data-testid="scenario-profit"
+                    className={`mt-1 break-words font-mono text-3xl font-bold ${m.profit < 0 ? "text-[var(--red)]" : "text-[var(--t1)]"}`}
+                  >
+                    {money(m.profit)}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--t3)]">
+                    {m.targetMet ? "Meets" : "Below"} your target by{" "}
+                    {money(Math.abs(m.targetGap))} in this scenario.
+                  </p>
+                </div>
+                <dl className="space-y-3 text-sm">
+                  <Metric label="All-in cost" value={money(m.totalCost)} />
+                  <Metric
+                    label="Costs before selling"
+                    value={money(m.investedBeforeSale)}
+                  />
+                  <Metric
+                    label="Buyer fees included"
+                    value={money(m.buyerCost)}
+                  />
+                  <Metric
+                    label="Selling fees included"
+                    value={money(m.sellingCost)}
+                  />
+                  <Metric
+                    label="Break-even resale"
+                    value={money(m.breakEvenResale)}
+                  />
+                  <Metric
+                    label="ROI on all-in cost"
+                    value={`${m.roiPct.toFixed(1)}%`}
+                  />
+                  <Metric
+                    label="Profit / resale (margin)"
+                    value={`${m.marginPct.toFixed(1)}%`}
+                  />
+                </dl>
+                <div className="border-t border-[var(--b2)] pt-3">
+                  <p className="text-sm font-semibold">
+                    Purchase limit for your profit target
+                  </p>
+                  <p
+                    data-testid="scenario-ceiling"
+                    className="mt-1 font-mono text-xl font-bold"
+                  >
+                    {m.purchaseCeiling != null
+                      ? money(m.purchaseCeiling)
+                      : "No positive purchase price fits"}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--t3)]">
+                    Vehicle price before buyer fees and tax, using your entered
+                    fees and costs. A scenario limit is not a verified maximum
+                    bid.
+                  </p>
+                </div>
+                <div className="border-t border-[var(--b2)] pt-3">
+                  <h4 className="text-sm font-semibold">
+                    If the sale goes worse
+                  </h4>
+                  <p className="mt-1 text-xs text-[var(--t3)]">
+                    Stress tests, not forecasts. Holding uses your entered total
+                    cost.
+                  </p>
+                  <dl className="mt-3 space-y-3 text-sm">
+                    {m.stress.map((row) => (
+                      <Metric
+                        key={row.label}
+                        label={row.label}
+                        value={money(row.profit)}
+                      />
+                    ))}
+                  </dl>
+                </div>
+              </>
             )}
-          </>
+            <p className="border-t border-[var(--b2)] pt-3 text-xs text-[var(--t3)]">
+              Before buying: verify VIN, title, inspection, dated sale
+              comparisons and current all-in quotes. Your entries do not mark
+              these checks complete.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-[var(--b1)] pt-4">
+        {m && (
+          <button
+            type="button"
+            onClick={() => {
+              resultRef.current?.scrollIntoView({ block: "start" });
+              resultRef.current?.focus({ preventScroll: true });
+            }}
+            className="min-h-11 rounded-lg border border-[var(--b2)] px-4 text-sm font-semibold lg:hidden"
+          >
+            Review results
+          </button>
         )}
-      </CardContent>
-    </Card>
+        <button
+          type="button"
+          disabled={!storageKey || result.status === "invalid"}
+          onClick={save}
+          className="min-h-11 rounded-lg bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)] disabled:opacity-50"
+        >
+          Save draft on this device
+        </button>
+        <button
+          type="button"
+          onClick={clear}
+          className="min-h-11 rounded-lg border border-[var(--b2)] px-4 text-sm font-semibold"
+        >
+          Clear scenario
+        </button>
+        <p role="status" className="text-xs text-[var(--t3)]">
+          {savedAt
+            ? `Saved ${new Date(savedAt).toLocaleString()} on this device. ${dirty ? "Unsaved changes. " : ""}Recheck prices and quotes before using.`
+            : "Not saved. Save a draft to return to it on this device. This does not log a purchase or sale."}
+        </p>
+      </div>
+      {storageError && (
+        <p role="alert" className="mt-3 text-sm text-[var(--red)]">
+          {storageError}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-baseline justify-between gap-3">
+      <dt className="min-w-0 text-[var(--t3)]">{label}</dt>
+      <dd className="shrink-0 font-mono font-semibold text-[var(--t1)]">
+        {value}
+      </dd>
+    </div>
   );
 }
