@@ -31,6 +31,7 @@ import {
 } from "../lib/scrapers/curated-outcomes";
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
+import { recoverAbandonedScopedJobs } from "../lib/scrapers/job-recovery";
 import { writeCapacity } from "../lib/scrapers/write-capacity";
 import {
   isAutomationAllowedSource,
@@ -684,7 +685,29 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   );
   let claimFailures = 0;
   let nextAuctionExpiryAt = 0;
+  let nextQueueRecoveryAt = 0;
   while (!stopRequested) {
+    if (
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      Date.now() >= nextQueueRecoveryAt
+    ) {
+      nextQueueRecoveryAt = Date.now() + 10 * 60_000;
+      try {
+        const recovered = await recoverAbandonedScopedJobs(supabase, {
+          activeJobId: currentStatus.activeJob?.id,
+        });
+        if (recovered)
+          console.log(
+            `[scrape-queue] ${recovered} abandoned jobs marked interrupted; no automatic replay`,
+          );
+      } catch (error) {
+        console.warn(
+          "[scrape-queue] recovery deferred:",
+          (error as Error).message,
+        );
+      }
+    }
     // Keep unstarted buyer jobs queued when no write capacity remains. Crawling
     // them cannot add matches and must not report a successful zero-save refresh.
     if (quotaReached()) {

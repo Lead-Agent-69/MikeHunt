@@ -10,6 +10,7 @@ import {
   dealerCmsSiteFor,
   dealerCmsSiteFromCurated,
   parseListingPage,
+  parsePrice,
   type DealerCmsSite,
 } from "./dealer-cms";
 
@@ -29,6 +30,18 @@ const card = (
   `<article><a href="vehiclesDetail.php?${id}">${images}<h3>${title}</h3></a><p>Sale Price: $18,995</p></article>`;
 
 describe("bounded source expansion", () => {
+  it.each([
+    "Sale price: $299/month",
+    "Monthly sale price: $299",
+    "Savings off sale price: $2,180",
+  ])("rejects payment and savings labels in dealer cards: %s", (text) => {
+    expect(parsePrice(text)).toBeUndefined();
+  });
+  it("ignores savings off a price and finds the actual full amount", () => {
+    expect(
+      parsePrice("Savings off sale price: $2,180. Full price: $18,995"),
+    ).toBe(18995);
+  });
   it("places Polecats at its published single-lot city for radius searches", () => {
     const polecats = CURATED_SITES.find((s) =>
       s.url.includes("polecatsautosales.com"),

@@ -37,17 +37,27 @@ export function disclosedPriceEvidence(
   listedAmount?: unknown,
 ): PriceEvidence | undefined {
   const amount = positivePrice(listedAmount);
-  const cash =
-    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/i.exec(
-      text,
+  const cashLabels =
+    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
+  let rejectedCashLabel: string | undefined;
+  for (const cash of Array.from(text.matchAll(cashLabels))) {
+    const before = text.slice(Math.max(0, cash.index - 60), cash.index);
+    const after = text.slice(
+      cash.index + cash[0].length,
+      cash.index + cash[0].length + 35,
     );
-  if (
-    cash &&
-    !/\b(?:not|isn't|is not|estimated|estimate of)\s*$/i.test(
-      text.slice(Math.max(0, cash.index - 24), cash.index),
-    ) &&
-    positivePrice(cash[1].replace(/,/g, ""))
-  ) {
+    if (
+      /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly)\s*$/i.test(
+        before,
+      ) ||
+      /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b)/i.test(
+        after,
+      ) ||
+      !positivePrice(cash[1].replace(/,/g, ""))
+    ) {
+      rejectedCashLabel = cash[0].slice(0, 180);
+      continue;
+    }
     return {
       kind: "asking",
       askingPrice: positivePrice(cash[1].replace(/,/g, "")),
@@ -66,7 +76,7 @@ export function disclosedPriceEvidence(
       evidenceText: disclaimer[0].slice(0, 180),
     };
   const labels =
-    /\b(down[\s-]*payment|monthly\s+payment|deposit)\s*(?:is|of|:|-)?\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi;
+    /\b(down[\s-]*payment|monthly\s+(?:payment|(?:sale\s+)?price)|deposit)\s*(?:is|of|:|-)?\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi;
   let labelled: RegExpExecArray | null;
   while ((labelled = labels.exec(text))) {
     if (amount && positivePrice(labelled[2].replace(/,/g, "")) !== amount)
@@ -89,11 +99,28 @@ export function disclosedPriceEvidence(
       evidenceText: match[0].slice(0, 180),
     };
   }
+  const referenceLabels =
+    /\b(?:savings|you\s+save|discount|rebate|msrp|retail\s+(?:price|value)|original\s+price)(?:\s+(?:off|on|from)(?:\s+the)?(?:\s+(?:cash|sale|full)\s+price)?)?\s*:?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
+  for (const reference of Array.from(text.matchAll(referenceLabels))) {
+    const value = positivePrice(reference[1].replace(/,/g, ""));
+    if (value && (!amount || value === amount))
+      return {
+        kind: "reference",
+        listedAmount: amount || value,
+        evidenceText: reference[0].slice(0, 180),
+      };
+  }
   if (/\blease\s+(?:takeover|take\s+over|transfer|assumption)\b/i.test(text))
     return {
       kind: "finance_teaser",
       listedAmount: amount,
       evidenceText: "Lease transfer; total purchase price not established.",
+    };
+  if (rejectedCashLabel)
+    return {
+      kind: "unknown",
+      listedAmount: amount,
+      evidenceText: rejectedCashLabel,
     };
   return undefined;
 }
@@ -119,6 +146,13 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
       "unknown",
     ].includes(stored.kind)
   ) {
+    if (stored.kind === "asking" && typeof stored.evidenceText === "string") {
+      const inspected = disclosedPriceEvidence(
+        stored.evidenceText,
+        positivePrice(stored.askingPrice) || amount,
+      );
+      if (inspected && inspected.kind !== "asking") return inspected;
+    }
     return {
       kind: stored.kind,
       askingPrice: positivePrice(stored.askingPrice),

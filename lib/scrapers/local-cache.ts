@@ -4,6 +4,12 @@ import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeCapacity } from "./write-capacity";
 import { maintainListingPhotos } from "./photo-maintenance";
+import {
+  mayTouchDeferredObservation,
+  sameSourceObservation,
+} from "./source-observation";
+
+type ObservationGuard = { version: string; observedAt: string };
 
 export interface CachedListing {
   hash: string;
@@ -78,7 +84,12 @@ export function compactCacheEntries(
 
 /** Columns needed to compare stored rows with incoming ones. Never `*` (embeddings are large). */
 export function classifyColumns(rows: Record<string, any>[]): string {
-  const cols = new Set<string>(["source", "source_deal_id", "last_seen_at"]);
+  const cols = new Set<string>([
+    "source",
+    "source_deal_id",
+    "last_seen_at",
+    "updated_at",
+  ]);
   for (const row of rows)
     for (const key of Object.keys(row))
       if (/^[a-z_][a-z0-9_]*$/.test(key)) cols.add(key);
@@ -475,6 +486,7 @@ export class LocalScraperCache {
       // deals.last_seen_at must still move or every unchanged car looks stale and the
       // 30-day retention job deactivates listings that are still for sale.
       const toTouch: Record<string, any>[] = [];
+      const observationGuards = new Map<string, ObservationGuard>();
       const candidates = rows.filter((row) => {
         const key = `${row.source}|${row.source_deal_id}`;
         const entry = this.state.entries[key];
@@ -583,7 +595,15 @@ export class LocalScraperCache {
         kind: "insert" | "update";
         priceChanged: boolean;
       }[] = [];
-      for (const row of candidates) {
+      // Spend scarce full updates on seller changes before model-only recalculations.
+      const modelOnly = (row: Record<string, any>) => {
+        const prior = existing.get(`${row.source}|${row.source_deal_id}`);
+        return prior && sameSourceObservation(prior, row) ? 1 : 0;
+      };
+      const prioritized = [...candidates].sort(
+        (a, b) => modelOnly(a) - modelOnly(b),
+      );
+      for (const row of prioritized) {
         const key = `${row.source}|${row.source_deal_id}`;
         const prior = existing.get(key);
         const oldEntry = this.state.entries[key];
@@ -606,8 +626,30 @@ export class LocalScraperCache {
           !(await this.allowInsert(supabase))
         )
           continue;
-        if (kind === "insert" ? insertsAvailable <= 0 : updatesAvailable <= 0)
+        if (kind === "insert" ? insertsAvailable <= 0 : updatesAvailable <= 0) {
+          if (
+            prior &&
+            mayTouchDeferredObservation(prior, row) &&
+            touchIsDue(
+              {
+                hash,
+                lastSeenAt: oldEntry?.lastSeenAt || row.last_seen_at,
+                synced: true,
+                dbSeenAt: oldEntry?.dbSeenAt || prior.last_seen_at,
+              },
+              this.touchIntervalMs,
+            )
+          ) {
+            // The new calculation remains unsynced. Only verified, unchanged
+            // seller facts can renew freshness, with an optimistic row-version guard.
+            toTouch.push(row);
+            observationGuards.set(key, {
+              version: prior.updated_at,
+              observedAt: row.last_seen_at,
+            });
+          }
           continue;
+        }
         if (kind === "insert") insertsAvailable -= 1;
         else updatesAvailable -= 1;
         accepted.push({
@@ -676,7 +718,12 @@ export class LocalScraperCache {
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
-      const touches = await this.touchRows(toTouch, supabase, rows);
+      const touches = await this.touchRows(
+        toTouch,
+        supabase,
+        rows,
+        observationGuards,
+      );
 
       await this.save();
       const quota = this.getQuota();
@@ -703,6 +750,7 @@ export class LocalScraperCache {
     rows: Record<string, any>[],
     supabase: SupabaseClient,
     observations = rows,
+    guards = new Map<string, ObservationGuard>(),
   ): Promise<number> {
     if (!rows.length || this.cacheOnly) return 0;
     let available = Math.max(
@@ -713,25 +761,37 @@ export class LocalScraperCache {
     const latest = new Map(
       observations.map((row) => [`${row.source}|${row.source_deal_id}`, row]),
     );
-    const bySource = new Map<string, string[]>();
+    const bySource = new Map<
+      string,
+      { source: string; ids: string[]; guard?: ObservationGuard }
+    >();
     for (const row of rows) {
-      const list = bySource.get(String(row.source)) || [];
-      list.push(String(row.source_deal_id));
-      bySource.set(String(row.source), list);
+      const source = String(row.source);
+      const guard = guards.get(`${source}|${row.source_deal_id}`);
+      const key = JSON.stringify([source, guard?.version, guard?.observedAt]);
+      const group = bySource.get(key) || { source, ids: [], guard };
+      if (!group.ids.includes(String(row.source_deal_id)))
+        group.ids.push(String(row.source_deal_id));
+      bySource.set(key, group);
     }
-    for (const [source, ids] of Array.from(bySource.entries())) {
+    for (const { source, ids, guard } of Array.from(bySource.values())) {
       for (const batch of listingIdBatches(ids)) {
         if (available <= 0) return touched;
         if (this.beforeWrite && !(await this.beforeWrite())) return touched;
         const chunk = batch.slice(0, available);
-        const seenAt = new Date().toISOString();
+        const seenAt = guard?.observedAt || new Date().toISOString();
         let confirmed: number | undefined;
         try {
-          const { error, count } = await supabase
+          let query = supabase
             .from("deals")
             .update({ last_seen_at: seenAt }, { count: "exact" })
-            .eq("source", source)
-            .in("source_deal_id", chunk);
+            .eq("source", source);
+          if (guard)
+            query = query
+              .eq("updated_at", guard.version)
+              .lte("last_seen_at", seenAt)
+              .abortSignal(AbortSignal.timeout(10_000));
+          const { error, count } = await query.in("source_deal_id", chunk);
           if (error) throw new Error(error.message);
           if (
             typeof count === "number" &&
