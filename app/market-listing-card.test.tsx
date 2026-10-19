@@ -117,15 +117,23 @@ it("uses photo halves to browse while retaining the separate detail and save act
   expect(controls.toggle).not.toHaveBeenCalled();
 });
 
-it("keeps vehicle identity and bid meaning in the photo preview, with separate detail and save actions", async () => {
+it("keeps one price and identity below the unobstructed photo, with separate detail and save actions", async () => {
   const row = listing(["https://images.test/vehicle.jpg"]);
   await act(async () =>
     root.render(<MarketListingCard row={row} flipDesk={false} />),
   );
-  const preview = host.querySelector('[data-testid="market-price-preview"]')!;
-  expect(preview.textContent).toContain("2020 Ford Mustang");
-  expect(preview.textContent).toContain("Current bid");
-  expect(preview.textContent).toContain("$1,000");
+  const photo = host.querySelector('[data-testid="market-card-photo"]')!;
+  const price = host.querySelector('[data-testid="market-card-price"]')!;
+  expect(photo.textContent).not.toContain("2020 Ford Mustang");
+  expect(photo.textContent).not.toContain("Current bid");
+  expect(photo.textContent).not.toContain("$1,000");
+  expect(photo.querySelector("img")?.className).toContain("object-contain");
+  expect(price.textContent).toContain("Current bid");
+  expect(price.textContent).toContain("$1,000");
+  expect(host.textContent?.match(/\$1,000/g)).toHaveLength(1);
+  expect(
+    host.querySelector('[data-testid="market-card-title"]')?.textContent,
+  ).toBe(row.title);
   expect(
     host
       .querySelector('a[aria-label^="Open details for"]')
@@ -175,7 +183,7 @@ it("falls back safely when every supplied photo fails, retaining identity and so
   expect(host.querySelector("img")).toBeNull();
   expect(host.textContent).toContain("Source photo unavailable");
   expect(
-    host.querySelector('[data-testid="market-identity-preview"]')?.textContent,
+    host.querySelector('[data-testid="market-card-title"]')?.textContent,
   ).toBe("2020 Ford Mustang");
   expect(host.querySelector('a[target="_blank"]')).not.toBeNull();
 });

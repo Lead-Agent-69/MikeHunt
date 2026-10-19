@@ -80,7 +80,10 @@ export function FeedVehicleCard({
       className="overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s0)] lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 600px" }}
     >
-      <div className="relative aspect-[4/3] min-w-0 bg-[var(--s2)] lg:aspect-auto lg:min-h-[380px]">
+      <div
+        data-testid="feed-vehicle-photo"
+        className="relative aspect-[4/3] min-w-0 bg-[var(--s2)] lg:aspect-auto lg:min-h-[380px]"
+      >
         {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -97,14 +100,12 @@ export function FeedVehicleCard({
           title={item.title}
           className="absolute right-2 top-2 z-20"
         />
-        <div className="absolute inset-x-0 bottom-0 bg-black/80 px-4 py-3 text-white">
-          <span className="text-xs">
-            {sourceLabel(item.source, item.sourceUrl)}
-          </span>
-          <p className="mt-1 text-sm">{item.forYouReason || location}</p>
-        </div>
       </div>
       <div className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
+        <div className="text-xs text-[var(--t3)]">
+          <p>{sourceLabel(item.source, item.sourceUrl)}</p>
+          {item.forYouReason && <p className="mt-1">{item.forYouReason}</p>}
+        </div>
         <div className="flex items-start justify-between gap-3">
           <h2 className="min-w-0 break-words text-lg font-bold leading-snug">
             {item.title}

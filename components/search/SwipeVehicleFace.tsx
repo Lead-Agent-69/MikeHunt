@@ -67,6 +67,7 @@ export function SwipeVehicleFace({
   return (
     <div className="flex h-full flex-col">
       <div
+        data-testid="swipe-vehicle-photo"
         className="relative h-[46%] w-full shrink-0 overflow-hidden bg-[var(--s2)]"
         {...photoNavigation}
       >
@@ -83,7 +84,7 @@ export function SwipeVehicleFace({
         <PhotoPreviewButton
           images={gallery.sourceImages}
           title={title}
-          className="absolute right-2 bottom-11 z-20"
+          className="absolute right-2 bottom-2 z-20"
         />
         {images.length > 1 && images.length <= 8 && (
           <div
@@ -124,12 +125,12 @@ export function SwipeVehicleFace({
             </button>
           </div>
         )}
-        <p className="absolute inset-x-0 bottom-0 bg-black/80 px-3 py-2 text-xs text-white">
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
+        <p className="text-[11px] text-[var(--t3)]">
           {sourceLabel(deal.source, deal.sourceUrl)}
           {images.length > 1 ? ` · ${photo + 1}/${images.length} photos` : ""}
         </p>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
         <h2 className="line-clamp-2 break-words text-base font-bold leading-snug">
           {title}
         </h2>
