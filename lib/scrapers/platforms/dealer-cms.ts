@@ -17,6 +17,7 @@
 import type { CheerioAPI } from "cheerio";
 import type { Deal } from "@/types";
 import { isValidVin, normalizeVin } from "@/lib/vehicle/vin";
+import { disclosedPriceEvidence } from "@/lib/deals/acquisition-price";
 
 export interface DealerCmsSite {
   sourceId: string;
@@ -199,7 +200,12 @@ const MAX_YEAR = new Date().getFullYear() + 1;
 export function parsePrice(text: string): number | undefined {
   const ok = (raw: string) => {
     const n = Number(raw.replace(/,/g, ""));
-    return n >= 100 && n < 2_000_000 ? n : undefined;
+    if (!(n >= 100 && n < 2_000_000)) return undefined;
+    const evidence = disclosedPriceEvidence(text, n);
+    if (evidence && evidence.kind !== "asking") return undefined;
+    if (evidence?.kind === "asking" && evidence.askingPrice !== n)
+      return undefined;
+    return n;
   };
   // Seller transaction prices outrank savings, payments and reference retail values.
   // DriveNation prints "Savings" first, then "All In Price", then "Retail".
@@ -208,7 +214,24 @@ export function parsePrice(text: string): number | undefined {
     /\b(?:sale|our|cash|internet|special|asking|selling|pre-owned)\s+price\s*:?\s*\$\s*([\d,]{3,})/i,
   ]) {
     const labelled = text.match(label);
-    if (labelled && ok(labelled[1])) return ok(labelled[1]);
+    if (labelled) {
+      const start = labelled.index || 0;
+      const before = text.slice(Math.max(0, start - 60), start);
+      const after = text.slice(
+        start + labelled[0].length,
+        start + labelled[0].length + 35,
+      );
+      if (
+        /\b(?:monthly|down\s+payment|(?:savings|discount|rebate)\s+(?:off|on|from))\s*$/i.test(
+          before,
+        ) ||
+        /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b)/i.test(
+          after,
+        )
+      )
+        continue;
+      if (ok(labelled[1])) return ok(labelled[1]);
+    }
   }
   const re = /\$\s*([\d,]{3,})(?:\.\d{2})?/g;
   let m: RegExpExecArray | null;

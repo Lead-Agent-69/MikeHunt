@@ -148,7 +148,14 @@ describe("bounded auction expiry", () => {
   });
 });
 
-function fakeSupabase(initial: Record<string, any>[] = []) {
+function fakeSupabase(
+  initial: Record<string, any>[] = [],
+  hooks: {
+    beforeTouch?: (rows: Map<string, Record<string, any>>) => void;
+    touchError?: string;
+    count?: number | null;
+  } = {},
+) {
   const rows = new Map(
     initial.map((row) => [`${row.source}|${row.source_deal_id}`, { ...row }]),
   );
@@ -164,26 +171,53 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
     touchOptions,
     client: {
       from: () => ({
-        update: (patch: Record<string, any>, options?: { count?: string }) => ({
-          eq: (_column: string, source: string) => ({
+        update: (patch: Record<string, any>, options?: { count?: string }) => {
+          const equal = new Map<string, string>();
+          const bounds = new Map<string, string>();
+          const query: any = {
+            abortSignal: () => query,
+            eq: (key: string, value: string) => {
+              equal.set(key, value);
+              return query;
+            },
+            lte: (key: string, value: string) => {
+              bounds.set(key, value);
+              return query;
+            },
             in: async (_idColumn: string, ids: string[]) => {
+              const source = equal.get("source")!;
               touches.push({ source, ids, patch });
               touchOptions.push(options);
+              hooks.beforeTouch?.(rows);
+              let changed = 0;
               for (const id of ids) {
                 const stored = rows.get(`${source}|${id}`);
-                if (stored) Object.assign(stored, patch);
+                if (
+                  stored &&
+                  !hooks.touchError &&
+                  Array.from(equal).every(([k, v]) => stored[k] === v) &&
+                  Array.from(bounds).every(
+                    ([k, v]) => Date.parse(stored[k]) <= Date.parse(v),
+                  )
+                ) {
+                  Object.assign(stored, patch);
+                  changed++;
+                }
               }
               return {
                 data: null,
-                error: null,
+                error: hooks.touchError ? { message: hooks.touchError } : null,
                 count:
                   options?.count === "exact"
-                    ? ids.filter((id) => rows.has(`${source}|${id}`)).length
+                    ? Object.prototype.hasOwnProperty.call(hooks, "count")
+                      ? hooks.count
+                      : changed
                     : null,
               };
             },
-          }),
-        }),
+          };
+          return query;
+        },
         select: () => {
           let source = "";
           return {
@@ -239,6 +273,171 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  const observed = (id: string) => ({
+    ...row(id),
+    source_url: `https://dealer.example/${id}`,
+    images: ["https://dealer.example/car.jpg"],
+    last_seen_at: "2026-10-17T00:00:00.000Z",
+    updated_at: "2026-10-17T00:00:00.000Z",
+    deal_analysis: { profit: 1000 },
+  });
+  it("spends its last full update on a seller price change while touching model-only observations", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-19T00:00:00Z"));
+    const { cache } = await makeCache({ maxDailyUpdates: 1 });
+    const db = fakeSupabase([observed("model"), observed("price")]);
+    const result = await cache.persistRows(
+      [
+        {
+          ...observed("model"),
+          last_seen_at: new Date().toISOString(),
+          deal_analysis: { profit: 500 },
+        },
+        { ...observed("price"), ask_price: 9000 },
+      ],
+      db.client,
+      "*",
+    );
+    expect(result).toMatchObject({ updates: 1, touches: 1 });
+    expect(Array.from(result.priceChangedKeys)).toEqual(["test|price"]);
+    expect(db.writes[0][0].source_deal_id).toBe("price");
+    expect(db.rows.get("test|model")?.deal_analysis).toEqual({ profit: 1000 });
+    expect(db.rows.get("test|model")?.last_seen_at).toBe(
+      new Date().toISOString(),
+    );
+    expect(
+      (await cache.records("test")).find((r) => r.source_deal_id === "model"),
+    ).toMatchObject({
+      cacheSynced: false,
+      deal_analysis: { profit: 500 },
+    });
+    expect(cache.getQuota()).toMatchObject({ updates: 1, touches: 1 });
+    vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
+    const next = await cache.persistRows(
+      [
+        {
+          ...observed("model"),
+          last_seen_at: new Date().toISOString(),
+          deal_analysis: { profit: 500 },
+        },
+      ],
+      db.client,
+      "*",
+    );
+    expect(next).toMatchObject({ updates: 1, inserts: 0 });
+    expect(next.priceChangedKeys.size).toBe(0);
+    expect(db.rows.get("test|model")?.deal_analysis).toEqual({ profit: 500 });
+  });
+  it.each(["concurrent", "failure", "unknown", "missing", "newer observation"])(
+    "never confirms a deferred model update after %s",
+    async (mode) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-19T00:00:00Z"));
+      const { cache } = await makeCache({ maxDailyUpdates: 1 });
+      const hooks: Parameters<typeof fakeSupabase>[1] =
+        mode === "failure"
+          ? { touchError: "offline" }
+          : mode === "unknown"
+            ? { count: null }
+            : {};
+      const db = fakeSupabase([observed("model"), observed("burn")], hooks);
+      await cache.persistRows(
+        [{ ...observed("burn"), ask_price: 9000 }],
+        db.client,
+        "*",
+      );
+      hooks.beforeTouch = (rows) => {
+        if (mode === "missing") rows.delete("test|model");
+        if (mode === "concurrent")
+          Object.assign(rows.get("test|model")!, {
+            ask_price: 3000,
+            updated_at: new Date().toISOString(),
+          });
+        if (mode === "newer observation")
+          rows.get("test|model")!.last_seen_at = "2026-10-19T00:00:30.000Z";
+      };
+      const result = await cache.persistRows(
+        [
+          {
+            ...observed("model"),
+            last_seen_at: new Date().toISOString(),
+            deal_analysis: { profit: 500 },
+          },
+        ],
+        db.client,
+        "*",
+      );
+      expect(result).toMatchObject({ updates: 0, touches: 0 });
+      expect(result.priceChangedKeys.size).toBe(0);
+      expect(
+        (await cache.records("test")).find((r) => r.source_deal_id === "model"),
+      ).toMatchObject({ cacheSynced: false, deal_analysis: { profit: 500 } });
+      expect(cache.getQuota().touches).toBe(1);
+    },
+  );
+  it("does not freshen a changed price or replay an old buffered observation", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-19T00:00:00Z"));
+    const { cache } = await makeCache({ maxDailyUpdates: 1 });
+    const db = fakeSupabase([observed("model"), observed("burn")]);
+    await cache.persistRows(
+      [{ ...observed("burn"), ask_price: 9000 }],
+      db.client,
+      "*",
+    );
+    for (const incoming of [
+      {
+        ...observed("model"),
+        last_seen_at: new Date().toISOString(),
+        ask_price: 2000,
+      },
+      { ...observed("model"), deal_analysis: { profit: 500 } },
+    ])
+      expect(
+        (await cache.persistRows([incoming], db.client, "*")).touches,
+      ).toBe(0);
+    expect(db.touches).toHaveLength(0);
+    expect(db.rows.get("test|model")?.last_seen_at).toBe(
+      observed("model").last_seen_at,
+    );
+  });
+  it.each(["paused", "touch budget"])(
+    "respects the %s gate for verified observations",
+    async (gate) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-19T00:00:00Z"));
+      let writable = true;
+      const { cache } = await makeCache({
+        maxDailyUpdates: 1,
+        maxDailyTouches: gate === "touch budget" ? 0 : 100,
+        beforeWrite: async () => writable,
+      });
+      const db = fakeSupabase([observed("model"), observed("burn")]);
+      await cache.persistRows(
+        [{ ...observed("burn"), ask_price: 9000 }],
+        db.client,
+        "*",
+      );
+      if (gate === "paused") writable = false;
+      const result = await cache.persistRows(
+        [
+          {
+            ...observed("model"),
+            last_seen_at: new Date().toISOString(),
+            deal_analysis: { profit: 500 },
+          },
+        ],
+        db.client,
+        "*",
+      );
+      expect(result).toMatchObject({ touches: 0, updates: 0 });
+      expect(db.touches).toHaveLength(0);
+      expect(
+        (await cache.records("test")).find((r) => r.source_deal_id === "model")
+          ?.cacheSynced,
+      ).toBe(false);
+    },
+  );
   it("preserves database insertion dates during mixed inserts and price updates", async () => {
     const { cache } = await makeCache();
     const original = "2026-09-01T00:00:00Z";
