@@ -6,7 +6,14 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { RefreshCw } from "lucide-react";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
-import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import {
+  InventoryViewLinks,
+  InventoryViewNotice,
+} from "@/components/search/InventoryViewLinks";
+import {
+  inventoryScopeLabel,
+  inventoryViewUnavailableReason,
+} from "@/lib/search/inventory-view-scope";
 import { isFlipBuyerMode } from "@/lib/buyer/flip-lead";
 import {
   titleFilterOptions,
@@ -44,10 +51,11 @@ export default function MapPage() {
   // null = follow the saved scope's titleType; otherwise the map-only title choice.
   const [titleFilter, setTitleFilter] = useState<string | null>(null);
   const query = withTitleType(scopeQuery, titleFilter);
+  const viewIssue = inventoryViewUnavailableReason(new URLSearchParams(query));
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
   const [verdict, setVerdict] = useState("all");
   const { data, error, isLoading, mutate } = useSWR(
-    ready
+    ready && !viewIssue
       ? `/api/deals/map?${query}&verdict=${flipDesk ? verdict : "all"}`
       : null,
     fetcher,
@@ -60,6 +68,10 @@ export default function MapPage() {
   const points: any[] = data?.points ?? [];
   const unavailable = Boolean(error || data?.degraded);
   const approximateCount = points.filter((point) => point.approx).length;
+  if (ready && viewIssue)
+    return (
+      <InventoryViewNotice title="Deal Map" query={query} message={viewIssue} />
+    );
 
   return (
     <div
@@ -72,7 +84,10 @@ export default function MapPage() {
             Deal Map
           </h1>
           <p className="text-[var(--t3)] text-sm">
-            Stored listings.{" "}
+            {ready
+              ? inventoryScopeLabel(new URLSearchParams(query))
+              : "Loading search area..."}{" "}
+            · Stored listings.{" "}
             <Mono
               style={{ fontFamily: "var(--fm)" }}
               className="text-[var(--t2)] font-bold"

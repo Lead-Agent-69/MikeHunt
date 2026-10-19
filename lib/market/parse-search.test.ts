@@ -83,6 +83,10 @@ describe("Market search preview", () => {
       expect(result.filters.yearMin).toBeUndefined();
     if (query.includes("from $5000"))
       expect(result.filters.priceMax).toBeUndefined();
+    if (query.includes("near 63304")) {
+      expect(result.labels).toContain("ZIP 63304");
+      expect(result.labels).toContain("Within 75 mi");
+    }
   });
   it.each([
     "Ford no accidents",

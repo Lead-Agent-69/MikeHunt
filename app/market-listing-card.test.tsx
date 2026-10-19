@@ -52,6 +52,31 @@ beforeEach(() => {
 });
 
 it.each([
+  [0, "At supported estimate", "$0"],
+  [-1500, "Above supported estimate", "$1,500"],
+  [2500, "Below supported estimate", "$2,500"],
+] as const)(
+  "labels a %s price gap direction plainly, never as profit",
+  async (gap, label, amount) => {
+    await act(async () =>
+      root.render(
+        <MarketListingCard
+          row={{ ...listing([]), priceGap: gap }}
+          flipDesk={false}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain(label);
+    expect(
+      host.querySelector('[data-testid="market-price-gap"]')?.textContent,
+    ).toContain(amount);
+    expect(host.textContent).toContain(
+      "Before repair costs, fees and transport",
+    );
+  },
+);
+
+it.each([
   ["asking", "Asking price"],
   ["current_bid", "Current bid"],
   ["buy_now", "Buy-now price"],

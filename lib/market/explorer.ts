@@ -44,6 +44,8 @@ export type MarketListing = {
   sellEstimate?: number;
   valuationEvidence?: MarketValuation;
   profitEstimate?: number;
+  /** Estimate minus recorded asking price, before costs. Not net profit. */
+  priceGap?: number;
   profitScore?: number;
   dealVerdict?: "go" | "hold" | "pass";
   recommendedMaxBid?: number;

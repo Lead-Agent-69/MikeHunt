@@ -464,12 +464,7 @@ test.describe("Market Explorer home", () => {
     await expect(page.getByLabel("Sort market results")).toHaveValue(
       "distanceMiles:asc",
     );
-    const shortcut = page
-      .getByRole("button", {
-        name: "Change search area: Within 100 mi of 63101",
-      })
-      .filter({ visible: true });
-    await shortcut.click();
+    await page.locator("#market-search-area-trigger").click();
     await expect(area).toBeVisible();
     await expect(
       page.getByLabel("Search location", { exact: true }),

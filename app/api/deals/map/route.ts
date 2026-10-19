@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   if (location.requested && !location.radius)
     return withNoStore(
       NextResponse.json(
-        { error: "This ZIP location could not be resolved." },
+        { error: location.error || "This ZIP location could not be resolved." },
         { status: 422 },
       ),
     );

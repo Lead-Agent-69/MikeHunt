@@ -78,7 +78,7 @@ describe("buyer scope planning", () => {
     expect(links.sourceHealthHref).toContain("makes=Toyota%2CHonda");
     expect(links.sourceHealthHref).toContain("minPrice=5000");
     expect(links.scopeLabel).toContain("2 make focus");
-    expect(links.scopeLabel).toContain("over $5,000");
+    expect(links.scopeLabel).toContain("from $5,000");
   });
 
   it("routes named curated dealers through the curated dealer runner", () => {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Film, Layers, ListFilter, Map, ArrowRight } from "lucide-react";
 import { INVENTORY_DETAIL_FIELDS } from "@/lib/search/extended-inventory-filters";
 import { inventoryViewParams } from "@/lib/search/inventory-view-scope";
+import { MAX_RADIUS_MI } from "@/lib/search/zip-radius-scope";
 
 const VIEWS = [
   { path: "/market", label: "Results", Icon: ListFilter },
@@ -12,6 +13,35 @@ const VIEWS = [
   { path: "/feed", label: "Feed", Icon: Film },
   { path: "/swipe", label: "Swipe", Icon: Layers },
 ];
+
+export function InventoryViewNotice({
+  title,
+  query,
+  message,
+}: {
+  title: string;
+  query: string;
+  message: string;
+}) {
+  return (
+    <div className="mx-auto max-w-4xl space-y-4 py-6">
+      <h1 className="text-xl font-bold">{title}</h1>
+      <section
+        role="status"
+        className="space-y-4 border-y border-[var(--b1)] py-6"
+      >
+        <p className="text-sm text-[var(--t2)]">{message}</p>
+        <Link
+          href={`/market?${query}`}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--blue)] px-4 text-sm font-semibold text-white"
+        >
+          <ListFilter className="h-4 w-4" aria-hidden="true" />
+          Open Results
+        </Link>
+      </section>
+    </div>
+  );
+}
 
 export function InventoryViewLinks({
   query,
@@ -34,6 +64,12 @@ export function InventoryViewLinks({
       />
     );
   const params = inventoryViewParams(new URLSearchParams(query));
+  const wideRadius =
+    !!params.get("zip") && Number(params.get("radius")) > MAX_RADIUS_MI;
+  const unavailable = (path: string) =>
+    path !== "/market" &&
+    (wideRadius ||
+      (params.get("hasPhotos") === "no" && ["/feed", "/swipe"].includes(path)));
   params.set("scope", "explicit");
   // Empty explicit values prevent saved defaults from silently changing a shared search.
   if (current === "/market") {
@@ -71,6 +107,11 @@ export function InventoryViewLinks({
             key={path}
             href={`${path}?${params.toString()}`}
             prefetch={false}
+            aria-disabled={unavailable(path) ? true : undefined}
+            tabIndex={unavailable(path) ? -1 : undefined}
+            onClick={(event) => {
+              if (unavailable(path)) event.preventDefault();
+            }}
             title={label}
             aria-current={path === current ? "page" : undefined}
             className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
@@ -79,6 +120,24 @@ export function InventoryViewLinks({
           </Link>
         ))}
       </nav>
+      {wideRadius && (
+        <p role="status" className="w-full text-xs text-[var(--t2)]">
+          Map, Feed and Swipe support up to {MAX_RADIUS_MI} miles. Your wider
+          search stays available in Results.
+        </p>
+      )}
+      {params.get("hasPhotos") === "no" && (
+        <p role="status" className="w-full text-xs text-[var(--t2)]">
+          Listings without photos are available in Results and Map. Feed and
+          Swipe require photos.
+        </p>
+      )}
+      {["7", "30"].includes(params.get("seenWithin") || "") && (
+        <p role="status" className="w-full text-xs text-[var(--t2)]">
+          Includes older observations. Confirm current price and availability
+          with the seller.
+        </p>
+      )}
       {current !== "/discover" && (
         <form
           action={current === "/discover" ? "/market" : current}

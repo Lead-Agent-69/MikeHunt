@@ -5,8 +5,14 @@ import { RefreshCw } from "lucide-react";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { usePreferences } from "@/hooks/usePreferences";
 import { savedScopeStates } from "@/lib/preferences/location-form";
-import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
-import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import {
+  inventoryScopeStates,
+  inventoryViewUnavailableReason,
+} from "@/lib/search/inventory-view-scope";
+import {
+  InventoryViewLinks,
+  InventoryViewNotice,
+} from "@/components/search/InventoryViewLinks";
 import { ErrorState } from "@/components/shared/PageStates";
 import { DataSetupState } from "@/components/shared/DataSetupState";
 import {
@@ -27,7 +33,11 @@ export default function FeedPage() {
     params.set("states", states.join(","));
     return params.toString();
   }, [sharedQuery, savedScopeKey]);
-  const ready = viewReady && !prefsLoading;
+  const viewIssue = inventoryViewUnavailableReason(
+    new URLSearchParams(query),
+    true,
+  );
+  const ready = viewReady && !prefsLoading && !viewIssue;
   const [items, setItems] = useState<FeedVehicle[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -126,6 +136,10 @@ export default function FeedPage() {
     return () => observer.disconnect();
   }, [loadMore, failed]);
 
+  if (viewReady && !prefsLoading && viewIssue)
+    return (
+      <InventoryViewNotice title="Feed" query={query} message={viewIssue} />
+    );
   return (
     <div className="mx-auto max-w-6xl space-y-4" data-testid="feed-page">
       <header className="space-y-3 border-b border-[var(--b1)] pb-4">

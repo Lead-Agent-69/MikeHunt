@@ -153,6 +153,12 @@ describe("saved search constraints", () => {
         { lane: "private" },
       ),
     ).toBe(true);
+    expect(
+      matchesSavedSearch(
+        { ...car, source: "vroom" },
+        { seller_type: "dealer" },
+      ),
+    ).toBe(true);
   });
   it("keeps title and damage independent", () => {
     const damaged = { ...car, damage_type: "front collision" };

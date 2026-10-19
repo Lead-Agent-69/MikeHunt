@@ -275,7 +275,7 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(status.scopeLabel).toContain("damaged lane");
     expect(status.scopeLabel).toContain("salvage title");
     expect(status.scopeLabel).toContain("FL");
-    expect(status.scopeLabel).toContain("over $5,000");
+    expect(status.scopeLabel).toContain("from $5,000");
     expect(status.nextAction).toContain("run the matching sources");
   });
 
@@ -441,8 +441,8 @@ describe("GET /api/scrape/health lane scoping", () => {
       minPrice: 5000,
       maxPrice: 10000,
     });
-    expect(body.scopeStatus.scopeLabel).toContain("over $5,000");
-    expect(body.scopeStatus.scopeLabel).toContain("under $10,000");
+    expect(body.scopeStatus.scopeLabel).toContain("from $5,000");
+    expect(body.scopeStatus.scopeLabel).toContain("up to $10,000");
     expect(body.scopeStatus.scopeLabel).toContain("salvage title");
     expect(body.plan.scope.minPrice).toBe(5000);
     expect(body.plan.scope.maxPrice).toBe(10000);

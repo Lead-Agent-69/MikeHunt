@@ -7,7 +7,7 @@ describe("nearby distance honesty", () => {
   it("NearbyDeals never stands on Distance not available without miles", () => {
     const src = read("components/discovery/NearbyDeals.tsx");
     expect(src).not.toContain("Distance not available");
-    expect(src).toContain("About ${Math.round(miles)} miles");
+    expect(src).toContain("About ${Math.round(miles)} mi");
     expect(src).toContain("City and state from each listing");
   });
 

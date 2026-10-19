@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { MyStatesButton } from "@/components/shared/MyStatesButton";
-import { Bell, Grid3X3, Lock, MapPin } from "lucide-react";
+import { Bell, Grid3X3, Lock } from "lucide-react";
 import { AccountMenu } from "@/components/home/AccountMenu";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
@@ -16,11 +16,7 @@ import {
   INVENTORY_URL_EVENT,
   replaceInventoryHistory,
 } from "@/lib/search/inventory-history";
-import {
-  normalizeMarketArea,
-  searchAreaLabel,
-  replaceStateArea,
-} from "@/lib/search/area-scope";
+import { replaceStateArea } from "@/lib/search/area-scope";
 import {
   navItemForViewer,
   primaryNavForMode,
@@ -121,13 +117,11 @@ function TopNavContent() {
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [scopedStates, setScopedStates] = useState<string[] | undefined>();
-  const [scopedSearch, setScopedSearch] = useState<string | undefined>();
 
   useEffect(() => {
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
       setScopedStates(inventoryScopeStates(params));
-      setScopedSearch(params.toString());
     };
     sync();
     window.addEventListener(INVENTORY_URL_EVENT, sync);
@@ -203,39 +197,8 @@ function TopNavContent() {
     } else router.refresh();
   };
 
-  const locationParams = new URLSearchParams(
-    scopedSearch ?? searchParams.toString(),
-  );
-  const areaLabel = searchAreaLabel(
-    normalizeMarketArea({
-      near: locationParams.get("near") || locationParams.get("zip") || "",
-      radius: locationParams.get("radius") || "",
-      lat: locationParams.get("lat") || "",
-      lng: locationParams.get("lng") || "",
-      states: inventoryScopeStates(locationParams) || [],
-    }),
-  );
   const locationButton = (className: string, compact = false) =>
-    pathname === "/market" ? (
-      <button
-        type="button"
-        className={className}
-        style={{ minHeight: 44, minWidth: 44 }}
-        title={areaLabel}
-        aria-label={`Change search area: ${areaLabel}`}
-        aria-haspopup="dialog"
-        aria-controls="market-area-dialog"
-        onClick={() => {
-          const trigger = document.getElementById("market-search-area-trigger");
-          trigger?.scrollIntoView({ block: "center", behavior: "instant" });
-          trigger?.focus({ preventScroll: true });
-          trigger?.click();
-        }}
-      >
-        <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="max-w-[10rem] truncate">{areaLabel}</span>
-      </button>
-    ) : (
+    pathname === "/market" ? null : (
       <MyStatesButton
         onChange={changeLocation}
         statesOverride={scopedStates}
@@ -370,7 +333,7 @@ function TopNavContent() {
 
         <div className="flex items-center justify-end gap-2 lg:hidden">
           {locationButton(
-            "inline-flex max-w-[88px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]",
+            "inline-flex max-w-[92px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)] min-[390px]:max-w-[116px]",
             true,
           )}
           <AccountMenu floating={false} />

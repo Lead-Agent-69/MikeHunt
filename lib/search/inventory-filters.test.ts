@@ -10,6 +10,7 @@ import {
   applyVehicleDetails,
   applyInventoryNumericFilters,
   sellerTypeSourceValues,
+  applySellerTypes,
   validateInventoryRanges,
   INVENTORY_SOURCE_FILTERS,
   applySelectedSources,
@@ -211,7 +212,7 @@ describe("inventory filter contract", () => {
     expect(q.in).not.toHaveBeenCalled();
   });
 
-  it("private sellers exclude independent and Craigslist dealers", () => {
+  it("keeps acquisition lanes separate from evidence-only seller filters", () => {
     const privateSources = sellerTypeSourceValues("private");
     expect(privateSources).not.toContain("independent_dealer");
     expect(privateSources).not.toContain("craigslist_dealer");
@@ -219,6 +220,23 @@ describe("inventory filter contract", () => {
     const q = query();
     applyInventoryLane(q, "private");
     expect(q.in).toHaveBeenCalledWith("source", privateSources);
+    expect(q.or).not.toHaveBeenCalled();
+    const seller = query();
+    applySellerTypes(seller, ["private"]);
+    expect(seller.or).toHaveBeenCalledWith("options->>sellerType.eq.private");
+    expect(seller.in).not.toHaveBeenCalled();
+  });
+  it("requires seller evidence on mixed platforms and uses only dedicated dealer defaults", () => {
+    const q = query();
+    applySellerTypes(q, ["dealer"]);
+    const filter = q.or.mock.calls[0][0];
+    expect(filter).toContain("options->>sellerType.eq.dealer");
+    expect(filter).toContain(
+      "options->>sellerType.is.null,source.in.(independent_dealer",
+    );
+    expect(filter).not.toContain("cargurus");
+    expect(filter).not.toContain("ebay_motors");
+    expect(filter).not.toContain("carmax");
   });
 
   it("details filter stored fields and only known parsed spec enums", () => {

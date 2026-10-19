@@ -94,6 +94,14 @@ function ListingCard({
           ? `Seen ${hours}h ago`
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
+  const priceGapLabel =
+    row.priceGap == null
+      ? null
+      : row.priceGap > 0
+        ? "Below supported estimate"
+        : row.priceGap < 0
+          ? "Above supported estimate"
+          : "At supported estimate";
   return (
     <article
       ref={cardRef}
@@ -301,6 +309,28 @@ function ListingCard({
             </span>{" "}
             · {row.valuationEvidence?.label || "Estimate basis not recorded"}
           </p>
+        )}
+        {row.priceGap != null && priceGapLabel && (
+          <div
+            data-testid="market-price-gap"
+            className="flex items-start justify-between gap-3 rounded-lg border border-[var(--b1)] bg-[var(--s2)] p-2.5"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[var(--t1)]">
+                {priceGapLabel}
+              </p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--t3)]">
+                Before repair costs, fees and transport
+              </p>
+            </div>
+            <strong className="shrink-0 text-sm tabular-nums text-[var(--t1)]">
+              {Math.abs(row.priceGap).toLocaleString("en-US", {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 0,
+              })}
+            </strong>
+          </div>
         )}
         {flipDesk && row.valuationEvidence?.supported === false && (
           <p className="text-xs text-[var(--t3)]">

@@ -7,12 +7,12 @@ import {
 import { parseZipRadius } from "./zip-radius-scope";
 
 const RANGE_FIELDS = {
-  minPrice: ["minprice", "Minimum price"],
-  maxPrice: ["maxprice", "Maximum price"],
-  minYear: ["minyear", "Minimum year"],
-  maxYear: ["maxyear", "Maximum year"],
-  minMileage: ["minmiles", "Minimum mileage"],
-  maxMileage: ["maxmiles", "Maximum mileage"],
+  minPrice: ["minprice", "Price from"],
+  maxPrice: ["maxprice", "Price up to"],
+  minYear: ["minyear", "Year from"],
+  maxYear: ["maxyear", "Year up to"],
+  minMileage: ["minmiles", "Mileage from"],
+  maxMileage: ["maxmiles", "Mileage up to"],
 } as const;
 
 const INTERNAL_KEYS = new Set([
@@ -48,19 +48,19 @@ const LABELS: Record<string, string> = {
   state: "State",
   states: "States",
   zip: "ZIP code",
-  radius: "Radius (mi)",
+  radius: "Distance from ZIP (mi)",
   q: "Keywords",
   make: "Make",
   model: "Model",
   trim: "Trim",
   body: "Body style",
   transmission: "Transmission",
-  minPrice: "Minimum price",
-  maxPrice: "Maximum price",
-  minYear: "Minimum year",
-  maxYear: "Maximum year",
-  minMileage: "Minimum mileage",
-  maxMileage: "Maximum mileage",
+  minPrice: "Price from",
+  maxPrice: "Price up to",
+  minYear: "Year from",
+  maxYear: "Year up to",
+  minMileage: "Mileage from",
+  maxMileage: "Mileage up to",
   color: "Exterior color",
   engine: "Engine",
   city: "City",
@@ -69,8 +69,8 @@ const LABELS: Record<string, string> = {
   seenWithin: "Last observed",
   auctionFrom: "Auction date from",
   auctionTo: "Auction date to",
-  minBuyNow: "Minimum buy now price",
-  maxBuyNow: "Maximum buy now price",
+  minBuyNow: "Buy-now price from",
+  maxBuyNow: "Buy-now price up to",
   includeRepairable: "Repairable vehicles",
 };
 
@@ -176,7 +176,7 @@ export function marketHandoff(params: URLSearchParams) {
   // Nationwide searches still require a reference ZIP on AutoTempest; it is not the user's location.
   if (nearby) {
     add("zip", "zip", "ZIP code", nearby.zip);
-    add("radius", "radius", "Radius (mi)", String(nearby.radius));
+    add("radius", "radius", "Distance from ZIP (mi)", String(nearby.radius));
   } else {
     target.searchParams.set("zip", stateZip || "66601");
     target.searchParams.set("localization", stateZip ? "state" : "country");
@@ -314,7 +314,7 @@ export function marketHandoffs(params: URLSearchParams) {
           String(nearby.radius);
       if (reviewRadius)
         reapply.push(
-          `Radius (mi): ${nearby.radius} (destination distance options differ)`,
+          `Distance from ZIP: ${nearby.radius} mi (destination distance options differ)`,
         );
       const carried = criteria
         .filter(

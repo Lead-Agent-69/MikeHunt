@@ -7,10 +7,12 @@ export function MarketSearchActions({
   onSave,
   onCopy,
   onReset,
+  disabled = false,
 }: {
   onSave: () => void;
   onCopy: () => void;
   onReset: () => void;
+  disabled?: boolean;
 }) {
   const itemClass =
     "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm outline-none focus:bg-[var(--s2)]";
@@ -18,9 +20,11 @@ export function MarketSearchActions({
     <div className="flex shrink-0 gap-1.5 sm:gap-2">
       <button
         type="button"
-        aria-label="Save search"
+        aria-label="Save search on this device"
+        title="Save search on this device"
+        disabled={disabled}
         onClick={onSave}
-        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white sm:px-3"
+        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
       >
         <BookmarkPlus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>

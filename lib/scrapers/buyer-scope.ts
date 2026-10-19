@@ -297,8 +297,8 @@ export function buildBuyerScopeLinks(
     q || "all vehicles",
     lane === "all" ? "all lanes" : lane.replace("-", " "),
     scope.state || scope.states?.join(", ") || "nationwide",
-    scope.minPrice ? `over $${Number(scope.minPrice).toLocaleString()}` : null,
-    scope.maxPrice ? `under $${Number(scope.maxPrice).toLocaleString()}` : null,
+    scope.minPrice ? `from $${Number(scope.minPrice).toLocaleString()}` : null,
+    scope.maxPrice ? `up to $${Number(scope.maxPrice).toLocaleString()}` : null,
     scope.sellerType ? `${scope.sellerType} sellers` : null,
     scope.makes?.length ? `${scope.makes.length} make focus` : null,
     scope.dealerSourceIds?.length

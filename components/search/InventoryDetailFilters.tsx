@@ -93,6 +93,20 @@ export function InventoryDetailFilters({
                         className="field min-h-11 min-w-0 !w-full !text-sm"
                       >
                         <option value="">{field.emptyLabel || "Any"}</option>
+                        {field.key === "titleType" &&
+                          values[field.key]?.includes(",") && (
+                            <option value={values[field.key]}>
+                              {values[field.key]
+                                .split(",")
+                                .map(
+                                  (value) =>
+                                    field.options?.find(
+                                      (option) => option.value === value,
+                                    )?.label || value,
+                                )
+                                .join(" + ")}
+                            </option>
+                          )}
                         {field.options.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}

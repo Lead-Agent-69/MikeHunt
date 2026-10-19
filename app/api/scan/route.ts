@@ -22,6 +22,10 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { safeSellerName, sellerForDesk } from "@/lib/deals/seller-name";
 import {
+  reportedSellerType,
+  sellerTypeEvidence,
+} from "@/lib/deals/seller-type";
+import {
   redactListingForNonFlipDesk,
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
@@ -48,7 +52,7 @@ import {
 import {
   uniqueDbSources,
   applySelectedSources,
-  sellerTypeSourceValues,
+  applySellerTypes,
   sourceUrlNeedles,
   applyVehicleDetails,
   applyInventoryLane,
@@ -115,9 +119,7 @@ function inferredSeller(row: any) {
   // contact off Scan cards), and drop a "name" that is itself a phone, email or link.
   const directSeller =
     safeSellerName(row.seller) || safeSellerName(options.seller) || "";
-  const directSellerType = String(
-    row.seller_type || row.sellerType || options.sellerType || "",
-  ).trim();
+  const directSellerType = reportedSellerType(row);
   const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
   const meta = sourceMeta(sourceKey);
   if (
@@ -130,27 +132,14 @@ function inferredSeller(row: any) {
           ? directSeller || undefined
           : undefined,
       sellerType:
-        options.aggregator === "autotempest"
-          ? directSellerType || undefined
-          : undefined,
+        options.aggregator === "autotempest" ? directSellerType : undefined,
     };
   }
   return {
     seller:
       directSeller ||
       (row.source_url || row.sourceUrl ? meta.label : undefined),
-    sellerType:
-      directSellerType ||
-      (meta.channel === "gov" ||
-      meta.channel === "auction" ||
-      meta.channel === "salvage" ||
-      meta.channel === "wholesale"
-        ? "auction"
-        : meta.channel === "dealer" || meta.channel === "retail"
-          ? "dealer"
-          : meta.channel === "private"
-            ? "private"
-            : undefined),
+    sellerType: sellerTypeEvidence(row),
   };
 }
 
@@ -246,10 +235,14 @@ export function buildScanMatchExplanation(
     reasons.push(`${filters.sellerType} seller scope`);
   }
   if (filters.minPrice && row?.askPrice && row.askPrice >= filters.minPrice) {
-    reasons.push(`over $${Number(filters.minPrice).toLocaleString()} budget`);
+    reasons.push(
+      `asking price from $${Number(filters.minPrice).toLocaleString()}`,
+    );
   }
   if (filters.maxPrice && row?.askPrice && row.askPrice <= filters.maxPrice) {
-    reasons.push(`under $${Number(filters.maxPrice).toLocaleString()} budget`);
+    reasons.push(
+      `asking price up to $${Number(filters.maxPrice).toLocaleString()}`,
+    );
   }
   if (filters.q) {
     reasons.push(`matches "${filters.q}" search`);
@@ -1149,7 +1142,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Price-gap sorting needs recorded asking prices and valuation evidence.",
+            "Below-estimate sorting needs a recorded cash asking price and supported valuation evidence.",
         },
         { status: 503, headers: SCAN_CACHE_HEADERS },
       );
@@ -1179,7 +1172,9 @@ export async function GET(req: NextRequest) {
   if (location.requested && !location.radius)
     return NextResponse.json(
       {
-        error: "This ZIP location could not be resolved. Try another ZIP code.",
+        error:
+          location.error ||
+          "This ZIP location could not be resolved. Try another ZIP code.",
       },
       { status: 422, headers: SCAN_CACHE_HEADERS },
     );
@@ -1192,7 +1187,12 @@ export async function GET(req: NextRequest) {
     // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
     .eq("active", true);
 
-  query = applyLiveAuctionWindow(applyCustomerInventory(query));
+  query = applyLiveAuctionWindow(
+    applyCustomerInventory(query, Date.now(), {
+      includeWithoutPhotos: searchParams.get("hasPhotos") === "no",
+      observedDays: Number(searchParams.get("seenWithin")),
+    }),
+  );
 
   if (
     !hasAuctionDetailFilters(searchParams) &&
@@ -1291,8 +1291,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (sellerType && sellerType !== "all") {
-    const sellerSources = sellerTypeSourceValues(sellerType);
-    if (sellerSources.length) query = query.in("source", sellerSources);
+    query = applySellerTypes(query, [sellerType]);
   }
 
   // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.

@@ -18,9 +18,9 @@ describe("sources proof scope", () => {
     expect(page).toContain('const scopeTitleType = params.get("titleType")');
     expect(page).toContain('const scopeMinPrice = params.get("minPrice")');
     expect(page).toContain("Salvage / repairable");
-    expect(page).toContain("Over $5k");
+    expect(page).toContain("From $5k");
     expect(page).toContain("${healthScope.titleType} title");
-    expect(page).toContain("over $${healthScope.minPrice.toLocaleString()}");
+    expect(page).toContain("from $${healthScope.minPrice.toLocaleString()}");
   });
 
   it("refreshes and shows buyer-friendly availability after a scoped smart import", () => {

@@ -43,10 +43,10 @@ function scopeSummary(scope: BuyerScope) {
     scope.makes?.length ? `${scope.makes.join("/")} makes` : scope.make,
     scope.model,
     scope.minPrice
-      ? `over $${Number(scope.minPrice).toLocaleString()}`
+      ? `from $${Number(scope.minPrice).toLocaleString()}`
       : undefined,
     scope.maxPrice
-      ? `under $${Number(scope.maxPrice).toLocaleString()}`
+      ? `up to $${Number(scope.maxPrice).toLocaleString()}`
       : undefined,
     scope.dealerSourceIds?.length
       ? `${scope.dealerSourceIds.length} watched dealer${

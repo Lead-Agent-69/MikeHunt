@@ -94,7 +94,7 @@ export function CarTypeSelector({
       });
       return Array.from(allMakes).sort();
     }
-    
+
     // Show makes from selected categories
     const makes = new Set<string>();
     selectedCategories.forEach((catId) => {
@@ -135,7 +135,7 @@ export function CarTypeSelector({
         {CAR_CATEGORIES.map((category) => {
           const isSelected = selectedCategories.includes(category.id);
           const isExpanded = expandedCategory === category.id;
-          
+
           return (
             <div key={category.id} className="relative">
               <button
@@ -152,7 +152,9 @@ export function CarTypeSelector({
                 <div className="flex flex-col items-center gap-2">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      isSelected ? "bg-[var(--brand)] text-white" : "bg-[var(--s2)] text-[var(--t3)]"
+                      isSelected
+                        ? "bg-[var(--brand)] text-white"
+                        : "bg-[var(--s2)] text-[var(--t3)]"
                     }`}
                   >
                     <Ico name={category.icon as any} size={16} />
@@ -170,7 +172,9 @@ export function CarTypeSelector({
               {/* Expanded makes */}
               {isExpanded && (
                 <div className="absolute top-full left-0 right-0 mt-1 p-2 rounded-lg border border-[var(--b1)] bg-[var(--s0)] shadow-lg z-10">
-                  <p className="text-[10px] text-[var(--t4)] mb-1">{category.description}</p>
+                  <p className="text-[10px] text-[var(--t4)] mb-1">
+                    {category.description}
+                  </p>
                   <div className="flex flex-wrap gap-1">
                     {category.makes.map((make) => {
                       const isMakeSelected = selectedMakes.includes(make);
@@ -245,7 +249,7 @@ export const QUICK_PRESETS = [
   {
     id: "trucks",
     name: "Work Trucks",
-    description: "Pickup trucks under $20k",
+    description: "Pickup trucks up to $20k",
     icon: "truck",
     filters: {
       categories: ["trucks"],
@@ -255,7 +259,7 @@ export const QUICK_PRESETS = [
   {
     id: "suv-family",
     name: "Family SUVs",
-    description: "Reliable SUVs under $15k",
+    description: "Reliable SUVs up to $15k",
     icon: "users",
     filters: {
       categories: ["suvs"],
@@ -296,18 +300,23 @@ export const QUICK_PRESETS = [
 ];
 
 interface QuickPresetsProps {
-  onApplyPreset: (preset: typeof QUICK_PRESETS[0]) => void;
+  onApplyPreset: (preset: (typeof QUICK_PRESETS)[0]) => void;
   className?: string;
 }
 
-export function QuickPresets({ onApplyPreset, className = "" }: QuickPresetsProps) {
+export function QuickPresets({
+  onApplyPreset,
+  className = "",
+}: QuickPresetsProps) {
   return (
     <div className={`space-y-3 ${className}`}>
       <div>
         <h3 className="text-sm font-bold text-[var(--t1)]">Quick Filters</h3>
-        <p className="text-xs text-[var(--t4)]">One-click presets for common searches</p>
+        <p className="text-xs text-[var(--t4)]">
+          One-click presets for common searches
+        </p>
       </div>
-      
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {QUICK_PRESETS.map((preset) => (
           <button
@@ -317,9 +326,15 @@ export function QuickPresets({ onApplyPreset, className = "" }: QuickPresetsProp
           >
             <div className="flex items-center gap-2 mb-1">
               <div className="w-6 h-6 rounded-full bg-[var(--brand)]/10 flex items-center justify-center">
-                <Ico name={preset.icon as any} size={12} className="text-[var(--brand)]" />
+                <Ico
+                  name={preset.icon as any}
+                  size={12}
+                  className="text-[var(--brand)]"
+                />
               </div>
-              <span className="text-xs font-bold text-[var(--t1)]">{preset.name}</span>
+              <span className="text-xs font-bold text-[var(--t1)]">
+                {preset.name}
+              </span>
             </div>
             <p className="text-[10px] text-[var(--t4)]">{preset.description}</p>
           </button>

@@ -2912,6 +2912,11 @@ function ScanPageInner() {
     if (scopedSellerType) setSellerTypeFilter(scopedSellerType);
     if (scopedMaxPrice) setMaxPrice(normalizeMaxPriceFilter(scopedMaxPrice));
     if (scopedMinPrice) setMinPrice(scopedMinPrice);
+    if (savedParams.has("model")) setModel(savedParams.get("model")!);
+    if (savedParams.has("maxMileage"))
+      setMaxMileage(savedParams.get("maxMileage")!);
+    if (savedParams.has("minYear")) setMinYear(savedParams.get("minYear")!);
+    if (savedParams.has("maxYear")) setMaxYear(savedParams.get("maxYear")!);
     if (scopedDealerSourceIds) {
       setDealerSourceIdsFilter(
         scopedDealerSourceIds
@@ -3067,22 +3072,30 @@ function ScanPageInner() {
     },
     { label: "Model", value: model, clear: () => setModel("all") },
     { label: "Shown tag", value: category, clear: () => setCategory("all") },
-    { label: "Min price", value: minPrice, clear: () => setMinPrice("any") },
-    { label: "Max price", value: maxPrice, clear: () => setMaxPrice("any") },
+    {
+      label: "Price from",
+      value: minPrice,
+      clear: () => setMinPrice("any"),
+    },
+    {
+      label: "Price up to",
+      value: maxPrice,
+      clear: () => setMaxPrice("any"),
+    },
     { label: "Year from", value: minYear, clear: () => setMinYear("any") },
     { label: "Year to", value: maxYear, clear: () => setMaxYear("any") },
     {
-      label: "Near",
-      value: zip ? `${zip} · ${radius} mi` : "any",
+      label: "Search area",
+      value: zip ? `Within ${radius} mi of ${zip}` : "any",
       clear: () => setZip(""),
     },
     {
-      label: "Min miles",
+      label: "Mileage from",
       value: minMileage,
       clear: () => setMinMileage("any"),
     },
     {
-      label: "Max miles",
+      label: "Mileage up to",
       value: maxMileage,
       clear: () => setMaxMileage("any"),
     },
@@ -3164,9 +3177,9 @@ function ScanPageInner() {
         "State",
         "Make",
         "Model",
-        "Max price",
-        "Max miles",
-        "Near",
+        "Price up to",
+        "Mileage up to",
+        "Search area",
         "Source",
         "Verdict",
       ].includes(filter.label),
@@ -3189,7 +3202,7 @@ function ScanPageInner() {
           : null,
       laneLabel[lane] || lane,
       /^\d{5}$/.test(zip)
-        ? `within ${radius} miles of ${zip}`
+        ? `within ${radius} mi of ${zip}`
         : selectedStates || (state !== "all" ? state : "nationwide"),
       titleType !== "all" ? `${titleType} title` : null,
       make !== "all" ? make : null,
@@ -3214,7 +3227,7 @@ function ScanPageInner() {
           }`
         : null,
       sellerTypeFilter !== "all" ? `${sellerTypeFilter} sellers` : null,
-      maxPrice !== "any" ? `under ${formatMaxPriceFilter(maxPrice)}` : null,
+      maxPrice !== "any" ? `up to ${formatMaxPriceFilter(maxPrice)}` : null,
     ].filter(Boolean);
     return `Searching ${parts.join(" · ")} · sorted by ${sort}`;
   }, [
@@ -4229,9 +4242,9 @@ function ScanPageInner() {
       lane !== "all" ? lane.replace(/-/g, " ") : null,
       state !== "all" ? state : null,
       minPrice !== "any"
-        ? `over $${Number(minPrice.replace("k", "000")).toLocaleString()}`
+        ? `from $${Number(minPrice.replace("k", "000")).toLocaleString()}`
         : null,
-      maxPrice !== "any" ? `under ${formatMaxPriceFilter(maxPrice)}` : null,
+      maxPrice !== "any" ? `up to ${formatMaxPriceFilter(maxPrice)}` : null,
     ].filter(Boolean);
     try {
       const saved = saveLocalSavedSearch({
@@ -4871,12 +4884,12 @@ function ScanPageInner() {
             options={stateOptions}
           />
           <RangeInput
-            label="Max Price"
+            label="Price up to ($)"
             value={maxPrice}
             onChange={setMaxPrice}
           />
           <RangeInput
-            label="Max Miles"
+            label="Mileage up to"
             value={maxMileage}
             onChange={setMaxMileage}
           />
@@ -4887,13 +4900,13 @@ function ScanPageInner() {
             options={sourceOptions}
           />
           <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-            Near ZIP
+            ZIP code
             <input
               type="text"
               inputMode="numeric"
               autoComplete="postal-code"
               maxLength={5}
-              aria-label="ZIP"
+              aria-label="Search ZIP code"
               placeholder="ZIP code"
               value={zip}
               onChange={(event) => {
@@ -4910,7 +4923,7 @@ function ScanPageInner() {
           <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
             Within
             <select
-              aria-label="Radius"
+              aria-label="Distance from ZIP"
               value={radius}
               disabled={!/^\d{5}$/.test(zip)}
               onChange={(event) => setRadius(event.target.value)}
@@ -4930,7 +4943,7 @@ function ScanPageInner() {
             options={[
               {
                 value: "margin",
-                label: "Sort: Highest price gap (before costs)",
+                label: "Sort: Below estimate ↓",
               },
               // Profit sort is a flip-desk tool; keep it listed if a URL already picked it.
               ...(flipDesk || sort === "profit"
@@ -5094,21 +5107,21 @@ function ScanPageInner() {
 
             <FilterGroup label={flipDesk ? "Price & profit" : "Price"}>
               <RangeInput
-                label="Min Price"
+                label="Price from ($)"
                 value={minPrice}
                 onChange={setMinPrice}
               />
               {flipDesk && (
                 <FilterSelect
-                  label="Min Profit"
+                  label="Net profit from ($)"
                   value={minProfit}
                   onChange={setMinProfit}
                   options={[
                     { value: "any", label: "Profit: Any" },
-                    { value: "1k", label: "Min $1,000" },
-                    { value: "2k", label: "Min $2,000" },
-                    { value: "3k", label: "Min $3,000" },
-                    { value: "5k", label: "Min $5,000" },
+                    { value: "1k", label: "From $1,000" },
+                    { value: "2k", label: "From $2,000" },
+                    { value: "3k", label: "From $3,000" },
+                    { value: "5k", label: "From $5,000" },
                   ]}
                 />
               )}
@@ -5129,7 +5142,7 @@ function ScanPageInner() {
 
             <FilterGroup label="Condition">
               <RangeInput
-                label="Min Miles"
+                label="Mileage from"
                 value={minMileage}
                 onChange={setMinMileage}
               />
@@ -5323,9 +5336,10 @@ function ScanPageInner() {
 
       {sort === "margin" && (
         <p className="text-sm text-[var(--t2)]" role="status">
-          Price gap = recorded estimate minus cash asking price. Repairs, fees,
-          taxes and transport are not deducted. Unverified prices and valuations
-          are excluded.
+          Below-estimate amount compares the supported estimate with the cash
+          asking price. Positive amounts are below estimate; negative amounts
+          are above it. Repairs, fees, taxes and transport are not deducted.
+          Unverified prices and valuations are excluded.
         </p>
       )}
 

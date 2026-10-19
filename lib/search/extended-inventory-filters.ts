@@ -1,3 +1,4 @@
+import { parseTitleTypes } from "@/lib/deals/title-category";
 import { VEHICLE_SPEC_OPTIONS } from "@/lib/vehicle/spec-filters";
 
 export type InventoryFilterField = {
@@ -77,6 +78,25 @@ export const INVENTORY_DETAIL_GROUPS: {
     label: "Condition & auction",
     fields: [
       {
+        key: "titleType",
+        label: "Title status",
+        options: options(
+          "clean",
+          "rebuilt",
+          "salvage",
+          "rebuildable",
+          "unknown",
+        ),
+      },
+      {
+        key: "includeRepairable",
+        label: "Reported repair needs",
+        options: [
+          { value: "0", label: "Exclude reported repair needs" },
+          { value: "1", label: "Include reported repair needs" },
+        ],
+      },
+      {
         key: "damage",
         label: "Damage",
         options: options(
@@ -102,8 +122,8 @@ export const INVENTORY_DETAIL_GROUPS: {
         label: "Buy now",
         options: [{ value: "1", label: "Available" }],
       },
-      { key: "minBuyNow", label: "Buy now price from ($)", type: "number" },
-      { key: "maxBuyNow", label: "Buy now price to ($)", type: "number" },
+      { key: "minBuyNow", label: "Buy-now price from ($)", type: "number" },
+      { key: "maxBuyNow", label: "Buy-now price up to ($)", type: "number" },
       {
         key: "auctionFrom",
         label: "Auction end date from (UTC)",
@@ -193,6 +213,11 @@ export function validateExtendedFilters(
   for (const field of INVENTORY_DETAIL_FIELDS) {
     const value = params.get(field.key);
     if (!value || value === "all") continue;
+    if (
+      field.key === "titleType" &&
+      value.split(",").every((part) => parseTitleTypes(part).length === 1)
+    )
+      continue;
     if (
       field.options &&
       !field.options.some((option) => option.value === value)

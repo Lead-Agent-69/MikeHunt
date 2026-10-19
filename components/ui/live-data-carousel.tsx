@@ -616,7 +616,7 @@ export function LiveFilter({ onFilterChange, className }: LiveFilterProps) {
               </div>
               <div>
                 <label className="text-xs font-semibold text-[var(--t3)] block mb-1">
-                  Max Price
+                  Price up to
                 </label>
                 <input
                   type="number"

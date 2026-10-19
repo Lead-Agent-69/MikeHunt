@@ -89,6 +89,8 @@ const LANE_AUCTION = new Set([
   "gov_auction",
 ]);
 const LANE_RETAIL = new Set([
+  "independent_dealer",
+  "craigslist_dealer",
   "carvana",
   "cars_com",
   "cargurus",
@@ -124,7 +126,8 @@ export function dealLane(deal: {
   source?: string | null;
   condition?: string | null;
   damage_type?: string | null;
-  options?: { priceEvidence?: { kind?: string } } | null;
+  seller_type?: string | null;
+  options?: { priceEvidence?: { kind?: string }; sellerType?: string } | null;
   priceEvidence?: { kind?: string };
 }): DealLane {
   const src = (deal.source || "").toLowerCase().trim();
@@ -144,6 +147,13 @@ export function dealLane(deal: {
     deal.title,
   );
   if (damaged) return "repairable";
+  const seller = (
+    deal.seller_type ||
+    deal.options?.sellerType ||
+    ""
+  ).toLowerCase();
+  if (seller === "private") return "private";
+  if (seller === "dealer") return "clean-retail";
   if (LANE_RETAIL.has(src)) return "clean-retail";
   return "private";
 }

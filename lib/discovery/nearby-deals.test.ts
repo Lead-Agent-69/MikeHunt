@@ -11,7 +11,10 @@ describe("NearbyDeals search scope", () => {
     expect(src).toContain(
       "`/api/scan?zip=${zip}&radius=${radius}&sort=${sort}`",
     );
-    expect(src).toContain('aria-label="Nearby radius"');
+    expect(src).toContain('aria-label="Distance from ZIP"');
+    expect(src).toContain('aria-label="Search ZIP code"');
+    expect(src).toContain("`Within ${radius} mi of ${zip}`");
+    expect(src).not.toContain("within driving distance");
     expect(src).not.toContain("keepPreviousData: true");
     // Profit ranking only for a saved reseller/dealer desk; everyone else asks for trust ranking.
     expect(src).toMatch(
