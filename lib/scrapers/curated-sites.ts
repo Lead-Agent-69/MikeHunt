@@ -24,22 +24,21 @@ export interface CuratedSite {
   platform?: "4cdg" | "vehiclesnetwork";
 }
 
-// type → defaults injected onto every car scraped from a site of that type. These land on
-// condition / damage_type, which dealLane() already reads → correct lane/color, no dealLane change.
+// Dealer specialization is not evidence of an individual vehicle's title or operability.
+// Keep repairable stock in the research lane without manufacturing a title brand.
 export const SITE_TYPE_DEFAULTS: Record<
   CuratedSiteType,
   { condition?: string; damage_type?: string; seller_type?: string }
 > = {
-  salvage_yard: { condition: "salvage_title", seller_type: "dealer" },
+  salvage_yard: { damage_type: "repairable", seller_type: "dealer" },
   rebuilder_dealer: {
-    condition: "rebuilt_title",
     damage_type: "repairable",
     seller_type: "dealer",
   },
   // Mixed lot: no title assumption (titles vary per car); unknown unless the listing says.
   independent_dealer: { seller_type: "dealer" },
-  auction_proxy: { condition: "salvage_title", seller_type: "auction" },
-  clean_retail: { condition: "clean", seller_type: "dealer" },
+  auction_proxy: { seller_type: "auction" },
+  clean_retail: { seller_type: "dealer" },
 };
 
 // Human labels + one-line "what to expect" per type, for the directory UI.
@@ -80,7 +79,7 @@ export const SITE_TYPE_META: Record<
 export const CURATED_SITES: CuratedSite[] = [
   // ── National salvage/rebuilder networks (multi-state inventory) ──
   { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard", inventoryUrl: "https://www.damage.com/vehiclesList.php" }, // inventory path verified 2026-10-06 (homepage /inventory 404)
-  { url: "https://www.x2builders.com", name: "X2 Builders", type: "rebuilder_dealer" },
+  { url: "https://www.x2builders.com", name: "X2 Builders", state: "IL", city: "Pontoon Beach", type: "rebuilder_dealer", inventoryUrl: "https://x2builders.com/vehicles.asp?main=Repairables" },
   { url: "https://www.salvageautosauction.com", name: "Salvage Autos Auction", type: "auction_proxy" },
   { url: "https://www.repairablevehicles.com", name: "Repairable Vehicles", type: "rebuilder_dealer" },
   { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN", type: "salvage_yard" },
@@ -149,7 +148,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.cardomemi.com", name: "CarDome Auto Sales", state: "MI", type: "rebuilder_dealer", inventoryUrl: "https://www.cardomemi.com/salvage-title-vehicles-for-sale-in-detroit-mi" },
   { url: "https://www.florasauto.com", name: "Flora's Auto", state: "IN", type: "rebuilder_dealer" },
   { url: "https://autonetworkinc.com", name: "Auto Network, Inc.", state: "IN", type: "rebuilder_dealer" },
-  { url: "https://www.billsmithauto.com", name: "Bill Smith Auto", state: "IL", type: "rebuilder_dealer" },
+  { url: "https://www.billsmithauto.com", name: "Bill Smith Auto", state: "IL", type: "rebuilder_dealer", inventoryUrl: "https://www.billsmithauto.com/en/view-all-inventory.cfm" },
   { url: "https://www.autoworksinc.com", name: "Auto Works Inc.", state: "WI", city: "Madison", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://autoworksinc.com/vehicles.php" }, // 4cdg (verified 2026-10-10)
   { url: "https://www.mnrepairables.com", name: "MN Motors", state: "MN", city: "Faribault", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.mnrepairables.com/vehicles.php" }, // 4cdg (verified 2026-10-10)
   { url: "https://www.starautous.com", name: "Star Auto", state: "MN", type: "rebuilder_dealer" },
