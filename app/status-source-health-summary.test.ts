@@ -12,7 +12,7 @@ describe("status source-health summary", () => {
     expect(page).toContain("healthSummary.healthy ??");
     expect(page).toContain("healthSummary.readySources");
     expect(page).toContain(
-      "healthSummary.activeRows ?? healthSummary.activeDeals ?? publicRows",
+      "healthSummary.activeRows ?? healthSummary.activeDeals ?? storedRows",
     );
     expect(page).toContain("healthSummary.rowsWithPhotos ?? photoRows");
     expect(page).toContain("healthSummary.averageQuality ?? 0");
