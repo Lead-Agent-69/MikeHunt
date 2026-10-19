@@ -7,6 +7,7 @@ import {
 } from "@/lib/sources/source-meta";
 import {
   crawlDealerCms,
+  dealerCmsSiteFor,
   dealerCmsSiteFromCurated,
   parseListingPage,
   type DealerCmsSite,
@@ -28,6 +29,17 @@ const card = (
   `<article><a href="vehiclesDetail.php?${id}">${images}<h3>${title}</h3></a><p>Sale Price: $18,995</p></article>`;
 
 describe("bounded source expansion", () => {
+  it("places Polecats at its published single-lot city for radius searches", () => {
+    const polecats = CURATED_SITES.find((s) =>
+      s.url.includes("polecatsautosales.com"),
+    )!;
+    expect(polecats).toMatchObject({ city: "Malden", state: "MO" });
+    expect(dealerCmsSiteFor(polecats.url)).toMatchObject({
+      city: "Malden",
+      state: "MO",
+    });
+  });
+
   it("connects verified Missouri inventory and selectable source identity", () => {
     const cameron = CURATED_SITES.find((s) =>
       s.url.includes("cameronautollc.com"),

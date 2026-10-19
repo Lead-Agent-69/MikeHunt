@@ -308,6 +308,8 @@ describe("LocalScraperCache", () => {
     ]);
     const [buffered] = await cache.records("test");
     const { cachedAt, cacheSynced, ...observation } = buffered;
+    expect(cachedAt).toEqual(expect.any(String));
+    expect(cacheSynced).toBe(false);
     await cache.persistRows([observation], db.client, "*");
     expect(db.writes[0][0]).not.toHaveProperty("created_at");
     expect(db.writes[0][0]).not.toHaveProperty("first_seen_at");
