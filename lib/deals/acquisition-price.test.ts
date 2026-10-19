@@ -8,6 +8,21 @@ import {
 
 describe("reported acquisition price", () => {
   it.each([
+    { askingPrice: 299, evidenceText: "Sale price: $299/month" },
+    { askingPrice: 2180, evidenceText: "Savings off sale price: $2,180" },
+    { askingPrice: 2600, evidenceText: "Not the cash price: $2,600" },
+  ])(
+    "rechecks legacy asking-price evidence without rewriting the stored listing: %j",
+    (evidence) => {
+      const row = {
+        ask_price: evidence.askingPrice,
+        options: { priceEvidence: { kind: "asking", ...evidence } },
+      };
+      expect(reportedAcquisitionPrice(row)).toBe(0);
+      expect(row.options.priceEvidence.kind).toBe("asking");
+    },
+  );
+  it.each([
     "Not the full cash price: $2,600",
     "Not the cash price: $2,600",
     "This is not the sale price: $2,600. Price listed may be down payment.",

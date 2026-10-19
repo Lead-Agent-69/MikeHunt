@@ -146,6 +146,13 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
       "unknown",
     ].includes(stored.kind)
   ) {
+    if (stored.kind === "asking" && typeof stored.evidenceText === "string") {
+      const inspected = disclosedPriceEvidence(
+        stored.evidenceText,
+        positivePrice(stored.askingPrice) || amount,
+      );
+      if (inspected && inspected.kind !== "asking") return inspected;
+    }
     return {
       kind: stored.kind,
       askingPrice: positivePrice(stored.askingPrice),
