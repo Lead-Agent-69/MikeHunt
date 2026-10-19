@@ -117,6 +117,11 @@ export function MarketLocation({
             lat: pin?.lat || "",
             lng: pin?.lng || "",
           };
+  const applyArea = () => {
+    if (!canApply) return;
+    onChange(draft);
+    setOpen(false);
+  };
   const summary = searchAreaLabel(value);
   const anchor =
     (home?.state && US_STATES[home.state] ? home.state : states[0]) || "";
@@ -226,6 +231,12 @@ export function MarketLocation({
                       placeholder="ZIP or city, state"
                       value={near}
                       maxLength={100}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          applyArea();
+                        }
+                      }}
                       onChange={(event) => {
                         stopLocating();
                         setPin(null);
@@ -449,11 +460,7 @@ export function MarketLocation({
                 <button
                   type="button"
                   disabled={!canApply}
-                  onClick={() => {
-                    if (!canApply) return;
-                    onChange(draft);
-                    setOpen(false);
-                  }}
+                  onClick={applyArea}
                   className="min-h-11 rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white disabled:opacity-40"
                 >
                   Apply area

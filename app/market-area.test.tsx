@@ -77,6 +77,21 @@ async function render() {
   });
 }
 describe("single search area picker", () => {
+  it("keeps Enter available to apply a typed location", async () => {
+    await render();
+    open();
+    mode("nearby");
+    const input = document.querySelector<HTMLInputElement>(
+      '[aria-label="Search location"]',
+    )!;
+    act(() => Simulate.change(input, { target: { value: "63101" } } as any));
+    act(() => Simulate.keyDown(input, { key: "Enter" }));
+    expect(changed).toHaveBeenLastCalledWith({
+      ...EMPTY_SEARCH_AREA,
+      near: "63101",
+      radius: "100",
+    });
+  });
   it("does not display an active radius for Nationwide, including after reopening", async () => {
     await render();
     open();
