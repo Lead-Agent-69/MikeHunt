@@ -10,6 +10,7 @@ import {
   LoadingState,
 } from "@/components/shared/PageStates";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
+import { sourceReadinessRank } from "@/lib/scrapers/source-proof-readiness";
 
 async function fetcher(url: string) {
   const response = await fetch(url);
@@ -220,17 +221,8 @@ export default function StatusPage() {
     },
   ];
   const sortedHealthSources = healthSources.slice().sort((a, b) => {
-    const rank: Record<string, number> = {
-      ready: 0,
-      no_rows: 1,
-      needs_run: 2,
-      needs_login: 3,
-      blocked: 4,
-      not_configured: 5,
-      disabled: 6,
-    };
-    const ar = rank[a.readiness] ?? 9;
-    const br = rank[b.readiness] ?? 9;
+    const ar = sourceReadinessRank(a.readiness);
+    const br = sourceReadinessRank(b.readiness);
     if (ar !== br) return ar - br;
     return (b.activeRows || 0) - (a.activeRows || 0);
   });
