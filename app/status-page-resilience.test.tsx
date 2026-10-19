@@ -63,7 +63,19 @@ function systemSnapshot() {
     ],
     sourceBreakdown: [],
     recentRuns: [],
-    readiness: { ready: true, items: [], summary: {} },
+    readiness: {
+      ready: true,
+      items: [
+        {
+          id: "google-login",
+          label: "Google login",
+          status: "ready",
+          detail: "Google login is configured.",
+          nextStep: "Retest after OAuth changes.",
+        },
+      ],
+      summary: {},
+    },
     knowledgeBase: {},
     learning: { outcomesLogged: 0, prioritizedMakes: [] },
   };
@@ -118,6 +130,15 @@ describe("status page resilience", () => {
     expect(html).toContain("Inventory quality sample");
     expect(html).toContain("5,000 active rows");
     expect(html).not.toContain("No source is ready to show inventory yet");
+  });
+
+  it("does not contradict a verified Google login state", () => {
+    state.system.data = systemSnapshot();
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Google login is ready for synced watchlists");
+    expect(html).toContain("Remaining trust limits");
+    expect(html).not.toContain("Google account creation is not fully proven");
   });
 
   it("rejects HTTP failures before they can render as successful zeroes", async () => {
