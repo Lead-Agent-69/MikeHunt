@@ -68,6 +68,7 @@ import {
   wantHitGapStates,
 } from "../lib/scrapers/sweep-demand";
 import { applyWorkerSupabaseUrl } from "../lib/scrapers/runtime-supabase-url";
+import { verifyScraperDatabaseConnection } from "../lib/scrapers/database-preflight";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 const WORKER_SUPABASE_URL = applyWorkerSupabaseUrl();
@@ -582,6 +583,10 @@ async function runCycle(): Promise<void> {
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  await verifyScraperDatabaseConnection(async (signal) =>
+    supabase.from("deals").select("id").limit(1).abortSignal(signal),
+  );
+  console.log("[local-scraper] hosted database connection verified");
   const explicitSources = Boolean(process.env.SCRAPE_SOURCES?.trim());
   const sourceIds = resolveSweepSources();
   const unavailable = sourceIds.filter((id) => {
@@ -675,6 +680,10 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  await verifyScraperDatabaseConnection(async (signal) =>
+    supabase.from("deals").select("id").limit(1).abortSignal(signal),
+  );
+  console.log("[scrape-queue] hosted database connection verified");
   const { runScrapers } = await import("../lib/scrapers/runner");
 
   console.log(
