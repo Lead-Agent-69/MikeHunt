@@ -226,6 +226,8 @@ export default function StatusPage() {
     if (ar !== br) return ar - br;
     return (b.activeRows || 0) - (a.activeRows || 0);
   });
+  const decisionEvidenceReady = realData?.decisionReady === true;
+  const dealMathCoverage = Number(kb?.dealMathReadyPct || 0);
   const buyerQuestions = [
     {
       question: "What cars should I look at today?",
@@ -260,11 +262,18 @@ export default function StatusPage() {
       action: "Trace sources",
     },
     {
-      question: "Is it profitable after costs?",
-      status: (kb?.dealMathReadyPct ?? 0) >= 70 ? "working" : "thin",
-      proof: `${kb?.dealMathReadyPct ?? 0}% have resale math and net-profit scoring.`,
+      question: "Can I trust the projected profit?",
+      status:
+        dealMathCoverage >= 70 && decisionEvidenceReady
+          ? "working"
+          : dealMathCoverage >= 70
+            ? "evidence pending"
+            : "thin",
+      proof: decisionEvidenceReady
+        ? `${dealMathCoverage}% have deal math backed by completed-sale decision evidence.`
+        : `${dealMathCoverage}% have estimated resale math. Completed-sale evidence is still required before treating it as a buy/pass verdict.`,
       href: "/scan?sort=profit",
-      action: "Sort by profit",
+      action: decisionEvidenceReady ? "Sort by profit" : "Review estimates",
     },
     {
       question: "Can I narrow to state, budget, vehicle, title, and seller?",
@@ -1088,14 +1097,14 @@ export default function StatusPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-                  Adoption readiness
+                  Buyer workflow coverage
                 </p>
                 <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-                  Can a buyer open this and make a decision?
+                  Which buyer workflows are proven?
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                  This converts the technical checks into the questions a real
-                  salvage, dealer, or wholesale buyer expects the app to answer.
+                  This separates usable browse-and-verify workflows from the
+                  evidence still required for a purchase recommendation.
                 </p>
               </div>
               <div className="shrink-0 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-4 py-3 text-center">
@@ -1104,7 +1113,7 @@ export default function StatusPage() {
                   style={{
                     fontFamily: "var(--fm)",
                     color:
-                      adoptionScore >= 80
+                      adoptionScore >= 80 && decisionEvidenceReady
                         ? "var(--green)"
                         : adoptionScore >= 50
                           ? "var(--amber)"
@@ -1114,7 +1123,7 @@ export default function StatusPage() {
                   {adoptionScore}%
                 </Mono>
                 <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-                  buyer-ready
+                  workflow coverage
                 </span>
               </div>
             </div>
@@ -1123,7 +1132,8 @@ export default function StatusPage() {
                 const tone =
                   item.status === "working"
                     ? "var(--green)"
-                    : item.status === "setup"
+                    : item.status === "setup" ||
+                        item.status === "evidence pending"
                       ? "var(--amber)"
                       : "var(--red)";
                 return (

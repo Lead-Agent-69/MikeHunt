@@ -90,7 +90,14 @@ function systemSnapshot() {
       ],
       summary: {},
     },
-    knowledgeBase: {},
+    knowledgeBase: {
+      dealMathReadyPct: 96,
+      soldComps: 0,
+    },
+    realData: {
+      buyerReady: true,
+      decisionReady: false,
+    },
     learning: { outcomesLogged: 0, prioritizedMakes: [] },
   };
 }
@@ -167,6 +174,35 @@ describe("status page resilience", () => {
     expect(html).not.toContain("public preview");
     expect(html).not.toContain("database setup is pending");
     expect(html).not.toContain("Once scraper control is authorized");
+  });
+
+  it("does not call estimate-only deal math buyer-ready", () => {
+    state.system.data = systemSnapshot();
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Buyer workflow coverage");
+    expect(html).toContain("83%");
+    expect(html).toContain("workflow coverage");
+    expect(html).toContain("evidence pending");
+    expect(html).toContain(
+      "Completed-sale evidence is still required before treating it as a buy/pass verdict.",
+    );
+    expect(html).not.toContain("buyer-ready");
+  });
+
+  it("marks projected profit proven only with completed-sale decision evidence", () => {
+    const snapshot = systemSnapshot();
+    snapshot.realData.decisionReady = true;
+    snapshot.knowledgeBase.soldComps = 12;
+    state.system.data = snapshot;
+
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain(
+      "96% have deal math backed by completed-sale decision evidence.",
+    );
+    expect(html).toContain("100%");
+    expect(html).not.toContain("evidence pending");
   });
 
   it("keeps setup guidance when persistence and scraper control are missing", () => {
