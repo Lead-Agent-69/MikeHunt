@@ -51,7 +51,10 @@ import {
   columnsExist,
   stripColumns,
 } from "@/lib/data-quality/optional-columns";
-import { getScrapeSourceId } from "./source-run-context";
+import {
+  getScrapeSourceId,
+  recordScrapePersistence,
+} from "./source-run-context";
 
 /** Columns added by 20261010210000 (Ren sign pending). Stripped until hosted has them. */
 export const QUALITY_COLUMNS = ["quality_flags", "completeness"] as const;
@@ -86,6 +89,7 @@ function logPipelineOutcome(
   storedSource: string,
   counts: PipelineStageCounts,
 ) {
+  recordScrapePersistence(counts.input, counts.persisted);
   console.info(
     `[Pipeline] intake ${JSON.stringify({
       adapterId,

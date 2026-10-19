@@ -1,14 +1,17 @@
 // lib/scrapers/tools/executor.ts
 // Executes a single scraper with retry, error handling, and result normalization.
 
-import { ScrapeResult, Deal } from "@/types";
-import { RegisteredScraper, ScraperArgs } from "./registry";
+import { Deal } from "@/types";
+import { RegisteredScraper } from "./registry";
 import { CostGuard, CostGuardOptions } from "./cost-guard";
 import {
   CircuitBreakerRegistry,
   CircuitBreakerOptions,
 } from "./circuit-breaker";
-import { withScrapeSourceId } from "../source-run-context";
+import {
+  type ScrapePersistenceReceipt,
+  withScrapeRunReceipt,
+} from "../source-run-context";
 
 export interface ExecutorOptions {
   maxRetries?: number;
@@ -99,14 +102,17 @@ export class ScraperExecutor {
           };
         }
 
-        const result = await this.runWithTimeout(
+        const { result, receipt } = await this.runWithTimeout(
           scraper,
           timeoutMs,
           abortSignal,
         );
         const durationMs = Date.now() - start;
 
-        const dealsFound = this.countResult(result);
+        const resultCount = this.countResult(result);
+        const dealsFound = receipt.calls
+          ? Math.max(resultCount, receipt.dealsFound)
+          : resultCount;
         const remaining = guard.snapshot().remainingDeals;
         const cappedDeals = Math.min(dealsFound, remaining);
         guard.trackDeals(cappedDeals);
@@ -115,7 +121,7 @@ export class ScraperExecutor {
         return {
           success: true,
           dealsFound: cappedDeals,
-          dealsSaved: cappedDeals,
+          dealsSaved: receipt.calls ? receipt.dealsSaved : cappedDeals,
           durationMs,
         };
       } catch (error) {
@@ -153,7 +159,10 @@ export class ScraperExecutor {
     scraper: RegisteredScraper,
     timeoutMs: number,
     abortSignal?: AbortSignal,
-  ): Promise<number | Deal[]> {
+  ): Promise<{
+    result: number | Deal[];
+    receipt: ScrapePersistenceReceipt;
+  }> {
     const controller = new AbortController();
     let timeoutId: ReturnType<typeof setTimeout>;
     let onAbort: () => void;
@@ -177,7 +186,7 @@ export class ScraperExecutor {
         stopped,
         Promise.resolve().then(() => {
           controller.signal.throwIfAborted();
-          return withScrapeSourceId(scraper.id, () =>
+          return withScrapeRunReceipt(scraper.id, () =>
             scraper.fn({
               ...scraper.args,
               abortSignal: controller.signal,
