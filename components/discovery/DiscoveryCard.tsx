@@ -69,9 +69,8 @@ function Placeholder() {
 }
 
 /**
- * Compact, tappable discovery card ΓÇö CarGurus/Kayak feel. Image-forward, with a
- * market deal-grade badge, prominent ask price, the key Kayak "found on N sites"
- * multi-source signal, and a subtle max-bid hint for the flipper.
+ * Keep source photos clear, with one labeled amount and the evidence needed for review.
+ * Purchase ceilings remain gated on completed acquisition checks.
  */
 export const DiscoveryCard = memo(function DiscoveryCard({
   deal,
@@ -85,8 +84,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const title =
     deal.title ||
     `${deal.year ?? ""} ${deal.make ?? ""} ${deal.model ?? ""}`.trim();
-  const previewTitle =
-    [deal.year, deal.make, deal.model].filter(Boolean).join(" ") || title;
   const location = [deal.locationCity, deal.locationState]
     .filter(Boolean)
     .join(", ");
@@ -120,11 +117,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     Number.isFinite(displayAmount) && displayAmount > 0
       ? `$${displayAmount.toLocaleString()}`
       : "Not reported";
-  const decision = {
-    label: evidence.label,
-    background: "rgba(35, 43, 55, .88)",
-    color: "#ffffff",
-  };
 
   return (
     <div
@@ -137,7 +129,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       >
         {/* Image */}
         <div
-          className="relative w-full aspect-[4/3] overflow-hidden"
+          data-testid="discovery-card-photo"
+          className="relative w-full aspect-[16/9] overflow-hidden sm:aspect-[4/3]"
           style={{ background: "var(--s2)" }}
         >
           <Link
@@ -156,7 +149,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 loading="lazy"
                 decoding="async"
                 onError={gallery.reject}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 motion-safe:group-hover:scale-105 motion-reduce:transition-none"
+                className="absolute inset-0 h-full w-full object-contain"
               />
             ) : (
               <Placeholder />
@@ -166,59 +159,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
           <PhotoPreviewButton
             images={gallery.sourceImages}
             title={title}
-            className="absolute right-2.5 top-1/2 z-20 -translate-y-1/2"
+            className="absolute bottom-2.5 left-2.5 z-20"
           />
-
-          <div className="pointer-events-none absolute left-2.5 top-2.5 flex max-w-[calc(100%-4.5rem)] flex-col items-start">
-            <span
-              className="order-2 mt-1 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black sm:order-none sm:mt-0"
-              style={{ background: decision.background, color: decision.color }}
-            >
-              {decision.label}
-            </span>
-            <span
-              aria-hidden="true"
-              data-testid="discovery-card-price-preview"
-              className="order-1 block w-fit rounded-md bg-[var(--s0)] px-2.5 py-1 text-[var(--t1)] sm:order-none sm:mt-1"
-            >
-              <span className="mb-1 line-clamp-2 break-words text-xs font-bold sm:hidden">
-                {previewTitle}
-              </span>
-              <span className="block text-[10px] font-semibold">
-                {priceLabel}
-              </span>
-              <span className="font-mono text-base font-black">
-                {displayPrice}
-              </span>
-            </span>
-          </div>
-
-          {/* Multi-source chip ΓÇö floating top-right (the Kayak signal) */}
-          {multi && (
-            <span
-              className="pointer-events-none absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-white"
-              style={{
-                background: "rgba(36,28,43,.88)",
-              }}
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                <rect x="14" y="14" width="7" height="7" rx="1.5" />
-              </svg>
-              {deal.listingCount} sites
-            </span>
-          )}
 
           <button
             type="button"
@@ -246,23 +188,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
 
         {/* Body */}
         <div className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex justify-between items-start gap-2">
-            <Link
-              href={href}
-              prefetch={false}
-              target={external ? "_blank" : undefined}
-              rel={external ? "noopener noreferrer" : undefined}
-              data-testid="discovery-card-open"
-              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
-            >
-              {title}
-            </Link>
-            {deal.vin && (
-              <span className="font-mono text-[10px] text-[var(--t4)] shrink-0 group-hover:text-[var(--t2)] transition-colors">
-                {deal.vin.slice(-6)}
-              </span>
-            )}
-          </div>
           <div
             data-testid="discovery-card-price"
             className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] pb-3"
@@ -305,6 +230,29 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 )}
               </div>
             )}
+          </div>
+          <div className="flex justify-between items-start gap-2">
+            <Link
+              href={href}
+              prefetch={false}
+              target={external ? "_blank" : undefined}
+              rel={external ? "noopener noreferrer" : undefined}
+              data-testid="discovery-card-open"
+              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+            >
+              {title}
+            </Link>
+            {deal.vin && (
+              <span className="font-mono text-[10px] text-[var(--t4)] shrink-0 group-hover:text-[var(--t2)] transition-colors">
+                {deal.vin.slice(-6)}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold text-[var(--t3)]">
+            <span className="rounded-full bg-[var(--s2)] px-2 py-1">
+              {evidence.label}
+            </span>
+            {multi && <span>{deal.listingCount} sites</span>}
           </div>
 
           {/* VIN-graph red flag ΓÇö the moat made visible. Loud red for misrepresentation traps (a

@@ -107,3 +107,21 @@ describe("DealCard compact actions", () => {
     expect(html).not.toContain(">Email<");
   });
 });
+
+it("keeps the full photo clear and the labeled price in the card body", () => {
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(
+    createElement(DealCard, {
+      ...lot,
+      imageUrls: ["https://images.test/car.jpg"],
+      flipDesk: true,
+    }),
+  );
+  const photo = host.querySelector('[data-testid="dealcard-photo"]')!;
+  expect(photo.textContent).not.toContain("$14,000");
+  expect(photo.textContent).not.toContain("Current bid");
+  expect(photo.querySelector("img")?.className).toContain("object-contain");
+  expect(
+    host.querySelector('[data-testid="dealcard-price"]')?.textContent,
+  ).toContain("$14,000");
+});

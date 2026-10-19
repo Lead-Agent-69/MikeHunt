@@ -508,7 +508,10 @@ export const DealCard = memo(function DealCard({
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
     >
       {/* Image Header */}
-      <div className="relative w-full h-40 bg-[var(--s2)] overflow-hidden shrink-0">
+      <div
+        data-testid="dealcard-photo"
+        className="relative w-full h-40 bg-[var(--s2)] overflow-hidden shrink-0"
+      >
         <PhotoPreviewButton
           images={gallery.sourceImages}
           title={`${year} ${make} ${model}`}
@@ -518,7 +521,7 @@ export const DealCard = memo(function DealCard({
           <img
             src={proxiedUrl}
             alt={`${year} ${make} ${model}`}
-            className="h-full w-full object-cover opacity-100 transition-transform duration-300 group-hover:scale-[1.02]"
+            className="h-full w-full object-contain"
             onError={gallery.reject}
           />
         ) : (
@@ -526,17 +529,6 @@ export const DealCard = memo(function DealCard({
             Photo unavailable
           </div>
         )}
-        {/* Gradient overlay for premium feel */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--s1)] via-transparent to-transparent opacity-35" />
-        <div
-          data-testid="dealcard-photo-price"
-          className="absolute bottom-3 left-3 max-w-[calc(100%-24px)] rounded-md bg-black/80 px-3 py-2 text-white"
-        >
-          <p className="text-[10px] font-semibold">{copy.priceLabel(source)}</p>
-          <p className="font-mono text-xl font-extrabold">
-            {askPrice > 0 ? `$${askPrice.toLocaleString()}` : "Not reported"}
-          </p>
-        </div>
       </div>
 
       {/* Top strip: source badge + score ring */}
