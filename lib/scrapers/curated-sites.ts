@@ -107,7 +107,7 @@ export const CURATED_SITES: CuratedSite[] = [
   // ── Wave 4 — mined from the rebuild1.com salvage-dealer directory (names → resolved domains, verified) ──
   { url: "https://www.riverbendrebuildables.com", name: "Riverbend Rebuildables & Auto Sales", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.trumannauto.com", name: "Trumann Auto Body & Sales", state: "AR", type: "rebuilder_dealer" },
-  { url: "https://www.polecatsautosales.com", name: "Polecats Auto Sales", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.polecatsautosales.com", name: "Polecats Auto Sales", state: "MO", city: "Malden", type: "rebuilder_dealer" }, // Single location published by the seller, verified 2026-10-19.
   { url: "https://www.25autollc.com", name: "25 Auto LLC", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.cameronautollc.com", name: "Cameron Auto LLC", state: "MO", city: "Kahoka", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.cameronautollc.com/vehicles.php" },
   { url: "https://www.lambmotors.com", name: "Lamb Motors", type: "rebuilder_dealer" },

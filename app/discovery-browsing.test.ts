@@ -78,7 +78,7 @@ describe("discovery browsing presentation safeguards", () => {
   it("retains estimates in disclosure, allows long names and avoids hover motion when reduced", () => {
     expect(card).not.toContain("framer-motion");
     expect(card).toContain("discovery-card w-");
-    expect(card).toContain('data-testid="discovery-card-price-preview"');
+    expect(card).toContain('data-testid="discovery-card-price"');
     expect(card).toContain("{displayPrice}");
     expect(card).toContain('decoding="async"');
     expect(card).not.toContain("backdropFilter");

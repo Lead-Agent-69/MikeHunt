@@ -113,11 +113,15 @@ describe("dealer CMS parser", () => {
     });
   });
 
-  it("Polecats: de-duplicates the repeated make; reads icon miles; 'Repaired' = rebuilt", () => {
+  it("Polecats: reads mileage without turning a repair claim into a legal title brand", () => {
     const [c] = parse(POLECATS).cards;
     expect(c.title).toBe("2018 Chevrolet Silverado Crew 4x4 LT");
     expect(c.mileage).toBe(19000);
-    expect(c.condition).toBe("rebuilt_title");
+    expect(c.condition).toBeUndefined();
+    expect(
+      cardToDeal(c, dealerCmsSiteFor("https://www.polecatsautosales.com")!)
+        ?.condition,
+    ).toBe("unknown");
   });
 
   it("Elite: multi-heading titles; $0 (call for price) cards are not saved", () => {

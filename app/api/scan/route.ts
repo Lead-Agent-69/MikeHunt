@@ -22,6 +22,10 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { safeSellerName, sellerForDesk } from "@/lib/deals/seller-name";
 import {
+  reportedSellerType,
+  sellerTypeEvidence,
+} from "@/lib/deals/seller-type";
+import {
   redactListingForNonFlipDesk,
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
@@ -115,9 +119,7 @@ function inferredSeller(row: any) {
   // contact off Scan cards), and drop a "name" that is itself a phone, email or link.
   const directSeller =
     safeSellerName(row.seller) || safeSellerName(options.seller) || "";
-  const directSellerType = String(
-    row.seller_type || row.sellerType || options.sellerType || "",
-  ).trim();
+  const directSellerType = reportedSellerType(row);
   const sourceKey = displaySource(row.source, row.source_url || row.sourceUrl);
   const meta = sourceMeta(sourceKey);
   if (
@@ -130,27 +132,14 @@ function inferredSeller(row: any) {
           ? directSeller || undefined
           : undefined,
       sellerType:
-        options.aggregator === "autotempest"
-          ? directSellerType || undefined
-          : undefined,
+        options.aggregator === "autotempest" ? directSellerType : undefined,
     };
   }
   return {
     seller:
       directSeller ||
       (row.source_url || row.sourceUrl ? meta.label : undefined),
-    sellerType:
-      directSellerType ||
-      (meta.channel === "gov" ||
-      meta.channel === "auction" ||
-      meta.channel === "salvage" ||
-      meta.channel === "wholesale"
-        ? "auction"
-        : meta.channel === "dealer" || meta.channel === "retail"
-          ? "dealer"
-          : meta.channel === "private"
-            ? "private"
-            : undefined),
+    sellerType: sellerTypeEvidence(row),
   };
 }
 

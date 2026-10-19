@@ -13,6 +13,10 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import type { Database } from "@/types/supabase";
+import {
+  isListingSellerType,
+  SELLER_TYPE_SOURCE_DEFAULTS,
+} from "@/lib/deals/seller-type";
 
 const STORED_SOURCE_IDS = [
   "copart",
@@ -107,25 +111,15 @@ export function sellerTypeSourceValues(sellerType: string) {
 
 /** A mixed marketplace is not seller evidence. Explicit listing data wins over source defaults. */
 export function applySellerTypes(query: any, types: string[]) {
-  const defaults: Record<
-    string,
-    import("@/types/supabase").Database["public"]["Enums"]["deal_source"][]
-  > = {
-    dealer: ["independent_dealer", "craigslist_dealer", "carvana", "vroom"],
-    auction: ["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"],
-    private: [],
-  };
-  const selected = Array.from(new Set(types)).filter((type) =>
-    Object.prototype.hasOwnProperty.call(defaults, type),
-  );
+  const selected = Array.from(new Set(types)).filter(isListingSellerType);
   if (!selected.length) return query;
   return query.or(
     selected
       .flatMap((type) => [
         `options->>sellerType.eq.${type}`,
-        ...(defaults[type].length
+        ...(SELLER_TYPE_SOURCE_DEFAULTS[type].length
           ? [
-              `and(options->>sellerType.is.null,source.in.(${defaults[type].join(",")}))`,
+              `and(options->>sellerType.is.null,source.in.(${SELLER_TYPE_SOURCE_DEFAULTS[type].join(",")}))`,
             ]
           : []),
       ])
@@ -257,8 +251,13 @@ export function applyInventoryLane(query: any, lane: string) {
       "source",
       lane === "auction" ? sellerTypeSourceValues("auction") : ["gov_auction"],
     );
-  if (lane === "private") return applySellerTypes(query, ["private"]);
-  if (lane === "clean-retail") return applySellerTypes(query, ["dealer"]);
+  // Lanes describe acquisition channels. Seller-type filters are a separate,
+  // evidence-only constraint, so mixed marketplace inventory still belongs to
+  // its channel lane without being mislabeled as a private or dealer seller.
+  if (lane === "private")
+    return query.in("source", sellerTypeSourceValues("private"));
+  if (lane === "clean-retail")
+    return query.in("source", sellerTypeSourceValues("dealer"));
   if (lane === "parts") return query.eq("condition", "parts_only");
   if (lane === "damaged") return query.or(damagedLaneFilter());
   return query;

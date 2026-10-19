@@ -6,6 +6,7 @@ import { titleCategoryDetail } from "@/lib/deals/title-category";
 import { dealLane } from "@/lib/discovery/categorize";
 import { withinMiles } from "@/lib/geo/distance";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 
 type Search = {
   is_active?: boolean;
@@ -45,20 +46,6 @@ const text = (value: unknown) =>
     .toLowerCase();
 const positive = (value: unknown) =>
   value != null && Number.isFinite(Number(value)) && Number(value) > 0;
-
-/** Explicit seller evidence wins. Mixed marketplaces are not proof of seller type. */
-function sellerType(deal: Listing) {
-  const reported = text(deal.seller_type || deal.options?.sellerType);
-  if (["dealer", "private", "auction"].includes(reported)) return reported;
-  if (dealLane(deal) === "auction") return "auction";
-  if (
-    ["independent_dealer", "craigslist_dealer", "carvana", "carmax"].includes(
-      text(deal.source),
-    )
-  )
-    return "dealer";
-  return "unknown";
-}
 
 /** Missing evidence cannot satisfy a saved constraint or trigger a targeted alert. */
 export function matchesSavedSearch(
@@ -110,7 +97,7 @@ export function matchesSavedSearch(
       listingPriceEvidence(deal)?.kind === "current_bid")
   )
     return false;
-  const seller = sellerType(deal);
+  const seller = sellerTypeEvidence(deal) || "unknown";
   if (
     search.seller_type &&
     search.seller_type !== "all" &&

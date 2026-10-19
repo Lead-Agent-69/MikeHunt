@@ -66,9 +66,9 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
-  sourceFromUrl,
   sourceMeta,
 } from "@/lib/sources/source-meta";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
   redactListingForNonFlipDesk,
@@ -238,30 +238,12 @@ function rowSellerType(row: any) {
     String(row.source_deal_id || "").startsWith("at-")
   )
     return "";
-  const explicit = String(
-    row.seller_type || row.sellerType || options.sellerType || "",
-  ).toLowerCase();
-  if (["dealer", "auction", "private"].includes(explicit)) return explicit;
   if (
     options.aggregator === "autotempest" ||
     String(row.source_deal_id || "").startsWith("at-")
   )
     return "";
-  const sourceKey =
-    sourceFromUrl(String(row.source_url || row.sourceUrl || "")) ||
-    String(row.source || "");
-  const channel = sourceMeta(sourceKey).channel;
-  if (
-    channel === "auction" ||
-    channel === "salvage" ||
-    channel === "wholesale" ||
-    channel === "gov"
-  ) {
-    return "auction";
-  }
-  if (channel === "dealer" || channel === "retail") return "dealer";
-  if (channel === "private" || channel === "marketplace") return "private";
-  return "";
+  return sellerTypeEvidence(row) || "";
 }
 
 function rowOptions(row: any) {

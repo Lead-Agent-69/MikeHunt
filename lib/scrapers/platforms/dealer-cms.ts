@@ -82,8 +82,9 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     name: "Polecats Auto Sales",
     baseUrl: "https://www.polecatsautosales.com",
     inventoryUrl: "https://www.polecatsautosales.com/vehicles.php",
+    city: "Malden",
     state: "MO",
-    defaultCondition: "rebuilt_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
   },
   {
@@ -187,7 +188,7 @@ export function titleBrand(text: string): string | undefined {
   const x = text.toLowerCase();
   if (/prior[\s-]?salvage|reconstruct/.test(x)) return "rebuilt_title";
   if (/\bsalvage\b/.test(x)) return "salvage_title";
-  if (/\b(rebuilt|repaired)\b/.test(x)) return "rebuilt_title";
+  if (/\brebuilt\b/.test(x)) return "rebuilt_title";
   if (/\b(clean|clear)\b(?!\s*(?:out|coat))/.test(x)) return "clean_title";
   return undefined;
 }

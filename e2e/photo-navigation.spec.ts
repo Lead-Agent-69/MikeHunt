@@ -69,7 +69,11 @@ async function fixture(page: Page, failRearOnce = false) {
 
 test.describe("photo navigation", () => {
   localOnly();
-  test.use({ storageState: storagePath("personal") });
+  test.use({
+    storageState: storagePath("personal"),
+    colorScheme: "dark",
+    serviceWorkers: "block",
+  });
 
   test("photo halves and arrows cycle once, preserve focus, and fit the viewport", async ({
     page,
@@ -77,6 +81,19 @@ test.describe("photo navigation", () => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await fixture(page);
+    const photo = page.getByTestId("market-card-photo");
+    await expect(photo).not.toContainText("$15,000");
+    await expect(photo).not.toContainText("Photo navigation QA vehicle");
+    const photoBounds = (await photo.boundingBox())!;
+    const priceBounds = (await page
+      .getByTestId("market-card-price")
+      .boundingBox())!;
+    expect(priceBounds.y).toBeGreaterThanOrEqual(
+      photoBounds.y + photoBounds.height,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("clear-market-photo.png"),
+    });
     const trigger = page.getByRole("button", {
       name: "Enlarge photos of Photo navigation QA vehicle",
     });

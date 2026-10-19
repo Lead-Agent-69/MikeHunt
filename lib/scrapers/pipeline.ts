@@ -479,7 +479,8 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
           // Forward-looking forecasts (time-to-sell, price-drop odds, urgency, projected ROI).
           prediction: analysis.prediction,
         },
-        created_at: deal.created_at || now,
+        // Database-owned insertion timestamps must not be rewritten on refresh.
+        // Source publication dates are not the time we first stored a listing.
         updated_at: now,
         // Advance last_seen_at on every re-observation so days-on-market / listing velocity actually
         // accrues. first_seen_at is deliberately NOT set here — it keeps its insert default (now())

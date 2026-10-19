@@ -19,6 +19,7 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
   TOS_RESTRICTED_SOURCES,
@@ -285,24 +286,7 @@ function matchesScope(row: any, scope: HealthScope) {
 }
 
 function rowSellerType(row: any) {
-  const explicit = String(
-    row.seller_type || row.sellerType || "",
-  ).toLowerCase();
-  if (["dealer", "auction", "private"].includes(explicit)) return explicit;
-  const sourceKey =
-    sourceFromUrl(String(row.source_url || "")) || String(row.source || "");
-  const meta = sourceMeta(sourceKey);
-  if (
-    meta.channel === "gov" ||
-    meta.channel === "auction" ||
-    meta.channel === "salvage" ||
-    meta.channel === "wholesale"
-  ) {
-    return "auction";
-  }
-  if (meta.channel === "dealer" || meta.channel === "retail") return "dealer";
-  if (meta.channel === "private") return "private";
-  return "";
+  return sellerTypeEvidence(row) || "";
 }
 
 function present(value: unknown) {

@@ -12,7 +12,11 @@ for (const desk of [
 ] as Desk[]) {
   test.describe(`${desk} discovery priority`, () => {
     localOnly();
-    test.use({ storageState: storagePath(desk), serviceWorkers: "block" });
+    test.use({
+      storageState: storagePath(desk),
+      serviceWorkers: "block",
+      colorScheme: "dark",
+    });
 
     test("vehicle prices are in the first viewport and quick filters stay reachable", async ({
       page,
@@ -25,22 +29,25 @@ for (const desk of [
       await expect(
         page.getByRole("navigation", { name: "Inventory views" }),
       ).toBeVisible();
-      await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
-      const preview = page.getByTestId("discovery-card-price-preview").first();
-      const amount = preview;
+      const amount = page
+        .getByTestId("discovery-card-price")
+        .first()
+        .locator(":scope > div")
+        .first();
       await expect(amount).toBeVisible();
-      // A refreshed rail can replace its first vehicle between two locator reads.
+      const photo = page.getByTestId("discovery-card-photo").first();
       await expect
         .poll(() =>
-          preview.evaluate((element) => {
-            const value = element
-              .closest(".discovery-card")
-              ?.querySelector('[data-testid="discovery-card-price"] span')
-              ?.textContent?.trim();
-            return Boolean(value && element.textContent?.includes(value));
-          }),
+          photo
+            .locator("img")
+            .evaluate((image: HTMLImageElement) => image.naturalWidth),
         )
-        .toBe(true);
+        .toBeGreaterThan(0);
+      const photoBox = await photo.boundingBox();
+      const priceBox = await amount.boundingBox();
+      expect(priceBox!.y).toBeGreaterThanOrEqual(
+        photoBox!.y + photoBox!.height,
+      );
       const nav = await page
         .locator('nav[aria-label="Primary mobile navigation"]')
         .boundingBox();
@@ -53,13 +60,16 @@ for (const desk of [
       await page.screenshot({
         path: info.outputPath(`${desk}-first-vehicle-price.png`),
       });
+      const quickFilters = page.getByRole("button", { name: /Quick filters/ });
+      if (await quickFilters.isVisible()) await quickFilters.click();
       await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Lane", { exact: true })).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "Browse inventory", exact: true }),
+        page.getByRole("button", { name: "Search cars", exact: true }),
       ).toBeEnabled();
 
+      if (await quickFilters.isVisible()) await quickFilters.click();
       const href = await page
         .getByTestId("discovery-card-open")
         .first()

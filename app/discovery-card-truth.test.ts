@@ -224,3 +224,28 @@ it("shows seller, missing mileage and valuation basis without opening a disclosu
   expect(container.textContent).toContain("Mileage not reported");
   expect(container.textContent).toContain("Location not reported");
 });
+
+it("keeps price, evidence and site count below the full vehicle photo", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: {
+        ...listing,
+        images: ["https://images.test/car.jpg"],
+        listingCount: 2,
+      },
+    }),
+  );
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const photo = host.querySelector('[data-testid="discovery-card-photo"]')!;
+  expect(photo.textContent).not.toContain("$5,900");
+  expect(photo.textContent).not.toContain(listing.title);
+  expect(photo.textContent).not.toContain("Sale terms unclear");
+  expect(photo.textContent).not.toContain("2 sites");
+  expect(photo.querySelector("img")?.className).toContain("object-contain");
+  expect(
+    host.querySelector('[data-testid="discovery-card-price"]')?.textContent,
+  ).toContain("$5,900");
+  expect(host.textContent).toContain("Sale terms unclear");
+  expect(host.textContent).toContain("2 sites");
+});

@@ -94,7 +94,6 @@ function ListingCard({
           ? `Seen ${hours}h ago`
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
-  const location = vehicleLocation(row.locationCity, row.locationState);
   const priceGapLabel =
     row.priceGap == null
       ? null
@@ -109,7 +108,10 @@ function ListingCard({
       data-market-vehicle={row.id}
       className="relative min-w-0 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
     >
-      <div className="relative z-20 aspect-[16/9] overflow-hidden bg-[var(--s2)]">
+      <div
+        data-testid="market-card-photo"
+        className="relative z-20 aspect-[16/9] overflow-hidden bg-[var(--s2)]"
+      >
         {photos.length ? (
           <Link
             href={`/deal/${row.id}`}
@@ -130,7 +132,7 @@ function ListingCard({
               alt={row.title}
               loading="lazy"
               decoding="async"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
               onError={gallery.reject}
             />
           </Link>
@@ -146,12 +148,6 @@ function ListingCard({
             <span className="text-xs">Source photo unavailable</span>
           </Link>
         )}
-        <span
-          title={vendor.label}
-          className="pointer-events-none absolute left-3 top-3 max-w-[calc(100%_-_5rem)] truncate rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white"
-        >
-          {vendor.label}
-        </span>
         {gallery.sourceImages.length > 0 && (
           <button
             ref={previewTrigger}
@@ -163,29 +159,6 @@ function ListingCard({
           >
             <ZoomIn className="h-4 w-4" aria-hidden="true" />
           </button>
-        )}
-        <div
-          data-testid="market-price-preview"
-          className="pointer-events-none absolute left-3 top-12 max-w-[calc(100%_-_4.5rem)] rounded bg-[var(--s1)] px-2 py-1 text-[var(--t1)] shadow-sm"
-        >
-          <p
-            data-testid="market-identity-preview"
-            className="truncate text-xs font-bold"
-          >
-            {[row.year, row.make, row.model].filter(Boolean).join(" ") ||
-              row.title}
-          </p>
-          <p className="text-[10px] font-semibold leading-snug">
-            {price?.label || "Unverified advertised amount"}
-          </p>
-          <p className="text-base font-extrabold tabular-nums">
-            {reportedPrice(price?.amount)}
-          </p>
-        </div>
-        {photos[index]?.includes("carvana.io/stockimages/") && (
-          <span className="pointer-events-none absolute bottom-5 left-16 max-w-[calc(100%_-_12rem)] rounded bg-black/75 px-2 py-1 text-[10px] text-white">
-            Source stock photo
-          </span>
         )}
         <button
           type="button"
@@ -227,13 +200,45 @@ function ListingCard({
         )}
       </div>
       <div className="space-y-2.5 p-3">
+        <div
+          data-testid="market-card-price"
+          className="flex flex-wrap items-end justify-between gap-2 border-b border-[var(--b1)] pb-2.5"
+        >
+          <div>
+            <p className="text-[10px] font-semibold text-[var(--t3)]">
+              {price?.label || "Unverified advertised amount"}
+            </p>
+            <p className="text-xl font-extrabold tabular-nums">
+              {reportedPrice(price?.amount)}
+            </p>
+          </div>
+          {price?.buyNowPrice != null && price.kind !== "buy_now" && (
+            <div className="text-right">
+              <p className="text-[10px] text-[var(--t3)]">Buy now</p>
+              <p className="text-sm font-bold tabular-nums">
+                {reportedPrice(price.buyNowPrice)}
+              </p>
+            </div>
+          )}
+        </div>
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t3)]">
-            {row.sellerType ||
-              row.lane?.replace(/-/g, " ") ||
-              "Seller type unreported"}
+          <p className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] font-semibold text-[var(--t3)]">
+            <span>{vendor.label}</span>
+            <span className="uppercase tracking-wide">
+              {row.sellerType ||
+                row.lane?.replace(/-/g, " ") ||
+                "Seller type unreported"}
+            </span>
           </p>
-          <h3 className="mt-1 break-words text-base font-bold leading-snug">
+          {photos[index]?.includes("carvana.io/stockimages/") && (
+            <p className="mt-1 text-[10px] text-[var(--t3)]">
+              Source stock photo
+            </p>
+          )}
+          <h3
+            data-testid="market-card-title"
+            className="mt-1 break-words text-base font-bold leading-snug"
+          >
             <Link
               href={`/deal/${row.id}`}
               prefetch={false}
@@ -244,25 +249,7 @@ function ListingCard({
             </Link>
           </h3>
           {row.trim && <p className="text-xs text-[var(--t3)]">{row.trim}</p>}
-          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
-            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-            {location}
-            {row.distanceMiles != null && (
-              <span>
-                {" "}
-                · ~{Math.round(row.distanceMiles).toLocaleString()} mi away
-              </span>
-            )}
-          </p>
         </div>
-        {price?.buyNowPrice != null && price.kind !== "buy_now" && (
-          <p className="border-t border-[var(--b1)] pt-2 text-xs text-[var(--t3)]">
-            Buy-now option:{" "}
-            <span className="font-bold tabular-nums text-[var(--t1)]">
-              {reportedPrice(price.buyNowPrice)}
-            </span>
-          </p>
-        )}
         {price?.advertisedAmount != null &&
           price.amount !== price.advertisedAmount && (
             <p className="text-[11px] text-[var(--t3)]">
@@ -351,6 +338,13 @@ function ListingCard({
             details.
           </p>
         )}
+        <p className="flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
+          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+          {vehicleLocation(row.locationCity, row.locationState)}
+          {row.distanceMiles != null && (
+            <span> · ~{Math.round(row.distanceMiles).toLocaleString()} mi</span>
+          )}
+        </p>
         <p className="text-[10px] text-[var(--t3)]" title={row.lastSeenAt}>
           {freshness}
           {row.vin ? ` · VIN …${row.vin.slice(-6)}` : " · VIN not reported"}

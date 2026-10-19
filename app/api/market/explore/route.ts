@@ -42,6 +42,7 @@ import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import { marketSourceCoverage } from "@/lib/market/source-coverage";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import {
   parseTitleTypes,
   titleCategoryOrFilter,
@@ -463,7 +464,7 @@ export async function GET(req: NextRequest) {
             locationState: d.location_state || undefined,
             condition: d.condition || undefined,
             damageType: d.damage_type || undefined,
-            sellerType: d.seller_type || undefined,
+            sellerType: sellerTypeEvidence(d),
             roi: economicsNumber(d.deal_analysis?.roi),
             lane: dealLane(d),
           };

@@ -32,6 +32,11 @@ describe("photo-first inventory previews", () => {
         },
       }),
     );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    expect(
+      host.querySelector('[data-testid="swipe-vehicle-photo"]')?.textContent,
+    ).not.toContain("photos");
     expect(html).toContain("1/12 photos");
     expect(html).not.toContain("1/8 photos");
     expect(html).toContain("Next photo");
@@ -114,6 +119,14 @@ describe("photo-first inventory previews", () => {
         },
       }),
     );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    expect(
+      host.querySelector('[data-testid="feed-vehicle-photo"]')?.textContent,
+    ).not.toContain("Springfield");
+    expect(
+      host.querySelector('[data-testid="feed-vehicle-photo"]')?.textContent,
+    ).not.toContain("Craigslist");
     expect(html).toContain("Possible down payment");
     expect(html.match(/\$2,600/g)).toHaveLength(1);
     expect(html).toContain("Quick review");

@@ -75,12 +75,19 @@ test.describe("Market Explorer home", () => {
         ).toBe(false);
       }
     }
-    const preview = page.getByTestId("market-price-preview").first();
+    const preview = page.getByTestId("market-card-price").first();
     await expect(preview).toBeVisible();
-    await expect(preview.getByTestId("market-identity-preview")).toHaveText(
+    await expect(page.getByTestId("market-card-title").first()).toHaveText(
       /[A-Za-z]/,
     );
     const previewBox = await preview.boundingBox();
+    const photoFrame = await page
+      .getByTestId("market-card-photo")
+      .first()
+      .boundingBox();
+    expect(previewBox!.y).toBeGreaterThanOrEqual(
+      photoFrame!.y + photoFrame!.height,
+    );
     const mobileNavigation = page
       .getByRole("navigation", { name: "Primary mobile navigation" })
       .filter({ visible: true });
@@ -651,7 +658,7 @@ test.describe("Market Explorer home", () => {
       await expect(page.locator("#market-search-area-trigger")).toHaveText(
         "Within 50 mi of 63101",
       );
-      const price = page.getByTestId("market-price-preview").first();
+      const price = page.getByTestId("market-card-price").first();
       await expect(price).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       const box = await price.boundingBox();
@@ -706,7 +713,7 @@ test.describe("Market Explorer home", () => {
       .locator("article")
       .first()
       .getByText("Current bid", { exact: true });
-    await expect(bidLabels).toHaveCount(2);
+    await expect(bidLabels).toHaveCount(1);
     await expect(bidLabels.first()).toBeVisible();
     await expect(bidLabels.last()).toBeVisible();
     await page.getByRole("button", { name: "Table view", exact: true }).click();
