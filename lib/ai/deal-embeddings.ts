@@ -64,6 +64,16 @@ const EMBED_COLUMNS =
 const SCAN_PAGE = 1000;
 const MAX_SCAN_ROWS = 10_000;
 const MAX_RATE_RETRIES = 2;
+const BUDGET_READ_TIMEOUT_MS = 8000;
+const BUDGET_READ_RETRY_DELAY_MS = 250;
+
+type BudgetReadTransport = "rpc" | "head_fallback";
+
+type BudgetReadResult = {
+  count: number | null;
+  error: any;
+  status: number;
+};
 
 function isMissingFreshnessColumn(error: any): boolean {
   const msg = String(error?.message || "");
@@ -73,6 +83,57 @@ function isMissingFreshnessColumn(error: any): boolean {
     (/embedded_at|embedding_source_hash/.test(msg) &&
       /does not exist|schema cache|Could not find/i.test(msg))
   );
+}
+
+function isMissingBudgetRpc(error: any): boolean {
+  const msg = String(error?.message || "");
+  return (
+    error?.code === "PGRST202" ||
+    error?.code === "42883" ||
+    (/embedding_budget_used_since/i.test(msg) &&
+      /could not find|does not exist|schema cache|undefined function/i.test(
+        msg,
+      ))
+  );
+}
+
+function isTransientBudgetRead(error: any, status: number): boolean {
+  return !!error && [0, 500, 502, 503, 504, 520].includes(status);
+}
+
+function safeBudgetCount(value: unknown): number | null {
+  const parsed =
+    typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  return typeof parsed === "number" &&
+    Number.isSafeInteger(parsed) &&
+    parsed >= 0
+    ? parsed
+    : null;
+}
+
+function logBudgetRead(
+  transport: BudgetReadTransport,
+  attempt: number,
+  response: { error?: any; status?: number },
+  elapsedMs: number,
+): void {
+  const rawCode = response.error?.code;
+  const code =
+    typeof rawCode === "string"
+      ? rawCode.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32) || "unknown"
+      : response.error
+        ? "unknown"
+        : "none";
+  const diagnostic = {
+    transport,
+    attempt,
+    ok: !response.error,
+    status: Number.isInteger(response.status) ? response.status : 0,
+    code,
+    elapsedMs: Math.max(0, Math.round(elapsedMs)),
+  };
+  if (response.error) console.warn("[embeddings] budget read", diagnostic);
+  else console.info("[embeddings] budget read", diagnostic);
 }
 
 function validVector(vec: unknown): vec is number[] {
@@ -155,24 +216,59 @@ export async function backfillEmbeddings(
   //    Only rows stamped with a hash count, so the migration's embedded_at backfill doesn't.
   let schemaReady = true;
   let usedToday: number | null = 0;
-  const readBudget = () =>
-    supabase
+  const budgetSince = startOfPacificDay(new Date(now())).toISOString();
+  const readBudgetRpc = async (attempt: number): Promise<BudgetReadResult> => {
+    const readStartedAt = Date.now();
+    const response: any = await supabase
+      .rpc("embedding_budget_used_since", { p_since: budgetSince })
+      .abortSignal(AbortSignal.timeout(BUDGET_READ_TIMEOUT_MS));
+    logBudgetRead("rpc", attempt, response, Date.now() - readStartedAt);
+    return {
+      count: safeBudgetCount(response.data),
+      error: response.error,
+      status: response.status ?? 0,
+    };
+  };
+  const readBudgetHead = async (attempt: number): Promise<BudgetReadResult> => {
+    const readStartedAt = Date.now();
+    const response: any = await supabase
       .from("deals")
       .select("id", { count: "exact", head: true })
       .not("embedding_source_hash", "is", null)
-      .gte("embedded_at", startOfPacificDay(new Date(now())).toISOString())
-      .abortSignal(AbortSignal.timeout(5000));
-  let used = await readBudget();
-  // HEAD failures can have an empty body. Retry that read once, never provider
-  // calls or writes, and never assume that an unavailable budget means zero use.
+      .gte("embedded_at", budgetSince)
+      .abortSignal(AbortSignal.timeout(BUDGET_READ_TIMEOUT_MS));
+    logBudgetRead(
+      "head_fallback",
+      attempt,
+      response,
+      Date.now() - readStartedAt,
+    );
+    return {
+      count: safeBudgetCount(response.count),
+      error: response.error,
+      status: response.status ?? 0,
+    };
+  };
+
+  let readBudget: (attempt: number) => Promise<BudgetReadResult> =
+    readBudgetRpc;
+  let used = await readBudget(1);
+  // The fallback only bridges app-before-migration deploy order. Every other
+  // failure stays closed so an unavailable ledger can never become zero use.
+  if (used.error && isMissingBudgetRpc(used.error)) {
+    readBudget = readBudgetHead;
+    used = await readBudget(1);
+  }
+  // RPC is a POST, so supabase-js does not automatically retry it. Retry this
+  // read once when the transport fails transiently; never retry provider work
+  // or vector writes.
   if (
-    used.error &&
-    !used.error.code &&
-    [0, 500, 502, 503, 504].includes(used.status ?? 0) &&
-    now() - startedAt + 5250 < timeBudgetMs
+    isTransientBudgetRead(used.error, used.status) &&
+    now() - startedAt + BUDGET_READ_TIMEOUT_MS + BUDGET_READ_RETRY_DELAY_MS <
+      timeBudgetMs
   ) {
-    await sleep(250);
-    used = await readBudget();
+    await sleep(BUDGET_READ_RETRY_DELAY_MS);
+    used = await readBudget(2);
   }
   if (used.error) {
     if (!isMissingFreshnessColumn(used.error))
