@@ -74,6 +74,14 @@ const MAKES = [
 // Match longer/multi-word makes first so "Land Rover" wins over a stray "Land".
 const MAKES_BY_LENGTH = [...MAKES].sort((a, b) => b.length - a.length);
 
+/** Literal make terms for search; word boundaries are applied by the search parser. */
+export function vehicleMakeTerms() {
+  return [
+    ...MAKES.map((make) => ({ term: make, make })),
+    ...Object.entries(MAKE_ALIASES).map(([term, make]) => ({ term, make })),
+  ].sort((a, b) => b.term.length - a.term.length);
+}
+
 // Recognized real automotive makes (canonical + common aliases), lowercased, for validating a
 // scraped/decoded make elsewhere. A "make" not in here (e.g. "Biz" from "2024 Biz On Wheels") is a
 // junk/mis-parsed listing, not a valuation-grade vehicle — callers should refuse to score it.
