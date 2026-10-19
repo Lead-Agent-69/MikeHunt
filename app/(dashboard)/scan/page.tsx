@@ -1419,7 +1419,7 @@ function SmartDataPlanCard({
   const readinessLabel: Record<string, string> = {
     ready: "Ready",
     no_rows: "No rows",
-    needs_run: "Needs run",
+    needs_run: "Needs refresh",
     needs_login: "Needs login",
     blocked: "Blocked",
     not_configured: "Setup",

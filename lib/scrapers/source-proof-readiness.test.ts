@@ -86,6 +86,16 @@ describe("source readiness requires real current proof", () => {
     expect(
       sourceProofReadiness({
         enabled: true,
+        activeRows: 14,
+        lastSeenAt: old,
+        lastRunStatus: "success",
+        lastRunAt: current,
+        now,
+      }),
+    ).toBe("needs_run");
+    expect(
+      sourceProofReadiness({
+        enabled: true,
         lastRunStatus: "success",
         lastRunAt: old,
         now,

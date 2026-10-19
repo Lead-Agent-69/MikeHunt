@@ -627,6 +627,15 @@ function explainSource(
       nextAction: broadenScopeAction(scope),
     };
   }
+  if (readiness === "needs_run" && Number(row?.activeRows || 0) > 0) {
+    const activeRows = Number(row.activeRows);
+    return {
+      userStatus: "Stored rows need refresh",
+      proofLevel: "stale_rows",
+      userImpact: `${activeRows.toLocaleString()} stored row${activeRows === 1 ? " is" : "s are"} on file, but the last-seen proof is outside the current freshness window.`,
+      nextAction: `Refresh ${source.name} before treating ${activeRows === 1 ? "this row" : "these rows"} as current.`,
+    };
+  }
   if (readiness === "needs_login") {
     return {
       userStatus: "Sign-in required",

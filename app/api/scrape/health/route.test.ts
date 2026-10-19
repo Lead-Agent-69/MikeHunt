@@ -253,6 +253,49 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(row.proofBadges).toContain("Seen 5h ago");
   });
 
+  it("describes stored rows that need refresh without claiming no inventory", async () => {
+    const { enrichHealthRow } = await import("./route");
+    const row = enrichHealthRow(
+      {
+        id: "cars_com",
+        name: "Cars.com",
+        type: "dealer",
+        enabled: true,
+        requiresAuth: false,
+      },
+      {
+        readiness: "needs_run",
+        activeRows: 61,
+        rowsWithPhotos: 61,
+        averageQuality: 100,
+        completeness: {
+          vinPct: 100,
+          mileagePct: 100,
+          auctionDatePct: 0,
+          sellerPct: 100,
+          sellerContactPct: 100,
+          sourceLinkPct: 100,
+          photosPct: 100,
+        },
+        lastSeenAt: "2026-10-11T00:03:29.377Z",
+      },
+      true,
+    );
+
+    expect(row).toMatchObject({
+      readiness: "needs_run",
+      userStatus: "Stored rows need refresh",
+      proofLevel: "stale_rows",
+      activeRows: 61,
+    });
+    expect(row.userImpact).toContain("61 stored rows are on file");
+    expect(row.nextAction).toBe(
+      "Refresh Cars.com before treating these rows as current.",
+    );
+    expect(row.proofSummary).toBe(row.userImpact);
+    expect(row.proofSummary).not.toMatch(/no matching inventory/i);
+  });
+
   it("turns empty scoped proof into a clear buyer next action", async () => {
     const { buildScopeStatus } = await import("./route");
     const status = buildScopeStatus({
