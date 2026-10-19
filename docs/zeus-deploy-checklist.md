@@ -33,7 +33,10 @@ mounts, env-file references and quota state before an approved rollout; local
 Docker Desktop evidence is not evidence about remote Zeus. Preserve every active
 overlay and retain the previous image for rollback. Apply the approved image tag
 through an image-only operator override appended to the complete existing compose
-file list, then use `up --no-build --no-deps scraper` with that full list. Do not
+file list. Pass `--env-file .env.local.scraper` before the project/file options,
+then use `up --no-build --no-deps scraper` with that full list. The service-level
+`env_file` does not override explicit values inherited from the base compose file;
+omitting the CLI env file can pair the hosted URL with a local-development key. Do not
 rebuild from a mutable checkout during this step. A bare `up --build` remains an
 unknown-provenance legacy build; a restart alone never updates its baked code.
 Do not combine this rollout with moving C:/F: mounts or changing quota limits.
@@ -79,11 +82,12 @@ webhook with `RESEND_WEBHOOK_SECRET`; key presence alone is not delivery proof.
    shell argument; edit the env file.
 4. Build the exact approved commit with the pinned archive builder above. Preserve
    the full active compose file list and use an image-only operator override with
-   `up --no-build --no-deps scraper`. Do not substitute a bare base-file rebuild,
-   drop existing overlays or reuse the old image. Verify the new image/status
-   receipt before declaring the rollout complete.
+   `docker compose --env-file .env.local.scraper ... up --no-build --no-deps scraper`.
+   Do not substitute a bare base-file rebuild, drop existing overlays or reuse the
+   old image. Verify the new image/status receipt before declaring the rollout complete.
 5. Check `http://127.0.0.1:8787` (status port) and `/status` on the app for the new per-domain ban-risk
-   and polite counters (section 4).
+   and polite counters (section 4). Logs must include the worker message
+   `hosted database connection verified`; container health alone is not database-access proof.
 
 ## 1. Environment (`.env.local.scraper` on Zeus)
 
@@ -128,7 +132,8 @@ No new Supabase migration is required by the scraper PRs below (they write throu
 ## 3. Rollback
 
 - One switch: set `SCRAPER_POLITE_MODE=0` in `.env.local.scraper`, then
-  `docker compose -f docker-compose.local.yml up -d scraper` (no rebuild needed for env-only changes).
+  `docker compose --env-file .env.local.scraper -f docker-compose.local.yml up -d scraper`
+  (no rebuild needed for env-only changes).
 - Code rollback: check out the previous `main` commit and rebuild the `scraper` service.
 
 ## 4. Verify after deploy
