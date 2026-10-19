@@ -94,7 +94,11 @@ describe("discovery browsing presentation safeguards", () => {
     );
     expect(card).toContain("break-words");
     const css = readFileSync("app/globals.css", "utf8");
+    const mobileCss = readFileSync("app/mobile.css", "utf8");
     expect(css).toContain(".discovery-card .interactive-surface:hover");
+    expect(mobileCss).not.toMatch(
+      /img\s*\{\s*content-visibility:\s*auto;?\s*\}/,
+    );
     expect(card).toContain(
       'external ? "View source listing" : "Review vehicle"',
     );
