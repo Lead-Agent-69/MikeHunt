@@ -14,7 +14,11 @@ import {
 // whose embedded text changed, then pre-freshness vectors. Paced under the Gemini free tier and
 // capped per PT day (EMBEDDING_DAILY_CAP, default 900 of the 1,000 RPD). No-ops cleanly without
 // GOOGLE_GENERATIVE_AI_API_KEY; quota exhaustion returns success with quotaExhausted set.
-const MAX_PER_RUN = 250;
+// A 250-row production run can consume nearly the entire 300s function window.
+// Keep scheduled work comfortably bounded and reserve time for writes, coverage
+// queries, and a confirmed HTTP response.
+const MAX_PER_RUN = 100;
+const WORK_BUDGET_MS = 180_000;
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,13 +31,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const limit = Math.min(
-      MAX_PER_RUN,
-      parseInt(new URL(request.url).searchParams.get("limit") || "250", 10) ||
-        MAX_PER_RUN,
+    const requested = Number.parseInt(
+      new URL(request.url).searchParams.get("limit") || "",
+      10,
     );
+    const limit = Number.isFinite(requested)
+      ? Math.min(MAX_PER_RUN, Math.max(1, requested))
+      : MAX_PER_RUN;
     const supabase = createServerComponentClient();
-    const result = await backfillEmbeddings(supabase, limit);
+    const result = await backfillEmbeddings(supabase, limit, {
+      timeBudgetMs: WORK_BUDGET_MS,
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {
     return internalError("embeddings:backfill", e);

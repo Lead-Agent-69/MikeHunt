@@ -308,6 +308,10 @@ describe("Embedding backfill proof", () => {
     expect(workflow).toContain("current content freshness not measured");
     expect(workflow).not.toContain("$c.fresh");
     expect(workflow).not.toContain("hash-verified fresh");
+    expect(workflow).toContain('default: "100"');
+    expect(workflow).toContain("github.event.inputs.limit || '100'");
+    expect(workflow).toContain("max 100");
+    expect(workflow).not.toContain("max 250");
   });
 });
 
