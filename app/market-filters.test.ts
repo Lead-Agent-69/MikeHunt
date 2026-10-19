@@ -240,35 +240,62 @@ describe("Market filter journey", () => {
     expect(params.get("priceMin")).toBe("10000");
     expect(params.has("page")).toBe(false);
   });
-  it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
-    window.history.replaceState(null, "", "/market?states=MO");
+  it("commits one area at a time and clears nearest sort when restored or changed nationwide", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?states=MO&sort=distanceMiles",
+    );
     await render();
+    expect(new URLSearchParams(window.location.search).get("sort")).toBe(
+      "lastSeenAt",
+    );
+    const openArea = () =>
+      act(() =>
+        host
+          .querySelector<HTMLButtonElement>("#market-search-area-trigger")!
+          .click(),
+      );
+    const pickMode = (mode: string) =>
+      act(() =>
+        Simulate.change(
+          document.querySelector<HTMLInputElement>(
+            `input[type=radio][value=${mode}]`,
+          )!,
+          { target: { checked: true } } as any,
+        ),
+      );
+    const apply = () =>
+      act(() =>
+        Array.from(
+          document.querySelectorAll<HTMLButtonElement>("[role=dialog] button"),
+        )
+          .find((button) => button.textContent === "Apply area")!
+          .click(),
+      );
+    openArea();
+    pickMode("nearby");
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLInputElement>('[aria-label="Search location"]')!,
+        document.querySelector<HTMLInputElement>(
+          '[aria-label="Search location"]',
+        )!,
         { target: { value: "63101" } } as any,
       ),
     );
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLSelectElement>('[aria-label="Search radius"]')!,
-        { target: { value: "150" } } as any,
+        document.querySelector<HTMLInputElement>(
+          '[aria-label="Search radius"]',
+        )!,
+        { target: { value: "6" } } as any,
       ),
     );
-    act(() =>
-      Simulate.submit(
-        host.querySelector('section[aria-label="Location and radius"] form')!,
-      ),
-    );
-    expect(new URLSearchParams(window.location.search).get("near")).toBe(
-      "63101",
-    );
-    expect(new URLSearchParams(window.location.search).get("radius")).toBe(
-      "150",
-    );
-    expect(new URLSearchParams(window.location.search).has("states")).toBe(
-      false,
-    );
+    apply();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("near")).toBe("63101");
+    expect(params.get("radius")).toBe("150");
+    expect(params.has("states")).toBe(false);
     act(() =>
       Simulate.change(
         host.querySelector<HTMLSelectElement>(
@@ -277,16 +304,31 @@ describe("Market filter journey", () => {
         { target: { value: "distanceMiles:asc" } } as any,
       ),
     );
-    act(() =>
-      Simulate.change(
-        host.querySelector<HTMLSelectElement>('[aria-label="Search area"]')!,
-        { target: { value: "nationwide" } } as any,
-      ),
-    );
+    openArea();
+    pickMode("nationwide");
+    expect(document.querySelector('[aria-label="Search radius"]')).toBeNull();
+    apply();
     expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
+    expect(new URLSearchParams(window.location.search).has("radius")).toBe(
+      false,
+    );
     expect(new URLSearchParams(window.location.search).get("sort")).toBe(
       "lastSeenAt",
     );
+  });
+  it("removes ignored state chips from a restored radius search", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?states=MO&near=63101&radius=100",
+    );
+    await render();
+    expect(new URLSearchParams(window.location.search).has("states")).toBe(
+      false,
+    );
+    expect(
+      host.querySelector('[aria-label="Remove States filter"]'),
+    ).toBeNull();
   });
 
   it("keeps listings, filters, and intelligence in separate focused workspaces", async () => {
