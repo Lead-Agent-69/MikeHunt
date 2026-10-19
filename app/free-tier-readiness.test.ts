@@ -90,4 +90,16 @@ describe("free-tier readiness", () => {
       expect(workflow).not.toMatch(/actions\/(checkout|setup-node)@v4/);
     }
   });
+  it("keeps the VIN scanner fallback compatible with the Node 22 runtime", () => {
+    const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+    const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+    expect(manifest.dependencies["@zxing/browser"]).toBe("0.1.5");
+    expect(manifest.dependencies["@zxing/library"]).toBe("0.21.3");
+    expect(
+      lock.packages["node_modules/@zxing/browser"].peerDependencies,
+    ).toEqual({ "@zxing/library": "^0.21.0" });
+    expect(lock.packages["node_modules/@zxing/library"].engines.node).toBe(
+      ">= 10.4.0",
+    );
+  });
 });
