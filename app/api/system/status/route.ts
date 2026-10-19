@@ -697,6 +697,24 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   };
 }
 
+export function shouldCacheFullStatus(payload: Record<string, any>) {
+  return (
+    !payload.configured ||
+    (Number(payload.activeDeals || 0) > 0 &&
+      Array.isArray(payload.sources) &&
+      payload.sources.length > 0)
+  );
+}
+
+function loadFullStatus() {
+  return cached(
+    "status:full:v1",
+    60_000,
+    computeFullStatus,
+    shouldCacheFullStatus,
+  );
+}
+
 const PUBLIC_READINESS_IDS = new Set(["google-login"]);
 const PUBLIC_INVENTORY_RETRY_DELAY_MS = 150;
 
@@ -804,7 +822,7 @@ export async function GET(request: NextRequest) {
     );
   }
   if (await canManageOperations(request)) {
-    return NextResponse.json(await computeFullStatus(), {
+    return NextResponse.json(await loadFullStatus(), {
       headers: { "Cache-Control": "private, no-store" },
     });
   }

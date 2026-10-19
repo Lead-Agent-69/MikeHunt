@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { invalidate } from "@/lib/cache";
 
 const canManage = vi.fn();
+const buildRealDataReadiness = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth/admin-operations", () => ({
   canManageOperations: (...args: unknown[]) => canManage(...args),
@@ -13,12 +15,30 @@ vi.mock("@/lib/supabase", () => ({
   },
 }));
 
+vi.mock("@/lib/real-data-readiness", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/real-data-readiness")>();
+  return {
+    ...actual,
+    buildRealDataReadiness: (
+      input: Parameters<typeof actual.buildRealDataReadiness>[0],
+    ) => {
+      buildRealDataReadiness(input);
+      return actual.buildRealDataReadiness(input);
+    },
+  };
+});
+
 import { GET, toPublicStatus } from "./route";
 
 const request = () => new Request("http://localhost/api/system/status") as any;
 
 describe("/api/system/status authz", () => {
-  beforeEach(() => canManage.mockReset());
+  beforeEach(() => {
+    invalidate("status:full:");
+    canManage.mockReset();
+    buildRealDataReadiness.mockClear();
+  });
 
   it("returns only the public projection to non-admin callers", async () => {
     canManage.mockResolvedValue(false);
@@ -46,6 +66,22 @@ describe("/api/system/status authz", () => {
     expect(body).toHaveProperty("sources");
     expect(body).toHaveProperty("recentRuns");
     expect(body).toHaveProperty("readiness.missingEnv");
+  });
+
+  it("authorizes every admin read while coalescing full diagnostics", async () => {
+    canManage.mockResolvedValue(true);
+
+    const first = GET(request());
+    const second = GET(request());
+    const responses = await Promise.all([first, second]);
+    const third = await GET(request());
+
+    expect(canManage).toHaveBeenCalledTimes(3);
+    expect(buildRealDataReadiness).toHaveBeenCalledTimes(1);
+    for (const response of [...responses, third]) {
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      expect((await response.json()).scope).toBeUndefined();
+    }
   });
 
   it("returns only auth readiness without an admin lookup or inventory queries", async () => {
