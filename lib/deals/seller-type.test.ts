@@ -30,6 +30,21 @@ describe("sellerTypeEvidence", () => {
     expect(sellerTypeEvidence({ source: "copart" })).toBe("auction");
   });
 
+  it("does not let stale seller fields contradict a dedicated source", () => {
+    expect(
+      sellerTypeEvidence({
+        source: "independent_dealer",
+        options: { sellerType: "private" },
+      }),
+    ).toBe("dealer");
+    expect(
+      sellerTypeEvidence({
+        source: "copart",
+        options: { sellerType: "dealer" },
+      }),
+    ).toBe("auction");
+  });
+
   it("separates reported evidence from source defaults", () => {
     expect(reportedSellerType({ source: "carvana" })).toBeUndefined();
     expect(
@@ -45,6 +60,7 @@ describe("sellerTypeEvidence", () => {
       sellerTypeEvidence({
         source: "independent_dealer",
         source_url: "https://aeofmiami.com/inventory/example",
+        options: { sellerType: "private" },
       }),
     ).toBe("dealer");
   });

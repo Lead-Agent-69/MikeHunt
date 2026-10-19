@@ -28,6 +28,7 @@ describe("buildScanFacetSummary", () => {
         condition: "salvage_title",
         source: "independent_dealer",
         source_url: "https://aeofmiami.com/product/2022-ford-explorer",
+        seller_type: "private",
       },
       {
         make: "Ford",
@@ -36,6 +37,7 @@ describe("buildScanFacetSummary", () => {
         condition: "salvage_title",
         source: "copart",
         source_url: "https://www.copart.com/lot/123",
+        seller_type: "dealer",
       },
       {
         make: "Toyota",
@@ -44,6 +46,7 @@ describe("buildScanFacetSummary", () => {
         condition: "clean_title",
         source: "gov_auction",
         source_url: "https://www.govdeals.com/asset/42",
+        seller_type: "private",
       },
     ]);
 

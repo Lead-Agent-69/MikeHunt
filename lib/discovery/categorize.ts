@@ -4,6 +4,7 @@
 // app can present the most useful, browsable view. Pure functions, $0, no external APIs.
 
 import { titleCategoryDetail } from "@/lib/deals/title-category";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { hasReportedRepairRisk } from "@/lib/intelligence/repair-risk";
 
@@ -78,7 +79,8 @@ export type DealLane =
   | "salvage"
   | "repairable"
   | "clean-retail"
-  | "private";
+  | "private"
+  | "marketplace";
 
 const LANE_AUCTION = new Set([
   "copart",
@@ -88,25 +90,13 @@ const LANE_AUCTION = new Set([
   "acv",
   "gov_auction",
 ]);
-const LANE_RETAIL = new Set([
-  "independent_dealer",
-  "craigslist_dealer",
-  "carvana",
-  "cars_com",
-  "cargurus",
-  "autotrader",
-  "truecar",
-  "ebay_motors",
-  "vroom",
-  "carmax",
-]);
-
 export const DEAL_LANES: { lane: DealLane; label: string }[] = [
   { lane: "auction", label: "Auction lots" },
   { lane: "salvage", label: "Salvage" },
   { lane: "repairable", label: "Repairable" },
   { lane: "clean-retail", label: "Clean retail" },
   { lane: "private", label: "Private / classifieds" },
+  { lane: "marketplace", label: "Marketplace / seller unreported" },
 ];
 
 // Color coding so a dealer instantly reads the channel/risk at a glance: green = clean & safe,
@@ -117,6 +107,7 @@ export const LANE_COLORS: Record<DealLane, string> = {
   repairable: "#fb923c", // orange — fixable
   "clean-retail": "#22c55e", // green — clean retail
   private: "#3b82f6", // blue — private/classified
+  marketplace: "#64748b", // neutral — seller type was not reported
 };
 
 export const laneColor = (lane: DealLane): string => LANE_COLORS[lane];
@@ -124,6 +115,8 @@ export const laneColor = (lane: DealLane): string => LANE_COLORS[lane];
 export function dealLane(deal: {
   title?: string | null;
   source?: string | null;
+  source_url?: string | null;
+  sourceUrl?: string | null;
   condition?: string | null;
   damage_type?: string | null;
   seller_type?: string | null;
@@ -132,11 +125,13 @@ export function dealLane(deal: {
 }): DealLane {
   const src = (deal.source || "").toLowerCase().trim();
   const cond = (deal.condition || "").toLowerCase();
+  const seller = sellerTypeEvidence(deal);
   if (
     deal.options?.priceEvidence?.kind === "current_bid" ||
     deal.priceEvidence?.kind === "current_bid" ||
     LANE_AUCTION.has(src) ||
-    isAuctionChannel(src)
+    isAuctionChannel(src) ||
+    seller === "auction"
   )
     return "auction";
   if (/salvage|parts|flood|fire|junk|non[-\s]?run|wrecked/.test(cond))
@@ -147,15 +142,9 @@ export function dealLane(deal: {
     deal.title,
   );
   if (damaged) return "repairable";
-  const seller = (
-    deal.seller_type ||
-    deal.options?.sellerType ||
-    ""
-  ).toLowerCase();
   if (seller === "private") return "private";
   if (seller === "dealer") return "clean-retail";
-  if (LANE_RETAIL.has(src)) return "clean-retail";
-  return "private";
+  return "marketplace";
 }
 
 export interface GradeResult {

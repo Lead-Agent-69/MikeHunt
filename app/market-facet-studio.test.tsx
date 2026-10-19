@@ -223,6 +223,12 @@ describe("smart market exploration", () => {
         (point) => point.priceLabel === "Estimated net profit",
       ),
     ).toBe(true);
+    expect(
+      marketMapPoints(
+        [{ ...listing("mixed", "Mixed market", -90.2), lane: "marketplace" }],
+        "inventory",
+      )[0].type,
+    ).toBe("marketplace");
     act(() =>
       root.render(
         <MarketResultsMap

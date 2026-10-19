@@ -68,6 +68,7 @@ const LANES: { key: string; label: string }[] = [
   { key: "auction", label: "Auction" },
   { key: "clean-retail", label: "Retail" },
   { key: "private", label: "Private" },
+  { key: "marketplace", label: "Marketplace" },
 ];
 
 const CONDITIONS = [
@@ -195,7 +196,7 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
       params.set("lanes", "auction");
     else if (["damaged", "salvage"].includes(lane))
       params.set("lanes", "salvage,repairable");
-    else if (["private", "clean-retail"].includes(lane))
+    else if (["private", "clean-retail", "marketplace"].includes(lane))
       params.set("lanes", lane);
   }
   const legacySort = params.get("sort");

@@ -47,9 +47,6 @@ export function reportedSellerType(
 export function sellerTypeEvidence(
   row: SellerTypeRow,
 ): ListingSellerType | undefined {
-  const explicit = reportedSellerType(row);
-  if (explicit) return explicit;
-
   const rawSource = canonicalSource(String(row.source || ""));
   if (SELLER_TYPE_SOURCE_DEFAULTS.auction.includes(rawSource)) return "auction";
   if (SELLER_TYPE_SOURCE_DEFAULTS.dealer.includes(rawSource)) return "dealer";
@@ -64,5 +61,5 @@ export function sellerTypeEvidence(
   // Curated dealer URLs are precise seller evidence. Generic retail and
   // marketplace channels are not: those can mix dealer and private listings.
   if (channel === "dealer") return "dealer";
-  return undefined;
+  return reportedSellerType(row);
 }

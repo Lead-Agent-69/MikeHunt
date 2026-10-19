@@ -51,7 +51,9 @@ export function marketMapPoints(
           ? "private"
           : row.lane === "auction" || row.sellerType === "auction"
             ? "auction"
-            : "dealer",
+            : row.sellerType === "dealer" || row.lane === "clean-retail"
+              ? "dealer"
+              : "marketplace",
       label: [
         [row.locationCity, row.locationState].filter(Boolean).join(", "),
         row.mileage != null ? `${row.mileage.toLocaleString()} mi` : null,

@@ -93,6 +93,7 @@ const LANE_LABEL: Record<string, string> = {
   repairable: "Repair",
   "clean-retail": "Retail",
   private: "Private",
+  marketplace: "Marketplace",
 };
 
 export const TABLE_PROOF_FIELD_COUNT = 11;
