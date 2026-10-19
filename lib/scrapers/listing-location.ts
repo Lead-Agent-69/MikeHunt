@@ -117,7 +117,12 @@ export function listingLocation(
   let out: ListingLocation = locations.length === 1 ? locations[0] : {};
   // A single dealer on a VIN-matched detail page can supply its selling address. Multiple branches
   // need an explicit offer-to-location link above; do not choose the first branch.
-  if (!locations.length && !craigslist) {
+  // Travers publishes a single shared dealer address for multiple branches (including a malformed
+  // locality). Only a location explicitly attached to this vehicle/offer can locate its inventory.
+  const sharedDealerAddress =
+    new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, "") ===
+    "traversautomotivegroup.com";
+  if (!locations.length && !craigslist && !sharedDealerAddress) {
     const dealers = nodes.filter((n) => types(n).includes("AutoDealer"));
     if (dealers.length === 1) out = address(dealers[0]);
   }
