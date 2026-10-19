@@ -148,7 +148,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             browse(event.key === "ArrowRight" ? 1 : -1);
           }
         }}
-        className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 md:-mx-6 md:scroll-px-6 md:px-6 lg:mx-0 lg:scroll-px-0 lg:px-0"
+        className="scrollbar-hide [margin-inline:calc(-1*var(--workspace-gutter,1rem))] flex gap-3 overflow-x-auto [scroll-padding-inline:var(--workspace-gutter,1rem)] [padding-inline:var(--workspace-gutter,1rem)] pb-1 lg:[margin-inline:0] lg:[scroll-padding-inline:0] lg:[padding-inline:0]"
         style={{
           scrollSnapType: "x mandatory",
           WebkitOverflowScrolling: "touch",
@@ -169,7 +169,7 @@ function RailSkeleton() {
         <div className="h-5 w-40 rounded-[var(--r1)] shimmer" />
         <div className="mt-1.5 h-3 w-56 rounded-[var(--r1)] shimmer" />
       </div>
-      <div className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6">
+      <div className="scrollbar-hide [margin-inline:calc(-1*var(--workspace-gutter,1rem))] flex gap-3 overflow-x-auto [padding-inline:var(--workspace-gutter,1rem)] pb-1">
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
@@ -263,6 +263,7 @@ export default function DiscoverPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
   const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
   const [makeDraft, setMakeDraft] = useState("");
   const [budgetDraft, setBudgetDraft] = useState("");
@@ -399,7 +400,7 @@ export default function DiscoverPage() {
     : "all";
 
   return (
-    <div className="space-y-1.5 pb-24 md:space-y-3 md:pb-8">
+    <div className="min-w-0 space-y-1.5 pb-4 md:space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
@@ -448,15 +449,38 @@ export default function DiscoverPage() {
         </p>
         <div className="grid grid-cols-2 items-start gap-x-3">
           <div className="col-span-2 min-w-0">
-            <h2 className="py-1 text-xs font-semibold text-[var(--t2)] md:text-sm">
-              Quick filters
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--t2)]">
+                <span className="hidden lg:inline">Quick filters</span>
+                <button
+                  type="button"
+                  aria-expanded={quickFiltersOpen}
+                  aria-controls="discovery-quick-filters"
+                  onClick={() => setQuickFiltersOpen((open) => !open)}
+                  className="min-h-11 text-sm font-semibold text-[var(--blue)] lg:hidden"
+                >
+                  Quick filters {quickFiltersOpen ? "−" : "+"}
+                </button>
+              </h2>
+              <button
+                type="button"
+                aria-label="Market insights and saved interests"
+                aria-expanded={showInsights}
+                aria-controls="discovery-market-insights"
+                onClick={() => setShowInsights(!showInsights)}
+                className="min-h-11 text-sm font-semibold text-[var(--blue)]"
+              >
+                Insights
+              </button>
+            </div>
             <form
-              className="flex flex-col gap-2"
+              id="discovery-quick-filters"
+              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-2 lg:flex`}
               aria-label="Buying for"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (!discoverReady) return;
+                setQuickFiltersOpen(false);
                 const budget = Number(budgetDraft.replace(/[^0-9]/g, ""));
                 const next = applyBuyingForIntent(buyerScope, {
                   make: makeDraft,
@@ -481,7 +505,7 @@ export default function DiscoverPage() {
             >
               <fieldset
                 disabled={!discoverReady}
-                className="grid min-w-0 grid-cols-3 gap-2"
+                className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3"
               >
                 <label className="block text-xs font-semibold text-[var(--t3)]">
                   Make
@@ -506,7 +530,7 @@ export default function DiscoverPage() {
                     className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
                 </label>
-                <label className="block text-xs font-semibold text-[var(--t3)]">
+                <label className="col-span-2 block text-xs font-semibold text-[var(--t3)] sm:col-span-1">
                   Lane
                   <select
                     value={laneValueDraft}
@@ -540,16 +564,6 @@ export default function DiscoverPage() {
                     Market Explorer
                   </Link>
                 )}
-                <button
-                  type="button"
-                  aria-label="Market insights and saved interests"
-                  aria-expanded={showInsights}
-                  aria-controls="discovery-market-insights"
-                  onClick={() => setShowInsights(!showInsights)}
-                  className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
-                >
-                  Insights
-                </button>
               </div>
             </form>
           </div>

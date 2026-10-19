@@ -1,3 +1,4 @@
+import { vehicleSpecPredicate } from "@/lib/vehicle/spec-filters";
 import { describe, expect, it, vi } from "vitest";
 import {
   applyInventoryViewScope,
@@ -248,8 +249,8 @@ describe("inventory filter contract", () => {
       ["trim", "%Limited%"],
     ]);
     expect(q.or.mock.calls).toEqual([
-      ["fuel_type.ilike.%Hybrid%,options->>fuelType.eq.Hybrid"],
-      ["transmission.ilike.%Automatic%,options->>transmission.eq.Automatic"],
+      [vehicleSpecPredicate("fuelType", "Hybrid")],
+      [vehicleSpecPredicate("transmission", "Automatic")],
     ]);
     const unknown = query();
     applyVehicleDetails(

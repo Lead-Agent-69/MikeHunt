@@ -15,6 +15,8 @@ import { MarketResultsMap } from "@/components/market/MarketResultsMap";
 import { MarketListingCard } from "@/components/market/MarketListingCard";
 import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
+import { ResponsiveWorkspacePanel } from "@/components/shared/ResponsiveWorkspacePanel";
+import { MarketSearchActions } from "@/components/market/MarketSearchActions";
 import { MarketLocation } from "@/components/market/MarketLocation";
 import type { MarketFacetCount, MarketListing } from "@/lib/market/explorer";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
@@ -30,14 +32,11 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  Copy,
-  RotateCcw,
   X,
   LayoutGrid,
   List,
   Map as MapIcon,
   BarChart3,
-  BookmarkPlus,
   SlidersHorizontal,
 } from "lucide-react";
 import { useDebouncedValue } from "@/components/ui/performance-optimizations";
@@ -227,6 +226,11 @@ export default function MarketPage() {
   const [copyStatus, setCopyStatus] = React.useState("");
   const [saveStatus, setSaveStatus] = React.useState("");
   const [showFilters, setShowFilters] = React.useState(false);
+  const filterTrigger = React.useRef<HTMLButtonElement>(null);
+  const closeFilters = () => {
+    setShowFilters(false);
+    setShowInsights(false);
+  };
   const [sourceSearch, setSourceSearch] = React.useState("");
   const matchingSources = INVENTORY_SOURCE_FILTERS.filter((source) =>
     `${source.name} ${source.id} ${sourceUrlNeedles(source.id).join(" ")}`
@@ -664,46 +668,19 @@ export default function MarketPage() {
             Search the market, refine the evidence, then inspect the listing.
           </p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            aria-label="Save search on this device"
-            disabled={!ready}
-            title="Save search on this device"
-            className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white sm:px-3"
-            onClick={saveCurrentSearch}
-          >
-            <BookmarkPlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Save search on device</span>
-          </button>
-          <button
-            type="button"
-            title="Copy filtered search link"
-            aria-label="Copy filtered search link"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(window.location.href);
-                setCopyStatus("Search link copied");
-              } catch {
-                setCopyStatus("Could not copy search link");
-              }
-            }}
-          >
-            <Copy className="h-4 w-4" />
-            <span className="hidden sm:inline">Copy search</span>
-          </button>
-          <button
-            type="button"
-            title="Reset filters"
-            aria-label="Reset filters"
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold"
-            onClick={reset}
-          >
-            <RotateCcw className="h-4 w-4" />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
-        </div>
+        <MarketSearchActions
+          onSave={saveCurrentSearch}
+          disabled={!ready}
+          onReset={reset}
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(window.location.href);
+              setCopyStatus("Search link copied");
+            } catch {
+              setCopyStatus("Could not copy search link");
+            }
+          }}
+        />
         {(copyStatus || saveStatus) && (
           <p role="status" className="w-full text-xs text-[var(--t3)]">
             {saveStatus || copyStatus}
@@ -714,7 +691,15 @@ export default function MarketPage() {
         <MarketLocation
           value={f}
           onChange={set}
-          search={{ value: f.q, onChange: (q) => set({ q }) }}
+          search={{
+            value: f.q,
+            onChange: (q) => set({ q }),
+            onInterpret: (filters, interpretedDetails) => {
+              set(filters as Partial<Filters>);
+              setDetails((current) => ({ ...current, ...interpretedDetails }));
+              setCopyStatus("Search filters applied");
+            },
+          }}
         />
       )}
       <section
@@ -816,7 +801,7 @@ export default function MarketPage() {
       )}
       <nav
         aria-label="Market workspace"
-        className="flex flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1 sm:gap-2 sm:p-2"
+        className="grid grid-cols-3 items-center gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1 sm:flex sm:gap-2"
       >
         <button
           type="button"
@@ -825,15 +810,18 @@ export default function MarketPage() {
             setShowFilters(false);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
-          <LayoutGrid className="h-4 w-4" /> Listings
+          <LayoutGrid className="hidden h-4 w-4 sm:block" /> Listings
           {!busy && (
-            <span className="text-[var(--t4)]">{total.toLocaleString()}</span>
+            <span className="hidden text-[var(--t4)] sm:inline">
+              {total.toLocaleString()}
+            </span>
           )}
         </button>
         <button
           type="button"
+          ref={filterTrigger}
           aria-expanded={showFilters}
           aria-controls="market-filter-panel"
           disabled={!ready}
@@ -841,9 +829,9 @@ export default function MarketPage() {
             setShowFilters(true);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] disabled:opacity-50 sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] disabled:opacity-50 sm:min-h-10 sm:gap-2 sm:px-3"
         >
-          <SlidersHorizontal className="h-4 w-4" /> Filters
+          <SlidersHorizontal className="hidden h-4 w-4 sm:block" /> Filters
           {activeCount > 0 && (
             <span className="rounded-full bg-[var(--blue)] px-1.5 py-0.5 text-[9px] text-white">
               {activeCount}
@@ -853,13 +841,17 @@ export default function MarketPage() {
         <button
           type="button"
           aria-pressed={showInsights}
+          aria-label="Market insights"
           onClick={() => {
             setShowFilters(false);
             setShowInsights(true);
           }}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
-          <BarChart3 className="h-4 w-4" /> Market insights
+          <BarChart3 className="hidden h-4 w-4 sm:block" />
+          <span>
+            <span className="hidden sm:inline">Market </span>Insights
+          </span>
         </button>
         <p className="ml-auto hidden px-2 text-[10px] text-[var(--t4)] sm:block">
           {busy ? "Updating inventory…" : `${rows.length} shown on this page`}
@@ -937,12 +929,34 @@ export default function MarketPage() {
           </button>
         </div>
       )}
-      <section
+      <ResponsiveWorkspacePanel
         id="market-filter-panel"
-        aria-label="Market filters"
-        className={showFilters ? "space-y-4" : "hidden"}
+        title="Market filters"
+        open={showFilters}
+        onClose={closeFilters}
+        returnFocusRef={filterTrigger}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            {activeCount > 0 && (
+              <button
+                type="button"
+                onClick={reset}
+                className="min-h-11 shrink-0 rounded-lg border border-[var(--b1)] px-3 text-sm font-bold"
+              >
+                Clear {activeCount}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closeFilters}
+              className="min-h-11 flex-1 rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white lg:flex-none"
+            >
+              Show {busy ? "updated" : total.toLocaleString()} listings
+            </button>
+          </div>
+        }
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4">
+        <div className="hidden flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4 lg:flex">
           <div>
             <h2 className="text-lg font-extrabold">Build one precise search</h2>
             <p className="mt-1 text-xs text-[var(--t3)]">
@@ -977,6 +991,7 @@ export default function MarketPage() {
 
         {ready && !error && (
           <MarketFacetStudio
+            collapsible={false}
             facets={facets}
             total={total}
             busy={busy}
@@ -1364,20 +1379,7 @@ export default function MarketPage() {
             </div>
           </div>
         </details>
-
-        <div className="sticky bottom-[calc(70px+env(safe-area-inset-bottom))] z-20 flex justify-end rounded-xl border border-[var(--b1)] bg-[var(--s0)]/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
-          <button
-            type="button"
-            onClick={() => {
-              setShowFilters(false);
-              setShowInsights(false);
-            }}
-            className="min-h-11 rounded-lg bg-[var(--blue)] px-5 text-sm font-bold text-white"
-          >
-            Show {busy ? "updated" : total.toLocaleString()} listings
-          </button>
-        </div>
-      </section>
+      </ResponsiveWorkspacePanel>
 
       {!showFilters && showInsights && !busy && !error && (
         <section
@@ -1421,8 +1423,8 @@ export default function MarketPage() {
           aria-label="Market results"
           className="min-w-0 scroll-mt-20"
         >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
+          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <div className="col-span-2 sm:col-span-1">
               <p className="text-xs text-[var(--t4)]">
                 {error ? (
                   "Market data unavailable"
@@ -1440,7 +1442,10 @@ export default function MarketPage() {
                 )}
               </p>
             </div>
-            <div aria-label="Result view" className="ml-auto flex gap-1">
+            <div
+              aria-label="Result view"
+              className="col-start-2 row-start-2 flex gap-1 sm:row-start-1"
+            >
               <button
                 type="button"
                 aria-label="Photo cards"
@@ -1476,7 +1481,7 @@ export default function MarketPage() {
                 const [sort, sortDir] = e.target.value.split(":");
                 set({ sort, sortDir: sortDir as "asc" | "desc" });
               }}
-              className="field !w-auto text-xs"
+              className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-start-3 sm:row-start-1 sm:!w-52"
             >
               <option value="lastSeenAt:desc">Recently seen</option>
               <option value="priceGap:desc">
@@ -1525,7 +1530,7 @@ export default function MarketPage() {
                 className="grid gap-4"
                 style={{
                   gridTemplateColumns:
-                    "repeat(auto-fit, minmax(min(100%, 19rem), 1fr))",
+                    "repeat(auto-fill, minmax(min(100%, 19rem), 1fr))",
                 }}
               >
                 <MarketReturnPosition />

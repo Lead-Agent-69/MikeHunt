@@ -65,7 +65,7 @@ import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
 import { PriceTimeline } from "@/components/deal/PriceTimeline";
 import { DealResearchWorkspace } from "@/components/deal/DealResearchWorkspace";
-import { VehicleSummary } from "@/components/deal/VehicleSummary";
+import { VehicleFacts, VehicleSummary } from "@/components/deal/VehicleSummary";
 import useDealerDefaults from "@/hooks/useDealerDefaults";
 import { VisionDamageInspector } from "@/components/deal/VisionDamageInspector";
 import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
@@ -914,7 +914,7 @@ export default function DealPage({
   }
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-6">
+    <div className="min-w-0 space-y-4 pb-4 lg:space-y-6">
       {/* Listing identity, reports and primary research action. */}
       <div>
         <div className="min-w-0 flex-1">
@@ -939,6 +939,7 @@ export default function DealPage({
             />
           </div>
           <VehicleSummary
+            showFacts={false}
             deal={{
               ...serverDeal,
               askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price,
@@ -946,47 +947,127 @@ export default function DealPage({
               damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
             }}
           />
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            {dealData?.deal?.sourceUrl && (
-              <a
-                href={dealData.deal.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-bold text-[var(--blue)] hover:underline"
-              >
-                {sourceLinkLabel(dealData.deal.sourceUrl)}
-                <span aria-hidden>↗</span>
-              </a>
-            )}
-          </div>
-          <ReportListing key={id} listingId={id} />
         </div>
       </div>
 
-      {/* Keep the actual vehicle visible before secondary checklists and analysis. */}
-      {serverDeal?.images?.length ? (
-        <section aria-label="Listing photos">
-          <ImageGallery
-            images={serverDeal.images}
-            title={[serverDeal.year, serverDeal.make, serverDeal.model]
-              .filter(Boolean)
-              .join(" ")}
-            sourceUrl={serverDeal.sourceUrl}
-          />
-          <p className="mt-2 text-xs text-[var(--t5)]">
-            Photos are source-provided and are not a mechanic inspection.
+      <div
+        className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(20rem,1fr)] lg:gap-6"
+        data-testid="vehicle-overview"
+      >
+        {/* Keep the actual vehicle visible before secondary checklists and analysis. */}
+        {serverDeal?.images?.length ? (
+          <section aria-label="Listing photos" className="min-w-0">
+            <ImageGallery
+              images={serverDeal.images}
+              title={[serverDeal.year, serverDeal.make, serverDeal.model]
+                .filter(Boolean)
+                .join(" ")}
+            />
+            <p className="mt-2 text-xs text-[var(--t5)]">
+              Photos are source-provided and are not a mechanic inspection.
+            </p>
+          </section>
+        ) : (
+          <p
+            role="status"
+            className="border-y border-[var(--b1)] py-4 text-sm text-[var(--t3)]"
+          >
+            {serverDeal?.photoEvidence?.placeholderCount
+              ? "The source supplied a placeholder, not vehicle photos. Check the original listing for updated photos."
+              : "No listing photos reported. Check the original listing for condition evidence."}
           </p>
-        </section>
-      ) : (
-        <p
-          role="status"
-          className="border-y border-[var(--b1)] py-4 text-sm text-[var(--t3)]"
+        )}
+        <aside
+          aria-label="Vehicle details and actions"
+          className="min-w-0 space-y-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3 sm:p-4"
         >
-          {serverDeal?.photoEvidence?.placeholderCount
-            ? "The source supplied a placeholder, not vehicle photos. Check the original listing for updated photos."
-            : "No listing photos reported. Check the original listing for condition evidence."}
-        </p>
-      )}
+          <section
+            aria-label="Vehicle actions"
+            className="border-t border-[var(--b1)] py-3 md:py-4"
+            style={{
+              background: "var(--s0)",
+              borderTop: "1px solid var(--b1)",
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  variant="outline"
+                  onClick={handleWatchPrice}
+                  disabled={watching || accountSaved.isLoading}
+                  title={
+                    isAccountSaved
+                      ? "Saved to your account"
+                      : isLocallyWatched
+                        ? "Saved on this device only; click to sync to your account"
+                        : accountSaved.error
+                          ? "Account saved status is unavailable; saving can be retried"
+                          : undefined
+                  }
+                  className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
+                >
+                  {watching
+                    ? "Adding…"
+                    : accountSaved.isLoading
+                      ? "Checking saved…"
+                      : isAccountSaved
+                        ? "Saved"
+                        : isLocallyWatched
+                          ? "Saved on device"
+                          : "Save vehicle"}
+                </Button>
+              </motion.div>
+
+              <VehicleSourceAction
+                sourceUrl={serverDeal?.sourceUrl || dealData?.deal?.sourceUrl}
+                auction={
+                  serverDeal?.decisionEvidence?.state === "auction_watch" ||
+                  isAuctionSource(serverDeal?.source ?? dealData?.deal?.source)
+                }
+              />
+
+              {store.userType === "dealer" && (
+                <motion.div
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <AcquireToPipelineButton
+                    label="Record purchase"
+                    deal={{
+                      id,
+                      vin: serverDeal?.vin || "",
+                      year: serverDeal?.year,
+                      make: serverDeal?.make,
+                      model: serverDeal?.model,
+                      condition:
+                        serverDeal?.titleType ||
+                        serverDeal?.condition ||
+                        "unknown",
+                      trueNetProfit: serverDeal?.trueNetProfit,
+                      sellEstimate: serverDeal?.sellEstimate,
+                      locationCity: serverDeal?.locationCity,
+                      locationState: serverDeal?.locationState,
+                    }}
+                  />
+                </motion.div>
+              )}
+            </div>
+          </section>
+
+          <VehicleFacts
+            compact
+            deal={{
+              ...serverDeal,
+              titleType: serverDeal?.titleType ?? serverDeal?.title_type,
+              damageType: serverDeal?.damageType ?? serverDeal?.damage_type,
+            }}
+          />
+          <ReportListing key={id} listingId={id} />
+        </aside>
+      </div>
       {serverDeal?.decisionEvidence?.acquisitionReady === false && (
         <section
           className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
@@ -1246,75 +1327,6 @@ export default function DealPage({
           dealerMode={store.userType === "dealer"}
         />
       </DetailDisclosure>
-
-      {/* Supplemental actions stay in flow so research controls remain unobstructed. */}
-      <section
-        aria-label="Vehicle actions"
-        className="border-t border-[var(--b1)] py-3 md:py-4"
-        style={{
-          background: "var(--s0)",
-          borderTop: "1px solid var(--b1)",
-        }}
-      >
-        <div className="max-w-5xl mx-auto flex flex-wrap justify-end gap-2 md:gap-3">
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              variant="outline"
-              onClick={handleWatchPrice}
-              disabled={watching || accountSaved.isLoading}
-              title={
-                isAccountSaved
-                  ? "Saved to your account"
-                  : isLocallyWatched
-                    ? "Saved on this device only; click to sync to your account"
-                    : accountSaved.error
-                      ? "Account saved status is unavailable; saving can be retried"
-                      : undefined
-              }
-              className="border-[var(--b2)] text-[var(--t3)] font-semibold text-xs md:text-sm min-h-11 rounded-lg"
-            >
-              {watching
-                ? "Adding…"
-                : accountSaved.isLoading
-                  ? "Checking saved…"
-                  : isAccountSaved
-                    ? "Saved"
-                    : isLocallyWatched
-                      ? "Saved on device"
-                      : "Save vehicle"}
-            </Button>
-          </motion.div>
-
-          <VehicleSourceAction
-            sourceUrl={serverDeal?.sourceUrl || dealData?.deal?.sourceUrl}
-            auction={
-              serverDeal?.decisionEvidence?.state === "auction_watch" ||
-              isAuctionSource(serverDeal?.source ?? dealData?.deal?.source)
-            }
-          />
-
-          {store.userType === "dealer" && (
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <AcquireToPipelineButton
-                label="Record purchase"
-                deal={{
-                  id,
-                  vin: serverDeal?.vin || "",
-                  year: serverDeal?.year,
-                  make: serverDeal?.make,
-                  model: serverDeal?.model,
-                  condition:
-                    serverDeal?.titleType || serverDeal?.condition || "unknown",
-                  trueNetProfit: serverDeal?.trueNetProfit,
-                  sellEstimate: serverDeal?.sellEstimate,
-                  locationCity: serverDeal?.locationCity,
-                  locationState: serverDeal?.locationState,
-                }}
-              />
-            </motion.div>
-          )}
-        </div>
-      </section>
 
       <FindSimilarModal
         flipDesk={store.userType === "dealer"}

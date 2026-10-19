@@ -1,3 +1,4 @@
+import { vehicleSpecPredicate } from "@/lib/vehicle/spec-filters";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
@@ -239,7 +240,7 @@ describe("Scan and facets query parity", () => {
       expect(calls).toContainEqual(["lte", "mileage", 88000]);
       expect(calls).toContainEqual([
         "or",
-        "fuel_type.ilike.%Hybrid%,options->>fuelType.eq.Hybrid",
+        vehicleSpecPredicate("fuelType", "Hybrid"),
       ]);
       expect(calls).toContainEqual(["ilike", "damage_type", "%front%"]);
       expect(

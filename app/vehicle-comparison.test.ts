@@ -27,6 +27,26 @@ const render = () =>
     createElement(VehicleComparison, { ids: ["car1", "car2"] }),
   );
 
+// Both responsive presentations must preserve the same financial caveats.
+function subtotalValues(html: string) {
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  const desktopRow = Array.from(host.querySelectorAll("tbody tr")).find(
+    (row) => row.querySelector("th")?.textContent === "Known-cost subtotal",
+  );
+  const phoneRow = Array.from(host.querySelectorAll("section")).find(
+    (row) => row.querySelector("h2")?.textContent === "Known-cost subtotal",
+  );
+  const desktop = Array.from(desktopRow?.querySelectorAll("td") || []).map(
+    (cell) => cell.textContent,
+  );
+  const phone = Array.from(phoneRow?.querySelectorAll("dd") || []).map(
+    (cell) => cell.textContent,
+  );
+  expect(phone).toEqual(desktop);
+  return desktop.join(" ");
+}
+
 describe("shortlist comparison", () => {
   beforeEach(() => {
     swr.result = { data: { cars: [car], failed: 0 } };
@@ -100,9 +120,7 @@ describe("shortlist comparison", () => {
           ...fields,
         },
       ];
-      expect(
-        render().split("Known-cost subtotal")[1].split("All-in cost")[0],
-      ).toContain("Not confirmed");
+      expect(subtotalValues(render())).toContain("Not confirmed");
     },
   );
   it("does not subtract impossible repair or transport allowances", () => {
@@ -115,9 +133,7 @@ describe("shortlist comparison", () => {
       },
     ];
     const html = render();
-    expect(
-      html.split("Known-cost subtotal")[1].split("All-in cost")[0],
-    ).toContain("$15,000");
+    expect(subtotalValues(html)).toContain("$15,000");
     expect(html).not.toMatch(/-\$500|Infinity|\u221e/);
   });
   it.each(["monthly_payment", "down_payment", "unknown", "current_bid"])(

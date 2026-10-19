@@ -1,4 +1,8 @@
 import {
+  vehicleSpecPredicate,
+  type VehicleSpecKey,
+} from "@/lib/vehicle/spec-filters";
+import {
   applyExtendedFilters,
   validateExtendedFilters,
 } from "./extended-inventory-filters";
@@ -192,16 +196,13 @@ export function applyVehicleDetails(query: any, params: URLSearchParams) {
       .slice(0, 60);
     if (value && value !== "all") scoped = scoped.ilike(column, `%${value}%`);
   }
-  for (const [key, column, values] of [
-    ["fuelType", "fuel_type", ["Gas", "Diesel", "Hybrid", "Electric"]],
-    ["transmission", "transmission", ["Automatic", "Manual"]],
-    ["drivetrain", "drivetrain", ["AWD", "4WD", "FWD", "RWD"]],
-  ] as const) {
-    const value = params.get(key);
-    if (values.some((allowed) => allowed === value))
-      scoped = scoped.or(
-        `${column}.ilike.%${value}%,options->>${key}.eq.${value}`,
-      );
+  for (const key of [
+    "fuelType",
+    "transmission",
+    "drivetrain",
+  ] as VehicleSpecKey[]) {
+    const predicate = vehicleSpecPredicate(key, params.get(key) || "");
+    if (predicate) scoped = scoped.or(predicate);
   }
   const keys = params.get("keys");
   if (keys === "yes" || keys === "no")

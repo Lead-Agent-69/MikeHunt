@@ -68,6 +68,14 @@ let root: Root;
 let host: HTMLDivElement;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
   window.history.replaceState(null, "", "/market");
   state.mode = "personal";
   state.pending = false;
@@ -447,8 +455,8 @@ describe("Market filter journey", () => {
     expect(host.querySelector('nav[aria-label="Market tools"]')).toBeNull();
 
     const buttons = Array.from(workspace.querySelectorAll("button"));
-    const insights = buttons.find((button) =>
-      button.textContent?.includes("Market insights"),
+    const insights = buttons.find(
+      (button) => button.getAttribute("aria-label") === "Market insights",
     )!;
     act(() => Simulate.click(insights));
     expect(host.querySelector('[aria-label="Market results"]')).toBeNull();

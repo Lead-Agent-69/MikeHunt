@@ -97,6 +97,46 @@ describe("smart market exploration", () => {
     expect(onFacetSelect).toHaveBeenCalledWith("condition", "clean_title");
   });
 
+  it("phone range controls preserve the other axis and open-ended bounds", () => {
+    const onMatrixSelect = vi.fn();
+    act(() =>
+      root.render(
+        <MarketFacetStudio
+          total={3}
+          selected={{
+            priceMin: "10000",
+            priceMax: "19999",
+            mileageMin: "25000",
+            mileageMax: "49999",
+          }}
+          facets={{
+            priceBands: [
+              { from: 10000, to: 19999, label: "$10k–$20k" },
+              { from: 20000, to: null, label: "$20k+" },
+            ],
+            mileageBands: [
+              { from: 25000, to: 49999, label: "25k–50k" },
+              { from: 50000, to: null, label: "50k+" },
+            ],
+          }}
+          onFacetSelect={vi.fn()}
+          onMatrixSelect={onMatrixSelect}
+        />,
+      ),
+    );
+    const selects = host.querySelectorAll("select");
+    act(() => {
+      selects[0].value = "20000";
+      selects[0].dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onMatrixSelect).toHaveBeenLastCalledWith(20000, null, 25000, 49999);
+    act(() => {
+      selects[1].value = "50000";
+      selects[1].dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onMatrixSelect).toHaveBeenLastCalledWith(10000, 19999, 50000, null);
+  });
+
   it("keeps source brands recognizable and their filter values unchanged", () => {
     const onFacetSelect = vi.fn();
     act(() =>

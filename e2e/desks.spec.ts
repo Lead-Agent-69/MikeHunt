@@ -32,6 +32,8 @@ for (const desk of [
       ).toBeVisible({
         timeout: 30_000,
       });
+      if (page.viewportSize()!.width < 1024)
+        await page.getByRole("button", { name: /^Quick filters/ }).click();
       await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
       await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(
         0,

@@ -84,7 +84,7 @@ export function ForYouRail({
           role="region"
           aria-label="For You vehicles"
           tabIndex={0}
-          className="scrollbar-hide -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6"
+          className="scrollbar-hide [margin-inline:calc(-1*var(--workspace-gutter,1rem))] flex gap-3 overflow-x-auto [padding-inline:var(--workspace-gutter,1rem)] pb-1"
           style={{
             scrollSnapType: "x mandatory",
             WebkitOverflowScrolling: "touch",

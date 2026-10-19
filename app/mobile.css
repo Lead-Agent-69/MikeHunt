@@ -13,9 +13,19 @@
   input[type="radio"],
   select,
   textarea,
-  label[for] {
+  label[for],
+  label:has(input[type="checkbox"]),
+  label:has(input[type="radio"]) {
     min-height: 44px;
     min-width: 44px;
+  }
+  label input[type="checkbox"],
+  label input[type="radio"] {
+    min-height: 22px;
+    min-width: 22px;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
   }
   button.icon-btn,
   a.icon-btn {

@@ -12,13 +12,7 @@ import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -342,7 +336,7 @@ export default function SavedCarsPage() {
     saves?.filter((s) => savedGroup(s.status) === "other") || [];
 
   return (
-    <div className="space-y-4 pb-20 sm:space-y-6">
+    <div className="min-w-0 space-y-4 pb-4 sm:space-y-6">
       {/* HEADER SECTION */}
       {comparisonIds.length > 0 && (
         <div className="sticky top-16 z-20 flex flex-wrap items-center gap-3 border border-[var(--b1)] bg-[var(--s0)] p-3 rounded-lg">
@@ -413,7 +407,7 @@ export default function SavedCarsPage() {
 
       {/* FILTER BUTTONS */}
       <div
-        className="grid w-full grid-cols-2 min-[360px]:grid-cols-4 sm:flex gap-1 p-1 rounded-lg self-start sm:w-auto"
+        className="grid w-full grid-cols-2 min-[360px]:grid-cols-4 sm:inline-flex gap-1 p-1 rounded-lg sm:w-fit"
         style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
       >
         {(["all", "active", "price_drops", "gone"] as const).map((tab) => (
@@ -548,10 +542,10 @@ export default function SavedCarsPage() {
         </div>
       </details>
 
-      {/* BOOKMARKLET & PWA SIDEBAR */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Use the full workspace for saved vehicles. */}
+      <div className="min-w-0 space-y-6">
         {/* Main watchlist list */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="min-w-0 space-y-6">
           {(authError || error) && canShowLocalSaves ? (
             <LocalSavedSection
               items={unsyncedLocalItems}
@@ -572,7 +566,7 @@ export default function SavedCarsPage() {
               onRetry={() => (accountError ? retryAccount() : mutate())}
             />
           ) : loading ? (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
               {[...Array(3)].map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
@@ -588,9 +582,16 @@ export default function SavedCarsPage() {
                 <EmptyState
                   icon="bell"
                   title="Nothing saved yet"
-                  message="Save a vehicle from Discover or paste a listing URL above to start a watchlist."
+                  message="Save a vehicle from Market Explorer or paste a listing URL above to start a watchlist."
                 />
               </div>
+              <Link
+                href="/market"
+                prefetch={false}
+                className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white"
+              >
+                Browse Market Explorer
+              </Link>
             </div>
           ) : (
             <div className="space-y-8">
@@ -608,7 +609,7 @@ export default function SavedCarsPage() {
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--red)] animate-ping" />
                     Needs Attention ({needsAttention.length})
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
                     {needsAttention.map((saveItem) => (
                       <SavedCarCard
                         key={saveItem.id}
@@ -634,7 +635,7 @@ export default function SavedCarsPage() {
                   <h3 className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider">
                     Active Watchlist ({activeSaves.length})
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
                     {activeSaves.map((saveItem) => (
                       <SavedCarCard
                         key={saveItem.id}
@@ -660,7 +661,7 @@ export default function SavedCarsPage() {
                   <h3 className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider">
                     No Longer Available ({goneSaves.length})
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
                     {goneSaves.map((saveItem) => (
                       <SavedCarCard
                         key={saveItem.id}
@@ -686,7 +687,7 @@ export default function SavedCarsPage() {
                   <h3 className="text-xs font-bold text-[var(--t3)] uppercase tracking-wider">
                     Purchased Fleet ({acquiredSaves.length})
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
                     {acquiredSaves.map((saveItem) => (
                       <SavedCarCard
                         key={saveItem.id}
@@ -710,7 +711,7 @@ export default function SavedCarsPage() {
                   <h3 className="text-sm font-semibold">
                     Other saved vehicles ({otherSaves.length})
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
                     {otherSaves.map((save) => (
                       <SavedCarCard
                         key={save.id}
@@ -758,37 +759,27 @@ export default function SavedCarsPage() {
           )}
         </div>
 
-        {/* Save help */}
-        <div className="space-y-6">
-          <Card className="border-[var(--b2)] bg-[var(--s0)] shadow-sm">
-            <CardHeader className="p-5 pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-sm font-bold">
-                <LinkIcon className="w-4 h-4 text-[var(--amber)]" />
-                Save from anywhere
-              </CardTitle>
-              <CardDescription className="text-xs leading-relaxed">
-                Copy a vehicle listing link from any marketplace, then paste it
-                into the field above.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 p-5 text-xs leading-relaxed text-[var(--t3)]">
-              <div className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-                <p className="font-semibold text-[var(--t2)]">
-                  Local backup included
-                </p>
-                <p className="mt-1">
-                  A recent copy remains on this device when the connection is
-                  interrupted.
-                </p>
-              </div>
-              <p>
-                {signedIn
-                  ? "Account saves sync when the connection is healthy. Local backup stays on this device either way."
-                  : "Sign in with email or Google to keep one watchlist across devices."}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold">
+            <LinkIcon className="h-4 w-4 text-[var(--amber)]" />
+            Save from anywhere
+          </summary>
+          <div className="max-w-3xl space-y-2 pb-4 text-sm text-[var(--t3)]">
+            <p>
+              Copy a vehicle listing link from any marketplace, then paste it
+              into the field above.
+            </p>
+            <p>
+              <strong>Local backup included.</strong> A recent copy remains on
+              this device when the connection is interrupted.
+            </p>
+            <p>
+              {signedIn
+                ? "Account saves sync when the connection is healthy. Local backup stays on this device either way."
+                : "Sign in with email or Google to keep one watchlist across devices."}
+            </p>
+          </div>
+        </details>
       </div>
     </div>
   );
@@ -823,7 +814,7 @@ function LocalSavedSection({
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 min-[1800px]:grid-cols-2">
         {items.map((item) => {
           const nextTrustChecks = item.trustExplanation?.nextChecks || [];
           const contactHref = item.sellerContactUrl || item.sourceUrl;
