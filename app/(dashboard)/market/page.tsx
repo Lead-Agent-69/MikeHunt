@@ -641,7 +641,15 @@ export default function MarketPage() {
         <MarketLocation
           value={f}
           onChange={set}
-          search={{ value: f.q, onChange: (q) => set({ q }) }}
+          search={{
+            value: f.q,
+            onChange: (q) => set({ q }),
+            onInterpret: (filters, interpretedDetails) => {
+              set(filters as Partial<Filters>);
+              setDetails((current) => ({ ...current, ...interpretedDetails }));
+              setCopyStatus("Search filters applied");
+            },
+          }}
         />
       )}
       <nav

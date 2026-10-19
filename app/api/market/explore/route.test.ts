@@ -574,7 +574,7 @@ describe("Market inventory filtering and pagination", () => {
       mapLat: 38.6,
       mapLng: -90.2,
       bodyClass: "Pickup truck",
-      fuelType: "Gasoline",
+      fuelType: "Gas",
     });
     expect(body.facets.topModels).toContainEqual({ value: "Maverick", n: 1 });
     expect(body.facets.bodyClasses).toContainEqual({ value: "Pickup", n: 1 });
@@ -586,6 +586,66 @@ describe("Market inventory filtering and pagination", () => {
       mileageFrom: 25_000,
       mileageTo: 49_999,
       n: 1,
+    });
+  });
+
+  it("counts distinct reported powertrains without folding plug-in hybrids into gas or electric", async () => {
+    state.rows = [
+      {
+        id: "phev",
+        fuel_type: "Plug-in Hybrid Electric",
+        transmission: "Automatic CVT",
+        drivetrain: "Front-wheel drive",
+      },
+      {
+        id: "hev",
+        fuel_type: "Gasoline / Electric",
+        transmission: "e-CVT",
+        drivetrain: "All-wheel drive",
+      },
+      {
+        id: "gas",
+        fuel_type: "Gasoline",
+        transmission: "Dual clutch automatic",
+        drivetrain: "AWD / FWD",
+      },
+      {
+        id: "fallback",
+        fuel_type: "Unknown",
+        reported_fuel: "E85 Flex Fuel",
+        reported_transmission: "M/T",
+        reported_drivetrain: "4x4",
+      },
+      {
+        id: "unknown",
+        fuel_type: "Hydrogen",
+        reported_fuel: "Gasoline",
+        transmission: "6-speed",
+        reported_transmission: "Manual",
+      },
+    ].map((row) => ({ source: "copart", ...row }));
+    const body = await (await request("mode=all")).json();
+    expect(body.facets.fuelTypes).toEqual(
+      expect.arrayContaining([
+        { value: "PHEV", n: 1 },
+        { value: "Hybrid", n: 1 },
+        { value: "Gas", n: 1 },
+        { value: "Flex fuel", n: 1 },
+      ]),
+    );
+    expect(body.facets.fuelTypes).toHaveLength(4);
+    expect(body.facets.transmissions).toEqual(
+      expect.arrayContaining([
+        { value: "CVT", n: 2 },
+        { value: "DCT", n: 1 },
+        { value: "Manual", n: 1 },
+      ]),
+    );
+    expect(body.facets.transmissions).toHaveLength(3);
+    expect(body.facets.drivetrains).toHaveLength(3);
+    expect(body.rows.find((row: any) => row.id === "phev")).toMatchObject({
+      fuelType: "PHEV",
+      transmission: "CVT",
     });
   });
 

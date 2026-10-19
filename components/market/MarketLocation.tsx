@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, LocateFixed, MapPin } from "lucide-react";
+import { MarketSearchBuilder } from "./MarketSearchBuilder";
+import type { MarketSearchInterpretation } from "@/lib/market/parse-search";
 import { usePreferences } from "@/hooks/usePreferences";
 import { surroundingStates } from "@/lib/geo/bordering-states";
 import { MISSOURI_SEARCH_MARKETS } from "@/lib/geo/missouri-markets";
@@ -14,6 +16,8 @@ export type MarketLocationValue = {
   states: string[];
 };
 
+const RADIUS_STEPS = [5, 10, 25, 50, 75, 100, 150, 200, 250, 500, 1000];
+
 export function MarketLocation({
   value,
   onChange,
@@ -21,7 +25,14 @@ export function MarketLocation({
 }: {
   value: MarketLocationValue;
   onChange: (patch: Partial<MarketLocationValue>) => void;
-  search?: { value: string; onChange: (value: string) => void };
+  search?: {
+    value: string;
+    onChange: (value: string) => void;
+    onInterpret?: (
+      filters: MarketSearchInterpretation["filters"],
+      details: Record<string, string>,
+    ) => void;
+  };
 }) {
   const { prefs } = usePreferences();
   const home = prefs.homeLocation;
@@ -69,21 +80,39 @@ export function MarketLocation({
         onSubmit={(event) => {
           event.preventDefault();
           if (near.trim()) searchArea(near);
-          else if (value.lat) onChange({ radius });
+          else if (value.lat) {
+            onChange({ radius });
+            setLocationOpen(false);
+          }
         }}
         className={`grid min-w-0 grid-cols-1 items-end gap-2 lg:gap-3 ${search ? "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_7.5rem_auto]" : "lg:grid-cols-[minmax(0,1fr)_7.5rem_auto]"}`}
       >
         {search && (
-          <label className="block min-w-0 text-xs font-semibold text-[var(--t3)]">
-            <span className="sr-only lg:not-sr-only">Vehicle or VIN</span>
-            <input
-              aria-label="Search make, model or VIN"
-              placeholder="Make, model or VIN"
-              value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
-              className="field min-h-11 min-w-0 !w-full !py-2 !text-base lg:mt-1"
-            />
-          </label>
+          <div className="min-w-0 text-xs font-semibold text-[var(--t3)]">
+            <label
+              htmlFor="market-vehicle-search"
+              className="sr-only lg:not-sr-only"
+            >
+              Vehicle or VIN
+            </label>
+            <div className="relative lg:mt-1">
+              <input
+                id="market-vehicle-search"
+                aria-label="Search make, model or VIN"
+                placeholder="Make, model or VIN"
+                value={search.value}
+                onChange={(event) => search.onChange(event.target.value)}
+                className={`field min-h-11 min-w-0 !w-full !py-2 !text-base ${search.onInterpret ? "!pr-28" : ""}`}
+              />
+              {search.onInterpret && (
+                <MarketSearchBuilder
+                  location={value}
+                  home={home}
+                  onApply={search.onInterpret}
+                />
+              )}
+            </div>
+          </div>
         )}
         <button
           type="button"
@@ -131,7 +160,10 @@ export function MarketLocation({
                 onChange={(event) => setRadius(event.target.value)}
                 className="field min-h-11 !w-full !py-2 !text-base mt-1"
               >
-                {[25, 50, 100, 150, 200, 250, 500, 1000].map((miles) => (
+                {!RADIUS_STEPS.includes(Number(radius)) && (
+                  <option value={radius}>{radius} miles</option>
+                )}
+                {RADIUS_STEPS.map((miles) => (
                   <option key={miles} value={miles}>
                     {miles.toLocaleString()} miles
                   </option>
@@ -261,6 +293,27 @@ export function MarketLocation({
               </label>
             </div>
           </div>
+          <label className="block text-xs font-semibold text-[var(--t3)] lg:hidden">
+            Radius slider · {radius} miles
+            <input
+              type="range"
+              aria-label="Adjust search radius"
+              aria-valuetext={`${radius} miles`}
+              min={0}
+              max={RADIUS_STEPS.length - 1}
+              step={1}
+              value={Math.max(0, RADIUS_STEPS.indexOf(Number(radius)))}
+              onChange={(event) =>
+                setRadius(String(RADIUS_STEPS[Number(event.target.value)]))
+              }
+              className="mt-1 min-h-11 w-full accent-[var(--blue)]"
+            />
+            <span className="flex justify-between text-[11px]">
+              <span>5 mi</span>
+              <span>100 mi</span>
+              <span>1,000 mi</span>
+            </span>
+          </label>
         </div>
       </form>
       <datalist id="market-city-anchors">

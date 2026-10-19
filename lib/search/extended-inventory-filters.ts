@@ -1,3 +1,5 @@
+import { VEHICLE_SPEC_OPTIONS } from "@/lib/vehicle/spec-filters";
+
 export type InventoryFilterField = {
   key: string;
   label: string;
@@ -55,17 +57,17 @@ export const INVENTORY_DETAIL_GROUPS: {
       {
         key: "fuelType",
         label: "Fuel",
-        options: options("Gas", "Diesel", "Hybrid", "Electric"),
+        options: options(...VEHICLE_SPEC_OPTIONS.fuelType),
       },
       {
         key: "transmission",
         label: "Transmission",
-        options: options("Automatic", "Manual"),
+        options: options(...VEHICLE_SPEC_OPTIONS.transmission),
       },
       {
         key: "drivetrain",
         label: "Drivetrain",
-        options: options("AWD", "4WD", "FWD", "RWD"),
+        options: options(...VEHICLE_SPEC_OPTIONS.drivetrain),
       },
       { key: "color", label: "Exterior color" },
       { key: "engine", label: "Engine" },

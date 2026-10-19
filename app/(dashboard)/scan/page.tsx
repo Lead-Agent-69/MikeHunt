@@ -1,5 +1,6 @@
 "use client";
 
+import { VEHICLE_SPEC_OPTIONS } from "@/lib/vehicle/spec-filters";
 import React, {
   useState,
   useEffect,
@@ -5172,7 +5173,7 @@ function ScanPageInner() {
                 onChange={setFuelType}
                 options={[
                   { value: "all", label: "Fuel: All" },
-                  ...["Gas", "Diesel", "Hybrid", "Electric"].map((value) => ({
+                  ...VEHICLE_SPEC_OPTIONS.fuelType.map((value) => ({
                     value,
                     label: value,
                   })),
@@ -5184,7 +5185,7 @@ function ScanPageInner() {
                 onChange={setTransmission}
                 options={[
                   { value: "all", label: "Transmission: All" },
-                  ...["Automatic", "Manual"].map((value) => ({
+                  ...VEHICLE_SPEC_OPTIONS.transmission.map((value) => ({
                     value,
                     label: value,
                   })),
