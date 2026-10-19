@@ -32,6 +32,18 @@ export interface SourceMeta {
 // Brand-appropriate accents. Mid-saturation hues so the same value reads on light AND dark surfaces
 // (badges render as solid `color` text on a low-alpha tint of the same color).
 const META: Record<string, SourceMeta> = {
+  "4cdg_cameronautollc_com": {
+    label: "Cameron Auto LLC",
+    short: "Cameron Auto",
+    color: "#64748b",
+    channel: "dealer",
+  },
+  travers_automotive: {
+    label: "Travers Automotive Group",
+    short: "Travers",
+    color: "#64748b",
+    channel: "dealer",
+  },
   "4cdg_drivenation_com": {
     label: "DriveNation",
     short: "DriveNation",
@@ -284,6 +296,8 @@ const FALLBACK: SourceMeta = {
 };
 
 export const DEALER_SOURCE_DOMAINS: Record<string, string[]> = {
+  "4cdg-cameronautollc-com": ["cameronautollc.com"],
+  "travers-automotive": ["traversautomotivegroup.com"],
   "4cdg-drivenation-com": ["drivenation.com"],
   "ae-of-miami": ["aeofmiami.com"],
   "damage-com": ["damage.com"],

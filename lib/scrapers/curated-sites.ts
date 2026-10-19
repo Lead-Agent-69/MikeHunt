@@ -109,7 +109,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.trumannauto.com", name: "Trumann Auto Body & Sales", state: "AR", type: "rebuilder_dealer" },
   { url: "https://www.polecatsautosales.com", name: "Polecats Auto Sales", state: "MO", type: "rebuilder_dealer" },
   { url: "https://www.25autollc.com", name: "25 Auto LLC", state: "MO", type: "rebuilder_dealer" },
-  { url: "https://www.cameronautollc.com", name: "Cameron Auto LLC", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.cameronautollc.com", name: "Cameron Auto LLC", state: "MO", city: "Kahoka", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.cameronautollc.com/vehicles.php" },
   { url: "https://www.lambmotors.com", name: "Lamb Motors", type: "rebuilder_dealer" },
   { url: "https://www.glensautosales.com", name: "Glen's Auto Sales", state: "MO", city: "Malden", type: "rebuilder_dealer", platform: "4cdg", inventoryUrl: "https://www.glensautosales.com/" }, // 4cdg; featured grid on home (verified 2026-10-10)
   { url: "https://www.rogersautosales.com", name: "Rogers Auto (Late Model Rebuilders)", type: "rebuilder_dealer" },
@@ -157,7 +157,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.royaldriveautos.com", name: "Royal Drive", state: "MN", type: "rebuilder_dealer" },
   { url: "https://www.samsriverside.com", name: "Sam's Riverside", state: "IA", city: "Des Moines", type: "salvage_yard", inventoryUrl: "https://www.samsriverside.com/vehicles.php" }, // verified 2026-10-06
   { url: "https://www.dgautollc.com", name: "D & G Auto", state: "MO", type: "rebuilder_dealer" },
-  { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard", platform: "4cdg", inventoryUrl: "https://www.southsiderebuilders.com/all_vehicles.php" }, // 4cdg (verified 2026-10-10)
+  { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard", platform: "4cdg", inventoryUrl: "https://www.southsiderebuilders.com/all-vehicles.php" }, // Published inventory link verified 2026-10-18.
   { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
   { url: "https://www.rebuildautos.com", name: "RebuildAutos", state: "MO", type: "auction_proxy" },
   { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer" },
@@ -313,6 +313,9 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.wildwestomaha.com", name: "Wild West Auto Sales", state: "NE", city: "Omaha", type: "independent_dealer", platform: "vehiclesnetwork" },
   // schema.org JSON-LD inventory (generic JSON-LD path, no platform template needed)
   { url: "https://www.drivenowmidwest.com", name: "Drive Now", state: "KS", city: "Wichita", type: "independent_dealer" },
+  // Public JSON-LD: source URL, asking price, odometer and photo verified 2026-10-18.
+  // No claim of complete inventory: only priced vehicle records actually returned are imported.
+  { url: "https://www.traversautomotivegroup.com", name: "Travers Automotive Group", state: "MO", type: "independent_dealer", inventoryUrl: "https://www.traversautomotivegroup.com/used" }, // Multiple branches; do not assign every car the homepage city.
 ];
 
 /**

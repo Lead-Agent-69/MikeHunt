@@ -14,6 +14,46 @@ const dealer = {
   geo: { latitude: 40.3494, longitude: -111.7273 },
 };
 describe("listingLocation", () => {
+  it("does not geolocate Travers inventory using its shared dealer headquarters", () => {
+    const sourceUrl =
+      "https://www.traversautomotivegroup.com/vehicle-info/used-ford-123";
+    const shared = {
+      ...dealer,
+      address: {
+        ...dealer.address,
+        addressLocality: "MOorissant, Missouri",
+        addressRegion: "MO",
+        postalCode: "63385",
+      },
+    };
+    expect(
+      listingLocation(
+        page([shared, { "@type": "Car", url: sourceUrl }]),
+        sourceUrl,
+      ),
+    ).toEqual({});
+    expect(
+      listingLocation(
+        page([
+          shared,
+          {
+            "@type": "Car",
+            url: sourceUrl,
+            offers: {
+              availableAtOrFrom: {
+                address: {
+                  addressLocality: "Wentzville",
+                  addressRegion: "MO",
+                  postalCode: "63385",
+                },
+              },
+            },
+          },
+        ]),
+        sourceUrl,
+      ),
+    ).toMatchObject({ location_city: "Wentzville", location_zip: "63385" });
+  });
   it("recovers the exact Craigslist offer address and map coordinates", () => {
     const html =
       page([
