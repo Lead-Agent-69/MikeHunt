@@ -55,7 +55,7 @@ describe("deal page personal desk", () => {
 
     // G2: max bid, valuation breakdown, and outcome logging are flip-desk only.
     expect(page).toMatch(
-      /store\.userType === "dealer" && \(\s*<div className="lg:col-span-2">\s*<MaxBidWidget/,
+      /store\.userType === "dealer" && serverDeal && \(\s*<MaxBidWidget/,
     );
     expect(page).toMatch(
       /store\.userType === "dealer" &&\s*dealData\?\.deal\?\.dealAnalysis\?\.valuation &&[\s\S]{0,400}<ValuationBreakdown/,
@@ -98,8 +98,9 @@ describe("deal page personal desk", () => {
     expect(page).not.toContain("Advanced workspace");
     expect(page).toContain("Expensive children do");
     expect(page).toMatch(/\{expanded \?\s*\(/);
-    expect(page).toMatch(
-      /store\.userType === "dealer"\s*\?\s*"\/api\/calibration"\s*:\s*null/,
+    expect(page).not.toContain('"/api/calibration"');
+    expect(page.indexOf("<MaxBidWidget")).toBeGreaterThan(
+      page.indexOf('eyebrow="Plan and record"'),
     );
   });
 

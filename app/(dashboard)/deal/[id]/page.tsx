@@ -485,15 +485,6 @@ export default function DealPage({
   }, [prefs.buyerScope, prefsLoading, store]);
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { targetProfit: savedTargetProfit } = useDealerDefaults();
-  // The dealer's learned calibration (null until they've logged enough outcomes).
-  const { data: calData } = useSWR(
-    store.userType === "dealer" ? "/api/calibration" : null,
-    fetcher,
-    {
-      revalidateOnFocus: false,
-    },
-  );
-  const calibration = calData?.calibration ?? null;
   const { id } = React.use(params);
   const router = useRouter();
   const [watching, setWatching] = React.useState(false);
@@ -1211,21 +1202,7 @@ export default function DealPage({
               <BestTimeToBuy make={serverDeal.make} model={serverDeal.model} />
             )}
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            {store.userType === "dealer" && (
-              <div className="lg:col-span-2">
-                <MaxBidWidget
-                  sellEstimate={dealData?.deal?.sellEstimate}
-                  source={dealData?.deal?.source}
-                  askPrice={dealData?.deal?.askPrice ?? store.askPrice}
-                  costs={dealData?.deal?.dealAnalysis?.costs}
-                  defaultTargetProfit={savedTargetProfit}
-                  calibration={calibration}
-                />
-              </div>
-            )}
-            <PriceTimeline dealId={id} />
-          </div>
+          <PriceTimeline dealId={id} />
           {store.userType === "dealer" &&
             dealData?.deal?.dealAnalysis?.valuation &&
             dealData?.deal?.sellEstimate != null && (
@@ -1248,6 +1225,22 @@ export default function DealPage({
         summary="Build an all-in plan, contact the seller, and keep your research together."
       >
         <div className="space-y-4">
+          {store.userType === "dealer" && serverDeal && (
+            <MaxBidWidget
+              key={`${dealerId}:${id}`}
+              dealId={id}
+              ownerId={dealerId}
+              sellEstimate={serverDeal.sellEstimate}
+              valuation={serverDeal.dealAnalysis?.valuation}
+              source={serverDeal.source}
+              sourceUrl={serverDeal.sourceUrl}
+              lastSeenAt={serverDeal.lastSeenAt}
+              askPrice={serverDeal.askPrice}
+              buyNowPrice={serverDeal.buyNowPrice}
+              priceEvidence={serverDeal.priceEvidence}
+              defaultTargetProfit={savedTargetProfit}
+            />
+          )}
           <Button
             variant="outline"
             onClick={() => {
