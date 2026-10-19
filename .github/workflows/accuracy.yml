@@ -3,7 +3,7 @@ name: Accuracy Regression Gate
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 0' # weekly on sunday
+    - cron: "0 0 * * 0" # weekly on sunday
 
 jobs:
   accuracy:
@@ -19,12 +19,14 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
+          # Zeus keeps npm's local cache; actions/cache cannot save its archive
+          # from the Windows service account and only adds a false warning.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
