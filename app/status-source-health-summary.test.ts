@@ -19,6 +19,12 @@ describe("status source-health summary", () => {
     expect(page).toContain("proofRows.toLocaleString()");
     expect(page).toContain("proofPhotoRows.toLocaleString()");
     expect(page).toContain('label="Rows in source proof"');
+    expect(page).toContain(
+      'sourceHealth?.inventoryProofMode === "database_rollup"',
+    );
+    expect(page).toContain("checks every active stored row");
+    expect(page).toContain("checks the most recent stored rows");
+    expect(page).not.toContain("It is capped separately");
     expect(page).toContain("Inventory quality sample");
     expect(page).toContain("q?.detailCoverage?.total");
   });

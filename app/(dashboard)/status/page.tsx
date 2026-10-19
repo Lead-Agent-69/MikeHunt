@@ -160,6 +160,8 @@ export default function StatusPage() {
   );
   const proofPhotoRows = Number(healthSummary.rowsWithPhotos ?? photoRows);
   const proofAverageQuality = Number(healthSummary.averageQuality ?? 0);
+  const sourceProofIsComplete =
+    sourceHealth?.inventoryProofMode === "database_rollup";
   const bestPublicSource = readySources
     .slice()
     .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))[0];
@@ -1244,10 +1246,11 @@ export default function StatusPage() {
                     : "No source is ready to show inventory yet."}
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                  This source-proof view checks registered markets and their
-                  stored rows. It is capped separately from the inventory
-                  quality sample below, so its row total is not the full active
-                  inventory count.
+                  {sourceProofIsComplete
+                    ? "This source-proof view checks every active stored row across registered markets."
+                    : "This source-proof view checks the most recent stored rows across registered markets."}{" "}
+                  It is separate from the bounded inventory quality sample
+                  below.
                   {proofAverageQuality
                     ? ` Current average detail quality is ${proofAverageQuality}/100.`
                     : ""}
