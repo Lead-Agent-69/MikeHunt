@@ -3,9 +3,26 @@ import { invalidate } from "@/lib/cache";
 
 const canManage = vi.fn();
 const buildRealDataReadiness = vi.hoisted(() => vi.fn());
+const persistedStatus = vi.hoisted(() => ({
+  value: undefined as Promise<unknown> | undefined,
+  loads: vi.fn(),
+}));
 
 vi.mock("@/lib/auth/admin-operations", () => ({
   canManageOperations: (...args: unknown[]) => canManage(...args),
+}));
+
+vi.mock("next/cache", () => ({
+  unstable_cache: (load: () => Promise<unknown>) => async () => {
+    if (!persistedStatus.value) {
+      persistedStatus.loads();
+      persistedStatus.value = load().catch((error) => {
+        persistedStatus.value = undefined;
+        throw error;
+      });
+    }
+    return persistedStatus.value;
+  },
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -36,6 +53,8 @@ const request = () => new Request("http://localhost/api/system/status") as any;
 describe("/api/system/status authz", () => {
   beforeEach(() => {
     invalidate("status:full:");
+    persistedStatus.value = undefined;
+    persistedStatus.loads.mockClear();
     canManage.mockReset();
     buildRealDataReadiness.mockClear();
   });
@@ -82,6 +101,18 @@ describe("/api/system/status authz", () => {
       expect(response.headers.get("Cache-Control")).toBe("private, no-store");
       expect((await response.json()).scope).toBeUndefined();
     }
+  });
+
+  it("reuses the persisted snapshot after the process-local cache is lost", async () => {
+    canManage.mockResolvedValue(true);
+
+    await GET(request());
+    invalidate("status:full:");
+    await GET(request());
+
+    expect(canManage).toHaveBeenCalledTimes(2);
+    expect(persistedStatus.loads).toHaveBeenCalledTimes(1);
+    expect(buildRealDataReadiness).toHaveBeenCalledTimes(1);
   });
 
   it("returns only auth readiness without an admin lookup or inventory queries", async () => {

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse, type NextRequest } from "next/server";
+import { unstable_cache } from "next/cache";
 import { canManageOperations } from "@/lib/auth/admin-operations";
 import {
   createServerComponentClient,
@@ -706,11 +707,37 @@ export function shouldCacheFullStatus(payload: Record<string, any>) {
   );
 }
 
+class IncompleteFullStatusError extends Error {
+  constructor(readonly payload: Record<string, any>) {
+    super("Full system status is incomplete and must not be cached");
+    this.name = "IncompleteFullStatusError";
+  }
+}
+
+const loadPersistedFullStatus = unstable_cache(
+  async () => {
+    const payload = await computeFullStatus();
+    if (!shouldCacheFullStatus(payload)) {
+      throw new IncompleteFullStatusError(payload);
+    }
+    return payload;
+  },
+  ["system-status-full-v2"],
+  { revalidate: 60, tags: ["system-status-full"] },
+);
+
 function loadFullStatus() {
   return cached(
-    "status:full:v1",
+    "status:full:v2",
     60_000,
-    computeFullStatus,
+    async () => {
+      try {
+        return await loadPersistedFullStatus();
+      } catch (error) {
+        if (error instanceof IncompleteFullStatusError) return error.payload;
+        throw error;
+      }
+    },
     shouldCacheFullStatus,
   );
 }
