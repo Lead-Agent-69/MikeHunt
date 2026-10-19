@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { ScraperExecutor } from "./executor";
 import { ScraperRegistry } from "./registry";
-import { getScrapeSourceId } from "../source-run-context";
+import {
+  getScrapeSourceId,
+  recordScrapePersistence,
+} from "../source-run-context";
 
 describe("ScraperExecutor", () => {
   it("aborts timed-out work without starting overlapping retries", async () => {
@@ -51,6 +54,64 @@ describe("ScraperExecutor", () => {
     expect(result.success).toBe(true);
     expect(result.dealsFound).toBe(42);
     expect(result.dealsSaved).toBe(42);
+  });
+
+  it("reports actual persistence instead of copying the discovered count", async () => {
+    const scraper = new ScraperRegistry().register({
+      id: "quota-limited",
+      name: "Quota limited",
+      type: "marketplace",
+      priority: "medium",
+      frequencyMinutes: 60,
+      requiresAuth: false,
+      stealthRequired: false,
+      fn: async () => {
+        recordScrapePersistence(54, 0);
+        // Several adapters return the persistence count rather than their discovered count.
+        return 0;
+      },
+      enabled: true,
+      estimatedDealsPerRun: 54,
+    });
+
+    const result = await new ScraperExecutor().execute(scraper, {
+      timeoutMs: 1000,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      dealsFound: 54,
+      dealsSaved: 0,
+    });
+  });
+
+  it("combines persistence receipts from paged intake calls", async () => {
+    const scraper = new ScraperRegistry().register({
+      id: "paged",
+      name: "Paged",
+      type: "dealer",
+      priority: "medium",
+      frequencyMinutes: 60,
+      requiresAuth: false,
+      stealthRequired: false,
+      fn: async () => {
+        recordScrapePersistence(20, 4);
+        recordScrapePersistence(10, 2);
+        return 30;
+      },
+      enabled: true,
+      estimatedDealsPerRun: 30,
+    });
+
+    const result = await new ScraperExecutor().execute(scraper, {
+      timeoutMs: 1000,
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      dealsFound: 30,
+      dealsSaved: 6,
+    });
   });
 
   it("makes the registered adapter id available to persistence work", async () => {
