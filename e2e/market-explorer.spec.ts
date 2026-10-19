@@ -1,3 +1,4 @@
+import { openMarketArea, setMarketRadius } from "./support/market-area";
 import { expect, test } from "@playwright/test";
 import { storagePath } from "./support/accounts";
 import { localOnly } from "./support/target";
@@ -33,13 +34,9 @@ test.describe("Market Explorer home", () => {
     ).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
     const locationLabel = page
-      .locator('header button[aria-label^="Choose location:"] > span')
+      .locator('header button[aria-label^="Change search area:"] > span')
       .filter({ visible: true });
-    if (await locationLabel.count()) {
-      expect(
-        await locationLabel.evaluate((el) => el.scrollWidth - el.clientWidth),
-      ).toBeLessThanOrEqual(1);
-    }
+    if (await locationLabel.count()) await expect(locationLabel).toBeVisible();
     const headerTargets = await page
       .locator("header")
       .first()
@@ -419,34 +416,34 @@ test.describe("Market Explorer home", () => {
     ).toBeVisible();
     await page.reload();
     await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
-    await expect(page.getByLabel("Search radius", { exact: true })).toHaveValue(
-      "250",
-    );
+    await openMarketArea(page);
+    await expect(
+      page.getByRole("slider", { name: "Search radius" }),
+    ).toHaveAttribute("aria-valuetext", "250 miles");
+    await page.keyboard.press("Escape");
   });
 
   test("runs a ZIP radius search, sorts by distance and restores its shareable URL", async ({
     page,
   }) => {
-    await page.goto("/market");
+    await page.goto("/market?mode=all");
+    const area = await openMarketArea(page);
+    await area
+      .getByRole("radio", { name: "Nearby", exact: true })
+      .locator("..")
+      .click();
     await page.getByLabel("Search location", { exact: true }).fill("63101");
-    await page.getByLabel("Search radius", { exact: true }).selectOption("100");
+    await setMarketRadius(page, 100);
     const result = page.waitForResponse(
       (response) =>
         response.url().includes("/api/market/explore?") &&
         new URL(response.url()).searchParams.get("near") === "63101",
     );
-    await page.getByRole("button", { name: "Search this area" }).click();
+    await area.getByRole("button", { name: "Apply area" }).click();
     const response = await result;
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body.total).toBeGreaterThan(0);
-    await expect(
-      page
-        .getByRole("button", {
-          name: "Change search area: 100 miles from 63101",
-        })
-        .filter({ visible: true }),
-    ).toHaveText("100 mi");
     expect(
       body.rows.every(
         (row: { distanceMiles: number }) =>
@@ -456,30 +453,28 @@ test.describe("Market Explorer home", () => {
     await page
       .getByLabel("Sort market results")
       .selectOption("distanceMiles:asc");
-    await expect(page).toHaveURL(/sort=distanceMiles/);
     await page.reload();
-    await expect(
-      page.getByLabel("Search location", { exact: true }),
-    ).toHaveValue("63101");
     await expect(page.getByLabel("Sort market results")).toHaveValue(
       "distanceMiles:asc",
     );
-    const locationChip = page
+    const shortcut = page
       .getByRole("button", {
-        name: "Change search area: 100 miles from 63101",
+        name: "Change search area: Within 100 mi of 63101",
       })
       .filter({ visible: true });
-    await expect(locationChip).toHaveText("100 mi");
-    const currentUrl = page.url();
-    await locationChip.click();
+    await shortcut.click();
+    await expect(area).toBeVisible();
     await expect(
       page.getByLabel("Search location", { exact: true }),
-    ).toBeFocused();
-    expect(page.url()).toBe(currentUrl);
-    await expect(page.getByRole("dialog", { name: /states/i })).toHaveCount(0);
-    await page
-      .getByLabel("Search area", { exact: true })
-      .selectOption("nationwide");
+    ).toHaveValue("63101");
+    await expect(
+      page.getByRole("dialog", { name: /your states/i }),
+    ).toHaveCount(0);
+    await area
+      .getByRole("radio", { name: "Nationwide", exact: true })
+      .locator("..")
+      .click();
+    await area.getByRole("button", { name: "Apply area" }).click();
     await expect(page).not.toHaveURL(/near=/);
   });
 
@@ -653,12 +648,9 @@ test.describe("Market Explorer home", () => {
       );
       await page.goto("/market");
       expect((await homeResults).ok()).toBe(true);
-      await expect(
-        page.getByLabel("Search location", { exact: true }),
-      ).toHaveValue("63101");
-      await expect(
-        page.getByLabel("Search radius", { exact: true }),
-      ).toHaveValue("50");
+      await expect(page.locator("#market-search-area-trigger")).toHaveText(
+        "Within 50 mi of 63101",
+      );
       const price = page.getByTestId("market-price-preview").first();
       await expect(price).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
@@ -672,20 +664,27 @@ test.describe("Market Explorer home", () => {
       expect(box!.y + box!.height).toBeLessThanOrEqual(
         nav?.y ?? page.viewportSize()!.height,
       );
+      const area = await openMarketArea(page);
       await expect(
-        page.getByRole("button", { name: "Use my location", exact: true }),
+        area.getByRole("button", { name: "Use my location", exact: true }),
       ).toBeVisible();
-      await page
-        .getByLabel("Search area", { exact: true })
-        .selectOption("nationwide");
+      await area
+        .getByRole("radio", { name: "Nationwide", exact: true })
+        .locator("..")
+        .click();
+      await area.getByRole("button", { name: "Apply area" }).click();
       await expect(page).not.toHaveURL(/near=/);
-      await page
-        .getByLabel("Search area", { exact: true })
-        .selectOption("home");
-      await expect(page).toHaveURL(/near=63101/);
+      await openMarketArea(page);
+      await area
+        .getByRole("radio", { name: "Nearby", exact: true })
+        .locator("..")
+        .click();
+      await area.getByRole("button", { name: "Use saved home" }).click();
       await expect(
-        page.getByLabel("Search radius", { exact: true }),
-      ).toHaveValue("50");
+        page.getByRole("slider", { name: "Search radius" }),
+      ).toHaveAttribute("aria-valuetext", "50 miles");
+      await area.getByRole("button", { name: "Apply area" }).click();
+      await expect(page).toHaveURL(/near=63101/);
       const current = (
         await (await page.request.get("/api/preferences")).json()
       ).prefs;

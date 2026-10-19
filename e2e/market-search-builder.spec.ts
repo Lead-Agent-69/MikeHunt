@@ -1,3 +1,4 @@
+import { openMarketArea, setMarketRadius } from "./support/market-area";
 import { expect, test } from "@playwright/test";
 import { storagePath } from "./support/accounts";
 import { localOnly } from "./support/target";
@@ -113,24 +114,18 @@ test.describe("Market search preview and radius", () => {
     expect(new URL(page.url()).searchParams.get("makes")).toBe("Ford");
 
     if (page.viewportSize()!.width < 1024) {
-      await page.getByRole("button", { name: /^Location & radius:/ }).click();
-      const slider = page.getByRole("slider", { name: "Adjust search radius" });
-      await expect(slider).toBeVisible();
-      await slider.focus();
-      await slider.press("Home");
-      await slider.press("ArrowRight");
-      await expect(slider).toHaveAttribute("aria-valuetext", "10 miles");
-      await expect(
-        page.getByRole("combobox", { name: "Search radius", exact: true }),
-      ).toHaveValue("10");
-      await page.getByRole("button", { name: "Search this area" }).click();
+      const area = await openMarketArea(page);
+      await setMarketRadius(page, 10);
+      await area.getByRole("button", { name: "Apply area" }).click();
       await expect
         .poll(() => new URL(page.url()).searchParams.get("radius"))
         .toBe("10");
-      await page.getByRole("button", { name: /^Location & radius:/ }).click();
-      await page
-        .getByRole("combobox", { name: "Search area", exact: true })
-        .selectOption("nationwide");
+      await openMarketArea(page);
+      await area
+        .getByRole("radio", { name: "Nationwide", exact: true })
+        .locator("..")
+        .click();
+      await area.getByRole("button", { name: "Apply area" }).click();
       await expect
         .poll(() => new URL(page.url()).searchParams.has("near"))
         .toBe(false);
