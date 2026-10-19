@@ -102,6 +102,18 @@ describe("flip scenario planner", () => {
       false,
     );
   });
+  it("still displays a reported payment when the cash price was cleared", async () => {
+    await render({
+      ...base,
+      askPrice: null,
+      priceEvidence: { kind: "monthly_payment", listedAmount: 399 },
+    });
+    expect(host.textContent).toContain("Monthly payment");
+    expect(host.textContent).toContain("$399");
+    expect(buttons().some((b) => b.textContent?.startsWith("Use "))).toBe(
+      false,
+    );
+  });
   it("calculates from entered costs, hides output after clearing one cost, and validates input", async () => {
     await render();
     for (const [field, value] of Object.entries(complete))

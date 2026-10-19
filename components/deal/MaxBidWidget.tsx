@@ -84,7 +84,7 @@ export function MaxBidWidget(props: MaxBidWidgetProps) {
   const price = sourcePriceContext({
     source: props.source,
     source_url: props.sourceUrl,
-    ask_price: props.askPrice,
+    ask_price: props.priceEvidence?.listedAmount ?? props.askPrice,
     buy_now_price: props.buyNowPrice,
     price_evidence: props.priceEvidence,
     last_seen_at: props.lastSeenAt,
