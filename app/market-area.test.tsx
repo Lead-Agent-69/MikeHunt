@@ -113,6 +113,9 @@ describe("single search area picker", () => {
     open();
     mode("states");
     expect(button("Apply area").disabled).toBe(true);
+    expect(
+      document.querySelector("#market-area-dialog footer")!.textContent,
+    ).toContain("Choose states");
     act(() => button("Cancel").click());
     open();
     expect(

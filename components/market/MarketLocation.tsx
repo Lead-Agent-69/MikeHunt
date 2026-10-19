@@ -451,7 +451,9 @@ export function MarketLocation({
             </div>
             <footer className="shrink-0 space-y-3 border-t border-[var(--b1)] px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <p aria-live="polite" className="text-sm font-semibold">
-                {searchAreaLabel(draft)}
+                {mode === "states" && !states.length
+                  ? "Choose states"
+                  : searchAreaLabel(draft)}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <Dialog.Close className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-bold">
