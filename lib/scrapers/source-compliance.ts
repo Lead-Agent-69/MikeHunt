@@ -25,6 +25,11 @@ export interface PolicyBlock {
 }
 
 export const SITE_POLICY_BLOCKS: Record<string, PolicyBlock> = {
+  "recar.com": {
+    kind: "tos_bans_copying",
+    reason:
+      "Terms permit content reuse only for personal, non-commercial vehicle shopping; inventory republication needs permission (reviewed 2026-10-19, /terms/).",
+  },
   "prosalvage.com": {
     kind: "tos_bans_bots",
     reason:

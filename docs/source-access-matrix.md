@@ -2,6 +2,24 @@
 
 _Last updated 2026-10-09 (CT). This covers every aggregator and source in `lib/scrapers/runner.ts` and `lib/scrapers/sources/`._
 
+## Verified rebuilder expansion (2026-10-19)
+
+Read-only live parser checks, not proof of publication or complete coverage:
+
+| Source                        | Repair                                                                                                                                                                                                                                                                | Observed inventory                                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| X2 Builders, Pontoon Beach IL | Registry now has state/city and the published `vehicles.asp?main=Repairables` entry. Shared parser reads ASP item IDs and span headings. Joins Missouri's surrounding-state collection ring; buyer eligibility still honors selected states/radius and other filters. | 146 priced rows with photos, 133 eligible vehicle types. Eight explicitly clean, 20 rebuilt, 118 unknown/pending across all parsed rows. |
+| Bill Smith Auto, IL           | Shared parser uses `en/view-all-inventory.cfm` and `used-...-v<ID>.html`, not parts inventory. No single city assumed for its multiple locations.                                                                                                                     | Nine priced unsold rows with photos; four sold rows excluded. Titles unstated on cards remain unknown.                                   |
+| Riverbend Rebuildables, MO    | Existing adapter verified rather than incorrectly treating zero accepted writes as empty inventory.                                                                                                                                                                   | Seven priced rows with photos: three salvage, one rebuilt, three clean; downstream vehicle-type filters still apply.                     |
+
+Run `npx tsx scripts/verify-rebuilder-sources.ts` for a bounded, read-only recheck. It imports no persistence pipeline or database client. Site policies, robots, pacing, challenge stops and public-URL guards still apply.
+
+Dealer categories no longer manufacture clean, salvage, rebuilt or running claims. Shared CMS cards and detail enrichment use the same title rules; pending rebuilt paperwork stays unknown, parts-only stays separate, and clean interiors are not clean titles. Existing historical rows are not mass-rewritten by this change.
+
+ReCar's current `/terms/` allows reuse only for personal, non-commercial vehicle shopping. Republication needs permission; retain its registry entry but gate collection accordingly. This is a permission lead, not new working coverage.
+
+At the check, the collector had used its effective daily allowance (400 inserts / 600 updates). Adapter recovery does not override that allowance, storage protection, or buyer scope. Read-only observations above must not be advertised as newly published listings or verified resale profit.
+
 House rules (from Jonah):
 
 - **Never remove or disable a source.** Fix it, or add a better path next to it.
@@ -79,62 +97,63 @@ KS, OK and TN rows come from auctions only. None of them has a dedicated rebuild
 Curated registry plus shared-parser sites per state, before and after the 4cdg / VehiclesNETWORK platform sweep (PR #249). Each new site was verified with one polite fetch: robots allowed, terms silent on automated access, and 3+ priced cars parsed by the shared dealer-CMS parser.
 
 Platform footprints:
+
 - **Creative Design Group / Smart Marketing (4cdg)**: "Website Designed by Creative Design Group", `vehiclesDetail.php?<id>`.
 - **VehiclesNETWORK**: "Powered by VehiclesNETWORK", `/autos/<year>-<make>-<model>-<city>-<st>-<id>`.
 
 Excluded by policy: Dealer Car Search sites, ProSalvage, Sam's Riverside (pre-existing entry kept, never removed), Copart/IAA brokers, and the 4cdg multi-dealer marketplaces.
 
 | State | Before | After |
-|---|---:|---:|
-| AL | 1 | 1 |
-| AK | 0 | 2 ⬆ |
-| AZ | 1 | 2 ⬆ |
-| AR | 3 | 3 |
-| CA | 3 | 6 ⬆ |
-| CO | 2 | 2 |
-| CT | 0 | 0 |
-| DE | 0 | 0 |
-| FL | 14 | 14 |
-| GA | 3 | 3 |
-| HI | 0 | 0 |
-| ID | 0 | 0 |
-| IL | 12 | 13 ⬆ |
-| IN | 3 | 3 |
-| IA | 15 | 15 |
-| KS | 0 | 1 ⬆ |
-| KY | 13 | 13 |
-| LA | 0 | 1 ⬆ |
-| ME | 0 | 0 |
-| MD | 0 | 0 |
-| MA | 0 | 0 |
-| MI | 3 | 3 |
-| MN | 5 | 6 ⬆ |
-| MS | 0 | 0 |
-| MO | 16 | 18 ⬆ |
-| MT | 1 | 2 ⬆ |
-| NE | 1 | 2 ⬆ |
-| NV | 1 | 1 |
-| NH | 2 | 2 |
-| NJ | 4 | 4 |
-| NM | 0 | 0 |
-| NY | 1 | 1 |
-| NC | 2 | 2 |
-| ND | 2 | 2 |
-| OH | 2 | 2 |
-| OK | 0 | 1 ⬆ |
-| OR | 1 | 1 |
-| PA | 5 | 5 |
-| RI | 0 | 0 |
-| SC | 0 | 0 |
-| SD | 2 | 2 |
-| TN | 0 | 0 |
-| TX | 2 | 6 ⬆ |
-| UT | 10 | 10 |
-| VT | 0 | 0 |
-| VA | 2 | 2 |
-| WA | 0 | 0 |
-| WV | 0 | 0 |
-| WI | 1 | 1 |
-| WY | 0 | 0 |
+| ----- | -----: | ----: |
+| AL    |      1 |     1 |
+| AK    |      0 |   2 ⬆ |
+| AZ    |      1 |   2 ⬆ |
+| AR    |      3 |     3 |
+| CA    |      3 |   6 ⬆ |
+| CO    |      2 |     2 |
+| CT    |      0 |     0 |
+| DE    |      0 |     0 |
+| FL    |     14 |    14 |
+| GA    |      3 |     3 |
+| HI    |      0 |     0 |
+| ID    |      0 |     0 |
+| IL    |     12 |  13 ⬆ |
+| IN    |      3 |     3 |
+| IA    |     15 |    15 |
+| KS    |      0 |   1 ⬆ |
+| KY    |     13 |    13 |
+| LA    |      0 |   1 ⬆ |
+| ME    |      0 |     0 |
+| MD    |      0 |     0 |
+| MA    |      0 |     0 |
+| MI    |      3 |     3 |
+| MN    |      5 |   6 ⬆ |
+| MS    |      0 |     0 |
+| MO    |     16 |  18 ⬆ |
+| MT    |      1 |   2 ⬆ |
+| NE    |      1 |   2 ⬆ |
+| NV    |      1 |     1 |
+| NH    |      2 |     2 |
+| NJ    |      4 |     4 |
+| NM    |      0 |     0 |
+| NY    |      1 |     1 |
+| NC    |      2 |     2 |
+| ND    |      2 |     2 |
+| OH    |      2 |     2 |
+| OK    |      0 |   1 ⬆ |
+| OR    |      1 |     1 |
+| PA    |      5 |     5 |
+| RI    |      0 |     0 |
+| SC    |      0 |     0 |
+| SD    |      2 |     2 |
+| TN    |      0 |     0 |
+| TX    |      2 |   6 ⬆ |
+| UT    |     10 |    10 |
+| VT    |      0 |     0 |
+| VA    |      2 |     2 |
+| WA    |      0 |     0 |
+| WV    |      0 |     0 |
+| WI    |      1 |     1 |
+| WY    |      0 |     0 |
 
 Still at 0: CT, DE, HI, ID, MD, ME, MA, MS, NM, RI, SC, TN, VT, WA, WV, WY. Candidates found there were JS-only inventories, BHPH sites without prices, Dealer Car Search sites, or unreachable. Government outlets for KS/OK/TN/AK/ID/ND are tracked separately (#231).
